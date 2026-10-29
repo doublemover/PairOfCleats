@@ -10,6 +10,7 @@ import { assertLanceDbPayload, resolveLanceDbPaths } from '../../shared/lancedb.
 import { addIssue } from './issues.js';
 import { validateSchema } from './schema.js';
 import { embeddingBindingMismatches } from '../../shared/embedding-generation.js';
+import { normalizeDenseVectors } from './normalize.js';
 
 const hasJsonVariant = (basePath) => (
   fs.existsSync(basePath)
@@ -31,7 +32,8 @@ export const validateEmbeddingArtifacts = ({
   chunkMeta,
   validateManifestCount,
   lanceConfig,
-  readJsonArtifact
+  readJsonArtifact,
+  resolvePresence = null
 }) => {
   const embeddings = readJsonArtifact('index_state')?.embeddings;
   const readMeta = (name, legacyPath) => strict || manifest?.pieces?.some(piece => piece.name === name)
@@ -41,6 +43,18 @@ export const validateEmbeddingArtifacts = ({
     if (mismatches.length) addIssue(report, mode, `${name} embedding identity mismatch (${mismatches.join(', ')})`,
       'Rebuild embeddings for this mode.', 'issues', { artifact: name, code: 'ERR_INDEX_EMBEDDING_IDENTITY' });
   };
+  for (const name of ['dense_vectors', 'dense_vectors_doc', 'dense_vectors_code']) {
+    if (resolvePresence?.(name)?.format !== 'json') continue;
+    const raw = readJsonArtifact(name);
+    if (!raw) continue;
+    const dense = normalizeDenseVectors(raw);
+    validateSchema(report, mode, name, dense, 'Rebuild embeddings for this mode.', { strictSchema: strict });
+    validateBinding(name, raw);
+    validateManifestCount(name, dense.vectors.length);
+    if (dense.vectors.length !== chunkMeta.length || dense.vectors.some(vector => vector.length !== dense.dims)) {
+      addIssue(report, mode, `${name} vector row/dimension mismatch`, 'Rebuild embeddings for this mode.');
+    }
+  }
   const denseTargets = [
     {
       label: 'dense_vectors',

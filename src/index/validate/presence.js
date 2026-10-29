@@ -17,6 +17,7 @@ export const createArtifactPresenceHelpers = ({
 }) => {
   const minJsonBytes = 64 * 1024;
   const resolveMaxBytes = (name) => {
+    if (name === 'index_state') return 8 * 1024 * 1024;
     if (name === 'index_state' || name === 'filelists') {
       return Math.max(MAX_JSON_BYTES, minJsonBytes);
     }

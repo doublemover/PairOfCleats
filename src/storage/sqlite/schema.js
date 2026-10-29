@@ -1,4 +1,4 @@
-export const SCHEMA_VERSION = 16;
+export const SCHEMA_VERSION = 17;
 
 // Hash family is mandatory for every stored signature; sampling is optional.
 export const CREATE_MINHASH_META_SQL = `
@@ -173,6 +173,7 @@ export const CREATE_TABLES_BASE_SQL = `
     mtimeMs INTEGER,
     size INTEGER,
     chunk_count INTEGER,
+    bundle_hash TEXT,
     PRIMARY KEY (mode, file)
   ) WITHOUT ROWID;
 `;

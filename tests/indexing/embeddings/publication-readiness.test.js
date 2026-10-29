@@ -15,7 +15,7 @@ const manifestPath = path.join(dir, 'pieces/manifest.json');
 await fs.mkdir(path.dirname(manifestPath), { recursive: true });
 const persisted = async () => JSON.parse(await fs.readFile(statePath, 'utf8'));
 try {
-  for (const fault of ['manifest', 'validation-throw', 'validation-invalid', 'receipt', null]) {
+  for (const fault of ['manifest', 'validation-throw', 'validation-invalid', 'receipt', 'artifact-publication', null]) {
     await fs.writeFile(manifestPath, JSON.stringify({ version: 2, artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
       pieces: [{ name: 'index_state', type: 'stats', format: 'json', path: 'index_state.json' }] }));
     let receipts = 0;
@@ -42,6 +42,11 @@ try {
         await assertPending();
         if (fault === 'receipt') throw new Error('receipt fault');
         receipts++;
+      },
+      qualifyArtifactPublication: async () => {
+        assert.equal((await persisted()).embeddings.ready, true, 'publication binding sees the final ready-state bytes');
+        assert.equal(receipts, 1);
+        if (fault === 'artifact-publication') throw new Error('artifact publication fault');
       }
     });
     if (fault && fault !== 'validation-invalid') await assert.rejects(run(), /fault/);

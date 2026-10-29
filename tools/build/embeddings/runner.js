@@ -119,6 +119,7 @@ import {
 import { writeHnswBackends, writeLanceDbBackends } from './backends.js';
 import { updatePieceManifest } from './manifest.js';
 import { publishEmbeddingGeneration, publishEmbeddingFailure, createDeferredVectorSpoolRetirement } from './publication.js';
+import { refreshArtifactPublication } from '../../../src/index/build/publication-state-refresh.js';
 import { publishBackendGeneration } from './backend-publication.js';
 import { buildEmbeddingGenerationAsync } from '../../../src/shared/embedding-generation.js';
 import { createFileEmbeddingsProcessor } from './pipeline.js';
@@ -3938,6 +3939,10 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts, onCleanup) {
           },
           updatedAt: now
         };
+        if (indexState.artifacts?.present) {
+          for (const name of ['dense_vectors', 'dense_vectors_doc', 'dense_vectors_code']) indexState.artifacts.present[name] = true;
+          indexState.artifacts.omitted = Object.keys(indexState.artifacts.present).filter(name => !indexState.artifacts.present[name]).sort();
+        }
         if (indexState.enrichment && indexState.enrichment.enabled) {
           indexState.enrichment = {
             ...indexState.enrichment,
@@ -3950,6 +3955,9 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts, onCleanup) {
         await modeVectorSpool.close();
         const validation = await publishEmbeddingGeneration({
           statePath, indexState, signal: config.signal,
+          qualifyArtifactPublication: () => refreshArtifactPublication({ buildRoot: modeIndexRoot, outDir: indexDir, mode,
+            producerPolicy: indexState.profile && indexState.artifacts
+              ? structuredClone({ profile: indexState.profile, artifacts: indexState.artifacts }) : null }),
           publishManifest: async () => {
             try {
               await scheduleIo(() => updatePieceManifest({ indexDir, mode, totalChunks, dims: finalDims,
@@ -3962,7 +3970,9 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts, onCleanup) {
           validate: () => {
             logExpectedArtifacts(mode, indexDir, 'pre-validate');
             return scheduleIo(() => validateIndexArtifacts({
-              root, indexRoot: modeIndexRoot, modes: [mode], userConfig, sqliteEnabled: false
+              root, indexRoot: modeIndexRoot, modes: [mode], userConfig, sqliteEnabled: false,
+              producerPoliciesByMode: indexState.profile && indexState.artifacts
+                ? { [mode]: structuredClone({ profile: indexState.profile, artifacts: indexState.artifacts }) } : undefined
             }));
           },
           commitReceipt: async () => {

@@ -6,6 +6,7 @@
 - Schema versioning uses `PRAGMA user_version` and must match `SCHEMA_VERSION`.
 - On schema mismatch, SQLite readers fail closed and prompt a rebuild.
 - Schema 16 requires `minhash_meta.hash_identity` for every mode with signatures; `sampling` is nullable for full-width rows. Readers and incremental updates reject unidentified or superseded hashes, including unchanged warm updates. A full rebuild recreates the signatures and identity together.
+- Schema 17 adds `file_manifest.bundle_hash`: a versioned SHA256 identity of the complete ordered immutable bundle inventory, format and dependency signatures. Source hash/stat equality alone cannot reuse finalized risk, docmeta or inferred types. Missing identities require refresh; unchanged identities remain no-ops. SQLite schema 16 and earlier require rebuild through the existing schema/version gate; no in-place migration or author-cache rewrite is performed.
 - `chunks.metaV2_json` stores the canonical `metaV2` object for parity with JSONL. Retrieval must parse it and fail closed if missing/invalid.
 - Compatibility keys include the SQLite schema version; schema bumps are treated as hard breaks requiring rebuilds.
 

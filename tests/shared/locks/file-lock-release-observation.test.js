@@ -45,10 +45,11 @@ try {
     assert.equal(failure.causeCode, 'ENATIVE'); assert.equal(codes, 1); assert.equal(removals, 1);
     assert.equal(failure.cacheOwnershipReleased(), false); assert.equal((await fs.lstat(file)).isFile(), true);
     assert.throws(() => { failure.cacheOwnershipReleased = () => true; }, TypeError);
-    ready = true; assert.equal(failure.cacheOwnershipReleased(), true,
-      'this observation confirms only independent native work, not metadata removal');
+    ready = true; assert.equal(failure.cacheOwnershipReleased(), false,
+      'independent native work cannot confirm the retained metadata owner was released');
     assert.equal((await fs.lstat(file)).isFile(), true);
     deny = false; assert.equal(await releaseFileLockOrThrow(owner), true); assert.equal(removals, 2);
+    assert.equal(failure.cacheOwnershipReleased(), true);
     fs.rm = remove;
   }
 

@@ -23,6 +23,7 @@ import {
 } from '../../../index/build/build-state.js';
 import { promoteBuild } from '../../../index/build/promotion.js';
 import { validateIndexArtifacts } from '../../../index/validate.js';
+import { assertArtifactPublicationReady, readArtifactPublicationRecord } from '../../../index/build/artifact-publication.js';
 import { logError as defaultLogError, logLine, showProgress } from '../../../shared/progress-runtime.js';
 import { coerceAbortSignal, isAbortError, throwIfAborted } from '../../../shared/abort.js';
 import { getEnvConfig } from '../../../shared/env/runtime.js';
@@ -184,9 +185,12 @@ export const runEmbeddingsStage = async ({
   const started = process.hrtime.bigint();
   const fileProgressPattern = /^\[embeddings\]\s+([^:]+):\s+processed\s+(\d+)\/(\d+)\s+files\b/;
   const modeGenerations = [];
+  const producerPoliciesByMode = {};
   const recordOk = (result) => {
     recordIndexMetric('stage3', 'ok', started);
-    return { ...result, modeGenerations };
+    const outcome = { ...result, modeGenerations };
+    Object.defineProperty(outcome, 'producerPoliciesByMode', { value: structuredClone(producerPoliciesByMode) });
+    return outcome;
   };
   try {
     throwIfAborted(effectiveAbortSignal);
@@ -370,6 +374,16 @@ export const runEmbeddingsStage = async ({
         });
         if (embedResult?.cancelled) return embedResult;
         for (const modeName of progressModes) {
+          if (indexRootArg) {
+            let publication;
+            try { publication = await readArtifactPublicationRecord(indexRootArg, modeName); }
+            catch (error) { if (error.code !== 'ENOENT') throw error; }
+            const policy = publication?.publicationValidation?.producerPolicy;
+            if (policy) {
+              await assertArtifactPublicationReady({ buildRoot: indexRootArg, modes: [modeName] });
+              producerPoliciesByMode[modeName] = structuredClone(policy);
+            }
+          }
           advanceEmbeddingsProgress(modeName);
         }
         return embedResult;
@@ -1093,6 +1107,7 @@ export const runStage = async (
           indexRoot: runtime.buildRoot,
           modes,
           userConfig: runtime.userConfig,
+          producerPoliciesByMode: runtime.validationPoliciesByMode,
           sqliteEnabled: sqliteEnabledForValidation,
           validateOrdering: stageArgv['validate-ordering'] === true,
           abortSignal: effectiveAbortSignal

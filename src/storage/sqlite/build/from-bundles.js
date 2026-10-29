@@ -881,7 +881,8 @@ async function buildDatabaseFromBundlesOwned({
           manifestRow.hash,
           manifestRow.mtimeMs,
           manifestRow.size,
-          manifestRow.chunk_count
+          manifestRow.chunk_count,
+          manifestRow.bundle_hash
         );
       }
     });

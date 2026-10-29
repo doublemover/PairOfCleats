@@ -7,7 +7,7 @@ import { buildEmbeddingIdentity } from '../../src/shared/embedding-identity.js';
 
 /** Named closed-writer fixture: production publication/manifest paths, synthetic
  * physical table bytes. It does not claim native database decoding. */
-export const publishStageDirectoryFixture = async ({ outDir, count = 1, dims = 2 }) => {
+export const publishStageDirectoryFixture = async ({ outDir, count = 1, dims = 2, embeddingIdentity: requestedEmbeddingIdentity = null }) => {
   const stageDir = await fs.mkdtemp(path.join(outDir, '.fixture-backend-'));
   const dir = path.join(stageDir, 'dense_vectors.lancedb'), metadataPath = dir + '.meta.json';
   await fs.mkdir(path.join(dir, 'vectors.lance', '_versions'), { recursive: true });
@@ -15,8 +15,8 @@ export const publishStageDirectoryFixture = async ({ outDir, count = 1, dims = 2
   await fs.writeFile(path.join(dir, 'vectors.lance', '_versions', '1.manifest'), 'closed-writer-version');
   await fs.writeFile(path.join(dir, 'vectors.lance', 'data', '1.lance'), 'closed-writer-data');
   const payload = await inventoryBackendPayload({ dir });
-  const embeddingIdentity = buildEmbeddingIdentity({ stub: true, provider: 'stub', modelId: 'fixture', dims });
-  await fs.writeFile(metadataPath, JSON.stringify({ version: 1, model: 'fixture', dims, count, expectedCount: count,
+  const embeddingIdentity = requestedEmbeddingIdentity || buildEmbeddingIdentity({ stub: true, provider: 'stub', modelId: 'fixture', dims });
+  await fs.writeFile(metadataPath, JSON.stringify({ version: 1, model: embeddingIdentity.modelId || 'fixture', dims, count, expectedCount: count,
     table: 'vectors', rowCount: count, metric: 'cosine', embeddingColumn: 'vector', idColumn: 'id', quantizationVersion: 1, extensions: { nativePayloadInventory: payload } }));
   const published = await publishBackendGeneration({ stageDir, indexDir: outDir, embeddingIdentity,
     embeddingGeneration: 'a'.repeat(64), enabled: { hnsw: false, lancedb: true },

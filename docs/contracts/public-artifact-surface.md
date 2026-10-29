@@ -33,6 +33,28 @@ as part of publication. Publication records require explicit successful
 validation evidence and matching mode/build-root authority, family membership
 and committed piece identity. Missing evidence and unknown statuses fail closed.
 
+Generation validation records a versioned SHA256 binding of the complete canonical
+manifest and independently streamed contained piece bytes, plus the exact committed
+inventory. The publication writer and promotion readiness recheck that binding;
+same-size edits, replaced inventories, missing pieces and stale same-root reports
+require fresh qualification. No all-generation sealed owner is currently available
+at these boundaries, so a manifest digest does not waive independent content checks.
+The shared index-state owner requalifies a previously valid publication around its
+controlled state/manifest updates. Stage3 explicitly requalifies after successful
+producer validation and its final ready-state write. Failure leaves publication
+unready; mixed-mode roots retain separate bindings.
+
+`index_state.profile` and `index_state.artifacts` are bounded schema-checked
+generation policy. Presence claims, omissions and required families must agree
+with the selected manifest and canonical profile requirements. Legacy absent
+profile metadata uses `default`; explicit unknown/conflicting profiles fail.
+Stats and shared validation derive sparse/field/phrase/chargram requirements from
+this admitted policy, validate declared optional families and report current-config
+drift separately as compatibility/rebuild-needed. Same-run validation additionally
+compares the captured producer plan. New producers explicitly declare both
+`field_postings` and `field_tokens`; older envelopes derive their paired requirement
+from declared field artifacts.
+
 ## Required public artifacts
 
 These artifacts define the public surface and must be present when referenced:

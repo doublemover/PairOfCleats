@@ -38,6 +38,7 @@ Columns:
 - mode, file
 - hash, mtimeMs, size
 - chunk_count
+- bundle_hash (SHA256 of versioned immutable shard/dependency identity; nullable when artifact-only ingestion has no qualified bundle authority)
 
 ## Sparse indexes
 
@@ -114,4 +115,4 @@ SQLite vector extension).
 - When `chunk_meta.json` stores `fileId` instead of `file`, the stage 4 SQLite build uses `file_meta.json` to resolve file paths, extensions, and external docs, and to populate `file_manifest`.
 - When incremental bundles are present (manifest exists), SQLite rebuilds stream bundle files from `<cache>/repos/<repoId>/incremental/<mode>/files` instead of loading `chunk_meta.json`.
 - `chunks_fts` is contentless (`content=''`) so FTS does not store a second copy of chunk text; deletes are supported via `contentless_delete=1`.
-- Schema versioning uses `PRAGMA user_version` and must match `SCHEMA_VERSION` (currently 12); mismatches require a full rebuild.
+- Schema versioning uses `PRAGMA user_version` and must match `SCHEMA_VERSION` (currently 17); mismatches require a full rebuild. Schema 17 persists finalized bundle identity independently of the source hash so enrichment-only changes update SQLite metadata. Unknown bundle identity cannot authorize an incremental no-op.

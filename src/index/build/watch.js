@@ -684,6 +684,7 @@ export async function watchIndex({
           indexRoot: attemptRuntime.buildRoot,
           modes,
           userConfig: attemptRuntime.userConfig,
+          producerPoliciesByMode: attemptRuntime.validationPoliciesByMode,
           sqliteEnabled: false,
           abortSignal: activeBuildAbort.signal
         });

@@ -12,7 +12,7 @@ const retainPublicationPrerequisites = (primary, observations) => observations.r
  * A subsequent Stage3 run can rebuild a generation left pending at any boundary.
  */
 export const publishEmbeddingGeneration = async ({
-  statePath, indexState, publishManifest, validate, commitReceipt, signal = null
+  statePath, indexState, publishManifest, validate, commitReceipt, qualifyArtifactPublication = null, signal = null
 }) => {
   throwIfAborted(signal);
   indexState.embeddings = { ...indexState.embeddings, ready: false, pending: true };
@@ -48,6 +48,20 @@ export const publishEmbeddingGeneration = async ({
   if (!published.ok) return validation;
   indexState.embeddings = { ...indexState.embeddings, ready: true, pending: false };
   await writeIndexState(statePath, indexState, { signal });
+  if (qualifyArtifactPublication) {
+    try {
+      await withIndexStatePublicationLock(path.dirname(statePath), async () => {
+        assertIndexStatePublicationSource(statePath, indexState);
+        const result = await qualifyArtifactPublication();
+        observeStorageResource(result, { phase: 'stage3-artifact-publication' }).requireSettled();
+      }, { signal });
+    } catch (error) {
+      indexState.embeddings = { ...indexState.embeddings, ready: false, pending: true };
+      try { await writeIndexState(statePath, indexState); }
+      catch (cleanup) { throw addStorageFailureContext(error, {}, cleanup, { secondaryPresent: true }); }
+      throw error;
+    }
+  }
   return validation;
 };
 

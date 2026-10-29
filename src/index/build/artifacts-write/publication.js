@@ -194,7 +194,9 @@ export const runArtifactPublicationFinalizers = async ({
       buildId: indexState?.buildId || null,
       pieceEntries,
       manifestPath: publicationManifestPath,
-      familyDeclarations
+      familyDeclarations,
+      producerPolicy: indexState.profile && indexState.artifacts
+        ? structuredClone({ profile: indexState.profile, artifacts: indexState.artifacts }) : null
     });
     assertPublicationValidationSucceeded(publicationValidation);
   });
@@ -262,7 +264,9 @@ export const runArtifactPublicationFinalizers = async ({
       buildId: indexState?.buildId || null,
       pieceEntries,
       manifestPath: publicationManifestPath,
-      familyDeclarations
+      familyDeclarations,
+      producerPolicy: indexState.profile && indexState.artifacts
+        ? structuredClone({ profile: indexState.profile, artifacts: indexState.artifacts }) : null
     });
     assertPublicationValidationSucceeded(finalPublicationValidation);
     if (mode === 'code') {

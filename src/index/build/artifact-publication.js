@@ -8,6 +8,9 @@ import { ARTIFACT_SURFACE_VERSION } from '../../contracts/versioning.js';
 import { observeStorageResource } from '../../shared/storage/failure-observation.js';
 import { addStorageFailureContext } from '../../shared/storage/operation-error.js';
 import { assertNoSymlinkPath } from '../../shared/contained-file.js';
+import { observePublicationIntegrity, assertPublicationIntegrity, publicationInventoryDigest } from './publication-integrity.js';
+import { stableStringify } from '../../shared/stable-json.js';
+import { readVerifiedContainedFile } from '../../shared/contained-file.js';
 
 export const ARTIFACT_PUBLICATION_SCHEMA_VERSION = 1;
 export const ARTIFACT_PUBLICATION_FAMILY_CONTRACTS_VERSION = 1;
@@ -131,7 +134,8 @@ export const validateArtifactPublicationGeneration = async ({
   buildId = null,
   pieceEntries = [],
   manifestPath = null,
-  familyDeclarations = []
+  familyDeclarations = [],
+  producerPolicy = null
 } = {}) => {
   if (!buildRoot || !outDir || !mode) {
     throw new Error('validateArtifactPublicationGeneration requires buildRoot, outDir, and mode.');
@@ -231,6 +235,16 @@ export const validateArtifactPublicationGeneration = async ({
     };
   });
   const failedFamilies = families.filter((family) => !family.ok);
+  if (producerPolicy) {
+    const stateRead = await readVerifiedContainedFile(outDir, resolveArtifactPath(outDir, 'index_state.json'), { maxBytes: 8 * 1024 * 1024 });
+    const state = JSON.parse(stateRead.buffer.toString('utf8'));
+    if (stableStringify({ profile: state.profile, artifacts: state.artifacts }) !== stableStringify(producerPolicy)) {
+      identityErrors.push({ source: 'producer-policy', message: 'captured producer plan differs from persisted policy' });
+    }
+  }
+  const integrityBinding = identityErrors.length || missingCommittedPaths.length || missingManifestEntries.length
+    || extraManifestEntries.length || failedFamilies.length ? null
+    : await observePublicationIntegrity({ outDir, manifestPath: resolvedManifestPath });
   return {
     schemaVersion: 1,
     familyContractsVersion: ARTIFACT_PUBLICATION_FAMILY_CONTRACTS_VERSION,
@@ -241,6 +255,9 @@ export const validateArtifactPublicationGeneration = async ({
     indexDir: path.resolve(outDir),
     manifestPath: path.resolve(resolvedManifestPath),
     validatedAt: new Date().toISOString(),
+    integrityBinding,
+    committedInventoryHash: publicationInventoryDigest(committedPieceEntries),
+    producerPolicy: producerPolicy ? structuredClone(producerPolicy) : null,
     ok: (
       identityErrors.length === 0
       && missingCommittedPaths.length === 0
@@ -306,6 +323,12 @@ export const writeArtifactPublicationRecord = async ({
     || path.resolve(validationPayload.manifestPath || '.') !== resolvedManifestPath
     || validationPayload.generationId !== resolveGenerationId({ buildId, buildRoot, mode })
   )) throw new Error('[artifact-publication] generation validation belongs to another publication authority.');
+  if (normalizedStatus === ARTIFACT_PUBLICATION_STATUSES.PUBLISHED) {
+    if (validationPayload.committedInventoryHash !== publicationInventoryDigest(committedPieceEntries)) {
+      throw new Error('[artifact-publication] committed inventory differs from generation validation.');
+    }
+    await assertPublicationIntegrity({ outDir, manifestPath: resolvedManifestPath, binding: validationPayload.integrityBinding });
+  }
   const requiredPaths = resolveCommittedArtifactPaths({
     buildRoot,
     outDir,
@@ -339,6 +362,8 @@ export const writeArtifactPublicationRecord = async ({
     publicationValidation: publicationValidation
       ? {
         ok: validationPayload?.ok === true,
+        integrityBinding: validationPayload?.integrityBinding || null,
+        producerPolicy: validationPayload?.producerPolicy || null,
         validationPath: publicationValidation.validationPath || null,
         familyContractsVersion: Number(
           validationPayload?.familyContractsVersion
@@ -427,7 +452,8 @@ export const assertArtifactPublicationReady = async ({
     const containedManifest = assertArtifactFilePath(expectedIndexDir, payload.manifestPath);
     const manifest = JSON.parse(await fs.readFile(containedManifest, 'utf8'));
     if (manifest.mode !== mode || (payload.buildId != null && manifest.buildId !== payload.buildId)
-      || manifest.artifactSurfaceVersion !== payload.artifactSurfaceVersion) {
+      || manifest.artifactSurfaceVersion !== payload.artifactSurfaceVersion
+      || !Array.isArray(manifest.pieces) || payload.pieceCount !== manifest.pieces.length) {
       throw new Error(`[artifact-publication] ${mode} manifest identity differs from publication authority.`);
     }
     if (payload?.publicationValidation?.ok !== true) {
@@ -435,6 +461,8 @@ export const assertArtifactPublicationReady = async ({
         `[artifact-publication] ${mode} publication validation failed in ${publicationPath}.`
       );
     }
+    await assertPublicationIntegrity({ outDir: expectedIndexDir, manifestPath: containedManifest,
+      binding: payload.publicationValidation.integrityBinding });
     if (payload?.identityReconciliation && payload.identityReconciliation.ok === false) {
       throw new Error(
         `[artifact-publication] ${mode} identity reconciliation failed in ${publicationPath}.`

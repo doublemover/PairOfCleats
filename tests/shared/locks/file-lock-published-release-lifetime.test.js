@@ -51,10 +51,11 @@ try {
     assert.equal(await removeLockFileIfOwned(file, lock.payload, { force: true }), false);
     assert.equal(removeLockFileSyncIfOwned(file, lock.payload, { force: true }), false);
     ready = true;
-    assert.equal(failure.cacheOwnershipReleased(), true, 'independent native work is distinct from retained metadata');
+    assert.equal(failure.cacheOwnershipReleased(), false, 'retained metadata remains owned after independent native work settles');
     assert.equal(session.isSettled(), false);
     assert.equal(await lock.release(), true); assert.equal(await lock.release(), false);
     assert.equal(session.isSettled(), true); assert.equal(removals, 2); assert.equal(messages, 1);
+    assert.equal(failure.cacheOwnershipReleased(), true);
     assert.equal(isFileLockPublicationPending(file), false);
     fs.rm = remove; fs.lstat = lstat; fs.readFile = readFile;
   }

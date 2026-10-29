@@ -117,6 +117,7 @@ export const writeIndexArtifactsForMode = async ({
     embeddingsEnabled: hasEmittedDenseVectors(postings),
     postingsConfig: runtime.postingsConfig
   });
+  (runtime.validationPoliciesByMode ||= {})[mode] = structuredClone({ profile, artifacts });
   if (mode === 'code') {
     try {
       const result = computeInterproceduralRisk({

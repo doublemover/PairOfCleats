@@ -422,18 +422,23 @@ export const createGraphStore = ({
    * @param {string} name
    * @returns {boolean}
    */
-  const hasArtifact = (name) => {
-    const presence = resolvePresence(name);
-    if (presence?.error) {
-      if (presence.error.code === 'ERR_MANIFEST_MISSING') return false;
-      throw presence.error;
-    }
+  const getArtifactPresence = (name) => {
+    let presence;
+    try { presence = resolvePresence(name); }
+    catch (error) { return { state: 'invalid', error }; }
+    if (presence?.error) return { state: 'invalid', error: presence.error };
     if (presence?.missingMeta || presence?.missingPaths?.length) {
-      throw Object.assign(new Error(`Declared graph artifact ${name} is incomplete: ${presence.missingPaths.join(', ') || presence.metaPath}`), {
+      const error = Object.assign(new Error(`Declared graph artifact ${name} is incomplete: ${(presence.missingPaths || []).join(', ') || presence.metaPath}`), {
         code: 'ERR_ARTIFACT_MISSING'
       });
+      return { state: 'invalid', error };
     }
-    return presence && presence.format !== 'missing' && !presence.error;
+    return { state: presence && presence.format !== 'missing' ? 'ready' : 'absent', presence };
+  };
+  const hasArtifact = (name) => {
+    const result = getArtifactPresence(name);
+    if (result.state === 'invalid') throw result.error;
+    return result.state === 'ready';
   };
 
   /**
@@ -679,6 +684,7 @@ export const createGraphStore = ({
     strict,
     resolvePresence,
     hasArtifact,
+    getArtifactPresence,
     loadGraph,
     loadSymbolEdges,
     loadCallSites,

@@ -6,6 +6,7 @@ import { assertNoSymlinkPath, readVerifiedContainedFile, getContainedFileSession
 import { isPathWithinRoot } from '../file-paths.js';
 import { acquireFileLock, releaseFileLockOrThrow } from '../locks/file-lock.js';
 import { createLockPayload } from '../locks/file-lock-info.js';
+import { getFileLockReleaseFailureObservation } from '../locks/file-lock-producer-observations.js';
 import { atomicWriteJson } from '../io/atomic-write.js';
 import { inspectStorageFreeSpace } from './destination.js';
 import { inspectStorageInventory } from './inventory.js';
@@ -161,6 +162,7 @@ export const acquireStorageWriteReservation = async ({ root, resourceId, coordin
     let releasing = null;
     let settlementLock = null;
     const settlementErrors = [], settlementSeen = new WeakMap(), settlementFailures = new WeakSet();
+    const settlementPrerequisites = new WeakMap();
     let settlementOverflow = false;
     const rememberSettlement = value => {
       const objectLike = value !== null && ['object', 'function'].includes(typeof value);
@@ -171,10 +173,17 @@ export const acquireStorageWriteReservation = async ({ root, resourceId, coordin
         return settlementErrors[0];
       }
       const retained = observeStorageResource(value, { phase: 'storage-write-settlement' }).retain();
+      // The exact coordinator owner may retry metadata release once its own
+      // captured prerequisites settle. Its outward failure still includes the
+      // metadata session, which cannot be an internal prerequisite to itself.
+      const independent = getFileLockReleaseFailureObservation(value, settlementLock);
+      if (independent) settlementPrerequisites.set(retained, independent);
       settlementErrors.push(retained); if (objectLike) settlementSeen.set(value, retained);
       return retained;
     };
     const settlementResourcesSettled = () => !settlementOverflow && settlementErrors.every(error => {
+      const independent = settlementPrerequisites.get(error);
+      if (independent) return independent() === true;
       const observe = Object.getOwnPropertyDescriptor(error, 'cacheOwnershipReleased').value;
       return observe.call(error) === true;
     });

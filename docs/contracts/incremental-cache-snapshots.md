@@ -41,6 +41,13 @@ Bundle source keys normalize separators and dot aliases to safe repository
 relative POSIX keys. Absolute paths, root escapes and NUL bytes are rejected.
 Explicit chunk IDs and chunk/shard order remain unchanged.
 
+SQLite incremental reuse additionally binds the full finalized immutable shard
+inventory and dependencies through schema-17 `file_manifest.bundle_hash`.
+Risk-only, docmeta-only and neighbor-driven inferred-type changes replace affected
+snapshots and rows while source/hash/stat identity stays fixed. Unchanged finalized
+snapshots do not require reserialization or row updates. Schema mismatch or unknown
+finalized authority requires rebuild/refresh rather than a source-only no-op.
+
 Incremental manifest schema 6 stores repeated dependencies once in a normalized
 table. Both build and SQLite/embedding consumers use the same codec. Previous
 persisted layouts reject explicitly and require a source rebuild; there is no

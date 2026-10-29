@@ -44,7 +44,7 @@ const errorCode = { code: 'ERR_INDEX_FORMAT_UNSUPPORTED' };
 let db;
 try {
   assert.equal(ARTIFACT_SURFACE_VERSION, '0.1.0');
-  assert.equal(SCHEMA_VERSION, 16);
+  assert.equal(SCHEMA_VERSION, 17, 'finalized bundle reuse identity requires the schema17 cutover');
   for (const foundVersion of ['0.0.2', '0.1.1', '1.0.0', null, undefined]) {
     const dir = path.join(root, 'case-' + String(foundVersion));
     await fs.mkdir(path.join(dir, 'pieces'), { recursive: true });

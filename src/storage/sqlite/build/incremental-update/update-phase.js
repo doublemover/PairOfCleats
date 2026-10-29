@@ -18,6 +18,7 @@ import { applyCachedSemanticPlan } from '../../semantic/from-cache.js';
 import { throwIfAborted } from '../../../../shared/abort.js';
 import { sealSqliteFilterFacts } from '../../filter-facts.js';
 import { setImmediate } from 'node:timers/promises';
+import { sqliteBundleIdentity } from '../../bundle-identity.js';
 
 /**
  * Sentinel error used to convert transactional guard failures into
@@ -222,6 +223,7 @@ export const runIncrementalUpdatePhase = async ({
         entry?.hash || null,
         Number.isFinite(entry?.mtimeMs) ? entry.mtimeMs : null,
         Number.isFinite(entry?.size) ? entry.size : null,
+        sqliteBundleIdentity(entry),
         mode,
         normalizedFile
       );
@@ -428,7 +430,8 @@ export const runIncrementalUpdatePhase = async ({
         manifestEntry?.hash || null,
         Number.isFinite(manifestEntry?.mtimeMs) ? manifestEntry.mtimeMs : null,
         Number.isFinite(manifestEntry?.size) ? manifestEntry.size : null,
-        chunkCount
+        chunkCount,
+        sqliteBundleIdentity(manifestEntry)
       );
       tableRows.file_manifest += 1;
     }

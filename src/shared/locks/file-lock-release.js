@@ -65,7 +65,11 @@ const createLockReleaseFailureError = ({
   Object.assign(failure, { message, lockPath, causeCode });
   const independent = Object.getOwnPropertyDescriptor(failure, 'cacheOwnershipReleased')?.value;
   if (published) {
-    failure = addStorageFailureContext(failure, published, null, {
+    const session = published.fileLockPublicationSession, isSettled = session.isSettled;
+    const resourcesSettled = published.cacheOwnershipReleased;
+    failure = addStorageFailureContext(failure, { ...published,
+      cacheOwnershipReleased: () => isSettled.call(session) === true && resourcesSettled.call(published) === true
+    }, null, {
       nonEnumerable: ['fileLockPublicationSession', 'containedFileSession', 'containedFileSessions'] });
     restoreCause();
     // Return newly observed worker/inspection prerequisites to the same owner

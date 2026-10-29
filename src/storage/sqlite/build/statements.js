@@ -76,7 +76,7 @@ export const createInsertStatements = (db, options = {}) => {
     `${insertClause} INTO dense_meta (mode, dims, scale, model, min_val, max_val, levels) VALUES (?, ?, ?, ?, ?, ?, ?)`
   );
   const insertFileManifest = db.prepare(
-    `${insertClause} INTO file_manifest (mode, file, hash, mtimeMs, size, chunk_count) VALUES (?, ?, ?, ?, ?, ?)`
+    `${insertClause} INTO file_manifest (mode, file, hash, mtimeMs, size, chunk_count, bundle_hash) VALUES (?, ?, ?, ?, ?, ?, ?)`
   );
 
   return {

@@ -146,6 +146,8 @@ export const readFileLockFailureCode = error => {
   observation.requireSettled(); return code;
 };
 export const captureFileLockIdentity = stat => {
+  if (stat.isFile() && stat.nlink === 0n) throw Object.assign(
+    new Error('Lock metadata was unlinked during descriptor observation.'), { code: 'ERR_FILE_CHANGED' });
   if (!stat.isFile() || stat.ino === 0n || stat.nlink !== 1n) throw Object.assign(
     new Error('Lock metadata requires an exact ordinary single-link identity.'), { code: 'ERR_FILE_LOCK_METADATA_IDENTITY' });
   return Object.freeze({ dev: String(stat.dev), ino: String(stat.ino), mode: String(stat.mode), nlink: String(stat.nlink), size: String(stat.size),

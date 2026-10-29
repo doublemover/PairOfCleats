@@ -10,9 +10,10 @@ import { withGeneratedArtifactMetadata } from './generated-artifact-core.js';
 import { updateIndexStateManifest } from './index-state-utils.js';
 import { observeStorageResource } from './storage/failure-observation.js';
 import { addStorageFailureContext } from './storage/operation-error.js';
-import { throwIfAborted } from './abort.js';
+import { throwIfAborted, raceAbort } from './abort.js';
 
 const object = value => value !== null && typeof value === 'object' && !Array.isArray(value);
+const pendingPublications = new Map();
 const invalid = () => Object.assign(new Error('Index-state publication requires a valid state object and namespace.'), {
   code: 'ERR_INDEX_STATE_INVALID'
 });
@@ -37,6 +38,28 @@ export const withIndexStatePublicationLock = async (indexDir, action, { signal =
   if (typeof indexDir !== 'string' || !indexDir || typeof action !== 'function') throw new TypeError('Index-state publication requires its directory and action.');
   throwIfAborted(signal);
   const root = path.resolve(indexDir);
+  const key = process.platform === 'win32' ? root.toLowerCase() : root;
+  const previous = pendingPublications.get(key) || Promise.resolve();
+  let release;
+  const slot = new Promise(resolve => { release = resolve; });
+  const tail = previous.then(() => slot);
+  pendingPublications.set(key, tail);
+  try {
+    // Cooperating writers in this process serialize before contending for the
+    // same physical owner. Cancellation releases only this queued slot; the
+    // existing five-second cross-process lock admission remains unchanged.
+    await raceAbort(signal, previous);
+    return await runIndexStatePublicationLock(root, action, { signal });
+  } finally {
+    void previous.then(() => {
+      release();
+      if (pendingPublications.get(key) === tail) pendingPublications.delete(key);
+    });
+  }
+};
+
+const runIndexStatePublicationLock = async (root, action, { signal }) => {
+  throwIfAborted(signal);
   const lockPath = path.join(root, '.index_state.write.lock');
   assertNoSymlinkPath(root, lockPath, { allowMissing: true });
   let result, primary, failed = false, entered = false;
@@ -62,7 +85,7 @@ export const withIndexStatePublicationLock = async (indexDir, action, { signal =
 
 /** Serialize the actual read/mutation/state/manifest interval. Individual files
  * remain atomic; the pair is not a crash-atomic transaction. */
-export const publishIndexStateMutation = async (indexDir, mutate, { signal = null } = {}) => {
+export const publishIndexStateMutation = async (indexDir, mutate, { signal = null, refreshPublication = true } = {}) => {
   if (typeof mutate !== 'function') throw new TypeError('Index-state publication requires a mutation.');
   const result = await withIndexStatePublicationLock(indexDir, async root => {
     const prerequisites = [];
@@ -75,6 +98,8 @@ export const publishIndexStateMutation = async (indexDir, mutate, { signal = nul
     const requireOriginals = () => { for (const prerequisite of prerequisites) prerequisite.requireSettled(); };
     const statePath = path.join(root, 'index_state.json');
     const state = readIndexStateForPublication(statePath, { signal });
+    const publication = refreshPublication ? await import('../index/build/publication-state-refresh.js') : null;
+    const refresh = publication ? await publication.capturePublishedStateRefresh(root, state.mode) : null;
     const value = await mutate(state);
     capture(value, 'index-state-publication-mutation');
     const next = value === undefined ? state : value;
@@ -87,6 +112,7 @@ export const publishIndexStateMutation = async (indexDir, mutate, { signal = nul
     // Complete an already started state/manifest pair even if cancellation was
     // requested during the state write; the caller still observes cancellation.
     await updateIndexStateManifest(root);
+    if (refresh) await publication.refreshArtifactPublication(refresh);
     throwIfAborted(signal);
     requireOriginals();
     return { state: prepared, ...(prerequisites.length ? { cacheOwnershipPending: true,

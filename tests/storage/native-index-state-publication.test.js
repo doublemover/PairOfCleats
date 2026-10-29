@@ -6,6 +6,7 @@ import { checksumFile } from '../../src/shared/hash.js';
 import { applyTestEnv } from '../helpers/test-env.js';
 import { errorGraphIncludes, errorGraphSome } from '../helpers/error-graph.js';
 import { ARTIFACT_SURFACE_VERSION } from '../../src/contracts/versioning.js';
+import { getContainedFileSession } from '../../src/shared/contained-file.js';
 
 // UNVALIDATED: actual state/manifest producers and real healthy writes. The
 // original writer boundary injects one frozen failure, without a database/model.
@@ -83,6 +84,12 @@ try {
         let publication;
         errorGraphSome(failure, error => { publication = error?.fileLockPublicationSession; return Boolean(publication); });
         assert.ok(publication); await publication.releaseAfterClose();
+      }
+      if (selected === 'manifest-checksum') {
+        let owner;
+        errorGraphSome(failure, error => { owner = getContainedFileSession(error); return Boolean(owner); });
+        assert.ok(owner, 'a pending descriptor-stat failure retains the exact checksum reader');
+        await owner.releaseAfterClose();
       }
       assert.equal(failure.cacheOwnershipReleased(), true);
     }

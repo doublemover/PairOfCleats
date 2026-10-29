@@ -7,6 +7,7 @@ import { assertSqliteMinhashReceiver } from '../minhash.js';
 import { throwIfAborted } from '../../../shared/abort.js';
 import { listOptionalFtsTables, normalizeFtsVariants } from '../fts-variants.js';
 import fsSync from 'node:fs';
+import { sqliteBundleIdentity } from '../bundle-identity.js';
 import { REQUIRED_TABLES } from '../schema.js';
 import {
   checkpointSqliteWithTelemetry,
@@ -325,7 +326,7 @@ async function incrementalUpdateDatabaseOwned({
     }
 
     const updateFileManifest = db.prepare(
-      'UPDATE file_manifest SET hash = ?, mtimeMs = ?, size = ? WHERE mode = ? AND file = ?'
+      'UPDATE file_manifest SET hash = ?, mtimeMs = ?, size = ?, bundle_hash = ? WHERE mode = ? AND file = ?'
     );
     if (!changed.length && !deleted.length && !semanticPlan) {
       const updateTx = db.transaction(() => {
@@ -338,6 +339,7 @@ async function incrementalUpdateDatabaseOwned({
             entry?.hash || null,
             Number.isFinite(entry?.mtimeMs) ? entry.mtimeMs : null,
             Number.isFinite(entry?.size) ? entry.size : null,
+            sqliteBundleIdentity(entry),
             mode,
             normalizedFile
           );

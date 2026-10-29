@@ -87,7 +87,7 @@ export const writeIndexState = async (statePath, state, { attemptId, claimAttemp
     if (current.extensions != null && !object(current.extensions)) throw conflict('extensions');
     current.extensions ||= {};
     merge(current.extensions, requested.extensions || {}, base.extensions, next.extensions, 'extensions.');
-  }, { signal });
+  }, { signal, refreshPublication: false });
   // Remember the submitted intent, not unrelated fresh namespaces. Do not
   // mutate the caller or discard changes it made while this write was waiting.
   baselines.set(state, { path: exactPath, ...next, generation: generation(next.fields), attemptId: expected ?? null });

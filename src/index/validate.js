@@ -15,6 +15,8 @@ import { isAbsolutePathNative } from '../shared/file-paths.js';
 import { ARTIFACT_SURFACE_VERSION, isSupportedVersion } from '../contracts/versioning.js';
 import { isWithinRoot, toRealPathSync } from '../workspace/identity.js';
 import { buildArtifactLists } from './validate/artifacts.js';
+import { resolveIndexArtifactPolicy } from '../contracts/index-artifact-policy.js';
+import { assertKnownIndexProfileId } from '../contracts/index-profile.js';
 import { normalizeFilterIndex } from './validate/normalize.js';
 import { addIssue, finalizeValidationReport, validationErrorMetadata } from './validate/issues.js';
 import { validateSchema } from './validate/schema.js';
@@ -105,15 +107,6 @@ export async function validateIndexArtifacts(input = {}) {
   };
   const orderingStrict = input.validateOrdering === true;
 
-  const {
-    sparseEnabled,
-    requiredArtifacts,
-    strictOnlyRequiredArtifacts,
-    optionalArtifacts,
-    lanceConfig
-  } = buildArtifactLists(userConfig, postingsConfig, {
-    profileId: userConfig?.indexing?.profile
-  });
   const symbolArtifacts = new Set(['symbols', 'symbol_occurrences', 'symbol_edges']);
 
   for (const mode of modes) {
@@ -163,6 +156,33 @@ export async function validateIndexArtifacts(input = {}) {
           report,
           modeReport
         });
+        let policy;
+        try {
+          policy = resolveIndexArtifactPolicy({ state: readJsonArtifact('index_state', { required: strict }), manifest,
+            resolvePresence, producerPolicy: input.producerPoliciesByMode?.[mode] });
+        } catch (error) {
+          modeReport.ok = false;
+          addIssue(report, mode, error.message, 'Rebuild index artifacts for this mode.', 'issues',
+            validationErrorMetadata(error, 'index_state', 'ERR_INDEX_ARTIFACT_POLICY'));
+          report.modes[mode] = modeReport;
+          return;
+        }
+        const modePostingsConfig = { ...postingsConfig, ...policy.postings };
+        const { sparseEnabled, requiredArtifacts, strictOnlyRequiredArtifacts, optionalArtifacts, lanceConfig }
+          = buildArtifactLists({ ...userConfig, indexing: { ...userConfig.indexing, profile: policy.profileId,
+            artifacts: { ...userConfig.indexing?.artifacts, determinismReport: policy.determinismReport },
+            embeddings: { ...userConfig.indexing?.embeddings,
+              lancedb: { ...userConfig.indexing?.embeddings?.lancedb, enabled: policy.lancedbEnabled } } } },
+          modePostingsConfig, { profileId: policy.profileId });
+        const requestedProfile = assertKnownIndexProfileId(userConfig.indexing?.profile);
+        const differences = [];
+        if (requestedProfile !== policy.profileId) differences.push('profile');
+        for (const key of ['fielded', 'enablePhraseNgrams', 'enableChargrams']) {
+          if (policy.sparseEnabled && Boolean(postingsConfig[key]) !== Boolean(policy.postings[key])) differences.push(key);
+        }
+        if (Boolean(userConfig.indexing?.artifacts?.determinismReport) !== policy.determinismReport) differences.push('determinismReport');
+        modeReport.compatibility = { ok: differences.length === 0, rebuildNeeded: differences.length > 0,
+          reason: differences.length ? `requested configuration differs: ${differences.join(', ')}` : null };
         const resolveManifestCount = (name) => {
           if (!strict || !manifest) return null;
           return sumManifestCounts(manifest, name);
@@ -243,7 +263,7 @@ export async function validateIndexArtifacts(input = {}) {
             strict,
             modeReport,
             chunkMeta,
-            postingsConfig,
+            postingsConfig: modePostingsConfig,
             sparseEnabled,
             resolvePresence,
             hasLegacyArtifact,
@@ -495,7 +515,8 @@ export async function validateIndexArtifacts(input = {}) {
             chunkMeta,
             validateManifestCount,
             lanceConfig,
-            readJsonArtifact
+            readJsonArtifact,
+            resolvePresence
           });
         } catch (err) {
           const diagnostic = describeStorageFailure(err, { phase: 'index-validation', defaultCode: 'ERR_INDEX_VALIDATION_EXCEPTION' });

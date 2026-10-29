@@ -5,7 +5,7 @@ import path from 'node:path';
 import { fork } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { setImmediate } from 'node:timers/promises';
-import { publishIndexStateMutation } from '../../src/shared/index-state-publication.js';
+import { publishIndexStateMutation, withIndexStatePublicationLock } from '../../src/shared/index-state-publication.js';
 import { updateSqliteState } from '../../src/storage/sqlite/build/index-state.js';
 import { updateLmdbState } from '../../src/storage/lmdb/index-state.js';
 import { checksumFile } from '../../src/shared/hash.js';
@@ -108,6 +108,26 @@ try {
     resume(); await Promise.all([held, queued]);
     const state = await checkPair(); assert.equal(state.extensions.serial, true);
     if (selected === 'patch-snapshot') assert.equal(state.sqlite.profile.value, 1); else assert.equal(state.lmdb.queued, true);
+    if (selected === 'queued-namespace') {
+      let enter, release;
+      const started = new Promise(resolve => { enter = resolve; });
+      const barrier = new Promise(resolve => { release = resolve; });
+      const owner = withIndexStatePublicationLock(root, async () => { enter(); await barrier; });
+      await started;
+      const controller = new AbortController();
+      let canceledEntered = false, successorEntered = false;
+      const canceled = withIndexStatePublicationLock(root, () => { canceledEntered = true; }, { signal: controller.signal });
+      const rejection = assert.rejects(canceled, { name: 'AbortError' });
+      const successor = withIndexStatePublicationLock(root, () => { successorEntered = true; });
+      controller.abort(); await rejection;
+      const other = path.join(root, 'independent'); await fs.mkdir(other);
+      await withIndexStatePublicationLock(other, () => true);
+      assert.equal(canceledEntered, false); assert.equal(successorEntered, false);
+      assert.equal((await fs.stat(lockPath)).isFile(), true, 'canceling a queued writer retains its predecessor owner');
+      release(); await Promise.all([owner, successor]);
+      assert.equal(successorEntered, true); assert.equal(canceledEntered, false);
+      await assert.rejects(fs.stat(lockPath), { code: 'ENOENT' });
+    }
   } else if (selected === 'invalid-state' || selected === 'malformed-state' || selected === 'invalid-namespace') {
     await fs.writeFile(statePath, selected === 'malformed-state' ? '{broken' : selected === 'invalid-state' ? 'null'
       : JSON.stringify({ ...initial, sqlite: [] }));

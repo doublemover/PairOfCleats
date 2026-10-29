@@ -40,7 +40,9 @@ try {
   // Native decoding is a separate opt-in qualification. This named closed-writer
   // fixture uses the real directory publication/manifest/recovery owners.
   const outDir = path.join(retainedRoot, 'index-code'), manifestPath = path.join(outDir, 'pieces/manifest.json');
-  const backend = await publishStageDirectoryFixture({ outDir });
+  const producedState = JSON.parse(await fs.readFile(path.join(outDir, 'index_state.json'), 'utf8'));
+  const backend = await publishStageDirectoryFixture({ outDir, embeddingIdentity: producedState.embeddings.embeddingIdentity,
+    dims: producedState.embeddings.embeddingIdentity.dims });
   const priorValidation = JSON.parse(await fs.readFile(path.join(retainedRoot, 'artifact-publication.code.validation.json'), 'utf8'));
   const refreshPublication = async () => {
     await updatePieceManifest({ indexDir: outDir, mode: 'code', totalChunks: 1, dims: 2,

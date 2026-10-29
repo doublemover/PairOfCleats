@@ -361,6 +361,9 @@ async function buildIndexRun(repoRoot, options = {}) {
           mode: modeItem,
           result: modeEmbedResult
         });
+        if (modeEmbedResult?.producerPoliciesByMode?.[modeItem]) {
+          (runtime.validationPoliciesByMode ||= {})[modeItem] = structuredClone(modeEmbedResult.producerPoliciesByMode[modeItem]);
+        }
         if (modeEmbedResult?.embeddings?.cancelled) {
           streamedCancelled = true;
           return { cancelled: true };
