@@ -41,7 +41,7 @@ The merge checks establish:
    the dependency-security, duplicate-scanner, workflow and three postinstall
    contract tests plus the ONNX CPU install-policy check directly, without changing
    broad lane membership.
-2. CI platform jobs: `ubuntu`, `windows`, and `macos`, each running `node tools/ci/run-suite.js --mode ci --skip-prechecks` under Node 26.12.1.
+2. CI platform jobs: `ubuntu`, `windows`, and `macos`, each running `node tools/ci/run-suite.js --mode ci --skip-prechecks` under Node 26.13.0.
 3. CI TUI job: Rust formatting, check, test, and clippy for the Rust TUI package.
 4. Native inspection matrix: serial real-terminal TUI workflows, PTY disposal,
    parser patch/lifecycle checks and produced index contracts on each supported

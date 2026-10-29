@@ -12,12 +12,12 @@ identity collisions, ring eviction, distinct/repeated keys, FIFO and snapshot
 recovery. This Windows-only qualification requires the pinned native build and
 ConPTY, outside ci-lite; it does not complete result/artifact inspection in #638.
 
-Rust tests run with the pinned 1.88.0 toolchain. Global interrupt cases inject real
+Rust tests run with the pinned 1.99.1 toolchain. Global interrupt cases inject real
 key events into the production input owner for every overlay and job state; plain
 `c` remains selected-job cancellation. These checks supplement native lifecycle
 qualification.
 
-Build the native binary with `cargo +1.88.0 build --locked --manifest-path crates/pairofcleats-tui/Cargo.toml`
+Build the native binary with `cargo +1.99.1 build --locked --manifest-path crates/pairofcleats-tui/Cargo.toml`
 before running `tui/native-interrupt-lifetime` or the existing quit, supervisor-error
 and terminal-error lifetime cases. Run them serially with one job/thread,
 30-second fixture limits, zero retries and native-status redo disabled. Windows

@@ -6,7 +6,7 @@ installing that project's dependencies.
 
 ## Prepare the application checkout
 
-Use the exact Node 26.12.1 pin in `.nvmrc` and the current
+Use the exact Node 26.13.0 pin in `.nvmrc` and the current
 [native prerequisites](bootstrap-prerequisites.md). The normal application,
 tests and benchmarks require verified readiness.
 

@@ -2,7 +2,7 @@
 
 Start in an authorized checkout. Read `AGENTS.md`, scoped instructions, branch and
 Git status, then preserve unrelated work and active indexing processes. Use Node
-26.12.1 and verified locked bootstrap before normal test/benchmark entry points.
+26.13.0 and verified locked bootstrap before normal test/benchmark entry points.
 
 ## Discover, select, run
 

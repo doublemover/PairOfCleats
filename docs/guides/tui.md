@@ -12,7 +12,7 @@ You do not need a globally installed `pairofcleats` command for this recipe.
 Install the Node 26 version in `.nvmrc`, Python 3 and the platform C/C++ build
 tools required by the native dependencies, then run `npm run bootstrap:ci` in
 the application checkout. Native TUI builds additionally require rustup and
-Rust **1.88.0** (the crate's `rust-toolchain.toml`), plus the target platform's
+Rust **1.99.1** (the crate's `rust-toolchain.toml`), plus the target platform's
 linker/SDK. On Windows use the MSVC C++ build tools and Windows SDK; on Linux
 use a C/C++ linker toolchain; on macOS install the Xcode command line tools.
 Install/build may download dependencies and toolchain components. A missing
@@ -398,10 +398,10 @@ same compiler as the declared MSRV and CI.
 
 For source-checkout validation of the TUI crate, run:
 
-- `cargo +1.88.0 fmt --check --manifest-path .\crates\pairofcleats-tui\Cargo.toml`
-- `cargo +1.88.0 check --locked --manifest-path .\crates\pairofcleats-tui\Cargo.toml`
-- `cargo +1.88.0 test --locked --manifest-path .\crates\pairofcleats-tui\Cargo.toml`
-- `cargo +1.88.0 clippy --locked --manifest-path .\crates\pairofcleats-tui\Cargo.toml -- -D warnings`
+- `cargo +1.99.1 fmt --check --manifest-path .\crates\pairofcleats-tui\Cargo.toml`
+- `cargo +1.99.1 check --locked --manifest-path .\crates\pairofcleats-tui\Cargo.toml`
+- `cargo +1.99.1 test --locked --manifest-path .\crates\pairofcleats-tui\Cargo.toml`
+- `cargo +1.99.1 clippy --locked --manifest-path .\crates\pairofcleats-tui\Cargo.toml -- -D warnings`
 
 ## Observability
 

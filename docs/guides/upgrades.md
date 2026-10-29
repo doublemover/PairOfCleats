@@ -16,7 +16,7 @@ SQLite sidecars or whole cache roots as an upgrade shortcut.
 
 ## Update checkout dependencies under the intended runtime
 
-Select the current `.nvmrc` pin, now Node 26.12.1. Review/update the authorized
+Select the current `.nvmrc` pin, now Node 26.13.0. Review/update the authorized
 checkout through your normal Git workflow while preserving local changes. Run
 `npm run bootstrap:ci` from that application checkout after lock, patch, setup,
 runtime/ABI or native-artifact changes. It does not install target project

@@ -18,7 +18,7 @@ const { dir } = await prepareIsolatedTestCacheDir('tui-cargo-invocation-policy')
 const invalidRoot = path.join(dir, 'invalid-source');
 const invalidPin = path.join(invalidRoot, 'crates/pairofcleats-tui/rust-toolchain.toml');
 await fs.mkdir(path.dirname(invalidPin), { recursive: true });
-for (const value of ['stable', 'nightly', '1.88', '1.88.0;unexpected']) {
+for (const value of ['stable', 'nightly', '1.88', '1.99.1;unexpected']) {
   await fs.writeFile(invalidPin, `[toolchain]\nchannel = "${value}"\n`);
   assert.throws(() => resolveCargoCommandInvocation({}, invalidRoot), /exact stable Rust toolchain/);
 }

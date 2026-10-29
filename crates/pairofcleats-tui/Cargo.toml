@@ -2,7 +2,7 @@
 name = "pairofcleats-tui"
 version = "0.1.0"
 edition = "2021"
-rust-version = "1.88"
+rust-version = "1.99.1"
 description = "Terminal UI supervisor client for PairOfCleats"
 license = "MIT"
 
