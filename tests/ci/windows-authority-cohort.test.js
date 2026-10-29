@@ -34,7 +34,8 @@ const args = authorityRunnerArgs(['synthetic/a.b'], 'report.json', 'logs');
 for (const [flag, value] of [['--jobs', '1'], ['--timeout-ms', '30000'], ['--retries', '0']]) {
   assert.equal(args[args.indexOf(flag) + 1], value);
 }
-assert.ok(args.includes('--native-status-redo=false') && args.includes('--fail-fast'));
+assert.ok(args.includes('--native-status-redo=false'));
+assert.equal(args.includes('--fail-fast'), false, 'isolated authority fixtures must all run so failures do not hide the remaining inventory');
 assert.equal(args.at(-1), '/^synthetic/a\\.b$/', 'each ID is an exact escaped selector');
 const report = { tests: ids.map(id => ({ id, status: 'passed', timedOut: false, skipReason: null,
   attempts: 1, exitCode: 0, signal: null, durationMs: 1 })) };

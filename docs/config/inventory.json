@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-29T10:34:15.817Z",
+  "generatedAt": "2026-10-29T11:45:37.648Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
@@ -3714,6 +3714,7 @@
         "src/shared/storage/layout.js",
         "tests/context-pack/risk-truncation-contract.test.js",
         "tests/fixtures/sublime/native-package-host.js",
+        "tests/fixtures/vscode/native-package-host.js",
         "tests/helpers/mcp-client.js",
         "tests/indexing/embeddings/build/chunk-channel-cache-routes.test.js",
         "tests/indexing/runtime/category-session-teardown.test.js",
@@ -5187,6 +5188,7 @@
         "tests/cli/general/metadata-and-index-admission.test.js",
         "tests/context-pack/risk-truncation-contract.test.js",
         "tests/fixtures/sublime/native-package-host.js",
+        "tests/fixtures/vscode/native-package-host.js",
         "tests/helpers/extracted-prose-fixture.js",
         "tests/helpers/sourcekit-preflight-fixture.js",
         "tests/helpers/test-env-clear.test.js",

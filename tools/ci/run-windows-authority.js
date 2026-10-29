@@ -45,7 +45,7 @@ export const authorityRunnerArgs = (ids, reportFile, logDir) => {
   const escape = value => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   return ['tests/run.js', '--lane', 'all-with-destructive', '--jobs', '1',
     '--pairofcleats-threads', '1', '--timeout-ms', '30000', '--retries', '0',
-    '--native-status-redo=false', '--fail-fast', '--report-file', reportFile, '--log-dir', logDir,
+    '--native-status-redo=false', '--report-file', reportFile, '--log-dir', logDir,
     ...ids.flatMap(id => ['--match', '/^' + escape(id) + '$/'])];
 };
 

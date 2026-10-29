@@ -4,10 +4,19 @@ import pathlib
 import subprocess
 import sys
 import termios
+import time
 
 binary, directory, mode = sys.argv[1:]
 directory = pathlib.Path(directory)
 before = termios.tcgetattr(0)
+if mode == 'validate-search':
+    # Match the Windows observer: setup may overlap, but the actual native
+    # lifetime starts only after the canonical seed owner completes.
+    seed_deadline = time.monotonic() + 20
+    while not (directory / 'seed-complete-build.json').is_file():
+        if time.monotonic() > seed_deadline:
+            raise TimeoutError('Canonical workflow seed did not complete')
+        time.sleep(0.02)
 
 
 def recorded_mode(mode):

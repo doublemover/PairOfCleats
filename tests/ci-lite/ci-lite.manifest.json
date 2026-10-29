@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 1322,
+    "hero": 1323,
     "matrix": 108,
     "meta": 49,
     "soak": 1,
@@ -8893,6 +8893,12 @@
     {
       "id": "tooling/index/clean-artifacts-reader-exclusion",
       "order": 1480,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/release/readiness-gate-duplicate-tui",
+      "order": 1481,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

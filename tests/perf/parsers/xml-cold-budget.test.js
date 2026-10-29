@@ -5,6 +5,7 @@ import { chunkXml } from '../../../src/index/chunking/formats/xml.js';
 import { collectXmlImports } from '../../../src/index/language-registry/import-collectors/xml.js';
 import { collectLanguageImports } from '../../../src/index/language-registry/registry.js';
 import { buildConfigFileAdapters } from '../../../src/index/language-registry/adapters/config-files.js';
+import { sourceSections } from '../../lang/helpers/source-sections.js';
 
 // These default APIs keep their production 30 ms owner/scan budgets. Run in
 // the serial runtime cohort: functional grammar checks have a separate clock.
@@ -34,7 +35,7 @@ for (const [source, names, imports] of cases) {
     assert.ok(model.metrics.elapsedMs < 30, 'the production scan deadline remains unchanged');
     assert.equal(parseXmlStructure(source), model, 'successful default parses share the bounded cache');
     const chunks = chunkXml(source, {});
-    assert.deepEqual(chunks.map(entry => entry.name), names, JSON.stringify(chunks.map(entry => entry.meta)));
+    assert.deepEqual(sourceSections(source, chunks).map(entry => entry.name), names, JSON.stringify(chunks.map(entry => entry.meta)));
     assert.ok(chunks.every(entry => entry.meta.parserCoverage === 'partial'
       && entry.meta.astRange === undefined && entry.meta.rangeSource === 'application-utf16-lexer'));
     assert.ok(chunks.every(entry => entry.meta.parseMetrics.ownerLimitMs === 30));
