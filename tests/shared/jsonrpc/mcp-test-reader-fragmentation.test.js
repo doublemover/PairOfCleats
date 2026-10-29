@@ -129,7 +129,8 @@ await assertFailure('legacy', Buffer.from('Content-Length: 10\r\n'), 'eof-mid-he
 await assertFailure('legacy', Buffer.from('Content-Length: 10\r\n\r\n{}'), 'eof-mid-body', { end: true });
 await assertFailure('line', Buffer.from(text), 'eof-mid-body', { end: true });
 await assertFailure('line', Buffer.from('x'.repeat(65)), 'line-byte-limit', { bounds: { maxMessageBytes: 64 } });
-await assertFailure('legacy', Buffer.from(text + '\n'), 'invalid-header-line');
+await assertFailure('legacy', Buffer.from('{"jsonrpc":"2.0"}\n'), 'invalid-header-line');
+await assertFailure('legacy', Buffer.from(text + '\n'), 'invalid-header-encoding');
 await assertFailure('line', frame(Buffer.from(text)), 'invalid-utf8-or-json');
 await assertFailure('legacy', frame(Buffer.from('{oops}')), 'invalid-utf8-or-json');
 const badUtf8 = Buffer.concat([Buffer.from('{"jsonrpc":"2.0","id":1,"result":"'), Buffer.from([0xc3, 0x28]), Buffer.from('"}')]);
