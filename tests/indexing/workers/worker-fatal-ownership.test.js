@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
-import { EventEmitter } from 'node:events';
+import { EventEmitter, once } from 'node:events';
+import { MessageChannel } from 'node:worker_threads';
+import { createWorkerObservation, WORKER_OBSERVATION_VERSION } from '../../../src/index/build/workers/observation.js';
 import { setImmediate as tick } from 'node:timers/promises';
 import { IndexerThreadPool } from '../../../src/index/build/workers/thread-pool.js';
 import { createWorkerProcessCoordinator } from '../../../src/index/build/workers/pool/worker-coordination.js';
@@ -121,4 +123,37 @@ for (const key of ['pid', 'threadId']) {
   worker.emit('exit', 0);
   assert.equal(coordinator.runtimeObservationStats(pool).length, 0, `${key} exit retires its exact identity`);
 }
+
+// A transferred observation channel belongs to the original thread. Sending an
+// ACK to Piscina's bootstrap parentPort corrupts that independent protocol.
+{
+  const raw = new EventEmitter(), worker = new EventEmitter();
+  worker.threadId = 91; raw.threads = [worker]; raw.options = {};
+  worker.postMessage = () => assert.fail('telemetry must never write to the vendor bootstrap channel');
+  raw.destroy = async () => { raw.threads = []; worker.emit('exit', 0); };
+  const pool = new IndexerThreadPool(raw), observed = [];
+  pool.on('message', frame => observed.push(frame));
+  const createChannel = () => { const channel = new MessageChannel(); channel.port2.on('message', () => {}); channel.port2.ref(); return channel; };
+  const register = (channel, threadId = 91, version = WORKER_OBSERVATION_VERSION) =>
+    raw.emit('message', { type: 'indexer-observation-port', threadId, version, port: channel.port1 });
+  for (const [id, version] of [[92, WORKER_OBSERVATION_VERSION], [91, -1]]) {
+    const channel = createChannel(), closed = once(channel.port2, 'close');
+    register(channel, id, version); await closed;
+  }
+  const channel = createChannel(); register(channel);
+  const duplicate = createChannel(), rejected = once(duplicate.port2, 'close');
+  register(duplicate); await rejected;
+  channel.port2.postMessage(createWorkerObservation({ type: 'worker-task', threadId: 92, durationMs: 1 }, 1));
+  channel.port2.postMessage({ type: 'worker-observation', version: -1, sequence: 1 });
+  await tick(); assert.equal(observed.length, 0);
+  const ack = once(channel.port2, 'message');
+  channel.port2.postMessage(createWorkerObservation({ type: 'worker-task', threadId: 91, durationMs: 125 }, 2));
+  assert.deepEqual((await ack)[0], { type: 'worker-observation-ack', version: WORKER_OBSERVATION_VERSION, sequence: 2 });
+  assert.equal(observed.length, 1); assert.equal(observed[0].durationMs, 125);
+  const retired = once(channel.port2, 'close'); await pool.destroy(); await retired;
+  assert.equal(pool.threads.length, 0);
+  const late = createChannel(), refused = once(late.port2, 'close');
+  register(late); await refused; assert.equal(observed.length, 1);
+}
+
 console.log('Fatal ownership survives late results, idle failure, logger failure, vendor removal and failed termination.');

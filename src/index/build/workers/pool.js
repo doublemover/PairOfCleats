@@ -385,6 +385,8 @@ export async function createIndexerWorkerPool(input = {}) {
         maxThreads: maxWorkers,
         idleTimeout: poolConfig.idleTimeoutMs,
         taskTimeout: poolConfig.taskTimeoutMs,
+        // Dedicated observation acknowledgments must progress between tasks.
+        atomics: 'async',
         recordTiming: true,
         execArgv: workerExecArgv,
         ...(currentResourceLimits ? { resourceLimits: currentResourceLimits } : {}),

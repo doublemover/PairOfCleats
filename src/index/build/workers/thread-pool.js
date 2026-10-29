@@ -1,4 +1,5 @@
 import { EventEmitter } from 'node:events';
+import { MessagePort } from 'node:worker_threads';
 import { currentSchedulerTaskLease } from '../../../shared/concurrency/scheduler-task-scope.js';
 import { createWorkerFatalError, isWorkerFatalControl } from './fatal-policy.js';
 import { readWorkerObservation, WORKER_OBSERVATION_VERSION } from './observation.js';
@@ -30,14 +31,15 @@ export class IndexerThreadPool extends EventEmitter {
     queueMicrotask(() => this.observeWorkers(true));
     pool.on('message', message => {
       this.observeWorkers();
+      if (message?.type === 'indexer-observation-port') {
+        this.adoptObservationPort(message); return;
+      }
       if (isWorkerFatalControl(message)) {
         if ([...this.owners.values()].some(owner => owner.id === message.threadId)) this.poison(message.reason);
         return;
       }
       const event = readWorkerObservation(message);
       if (event) {
-        const worker = [...this.owners.keys()].find(candidate => candidate.threadId === event.threadId);
-        try { worker?.postMessage({ type: 'worker-observation-ack', version: WORKER_OBSERVATION_VERSION, sequence: event.sequence }); } catch { /* observation only */ }
         if (!this.fatal) observe(this, 'message', event);
       }
     });
@@ -48,6 +50,25 @@ export class IndexerThreadPool extends EventEmitter {
   get queueSize() { return this.pool.queueSize; }
   get threads() { return [...this.owners.keys()]; }
   get completed() { return this.pool.completed; }
+
+  adoptObservationPort(message) {
+    const port = message.port;
+    if (!(port instanceof MessagePort)) return;
+    const [worker, owner] = [...this.owners.entries()].find(([, value]) => value.id === message.threadId) || [];
+    if (!owner || owner.observationPort || this.closed || this.fatal || message.version !== WORKER_OBSERVATION_VERSION) {
+      port.close(); return;
+    }
+    owner.observationPort = port;
+    port.on('message', frame => {
+      const event = readWorkerObservation(frame);
+      if (!event || event.threadId !== owner.id || this.owners.get(worker) !== owner) return;
+      try { port.postMessage({ type: 'worker-observation-ack', version: WORKER_OBSERVATION_VERSION, sequence: event.sequence }); }
+      catch { /* observations cannot change task settlement */ }
+      if (!this.fatal && !this.closed) observe(this, 'message', event);
+    });
+    port.on('messageerror', () => port.close());
+    port.unref();
+  }
   get maxThreads() { return this.pool.maxThreads; }
   get minThreads() { return this.pool.minThreads; }
 
@@ -64,6 +85,7 @@ export class IndexerThreadPool extends EventEmitter {
       worker.prependListener('error', () => { if (!owner.retiring) this.poison('uncaught thread error'); });
       worker.prependOnceListener('exit', code => {
         if (!owner.retiring && !this.closed) this.poison(`unexpected thread exit (${code})`);
+        owner.observationPort?.close();
         this.owners.delete(worker); finish();
       });
       if (this.closed) void worker.terminate().catch(error => observe(this, 'error', error));

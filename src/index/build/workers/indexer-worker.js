@@ -1,7 +1,7 @@
-import { parentPort as nativeParentPort, threadId as nativeThreadId, workerData as nativeWorkerData } from 'node:worker_threads';
+import { MessageChannel, parentPort as nativeParentPort, threadId as nativeThreadId, workerData as nativeWorkerData } from 'node:worker_threads';
 import { executeTokenizeBatch } from './tokenize-batch.js';
 import { observeWorkerHeap } from '../../../shared/workers/heap-contract.js';
-import { createWorkerObserver, createWorkerTaskError, withWorkerTaskObservation } from './observation.js';
+import { createWorkerObserver, createWorkerTaskError, withWorkerTaskObservation, WORKER_OBSERVATION_VERSION } from './observation.js';
 import { installWorkerFatalPolicy } from './fatal-policy.js';
 import { quantizeVec } from '../../embedding.js';
 import { resolveEmbeddingQuantizationSpec } from '../../../shared/embedding-quantization-spec.js';
@@ -25,10 +25,18 @@ const runtimeObservation = nativeParentPort ? observeWorkerHeap() : globalThis._
 runtimeObservation.workerAttemptId = runtimeObservation.processInstanceId;
 runtimeObservation.parentAttemptId = workerData?.runtimeAttemptId || null;
 runtimeObservation.buildId = workerData?.buildId || null;
-const observer = createWorkerObserver({ send: (message, onError) => nativeParentPort
-  ? nativeParentPort.postMessage(message) : parentPort?.postMessage(message, onError) });
+// Piscina owns parentPort's incoming bootstrap protocol. Acknowledgments use
+// this worker's independent bounded observation channel, including while idle.
+const observationChannel = nativeParentPort ? new MessageChannel() : null;
+if (observationChannel) nativeParentPort.postMessage({ type: 'indexer-observation-port',
+  version: WORKER_OBSERVATION_VERSION, threadId, port: observationChannel.port2 }, [observationChannel.port2]);
+const observer = createWorkerObserver({ send: (message, onError) => observationChannel
+  ? observationChannel.port1.postMessage(message) : parentPort?.postMessage(message, onError) });
 const acknowledge = message => observer.acknowledge(message);
-if (nativeParentPort) nativeParentPort.on('message', acknowledge);
+if (observationChannel) {
+  observationChannel.port1.on('message', acknowledge);
+  observationChannel.port1.unref();
+}
 else if (parentPort) process.on('message', acknowledge);
 const fatalPolicy = installWorkerFatalPolicy({ threadId, observer,
   send: message => parentPort?.postMessage(message) });
