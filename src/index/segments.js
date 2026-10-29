@@ -187,6 +187,7 @@ export function chunkSegments({
   segments = [],
   lineIndex = null
 }) {
+  context ??= {};
   const effectiveMode = mode === 'extracted-prose' ? 'prose' : mode;
   const baseSegmentType = resolveSegmentType(effectiveMode, ext);
   const resolvedLineIndex = lineIndex || buildLineIndex(text);

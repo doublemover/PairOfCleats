@@ -1,6 +1,7 @@
 import { createRequire } from 'node:module';
 import { normalizeLanguageHint } from './config.js';
 import { finalizeSegments } from './finalize.js';
+import { createAstroOffsetResolver } from './astro-offsets.js';
 
 const require = createRequire(import.meta.url);
 let parseAstro = null, parseSvelte = null, parseVue = null;
@@ -134,6 +135,7 @@ export const segmentAstro = ({ text, relPath }) => {
     return null;
   }
   if (!ast || !Array.isArray(ast.children)) return null;
+  const resolveOffset = createAstroOffsetResolver(text);
   const segments = [];
   let templateStart = null;
   let templateEnd = null;
@@ -163,20 +165,23 @@ export const segmentAstro = ({ text, relPath }) => {
   };
   const updateTemplateRange = (node) => {
     if (!node || typeof node !== 'object') return;
-    if (node.type === 'frontmatter' || node.type === 'root' || node.type === 'fragment') return;
+    if (node.type === 'frontmatter' || node.type === 'root') return false;
     const pos = node.position;
-    const start = pos?.start?.offset;
-    const end = pos?.end?.offset;
-    if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return;
+    const start = resolveOffset(pos?.start?.offset);
+    const end = resolveOffset(pos?.end?.offset);
+    if (start === null || end === null || end <= start) return false;
     if (templateStart == null || start < templateStart) templateStart = start;
     if (templateEnd == null || end > templateEnd) templateEnd = end;
+    return true;
   };
   const addFrontmatter = (node) => {
     const value = typeof node?.value === 'string' ? node.value : '';
     const position = node?.position;
     if (!position?.start || !position?.end) return;
-    let start = text.indexOf(value, position.start.offset);
-    if (start < 0) start = position.start.offset;
+    const containerStart = resolveOffset(position.start.offset);
+    if (containerStart === null) return;
+    const start = text.indexOf(value, containerStart);
+    if (start < 0) return;
     const end = start + value.length;
     if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return;
     segments.push({
@@ -197,9 +202,9 @@ export const segmentAstro = ({ text, relPath }) => {
     let end = null;
     for (const child of node.children) {
       const pos = child?.position;
-      const childStart = pos?.start?.offset;
-      const childEnd = pos?.end?.offset;
-      if (!Number.isFinite(childStart) || !Number.isFinite(childEnd)) continue;
+      const childStart = resolveOffset(pos?.start?.offset);
+      const childEnd = resolveOffset(pos?.end?.offset);
+      if (childStart === null || childEnd === null) continue;
       if (start == null || childStart < start) start = childStart;
       if (end == null || childEnd > end) end = childEnd;
     }
@@ -216,19 +221,19 @@ export const segmentAstro = ({ text, relPath }) => {
       meta: { block: blockType }
     });
   };
-  const walk = (node) => {
+  const walk = (node, templateOwner = true) => {
     if (!node || typeof node !== 'object') return;
+    // Nested compiler expression ranges can exceed their containing element.
+    // An admitted outer node owns the template extent, never its descendants.
+    const ownsTemplate = templateOwner && updateTemplateRange(node);
     if (node.type === 'frontmatter') addFrontmatter(node);
     if (node.type === 'element') {
       const name = String(node.name || '').toLowerCase();
       if (name === 'script') addElementBlock(node, 'script', 'javascript');
       if (name === 'style') addElementBlock(node, 'style', 'css');
-      updateTemplateRange(node);
-    } else {
-      updateTemplateRange(node);
     }
     if (Array.isArray(node.children)) {
-      for (const child of node.children) walk(child);
+      for (const child of node.children) walk(child, templateOwner && !ownsTemplate);
     }
   };
   for (const child of ast.children) walk(child);

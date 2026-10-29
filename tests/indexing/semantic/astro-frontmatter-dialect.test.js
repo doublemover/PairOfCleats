@@ -1,12 +1,13 @@
 import assert from 'node:assert/strict';
-import { discoverSegments, assignSegmentUids } from '../../../src/index/segments.js';
+import { discoverSegments, assignSegmentUids, chunkSegments } from '../../../src/index/segments.js';
+import { admitVfsSourceSpan } from '../../../src/index/tooling/vfs/source-span.js';
 import { collectFileSemanticFacts } from '../../../src/index/semantic/collect-file.js';
 import { collectEmbeddedSemanticSources, getSegmentSemanticContext } from '../../../src/index/semantic/embedded-source.js';
 import { createRecoveryFixture } from '../../helpers/semantic-recovery.js';
 
 // Authored source/storage regression; this does not qualify an Astro language
 // server, generated template bindings, a compiler upgrade or a published index.
-const frontmatter = '\r\ninterface Props { title: string }\r\nconst title: Props["title"] = "hé😀";\r\n';
+const frontmatter = `\r\n// ${'hé😀'.repeat(80)}\r\ninterface Props { title: string }\r\nconst title: Props["title"] = "hé😀";\r\n`;
 const text = '---' + frontmatter + '---\r\n<main>{title}</main>\r\n<script>console.log("browser");</script>';
 const fixture = await createRecoveryFixture(text);
 try {
@@ -16,7 +17,17 @@ try {
   assert.ok(front);
   assert.equal(front.languageId, 'typescript');
   assert.equal(text.slice(front.start, front.end), frontmatter);
-  assert.equal(segments.find(segment => segment.meta?.block === 'script')?.languageId, 'javascript');
+  const script = segments.find(segment => segment.meta?.block === 'script');
+  assert.equal(script?.languageId, 'javascript');
+  assert.equal(text.slice(script.start, script.end), 'console.log("browser");', 'UTF-8 compiler positions map to the original UTF-16 slice');
+  const template = segments.find(segment => segment.meta?.block === 'template');
+  assert.equal(text.slice(template.start, template.end), '<main>{title}</main>\r\n<script>console.log("browser");</script>');
+  for (const segment of segments) {
+    assert.ok(segment.start >= 0 && segment.end <= text.length, 'compiler children cannot enlarge an admitted source extent');
+  }
+  const chunks = chunkSegments({ text, ext: '.astro', relPath: 'Page.astro', mode: 'code', segments });
+  assert.ok(chunks.length);
+  for (const chunk of chunks) admitVfsSourceSpan(chunk, text, 'Page.astro');
   const policy = { languages: ['javascript', 'typescript'], storage: { batchRows: 16, batchBytes: 8192 }, enrichment: { bindings: 'off' } };
   const parent = await collectFileSemanticFacts({ ...fixture.options, bytes: fixture.bytes, text,
     language: 'astro', relPath: 'original.js', repositoryNamespace: fixture.root, policy });

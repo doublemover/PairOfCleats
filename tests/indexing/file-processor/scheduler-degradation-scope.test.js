@@ -9,7 +9,9 @@ import { LANGUAGE_GRAMMAR_KEYS } from '../../../src/lang/tree-sitter/config.js';
 applyTestEnv();
 const text = 'export const value = 1;\nexport const other = 2;\n';
 const firstEnd = text.indexOf('\n') + 1;
-const segment = (start = 0, end = text.length, languageId = 'javascript') => ({ segmentUid: 'same-content', start, end, languageId });
+const segment = (start = 0, end = text.length, languageId = 'javascript') => ({
+  type: 'embedded', segmentId: `fixture:${start}-${end}`, segmentUid: 'same-content', start, end, languageId
+});
 const virtual = (containerPath, part = null, ext = '.js') => buildVfsVirtualPath({ containerPath,
   ...(part ? { segmentUid: part.segmentUid, segmentStart: part.start, segmentEnd: part.end, effectiveExt: ext } : {}) });
 const input = (relKey, segments, scheduler) => ({ segments, tokenMode: 'code', mustUseTreeSitterScheduler: true,
