@@ -24,8 +24,26 @@
     ],
     "initialTargets": 323,
     "closed": [
+      619,
+      713,
+      979,
+      983,
+      984,
       985,
+      991,
       993,
+      995,
+      996,
+      1003,
+      1010,
+      1021,
+      1027,
+      1029,
+      1031,
+      1036,
+      1038,
+      1042,
+      1043,
       1058,
       1059,
       1586,
@@ -34,14 +52,14 @@
       1661,
       1728
     ],
-    "remainingTargets": 314
+    "remainingTargets": 296
   },
   "issues": [
     {
       "number": 619,
       "title": "[P2] Apply TUI viewport offsets and render the live log tail",
       "priority": "P2",
-      "status": "qualification-required",
+      "status": "qualified-closed",
       "initialDisposition": "partial_or_followup",
       "sourcePaths": [
         "crates/pairofcleats-tui/src/main.rs",
@@ -51,7 +69,15 @@
         "tui/display-interactive-render-contract",
         "tui/rendering-responsiveness"
       ],
-      "remaining": [
+      "remaining": [],
+      "closeout": {
+        "head": "405cc852ab590a4029d3c78c642cab72e4eda8a9",
+        "state": "closed",
+        "state_reason": "completed",
+        "readback": true,
+        "note": "Windows Rust 1.99.1 passes all 25 rendered viewport tests, including every wrapped row, independent log/job/task offsets, both directions, clamping, resize/filter/pause/new arrivals and eviction. The real binary frame-capture fixture also passes its live-tail and one-row-scroll assertions."
+      },
+      "originalRequirements": [
         "Qualify every retained wrapped line, row/intra-entry scrolling, stored-offset clamping, resize/filter/pause/new-arrival and eviction through the native viewport; the previous tail-only proof is insufficient.",
         "Pass the related existing checks and the complete original/follow-up acceptance on the resulting candidate; preserve positive and negative controls."
       ]
@@ -122,7 +148,7 @@
       "number": 713,
       "title": "[P2] Compare model hits by stable corpus identity instead of generation-local document ordinals",
       "priority": "P2",
-      "status": "qualification-required",
+      "status": "qualified-closed",
       "initialDisposition": "qualification_pending",
       "sourcePaths": [
         "src/experimental/compare/config.js",
@@ -139,7 +165,15 @@
         "retrieval/evaluation-judgment-identity",
         "retrieval/federation/child-generation-signature-admission"
       ],
-      "remaining": [
+      "remaining": [],
+      "closeout": {
+        "head": "405cc852ab590a4029d3c78c642cab72e4eda8a9",
+        "state": "closed",
+        "state_reason": "completed",
+        "readback": true,
+        "note": "Five actual existing-cache compare-models CLI cases pass: opposite orders, partial overlap, distinct source corpora reusing ordinals, unchanged stable chunks with renumbered local IDs, and missing source identity. Incomparable/unknown identity remains explicit with null metrics and zero-comparable denominators; repository/mode-scoped stable-hit controls are retained."
+      },
+      "originalRequirements": [
         "Do not solve this by comparing model-specific build signatures for strict equality: differing embedding identities are expected. Define the shared source/chunking/corpus identity separately from model identity.",
         "Actual existing-cache compare-models fixture with distinct source generations must reject/mark incomparable or correctly compare stable identities, never report perfect parity for reused ordinals.",
         "Same chunks with renumbered local IDs, different chunks sharing IDs, same file across modes/repos, missing stable IDs and same-generation backend parity.",
@@ -464,7 +498,7 @@
       "number": 979,
       "title": "[P2] Heading-based chunkers omit document content before the first heading",
       "priority": "P2",
-      "status": "qualification-required",
+      "status": "qualified-closed",
       "initialDisposition": "qualification_pending",
       "sourcePaths": [
         "src/index/chunking/helpers.js"
@@ -477,7 +511,15 @@
         "indexing/chunking/config-tree-sitter-meta-parity",
         "indexing/chunking/dockerfile-continuation"
       ],
-      "remaining": [
+      "remaining": [],
+      "closeout": {
+        "head": "405cc852ab590a4029d3c78c642cab72e4eda8a9",
+        "state": "closed",
+        "state_reason": "completed",
+        "readback": true,
+        "note": "The actual Markdown and INI dispatch paths pass exact section names, starts, kinds and preamble flags alongside contiguous original-source coverage, heading-at-zero, empty and preamble-only controls. TOML-specific reconciliation (#975) and INI dialect qualification (#1189) remain separately tracked."
+      },
+      "originalRequirements": [
         "Keep remaining format-specific semantics separate: #975 owns the TOML-specific contract reconciliation; #1189 now details INI dialect/continuation qualification. Those do not undo the repaired shared preamble coverage. Close this issue only with focused verified receipts for the intended repaired consumers, or clearly record any deliberately excluded consumer, not merely because a helper name exists.",
         "Pass the related existing checks and the complete original/follow-up acceptance on the resulting candidate; preserve positive and negative controls."
       ]
@@ -486,7 +528,7 @@
       "number": 983,
       "title": "[P2] GitHub Actions YAML chunking omits workflow-level configuration before the first job",
       "priority": "P2",
-      "status": "qualification-required",
+      "status": "qualified-closed",
       "initialDisposition": "qualification_pending",
       "sourcePaths": [
         "src/index/chunking/formats/yaml.js"
@@ -499,7 +541,15 @@
         "indexing/chunking/config-tree-sitter-meta-parity",
         "indexing/chunking/dockerfile-continuation"
       ],
-      "remaining": [
+      "remaining": [],
+      "closeout": {
+        "head": "405cc852ab590a4029d3c78c642cab72e4eda8a9",
+        "state": "closed",
+        "state_reason": "completed",
+        "readback": true,
+        "note": "Actual YAML lexical and preamble checks pass covering application envelopes and exact job key/value/property spans, workflow-global permissions/env/defaults before and after jobs, multiple documents, and fake jobs text inside opaque scalars. No source interval is discarded."
+      },
+      "originalRequirements": [
         "Emit a workflow-level prefix chunk (or otherwise ensure complete source coverage) before job chunks; add a regression with top-level workflow keys plus jobs. No production index was run or modified.",
         "Pass the related existing checks and the complete original/follow-up acceptance on the resulting candidate; preserve positive and negative controls."
       ]
@@ -508,7 +558,7 @@
       "number": 984,
       "title": "[P2] SQLite validation treats any zero-state marker file as proof no DB is required",
       "priority": "P2",
-      "status": "qualification-required",
+      "status": "qualified-closed",
       "initialDisposition": "qualification_pending",
       "sourcePaths": [
         "src/index/validate/sqlite-report.js"
@@ -521,7 +571,15 @@
         "embeddings/runner/adaptive-file-parallelism-loop",
         "embeddings/runner/cross-file-chunk-dedupe-map"
       ],
-      "remaining": [
+      "remaining": [],
+      "closeout": {
+        "head": "405cc852ab590a4029d3c78c642cab72e4eda8a9",
+        "state": "closed",
+        "state_reason": "completed",
+        "readback": true,
+        "note": "Canonical zero-state proof admission and SQLite validator controls pass for current empty source and malformed, stale, foreign and populated-source negatives. The benchmark consumer now uses that same source-bound validator, with real source mutation invalidating the empty receipt."
+      },
+      "originalRequirements": [
         "Validate the zero-state manifest's schema, generation/source identity, and expected no-data condition before waiving DB checks. A corrupt/stale marker should yield a validation issue, not success. Add malformed and stale-marker regressions.",
         "Pass the related existing checks and the complete original/follow-up acceptance on the resulting candidate; preserve positive and negative controls."
       ]
@@ -530,7 +588,7 @@
       "number": 985,
       "title": "[P2] Borrowed registry lock accepts any release-shaped object without ownership check",
       "priority": "P2",
-      "status": "closed-qualified",
+      "status": "qualified-closed",
       "initialDisposition": "qualification_pending",
       "sourcePaths": [
         "src/index/registry-support.js",
@@ -549,10 +607,16 @@
         "shared/type-normalization",
         "tooling/lsp/type-identity-handoff"
       ],
-      "remaining": [
+      "remaining": [],
+      "originalRequirements": [
         "Require a verifiable lease capability tied to the exact resolved cache root/domain and live on-disk lock identity before accepting a borrowed lock; reject release-shaped impostors. Add fake/stale/cross-domain borrowed-lock regressions. No registry or cache was modified in this audit.",
         "Pass the related existing checks and the complete original/follow-up acceptance on the resulting candidate; preserve positive and negative controls."
-      ]
+      ],
+      "closeout": {
+        "head": null,
+        "state": "closed",
+        "readback": true
+      }
     },
     {
       "number": 986,
@@ -626,7 +690,7 @@
       "number": 991,
       "title": "[P2] Concurrent VFS manifest appends duplicate spilled rows",
       "priority": "P2",
-      "status": "qualification-required",
+      "status": "qualified-closed",
       "initialDisposition": "qualification_pending",
       "sourcePaths": [
         "src/index/build/vfs-manifest-collector.js"
@@ -639,7 +703,15 @@
         "indexing/postings/queue-contract-matrix",
         "indexing/postings/vector-only-append-skips-sparse-accumulation"
       ],
-      "remaining": [
+      "remaining": [],
+      "closeout": {
+        "head": "405cc852ab590a4029d3c78c642cab72e4eda8a9",
+        "state": "closed",
+        "state_reason": "completed",
+        "readback": true,
+        "note": "The actual concurrent manifest append fixture passes with a one-row spill buffer: two concurrent unique inputs produce exactly two unique persisted rows and correct statistics. Collector isolation retains independent cleanup ownership."
+      },
+      "originalRequirements": [
         "Add a deterministic concurrent-append regression and assert run-row count matches stats.totalRecords.",
         "Pass the related existing checks and the complete original/follow-up acceptance on the resulting candidate; preserve positive and negative controls."
       ]
@@ -670,7 +742,7 @@
       "number": 993,
       "title": "[P2] CDC byte-size limits are enforced as UTF-16 code units",
       "priority": "P2",
-      "status": "qualification-required",
+      "status": "qualified-closed",
       "initialDisposition": "qualification_pending",
       "sourcePaths": [
         "src/index/segments/cdc.js",
@@ -684,18 +756,24 @@
         "indexing/chunking/preamble-and-unicode-coverage",
         "indexing/embeddings/embedding-batch-policy-matrix"
       ],
-      "remaining": [
+      "remaining": [],
+      "originalRequirements": [
         "Define and consistently implement byte semantics (while mapping boundaries back to valid UTF-16 offsets without splitting surrogate pairs), or rename/document the options as code-unit counts. Add non-ASCII and surrogate-pair regressions.",
         "Use one normalized byte-eligibility contract at the ownership boundary. Either remove the redundant caller eligibility decision and deliberately preserve the agreed below-threshold base-segment semantics, or reuse a qualified UTF-8 byte measurement with the helper. Do not replace original decoded-text byte semantics with on-disk file size when encodings differ. Avoid an unnecessary full encoded-buffer allocation; any reusable measurement must be tied to the exact text.",
         "Acceptance must call discoverSegments with CDC enabled for ASCII, accented/BMP text, and astral text on both sides of the threshold, and compare eligibility with the normalized helper contract. Assert actual segment kind, count/ranges, provenance, version/invalidation behavior, and below-threshold behavior, not merely that some chunk is returned. Preserve the repaired byte-budget and scalar-integrity tests; #1045 owns remaining non-CDC fallback boundaries. This requires no broad integration suite or increased timeout.",
         "Pass the related existing checks and the complete original/follow-up acceptance on the resulting candidate; preserve positive and negative controls."
-      ]
+      ],
+      "closeout": {
+        "head": "9f6399e9dc60f8d1c427fc145629b480eff62ccf",
+        "state": "closed",
+        "readback": true
+      }
     },
     {
       "number": 995,
       "title": "[P2] Perf-profile cost estimator triple-counts an observed file's duration",
       "priority": "P2",
-      "status": "qualification-required",
+      "status": "qualified-closed",
       "initialDisposition": "qualification_pending",
       "sourcePaths": [
         "src/index/build/perf-profile.js",
@@ -709,7 +787,15 @@
         "perf/indexing/runtime/scheduler-stage-wiring",
         "contracts/module-export-surface-compat"
       ],
-      "remaining": [
+      "remaining": [],
+      "closeout": {
+        "head": "405cc852ab590a4029d3c78c642cab72e4eda8a9",
+        "state": "closed",
+        "state_reason": "completed",
+        "readback": true,
+        "note": "The actual calibrated cost estimator passes both a single 10 ms observation and mixed 10/30 ms observations: costs are 10 and 20 ms respectively, with the expected size scaling. Observed files are counted once."
+      },
+      "originalRequirements": [
         "Add a simple one-file and mixed-file regression.",
         "Pass the related existing checks and the complete original/follow-up acceptance on the resulting candidate; preserve positive and negative controls."
       ]
@@ -718,7 +804,7 @@
       "number": 996,
       "title": "[P2] Legacy string file-text cache bypasses freshness checks and can index stale text",
       "priority": "P2",
-      "status": "qualification-required",
+      "status": "qualified-closed",
       "initialDisposition": "qualification_pending",
       "sourcePaths": [
         "src/index/build/file-processor/pre-cpu-state.js",
@@ -734,7 +820,15 @@
         "indexing/file-processor/generated-artifact-content",
         "indexing/imports/import-cache-contract-matrix"
       ],
-      "remaining": [
+      "remaining": [],
+      "closeout": {
+        "head": "405cc852ab590a4029d3c78c642cab72e4eda8a9",
+        "state": "closed",
+        "state_reason": "completed",
+        "readback": true,
+        "note": "The actual file processor passes same-length A-to-B source replacement with restored mtime across hashed, unhashed and disabled caches in both incremental modes. Persisted content and current source hash agree; legacy strings/changed stats are rejected while exact unchanged and empty text preserve valid cached decoding."
+      },
+      "originalRequirements": [
         "Reject/invalidate unversioned string entries or verify source freshness before using them. Add a regression with changed file stat and stale string entry.",
         "Treat admitted bytes, exact content hash, decoded text, and encoding provenance as one source-snapshot identity. Replacing bytes/hash must invalidate dependent text/encoding unless the identity proves they belong to those exact bytes. Do not rely on independent truthy-field merging.",
         "Keep current containment/freshness work and share its snapshot contract with #1565; do not add a second cache engine or force every downstream stage to reread the file.",
@@ -746,7 +840,7 @@
       "number": 1003,
       "title": "[P2] Proto and GraphQL chunkers omit source preambles before first definition",
       "priority": "P2",
-      "status": "qualification-required",
+      "status": "qualified-closed",
       "initialDisposition": "qualification_pending",
       "sourcePaths": [
         "src/index/chunking/dispatch/schema-chunkers.js"
@@ -759,7 +853,15 @@
         "lang/contracts/proto-reflection-lexical-boundaries",
         "indexing/chunking/config-tree-sitter-meta-parity"
       ],
-      "remaining": [
+      "remaining": [],
+      "closeout": {
+        "head": "405cc852ab590a4029d3c78c642cab72e4eda8a9",
+        "state": "closed",
+        "state_reason": "completed",
+        "readback": true,
+        "note": "Focused GraphQL/proto chunk-boundary controls pass with leading original-source content retained, declaration identities/offsets preserved and complete coverage. Existing AST and lexical boundary checks retain normal declarations and opaque-source negatives."
+      },
+      "originalRequirements": [
         "Emit a bounded preamble chunk or attach prefix text to the first declaration while preserving accurate ranges. Add Proto and GraphQL fixtures with leading comments/license text.",
         "Pass the related existing checks and the complete original/follow-up acceptance on the resulting candidate; preserve positive and negative controls."
       ]
@@ -1116,7 +1218,7 @@
       "number": 1036,
       "title": "[P2] Risk sanitizer after a sink suppresses earlier same-line taint flow",
       "priority": "P2",
-      "status": "qualification-required",
+      "status": "qualified-closed",
       "initialDisposition": "qualification_pending",
       "sourcePaths": [
         "src/index/risk.js"
@@ -1129,7 +1231,15 @@
         "indexing/risk/interprocedural/upstream-input-coverage",
         "indexing/risk/local-statement-order"
       ],
-      "remaining": [
+      "remaining": [],
+      "closeout": {
+        "head": "405cc852ab590a4029d3c78c642cab72e4eda8a9",
+        "state": "closed",
+        "state_reason": "completed",
+        "readback": true,
+        "note": "The actual local risk scanner passes both same-line orders: a sink before sanitization retains its flow, while sanitization before the sink suppresses that flow. Inline sanitized arguments remain negative controls."
+      },
+      "originalRequirements": [
         "Cover both statement orders on one line.",
         "Pass the related existing checks and the complete original/follow-up acceptance on the resulting candidate; preserve positive and negative controls."
       ]
@@ -1160,7 +1270,7 @@
       "number": 1038,
       "title": "[P2] Risk sink flow uses tainted variables outside the matched sink call",
       "priority": "P2",
-      "status": "qualification-required",
+      "status": "qualified-closed",
       "initialDisposition": "qualification_pending",
       "sourcePaths": [
         "src/index/risk.js"
@@ -1173,7 +1283,15 @@
         "indexing/risk/interprocedural/upstream-input-coverage",
         "indexing/risk/local-statement-order"
       ],
-      "remaining": [
+      "remaining": [],
+      "closeout": {
+        "head": "405cc852ab590a4029d3c78c642cab72e4eda8a9",
+        "state": "closed",
+        "state_reason": "completed",
+        "readback": true,
+        "note": "The actual local risk scanner passes the reported unrelated-variable witness: SINK(safe) followed by a tainted variable in another statement emits no invented flow, while actual tainted sink arguments remain positive."
+      },
+      "originalRequirements": [
         "Verify resolution of the reported Risk sink flow uses tainted variables outside the matched sink call contract, including the original reproduction and healthy controls.",
         "Pass the related existing checks and the complete original/follow-up acceptance on the resulting candidate; preserve positive and negative controls."
       ]
@@ -1416,7 +1534,7 @@
       "number": 1058,
       "title": "[P2] Cross-file cache fingerprint ignores input import relations that it later overwrites",
       "priority": "P2",
-      "status": "closed-qualified",
+      "status": "qualified-closed",
       "initialDisposition": "qualification_pending",
       "sourcePaths": [
         "src/index/type-inference-crossfile/cache.js",
@@ -1435,16 +1553,22 @@
         "shared/type-qualified-alias-ownership",
         "tooling/lsp/type-identity-handoff"
       ],
-      "remaining": [
+      "remaining": [],
+      "originalRequirements": [
         "Verify resolution of the reported Cross-file cache fingerprint ignores input import relations that it later overwrites contract, including the original reproduction and healthy controls.",
         "Pass the related existing checks and the complete original/follow-up acceptance on the resulting candidate; preserve positive and negative controls."
-      ]
+      ],
+      "closeout": {
+        "head": null,
+        "state": "closed",
+        "readback": true
+      }
     },
     {
       "number": 1059,
       "title": "[P2] Non-symbolic tooling cache can reuse stale results after tooling configuration changes",
       "priority": "P2",
-      "status": "closed-qualified",
+      "status": "qualified-closed",
       "initialDisposition": "qualification_pending",
       "sourcePaths": [
         "src/index/type-inference-crossfile/cache.js",
@@ -1464,10 +1588,16 @@
         "shared/type-normalization",
         "shared/type-qualified-alias-ownership"
       ],
-      "remaining": [
+      "remaining": [],
+      "originalRequirements": [
         "Verify resolution of the reported Non-symbolic tooling cache can reuse stale results after tooling configuration changes contract, including the original reproduction and healthy controls.",
         "Pass the related existing checks and the complete original/follow-up acceptance on the resulting candidate; preserve positive and negative controls."
-      ]
+      ],
+      "closeout": {
+        "head": null,
+        "state": "closed",
+        "readback": true
+      }
     },
     {
       "number": 1061,
@@ -5529,7 +5659,7 @@
       "number": 1586,
       "title": "[P2] Stop producer execution when its last confirmed queue lease expires",
       "priority": "P2",
-      "status": "qualification-required",
+      "status": "qualified-closed",
       "initialDisposition": "qualification_pending",
       "sourcePaths": [
         "tools/service/indexer-service/queue-worker.js",
@@ -5546,13 +5676,19 @@
         "services/queue/worker-renewal",
         "tooling/service/indexer-queue-worker-batch-failure"
       ],
-      "remaining": [
+      "remaining": [],
+      "originalRequirements": [
         "Put a per-claim renewal controller behind one owner, keyed by the exact claim owner/version plus execution identity. Track the actual expiry from the claim and confirmed renewal record, not merely Date.now() when a promise fulfills.",
         "Separate renewal scheduling from a confirmed-authority deadline guard. A stuck renewal must not disable the deadline. Define the safety margin and clock assumptions explicitly; transient failures within the remaining lease may remain recoverable.",
         "On deadline exhaustion, atomically mark this execution authority-lost, stop admitting producer work, and abort through the existing job signal. Preserve ownership of outstanding child/native/I/O cleanup until it actually settles. A timeout must not fabricate a successful drain.",
         "Late renewal completion must not revive an abandoned execution or overwrite a replacement claim's state. Keep owner/version fencing and the existing completion-skip path. Do not complete/requeue a claim on behalf of the new owner.",
         "Pass the related existing checks and the complete original/follow-up acceptance on the resulting candidate; preserve positive and negative controls."
-      ]
+      ],
+      "closeout": {
+        "head": "9f6399e9dc60f8d1c427fc145629b480eff62ccf",
+        "state": "closed",
+        "readback": true
+      }
     },
     {
       "number": 1587,
@@ -6100,7 +6236,7 @@
       "number": 1614,
       "title": "[P2] Preserve typed MCP request IDs in legacy admission and cancellation",
       "priority": "P2",
-      "status": "qualification-required",
+      "status": "qualified-closed",
       "initialDisposition": "qualification_pending",
       "sourcePaths": [
         "tools/mcp/transport.js"
@@ -6112,13 +6248,19 @@
         "services/mcp/legacy-output-backpressure",
         "services/mcp/maintenance-cancellation"
       ],
-      "remaining": [
+      "remaining": [],
+      "originalRequirements": [
         "Use the real createMcpTransport with a deferred inert tool callback and captured output:",
         "Admit numeric 1, hold its callback, then submit string \"1\". Both identities should be admitted independently under the configured capacity. The second may queue normally; it must not receive duplicate-request-id solely because of coercion.",
         "While numeric 1 is active and no string \"1\" exists, send legacy cancellation params.id = string \"1\". Numeric 1's signal must remain un-aborted.",
         "With both forms admitted, cancel one exact typed ID. Only its queued/active operation is affected.",
         "Pass the related existing checks and the complete original/follow-up acceptance on the resulting candidate; preserve positive and negative controls."
-      ]
+      ],
+      "closeout": {
+        "head": "9f6399e9dc60f8d1c427fc145629b480eff62ccf",
+        "state": "closed",
+        "readback": true
+      }
     },
     {
       "number": 1616,
@@ -6540,7 +6682,7 @@
       "number": 1640,
       "title": "[P2] Qualify runtime source coverage for each requested source rather than any source",
       "priority": "P2",
-      "status": "qualification-required",
+      "status": "qualified-closed",
       "initialDisposition": "qualification_pending",
       "sourcePaths": [
         "src/index/semantic/runtime/query.js",
@@ -6557,13 +6699,19 @@
         "indexing/semantic/runtime-query-pagination",
         "map/workspace/runtime-producer"
       ],
-      "remaining": [
+      "remaining": [],
+      "originalRequirements": [
         "Retain OR semantics for selecting observations. Coverage is a per-requested-source/hash receipt, not an OR-reduced success bit.",
         "For each bounded requested pair, report snapshot presence and the relevant retained exact-source evidence count/state. Preserve known absent pairs even when another selector succeeds.",
         "Keep global source-join statistics if useful, but label them explicitly family-wide and do not use them as evidence that one requested source was mapped.",
         "Define status aggregation over the actual selected scope, preserving explicit missing/unknown reasons. A complete scan of retained rows is not proof of complete source execution coverage. Distinguish no matching retained observations from source absent, mapping unavailable and capture incomplete.",
         "Pass the related existing checks and the complete original/follow-up acceptance on the resulting candidate; preserve positive and negative controls."
-      ]
+      ],
+      "closeout": {
+        "head": "9f6399e9dc60f8d1c427fc145629b480eff62ccf",
+        "state": "closed",
+        "readback": true
+      }
     },
     {
       "number": 1641,
@@ -6808,7 +6956,7 @@
       "number": 1661,
       "title": "[P2] Keep bakeoff phase progress live and terminal statuses truthful",
       "priority": "P2",
-      "status": "closed-qualified",
+      "status": "qualified-closed",
       "initialDisposition": "qualification_pending",
       "sourcePaths": [
         "tools/bench/embeddings/model-bakeoff.js",
@@ -6817,13 +6965,19 @@
       "testIds": [
         "perf/bench/embedding-bakeoff-phase-lifecycle"
       ],
-      "remaining": [
+      "remaining": [],
+      "originalRequirements": [
         "Make JSON-producing eval/compare child waits asynchronous through the existing subprocess owner. Keep stdout bounded and reserved for one admitted result; stream or adapt bounded child stderr progress without corrupting final JSON.",
         "Keep one timer/status owner per phase. Record started, running and terminal succeeded/failed/cancelled states explicitly. Finally performs cleanup, not an unconditional success transition. Distinguish settled progress from completed-success counts.",
         "Show current model/phase, elapsed time and last meaningful child progress when available. Unknown totals remain indeterminate; elapsed heartbeat is not proof that productive work advanced. Do not invent percentages from waiting time.",
         "Preserve the existing human-readable log syntax and progress-bar look. Prefer additional structured phase state fields and existing display events; version any machine-readable changes. No unconditional noisy line every second in non-TTY/quiet mode.",
         "Pass the related existing checks and the complete original/follow-up acceptance on the resulting candidate; preserve positive and negative controls."
-      ]
+      ],
+      "closeout": {
+        "head": null,
+        "state": "closed",
+        "readback": true
+      }
     },
     {
       "number": 1662,
@@ -8350,7 +8504,7 @@
       "number": 1010,
       "title": "[P3] Phrase-postings builder emits undersized grams after an empty token",
       "priority": "P3",
-      "status": "qualification-required",
+      "status": "qualified-closed",
       "initialDisposition": "qualification_pending",
       "sourcePaths": [
         "src/index/build/state/postings-helpers.js",
@@ -8364,7 +8518,15 @@
         "indexing/contracts/defaults-policy-and-phrase-gaps",
         "indexing/embeddings/embedding-typedarray-quantization-postings-step"
       ],
-      "remaining": [
+      "remaining": [],
+      "closeout": {
+        "head": "405cc852ab590a4029d3c78c642cab72e4eda8a9",
+        "state": "closed",
+        "state_reason": "completed",
+        "readback": true,
+        "note": "Phrase-postings regressions pass for null and empty interior gaps without emitting undersized grams, alongside valid contiguous phrase and hashed/spilled parity controls."
+      },
+      "originalRequirements": [
         "Verify resolution of the reported Phrase-postings builder emits undersized grams after an empty token contract, including the original reproduction and healthy controls.",
         "Pass the related existing checks and the complete original/follow-up acceptance on the resulting candidate; preserve positive and negative controls."
       ]
@@ -8418,7 +8580,7 @@
       "number": 1021,
       "title": "[P3] Tree-sitter batching skips language metadata for a single entry",
       "priority": "P3",
-      "status": "qualification-required",
+      "status": "qualified-closed",
       "initialDisposition": "qualification_pending",
       "sourcePaths": [
         "src/index/build/indexer/steps/process-files/tree-sitter.js",
@@ -8432,7 +8594,15 @@
         "indexing/tree-sitter/scheduler-stage1-contract",
         "indexing/contracts/defaults-policy-and-phrase-gaps"
       ],
-      "remaining": [
+      "remaining": [],
+      "closeout": {
+        "head": "405cc852ab590a4029d3c78c642cab72e4eda8a9",
+        "state": "closed",
+        "state_reason": "completed",
+        "readback": true,
+        "note": "The singleton batching regression passes and checks every batch/language/allowed-language metadata field. Reordering remains optional; one entry receives the same supported-language policy metadata."
+      },
+      "originalRequirements": [
         "Add a singleton regression.",
         "Pass the related existing checks and the complete original/follow-up acceptance on the resulting candidate; preserve positive and negative controls."
       ]
@@ -8441,7 +8611,7 @@
       "number": 1027,
       "title": "[P3] Import reason lookup accepts inherited object names as registered reasons",
       "priority": "P3",
-      "status": "qualification-required",
+      "status": "qualified-closed",
       "initialDisposition": "qualification_pending",
       "sourcePaths": [
         "src/index/build/import-resolution/reason-codes.js"
@@ -8454,7 +8624,15 @@
         "indexing/imports/import-cache-contract-matrix",
         "indexing/imports/import-cache-neighborhood-invalidation"
       ],
-      "remaining": [
+      "remaining": [],
+      "closeout": {
+        "head": "405cc852ab590a4029d3c78c642cab72e4eda8a9",
+        "state": "closed",
+        "state_reason": "completed",
+        "readback": true,
+        "note": "Inherited/reserved reason names now pass the exact complete unknown fallback and unresolved-decision validator assertions. Valid registered reasons retain their existing decisions."
+      },
+      "originalRequirements": [
         "Require an own registry entry or membership in KNOWN_REASON_CODES before using it; add inherited-name regressions and preserve the complete unknown fallback. Pure ESM probe only; no full runner under unsupported local Node 26.8.1/unverified bootstrap.",
         "Pass the related existing checks and the complete original/follow-up acceptance on the resulting candidate; preserve positive and negative controls."
       ]
@@ -8463,7 +8641,7 @@
       "number": 1029,
       "title": "[P3] MetaV2 declared types silently omit a __proto__ parameter",
       "priority": "P3",
-      "status": "qualification-required",
+      "status": "qualified-closed",
       "initialDisposition": "qualification_pending",
       "sourcePaths": [
         "src/index/metadata-v2.js"
@@ -8476,7 +8654,15 @@
         "indexing/file-processor/cached-bundle-does-not-emit-stale-metav2",
         "indexing/metav2/metadata-v2-param-map-tooling-split"
       ],
-      "remaining": [
+      "remaining": [],
+      "closeout": {
+        "head": "405cc852ab590a4029d3c78c642cab72e4eda8a9",
+        "state": "closed",
+        "state_reason": "completed",
+        "readback": true,
+        "note": "MetaV2 reserved-parameter identity controls pass through declared, tooling and inferred normalization and JSON persistence, preserving own __proto__/constructor-style keys without prototype mutation."
+      },
+      "originalRequirements": [
         "Use null-prototype dictionaries or safe own-property assignment for dynamic parameter/type names, preserving reserved names through normalization and write. Add a __proto__ parameter regression. Pure ESM probe only; full runner not invoked under unsupported local Node 26.8.1/unverified bootstrap.",
         "Pass the related existing checks and the complete original/follow-up acceptance on the resulting candidate; preserve positive and negative controls."
       ]
@@ -8485,7 +8671,7 @@
       "number": 1031,
       "title": "[P3] Adaptive scheduler accepts invalid persisted bucket counts as one",
       "priority": "P3",
-      "status": "qualification-required",
+      "status": "qualified-closed",
       "initialDisposition": "qualification_pending",
       "sourcePaths": [
         "src/index/build/tree-sitter-scheduler/adaptive-profile.js"
@@ -8498,7 +8684,15 @@
         "indexing/tree-sitter/scheduler-crash-fallback",
         "indexing/tree-sitter/scheduler-crash-inference"
       ],
-      "remaining": [
+      "remaining": [],
+      "closeout": {
+        "head": "405cc852ab590a4029d3c78c642cab72e4eda8a9",
+        "state": "closed",
+        "state_reason": "completed",
+        "readback": true,
+        "note": "Adaptive profile controls pass invalid persisted bucket counts through load/merge rejection, including missing, null, malformed, zero, negative, boolean and fractional values; valid positive-integer history remains covered."
+      },
+      "originalRequirements": [
         "Validate a finite positive integer before clamping/returning a state, and test malformed persisted counts through load/merge. Pure ESM probe only; full runner not invoked under unsupported local Node 26.8.1/unverified bootstrap.",
         "Pass the related existing checks and the complete original/follow-up acceptance on the resulting candidate; preserve positive and negative controls."
       ]
@@ -8507,7 +8701,7 @@
       "number": 1042,
       "title": "[P3] Stage1 stall top-N selection ignores tie-break order at the cutoff",
       "priority": "P3",
-      "status": "qualification-required",
+      "status": "qualified-closed",
       "initialDisposition": "qualification_pending",
       "sourcePaths": [
         "src/index/build/indexer/steps/process-files/stall-diagnostics.js"
@@ -8520,7 +8714,15 @@
         "indexing/stage1/process-files-inflight-drain",
         "indexing/stage1/process-files-ordering-sort"
       ],
-      "remaining": [
+      "remaining": [],
+      "closeout": {
+        "head": "405cc852ab590a4029d3c78c642cab72e4eda8a9",
+        "state": "closed",
+        "state_reason": "completed",
+        "readback": true,
+        "note": "The bounded stall collector passes the exact equal-duration top-one witness in both Map insertion orders, consistently selecting the lower orderIndex. Existing elapsed-time ordering and cleanup controls remain."
+      },
+      "originalRequirements": [
         "Use a two-entry Map with both startedAt:100, first orderIndex:9, second orderIndex:1; call with {limit:1,nowMs:200}. It returns order 9. Reversing insertion order returns order 1. No active index was touched.",
         "Compare the complete rank (elapsed descending, orderIndex ascending) when deciding admission at the top-N cutoff. Pure ESM probe only; full runner not invoked under unsupported local Node 26.8.1/unverified bootstrap.",
         "Pass the related existing checks and the complete original/follow-up acceptance on the resulting candidate; preserve positive and negative controls."
@@ -8530,7 +8732,7 @@
       "number": 1043,
       "title": "[P3] Stage1 stall snapshot defaults null idle duration to zero",
       "priority": "P3",
-      "status": "qualification-required",
+      "status": "qualified-closed",
       "initialDisposition": "qualification_pending",
       "sourcePaths": [
         "src/index/build/indexer/steps/process-files/stall-diagnostics.js"
@@ -8543,7 +8745,15 @@
         "indexing/stage1/file-watchdog-hard-timeout",
         "indexing/stage1/process-files-cleanup-timeout"
       ],
-      "remaining": [
+      "remaining": [],
+      "closeout": {
+        "head": "405cc852ab590a4029d3c78c642cab72e4eda8a9",
+        "state": "closed",
+        "state_reason": "completed",
+        "readback": true,
+        "note": "Stall snapshot controls pass omitted, undefined and null idle duration using elapsed time, while explicit zero remains zero. Existing progress and watchdog policy controls remain."
+      },
+      "originalRequirements": [
         "Treat null/undefined as absent before numeric conversion; cover omitted, null, and explicit zero. Source proof; no full runner under unsupported local Node 26.8.1/unverified bootstrap.",
         "Pass the related existing checks and the complete original/follow-up acceptance on the resulting candidate; preserve positive and negative controls."
       ]
@@ -8767,7 +8977,7 @@
       "number": 1728,
       "title": "[P3] Compare compression backends on identical reproducible bytes and verify round trips",
       "priority": "P3",
-      "status": "closed-qualified",
+      "status": "qualified-closed",
       "initialDisposition": "qualification_pending",
       "sourcePaths": [
         "tools/bench/micro/compression.js",
@@ -8776,13 +8986,19 @@
       "testIds": [
         "perf/bench/compression-paired-inputs"
       ],
-      "remaining": [
+      "remaining": [],
+      "originalRequirements": [
         "Prepare one immutable payload per size/workload before iterating backends. Reuse those exact bytes for all arms, or generate them deterministically from a recorded seed and stable generator version. Record length and cryptographic digest; guard against a backend mutating the shared input.",
         "Before timing, verify round-trip byte equality for each available backend on that exact payload. Fail or explicitly mark the arm invalid on malformed/truncated/wrong output. Do not accept length equality alone. Keep correctness verification outside timed codec operations.",
         "Record effective implementation/version and compression settings. Preserve zstd-unavailable as unavailable; no silent substitute under the zstd label.",
         "Keep synthetic compressibility cases explicitly synthetic. If using the comparison to guide artifact-format choices, include a frozen representative JSONL/metadata/vector payload corpus with identities rather than treating this random-text family as representative of all artifacts.",
         "Pass the related existing checks and the complete original/follow-up acceptance on the resulting candidate; preserve positive and negative controls."
-      ]
+      ],
+      "closeout": {
+        "head": null,
+        "state": "closed",
+        "readback": true
+      }
     },
     {
       "number": 1731,
@@ -12650,9 +12866,9 @@
   },
   "remaining": [
     "Targeted remaining issue controls and failures",
-    "Native viewport and real browser acceptance",
+    "Browser fault and rendered fidelity acceptance",
     "Supported optional Tantivy native-package qualification",
-    "Real-model and serial resource/performance evidence where required"
+    "Representative serial resource/performance evidence where required"
   ],
   "excludedApplications": "No VS Code or Sublime host launches in this task.",
   "windowsCorrectnessBaseline": {
@@ -15671,6 +15887,150 @@
       "state": "closed",
       "state_reason": "completed",
       "readback": true
+    },
+    {
+      "number": 619,
+      "note": "Windows Rust 1.99.1 passes all 25 rendered viewport tests, including every wrapped row, independent log/job/task offsets, both directions, clamping, resize/filter/pause/new arrivals and eviction. The real binary frame-capture fixture also passes its live-tail and one-row-scroll assertions.",
+      "head": "405cc852ab590a4029d3c78c642cab72e4eda8a9",
+      "state": "closed",
+      "state_reason": "completed",
+      "readback": true
+    },
+    {
+      "number": 713,
+      "note": "Five actual existing-cache compare-models CLI cases pass: opposite orders, partial overlap, distinct source corpora reusing ordinals, unchanged stable chunks with renumbered local IDs, and missing source identity. Incomparable/unknown identity remains explicit with null metrics and zero-comparable denominators; repository/mode-scoped stable-hit controls are retained.",
+      "head": "405cc852ab590a4029d3c78c642cab72e4eda8a9",
+      "state": "closed",
+      "state_reason": "completed",
+      "readback": true
+    },
+    {
+      "number": 979,
+      "note": "The actual Markdown and INI dispatch paths pass exact section names, starts, kinds and preamble flags alongside contiguous original-source coverage, heading-at-zero, empty and preamble-only controls. TOML-specific reconciliation (#975) and INI dialect qualification (#1189) remain separately tracked.",
+      "head": "405cc852ab590a4029d3c78c642cab72e4eda8a9",
+      "state": "closed",
+      "state_reason": "completed",
+      "readback": true
+    },
+    {
+      "number": 983,
+      "note": "Actual YAML lexical and preamble checks pass covering application envelopes and exact job key/value/property spans, workflow-global permissions/env/defaults before and after jobs, multiple documents, and fake jobs text inside opaque scalars. No source interval is discarded.",
+      "head": "405cc852ab590a4029d3c78c642cab72e4eda8a9",
+      "state": "closed",
+      "state_reason": "completed",
+      "readback": true
+    },
+    {
+      "number": 984,
+      "note": "Canonical zero-state proof admission and SQLite validator controls pass for current empty source and malformed, stale, foreign and populated-source negatives. The benchmark consumer now uses that same source-bound validator, with real source mutation invalidating the empty receipt.",
+      "head": "405cc852ab590a4029d3c78c642cab72e4eda8a9",
+      "state": "closed",
+      "state_reason": "completed",
+      "readback": true
+    },
+    {
+      "number": 991,
+      "note": "The actual concurrent manifest append fixture passes with a one-row spill buffer: two concurrent unique inputs produce exactly two unique persisted rows and correct statistics. Collector isolation retains independent cleanup ownership.",
+      "head": "405cc852ab590a4029d3c78c642cab72e4eda8a9",
+      "state": "closed",
+      "state_reason": "completed",
+      "readback": true
+    },
+    {
+      "number": 995,
+      "note": "The actual calibrated cost estimator passes both a single 10 ms observation and mixed 10/30 ms observations: costs are 10 and 20 ms respectively, with the expected size scaling. Observed files are counted once.",
+      "head": "405cc852ab590a4029d3c78c642cab72e4eda8a9",
+      "state": "closed",
+      "state_reason": "completed",
+      "readback": true
+    },
+    {
+      "number": 996,
+      "note": "The actual file processor passes same-length A-to-B source replacement with restored mtime across hashed, unhashed and disabled caches in both incremental modes. Persisted content and current source hash agree; legacy strings/changed stats are rejected while exact unchanged and empty text preserve valid cached decoding.",
+      "head": "405cc852ab590a4029d3c78c642cab72e4eda8a9",
+      "state": "closed",
+      "state_reason": "completed",
+      "readback": true
+    },
+    {
+      "number": 1003,
+      "note": "Focused GraphQL/proto chunk-boundary controls pass with leading original-source content retained, declaration identities/offsets preserved and complete coverage. Existing AST and lexical boundary checks retain normal declarations and opaque-source negatives.",
+      "head": "405cc852ab590a4029d3c78c642cab72e4eda8a9",
+      "state": "closed",
+      "state_reason": "completed",
+      "readback": true
+    },
+    {
+      "number": 1010,
+      "note": "Phrase-postings regressions pass for null and empty interior gaps without emitting undersized grams, alongside valid contiguous phrase and hashed/spilled parity controls.",
+      "head": "405cc852ab590a4029d3c78c642cab72e4eda8a9",
+      "state": "closed",
+      "state_reason": "completed",
+      "readback": true
+    },
+    {
+      "number": 1021,
+      "note": "The singleton batching regression passes and checks every batch/language/allowed-language metadata field. Reordering remains optional; one entry receives the same supported-language policy metadata.",
+      "head": "405cc852ab590a4029d3c78c642cab72e4eda8a9",
+      "state": "closed",
+      "state_reason": "completed",
+      "readback": true
+    },
+    {
+      "number": 1027,
+      "note": "Inherited/reserved reason names now pass the exact complete unknown fallback and unresolved-decision validator assertions. Valid registered reasons retain their existing decisions.",
+      "head": "405cc852ab590a4029d3c78c642cab72e4eda8a9",
+      "state": "closed",
+      "state_reason": "completed",
+      "readback": true
+    },
+    {
+      "number": 1029,
+      "note": "MetaV2 reserved-parameter identity controls pass through declared, tooling and inferred normalization and JSON persistence, preserving own __proto__/constructor-style keys without prototype mutation.",
+      "head": "405cc852ab590a4029d3c78c642cab72e4eda8a9",
+      "state": "closed",
+      "state_reason": "completed",
+      "readback": true
+    },
+    {
+      "number": 1031,
+      "note": "Adaptive profile controls pass invalid persisted bucket counts through load/merge rejection, including missing, null, malformed, zero, negative, boolean and fractional values; valid positive-integer history remains covered.",
+      "head": "405cc852ab590a4029d3c78c642cab72e4eda8a9",
+      "state": "closed",
+      "state_reason": "completed",
+      "readback": true
+    },
+    {
+      "number": 1036,
+      "note": "The actual local risk scanner passes both same-line orders: a sink before sanitization retains its flow, while sanitization before the sink suppresses that flow. Inline sanitized arguments remain negative controls.",
+      "head": "405cc852ab590a4029d3c78c642cab72e4eda8a9",
+      "state": "closed",
+      "state_reason": "completed",
+      "readback": true
+    },
+    {
+      "number": 1038,
+      "note": "The actual local risk scanner passes the reported unrelated-variable witness: SINK(safe) followed by a tainted variable in another statement emits no invented flow, while actual tainted sink arguments remain positive.",
+      "head": "405cc852ab590a4029d3c78c642cab72e4eda8a9",
+      "state": "closed",
+      "state_reason": "completed",
+      "readback": true
+    },
+    {
+      "number": 1042,
+      "note": "The bounded stall collector passes the exact equal-duration top-one witness in both Map insertion orders, consistently selecting the lower orderIndex. Existing elapsed-time ordering and cleanup controls remain.",
+      "head": "405cc852ab590a4029d3c78c642cab72e4eda8a9",
+      "state": "closed",
+      "state_reason": "completed",
+      "readback": true
+    },
+    {
+      "number": 1043,
+      "note": "Stall snapshot controls pass omitted, undefined and null idle duration using elapsed time, while explicit zero remains zero. Existing progress and watchdog policy controls remain.",
+      "head": "405cc852ab590a4029d3c78c642cab72e4eda8a9",
+      "state": "closed",
+      "state_reason": "completed",
+      "readback": true
     }
   ],
   "serialRepairBatch": {
@@ -16960,5 +17320,942 @@
         "gitBlobSha256": "0de0a0755909db2e944b8f452fb92efd769e84fd40d8b135bfc64b2fc30aa5f5"
       }
     ]
+  },
+  "followupProofBatch": {
+    "base": "405cc852ab590a4029d3c78c642cab72e4eda8a9",
+    "status": "focused checks and complete front gate passed",
+    "sources": [
+      {
+        "path": "docs/config/inventory.json",
+        "gitBlobSha256": "79868a6d731855384f6a9836fb3164d489b03f872126c68b18706169acffc75a"
+      },
+      {
+        "path": "docs/config/inventory.md",
+        "gitBlobSha256": "ea780c386c72854721ce91a30152a97e8d95bd5a1b0cfaa26dd26fe790db5246"
+      },
+      {
+        "path": "docs/guides/reladraw-workspace.md",
+        "gitBlobSha256": "da45c4efc879c820d96c0a4ca02fe1c9d3b7e949a7bfdd71ed2cdcb44e442320"
+      },
+      {
+        "path": "docs/testing/test-runner-interface.md",
+        "gitBlobSha256": "0f7c06e5e5d55f7d3347c75fea2fa35c61df39a5b0313621d949876c9ca09204"
+      },
+      {
+        "path": "src/index/chunking/dispatch.js",
+        "gitBlobSha256": "f13b4385c61a036c274553fd5a548c8a4fa348d817cc291ef1fce560b788ffc3"
+      },
+      {
+        "path": "src/index/chunking/dispatch/shared.js",
+        "gitBlobSha256": "045824cdbbed3b2f0fb9b680774d4151524f4fe7508355bfcadfc851ccaf2741"
+      },
+      {
+        "path": "src/index/chunking/limits.js",
+        "gitBlobSha256": "8ff872819f7fbd0fe29c4219330898ac5d5157dfc1336b3bcae9062cb00d5c67"
+      },
+      {
+        "path": "src/index/semantic/analysis-versions.js",
+        "gitBlobSha256": "36294ea6fd5a27213cb0ccb1a0702d86d252694f63eb4387edbdd3262bdf8264"
+      },
+      {
+        "path": "src/shared/unicode-chunks.js",
+        "gitBlobSha256": "79df563a3ce95f367ceb29084f5c3ef0d2a5ef2bd0a00e2b2b24f307db1a1d39"
+      },
+      {
+        "path": "tests/ci-lite/ci-lite.manifest.json",
+        "gitBlobSha256": "eb989a3aa1fabc4264a1d12216e2b20620233a4bcc08684b5cb51796f654c63b"
+      },
+      {
+        "path": "tests/ci-lite/ci-lite.order.txt",
+        "gitBlobSha256": "f4bb8bf23dd13bbca4a033dbd1bc5c529cd0b80c163e871dedaf15cbdf925bcd"
+      },
+      {
+        "path": "tests/indexing/chunking/fallback-scalar-boundaries.test.js",
+        "gitBlobSha256": "8a3be8e6b16e53e59e886c34b3a7301eefc321ac00b0177c1b265938e5572013"
+      },
+      {
+        "path": "tests/indexing/chunking/preamble-and-unicode-coverage.test.js",
+        "gitBlobSha256": "998b12d8fa424cf921fa039c22f86bd46b34144d459852999b10a279471e3cca"
+      },
+      {
+        "path": "tests/indexing/identity/uid-map-completeness.test.js",
+        "gitBlobSha256": "ed009cc70b4ee876da5afbb543e22970e9e322e53caf7439190f3fd0df67a487"
+      },
+      {
+        "path": "tests/indexing/imports/dart-package-identity.test.js",
+        "gitBlobSha256": "f4a370b696928575e73465e01b972a6756e6183b44ef5a0711fc6d20b58b5a32"
+      },
+      {
+        "path": "tests/indexing/imports/replay-harness.test.js",
+        "gitBlobSha256": "5e30327a165c101a107883ccb50f42860ce8c040d20aab2ec2073b285bb53dba"
+      },
+      {
+        "path": "tests/indexing/metadata/scm-path-and-blame-identity.test.js",
+        "gitBlobSha256": "43f1db76eab44909f98984653b3ecd83e59378947ee3be6cbd482cdd9f58c626"
+      },
+      {
+        "path": "tests/indexing/postings/queue-contract-matrix.test.js",
+        "gitBlobSha256": "11e1c74ab0f1c50eb95f8606dcb33c43250c36cd1f27332f5bd9aeed8ce3bebe"
+      },
+      {
+        "path": "tests/indexing/risk/interprocedural/framework-semantics.test.js",
+        "gitBlobSha256": "c053cc73912d901d0f45522ca6a1b2b3868030f05418adf2721635bdf255a112"
+      },
+      {
+        "path": "tests/indexing/risk/local-statement-order.test.js",
+        "gitBlobSha256": "f6f8c7d050a3bd157a31082ed08cfd457c9d054b58868112c830ad6912eb9009"
+      },
+      {
+        "path": "tests/indexing/type-inference/crossfile/global-call-summary-budget.test.js",
+        "gitBlobSha256": "1e6a7f32cab2d8a015e0a2221f6168197e095929a42311f88f54ff735b342709"
+      },
+      {
+        "path": "tests/indexing/vfs/cdc-discovery-byte-admission.test.js",
+        "gitBlobSha256": "f623bf51c5c189cdaff8b5f7080c93b5041c4a99a768d83d313462263471c430"
+      },
+      {
+        "path": "tests/map/workspace/browser-qualification.js",
+        "gitBlobSha256": "8918504a559c33d6ee5503fefe5079ed1eec15e73d6768685cb8ab3450b02a69"
+      },
+      {
+        "path": "tests/map/workspace/qualification-renderer-faults.js",
+        "gitBlobSha256": "b2991c93d8a1738ef427faab5997c3519591c2a8360a764fa562032c5a3f58ae"
+      },
+      {
+        "path": "tests/shared/concurrency/worker-fd-cap.test.js",
+        "gitBlobSha256": "ce649ac0d8e49f899d8e228ecf874549ecaecdba00ada989769b2a0f9d4a8740"
+      },
+      {
+        "path": "tests/tui/unicode-scalar-chunking.test.js",
+        "gitBlobSha256": "e0d605a5d3d1b780c7d76f2547f2377b4183caebc0480c7dfb8e30dc67b986b5"
+      }
+    ],
+    "observations": [
+      {
+        "path": ".tmp/tasks/p2-p3-closeout-20261029/scalar-fallback-before.json",
+        "sha256": "0c3dd13eaf44e4bbc21de71945025f05bd60a07aa39b64149cd44665e4fdb2a0",
+        "summary": {
+          "durationMs": 86,
+          "failed": 1,
+          "passed": 0,
+          "skipped": 0,
+          "total": 1
+        },
+        "tests": [
+          {
+            "id": "indexing/chunking/fallback-scalar-boundaries",
+            "status": "failed",
+            "durationMs": 80
+          }
+        ]
+      },
+      {
+        "path": ".tmp/tasks/p2-p3-closeout-20261029/next-direct-proof-02.json",
+        "sha256": "537370d1fcd166922c8979a940b7a77c3983c27a1277644a7ebe5f2b835b9f43",
+        "summary": {
+          "durationMs": 3068,
+          "failed": 2,
+          "passed": 6,
+          "skipped": 0,
+          "total": 8
+        },
+        "tests": [
+          {
+            "id": "indexing/chunking/fallback-scalar-boundaries",
+            "status": "passed",
+            "durationMs": 79
+          },
+          {
+            "id": "indexing/identity/uid-map-completeness",
+            "status": "passed",
+            "durationMs": 184
+          },
+          {
+            "id": "indexing/imports/dart-package-identity",
+            "status": "passed",
+            "durationMs": 79
+          },
+          {
+            "id": "indexing/metadata/scm-path-and-blame-identity",
+            "status": "passed",
+            "durationMs": 1003
+          },
+          {
+            "id": "indexing/postings/queue-contract-matrix",
+            "status": "failed",
+            "durationMs": 1410
+          },
+          {
+            "id": "indexing/risk/interprocedural/framework-semantics",
+            "status": "failed",
+            "durationMs": 120
+          },
+          {
+            "id": "indexing/risk/local-statement-order",
+            "status": "passed",
+            "durationMs": 102
+          },
+          {
+            "id": "shared/concurrency/worker-fd-cap",
+            "status": "passed",
+            "durationMs": 76
+          }
+        ]
+      },
+      {
+        "path": ".tmp/tasks/p2-p3-closeout-20261029/next-direct-proof-03.json",
+        "sha256": "1b379dd68cc9130d3a1322c30eadf3dc5d63725d2ff95e20285b1d78ded14f80",
+        "summary": {
+          "durationMs": 5239,
+          "failed": 1,
+          "passed": 11,
+          "skipped": 0,
+          "total": 12
+        },
+        "tests": [
+          {
+            "id": "indexing/artifacts/identity-and-cache-dependencies",
+            "status": "passed",
+            "durationMs": 267
+          },
+          {
+            "id": "indexing/crash-retention-bundle-budget",
+            "status": "passed",
+            "durationMs": 417
+          },
+          {
+            "id": "indexing/imports/replay-harness",
+            "status": "passed",
+            "durationMs": 895
+          },
+          {
+            "id": "indexing/imports/replay-harness-gate-eligible-stats",
+            "status": "passed",
+            "durationMs": 806
+          },
+          {
+            "id": "indexing/piece-assembly/risk-stat-composition",
+            "status": "passed",
+            "durationMs": 68
+          },
+          {
+            "id": "indexing/postings/queue-contract-matrix",
+            "status": "failed",
+            "durationMs": 1284
+          },
+          {
+            "id": "indexing/postings/shared-field-budgets",
+            "status": "passed",
+            "durationMs": 137
+          },
+          {
+            "id": "indexing/risk/interprocedural/framework-semantics",
+            "status": "passed",
+            "durationMs": 110
+          },
+          {
+            "id": "indexing/tree-sitter/crash-persistence-degradation",
+            "status": "passed",
+            "durationMs": 165
+          },
+          {
+            "id": "indexing/tree-sitter/crash-persistence-ownership",
+            "status": "passed",
+            "durationMs": 171
+          },
+          {
+            "id": "indexing/type-inference/crossfile/global-call-summary-budget",
+            "status": "passed",
+            "durationMs": 837
+          },
+          {
+            "id": "indexing/type-inference/local/assignment-order",
+            "status": "passed",
+            "durationMs": 66
+          }
+        ]
+      },
+      {
+        "path": ".tmp/tasks/p2-p3-closeout-20261029/next-direct-proof-04.json",
+        "sha256": "9fca330e38d38ab072fa39216ba3a3a594216c4f16f02a60ce510ccc83332063",
+        "summary": {
+          "durationMs": 3365,
+          "failed": 1,
+          "passed": 7,
+          "skipped": 0,
+          "total": 8
+        },
+        "tests": [
+          {
+            "id": "indexing/chunking/fallback-scalar-boundaries",
+            "status": "passed",
+            "durationMs": 87
+          },
+          {
+            "id": "indexing/chunking/preamble-and-unicode-coverage",
+            "status": "passed",
+            "durationMs": 207
+          },
+          {
+            "id": "indexing/chunking/prose-fallback",
+            "status": "passed",
+            "durationMs": 79
+          },
+          {
+            "id": "indexing/chunking/prose-fallback-whole-document",
+            "status": "passed",
+            "durationMs": 77
+          },
+          {
+            "id": "indexing/postings/queue-contract-matrix",
+            "status": "passed",
+            "durationMs": 2157
+          },
+          {
+            "id": "indexing/vfs/cdc-discovery-byte-admission",
+            "status": "passed",
+            "durationMs": 463
+          },
+          {
+            "id": "map/workspace/qualification-phase-diagnostics",
+            "status": "passed",
+            "durationMs": 66
+          },
+          {
+            "id": "tui/unicode-scalar-chunking",
+            "status": "failed",
+            "durationMs": 187
+          }
+        ]
+      },
+      {
+        "path": ".tmp/tasks/p2-p3-closeout-20261029/unicode-wire-final.json",
+        "sha256": "c4fbdcb239b5d02d4d1930721a3886b3a2844422b8ae58f82c1f7405540b9b1e",
+        "summary": {
+          "durationMs": 225,
+          "failed": 0,
+          "passed": 1,
+          "skipped": 0,
+          "total": 1
+        },
+        "tests": [
+          {
+            "id": "tui/unicode-scalar-chunking",
+            "status": "passed",
+            "durationMs": 221
+          }
+        ]
+      },
+      {
+        "path": ".tmp/tasks/p2-p3-closeout-20261029/scalar-final-tree.json",
+        "sha256": "e89237b72c03b46e9b6867076e521c0a10f40de8e3e40b7ecd25d08bdb2f7c1e",
+        "summary": {
+          "durationMs": 360,
+          "failed": 0,
+          "passed": 2,
+          "skipped": 0,
+          "total": 2
+        },
+        "tests": [
+          {
+            "id": "indexing/chunking/fallback-scalar-boundaries",
+            "status": "passed",
+            "durationMs": 96
+          },
+          {
+            "id": "tui/unicode-scalar-chunking",
+            "status": "passed",
+            "durationMs": 258
+          }
+        ]
+      }
+    ],
+    "notes": [
+      "Unicode fallback regression fails on the original source, then passes both original fallback producers, small budgets, exact UTF-16 coverage, cached/uncached byte paths and whole-scalar oversize policy. sourceChunking advances to 44.",
+      "Direct controls cover risk RHS comparison/quoted text, free/bypass/wakeup queue cancellation, missing second UID map row with healthy completion, unknown Dart package authority, FD override cap, actual leading/trailing-space Git tree identities, deterministic replay enumeration and many-chunk summary admission.",
+      "The existing Unicode wire fixture omitted pipe output while consuming stdout; its producer already exited zero. Explicit capture repairs the fixture without deleting any exact wire/content assertions.",
+      "Browser fault cohorts retain broken-renderer rejection and functioning source navigation independently; injected module HTTP404, shader failures and no-op draw calls cannot qualify a useful submitted frame. Additional render-exception/fallback-page faults and depth/fog fidelity remain open."
+    ],
+    "browserQualification": [
+      {
+        "path": ".tmp/tasks/p2-p3-closeout-20261029/browser-noop-02/browser-qualification.json",
+        "sha256": "d96a6740242710152960f5d0779cb329a86e0d8e8b52e935cd84e2b58b52200c",
+        "scenario": "three-render-noop",
+        "status": "passed",
+        "totalWithCleanupMs": 18927.9106,
+        "rendererFault": {
+          "scenario": "three-render-noop",
+          "outcome": "broken 3D rejected; source navigation remains available",
+          "frameRejection": "page.evaluate: Error: Rendered scene pixel invariant failed.\n    at eval (eval at evaluate (:370:30), <anonymous>:4:30)\n    at UtilityScript.evaluate (<anonymous>:372:16)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)",
+          "injection": {
+            "fault": "render-noop",
+            "intercepted": 165
+          },
+          "softwareRenderer": true,
+          "hardwareQualification": false
+        },
+        "phases": [
+          {
+            "name": "three-setup",
+            "url": "about:blank",
+            "startedAt": "2026-10-29T17:07:46.844Z",
+            "events": [],
+            "expected": [],
+            "total": 0,
+            "overflow": 0,
+            "counts": {},
+            "status": "passed",
+            "endedAt": "2026-10-29T17:07:48.831Z",
+            "expectedObserved": 0
+          },
+          {
+            "name": "three-render-noop",
+            "url": "about:blank",
+            "startedAt": "2026-10-29T17:07:48.831Z",
+            "events": [
+              {
+                "timestamp": "2026-10-29T17:07:48.957Z",
+                "pageUrl": "http://127.0.0.1:55082/map.iso.html",
+                "phase": "three-render-noop",
+                "origin": "http://127.0.0.1:55082",
+                "severity": "error",
+                "type": "requestfailed",
+                "url": "http://127.0.0.1:55082/map-snapshot",
+                "resourceType": "fetch",
+                "requestId": 1,
+                "method": "POST",
+                "requestKind": "files",
+                "message": "net::ERR_ABORTED",
+                "expected": true
+              }
+            ],
+            "expected": [
+              {
+                "type": "requestfailed",
+                "url": "http://127.0.0.1:55082/map-snapshot",
+                "method": "POST",
+                "requestKind": "files",
+                "message": "net::ERR_ABORTED",
+                "maxCount": 1
+              }
+            ],
+            "total": 1,
+            "overflow": 0,
+            "counts": {
+              "requestfailed": 1
+            },
+            "status": "passed",
+            "endedAt": "2026-10-29T17:07:49.796Z",
+            "expectedObserved": 1
+          }
+        ]
+      },
+      {
+        "path": ".tmp/tasks/p2-p3-closeout-20261029/browser-shader-01/browser-qualification.json",
+        "sha256": "9ddb12f2cef0a2b6be8305ae5f6535f8e39f05ec5fc5d0558d409b9eb90c41af",
+        "scenario": "three-shader-failure",
+        "status": "passed",
+        "totalWithCleanupMs": 21567.6868,
+        "rendererFault": {
+          "scenario": "three-shader-failure",
+          "outcome": "broken 3D rejected; source navigation remains available",
+          "frameRejection": "page.evaluate: Error: Rendered scene pixel invariant failed.\n    at eval (eval at evaluate (:370:30), <anonymous>:4:30)\n    at UtilityScript.evaluate (<anonymous>:372:16)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)",
+          "injection": {
+            "fault": "shader-failure",
+            "intercepted": 12
+          },
+          "softwareRenderer": true,
+          "hardwareQualification": false
+        },
+        "phases": [
+          {
+            "name": "three-setup",
+            "url": "about:blank",
+            "startedAt": "2026-10-29T17:08:40.134Z",
+            "events": [],
+            "expected": [],
+            "total": 0,
+            "overflow": 0,
+            "counts": {},
+            "status": "passed",
+            "endedAt": "2026-10-29T17:08:42.121Z",
+            "expectedObserved": 0
+          },
+          {
+            "name": "three-shader-failure",
+            "url": "about:blank",
+            "startedAt": "2026-10-29T17:08:42.121Z",
+            "events": [
+              {
+                "timestamp": "2026-10-29T17:08:42.258Z",
+                "pageUrl": "http://127.0.0.1:62972/map.iso.html",
+                "phase": "three-shader-failure",
+                "origin": "http://127.0.0.1:62972",
+                "severity": "error",
+                "type": "requestfailed",
+                "url": "http://127.0.0.1:62972/map-snapshot",
+                "resourceType": "fetch",
+                "requestId": 1,
+                "method": "POST",
+                "requestKind": "files",
+                "message": "net::ERR_ABORTED",
+                "expected": true
+              },
+              {
+                "timestamp": "2026-10-29T17:08:42.388Z",
+                "pageUrl": "http://127.0.0.1:62972/map.iso.html",
+                "phase": "three-shader-failure",
+                "origin": "http://127.0.0.1:62972",
+                "severity": "error",
+                "type": "console",
+                "url": "http://127.0.0.1:62972/three/three.core.js",
+                "message": "THREE.WebGLProgram: Shader Error 0 - VALIDATE_STATUS false\n\nMaterial Name: EquirectangularToCubeUV\nMaterial Type: ShaderMaterial\n\nProgram Info Log: Vertex shader is not compiled.\nVERTEX\n\nERROR: 0:84: 'PAIROFCLEATS_INVALID_SHADER_TOKEN' : syntax error\n\n  79: \t\t\tvOutputDirection = outputDirection;\n  80: \t\t\tgl_Position = vec4( position, 1.0 );\n  81: \n  82: \t\t}\n  83: \t\n> 84: PAIROFCLEATS_INVALID_SHADER_TOKEN\n  85: \nFRAGMENT\n\nERROR: 0:147: 'PAIROFCLEATS_INVALID_SHADER_TOKEN' : syntax error\n\n  142: \n  143: \t\t\t\tgl_FragColor = vec4( texture2D ( envMap, uv ).rgb, 1.0 );\n  144: \n  145: \t\t\t}\n  146: \t\t\n> 147: PAIROFCLEATS_INVALID_SHADER_TOKEN\n  148: ",
+                "expected": true
+              },
+              {
+                "timestamp": "2026-10-29T17:08:42.392Z",
+                "pageUrl": "http://127.0.0.1:62972/map.iso.html",
+                "phase": "three-shader-failure",
+                "origin": "http://127.0.0.1:62972",
+                "severity": "error",
+                "type": "console",
+                "url": "http://127.0.0.1:62972/three/three.core.js",
+                "message": "THREE.WebGLProgram: Shader Error 1282 - VALIDATE_STATUS false\n\nMaterial Name: PMREMGGXConvolution\nMaterial Type: ShaderMaterial\n\nProgram Info Log: Vertex shader is not compiled.\nVERTEX\n\nERROR: 0:88: 'PAIROFCLEATS_INVALID_SHADER_TOKEN' : syntax error\n\n  83: \t\t\tvOutputDirection = outputDirection;\n  84: \t\t\tgl_Position = vec4( position, 1.0 );\n  85: \n  86: \t\t}\n  87: \t\n> 88: PAIROFCLEATS_INVALID_SHADER_TOKEN\n  89: \nFRAGMENT\n\nERROR: 0:258: 'PAIROFCLEATS_INVALID_SHADER_TOKEN' : syntax error\n\n  253: \t\t\t\t}\n  254: \n  255: \t\t\t\tgl_FragColor = vec4(prefilteredColor, 1.0);\n  256: \t\t\t}\n  257: \t\t\n> 258: PAIROFCLEATS_INVALID_SHADER_TOKEN\n  259: ",
+                "expected": true
+              },
+              {
+                "timestamp": "2026-10-29T17:08:42.443Z",
+                "pageUrl": "http://127.0.0.1:62972/map.iso.html",
+                "phase": "three-shader-failure",
+                "origin": "http://127.0.0.1:62972",
+                "severity": "error",
+                "type": "console",
+                "url": "http://127.0.0.1:62972/three/three.core.js",
+                "message": "THREE.WebGLProgram: Shader Error 1282 - VALIDATE_STATUS false\n\nMaterial Name: \nMaterial Type: MeshStandardMaterial\n\nProgram Info Log: Vertex shader is not compiled.\nVERTEX\n\nERROR: 0:643: 'PAIROFCLEATS_INVALID_SHADER_TOKEN' : syntax error\n\n  638:   \n  639: #ifdef USE_TRANSMISSION\n  640: \tvWorldPosition = worldPosition.xyz;\n  641: #endif\n  642: }\n> 643: PAIROFCLEATS_INVALID_SHADER_TOKEN\n  644: \nFRAGMENT\n\nERROR: 0:2150: 'PAIROFCLEATS_INVALID_SHADER_TOKEN' : syntax error\n\n  2145: #endif\n  2146: #ifdef DITHERING\n  2147: \tgl_FragColor.rgb = dithering( gl_FragColor.rgb );\n  2148: #endif\n  2149: }\n> 2150: PAIROFCLEATS_INVALID_SHADER_TOKEN\n  2151: ",
+                "expected": true
+              },
+              {
+                "timestamp": "2026-10-29T17:08:42.448Z",
+                "pageUrl": "http://127.0.0.1:62972/map.iso.html",
+                "phase": "three-shader-failure",
+                "origin": "http://127.0.0.1:62972",
+                "severity": "error",
+                "type": "console",
+                "url": "http://127.0.0.1:62972/three/three.core.js",
+                "message": "THREE.WebGLProgram: Shader Error 1282 - VALIDATE_STATUS false\n\nMaterial Name: \nMaterial Type: LineMaterial\n\nProgram Info Log: Vertex shader is not compiled.\nVERTEX\n\nERROR: 0:400: 'PAIROFCLEATS_INVALID_SHADER_TOKEN' : syntax error\n\n  395:       dot(viewMatrix[1].xyz, isoFogView), dot(viewMatrix[2].xyz, isoFogView)) + cameraPosition;\n  396:   \n  397: \n  398: \t\t}\n  399: \t\t\n> 400: PAIROFCLEATS_INVALID_SHADER_TOKEN\n  401: \nFRAGMENT\n\nERROR: 0:343: 'PAIROFCLEATS_INVALID_SHADER_TOKEN' : syntax error\n\n  338: \tgl_FragColor.rgb *= gl_FragColor.a;\n  339: #endif\n  340: \n  341: \t\t}\n  342: \t\t\n> 343: PAIROFCLEATS_INVALID_SHADER_TOKEN\n  344: ",
+                "expected": true
+              },
+              {
+                "timestamp": "2026-10-29T17:08:42.452Z",
+                "pageUrl": "http://127.0.0.1:62972/map.iso.html",
+                "phase": "three-shader-failure",
+                "origin": "http://127.0.0.1:62972",
+                "severity": "error",
+                "type": "console",
+                "url": "http://127.0.0.1:62972/three/three.core.js",
+                "message": "THREE.WebGLProgram: Shader Error 1282 - VALIDATE_STATUS false\n\nMaterial Name: \nMaterial Type: MeshBasicMaterial\n\nProgram Info Log: Vertex shader is not compiled.\nVERTEX\n\nERROR: 0:572: 'PAIROFCLEATS_INVALID_SHADER_TOKEN' : syntax error\n\n  567:       isoFogWorld = instanceMatrix * isoFogWorld;\n  568:     #endif\n  569:     vIsoWorldPosition = (modelMatrix * isoFogWorld).xyz;\n  570:   \n  571: }\n> 572: PAIROFCLEATS_INVALID_SHADER_TOKEN\n  573: \nFRAGMENT\n\nERROR: 0:451: 'PAIROFCLEATS_INVALID_SHADER_TOKEN' : syntax error\n\n  446: #endif\n  447: #ifdef DITHERING\n  448: \tgl_FragColor.rgb = dithering( gl_FragColor.rgb );\n  449: #endif\n  450: }\n> 451: PAIROFCLEATS_INVALID_SHADER_TOKEN\n  452: ",
+                "expected": true
+              },
+              {
+                "timestamp": "2026-10-29T17:08:42.455Z",
+                "pageUrl": "http://127.0.0.1:62972/map.iso.html",
+                "phase": "three-shader-failure",
+                "origin": "http://127.0.0.1:62972",
+                "severity": "error",
+                "type": "console",
+                "url": "http://127.0.0.1:62972/three/three.core.js",
+                "message": "THREE.WebGLProgram: Shader Error 1282 - VALIDATE_STATUS false\n\nMaterial Name: \nMaterial Type: MeshBasicMaterial\n\nProgram Info Log: Vertex shader is not compiled.\nVERTEX\n\nERROR: 0:571: 'PAIROFCLEATS_INVALID_SHADER_TOKEN' : syntax error\n\n  566:       isoFogWorld = instanceMatrix * isoFogWorld;\n  567:     #endif\n  568:     vIsoWorldPosition = (modelMatrix * isoFogWorld).xyz;\n  569:   \n  570: }\n> 571: PAIROFCLEATS_INVALID_SHADER_TOKEN\n  572: \nFRAGMENT\n\nERROR: 0:450: 'PAIROFCLEATS_INVALID_SHADER_TOKEN' : syntax error\n\n  445: #endif\n  446: #ifdef DITHERING\n  447: \tgl_FragColor.rgb = dithering( gl_FragColor.rgb );\n  448: #endif\n  449: }\n> 450: PAIROFCLEATS_INVALID_SHADER_TOKEN\n  451: ",
+                "expected": true
+              }
+            ],
+            "expected": [
+              {
+                "type": "requestfailed",
+                "url": "http://127.0.0.1:62972/map-snapshot",
+                "method": "POST",
+                "requestKind": "files",
+                "message": "net::ERR_ABORTED",
+                "maxCount": 1
+              },
+              {
+                "type": "console",
+                "url": "http://127.0.0.1:62972/three/three.core.js",
+                "messagePattern": "^THREE.WebGLProgram: Shader Error",
+                "maxCount": 16
+              }
+            ],
+            "total": 7,
+            "overflow": 0,
+            "counts": {
+              "requestfailed": 1,
+              "console": 6
+            },
+            "status": "passed",
+            "endedAt": "2026-10-29T17:08:43.218Z",
+            "expectedObserved": 7
+          }
+        ]
+      },
+      {
+        "path": ".tmp/tasks/p2-p3-closeout-20261029/browser-module404-02/browser-qualification.json",
+        "sha256": "bf7d1375fe088370f9c4a9f1e61ddbcc62d94c8398b121979c52f45989e02b72",
+        "scenario": "three-module-404",
+        "status": "passed",
+        "totalWithCleanupMs": 18207.6439,
+        "rendererFault": {
+          "scenario": "three-module-404",
+          "outcome": "broken 3D rejected; source navigation remains available",
+          "frameRejection": "page.evaluate: Error: Scene render observation: no original controls submission owner is active.\n    at failure (http://127.0.0.1:59253/isomap/rendering/scene-render-submission.js:2:28)\n    at observeNextSceneRender (http://127.0.0.1:59253/isomap/rendering/scene-render-submission.js:68:21)\n    at eval (eval at evaluate (:370:30), <anonymous>:9:24)\n    at async <anonymous>:396:30",
+          "injection": {
+            "intercepted": 1
+          },
+          "softwareRenderer": true,
+          "hardwareQualification": false
+        },
+        "phases": [
+          {
+            "name": "three-setup",
+            "url": "about:blank",
+            "startedAt": "2026-10-29T17:11:17.772Z",
+            "events": [],
+            "expected": [],
+            "total": 0,
+            "overflow": 0,
+            "counts": {},
+            "status": "passed",
+            "endedAt": "2026-10-29T17:11:19.691Z",
+            "expectedObserved": 0
+          },
+          {
+            "name": "three-module-404",
+            "url": "about:blank",
+            "startedAt": "2026-10-29T17:11:19.691Z",
+            "events": [
+              {
+                "timestamp": "2026-10-29T17:11:19.843Z",
+                "pageUrl": "http://127.0.0.1:59253/map.iso.html",
+                "phase": "three-module-404",
+                "origin": "http://127.0.0.1:59253",
+                "severity": "error",
+                "type": "requestfailed",
+                "url": "http://127.0.0.1:59253/map-snapshot",
+                "resourceType": "fetch",
+                "requestId": 1,
+                "method": "POST",
+                "requestKind": "files",
+                "message": "net::ERR_ABORTED",
+                "expected": true
+              },
+              {
+                "timestamp": "2026-10-29T17:11:19.845Z",
+                "pageUrl": "http://127.0.0.1:59253/map.iso.html",
+                "phase": "three-module-404",
+                "origin": "http://127.0.0.1:59253",
+                "severity": "error",
+                "type": "http",
+                "url": "http://127.0.0.1:59253/three/three.module.js",
+                "status": 404,
+                "resourceType": "script",
+                "message": "HTTP 404",
+                "expected": true
+              },
+              {
+                "timestamp": "2026-10-29T17:11:19.846Z",
+                "pageUrl": "http://127.0.0.1:59253/map.iso.html",
+                "phase": "three-module-404",
+                "origin": "http://127.0.0.1:59253",
+                "severity": "error",
+                "type": "console",
+                "url": "http://127.0.0.1:59253/three/three.module.js",
+                "message": "Failed to load resource: the server responded with a status of 404 (Not Found)",
+                "expected": true
+              },
+              {
+                "timestamp": "2026-10-29T17:11:19.846Z",
+                "pageUrl": "http://127.0.0.1:59253/map.iso.html",
+                "phase": "three-module-404",
+                "origin": "http://127.0.0.1:59253",
+                "severity": "error",
+                "type": "requestfailed",
+                "url": "http://127.0.0.1:59253/three/three.module.js",
+                "resourceType": "script",
+                "requestId": 2,
+                "method": "GET",
+                "requestKind": null,
+                "message": "net::ERR_ABORTED",
+                "expected": true
+              }
+            ],
+            "expected": [
+              {
+                "type": "requestfailed",
+                "url": "http://127.0.0.1:59253/map-snapshot",
+                "method": "POST",
+                "requestKind": "files",
+                "message": "net::ERR_ABORTED",
+                "maxCount": 1
+              },
+              {
+                "type": "http",
+                "url": "http://127.0.0.1:59253/three/three.module.js",
+                "statuses": [
+                  404
+                ],
+                "maxCount": 1
+              },
+              {
+                "type": "requestfailed",
+                "url": "http://127.0.0.1:59253/three/three.module.js",
+                "method": "GET",
+                "message": "net::ERR_ABORTED",
+                "maxCount": 1
+              },
+              {
+                "type": "console",
+                "url": "http://127.0.0.1:59253/three/three.module.js",
+                "messagePattern": "^Failed to load resource: the server responded with a status of 404\\b",
+                "maxCount": 1
+              }
+            ],
+            "total": 4,
+            "overflow": 0,
+            "counts": {
+              "requestfailed": 2,
+              "http": 1,
+              "console": 1
+            },
+            "status": "passed",
+            "endedAt": "2026-10-29T17:11:20.347Z",
+            "expectedObserved": 4
+          }
+        ]
+      },
+      {
+        "path": ".tmp/tasks/p2-p3-closeout-20261029/browser-shader-final/browser-qualification.json",
+        "sha256": "8eff04036f362ba6c9ad87fb43eec2b9c80d5c47361000766016c2b8f0b714b8",
+        "scenario": "three-shader-failure",
+        "status": "passed",
+        "totalWithCleanupMs": 18406.4781,
+        "rendererFault": {
+          "scenario": "three-shader-failure",
+          "outcome": "broken 3D rejected; source navigation remains available",
+          "frameRejection": "page.evaluate: Error: Rendered scene pixel invariant failed.\n    at eval (eval at evaluate (:370:30), <anonymous>:4:30)\n    at UtilityScript.evaluate (<anonymous>:372:16)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)",
+          "injection": {
+            "fault": "shader-failure",
+            "intercepted": 12
+          },
+          "softwareRenderer": true,
+          "hardwareQualification": false
+        },
+        "phases": [
+          {
+            "name": "three-setup",
+            "url": "about:blank",
+            "startedAt": "2026-10-29T17:52:48.237Z",
+            "events": [],
+            "expected": [],
+            "total": 0,
+            "overflow": 0,
+            "counts": {},
+            "status": "passed",
+            "endedAt": "2026-10-29T17:52:50.153Z",
+            "expectedObserved": 0
+          },
+          {
+            "name": "three-shader-failure",
+            "url": "about:blank",
+            "startedAt": "2026-10-29T17:52:50.153Z",
+            "events": [
+              {
+                "timestamp": "2026-10-29T17:52:50.287Z",
+                "pageUrl": "http://127.0.0.1:64351/map.iso.html",
+                "phase": "three-shader-failure",
+                "origin": "http://127.0.0.1:64351",
+                "severity": "error",
+                "type": "requestfailed",
+                "url": "http://127.0.0.1:64351/map-snapshot",
+                "resourceType": "fetch",
+                "requestId": 1,
+                "method": "POST",
+                "requestKind": "files",
+                "message": "net::ERR_ABORTED",
+                "expected": true
+              },
+              {
+                "timestamp": "2026-10-29T17:52:50.394Z",
+                "pageUrl": "http://127.0.0.1:64351/map.iso.html",
+                "phase": "three-shader-failure",
+                "origin": "http://127.0.0.1:64351",
+                "severity": "error",
+                "type": "console",
+                "url": "http://127.0.0.1:64351/three/three.core.js",
+                "message": "THREE.WebGLProgram: Shader Error 0 - VALIDATE_STATUS false\n\nMaterial Name: EquirectangularToCubeUV\nMaterial Type: ShaderMaterial\n\nProgram Info Log: Vertex shader is not compiled.\nVERTEX\n\nERROR: 0:84: 'poc_invalid_shader_token' : syntax error\n\n  79: \t\t\tvOutputDirection = outputDirection;\n  80: \t\t\tgl_Position = vec4( position, 1.0 );\n  81: \n  82: \t\t}\n  83: \t\n> 84: poc_invalid_shader_token\n  85: \nFRAGMENT\n\nERROR: 0:147: 'poc_invalid_shader_token' : syntax error\n\n  142: \n  143: \t\t\t\tgl_FragColor = vec4( texture2D ( envMap, uv ).rgb, 1.0 );\n  144: \n  145: \t\t\t}\n  146: \t\t\n> 147: poc_invalid_shader_token\n  148: ",
+                "expected": true
+              },
+              {
+                "timestamp": "2026-10-29T17:52:50.397Z",
+                "pageUrl": "http://127.0.0.1:64351/map.iso.html",
+                "phase": "three-shader-failure",
+                "origin": "http://127.0.0.1:64351",
+                "severity": "error",
+                "type": "console",
+                "url": "http://127.0.0.1:64351/three/three.core.js",
+                "message": "THREE.WebGLProgram: Shader Error 1282 - VALIDATE_STATUS false\n\nMaterial Name: PMREMGGXConvolution\nMaterial Type: ShaderMaterial\n\nProgram Info Log: Vertex shader is not compiled.\nVERTEX\n\nERROR: 0:88: 'poc_invalid_shader_token' : syntax error\n\n  83: \t\t\tvOutputDirection = outputDirection;\n  84: \t\t\tgl_Position = vec4( position, 1.0 );\n  85: \n  86: \t\t}\n  87: \t\n> 88: poc_invalid_shader_token\n  89: \nFRAGMENT\n\nERROR: 0:258: 'poc_invalid_shader_token' : syntax error\n\n  253: \t\t\t\t}\n  254: \n  255: \t\t\t\tgl_FragColor = vec4(prefilteredColor, 1.0);\n  256: \t\t\t}\n  257: \t\t\n> 258: poc_invalid_shader_token\n  259: ",
+                "expected": true
+              },
+              {
+                "timestamp": "2026-10-29T17:52:50.437Z",
+                "pageUrl": "http://127.0.0.1:64351/map.iso.html",
+                "phase": "three-shader-failure",
+                "origin": "http://127.0.0.1:64351",
+                "severity": "error",
+                "type": "console",
+                "url": "http://127.0.0.1:64351/three/three.core.js",
+                "message": "THREE.WebGLProgram: Shader Error 1282 - VALIDATE_STATUS false\n\nMaterial Name: \nMaterial Type: MeshStandardMaterial\n\nProgram Info Log: Vertex shader is not compiled.\nVERTEX\n\nERROR: 0:643: 'poc_invalid_shader_token' : syntax error\n\n  638:   \n  639: #ifdef USE_TRANSMISSION\n  640: \tvWorldPosition = worldPosition.xyz;\n  641: #endif\n  642: }\n> 643: poc_invalid_shader_token\n  644: \nFRAGMENT\n\nERROR: 0:2150: 'poc_invalid_shader_token' : syntax error\n\n  2145: #endif\n  2146: #ifdef DITHERING\n  2147: \tgl_FragColor.rgb = dithering( gl_FragColor.rgb );\n  2148: #endif\n  2149: }\n> 2150: poc_invalid_shader_token\n  2151: ",
+                "expected": true
+              },
+              {
+                "timestamp": "2026-10-29T17:52:50.441Z",
+                "pageUrl": "http://127.0.0.1:64351/map.iso.html",
+                "phase": "three-shader-failure",
+                "origin": "http://127.0.0.1:64351",
+                "severity": "error",
+                "type": "console",
+                "url": "http://127.0.0.1:64351/three/three.core.js",
+                "message": "THREE.WebGLProgram: Shader Error 1282 - VALIDATE_STATUS false\n\nMaterial Name: \nMaterial Type: LineMaterial\n\nProgram Info Log: Vertex shader is not compiled.\nVERTEX\n\nERROR: 0:400: 'poc_invalid_shader_token' : syntax error\n\n  395:       dot(viewMatrix[1].xyz, isoFogView), dot(viewMatrix[2].xyz, isoFogView)) + cameraPosition;\n  396:   \n  397: \n  398: \t\t}\n  399: \t\t\n> 400: poc_invalid_shader_token\n  401: \nFRAGMENT\n\nERROR: 0:343: 'poc_invalid_shader_token' : syntax error\n\n  338: \tgl_FragColor.rgb *= gl_FragColor.a;\n  339: #endif\n  340: \n  341: \t\t}\n  342: \t\t\n> 343: poc_invalid_shader_token\n  344: ",
+                "expected": true
+              },
+              {
+                "timestamp": "2026-10-29T17:52:50.444Z",
+                "pageUrl": "http://127.0.0.1:64351/map.iso.html",
+                "phase": "three-shader-failure",
+                "origin": "http://127.0.0.1:64351",
+                "severity": "error",
+                "type": "console",
+                "url": "http://127.0.0.1:64351/three/three.core.js",
+                "message": "THREE.WebGLProgram: Shader Error 1282 - VALIDATE_STATUS false\n\nMaterial Name: \nMaterial Type: MeshBasicMaterial\n\nProgram Info Log: Vertex shader is not compiled.\nVERTEX\n\nERROR: 0:572: 'poc_invalid_shader_token' : syntax error\n\n  567:       isoFogWorld = instanceMatrix * isoFogWorld;\n  568:     #endif\n  569:     vIsoWorldPosition = (modelMatrix * isoFogWorld).xyz;\n  570:   \n  571: }\n> 572: poc_invalid_shader_token\n  573: \nFRAGMENT\n\nERROR: 0:451: 'poc_invalid_shader_token' : syntax error\n\n  446: #endif\n  447: #ifdef DITHERING\n  448: \tgl_FragColor.rgb = dithering( gl_FragColor.rgb );\n  449: #endif\n  450: }\n> 451: poc_invalid_shader_token\n  452: ",
+                "expected": true
+              },
+              {
+                "timestamp": "2026-10-29T17:52:50.447Z",
+                "pageUrl": "http://127.0.0.1:64351/map.iso.html",
+                "phase": "three-shader-failure",
+                "origin": "http://127.0.0.1:64351",
+                "severity": "error",
+                "type": "console",
+                "url": "http://127.0.0.1:64351/three/three.core.js",
+                "message": "THREE.WebGLProgram: Shader Error 1282 - VALIDATE_STATUS false\n\nMaterial Name: \nMaterial Type: MeshBasicMaterial\n\nProgram Info Log: Vertex shader is not compiled.\nVERTEX\n\nERROR: 0:571: 'poc_invalid_shader_token' : syntax error\n\n  566:       isoFogWorld = instanceMatrix * isoFogWorld;\n  567:     #endif\n  568:     vIsoWorldPosition = (modelMatrix * isoFogWorld).xyz;\n  569:   \n  570: }\n> 571: poc_invalid_shader_token\n  572: \nFRAGMENT\n\nERROR: 0:450: 'poc_invalid_shader_token' : syntax error\n\n  445: #endif\n  446: #ifdef DITHERING\n  447: \tgl_FragColor.rgb = dithering( gl_FragColor.rgb );\n  448: #endif\n  449: }\n> 450: poc_invalid_shader_token\n  451: ",
+                "expected": true
+              }
+            ],
+            "expected": [
+              {
+                "type": "requestfailed",
+                "url": "http://127.0.0.1:64351/map-snapshot",
+                "method": "POST",
+                "requestKind": "files",
+                "message": "net::ERR_ABORTED",
+                "maxCount": 1
+              },
+              {
+                "type": "console",
+                "url": "http://127.0.0.1:64351/three/three.core.js",
+                "messagePattern": "^THREE.WebGLProgram: Shader Error",
+                "maxCount": 16
+              }
+            ],
+            "total": 7,
+            "overflow": 0,
+            "counts": {
+              "requestfailed": 1,
+              "console": 6
+            },
+            "status": "passed",
+            "endedAt": "2026-10-29T17:52:51.083Z",
+            "expectedObserved": 7
+          }
+        ]
+      }
+    ],
+    "frontGate": {
+      "checks": [
+        {
+          "name": "format",
+          "command": "npm run format",
+          "exitCode": 0,
+          "durationMs": 41698,
+          "log": ".tmp/tasks/p2-p3-closeout-20261029/followup-publish-format.log",
+          "sha256": "7855b6012c61fbd43d32511e7db1fc8fda9a515fe4bdfaaaac5174988aa43790"
+        },
+        {
+          "name": "config-budget",
+          "command": "npm run config:budget",
+          "exitCode": 0,
+          "durationMs": 1927,
+          "log": ".tmp/tasks/p2-p3-closeout-20261029/followup-publish-fixed-config-budget.log",
+          "sha256": "5a73d6364cc10586d450f8083133e338669857da41c3873f6c1ff1435ba954a6"
+        },
+        {
+          "name": "env-check",
+          "command": "npm run env:check",
+          "exitCode": 0,
+          "durationMs": 1166,
+          "log": ".tmp/tasks/p2-p3-closeout-20261029/followup-publish-fixed-env-check.log",
+          "sha256": "b68a12b11da60d8f54903d11190dbc3da628d8c39a0d68ca7e02da8bd16c0008"
+        },
+        {
+          "name": "generated-freshness",
+          "command": "node tools/docs/generated-surfaces.js --check-freshness",
+          "exitCode": 0,
+          "durationMs": 11219,
+          "log": ".tmp/tasks/p2-p3-closeout-20261029/followup-publish-fixed-generated-freshness.log",
+          "sha256": "12d66e11ed9f3f1d4c7a42dcfb0e05f7ed20f817ce5419d2179e0906c6546665"
+        },
+        {
+          "name": "command-surface",
+          "command": "node tools/ci/check-command-surface.js",
+          "exitCode": 0,
+          "durationMs": 2583,
+          "log": ".tmp/tasks/p2-p3-closeout-20261029/followup-publish-fixed-command-surface.log",
+          "sha256": "718e1bec11ed61774c3b0ff66bf339fa48cf4b9b3517d2c2e4d2b8d49fb63417"
+        },
+        {
+          "name": "workflow-contract",
+          "command": "node tests/ci/workflow-contract.test.js",
+          "exitCode": 0,
+          "durationMs": 228,
+          "log": ".tmp/tasks/p2-p3-closeout-20261029/followup-publish-fixed-workflow-contract.log",
+          "sha256": "5c01890cb0b087b29897ddfc20e9527cfb7afb370eacd7871f3b649dd7fe1b58"
+        },
+        {
+          "name": "gate",
+          "command": "node tests/run.js --lane gate --jobs 1 --timeout-ms 30000 --retries 0 --native-status-redo=false --report-file C:/Users/sneak/Development/PairOfCleats/.tmp/tasks/p2-p3-closeout-20261029/followup-publish-gate.json --log-dir C:/Users/sneak/Development/PairOfCleats/.tmp/tasks/p2-p3-closeout-20261029/followup-publish-gate-logs",
+          "exitCode": 0,
+          "durationMs": 22118,
+          "log": ".tmp/tasks/p2-p3-closeout-20261029/followup-publish-fixed-gate.log",
+          "sha256": "661d4ecdfd2e4e0c28e831d319b4ba3f68dc76b733714a6680c65d59eec5e214"
+        },
+        {
+          "name": "diff-check",
+          "command": "git diff --check",
+          "exitCode": 0,
+          "durationMs": 107,
+          "log": ".tmp/tasks/p2-p3-closeout-20261029/followup-publish-fixed-diff-check.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        }
+      ],
+      "status": "passed",
+      "sha256": "41137b10b220f78a3ad61f7f9e15b12f3660b8b6834602ab6dfe1bdd74767bcd",
+      "path": ".tmp/tasks/p2-p3-closeout-20261029/followup-publish-front-gate.json"
+    },
+    "distinctFocusedCount": 24,
+    "latestPassed": 24,
+    "sourceCommit": "84a26fc53ee251d2527f5e99cec4b5e320e38dd1",
+    "originalGateFailure": {
+      "path": ".tmp/tasks/p2-p3-closeout-20261029/followup-publish-config-budget.log",
+      "sha256": "b13fd756cd31aeacf64ed1c6edd57ff84aa61539635890728998ec8be652883e",
+      "exitCode": 1,
+      "cause": "An internal invalid-shader marker used the environment-variable prefix; marker renamed, allowlist unchanged, original check now passes."
+    }
   }
 }
