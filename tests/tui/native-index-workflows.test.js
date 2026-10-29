@@ -11,7 +11,7 @@ import { isProcessAlive } from '../../src/shared/locks/file-lock-owner.js';
 import { killProcessTree } from '../../src/shared/kill-tree.js';
 import { spawnSubprocess } from '../../src/shared/subprocess/runner.js';
 import { buildSearchRequestArgs } from '../../src/shared/search-request.js';
-import { loadUserConfig } from '../../src/shared/dict-utils.js';
+import { getIndexDir, loadUserConfig } from '../../src/shared/dict-utils.js';
 import { createPointerSnapshot, listSnapshots } from '../../src/index/snapshots/create.js';
 import { freezeSnapshot } from '../../src/index/snapshots/freeze.js';
 
@@ -84,13 +84,20 @@ const seedBuild = async (stage, name) => {
   const options = { modes: ['code'], ...(stage ? { stage } : {}), threads: 1, stubEmbeddings: true, progress: 'off', log: () => {} };
   const started = Date.now(), result = await buildIndex(repo, options);
   assert.ok(['index-published', 'stage-completed'].includes(result.outcome.status), JSON.stringify(result.outcome));
+  if (mode === 'validate-search') {
+    const indexDir = getIndexDir(repo, 'code', loadUserConfig(repo, { env }));
+    const state = JSON.parse(await fs.readFile(path.join(indexDir, 'index_state.json'), 'utf8'));
+    assert.equal(state.embeddings.backends.lancedb.enabled, true);
+    assert.equal(state.embeddings.backends.lancedb.available, true, 'the complete seed must retain its real native backend');
+    assert.ok(state.embeddings.backends.lancedb.count > 0);
+  }
   await fs.writeFile(path.join(dir, `${name}.json`), JSON.stringify({ owner: 'buildIndex', options,
     durationMs: Date.now() - started, outcome: result.outcome }, null, 2));
 };
 if (['build-search', 'workspace'].includes(mode)) {
   await seedBuild('stage2', 'seed-partial-build');
 }
-if (needsCompleteSeed) {
+if (needsCompleteSeed && mode !== 'validate-search') {
   await seedBuild(null, 'seed-complete-build');
 }
 // Setup calls the same canonical owners as the snapshot CLI. The operations
@@ -142,7 +149,7 @@ try {
           tail = wire.slice(-3);
         }
       });
-      const deadline = Math.min(Date.now() + 22000, fixtureDeadline);
+      let deadline = Math.min(Date.now() + 22000, fixtureDeadline);
       const wait = async (predicate, label) => {
         while (!await predicate()) { assert.ok(Date.now() < deadline, `Native index witness timed out: ${label}`); await new Promise(resolve => setTimeout(resolve, 20)); }
       };
@@ -208,7 +215,15 @@ try {
       const backToCatalog = async () => { terminal.write('\x1b'); await rendered('Arrows select | Enter form/reason'); };
       const closeCatalog = async () => { terminal.write('\x1b'); await rendered('Tab pane'); };
       try {
-        await rendered('Tab pane');
+        if (mode === 'validate-search') {
+          // The independent terminal can initialize while the canonical seed
+          // builds. Join both owners before selecting a generation or starting
+          // any workflow; retain every validator/search assertion and deadline.
+          const seed = seedBuild(null, 'seed-complete-build').then(() => { deadline = Date.now() + 22000; });
+          const setup = await Promise.allSettled([seed, rendered('Tab pane')]);
+          const failures = setup.filter(result => result.status === 'rejected').map(result => result.reason);
+          if (failures.length) throw failures.length === 1 ? failures[0] : new AggregateError(failures, 'Native validation setup failed.');
+        } else await rendered('Tab pane');
         terminal.write('b'); await rendered('Workflow scope: repository directory');
         const after = await last('native-workflow-');
         // The native child inherits this cwd. Exercise real relative-path

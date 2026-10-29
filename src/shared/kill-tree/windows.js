@@ -27,14 +27,17 @@ export const resolveWindowsPowerShellPath = (env = process.env) => {
 // PROCESSENTRY32W layout: tlhelp32.h; reject anything except complete enumeration.
 export const WINDOWS_PROCESS_SNAPSHOT_SCRIPT = String.raw`$ErrorActionPreference = 'Stop'
 [Console]::Error.WriteLine('lineage:script-start')
+$clock = [Diagnostics.Stopwatch]::StartNew()
 if ([IntPtr]::Size -ne 8) { throw 'Process snapshot requires the supported 64-bit Windows runtime.' }
 $assembly = [AppDomain]::CurrentDomain.DefineDynamicAssembly([Reflection.AssemblyName]::new('PocProcessSnapshot'), [Reflection.Emit.AssemblyBuilderAccess]::Run)
+[Console]::Error.WriteLine('lineage:assembly-ready elapsedMs=' + $clock.ElapsedMilliseconds)
 $module = $assembly.DefineDynamicModule('Native')
 $builder = $module.DefineType('PocProcessSnapshot', [Reflection.TypeAttributes]'Public, Abstract, Sealed')
 $attributeType = [Runtime.InteropServices.DllImportAttribute]
 $constructor = $attributeType.GetConstructor([Type[]]@([string]))
 $fields = [Reflection.FieldInfo[]]@($attributeType.GetField('SetLastError'), $attributeType.GetField('ExactSpelling'))
 $attribute = [Reflection.Emit.CustomAttributeBuilder]::new($constructor, [object[]]@('kernel32.dll'), $fields, [object[]]@($true, $true))
+[Console]::Error.WriteLine('lineage:signature-ready elapsedMs=' + $clock.ElapsedMilliseconds)
 function Add-NativeMethod([string]$name, [Type]$returnType, [Type[]]$parameters) {
   $method = $builder.DefineMethod($name, [Reflection.MethodAttributes]'Public, Static, PinvokeImpl', $returnType, $parameters)
   $method.SetCustomAttribute($attribute)
@@ -45,7 +48,7 @@ Add-NativeMethod 'Process32FirstW' ([bool]) ([Type[]]@([IntPtr], [IntPtr]))
 Add-NativeMethod 'Process32NextW' ([bool]) ([Type[]]@([IntPtr], [IntPtr]))
 Add-NativeMethod 'CloseHandle' ([bool]) ([Type[]]@([IntPtr]))
 $native = $builder.CreateType()
-[Console]::Error.WriteLine('lineage:interop-ready')
+[Console]::Error.WriteLine('lineage:interop-ready elapsedMs=' + $clock.ElapsedMilliseconds)
 $entrySize = 568
 $parentOffset = 32
 $buffer = [IntPtr]::Zero
@@ -56,7 +59,7 @@ try {
   [Runtime.InteropServices.Marshal]::WriteInt32($buffer, $entrySize)
   $snapshot = $native::CreateToolhelp32Snapshot(2, 0)
   if ($snapshot -eq [IntPtr]::new(-1)) { throw [ComponentModel.Win32Exception]::new([Runtime.InteropServices.Marshal]::GetLastWin32Error()) }
-  [Console]::Error.WriteLine('lineage:snapshot-ready')
+  [Console]::Error.WriteLine('lineage:snapshot-ready elapsedMs=' + $clock.ElapsedMilliseconds)
   $more = $native::Process32FirstW($snapshot, $buffer)
   while ($more) {
     $processId = [int64][Runtime.InteropServices.Marshal]::ReadInt32($buffer, 8) -band 4294967295L
@@ -71,10 +74,10 @@ try {
   if ($snapshot -ne [IntPtr]::new(-1)) {
     if (!$native::CloseHandle($snapshot)) { throw [ComponentModel.Win32Exception]::new([Runtime.InteropServices.Marshal]::GetLastWin32Error()) }
   }
-  [Console]::Error.WriteLine('lineage:resources-closed')
+  [Console]::Error.WriteLine('lineage:resources-closed elapsedMs=' + $clock.ElapsedMilliseconds)
 }
 [Console]::Out.Write($rows.ToString())
-[Console]::Error.WriteLine('lineage:rows-written')
+[Console]::Error.WriteLine('lineage:rows-written elapsedMs=' + $clock.ElapsedMilliseconds)
 `;
 
 /** Keep engine startup distinct from parsing/executing the larger native script.

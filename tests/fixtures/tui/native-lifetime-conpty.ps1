@@ -15,6 +15,15 @@ public static class PocConsoleMode {
 '@
 $beforeInput = [PocConsoleMode]::Read(-10)
 $beforeOutput = [PocConsoleMode]::Read(-11)
+if ($Mode -eq 'validate-search') {
+  # Compile the independent console observer while the canonical seed builds.
+  # Start the native lifetime only after the seed owner has actually completed.
+  $seedDeadline = [DateTime]::UtcNow.AddSeconds(20)
+  while (!(Test-Path -LiteralPath (Join-Path $FixtureRoot 'seed-complete-build.json'))) {
+    if ([DateTime]::UtcNow -gt $seedDeadline) { throw 'Canonical validation seed did not complete' }
+    Start-Sleep -Milliseconds 20
+  }
+}
 $native = [System.Diagnostics.Process]::new()
 $native.StartInfo.FileName = $Binary
 if ($Wrapper) { $native.StartInfo.ArgumentList.Add($Wrapper) }
