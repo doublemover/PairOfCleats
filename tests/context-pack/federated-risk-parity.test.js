@@ -134,15 +134,15 @@ const { serverInfo, requestJson, stop } = await startFederatedApiServer({
   allowedRoots: [tempRoot],
   envOverrides: process.env
 });
-const assertAttestations = payload => {
+const assertAttestations = (payload, { betaConfig = 'config-beta', betaRules = 'rules-beta' } = {}) => {
   assert.deepEqual(federatedRiskProjectionErrors(payload), []);
   assert.equal(payload.risk.provenance, null); assert.equal(payload.risk.support, null);
   assert.equal(payload.risk.stats, null); assert.equal(payload.risk.caps, null);
   const members = new Map(payload.risk.federation.attestations.map(member => [member.repoId, member]));
   for (const selected of payload.risk.federation.selection.selectedRepos) {
     const member = members.get(selected.repoId); assert.ok(member);
-    assert.equal(member.provenance.effectiveConfigFingerprint, 'config-' + selected.alias);
-    assert.equal(member.provenance.ruleBundle.fingerprint, 'rules-' + selected.alias);
+    assert.equal(member.provenance.effectiveConfigFingerprint, selected.alias === 'beta' ? betaConfig : 'config-alpha');
+    assert.equal(member.provenance.ruleBundle.fingerprint, selected.alias === 'beta' ? betaRules : 'rules-alpha');
     for (const flow of payload.risk.flows.filter(value => value.repo.repoId === selected.repoId)) {
       assert.equal(flow.repo.attestationId, member.attestationId);
       for (const node of [flow.source, flow.sink, ...flow.path.nodes,
@@ -271,15 +271,36 @@ try {
   assert.deepEqual(normalizeRiskProjection(multiMcp), normalizeRiskProjection(multiDirect));
   assert.deepEqual(assertAttestations(multiMcp), originalMembers);
   beta.stats.fields.provenance.effectiveConfigFingerprint = 'config-beta-new';
+  beta.stats.fields.provenance.ruleBundle.fingerprint = 'rules-beta-new';
   await writeJsonObjectFile(path.join(beta.finalIndexDir, 'risk_interprocedural_stats.json'), beta.stats);
   const changed = await buildCompositeContextPackPayload(multiRepoArgs);
+  const changedExpectations = { betaConfig: 'config-beta-new', betaRules: 'rules-beta-new' };
+  assertAttestations(changed, changedExpectations);
   const alphaId = payload => payload.risk.federation.attestations.find(member => member.repoId === originalMembers[0].repoId).attestationId;
   assert.equal(alphaId(changed), alphaId(multiDirect));
   const betaMember = payload => payload.risk.federation.attestations.find(member => member.repoId !== originalMembers[0].repoId);
   assert.notEqual(betaMember(changed).attestationId, betaMember(multiDirect).attestationId);
   assert.equal(betaMember(changed).provenance.effectiveConfigFingerprint, 'config-beta-new');
+  const changedApi = await requestJson('POST', '/analysis/context-pack', multiRepoArgs, serverInfo);
+  assert.equal(changedApi.status, 200);
+  const changedMcp = await handleToolCall('context_pack', multiRepoArgs);
+  for (const value of [changedApi.body.result, changedMcp]) {
+    assert.deepEqual(assertAttestations(value, changedExpectations), changed.risk.federation.attestations);
+    assert.equal(alphaId(value), alphaId(multiDirect));
+    assert.equal(betaMember(value).attestationId, betaMember(changed).attestationId);
+  }
   const swapped = await buildCompositeContextPackPayload({ ...multiRepoArgs, repoRoot: repoB });
+  assertAttestations(swapped, changedExpectations);
   assert.equal(betaMember(swapped).attestationId, betaMember(changed).attestationId, 'changing base cannot rewrite the same member qualification');
+  const swappedArgs = { ...multiRepoArgs, repoPath: repoB };
+  const swappedApi = await requestJson('POST', '/analysis/context-pack', swappedArgs, serverInfo);
+  assert.equal(swappedApi.status, 200);
+  const swappedMcp = await handleToolCall('context_pack', swappedArgs);
+  for (const value of [swappedApi.body.result, swappedMcp]) {
+    assertAttestations(value, changedExpectations);
+    assert.equal(betaMember(value).attestationId, betaMember(changed).attestationId);
+    assert.equal(alphaId(value), alphaId(multiDirect));
+  }
   beta.stats.fields.inputCoverage.status = 'partial';
   await writeJsonObjectFile(path.join(beta.finalIndexDir, 'risk_interprocedural_stats.json'), beta.stats);
   const cappedDirect = await buildCompositeContextPackPayload(multiRepoArgs);
@@ -289,6 +310,7 @@ try {
   const cappedApi = await requestJson('POST', '/analysis/context-pack', multiRepoArgs, serverInfo);
   const cappedMcp = await handleToolCall('context_pack', multiRepoArgs);
   for (const value of [cappedApi.body.result, cappedMcp]) {
+    assertAttestations(value, changedExpectations);
     assert.deepEqual(federatedRiskProjectionErrors(value), []);
     assert.equal(value.risk.analysisStatus.code, 'capped'); assert.equal(value.risk.analysisStatus.strictFailure, true);
     assert.deepEqual(value.risk.federation.attestations, cappedDirect.risk.federation.attestations);

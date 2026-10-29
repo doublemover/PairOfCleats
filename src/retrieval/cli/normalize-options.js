@@ -1,4 +1,5 @@
 import { resolveSearchControls } from './search-controls.js';
+import { ERROR_CODES } from '../../shared/error-codes.js';
 import { getVectorExtensionConfig } from '../../../tools/sqlite/vector-extension.js';
 import { normalizeHnswConfig } from '../../shared/hnsw.js';
 import { normalizeLanceDbConfig } from '../../shared/lancedb.js';
@@ -99,10 +100,13 @@ export function normalizeSearchOptions({
 
   const filterInfo = parseFilterExpression(argv.filter);
   if (filterInfo.errors && filterInfo.errors.length) {
-    throw new Error(`Invalid --filter: ${filterInfo.errors.join(', ')}`);
+    throw Object.assign(new Error(`Invalid --filter: ${filterInfo.errors.join(', ')}`), {
+      code: ERROR_CODES.INVALID_REQUEST, details: { filterDiagnostics: filterInfo.diagnostics }
+    });
   }
   const searchTypeEntries = [];
-  if (argv.type) searchTypeEntries.push(argv.type);
+  if (argv.type) searchTypeEntries.push((Array.isArray(argv.type) ? argv.type : [argv.type])
+    .flatMap(value => String(value).split(/[,\s]+/)).filter(Boolean));
   if (filterInfo.type) searchTypeEntries.push(filterInfo.type);
   const searchType = searchTypeEntries.length ? searchTypeEntries.flat() : null;
   const searchAuthor = argv.author || null;
@@ -154,6 +158,10 @@ export function normalizeSearchOptions({
   if (argv.file) fileFilters.push(argv.file);
   if (filterInfo.file) fileFilters.push(filterInfo.file);
   const fileFilter = fileFilters.length ? fileFilters.flat() : null;
+  const explicitFiles = [argv.path, argv.file].flat().filter(value => typeof value === 'string' && value.length);
+  if (explicitFiles.length && filterInfo.file?.length) {
+    filePrefilterConfig.allGroups = [explicitFiles, filterInfo.file];
+  }
   const caseAll = argv.case === true;
   const caseFile = argv['case-file'] === true || caseAll;
   const caseTokens = argv['case-tokens'] === true || caseAll;
@@ -161,11 +169,11 @@ export function normalizeSearchOptions({
 
   const extFilterInfo = mergeExtFilters(
     normalizeExtFilter(argv.ext),
-    normalizeExtFilter(filterInfo.ext)
+    normalizeExtFilter(filterInfo.ext, { preserveValues: true })
   );
   const langFilterInfo = mergeLangFilters(
     normalizeLangFilter(argv.lang),
-    normalizeLangFilter(filterInfo.lang)
+    normalizeLangFilter(filterInfo.lang, { preserveValues: true })
   );
   const extFilter = extFilterInfo.values;
   const langFilter = langFilterInfo.values;

@@ -2,6 +2,7 @@ import { resolveChunkDocmeta } from './output/filters/meta.js';
 export { resolveFilterExtension, resolveFilterLanguage } from '../shared/filter/chunk-file-facts.js';
 
 export const FILTER_FACTS_VERSION = 2;
+export const METADATA_PREDICATE_VERSION = 3;
 
 /** Non-null docmeta fields override metaV2; explicit merged visibility wins
  * over merged modifiers, matching the metadata fallback contract. */

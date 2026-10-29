@@ -4,6 +4,7 @@ import path from 'node:path';
 import { toRealPathSync } from '../../workspace/identity.js';
 import { parseSearchArgs } from '../cli-args.js';
 import { buildRepoModePlans } from './modes.js';
+import { captureAdmittedSearchGeneration, INTERNAL_ADMITTED_GENERATION } from '../../index/as-of.js';
 
 const payloadKeys = { code: 'code', prose: 'prose', 'extracted-prose': 'extractedProse', records: 'records' };
 
@@ -12,15 +13,20 @@ const hasHistoricalSelector = args => {
   return parsed.snapshot != null || (parsed['as-of'] != null && parsed['as-of'] !== 'latest');
 };
 
-const admittedBuildRef = (manifestRepo, mode) => {
+const admittedBuildSelection = (manifestRepo, mode) => {
   const root = manifestRepo?.indexes?.[mode]?.indexRoot;
   const buildId = typeof root === 'string' ? path.basename(root) : '';
-  if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,199}$/.test(buildId) || !manifestRepo?.repoCacheRoot
-    || toRealPathSync(path.join(manifestRepo.repoCacheRoot, 'builds', buildId)) !== toRealPathSync(root)) {
+  if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,199}$/.test(buildId) || !manifestRepo?.repoCacheRoot) {
     throw createError(ERROR_CODES.INVALID_REQUEST,
       `Repository ${manifestRepo?.repoId || '<unknown>'} ${mode} admitted root cannot be pinned to a retained build. Restart after rebuilding this mode.`);
   }
-  return `build:${buildId}`;
+  const admittedGeneration = captureAdmittedSearchGeneration({
+    repoRoot: manifestRepo.repoRootCanonical, requestedModes: [mode], expectedRootsByMode: { [mode]: root }
+  });
+  if (toRealPathSync(path.join(manifestRepo.repoCacheRoot, 'builds', buildId)) === toRealPathSync(root)) {
+    return { root, indexRef: `build:${buildId}` };
+  }
+  return { root, admittedGeneration };
 };
 
 /** Split a combined mode call when its admitted roots belong to different builds. */
@@ -28,11 +34,12 @@ export const buildPinnedFederatedModePlans = ({ modes, manifestRepo, args }) => 
   if (hasHistoricalSelector(args)) return buildRepoModePlans(modes);
   const groups = new Map();
   for (const mode of modes) {
-    const ref = admittedBuildRef(manifestRepo, mode);
-    if (!groups.has(ref)) groups.set(ref, []);
-    groups.get(ref).push(mode);
+    const selection = admittedBuildSelection(manifestRepo, mode);
+    if (!groups.has(selection.root)) groups.set(selection.root, { selection, modes: [] });
+    groups.get(selection.root).modes.push(mode);
   }
-  return [...groups.entries()].flatMap(([indexRef, selected]) => buildRepoModePlans(selected).map(plan => ({ ...plan, indexRef })));
+  return [...groups.values()].flatMap(({ selection, modes }) => buildRepoModePlans(modes)
+    .map(plan => ({ ...plan, ...selection })));
 };
 
 /** Insert an existing immutable build selector before the preserved option tail. */
@@ -48,8 +55,18 @@ export const bindFederatedBuildRef = (args, indexRef) => {
   return [...output, '--as-of', indexRef, ...(marker < 0 ? [] : args.slice(marker))];
 };
 
-export const bindFederatedModeGeneration = (args, manifestRepo, mode) => hasHistoricalSelector(args)
-  ? args : bindFederatedBuildRef(args, admittedBuildRef(manifestRepo, mode));
+export const bindFederatedModeGeneration = (args, manifestRepo, mode) => {
+  if (hasHistoricalSelector(args)) return args;
+  const selection = admittedBuildSelection(manifestRepo, mode);
+  if (!selection.indexRef) throw createError(ERROR_CODES.INVALID_REQUEST, 'This generation requires an admitted request binding.');
+  return bindFederatedBuildRef(args, selection.indexRef);
+};
+
+export const bindFederatedModeRequest = (args, manifestRepo, mode) => {
+  const selection = hasHistoricalSelector(args) ? {} : admittedBuildSelection(manifestRepo, mode);
+  return { args: bindFederatedBuildRef(args, selection.indexRef),
+    options: { [INTERNAL_ADMITTED_GENERATION]: selection.admittedGeneration } };
+};
 
 /**
  * Core search records the signature of each directory it actually selected.

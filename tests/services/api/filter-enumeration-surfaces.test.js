@@ -76,7 +76,8 @@ try {
   for (const context of [1, -1, 0.5, null, '0']) {
     const response = await post({ ...input, context }); assert.equal(response.status, 400);
     assert.match(JSON.stringify(response.body), /removed|context_pack/);
-    assert.throws(() => buildMcpSearchArgs({ ...input, context }), /removed/);
+    assert.throws(() => buildMcpSearchArgs({ ...input, context }), error => error.code === 'INVALID_REQUEST'
+      && /Invalid MCP search args:.*\/context/.test(error.message));
   }
   assert.equal((await post({ mode: 'code', ann: false })).status, 400);
   assert.equal((await post({ ...input, query: 'text', cursor: first.pagination.nextCursor })).status, 400);

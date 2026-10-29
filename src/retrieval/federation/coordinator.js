@@ -31,7 +31,8 @@ import { bindRelativeModificationArgs } from './time-filter.js';
 import { captureFederatedShadow, publishFederatedShadow } from './shadow-routing.js';
 import { createFederatedAdmission } from './admission.js';
 import { verifyFederatedModeGeneration, buildPinnedFederatedModePlans,
-  bindFederatedBuildRef, bindFederatedModeGeneration } from './generation.js';
+  bindFederatedBuildRef, bindFederatedModeRequest } from './generation.js';
+import { INTERNAL_ADMITTED_GENERATION } from '../../index/as-of.js';
 import { applyModeOverride } from './modes.js';
 import { resolveFederatedCursor } from './request.js';
 import { INTERNAL_EXACT_SEARCH_MODE } from '../cli.js';
@@ -512,13 +513,22 @@ export const runFederatedSearch = async (request = {}, context = {}) => {
   if (request.workspaceId && request.workspaceId !== workspaceConfig.repoSetId) {
     throw createError(ERROR_CODES.INVALID_REQUEST, 'workspaceId does not match the provided workspacePath.');
   }
-
-  const manifestResult = await generateWorkspaceManifest(workspaceConfig, { write: true });
+  const readManifest = async write => {
+    try { return await generateWorkspaceManifest(workspaceConfig, { write, signal: context.signal }); }
+    catch (error) {
+      observeStorageResource(error, { phase: 'federated-manifest' }).requireSettled();
+      if (context.signal?.aborted && isAbortError(error)) {
+        throw Object.assign(createError(ERROR_CODES.CANCELLED, 'Federated search cancelled.'), { cause: error });
+      }
+      throw error;
+    }
+  };
+  const manifestResult = await readManifest(true);
   checkAbort();
   const manifest = manifestResult.manifest;
   const verifyRankedGeneration = async () => {
     checkAbort();
-    const current = await generateWorkspaceManifest(workspaceConfig, { write: false });
+    const current = await readManifest(false);
     checkAbort();
     if (current.manifest.manifestHash !== manifest.manifestHash) {
       throw createError(ERROR_CODES.INVALID_REQUEST, 'Workspace generation changed during ranked search. Retry against the current generation.');
@@ -606,12 +616,12 @@ export const runFederatedSearch = async (request = {}, context = {}) => {
     const result = await enumerateWorkspace({
       tasks, args: enumerationArgs, cursor: requestCursor,
       manifestHash: manifest.manifestHash, search: context.searchFn || coreSearch, signal: context.signal,
-      bindArgs: (task, args) => bindFederatedModeGeneration(args,
+      bindRequest: (task, args) => bindFederatedModeRequest(args,
         manifest.repos.find(repo => repo.repoId === task.repo.repoId), task.mode),
       verifyResult: (task, result) => verifyFederatedModeGeneration({ repoId: task.repo.repoId,
         modes: [task.mode], result, manifestRepo: manifest.repos.find(repo => repo.repoId === task.repo.repoId) }),
       verifyGeneration: async () => {
-        const current = await generateWorkspaceManifest(workspaceConfig, { write: false });
+        const current = await readManifest(false);
         if (current.manifest.manifestHash !== manifest.manifestHash) {
           throw createError(ERROR_CODES.INVALID_REQUEST, 'Workspace generation changed during enumeration. Restart without --cursor.');
         }
@@ -958,6 +968,7 @@ export const runFederatedSearch = async (request = {}, context = {}) => {
             if (plan.policyError) throw plan.policyError;
             const result = await searchFn(repo.repoRootCanonical, {
               [INTERNAL_SEARCH_POLICY]: plan.policy,
+              [INTERNAL_ADMITTED_GENERATION]: plan.admittedGeneration,
               args: repoArgs,
               argsMode: 'complete',
               query: perRepoQuery,

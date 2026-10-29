@@ -96,6 +96,31 @@ or a promise that the checkout cannot change afterward.
 `--filter` accepts space- or comma-separated tokens. Supported keys are `file`/`path`, `lang`, `ext`, and `type`/`kind`.
 Tokens without a key are treated as file/path filters. Unknown keys are rejected. `--filter` merges with the explicit filter flags above (ANDed).
 
+The shared grammar accepts `:` and `=` assignments. `file:src,lang:python`
+and `file:src lang:python` have the same field boundaries. An unquoted comma
+continues the current field's value list unless the next atom names a field:
+`lang:js,ts` selects either language, while `file:src,lang:python` requires both
+the file and language predicates. Whitespace starts a new atom; repeated fields
+append values. Explicit language and extension flags intersect their expression
+fields.
+
+Quote an entire atom (`"file:My File.py"`) or its value
+(`file:"My File.py"`) to preserve spaces or literal commas. For example,
+`file:"notes, old.py",lang:python` retains one filename. Apostrophes inside an
+unquoted word are literal. Inside quotes, backslash escapes the matching quote
+or another backslash; other backslashes remain literal. Outside quotes it can
+escape whitespace, commas or quotes. Unquoted Windows drive paths retain their
+drive colon and backslashes; regular expressions containing spaces can use a
+quoted value such as `file:"/My File[.]py$/"`.
+
+Empty values, unknown fields, unclosed quotes and text appended after a closing
+quote are errors. Diagnostics identify a code and the original UTF-16 start/end
+offsets; CLI messages include the failing offset. Parsing is bounded to 65,536
+UTF-16 units, 4,096 retained values and 16 diagnostics. The shared typed result
+contains `file`, `lang`, `ext`, `type`, source terms and diagnostics. Its canonical
+serializer preserves exact string values through serialization and reparsing;
+path and author arguments are not split into words afterward.
+
 ## Outputs
 
 ### Text mode

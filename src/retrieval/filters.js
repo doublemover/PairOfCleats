@@ -59,7 +59,6 @@ const LANG_ALIAS_MAP = new Map([
   ['graphql', 'graphql']
 ]);
 
-const FILTER_TOKEN_RE = /"([^"]*)"|'([^']*)'|(\S+)/g;
 
 const INTERNAL_FILTER_KEYS = new Set([
   'filePrefilter',
@@ -70,97 +69,19 @@ const INTERNAL_FILTER_KEYS = new Set([
   'excludePhrases'
 ]);
 
-const splitFilterTokens = (raw) => {
-  const tokens = [];
-  const input = String(raw || '').trim();
-  if (!input) return tokens;
-  FILTER_TOKEN_RE.lastIndex = 0;
-  let match = null;
-  while ((match = FILTER_TOKEN_RE.exec(input))) {
-    tokens.push(match[1] ?? match[2] ?? match[3]);
-  }
-  return tokens;
-};
-
-const splitFilterValues = (value) => String(value || '')
-  .split(',')
-  .map((part) => part.trim())
-  .filter(Boolean);
-
-const isWindowsPathToken = (value) => /^[A-Za-z]:[\\/]/.test(value);
-
-export function parseFilterExpression(raw) {
-  const errors = [];
-  const file = [];
-  const lang = [];
-  const ext = [];
-  const type = [];
-  const tokens = splitFilterTokens(raw);
-  if (!tokens.length) {
-    return {
-      file: null,
-      lang: null,
-      ext: null,
-      type: null,
-      errors
-    };
-  }
-  const pushValues = (list, value) => {
-    for (const entry of splitFilterValues(value)) {
-      list.push(entry);
-    }
-  };
-  for (const token of tokens) {
-    const trimmed = String(token || '').trim();
-    if (!trimmed) continue;
-    if (isWindowsPathToken(trimmed)) {
-      pushValues(file, trimmed);
-      continue;
-    }
-    const separatorIndex = trimmed.search(/[:=]/);
-    if (separatorIndex === -1) {
-      pushValues(file, trimmed);
-      continue;
-    }
-    const key = trimmed.slice(0, separatorIndex).trim().toLowerCase();
-    const value = trimmed.slice(separatorIndex + 1).trim();
-    if (!value) {
-      errors.push(`missing value for ${key}`);
-      continue;
-    }
-    if (key === 'path' || key === 'file') {
-      pushValues(file, value);
-    } else if (key === 'lang' || key === 'language') {
-      pushValues(lang, value);
-    } else if (key === 'ext' || key === 'extension') {
-      pushValues(ext, value);
-    } else if (key === 'type' || key === 'kind') {
-      pushValues(type, value);
-    } else {
-      errors.push(`unknown filter key ${key}`);
-    }
-  }
-  return {
-    file: file.length ? file : null,
-    lang: lang.length ? lang : null,
-    ext: ext.length ? ext : null,
-    type: type.length ? type : null,
-    errors
-  };
-}
+export { parseFilterExpression, serializeFilterExpression } from './filter-expression.js';
 
 /**
  * Normalize extension filters into a lowercase list.
  * @param {string|string[]|null|undefined} extArg
  * @returns {string[]|null}
  */
-export function normalizeExtFilter(extArg) {
+export function normalizeExtFilter(extArg, { preserveValues = false } = {}) {
   const entries = Array.isArray(extArg) ? extArg : (extArg ? [extArg] : []);
   if (!entries.length) return null;
   const normalized = [];
   for (const entry of entries) {
-    String(entry || '')
-      .split(/[,\s]+/)
+    (preserveValues ? [String(entry ?? '')] : String(entry || '').split(/[,\s]+/))
       .map((raw) => raw.trim())
       .filter(Boolean)
       .forEach((raw) => {
@@ -179,13 +100,12 @@ export function normalizeExtFilter(extArg) {
  * @param {string|string[]|null|undefined} langArg
  * @returns {string[]|null}
  */
-export function normalizeLangFilter(langArg) {
+export function normalizeLangFilter(langArg, { preserveValues = false } = {}) {
   const entries = Array.isArray(langArg) ? langArg : (langArg ? [langArg] : []);
   if (!entries.length) return null;
   const langs = new Set();
   for (const entry of entries) {
-    String(entry || '')
-      .split(/[,\s]+/)
+    (preserveValues ? [String(entry ?? '')] : String(entry || '').split(/[,\s]+/))
       .map((raw) => raw.trim().toLowerCase())
       .filter(Boolean)
       .forEach((raw) => {

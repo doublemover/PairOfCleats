@@ -113,6 +113,7 @@ export async function loadSearchIndexes({
     emitOutput,
     annActive,
     filtersActive,
+    relationFilters,
     contextExpansionEnabled,
     graphRankingEnabled,
     sqliteFtsRequested,

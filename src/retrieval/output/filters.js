@@ -86,11 +86,14 @@ export function compileFilterPredicates(filters = {}, { fileChargramN = null } =
     regexConfig
   });
   const filePrefilterConfig = filters.filePrefilter || {};
+  const fileMatcherGroups = Array.isArray(filePrefilterConfig.allGroups)
+    ? filePrefilterConfig.allGroups.map(file => buildFileFilters({ file, caseFile, normalize, regexConfig }).fileMatchers)
+    : [];
   const filePrefilterEnabled = filePrefilterConfig.enabled !== false;
   const resolvedFileChargramN = Number.isFinite(Number(filePrefilterConfig.chargramN))
     ? Math.max(2, Math.floor(Number(filePrefilterConfig.chargramN)))
     : (Number.isFinite(Number(fileChargramN)) ? Math.max(2, Math.floor(Number(fileChargramN))) : null);
-  const typeNeedles = normalizeList(filters.type).map(normalize);
+  const typeNeedles = (Array.isArray(filters.type) ? normalizeArgumentList(filters.type) : normalizeList(filters.type)).map(normalize);
   const authorNeedles = normalizeArgumentList(filters.author).map(normalize);
   const metaFilters = Array.isArray(filters.meta) ? filters.meta : (filters.meta ? [filters.meta] : []);
   const excludeNeedles = normalizeList(filters.excludeTokens)
@@ -119,6 +122,7 @@ export function compileFilterPredicates(filters = {}, { fileChargramN = null } =
   const structTagNeedles = normalizeList(filters.structTag).map(normalize);
   return {
     fileMatchers,
+    fileMatcherGroups,
     extNeedles,
     langNeedles,
     typeNeedles,
@@ -157,6 +161,7 @@ const resolveFilterState = ({
   const caseFile = compiled.caseFile ?? filters.caseFile;
   const caseTokens = compiled.caseTokens ?? filters.caseTokens;
   const fileMatchers = compiled.fileMatchers || [];
+  const fileMatcherGroups = compiled.fileMatcherGroups || [];
   const extNeedles = compiled.extNeedles || [];
   const langNeedles = compiled.langNeedles || [];
   const typeNeedles = compiled.typeNeedles || [];
@@ -281,6 +286,7 @@ const resolveFilterState = ({
     caseFile,
     caseTokens,
     fileMatchers,
+    fileMatcherGroups,
     extNeedles,
     langNeedles,
     typeNeedles,
@@ -346,6 +352,7 @@ const matchChunkFilters = (c, state) => {
     filters,
     normalize,
     fileMatchers,
+    fileMatcherGroups,
     extNeedles,
     langNeedles,
     normalizeFile,
@@ -394,7 +401,7 @@ const matchChunkFilters = (c, state) => {
     returns: returnsOnly
   } = filters;
 
-  if (!matchFileFilters({ chunk: c, fileMatchers, extNeedles, langNeedles, normalizeFile, normalize })) {
+  if (!matchFileFilters({ chunk: c, fileMatchers, fileMatcherGroups, extNeedles, langNeedles, normalizeFile, normalize })) {
     return false;
   }
   if (!matchMetaFilters({
@@ -457,7 +464,8 @@ const matchChunkFilters = (c, state) => {
     if (!matchList(authors, chunkAuthor, normalize)) return false;
   }
   if (importName) {
-    const imports = c.codeRelations?.imports || resolveFileRelations(c.file)?.imports;
+    const imports = Array.isArray(c.codeRelations?.imports)
+      ? c.codeRelations.imports : resolveFileRelations(c.file)?.imports;
     if (!Array.isArray(imports) || !imports.includes(importName)) return false;
   }
   if (lint && (!c.lint || !c.lint.length)) return false;
@@ -472,7 +480,8 @@ const matchChunkFilters = (c, state) => {
     if (!found) return false;
   }
   if (uses) {
-    const usages = c.codeRelations?.usages || resolveFileRelations(c.file)?.usages;
+    const usages = Array.isArray(c.codeRelations?.usages)
+      ? c.codeRelations.usages : resolveFileRelations(c.file)?.usages;
     if (!Array.isArray(usages) || !usages.includes(uses)) return false;
   }
   if (signature) {

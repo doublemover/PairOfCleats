@@ -69,8 +69,16 @@ startup and an explicit successful `queue.onIdle()` observation. Gated source
 controls cover direct resource release during accepted work and before a queue
 drain. These controls are authored and unrun.
 
-These source changes and inert regressions are unvalidated. Capturing an exact
-native method does not establish whether a real native release rejection permits
-a safe retry, or prove native handle state. Runtime-specific failure/retry safety,
-real model initialization/inference/disposal, allocator behavior, queue and cache
-retirement races and resource/performance measurements require separate evidence.
+October 29 Windows checks exercise actual ONNX initialization, inference,
+disposal, selected-installation pinning and complete external-data loading.
+The installer uses compact immutable generation names, retaining full SHA256
+closure verification independently of the directory name. Long absolute Windows
+paths use the native path owner; external-data paths that still exceed its budget
+fail before selector publication. Existing generations remain valid for readers.
+The [closeout receipt](../archived/p2-p3-closeout-2026-10-29.md) retains the actual
+native long-path failure and passing replacement-layout observations.
+
+Controlled close failures establish JavaScript ownership and original-cause
+preservation. They do not prove that an arbitrary real native release rejection
+can safely be retried. GC finalization, allocator behavior, production-model
+quality, capacity and broader runtime/platform qualification remain separate.

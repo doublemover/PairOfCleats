@@ -4,7 +4,7 @@ import { normalizeFilePath } from '../../../shared/path-normalize.js';
 import { defaultNormalize, normalizeArgumentList, normalizeList } from './predicates.js';
 
 const parseFileMatcher = ({ entry, normalizeFile, regexConfig }) => {
-  const raw = String(entry || '').trim();
+  const raw = String(entry ?? '');
   if (!raw) return null;
   const regexMatch = raw.match(/^\/(.+)\/([a-z]*)$/i);
   if (regexMatch) {
@@ -25,7 +25,7 @@ export const buildFileFilters = ({ file, ext, lang, caseFile, normalize = defaul
   const fileMatchers = normalizeArgumentList(file)
     .map((entry) => parseFileMatcher({ entry, normalizeFile, regexConfig }))
     .filter(Boolean);
-  const extNeedles = normalizeList(ext)
+  const extNeedles = (Array.isArray(ext) ? normalizeArgumentList(ext) : normalizeList(ext))
     .map((entry) => {
       let value = entry.toLowerCase();
       value = value.replace(/^\*+/, '');
@@ -33,7 +33,7 @@ export const buildFileFilters = ({ file, ext, lang, caseFile, normalize = defaul
       return value;
     })
     .filter(Boolean);
-  const langNeedles = normalizeList(lang).map(normalize);
+  const langNeedles = (Array.isArray(lang) ? normalizeArgumentList(lang) : normalizeList(lang)).map(normalize);
 
   return {
     fileMatchers,
@@ -44,18 +44,23 @@ export const buildFileFilters = ({ file, ext, lang, caseFile, normalize = defaul
   };
 };
 
-export const matchFileFilters = ({ chunk, fileMatchers, extNeedles, langNeedles, normalizeFile, normalize = defaultNormalize }) => {
-  if (fileMatchers.length) {
+export const matchFileFilters = ({ chunk, fileMatchers, fileMatcherGroups = [], extNeedles, langNeedles, normalizeFile, normalize = defaultNormalize }) => {
+  if (fileMatchers.length || fileMatcherGroups.length) {
     const fileValue = String(chunk?.file || '');
     const fileValueNorm = normalizeFile(fileValue);
-    const matches = fileMatchers.some((matcher) => {
-      if (matcher.type === 'regex') {
-        matcher.value.lastIndex = 0;
-        return matcher.value.test(fileValue);
+    for (let group = -1; group < fileMatcherGroups.length; group++) {
+      const matchers = group < 0 ? fileMatchers : fileMatcherGroups[group];
+      if (!matchers.length) continue;
+      let matched = false;
+      for (const matcher of matchers) {
+        if (matcher.type === 'regex') {
+          matcher.value.lastIndex = 0;
+          matched = matcher.value.test(fileValue);
+        } else matched = fileValueNorm.includes(matcher.value);
+        if (matched) break;
       }
-      return fileValueNorm.includes(matcher.value);
-    });
-    if (!matches) return false;
+      if (!matched) return false;
+    }
   }
   if (langNeedles.length) {
     const langValue = resolveFilterLanguage(chunk);

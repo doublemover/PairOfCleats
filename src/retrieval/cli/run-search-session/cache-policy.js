@@ -12,6 +12,7 @@ import { upsertQueryCacheEntry } from '../../query-cache-state.js';
 import { throwIfAborted, isAbortError } from '../../../shared/abort.js';
 import { observeStorageResource } from '../../../shared/storage/failure-observation.js';
 import { QUERY_PARSER_VERSION } from '../../query-plan-schema.js';
+import { METADATA_PREDICATE_VERSION } from '../../effective-filter-facts.js';
 import { areRetrievalExecutionsReusable } from '../../../contracts/retrieval-execution.js';
 import { FTS_WORK_POLICY_VERSION } from '../../fts-work-policy.js';
 
@@ -191,7 +192,7 @@ export async function resolveQueryCacheLookup({
       explicitRef,
       asOfContext
     });
-  cacheSignature = stableStringifyForSignature({index:signature,queryParserVersion:QUERY_PARSER_VERSION,metadataPredicateVersion:2,
+  cacheSignature = stableStringifyForSignature({index:signature,queryParserVersion:QUERY_PARSER_VERSION,metadataPredicateVersion:METADATA_PREDICATE_VERSION,
     queryEmbeddingAdmissionVersion: QUERY_EMBEDDING_ADMISSION_VERSION,
     effectivePlanIdentity,
     ...(chunkAuthorEvidence ? { chunkAuthorEvidence } : {})});

@@ -22,6 +22,7 @@ export function createIndexBackendLoader({
   emitOutput,
   annActive,
   filtersActive,
+  relationFilters = null,
   contextExpansionEnabled,
   graphRankingEnabled,
   sqliteFtsRequested,
@@ -47,6 +48,7 @@ export function createIndexBackendLoader({
   const needsAnnArtifacts = !filterOnly && (hasRequirements ? requiredArtifacts.has('ann') : true);
   const needsFilterIndex = !filterOnly && (hasRequirements ? requiredArtifacts.has('filterIndex') : true);
   const needsFileRelations = hasRequirements ? requiredArtifacts.has('fileRelations') : true;
+  const demandedRelationFields = Boolean(relationFilters?.importName || relationFilters?.uses);
   const needsRepoMap = hasRequirements ? requiredArtifacts.has('repoMap') : true;
   const needsGraphRelations = hasRequirements
     ? requiredArtifacts.has('graphRelations')
@@ -128,7 +130,9 @@ export function createIndexBackendLoader({
   };
   const cachedLoadOptions = {
     ...baseBackendLoadOptions,
-    includeFileRelations: needsFileRelations,
+    // Required predicate evidence is loaded after inspecting inline facts.
+    // An unrelated optional sidecar must not defeat complete inline evidence.
+    includeFileRelations: needsFileRelations && !demandedRelationFields,
     includeRepoMap: needsRepoMap,
     includeChunkMetaCold: needsChunkMetaCold,
     includeHnsw: annActive
@@ -245,7 +249,7 @@ export function createIndexBackendLoader({
       }
       if (backend === 'sqlite') {
         const started = performance.now();
-        if (filterEnumeration && Number.isSafeInteger(filterTopN) && filterTopN > 0) {
+        if (filterEnumeration && !needsFileRelations && Number.isSafeInteger(filterTopN) && filterTopN > 0) {
           try {
             const lazy = loadIndexFromSqlite(mode, { ...sqliteBackendLoadOptions, includeChunks: false });
             const persisted = await readFilterMatchPage({ cacheDir: filterEnumeration.cacheDir,

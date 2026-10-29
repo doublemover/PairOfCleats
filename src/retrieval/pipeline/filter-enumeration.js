@@ -1,4 +1,5 @@
 import { resolveReturnTypeFacts } from '../output/filters/type-expression.js';
+import { METADATA_PREDICATE_VERSION } from '../effective-filter-facts.js';
 import { createHash } from 'node:crypto';
 import { stableStringify } from '../../shared/stable-json.js';
 import { createError, ERROR_CODES } from '../../shared/error-codes.js';
@@ -47,7 +48,8 @@ export function createFilterEnumeration({ cursor = null, filters, modes, generat
   } : generation;
   const generationHash = digest(cursorGeneration);
   const relativeTime = filters.modifiedSinceDays != null;
-  const requestHash = digest({ version: VERSION, filters: relativeTime ? { ...filters, modifiedAfter: null } : filters, modes });
+  const requestHash = digest({ version: VERSION, predicateVersion: METADATA_PREDICATE_VERSION,
+    filters: relativeTime ? { ...filters, modifiedAfter: null } : filters, modes });
   let modifiedAfter = relativeTime ? filters.modifiedAfter : null;
   let offsets = Object.fromEntries(modes.map((mode) => [mode, 0]));
   if (cursor != null) {

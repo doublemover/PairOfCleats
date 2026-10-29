@@ -22,7 +22,8 @@ export async function readSqliteFilterFactPage({ db, mode, filters = {}, offset 
   const seal = db.prepare('SELECT version,row_count FROM chunk_filter_facts_meta WHERE mode=?').get(mode);
   if (seal?.version !== SQLITE_FILTER_FACTS_VERSION || !Number.isSafeInteger(seal.row_count) || seal.row_count < 0) return null;
   const predicates = compileFilterPredicates(filters);
-  if (predicates.fileMatchers.some(matcher => matcher.type !== 'substring')) return null;
+  const fileGroups = [predicates.fileMatchers, ...predicates.fileMatcherGroups];
+  if (fileGroups.some(group => group.some(matcher => matcher.type !== 'substring'))) return null;
   const where = ['mode=?'], params = [mode];
   for (const [column, needles] of [['language', predicates.langNeedles], ['extension', predicates.extNeedles], ['kind', predicates.typeNeedles]]) {
     if (!needles.length) continue;
@@ -31,8 +32,8 @@ export async function readSqliteFilterFactPage({ db, mode, filters = {}, offset 
     if (Buffer.byteLength(encoded) > 65536) return null;
     where.push(`${column} IN (SELECT value FROM json_each(?))`); params.push(encoded);
   }
-  if (predicates.fileMatchers.length) {
-    const needles = predicates.fileMatchers.map(matcher => matcher.value);
+  for (const group of fileGroups) if (group.length) {
+    const needles = group.map(matcher => matcher.value);
     if (needles.some(value => !value.isWellFormed() || value.includes('\0'))
       || Buffer.byteLength(JSON.stringify(needles)) > 65536) return null;
     where.push(`EXISTS (SELECT 1 FROM json_each(?) WHERE instr(${predicates.caseFile ? 'file' : 'file_folded'}, value)>0)`);

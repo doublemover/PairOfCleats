@@ -32,6 +32,7 @@ import { resolveBackendSelection } from '../policy.js';
 import { normalizeSearchOptions } from '../normalize-options.js';
 import { INTERNAL_EXACT_SEARCH_MODE } from '../../cli.js';
 import { INTERNAL_QUERY_CACHE_BYPASS } from '../../query-cache-experiment.js';
+import { INTERNAL_ADMITTED_GENERATION } from '../../../index/as-of.js';
 import { buildQueryPlan } from '../query-plan.js';
 import { createRunnerHelpers } from '../runner.js';
 import { resolveRunConfig } from '../resolve-run-config.js';
@@ -225,6 +226,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
         exactMode: options[INTERNAL_EXACT_SEARCH_MODE] ?? null
       });
     } catch (err) {
+      if (err?.code === ERROR_CODES.INVALID_REQUEST && err.details?.filterDiagnostics) throw err;
       return bail(err.message, 1, ERROR_CODES.INVALID_REQUEST);
     }
     throwIfAborted();
@@ -352,6 +354,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
         optionalModes: !filterOnly && commentsEnabled && runCode && !runExtractedProseRaw ? ['extracted-prose'] : [],
         asOf: argv['as-of'],
         snapshot: argv.snapshot,
+        admittedGeneration: options[INTERNAL_ADMITTED_GENERATION] ?? null,
         preferFrozen: true,
         allowMissingModesForLatest: true
       });
@@ -886,6 +889,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
         caseFile,
         searchRegexConfig,
         filePrefilterEnabled,
+        filePrefilterConfig: normalized.filePrefilterConfig,
         fileChargramN,
         searchType,
         searchAuthor,
@@ -958,6 +962,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       caseFile,
       searchRegexConfig,
       filePrefilterEnabled,
+      filePrefilterConfig: normalized.filePrefilterConfig,
       fileChargramN,
       searchType,
       searchAuthor,
@@ -1335,6 +1340,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       const code = isErrorCode(err?.code) ? err.code : ERROR_CODES.INTERNAL;
       const format = projectIndexFormatError(err);
       console.log(JSON.stringify({ ok: false, code: format?.nativeCode || code, message,
+        ...(err?.details?.filterDiagnostics ? { details: { filterDiagnostics: err.details.filterDiagnostics } } : {}),
         ...(err?.branchQualification ? { details: { branchQualification: err.branchQualification } } : {}),
         ...(format ? { ...format, details: format } : {}) }));
       if (err) err.emitted = true;

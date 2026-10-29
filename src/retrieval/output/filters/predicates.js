@@ -11,7 +11,7 @@ export const normalizeList = (value) => {
 
 /** Each supplied path/name argument is one value, including spaces and commas. */
 export const normalizeArgumentList = value => (Array.isArray(value) ? value : value == null ? [] : [value])
-  .map(entry => String(entry ?? '').trim()).filter(Boolean);
+  .map(entry => String(entry ?? '')).filter(Boolean);
 
 export const normalizePhraseList = (value) => {
   if (!value) return [];

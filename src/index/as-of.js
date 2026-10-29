@@ -1,5 +1,9 @@
 import { createError, ERROR_CODES } from '../shared/error-codes.js';
 import { parseIndexRef, resolveIndexRef } from './index-ref.js';
+import { toRealPathSync } from '../workspace/identity.js';
+
+export const INTERNAL_ADMITTED_GENERATION = Symbol('admitted-search-generation');
+const admittedGenerations = new WeakMap();
 
 const invalidRequest = (message, details = null) => createError(ERROR_CODES.INVALID_REQUEST, message, details);
 
@@ -103,9 +107,22 @@ export function resolveAsOfContext({
   asOf = null,
   snapshot = null,
   preferFrozen = true,
-  allowMissingModesForLatest = true
+  allowMissingModesForLatest = true,
+  admittedGeneration = null
 } = {}) {
   const normalized = normalizeAsOfInput({ asOf, snapshot, defaultRef: 'latest' });
+  if (admittedGeneration !== null) {
+    const selected = admittedGenerations.get(admittedGeneration);
+    if (!selected || selected.repoRoot !== toRealPathSync(repoRoot) || normalized.inputRef !== 'latest') {
+      throw invalidRequest('Invalid admitted search generation or conflicting historical selector.');
+    }
+    for (const mode of requestedModes) if (!selected.context.indexDirByMode[mode]) {
+      throw invalidRequest(`Admitted search generation has no ${mode} index.`);
+    }
+    return { ...selected.context, summary: structuredClone(selected.context.summary),
+      warnings: [...selected.context.warnings], indexDirByMode: { ...selected.context.indexDirByMode },
+      indexBaseRootByMode: { ...selected.context.indexBaseRootByMode } };
+  }
   const parsedInput = parseIndexRef(normalized.inputRef);
   const strictInput = normalized.provided && parsedInput.kind !== 'latest';
   try {
@@ -161,6 +178,26 @@ export function resolveAsOfContext({
     };
   }
 }
+
+/** Mint an opaque selection only from the canonical pointer owner, and require
+ * it to agree with the already admitted manifest. This internal handoff covers
+ * published watch attempts without extending public build: path syntax. Later
+ * child work consumes the captured directories; it never follows latest again. */
+export const captureAdmittedSearchGeneration = ({ repoRoot, userConfig = null, requestedModes, expectedRootsByMode }) => {
+  const context = resolveAsOfContext({ repoRoot, userConfig, requestedModes,
+    optionalModes: ['code', 'prose', 'extracted-prose', 'records'].filter(mode => !requestedModes.includes(mode)) });
+  if (context.unresolved) throw invalidRequest('Cannot bind an unresolved admitted search generation.');
+  for (const mode of requestedModes) {
+    const expected = expectedRootsByMode?.[mode], actual = context.indexBaseRootByMode[mode];
+    if (typeof expected !== 'string' || typeof actual !== 'string'
+      || toRealPathSync(expected) !== toRealPathSync(actual)) {
+      throw invalidRequest(`Admitted ${mode} generation changed before child binding. Retry the search.`);
+    }
+  }
+  const token = Object.freeze({});
+  admittedGenerations.set(token, { repoRoot: toRealPathSync(repoRoot), context });
+  return token;
+};
 
 export function resolveSingleRootForModes(indexBaseRootByMode, modes = []) {
   const roots = [];

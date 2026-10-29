@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["initial", "ranked-revalidation", "enumeration-revalidation", "pending-reader", "pre-aborted"]
+}

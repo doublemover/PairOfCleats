@@ -377,8 +377,7 @@ export async function getIndexSignature(options) {
     indexDirByMode = null,
     indexBaseRootByMode = null,
     explicitRef = false,
-    asOfContext = null,
-    generationContext = null
+    asOfContext = null
   } = options;
   const fileSignature = async (filePath) => (
     probeFileSignature(filePath, { compressedSiblings: 'json', format: 'legacy' })
@@ -420,8 +419,8 @@ export async function getIndexSignature(options) {
           buildId: info.buildId || null,
           artifactSurfaceVersion: info.artifactSurfaceVersion || null,
           canonicalIndexDir: info.canonicalDir,
-          generationKey: generationContext?.buildGenerationKey || observedGeneration,
-          activeBuildRoot: generationContext?.activeBuildRoot || observedRoot
+          generationKey: observedGeneration,
+          activeBuildRoot: observedRoot
         }
         : null;
     })

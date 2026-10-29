@@ -42,6 +42,7 @@ export function buildQueryPlan({
   caseFile,
   searchRegexConfig,
   filePrefilterEnabled,
+  filePrefilterConfig = {},
   fileChargramN,
   searchType,
   searchAuthor,
@@ -142,6 +143,7 @@ export function buildQueryPlan({
     caseTokens,
     regexConfig: fileFilter ? searchRegexConfig : null,
     filePrefilter: {
+      ...filePrefilterConfig,
       enabled: filePrefilterEnabled,
       chargramN: fileChargramN
     },
@@ -217,6 +219,7 @@ export function buildQueryPlan({
     caseTokens,
     regexConfig: fileFilter ? searchRegexConfig : null,
     filePrefilter: fileFilter ? {
+      ...filePrefilterConfig,
       enabled: filePrefilterEnabled,
       chargramN: fileChargramN
     } : null,

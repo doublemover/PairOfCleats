@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
+import { METADATA_PREDICATE_VERSION } from '../../../src/retrieval/effective-filter-facts.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 import { stableStringifyForSignature } from '../../../src/shared/stable-json.js';
@@ -95,10 +96,10 @@ const lookup = await resolveQueryCacheLookup({
 
 assert.equal(lookup.cacheHit, false);
 assert.equal(lookup.cacheSignature, stableStringifyForSignature({ index: indexSignaturePayload,
-  queryParserVersion: QUERY_PARSER_VERSION, metadataPredicateVersion: 2, effectivePlanIdentity: null,
+  queryParserVersion: QUERY_PARSER_VERSION, metadataPredicateVersion: METADATA_PREDICATE_VERSION, effectivePlanIdentity: null,
   queryEmbeddingAdmissionVersion: QUERY_EMBEDDING_ADMISSION_VERSION }));
 assert.notEqual(lookup.cacheSignature, stableStringifyForSignature({ index: indexSignaturePayload,
-  queryParserVersion: QUERY_PARSER_VERSION, metadataPredicateVersion: 2, effectivePlanIdentity: null }), 'prior query results cannot bypass vector admission');
+  queryParserVersion: QUERY_PARSER_VERSION, metadataPredicateVersion: METADATA_PREDICATE_VERSION, effectivePlanIdentity: null }), 'prior query results cannot bypass vector admission');
 assert.equal(typeof lookup.cacheKey, 'string');
 assert.ok(lookup.queryCachePath.endsWith('queryCache.json'));
 

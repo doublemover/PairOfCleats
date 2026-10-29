@@ -7,6 +7,7 @@ import Database from 'better-sqlite3';
 import { open } from 'lmdb';
 import { Packr } from 'msgpackr';
 import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
+import { MAX_JSON_BYTES } from '../../../src/shared/artifact-io/constants.js';
 import { META_V2_SCHEMA_VERSION } from '../../../src/index/metadata/meta-v2.js';
 import { createImportExtraction } from '../../../src/shared/import-extraction.js';
 import { getRepoCacheRoot, loadUserConfig, resolveSqlitePaths, resolveLmdbPaths } from '../../../src/shared/dict-utils.js';
@@ -22,8 +23,11 @@ import { INTERNAL_QUERY_CACHE_BYPASS } from '../../../src/retrieval/query-cache-
 import { createCompatibilityIndex } from '../../helpers/index-compatibility-fixture.js';
 import { prepareIsolatedTestCacheDir } from '../../helpers/test-cache.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
+import { errorGraphIncludes } from '../../helpers/error-graph.js';
 
-const backend = process.env.PAIROFCLEATS_TEST_ID?.split('retrieval/cli/request-generation-promotion/')[1];
+const selectedCase = process.env.PAIROFCLEATS_TEST_ID?.split('retrieval/cli/request-generation-promotion/')[1];
+const faults = selectedCase?.endsWith('-faults');
+const backend = faults ? selectedCase.slice(0, -7) : selectedCase;
 assert.ok(['memory', 'sqlite', 'lmdb'].includes(backend));
 const { dir } = await prepareIsolatedTestCacheDir(`request-generation-promotion-${backend}`);
 const repo = path.join(dir, 'repo'); await fs.mkdir(repo);
@@ -121,7 +125,7 @@ try {
   const { search } = await import('../../../src/integrations/core/search.js');
   const { INTERNAL_EXACT_SEARCH_MODE } = await import('../../../src/retrieval/cli.js');
   const indexCache = createIndexCache({ maxEntries: 8, ttlMs: 0 });
-  for (const phase of ['admission', 'backend', 'dictionary', 'metadata', 'signature']) {
+  for (const phase of faults ? [] : ['admission', 'backend', 'dictionary', 'metadata', 'signature']) {
     // LMDB deliberately has no native extracted-prose store. Exercise its two
     // supported production mode routes, including the coordinator's exact
     // prose route, rather than relaxing the public both-mode backend contract.
@@ -178,7 +182,7 @@ try {
   manifest.pieces.push({ name: 'file_relations', type: 'relations', format: 'json', path: 'file_relations.json' });
   await fs.writeFile(manifestPath, JSON.stringify(manifest));
   await fs.writeFile(path.join(codeDir, 'file_relations.json'), JSON.stringify([{ file: originalRows[0].file, relations: {} }]));
-  for (const facts of [controlledFacts([], []), {}]) {
+  const replaceCodeFacts = async facts => {
     const rows = originalRows.map(row => ({ ...row, codeRelations: facts }));
     await fs.writeFile(path.join(codeDir, 'chunk_meta.json'), JSON.stringify(rows));
     indexCache.clear();
@@ -193,12 +197,100 @@ try {
       try { db.putSync(LMDB_ARTIFACT_KEYS.chunkMeta, packr.pack(rows)); }
       finally { await closeLmdbDatabase(db, db.close); }
     }
+  };
+  for (const facts of [controlledFacts([], []), {}]) {
+    await replaceCodeFacts(facts);
     fsSync.writeFileSync(pointerPath, generations.A.pointer);
     const request = () => search(repo, { args: ['--backend', backend, '--mode', 'code', '--import', 'needle', '--no-ann'],
       indexCache, [INTERNAL_QUERY_CACHE_BYPASS]: true });
     if (facts.imports) assert.deepEqual((await request()).code, [], 'complete inline empty facts remain a definitive negative');
     else await assert.rejects(request(), error => error.code === 'CAPABILITY_MISSING' && error.details.field === 'imports',
       'unknown required facts cannot become an ordinary empty native/file enumeration');
+  }
+  if (faults) {
+    const relationsPath = path.join(codeDir, 'file_relations.json');
+    const writeFacts = facts => fs.writeFile(relationsPath,
+      JSON.stringify([{ file: originalRows[0].file, relations: facts }]));
+    const positiveFacts = controlledFacts(['A-import'], ['A-use']);
+    await replaceCodeFacts({});
+    const statePath = path.join(codeDir, 'index_state.json');
+    const state = JSON.parse(await fs.readFile(statePath, 'utf8'));
+    let revision = 0;
+    const request = async query => {
+      // This matrix deliberately rewrites artifacts between requests. Publish
+      // each authored enrichment revision through the existing freshness owner;
+      // a prior immutable-generation match cache cannot qualify another input.
+      await fs.writeFile(statePath, JSON.stringify({ ...state,
+        generatedAt: new Date(Date.UTC(2026, 9, 29) + ++revision).toISOString() }));
+      fsSync.writeFileSync(pointerPath, generations.A.pointer);
+      indexCache.clear();
+      return search(repo, { query, args: ['--backend', backend, '--mode', 'code',
+        '--import', 'A-import', '--uses', 'A-use', '--no-ann'],
+      indexCache, [INTERNAL_QUERY_CACHE_BYPASS]: true });
+    };
+    for (const query of [undefined, 'alpha']) {
+      await writeFacts(positiveFacts);
+      assert.deepEqual((await request(query)).code.map(hit => hit.name), ['A-code'],
+        `${backend}: admitted sidecar supplies both ranked and filter-only predicates`);
+      await replaceCodeFacts({ imports: 'legacy-invalid', usages: { incomplete: true } });
+      assert.deepEqual((await request(query)).code.map(hit => hit.name), ['A-code'],
+        'exact predicates consume the same complete sidecar facts admitted by readiness');
+      await replaceCodeFacts({});
+      await writeFacts(controlledFacts([], []));
+      assert.deepEqual((await request(query)).code, [], 'parser-proven sidecar empty is a healthy negative');
+      await fs.unlink(relationsPath);
+      await assert.rejects(request(query), error => error.code === 'ERR_ARTIFACT_PARTS_MISSING'
+        && error.message.includes(relationsPath),
+      'missing manifest-selected relation bytes retain the canonical artifact error and selected path');
+      await fs.writeFile(relationsPath, '{broken');
+      await assert.rejects(request(query), error => error instanceof SyntaxError,
+        'corrupt selected relations retain the parse diagnostic');
+      // A real oversized ordinary file is rejected before payload allocation.
+      // Its extent is bounded by the existing reader cap and is immediately
+      // truncated again; no oversized input or crash evidence is retained.
+      await fs.truncate(relationsPath, MAX_JSON_BYTES + 1);
+      try {
+        await assert.rejects(request(query), { code: 'ERR_JSON_TOO_LARGE' });
+      } finally { await fs.truncate(relationsPath, 0); }
+      for (const code of ['EACCES', 'EIO']) {
+        await writeFacts(positiveFacts);
+        const originalOpen = fsSync.openSync;
+        const failure = Object.freeze(Object.assign(new Error(`controlled relation ${code}`), { code }));
+        let failedOpens = 0;
+        fsSync.openSync = function (target, ...args) {
+          if (typeof target === 'string' && path.resolve(target) === relationsPath) {
+            failedOpens++; throw failure;
+          }
+          return originalOpen.call(this, target, ...args);
+        };
+        try {
+          await assert.rejects(request(query), error => errorGraphIncludes(error, failure),
+            'actual contained-reader admission preserves the exact original filesystem failure');
+          assert.ok(failedOpens > 0);
+        } finally { fsSync.openSync = originalOpen; }
+      }
+      for (const [state, reason] of [['unavailable', 'parser-starting'], ['invalid', 'parse-failed'],
+        ['partial', 'source_length_limit'], ['cancelled', 'cancelled']]) {
+        const importExtraction = createImportExtraction({ entries: positiveFacts.imports, text: 'controlled source',
+          state, reasons: [reason], parser: { id: 'controlled-generation-fixture', version: '1', available: true } });
+        await writeFacts({ ...positiveFacts, importExtraction });
+        await assert.rejects(request(query), error => error.code === 'CAPABILITY_MISSING'
+          && error.details.state === state, 'pending, failed, limited and cancelled facts are never definitive negatives');
+      }
+      await writeFacts({ ...positiveFacts, imports: ['stale-entry'] });
+      await assert.rejects(request(query), { code: 'ERR_IMPORT_EXTRACTION_CONTRACT' },
+        'stale receipt identity cannot qualify different retained values');
+      await replaceCodeFacts(positiveFacts);
+      await fs.writeFile(relationsPath, '{broken');
+      assert.deepEqual((await request(query)).code.map(hit => hit.name), ['A-code'],
+        'complete equivalent inline facts do not make unrelated malformed sidecars mandatory');
+      await replaceCodeFacts({});
+    }
+    await fs.writeFile(relationsPath, '{broken');
+    fsSync.writeFileSync(pointerPath, generations.A.pointer); indexCache.clear();
+    assert.deepEqual((await search(repo, { query: 'alpha', args: ['--backend', backend,
+      '--mode', 'code', '--no-ann'], indexCache, [INTERNAL_QUERY_CACHE_BYPASS]: true })).code.map(hit => hit.name),
+    ['A-code'], 'lexical-only retrieval never demands an unused relation sidecar');
   }
   const selectedManifest = path.join(generations.A.roots.code, 'index-code/pieces/manifest.json');
   const savedManifest = `${selectedManifest}.saved`;

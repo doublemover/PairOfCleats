@@ -42,7 +42,7 @@ const admitRepositoryPage = (result, key, previousCursor) => {
 };
 
 /** One repository/mode page per request keeps work and cursor state bounded. */
-export const enumerateWorkspace = async ({ tasks, args, cursor, manifestHash, search, signal, verifyGeneration, verifyResult, bindArgs }) => {
+export const enumerateWorkspace = async ({ tasks, args, cursor, manifestHash, search, signal, verifyGeneration, verifyResult, bindArgs, bindRequest }) => {
   const identity = createHash('sha256').update(stableStringify({
     tasks: tasks.map(({ repo, mode }) => [repo.repoId, mode]), args
   })).digest('hex');
@@ -73,13 +73,16 @@ export const enumerateWorkspace = async ({ tasks, args, cursor, manifestHash, se
     // Override the CLI mode once, preserving the ordinary search owner and its cursor checks.
     const modeArgs = [];
     const timedArgs = bindRelativeModificationArgs(args, timeAnchor);
-    const boundArgs = bindArgs ? bindArgs(task, timedArgs) : timedArgs;
+    const binding = bindRequest ? bindRequest(task, timedArgs)
+      : { args: bindArgs ? bindArgs(task, timedArgs) : timedArgs };
+    const boundArgs = binding.args;
     for (let i = 0; i < boundArgs.length; i += 1) {
       if (boundArgs[i] === '--') { modeArgs.push(...boundArgs.slice(i)); break; }
       if (boundArgs[i] === '--mode') { i += 1; continue; }
       if (!boundArgs[i].startsWith('--mode=')) modeArgs.push(boundArgs[i]);
     }
     const result = await search(task.repo.repoRootCanonical, {
+      ...binding.options,
       argsMode: 'complete',
       args: (() => {
         const terminator = modeArgs.indexOf('--');

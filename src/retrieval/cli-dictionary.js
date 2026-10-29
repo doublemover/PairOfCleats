@@ -6,8 +6,11 @@ import {
 } from '../shared/dictionary-wordlists.js';
 import { createHash } from 'node:crypto';
 
-const dictionaryIdentity = (dict, languages = []) => createHash('sha256')
-  .update(JSON.stringify({ version: 2, languages: [...languages].sort(), words: [...dict].sort() })).digest('hex');
+const dictionaryIdentity = (dict, languages = [], codeWords = null) => createHash('sha256')
+  .update(JSON.stringify({ version: 3, languages: [...languages].sort(), words: [...dict].sort(),
+    common: codeWords ? [...codeWords.commonWords].sort() : [],
+    byLanguage: codeWords ? [...codeWords.wordsByLanguage].map(([language, words]) =>
+      [language, [...words].sort()]).sort(([left], [right]) => left < right ? -1 : left > right ? 1 : 0) : [] })).digest('hex');
 
 /**
  * Load dictionary files into a normalized Set.
@@ -39,11 +42,14 @@ export async function loadDictionary(root, dictConfig, options = {}) {
     for (const words of codeDictWords.wordsByLanguage.values()) {
       variants.push(new Set([...dict, ...codeDictWords.commonWords, ...words]));
     }
+    // The same union can represent different per-language tokenizations. Bind
+    // the original base/common/language partitions before mutating the union.
+    const policyIdentity = dictionaryIdentity(dict, codeDictLanguages, codeDictWords);
     for (const word of codeDictWords.allWords) dict.add(word);
     Object.defineProperty(dict, 'queryDictionaries', { value: variants });
     return {
       dict,
-      policyIdentity: dictionaryIdentity(dict, codeDictLanguages),
+      policyIdentity,
       dictionaryPaths,
       codeDictionaryPaths: codeDictPaths,
       codeDictSummary: {
