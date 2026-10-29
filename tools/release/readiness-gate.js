@@ -802,6 +802,10 @@ const run = async () => {
     runtime: assertReleaseReport('runtime', runtimeReportPath, runtimeReport),
     nodeVerify: assertReleaseReport('nodeVerify', nodeVerifyReportPath, nodeVerifyReport),
     tuiVerify: (() => {
+      // A structurally valid failed run cannot qualify as passing evidence.
+      // Retain its failure independently of those qualification diagnostics.
+      const failedReportPaths = new Set(tuiReports.filter(entry => !entry.invalidJson && entry.payload?.ok === false
+        && validateReleaseReportShape(entry.payload).length === 0).map(entry => entry.path));
       const reports = tuiReports.map((entry) => ({
         path: entry.path,
         target: entry.target,
@@ -838,7 +842,7 @@ const run = async () => {
         .filter((entry) => expectedTargetSet.has(entry.target) && entry.invalidShape)
         .map((entry) => entry.path);
       const failedReports = reports
-        .filter((entry) => expectedTargetSet.has(entry.target) && !entry.invalidJson && !entry.invalidShape && !entry.ok)
+        .filter((entry) => expectedTargetSet.has(entry.target) && failedReportPaths.has(entry.path))
         .map((entry) => entry.path);
       const targetMismatchReports = reports
         .filter((entry) => expectedTargetSet.has(entry.target) && entry.targetMismatch)
