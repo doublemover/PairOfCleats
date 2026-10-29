@@ -31,7 +31,8 @@ export const createSemanticCacheFixture = async () => {
     dependencySignatures, files: {} };
   const createFile = async ({ file = 'input.js', text = 'f(1);', zeroChunks = false,
     nodeCount = 1, extraRows = [], analysisReason = null, analysisRows = [],
-    producerHash = 'a'.repeat(64), chunks: suppliedChunks = null, fileHash = null } = {}) => {
+    producerHash = 'a'.repeat(64), chunks: suppliedChunks = null, fileHash = null,
+    lexiconFilterStats = null, bundleFormat = 'json', vfsManifestRows = null } = {}) => {
     const bytes = Buffer.from(text);
     const source = createSemanticSourceSnapshot({ bytes, repositoryNamespace: repoRoot, path: file, language: 'javascript' }).manifest;
     await fs.mkdir(path.dirname(path.join(repoRoot, file)), { recursive: true });
@@ -68,6 +69,7 @@ export const createSemanticCacheFixture = async () => {
     const entry = await writeIncrementalBundle({ enabled: true, bundleDir, manifest, relKey: file,
       fileStat: await fs.stat(path.join(repoRoot, file)), fileHash: fileHash ?? sha1(bytes),
       fileChunks: chunks, fileRelations: null, dependencySignatures, semanticFactsRef: factsRef,
+      lexiconFilterStats, bundleFormat, vfsManifestRows,
       semanticContext: { buildRoot, diskAccount: account, dependencySignatures: dependencies } });
     if (!entry) throw new Error('Fixture bundle write failed.');
     manifest.files[file] = entry;

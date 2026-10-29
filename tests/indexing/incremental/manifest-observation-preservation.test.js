@@ -64,6 +64,26 @@ try {
   fs.stat = async (...args) => { if (selected(args[0])) throw forged; return original.stat(...args); };
   await assert.rejects(load(), error => error === forged); restore();
   assert.equal(await fs.readFile(filename, 'utf8'), valid); assert.deepEqual(await quarantines(), []);
+  let observationReleased = false;
+  for (const failure of [new TypeError('generic operational TypeError'), new Error('generic observation failure'),
+    Object.assign(new Error('cancelled manifest observation'), { name: 'AbortError', code: 'ABORT_ERR' }),
+    Object.assign(new Error('manifest observation still owns a resource'), {
+      cacheOwnershipPending: true, cacheOwnershipReleased: () => observationReleased
+    })]) {
+    fs.stat = async (...args) => { if (selected(args[0])) throw failure; return original.stat(...args); };
+    await assert.rejects(load(), error => contains(error, failure)
+      && (!failure.cacheOwnershipPending || error.cacheOwnershipReleased() === false)); restore();
+    assert.equal(await fs.readFile(filename, 'utf8'), valid);
+    assert.deepEqual(await quarantines(), [], 'operational, cancellation and ownership failures do not prove corruption');
+  }
+  observationReleased = true;
+  const unsupported = { ...JSON.parse(valid), version: 5 };
+  const unsupportedBytes = JSON.stringify(unsupported);
+  await fs.writeFile(filename, unsupportedBytes);
+  await assert.rejects(load(), { code: 'ERR_INDEX_FORMAT_UNSUPPORTED' });
+  assert.equal(await fs.readFile(filename, 'utf8'), unsupportedBytes);
+  assert.deepEqual(await quarantines(), [], 'unsupported format is preserved for its rightful owner');
+  await fs.writeFile(filename, valid);
 
   const malformed = '{"broken":';
   await fs.writeFile(filename, malformed);

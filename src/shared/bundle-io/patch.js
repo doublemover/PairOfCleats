@@ -272,6 +272,11 @@ export async function writeBundlePatch({
   if (resolvedFormat !== 'json') {
     return { applied: false, reason: 'unsupported-format' };
   }
+  // Chunk splice operations require two array payloads. Decline before identity
+  // normalization (which maps chunks) or touching any publication artifacts.
+  if (!Array.isArray(previousBundle?.chunks) || !Array.isArray(nextBundle?.chunks)) {
+    return { applied: false, reason: 'full-rewrite-required', field: 'chunks' };
+  }
   previousBundle = normalizeBundleWriteIdentity(previousBundle, bundlePath);
   nextBundle = normalizeBundleWriteIdentity(nextBundle, bundlePath);
   const patch = await buildBundlePatchAsync({ previousBundle, nextBundle });

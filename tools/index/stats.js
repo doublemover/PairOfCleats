@@ -8,7 +8,7 @@ import { checksumFile, sha1File, sha256File } from '../../src/shared/hash.js';
 import { formatBytes } from '../../src/shared/disk-space.js';
 import { loadPiecesManifest, resolveArtifactPresence } from '../../src/shared/artifact-io/manifest.js';
 import { loadJsonObjectArtifact } from '../../src/shared/artifact-io/loaders.js';
-import { assertKnownIndexProfileId } from '../../src/contracts/index-profile.js';
+import { resolveIndexArtifactPolicy } from '../../src/contracts/index-artifact-policy.js';
 import { resolveRequiredArtifactsForProfile } from '../../src/contracts/index-profile.js';
 import { accumulateManifestBytes, summarizeManifestBytes, buildPrefixedPieceStats, missingRequiredStatsFamilies } from './stats-artifacts.js';
 import { fromPosix, isRelativePathEscape } from '../../src/shared/file-paths.js';
@@ -260,8 +260,9 @@ for (const { mode, dir } of selected.modes) {
 
   if (argv.verify === true) {
     const state = pieces.some(piece => piece.name === 'index_state')
-      ? await loadJsonObjectArtifact(dir, 'index_state', { manifest, strict: true }) : null;
-    const profileId = assertKnownIndexProfileId(state?.profile?.id || manifest.profile?.id || manifest.profileId);
+      ? await loadJsonObjectArtifact(dir, 'index_state', { manifest, strict: true, maxBytes: 8 * 1024 * 1024 }) : null;
+    const { profileId } = resolveIndexArtifactPolicy({ state, manifest,
+      resolvePresence: name => resolveArtifactPresence(dir, name, { manifest, strict: true }) });
     const verify = await verifyManifestPieces(dir, pieces, profileId, manifest);
     verifyErrors.push(...verify.errors);
     verifyWarnings.push(...verify.warnings);
