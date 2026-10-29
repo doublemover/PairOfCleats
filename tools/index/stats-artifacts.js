@@ -25,8 +25,9 @@ export const buildPrefixedPieceStats = (pieces, family) => {
   // alternative encodings cannot contribute a second copy of those rows.
   const payload = selected.filter(piece => piece.name === family);
   const counts = payload.map(piece => piece.count);
-  return { rows: counts.length && counts.every(value => Number.isSafeInteger(value) && value >= 0)
-    ? counts.reduce((sum, value) => sum + value, 0) : null,
+  const sum = counts.reduce((total, value) => total + value, 0);
+  return { rows: counts.length && counts.every(value => Number.isSafeInteger(value) && value >= 0) && Number.isSafeInteger(sum)
+    ? sum : null,
   parts: payload.filter(piece => String(piece.path || '').includes('.part-')).length,
   bytes: selected.reduce((sum, piece) => sum + (Number(piece.bytes) || 0), 0) };
 };

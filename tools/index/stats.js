@@ -200,7 +200,9 @@ const verifyManifestPieces = async (modeDir, pieces, profileId, manifest) => {
 };
 
 const aggregateTotals = (modeReports) => {
-  const totalChunkCount = modeReports.reduce((sum, mode) => sum + (mode.chunkMeta.rows || 0), 0);
+  const chunkCounts = modeReports.map(mode => mode.chunkMeta.rows);
+  const chunkSum = chunkCounts.reduce((sum, count) => sum + count, 0);
+  const totalChunkCount = chunkCounts.every(count => Number.isSafeInteger(count) && count >= 0) && Number.isSafeInteger(chunkSum) ? chunkSum : null;
   const totalFileCount = modeReports.reduce((sum, mode) => sum + (mode.fileMeta.rows || 0), 0);
   const bytesByFamily = {
     chunks: modeReports.reduce((sum, mode) => sum + mode.chunkMeta.bytes, 0),

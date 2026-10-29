@@ -99,6 +99,9 @@ export async function validateIndexArtifacts(input = {}) {
     }
   }
   const { pointer: capturedPointer } = readValidationSelection(selection, { root, userConfig, indexRoot, modes, strict });
+  if (selection.backendRequirements && typeof input.sqliteEnabled !== 'boolean') {
+    report.sqlite.enabled = Object.values(selection.backendRequirements.sqlite).some(Boolean);
+  }
   report.selection = selection;
   const orderingLedgers = new Map();
   const orderingFor = selectedRoot => {
@@ -590,7 +593,8 @@ export async function validateIndexArtifacts(input = {}) {
     modes,
     selection,
     report,
-    lmdbEnabled: input.lmdbEnabled
+    lmdbEnabled: typeof input.lmdbEnabled === 'boolean' ? input.lmdbEnabled
+      : selection.backendRequirements ? Object.values(selection.backendRequirements.lmdb).some(Boolean) : undefined
   });
   throwIfAborted(signal);
 

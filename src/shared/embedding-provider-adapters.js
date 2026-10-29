@@ -178,10 +178,25 @@ export const createXenovaAdapter = ({ modelId, modelsDir, dims = null, normalize
       return track(async () => {
         const embedder = await ensureEmbedder();
         if (!embedder.embedPrepared) throw new Error('Prepared token inputs require the EG2 adapter.');
-        const output = await embedder.embedPrepared(selected, requested);
-        const vectors = normalizeEmbeddingBatchOutput(output, selected.length, { provider: 'xenova',
-          dimensions: observedDimensions });
-        if (vectors.length) observedDimensions ??= vectors[0].length;
+        const scope = createTransformersResourceScope('Xenova prepared output tensors', { drainFailuresBeforeResources: true });
+        outputScopes.add(scope);
+        let vectors, primary, failed = false;
+        try {
+          const output = await embedder.embedPrepared(selected, requested);
+          captureOutput(scope, output);
+          vectors = normalizeEmbeddingBatchOutput(output, selected.length, { provider: 'xenova',
+            dimensions: observedDimensions, requireNonzero: Boolean(denseContract), copyVectors: scope.resources.length > 0 });
+          if (vectors.length) observedDimensions ??= vectors[0].length;
+        } catch (error) {
+          failed = true; primary = error;
+          if (scope.resources.length) scope.retainFailure(error);
+          else for (const blocker of independentBlockers(error)) scope.retainFailure(blocker.error);
+        }
+        let cleanup, cleanupFailed = false;
+        try { await scope.close(); } catch (error) { cleanupFailed = true; cleanup = error; }
+        if (!scope.pending) outputScopes.delete(scope);
+        if (cleanupFailed) throw failed ? preserveEmbeddingCleanupFailure(primary, cleanup) : cleanup;
+        if (failed) throw primary;
         return vectors;
       });
     },

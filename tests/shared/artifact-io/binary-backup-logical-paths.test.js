@@ -38,6 +38,25 @@ await fs.rename(path.join(root, parts[1][0]), path.join(root, parts[1][0] + '.ba
 await check();
 for (const file of parts[1].slice(1)) await fs.rename(path.join(root, file), path.join(root, file + '.bak'));
 await check();
+// Explicit metadata sidecars are authoritative even when convention-derived
+// defaults are absent, and each physical backup is resolved independently.
+const metadataPath = path.join(root, parts[1].find(file => file.endsWith('.meta.json')) + '.bak');
+const metadata = JSON.parse(await fs.readFile(metadataPath, 'utf8'));
+for (const [field, suffix] of [['offsets', '.offsets.bin'], ['lengths', '.lengths.varint']]) {
+  const original = metadata.fields[field], replacement = `explicit-second${suffix}`;
+  await fs.rename(path.join(root, original + '.bak'), path.join(root, replacement + '.bak'));
+  metadata.fields[field] = replacement;
+  entries.find(piece => piece.path === original).path = replacement;
+}
+const metadataBytes = JSON.stringify(metadata); await fs.writeFile(metadataPath, metadataBytes);
+entries.find(piece => piece.path + '.bak' === path.basename(metadataPath)).checksum =
+  'sha256:' + createHash('sha256').update(metadataBytes).digest('hex');
+await writePiecesManifest(root, [...entries, { name: 'sample_meta', path: 'sample.meta.json', format: 'json' }]);
+await check();
+const beforeEscape = metadata.fields.offsets;
+metadata.fields.offsets = '../outside.offsets.bin'; await fs.writeFile(metadataPath, JSON.stringify(metadata));
+await assert.rejects(check, error => /path|outside|Invalid/u.test(error.message));
+metadata.fields.offsets = beforeEscape; await fs.writeFile(metadataPath, metadataBytes);
 await fs.writeFile(path.join(root, parts[1][0] + '.bak'), Buffer.from(JSON.stringify({ id: 2, file: 'src/second.js' })));
 await assert.rejects(check, { code: 'ERR_ARTIFACT_CORRUPT' }, 'backup bytes retain the canonical manifest checksum');
 console.log('binary backup logical artifact paths passed');

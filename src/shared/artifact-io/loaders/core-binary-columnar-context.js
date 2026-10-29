@@ -126,20 +126,6 @@ export const resolveBinaryColumnarContext = ({
     baseName,
     label: 'binary-columnar meta'
   });
-  const fallbackOffsetsPath = resolveBinaryColumnarPartPath({
-    dir,
-    candidate: null,
-    fallbackPath: offsetsPath,
-    baseName,
-    label: 'binary-columnar offsets'
-  });
-  const fallbackLengthsPath = resolveBinaryColumnarPartPath({
-    dir,
-    candidate: null,
-    fallbackPath: lengthsPath,
-    baseName,
-    label: 'binary-columnar lengths'
-  });
   const { fields, count } = parseBinaryColumnarMeta({
     metaPath: resolvedMetaPath,
     maxBytes,
@@ -156,14 +142,14 @@ export const resolveBinaryColumnarContext = ({
   const resolvedOffsetsPath = resolveBinaryColumnarPartPath({
     dir,
     candidate: fields?.offsets,
-    fallbackPath: fallbackOffsetsPath,
+    fallbackPath: offsetsPath,
     baseName,
     label: 'binary-columnar offsets'
   });
   const resolvedLengthsPath = resolveBinaryColumnarPartPath({
     dir,
     candidate: fields?.lengths,
-    fallbackPath: fallbackLengthsPath,
+    fallbackPath: lengthsPath,
     baseName,
     label: 'binary-columnar lengths'
   });

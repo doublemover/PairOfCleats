@@ -57,6 +57,17 @@ PDF EOL flags terminate their own item, including empty markers. DOCX text/separ
 
 Validation, stats and health capture published mode roots once. Explicit validation roots discover their own declared/present modes, including declared missing artifacts, independently of the current pointer. Stats exposes per-mode provenance; combined build/config fields are null for mixed generations. Health checks selected file families and recorded backend capabilities, distinguishing not-built/not-selected/unknown from a broken ready backend; zero-state waivers use the existing independent proof validator.
 
+The shared status operation and artifact report use the same owned selection for
+their Integrity result. Published backend intent controls required stores;
+ambient configuration cannot require an intentionally omitted SQLite/LMDB store
+or an unselected mode. Missing and corrupt selected SQLite databases receive
+independent findings, including when another selected database is missing.
+SQLite zero-state proofs apply to code, prose, records and extracted prose.
+Repair actions retain repository, selected mode, observed root, executable and
+argument fields. Rendered PowerShell commands quote those exact targets. File
+repair creates a fresh selected generation; SQLite and LMDB repair target the captured
+generation. Optional backend inventory remains visible without mandatory repair.
+
 Setup forwards the explicit target repository to restore and all indexing stages. Huge-repository profile resolution reads only the canonical indexing.hugeRepoProfile path. Its leaf overrides supply defaults, with explicit repository leaf values taking precedence.
 
 Evaluation uses canonical search mode expansion and independent ranking cohorts. Combined-mode judgments must name their mode; ambiguous unqualified judgments are refused before search. Metrics are macro means of judged cohorts and judged cases; unjudged cohorts remain null. Scores from separate lists are never concatenated into an invented global rank. Bakeoff resume identity version 2 binds canonical dataset content, query bytes, matching/metric producer sources, repository identity, and per-model selected generation manifests/index-state. Missing inputs fail before resume; old receipts cannot authorize reuse.

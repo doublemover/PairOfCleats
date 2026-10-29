@@ -1,4 +1,6 @@
-import { captureSelectedModeRoots } from '../../shared/indexing/selected-mode-roots.js';
+import { captureIndexStatusPlan, readIndexStatusPlan } from './status-plan.js';
+import { createIndexRepairAction } from './status-repair.js';
+import { validateIndexArtifacts } from '../../index/validate.js';
 import { readJsonFile } from '../../shared/artifact-io/json.js';
 import { validateSqliteZeroStateManifest } from '../../storage/sqlite/zero-state.js';
 import { readRuntimeReceipt } from '../../shared/runtime-envelope/read-receipt.js';
@@ -27,13 +29,14 @@ const MAX_STATUS_JSON_BYTES = 8 * 1024 * 1024;
 export async function getStatus(input = {}) {
   const root = getRepoRoot(input.repoRoot);
   const includeAll = input.includeAll === true;
-  const userConfig = loadUserConfig(root);
+  const userConfig = input.userConfig || loadUserConfig(root);
   const cacheRoot = (userConfig.cache && userConfig.cache.root)
     || getCacheRoot();
   const repoCacheRoot = resolveRepoCacheRootPath(root, userConfig);
   const dictConfig = getDictConfig(root, userConfig);
   const dictDir = dictConfig.dir;
-  const selection = captureSelectedModeRoots({ root, userConfig });
+  const plan = readIndexStatusPlan(input.plan || captureIndexStatusPlan({ root, userConfig }), { root, userConfig });
+  const selection = plan.selected;
   const sqlitePaths = resolveSqlitePaths(root, userConfig);
   for (const [mode, key] of [['code', 'codePath'], ['prose', 'prosePath'], ['extracted-prose', 'extractedProsePath'], ['records', 'recordsPath']]) {
     if (selection.roots[mode]) sqlitePaths[key] = resolveSqlitePaths(root, userConfig, { indexRoot: selection.roots[mode] })[key];
@@ -104,12 +107,16 @@ export async function getStatus(input = {}) {
   const dictSize = await sizeOfPath(dictDir);
   const overallSize = cacheRootSize + sqliteOutsideCacheSize + lmdbOutsideCacheSize;
 
-  const health = { issues: [], hints: [], selection: selection.source, modes: {}, backends: { sqlite: {}, lmdb: {} } };
-  const modeStates = {};
-  for (const mode of selection.modes) {
-    try { modeStates[mode] = readJsonFile(path.join(selection.roots[mode], `index-${mode}`, 'index_state.json'), { maxBytes: MAX_STATUS_JSON_BYTES, containedRoot: path.join(selection.roots[mode], `index-${mode}`) }); }
-    catch (error) { modeStates[mode] = null; health.issues.push(`index-${mode} selected capability metadata unreadable`); }
-  }
+  const health = { issues: [], hints: [], repairActions: [], selection: selection.source, modes: {}, backends: { sqlite: {}, lmdb: {} } };
+  const modeStates = plan.states;
+  if (!selection.modes.length) health.issues.push('No published index modes are selected.');
+  for (const mode of Object.keys(plan.stateErrors)) health.issues.push(`index-${mode} selected capability metadata unreadable`);
+  const repair = (mode, backend) => {
+    if (health.repairActions.some(action => action.backend === backend && action.modes.includes(mode))) return;
+    const action = createIndexRepairAction({ root, mode, backend, indexRoot: selection.roots[mode] });
+    health.repairActions.push(action);
+    health.hints.push(`${backend === 'files' ? 'Build a fresh selected file generation' : `Rebuild selected ${backend}`} (PowerShell): ${action.command}`);
+  };
   const indexIssues = [];
   const checkIndexArtifacts = (dir, label) => {
     if (!fs.existsSync(dir)) {
@@ -163,11 +170,11 @@ export async function getStatus(input = {}) {
       const before = indexIssues.length;
       checkIndexArtifacts(dir, `index-${mode}`);
       if (indexIssues.length > before || !modeStates[mode]) health.modes[mode].status = 'invalid';
+      if (health.modes[mode].status === 'invalid') repair(mode, 'files');
     }
   }
   if (indexIssues.length) {
     health.issues.push(...indexIssues);
-    health.hints.push('Run `pairofcleats index build` (or `node build_index.js`) to rebuild file-backed indexes.');
   }
 
   const sqliteIssues = [];
@@ -187,6 +194,7 @@ export async function getStatus(input = {}) {
       } catch { status = 'missing'; sqliteIssues.push(`sqlite ${mode} published db missing or zero-state proof invalid`); }
     } else if (status === 'failed') sqliteIssues.push(`sqlite ${mode} build failed`);
     health.backends.sqlite[mode] = { status, selected: selection.modes.includes(mode), path: target.path };
+    if (['missing', 'failed'].includes(status)) repair(mode, 'sqlite');
   }
   for (const target of lmdbTargets) {
     const state = modeStates[target.label]?.lmdb;
@@ -196,14 +204,29 @@ export async function getStatus(input = {}) {
       status = 'missing'; lmdbIssues.push(`lmdb ${target.label} published db missing`);
     } else if (status === 'failed') lmdbIssues.push(`lmdb ${target.label} build failed`);
     health.backends.lmdb[target.label] = { status, selected: selection.modes.includes(target.label), path: target.path };
+    if (['missing', 'failed'].includes(status)) repair(target.label, 'lmdb');
   }
   if (sqliteIssues.length) {
     health.issues.push(...sqliteIssues);
-    health.hints.push('Run `pairofcleats index build --stage 4` to rebuild selected SQLite indexes.');
   }
   if (lmdbIssues.length) {
     health.issues.push(...lmdbIssues);
-    health.hints.push('Run `pairofcleats lmdb build` to rebuild selected LMDB indexes.');
+  }
+
+  const corruption = plan.validationSelection ? await validateIndexArtifacts({ root, userConfig,
+    modes: selection.modes, selection: plan.validationSelection })
+    : { ok: false, modes: {}, issues: ['No published index modes are selected.'], warnings: [], selection: null };
+  for (const finding of corruption.findings || []) {
+    if (finding.severity !== 'error') continue;
+    if (!health.issues.includes(finding.display)) health.issues.push(finding.display);
+    if (!finding.mode || !selection.modes.includes(finding.mode)) continue;
+    if (finding.capability === 'sqlite' || finding.capability === 'lmdb') {
+      if (health.backends[finding.capability][finding.mode]) health.backends[finding.capability][finding.mode].status = finding.state;
+      repair(finding.mode, finding.capability);
+    } else {
+      health.modes[finding.mode].status = finding.state;
+      repair(finding.mode, 'files');
+    }
   }
 
   const coverage = readIndexCoverage({
@@ -224,6 +247,7 @@ export async function getStatus(input = {}) {
   coverage.workingTreeComparison = 'bounded-indexed-files-and-discovery';
   const payload = {
     coverage,
+    corruption,
     repo: {
       root: path.resolve(root),
       cacheRoot: path.resolve(repoCacheRoot),

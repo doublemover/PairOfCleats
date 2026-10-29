@@ -11,6 +11,7 @@ import {
   coerceNonNegativeInt
 } from '../../number-coerce.js';
 import { resolveArtifactMetaEnvelope } from './shared.js';
+import { MAX_JSON_BYTES } from '../constants.js';
 
 const readPart = (target, maxBytes, containedRoot) => containedRoot
   ? readVerifiedContainedFileSync(containedRoot, target, {
@@ -246,7 +247,7 @@ const iterateBinaryColumnarRowPayloads = ({
   if (!metadata) return null;
   const { offsets, lengths, count: metadataCount } = metadata;
   const resolvedDataPath = resolvePathOrBak(dataPath);
-  const max = toPositiveFinite(maxBytes);
+  const max = toPositiveFinite(maxBytes) ?? MAX_JSON_BYTES;
   let publishWitness = null;
   const onComplete = () => publishWitness?.();
   const readRows = function* (descriptor) {

@@ -25,5 +25,14 @@ lease, while independent diagnostic inspectors must settle before another native
 disposal call. Drain reports those original inspection failures separately, and
 public diagnostic arrays cannot erase the private ownership state.
 
-The small consumer regressions are authored. Runtime and real-provider
-qualification remain deferred until the shared source wave is frozen.
+The provider batch, single and prepared-output routes capture native output
+owners before shape/cardinality admission. They copy admitted native tensor
+views before disposal, join cleanup after rejected admission and retain a failed
+output owner for explicit adapter reconciliation. Prepared outputs have the same
+disposal contract as ordinary inference outputs.
+
+Small consumer fixtures exercise the real build teardown and daemon lease owners,
+including unused runtimes, in-flight inference, replacement, bounded eviction,
+generation recycling and independent query leases. Provider-output fixtures use
+recording resources; they do not qualify a downloaded model or native memory
+release.

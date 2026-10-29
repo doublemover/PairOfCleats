@@ -2,6 +2,7 @@ import path from 'node:path';
 import { ARTIFACT_SURFACE_VERSION } from '../../contracts/versioning.js';
 import { atomicWriteJson } from '../../shared/io/atomic-write.js';
 import { throwIfAborted } from '../../shared/abort.js';
+import { observeStorageResource } from '../../shared/storage/failure-observation.js';
 import { loadJsonArrayArtifact } from '../../shared/artifact-io/loaders.js';
 import { assertIndexCacheLease } from './cache-lease.js';
 import { updateBuildState } from './build-state.js';
@@ -98,7 +99,14 @@ export const verifyCompletedStage = async ({ buildRoot, buildId, repoRoot, mode,
     if (stageIdentityHash(verified.descriptor.completion) !== stageIdentityHash(sealed)) throw stageFailure('Stage receipt differs from its immutable descriptor.');
     if (snapshot) return receipt;
   } else if (snapshot) throw stageFailure('Historical mutable receipt has no immutable snapshot.');
-  await assertArtifactPublicationReady({ buildRoot, modes: [mode] });
+  try { await assertArtifactPublicationReady({ buildRoot, modes: [mode] }); }
+  catch (error) {
+    if (error?.code !== 'ERR_ARTIFACT_PUBLICATION_INTEGRITY') throw error;
+    const observation = observeStorageResource(error, { phase: 'completed-stage-publication-integrity' });
+    const failure = stageFailure('Retained Stage2 publication differs from its exact generation seal.');
+    failure.cause = error;
+    throw observation.hasResourceObservation ? observation.wrap(failure) : failure;
+  }
   const { output } = await inventoryStageOutput({ buildRoot, buildId, mode, signal, scope: 'stage2' });
   if (stageIdentityHash(output) !== stageIdentityHash(receipt.output)) throw stageFailure('Retained Stage2 content differs from its seal.');
   return receipt;

@@ -69,7 +69,8 @@ try {
     completion.output.contentHash);
   await fs.writeFile(path.join(outDir, 'chunk_meta.json'), '{}');
   await assert.rejects(verifyCompletedStage({ repoRoot: root, buildRoot, buildId: 'generation', mode: 'code' }),
-    { code: 'ERR_COMPLETED_STAGE_INVALID' }, 'same-size retained mutations cannot survive the content seal');
+    error => error.code === 'ERR_COMPLETED_STAGE_INVALID' && error.cause?.code === 'ERR_ARTIFACT_PUBLICATION_INTEGRITY',
+    'same-size retained mutations cannot survive the content seal, retaining its exact publication-integrity cause');
   await fs.writeFile(path.join(outDir, 'chunk_meta.json'), '[]');
   await assert.rejects(verifyCompletedStage({ repoRoot: directory, buildRoot, buildId: 'generation', mode: 'code' }),
     { code: 'ERR_COMPLETED_STAGE_INVALID' });

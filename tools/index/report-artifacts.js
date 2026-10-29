@@ -7,7 +7,7 @@ import { INDEX_REPORT_OPTIONS } from '../../src/shared/index-tool-options.js';
 import { createCli } from '../../src/shared/cli.js';
 import { formatBytes } from '../../src/shared/disk-space.js';
 import { getStatus } from '../../src/integrations/core/status.js';
-import { validateIndexArtifacts } from '../../src/index/validate.js';
+import { captureIndexStatusPlan } from '../../src/integrations/core/status-plan.js';
 import { loadJsonArrayArtifactRows } from '../../src/shared/artifact-io/loaders.js';
 import { readJsonFileSyncSafe } from '../../src/shared/file-read.js';
 import { getMetricsDir, resolveRepoConfig } from '../shared/dict-utils.js';
@@ -58,7 +58,8 @@ if (argv.runtime || argv['index-root'] || argv.build || argv.attempt || argv.exp
 
 const { repoRoot: root, userConfig } = resolveRepoConfig(argv.repo);
 const metricsDir = getMetricsDir(root, userConfig);
-const status = await getStatus({ repoRoot: root, includeAll: argv.all });
+const plan = captureIndexStatusPlan({ root, userConfig });
+const status = await getStatus({ repoRoot: root, includeAll: argv.all, userConfig, plan });
 
 const readJson = (targetPath) => {
   return readJsonFileSyncSafe(targetPath, null);
@@ -236,11 +237,7 @@ const throughput = {
   }
 };
 
-const corruption = await validateIndexArtifacts({
-  root,
-  userConfig,
-  modes: ['code', 'prose', 'extracted-prose', 'records']
-});
+const corruption = status.corruption;
 const scanProfile = buildScanProfile({
   artifactReport: status,
   indexMetrics,

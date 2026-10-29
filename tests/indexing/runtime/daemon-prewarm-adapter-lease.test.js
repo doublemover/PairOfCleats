@@ -2,7 +2,8 @@ import assert from 'node:assert/strict';
 import { __setAdapterFactoryForTests, getEmbeddingAdapter, warmEmbeddingAdapter,
   disposeEmbeddingAdapterCaches } from '../../../src/shared/embedding-adapter.js';
 import { acquireRuntimeDaemonSession, addDaemonEmbeddingWarmKey, closeRuntimeDaemonSession,
-  disposeRuntimeDaemonSessions, drainDaemonEmbeddingLeases, hasDaemonEmbeddingWarmKey } from '../../../src/index/build/runtime/daemon-session.js';
+  disposeRuntimeDaemonSessions, drainDaemonEmbeddingLeases, hasDaemonEmbeddingWarmKey,
+  createRuntimeDaemonJobContext, probeRuntimeDaemonSessionHealth } from '../../../src/index/build/runtime/daemon-session.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 
 applyTestEnv();
@@ -43,6 +44,29 @@ try {
   assert.equal(hasDaemonEmbeddingWarmKey(failedSession, 'warm'), false);
   assert.equal(failedSession.embeddingWarmLeases.size, 0, 'failed warmup cannot invent retained readiness');
   await closeRuntimeDaemonSession(failedSession);
+  failPrewarm = false;
+  const bounded = acquireRuntimeDaemonSession({ enabled: true, sessionKey: 'bounded-adapter-owner',
+    health: { maxEmbeddingWarmEntries: 2, maxJobsBeforeRecycle: 2 } });
+  const beforeCreated = created, beforeDisposed = disposed;
+  for (const key of ['first', 'second', 'third']) {
+    const lease = await warmEmbeddingAdapter({ ...selection, modelId: `bounded-${key}` });
+    addDaemonEmbeddingWarmKey(bounded, key, lease);
+  }
+  await drainDaemonEmbeddingLeases(bounded);
+  assert.equal(created, beforeCreated + 3); assert.equal(disposed, beforeDisposed + 1);
+  assert.equal(hasDaemonEmbeddingWarmKey(bounded, 'first'), false);
+  assert.equal(bounded.embeddingWarmLeases.size, 2, 'bounded LRU eviction joins its exact adapter lease');
+  query = getEmbeddingAdapter({ ...selection, modelId: 'bounded-third' });
+  createRuntimeDaemonJobContext(bounded); createRuntimeDaemonJobContext(bounded);
+  const recycle = probeRuntimeDaemonSessionHealth(bounded, { force: true });
+  assert.equal(recycle.recycled, true); assert.deepEqual(recycle.reasons, ['jobs>2']);
+  await drainDaemonEmbeddingLeases(bounded);
+  assert.equal(bounded.embeddingWarmLeases.size, 0);
+  assert.equal(disposed, beforeDisposed + 2, 'generation recycling releases each daemon owner while preserving the query sibling');
+  assert.deepEqual(await query.embedOne('query after generation recycle'), new Float32Array(8).fill(1));
+  await closeRuntimeDaemonSession(bounded);
+  await query.dispose(); query = null;
+  assert.equal(disposed, beforeDisposed + 3);
   await disposeEmbeddingAdapterCaches();
 } finally {
   await query?.dispose();

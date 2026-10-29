@@ -248,6 +248,7 @@ export const runArtifactPublicationFinalizers = async ({
         ]
       });
       if (Number(cleanupCommit?.failedActions || 0) > 0) {
+        if (cleanupCommit.failure) throw cleanupCommit.failure;
         throw new Error(
           `[artifact-cleanup] cleanup failed for current generation: `
           + `${cleanupCommit.failures.map((entry) => entry.message).join(' | ')}`

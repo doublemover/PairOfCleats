@@ -17,9 +17,14 @@ await fs.mkdir(repoRoot, { recursive: true });
 await fs.writeFile(path.join(repoRoot, 'code.js'), 'export function answer() { return 1; }\n');
 await fs.writeFile(path.join(repoRoot, 'prose.md'), '# Generation prose\nOranges remain in the older prose generation.\n');
 const env = applyTestEnv({ cacheRoot, embeddings: 'stub',
-  testConfig: createFastIndexingTestConfig({ sqlite: { use: false } }) });
-const build = options => buildIndex(repoRoot, { sqlite: false, 'stub-embeddings': true,
-  'scm-provider': 'none', progress: 'off', ...options });
+  testConfig: createFastIndexingTestConfig({ threads: 1, sqlite: { use: false },
+    indexing: { workerPool: { maxWorkers: 1 } } }) });
+const build = async options => {
+  const start = performance.now();
+  try { return await buildIndex(repoRoot, { sqlite: false, 'stub-embeddings': true,
+    'scm-provider': 'none', threads: 1, progress: 'off', ...options }); }
+  finally { console.log(JSON.stringify({ phase: options.stage, modes: options.mode, elapsedMs: performance.now() - start })); }
+};
 await build({ mode: 'all', stage: 'stage1' });
 const config = loadUserConfig(repoRoot), cache = getRepoCacheRoot(repoRoot, config);
 const pointer = path.join(cache, 'builds/current.json');
@@ -41,19 +46,24 @@ for (const [mode, query, expected] of [['code', 'answer', 'code.js'], ['prose', 
   try { assert.ok(db.prepare('SELECT COUNT(*) AS count FROM chunks').get().count > 0); }
   finally { db.close(); }
   for (const cacheState of ['cold', 'warm']) {
+    const started = performance.now();
     const result = runNode([path.join(root, 'search.js'), query, '--backend', 'sqlite', '--no-ann', '--json',
       '--mode', mode, '--repo', repoRoot], `pinned ${mode} SQLite query (${cacheState})`, root, env, { stdio: 'pipe' });
     assert.ok(JSON.parse(result.stdout)[mode].some(hit => hit.file === expected), `${mode} query retains its pinned source`);
+    console.log(JSON.stringify({ phase: 'search', mode, cacheState, elapsedMs: performance.now() - started }));
   }
 }
 const current = await fs.readFile(pointer, 'utf8');
 const outside = path.join(dir, 'outside-cache');
 await fs.mkdir(outside);
-for (const modeBuildRoots of [{ code: outside }, {}, { code: 42 }, { code: path.join(cache, after.buildRoot), prose: outside },
-  { code: path.join(cache, before.buildRootsByMode.prose) }]) {
+for (const modeBuildRoots of [{ code: outside }, {}, { code: 42 },
+  { code: path.join(cache, after.buildRoot), prose: outside }, { code: path.join(cache, before.buildRootsByMode.prose) }]) {
   await assert.rejects(promoteBuild({ repoRoot, userConfig: config, buildId: after.buildId,
     buildRoot: path.join(cache, after.buildRoot), stage: 'stage4', modes: ['code'], modeBuildRoots }),
   /mode.*root|escapes|promoted mode/i);
   assert.equal(await fs.readFile(pointer, 'utf8'), current, 'rejected mode authority cannot partially republish current.json');
 }
 console.log('Stage4 follows mixed mode roots, preserves generation authority, and rejects outside-root publication');
+console.log(JSON.stringify({ phase: 'settlement-observation', processElapsedMs: performance.now(),
+  activeResources: process.getActiveResourcesInfo(),
+  activeHandleKinds: process._getActiveHandles().map(handle => handle.constructor?.name || 'unknown') }));

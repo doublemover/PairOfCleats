@@ -21,7 +21,8 @@ export const buildLmdbReport = async ({ root, userConfig, indexRoot, modes, repo
     : userConfig.lmdb?.use !== false;
   const lmdbPaths = selection ? { codePath: selection.lmdbPaths.code || null, prosePath: selection.lmdbPaths.prose || null }
     : resolveLmdbPaths(root, userConfig, indexRoot ? { indexRoot } : {});
-  const lmdbTargets = new Set(modes.filter(mode => (mode === 'code' || mode === 'prose') && (!selection || selection.indexDirs[mode])));
+  const lmdbTargets = new Set(modes.filter(mode => (mode === 'code' || mode === 'prose')
+    && (!selection || selection.indexDirs[mode]) && selection?.backendRequirements?.lmdb?.[mode] !== false));
   const lmdbReport = {
     enabled,
     ok: true,
@@ -56,7 +57,8 @@ export const buildLmdbReport = async ({ root, userConfig, indexRoot, modes, repo
       let originalClose, primary, failed = false;
       try {
         if (!hasLmdbStore(storePath)) {
-          addLmdbWarning(label, 'db missing');
+          if (selection?.backendRequirements?.lmdb?.[label]) addLmdbIssue(label, 'required published db missing');
+          else addLmdbWarning(label, 'db missing');
           return;
         }
         if (!openLmdb) {

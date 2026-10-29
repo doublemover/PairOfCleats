@@ -2,6 +2,8 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { toPosix } from '../../../shared/file-paths.js';
 import { removePathWithRetry } from '../../../shared/io/remove-path-with-retry.js';
+import { describeStorageFailure, observeStorageResource } from '../../../shared/storage/failure-observation.js';
+import { addStorageFailureContext } from '../../../shared/storage/operation-error.js';
 import {
   cleanupVectorOnlySparseArtifacts,
   removeCompressedArtifact,
@@ -32,6 +34,29 @@ export const prepareArtifactCleanup = async ({
 } = {}) => {
   const cleanupActions = [];
   const stagedCleanupOperations = [];
+  const outcomes = new Map();
+  const summaryFor = () => {
+    const failures = [], originals = [];
+    let completedActions = 0;
+    for (const [action, result] of outcomes) {
+      if (result.ok) { completedActions++; continue; }
+      originals.push(result.error);
+      let detail;
+      try { detail = describeStorageFailure(result.error, { phase: 'artifact-cleanup' }); }
+      catch { detail = { code: 'ERR_ARTIFACT_CLEANUP_UNCONFIRMED', message: 'Original removal work remains unconfirmed.' }; }
+      failures.push({ path: action.path, ...detail });
+    }
+    const summary = { schemaVersion: 1,
+      status: failures.length ? 'completed-with-warnings' : outcomes.size < cleanupActions.length ? 'staged'
+        : cleanupActions.length ? 'completed' : 'not-required',
+      plannedActions: cleanupActions.length, completedActions, failedActions: failures.length, failures };
+    if (originals.length) {
+      let failure = new AggregateError(originals, '[artifact-cleanup] original removal failures remain retained.');
+      for (const original of originals) failure = addStorageFailureContext(failure, {}, original, { secondaryPresent: true });
+      Object.defineProperty(summary, 'failure', { value: failure });
+    }
+    return summary;
+  };
   const runCleanupBatch = async (operations, { concurrency = 3 } = {}) => {
     const tasks = Array.isArray(operations) ? operations.filter((op) => typeof op === 'function') : [];
     const batchSize = Number.isFinite(Number(concurrency))
@@ -76,6 +101,7 @@ export const prepareArtifactCleanup = async ({
         ? Number(existing.schemaVersion)
         : null
     };
+    if (summary?.failure) Object.defineProperty(indexState.extensions.artifactCleanup, 'failure', { value: summary.failure });
   };
   const removeArtifactNow = async (targetPath, options = {}) => {
     const { recursive = true, policy = 'legacy' } = options;
@@ -92,7 +118,11 @@ export const prepareArtifactCleanup = async ({
         throw removed?.error || new Error(`[artifact-cleanup] failed to remove ${targetPath}`);
       }
     } catch (err) {
-      log?.(`[warn] [artifact-cleanup] exception removing ${targetPath}: ${err?.message || err}`);
+      const observation = observeStorageResource(err, { phase: 'artifact-cleanup-remove' });
+      // Logging is observational; it cannot replace the original removal owner.
+      try { log?.(`[warn] [artifact-cleanup] removal failed: ${targetPath}`); }
+      catch (secondary) { throw addStorageFailureContext(err, {}, secondary, { secondaryPresent: true }); }
+      if (observation.hasResourceObservation) throw observation.retain();
       throw err;
     }
   };
@@ -101,9 +131,10 @@ export const prepareArtifactCleanup = async ({
     const exists = await cleanupPathExists(targetPath);
     if (!exists) return { ok: true, staged: false, targetPath };
     if (immediate) {
-      recordCleanupAction({ targetPath, recursive, policy, phase: 'immediate' });
-      await removeArtifactNow(targetPath, { recursive, policy });
-      syncCleanupState();
+      const action = recordCleanupAction({ targetPath, recursive, policy, phase: 'immediate' });
+      try { await removeArtifactNow(targetPath, { recursive, policy }); outcomes.set(action, { ok: true }); }
+      catch (error) { outcomes.set(action, { ok: false, error }); syncCleanupState(summaryFor()); throw error; }
+      syncCleanupState(summaryFor());
       return { ok: true, staged: false, targetPath };
     }
     const action = recordCleanupAction({ targetPath, recursive, policy, phase: 'staged' });
@@ -123,8 +154,6 @@ export const prepareArtifactCleanup = async ({
     concurrency = 3,
     immutablePaths = []
   } = {}) => {
-    const failures = [];
-    let completedActions = 0;
     const tasks = stagedCleanupOperations.splice(0, stagedCleanupOperations.length);
     const immutablePathSet = new Set(
       (Array.isArray(immutablePaths) ? immutablePaths : [])
@@ -153,29 +182,13 @@ export const prepareArtifactCleanup = async ({
           return { ok: false, error };
         }
       }));
-      for (const result of results) {
-        if (result.ok) {
-          completedActions += 1;
-          continue;
-        }
-        failures.push({
-          message: result.error?.message || String(result.error)
-        });
-      }
+      results.forEach((result, position) => outcomes.set(batch[position].action, result));
     }
-    const summary = {
-      schemaVersion: 1,
-      status: failures.length ? 'completed-with-warnings' : (cleanupActions.length ? 'completed' : 'not-required'),
-      plannedActions: cleanupActions.length,
-      completedActions,
-      failedActions: failures.length,
-      failures
-    };
+    const summary = summaryFor();
     syncCleanupState(summary);
-    return {
-      ...summary,
-      actions: cleanupActions
-    };
+    const receipt = { ...summary, actions: cleanupActions };
+    if (summary.failure) Object.defineProperty(receipt, 'failure', { value: summary.failure });
+    return receipt;
   };
 
   if (vectorOnlyProfile) {

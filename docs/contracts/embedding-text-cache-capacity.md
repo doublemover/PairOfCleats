@@ -29,5 +29,12 @@ profile locking, lifetime and close/reconciliation behavior remain in force.
 
 The small regression uses real SQLite with a stricter fixture-only page limit,
 repeated working-set turnover, hot touches, close/reopen parity and explicit
-generic-pressure failures. Sustained churn, inference/cache-hit accounting and
-new-process throughput/RSS remain separate deferred performance qualification.
+generic-pressure failures. A separate serial measurement fixture uses 1024-wide
+float32/float16 rows, three payload-capacity turnovers at a stricter real 8 MiB
+SQLite page cap and a fresh child process for exact persisted hits. It records
+per-cycle hit/miss, deterministic recording-provider call, transaction, byte,
+eviction and elapsed-time samples. This measures cache work under the stated
+capacity; it does not qualify real-model inference latency, native RSS or larger
+production workloads. Production database, journal and profile limits remain
+unchanged. Author-workspace run receipts are historical evidence, not files
+promised in a clean checkout.

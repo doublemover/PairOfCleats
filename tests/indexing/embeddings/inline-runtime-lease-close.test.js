@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { resolveEmbeddingRuntime } from '../../../src/index/build/runtime/embeddings.js';
+import { teardownRuntime } from '../../../src/integrations/core/build-index/runtime.js';
 import { __setAdapterFactoryForTests, disposeEmbeddingAdapterCaches } from '../../../src/shared/embedding-adapter.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 
@@ -28,14 +29,14 @@ const resolve = () => resolveEmbeddingRuntime({ rootDir: process.cwd(), userConf
   indexingConfig: { embeddings: { mode: 'stub' } }, envConfig: {}, argv: { dims: 8 }, cpuConcurrency: 1 });
 try {
   const unused = await resolve();
-  await unused.closeEmbeddingRuntime();
+  await teardownRuntime({ ...unused, log() {} });
   assert.equal(created, 0, 'closing unused runtime cannot initialize the model');
   for (behavior of ['success', 'failure', 'cancelled']) {
     const runtime = await resolve();
     if (behavior === 'success') await runtime.getChunkEmbedding('fixture');
     else await assert.rejects(runtime.getChunkEmbedding('fixture'));
     const before = disposed;
-    await runtime.closeEmbeddingRuntime();
+    await teardownRuntime({ ...runtime, log() {} });
     await runtime.closeEmbeddingRuntime();
     assert.equal(disposed, before + 1, `${behavior} releases its lease exactly once`);
     await assert.rejects(runtime.getChunkEmbedding('late'), { code: 'ERR_EMBEDDING_RUNTIME_CLOSED' });
@@ -45,7 +46,7 @@ try {
   const pending = runtime.getChunkEmbedding('held fixture');
   await entered;
   const before = disposed;
-  const closing = runtime.closeEmbeddingRuntime();
+  const closing = teardownRuntime({ ...runtime, log() {} });
   await Promise.resolve();
   assert.equal(disposed, before);
   release();

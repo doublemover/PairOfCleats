@@ -13,7 +13,7 @@ const outputKey = { code: 'codePath', prose: 'prosePath', 'extracted-prose': 'ex
  * read. Publication movement cannot replace any member of this operation.
  */
 export const captureValidationSelection = ({ root, userConfig, indexRoot = null, modes,
-  strict = true, capturedModes = null }) => {
+  strict = true, capturedModes = null, backendRequirements = null }) => {
   if (!Array.isArray(modes) || !modes.length || modes.some(mode => !modesAllowed.includes(mode))) {
     throw new TypeError('Validation requires concrete supported modes.');
   }
@@ -43,7 +43,9 @@ export const captureValidationSelection = ({ root, userConfig, indexRoot = null,
   const selection = Object.freeze({ source: source.source, indexRoot: indexRoot ? path.resolve(indexRoot) : null,
     modes: Object.freeze([...modes]), roots: Object.freeze(roots), indexDirs: Object.freeze(indexDirs),
     sqlitePaths: Object.freeze(sqlitePaths), lmdbPaths: Object.freeze(lmdbPaths), unavailable: Object.freeze(unavailable),
-    pointerReceipt: source.pointerReceipt ? Object.freeze(source.pointerReceipt) : null });
+    pointerReceipt: source.pointerReceipt ? Object.freeze(source.pointerReceipt) : null,
+    ...(backendRequirements ? { backendRequirements: Object.freeze(Object.fromEntries(['sqlite', 'lmdb'].map(backend => [backend,
+      Object.freeze(Object.fromEntries(modes.map(mode => [mode, backendRequirements[backend]?.[mode] === true])))]))) } : {}) });
   captures.set(selection, { root: identity(root), userConfig, indexRoot: indexRoot ? identity(indexRoot) : null,
     strict, modes: JSON.stringify(modes), pointer: source.pointer });
   return selection;
