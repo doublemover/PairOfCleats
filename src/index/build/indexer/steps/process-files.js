@@ -1,5 +1,6 @@
 import { isFileAnalysisCandidate, fileAnalysisAdmissionBytes, FILE_ANALYSIS_MAX_SOURCE_BYTES } from '../../workers/file-analysis-contract.js';
 import { withBundleTransformScope } from '../../../../shared/bundle-io/transform-owner.js';
+import { observeStorageResource } from '../../../../shared/storage/failure-observation.js';
 import { assertSemanticEnvelope } from '../../../../contracts/validators/semantic-envelopes.js';
 import path from 'node:path';
 import { reopenSemanticDiskAccount } from '../../incremental/working-set.js';
@@ -677,6 +678,8 @@ const processFilesInTransformScope = async ({
   runtime.cacheWriterDrain = () => inFlightProcessFileTasks.drain();
   runtime.cacheWriterPending = () => inFlightProcessFileTasks.pendingCount();
   let stage1ShuttingDown = false;
+  let processingFailed = false;
+  let processingFailure;
 
   try {
     const perfEventBaseLogger = await createPerfEventLogger({
@@ -3205,6 +3208,10 @@ const processFilesInTransformScope = async ({
       postingsQueue,
       tokenizationStats
     });
+  } catch (error) {
+    processingFailed = true;
+    processingFailure = error;
+    throw error;
   } finally {
     stage1ShuttingDown = true;
     inFlightProcessFileTasks.seal('stage1 tail cleanup');
@@ -3228,174 +3235,181 @@ const processFilesInTransformScope = async ({
     }
     runtime?.telemetry?.clearInFlightBytes?.('stage1.postings-queue');
     runtime?.telemetry?.clearDurationHistogram?.(queueDelayTelemetryChannel);
-    await runWithHangProbe({
-      ...hangProbeConfig,
-      label: 'stage1.tail-cleanup',
-      mode,
-      stage: 'processing',
-      step: 'cleanup',
-      log: logLine,
-      meta: { cleanupTimeoutMs },
-      run: () => runStage1TailCleanupTasks({
-        sequential: true,
-        tasks: [
-          {
-            label: 'stage1.process-file-drain',
-            run: async () => {
-              const drainLog = (line, meta) => logLine(line, {
-                ...(meta || {}),
-                mode,
-                stage: 'processing'
-              });
-              const drainResult = await drainTrackedProcessFileTasks({
-                registry: inFlightProcessFileTasks,
-                timeoutMs: cleanupTimeoutMs,
-                log: drainLog,
-                logMeta: {
+    try {
+      await runWithHangProbe({
+        ...hangProbeConfig,
+        label: 'stage1.tail-cleanup',
+        mode,
+        stage: 'processing',
+        step: 'cleanup',
+        log: logLine,
+        meta: { cleanupTimeoutMs },
+        run: () => runStage1TailCleanupTasks({
+          sequential: true,
+          tasks: [
+            {
+              label: 'stage1.process-file-drain',
+              run: async () => {
+                const drainLog = (line, meta) => logLine(line, {
+                  ...(meta || {}),
                   mode,
                   stage: 'processing'
-                },
-                onTimeout: async (_error, pendingEntries) => {
-                  const subprocessSnapshot = snapshotTrackedSubprocesses({
-                    ownershipPrefix: stage1OwnershipPrefix,
-                    limit: 12
-                  });
-                  if (subprocessSnapshot.total > 0) {
-                    drainLog(
-                      `[cleanup] stage1 process-file drain timeout retained ${subprocessSnapshot.total} tracked subprocess(es) `
+                });
+                const drainResult = await drainTrackedProcessFileTasks({
+                  registry: inFlightProcessFileTasks,
+                  timeoutMs: cleanupTimeoutMs,
+                  log: drainLog,
+                  logMeta: {
+                    mode,
+                    stage: 'processing'
+                  },
+                  onTimeout: async (_error, pendingEntries) => {
+                    const subprocessSnapshot = snapshotTrackedSubprocesses({
+                      ownershipPrefix: stage1OwnershipPrefix,
+                      limit: 12
+                    });
+                    if (subprocessSnapshot.total > 0) {
+                      drainLog(
+                        `[cleanup] stage1 process-file drain timeout retained ${subprocessSnapshot.total} tracked subprocess(es) `
                         + `for ${stage1OwnershipPrefix}`,
-                      {
-                        kind: 'warning',
-                        stage1Drain: {
-                          pendingCount: Array.isArray(pendingEntries) ? pendingEntries.length : 0,
-                          trackedSubprocesses: subprocessSnapshot
+                        {
+                          kind: 'warning',
+                          stage1Drain: {
+                            pendingCount: Array.isArray(pendingEntries) ? pendingEntries.length : 0,
+                            trackedSubprocesses: subprocessSnapshot
+                          }
                         }
-                      }
-                    );
+                      );
+                    }
+                    const cleanup = await terminateTrackedSubprocesses({
+                      reason: 'stage1_process_file_drain_timeout',
+                      force: true,
+                      ownershipPrefix: stage1OwnershipPrefix
+                    });
+                    if (cleanup?.attempted > 0) {
+                      drainLog(
+                        `[cleanup] forced termination of ${cleanup.attempted} stage1 tracked subprocess(es) `
+                        + `after process-file drain timeout.`,
+                        {
+                          kind: 'warning',
+                          cleanup
+                        }
+                      );
+                    }
                   }
+                });
+                if (!drainResult?.timedOut) {
+                  return drainResult;
+                }
+                const drainRetry = await runCleanupWithTimeout({
+                  label: 'stage1.process-file-drain.retry',
+                  cleanup: () => inFlightProcessFileTasks.drain(),
+                  timeoutMs: cleanupTimeoutMs,
+                  log: drainLog,
+                  logMeta: {
+                    mode,
+                    stage: 'processing'
+                  }
+                });
+                if (drainRetry?.timedOut) {
+                  const pendingEntries = inFlightProcessFileTasks.snapshot();
+                  const drainError = createTimeoutError({
+                    message: `[cleanup] stage1 process-file drain failed with ${pendingEntries.length} pending task(s).`,
+                    code: 'STAGE1_PROCESS_FILE_DRAIN_TIMEOUT',
+                    retryable: false,
+                    meta: {
+                      pendingCount: pendingEntries.length,
+                      pendingEntries: pendingEntries.slice(0, 12)
+                    }
+                  });
+                  throw drainError;
+                }
+                return {
+                  skipped: false,
+                  timedOut: true,
+                  elapsedMs: (Number(drainResult?.elapsedMs) || 0) + (Number(drainRetry?.elapsedMs) || 0)
+                };
+              }
+            },
+            {
+              label: 'perf-event-logger.close',
+              run: () => runCleanupWithTimeout({
+                label: 'perf-event-logger.close',
+                cleanup: () => perfEventLogger?.close(),
+                timeoutMs: cleanupTimeoutMs,
+                log: (line, meta) => logLine(line, {
+                  ...(meta || {}),
+                  mode,
+                  stage: 'processing'
+                })
+              })
+            },
+            {
+              label: 'tree-sitter-scheduler.close',
+              run: () => closeTreeSitterScheduler({
+                onTimeout: async () => {
                   const cleanup = await terminateTrackedSubprocesses({
-                    reason: 'stage1_process_file_drain_timeout',
+                    reason: 'tree_sitter_scheduler_close_timeout',
                     force: true,
                     ownershipPrefix: stage1OwnershipPrefix
                   });
                   if (cleanup?.attempted > 0) {
-                    drainLog(
-                      `[cleanup] forced termination of ${cleanup.attempted} stage1 tracked subprocess(es) `
-                        + `after process-file drain timeout.`,
+                    logLine(
+                      `[cleanup] forced termination of ${cleanup.attempted} tracked subprocess(es) after scheduler close timeout.`,
                       {
                         kind: 'warning',
+                        mode,
+                        stage: 'processing',
                         cleanup
                       }
                     );
                   }
                 }
-              });
-              if (!drainResult?.timedOut) {
-                return drainResult;
-              }
-              const drainRetry = await runCleanupWithTimeout({
-                label: 'stage1.process-file-drain.retry',
-                cleanup: () => inFlightProcessFileTasks.drain(),
-                timeoutMs: cleanupTimeoutMs,
-                log: drainLog,
-                logMeta: {
-                  mode,
-                  stage: 'processing'
-                }
-              });
-              if (drainRetry?.timedOut) {
-                const pendingEntries = inFlightProcessFileTasks.snapshot();
-                const drainError = createTimeoutError({
-                  message: `[cleanup] stage1 process-file drain failed with ${pendingEntries.length} pending task(s).`,
-                  code: 'STAGE1_PROCESS_FILE_DRAIN_TIMEOUT',
-                  retryable: false,
-                  meta: {
-                    pendingCount: pendingEntries.length,
-                    pendingEntries: pendingEntries.slice(0, 12)
-                  }
-                });
-                throw drainError;
-              }
-              return {
-                skipped: false,
-                timedOut: true,
-                elapsedMs: (Number(drainResult?.elapsedMs) || 0) + (Number(drainRetry?.elapsedMs) || 0)
-              };
-            }
-          },
-          {
-            label: 'perf-event-logger.close',
-            run: () => runCleanupWithTimeout({
-              label: 'perf-event-logger.close',
-              cleanup: () => perfEventLogger?.close(),
-              timeoutMs: cleanupTimeoutMs,
-              log: (line, meta) => logLine(line, {
-                ...(meta || {}),
-                mode,
-                stage: 'processing'
               })
-            })
-          },
-          {
-            label: 'tree-sitter-scheduler.close',
-            run: () => closeTreeSitterScheduler({
-              onTimeout: async () => {
-                const cleanup = await terminateTrackedSubprocesses({
-                  reason: 'tree_sitter_scheduler_close_timeout',
-                  force: true,
-                  ownershipPrefix: stage1OwnershipPrefix
-                });
-                if (cleanup?.attempted > 0) {
-                  logLine(
-                    `[cleanup] forced termination of ${cleanup.attempted} tracked subprocess(es) after scheduler close timeout.`,
-                    {
-                      kind: 'warning',
-                      mode,
-                      stage: 'processing',
-                      cleanup
-                    }
-                  );
-                }
-              }
-            })
-          }
-        ],
-        logSummary: ({ outcomes, elapsedMs, fatalErrors }) => {
-          const timeoutLabels = outcomes.filter((outcome) => outcome.timedOut).map((outcome) => outcome.label);
-          const summaryText = outcomes
-            .map((outcome) => (
-              `${outcome.label}:${outcome.skipped ? 'skipped' : (outcome.timedOut ? 'timeout' : 'ok')}(${outcome.elapsedMs}ms)`
-            ))
-            .join(', ');
-          const baseMeta = {
-            mode,
-            stage: 'processing',
-            cleanup: {
-              elapsedMs,
-              timeoutLabels,
-              fatalLabels: fatalErrors.map((entry) => entry.label)
             }
-          };
-          if (timeoutLabels.length > 0 || fatalErrors.length > 0) {
-            logLine(
-              `[cleanup] stage1 tail cleanup completed with warnings in ${elapsedMs}ms (${summaryText}).`,
-              {
-                kind: 'warning',
-                ...baseMeta
+          ],
+          logSummary: ({ outcomes, elapsedMs, fatalErrors }) => {
+            const timeoutLabels = outcomes.filter((outcome) => outcome.timedOut).map((outcome) => outcome.label);
+            const summaryText = outcomes
+              .map((outcome) => (
+                `${outcome.label}:${outcome.skipped ? 'skipped' : (outcome.timedOut ? 'timeout' : 'ok')}(${outcome.elapsedMs}ms)`
+              ))
+              .join(', ');
+            const baseMeta = {
+              mode,
+              stage: 'processing',
+              cleanup: {
+                elapsedMs,
+                timeoutLabels,
+                fatalLabels: fatalErrors.map((entry) => entry.label)
               }
-            );
-            return;
+            };
+            if (timeoutLabels.length > 0 || fatalErrors.length > 0) {
+              logLine(
+                `[cleanup] stage1 tail cleanup completed with warnings in ${elapsedMs}ms (${summaryText}).`,
+                {
+                  kind: 'warning',
+                  ...baseMeta
+                }
+              );
+              return;
+            }
+            if (elapsedMs >= 1000) {
+              logLine(
+                `[cleanup] stage1 tail cleanup completed in ${elapsedMs}ms (${summaryText}).`,
+                baseMeta
+              );
+            }
           }
-          if (elapsedMs >= 1000) {
-            logLine(
-              `[cleanup] stage1 tail cleanup completed in ${elapsedMs}ms (${summaryText}).`,
-              baseMeta
-            );
-          }
-        }
-      })
-    });
-    runtime.semanticReplayVerification?.clear();
-    if (incrementalState) incrementalState.semanticReplayVerification = null;
+        })
+      });
+    } catch (cleanupError) {
+      if (processingFailed) throw observeStorageResource(processingFailure, { phase: 'stage1-processing' })
+        .retain(cleanupError, { inspectionPresent: true });
+      throw cleanupError;
+    } finally {
+      runtime.semanticReplayVerification?.clear();
+      if (incrementalState) incrementalState.semanticReplayVerification = null;
+    }
   }
 };

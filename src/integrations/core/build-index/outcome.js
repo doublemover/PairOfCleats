@@ -4,7 +4,15 @@ import { addStorageFailureContext } from '../../../shared/storage/operation-erro
 /**
  * A selected command outcome. Unknown validation/publication is kept explicit;
  * repository-global preprocess files never qualify counts for this invocation.
- * @typedef {{schemaVersion:1,repo:string|null,status:string,requestedStages:string[],stages:object[],generations:object[],counts:null}} BuildIndexOutcome
+ * @typedef {object} BuildIndexOutcome
+ * @property {1} schemaVersion
+ * @property {string|null} repo Explicit selected repository.
+ * @property {string} status Command outcome, independent of transport exit.
+ * @property {string[]} requestedStages Normalized requested operation.
+ * @property {Array<{stage:string,status:string,modes:string[],reason:string|null,validation:object,publication:object,admission:object}>} stages Owning stage facts, including partial queue admission.
+ * @property {Array<{stage:string,buildId:string|null,buildRoot:string|null,attemptId?:string|null,modes:string[],receiptPath?:string|null}>} generations Selected per-mode generation and attempt identities.
+ * @property {object[]} capabilities Requested stage capability outcomes.
+ * @property {null} counts Unqualified repository-global statistics are excluded.
  */
 export const createBuildIndexOutcome = ({ result = {}, repo = null, requestedStage = null, modes = [], error = null } = {}) => {
   const entries = ['stage1', 'stage2', 'stage3', 'stage4'].flatMap(stage => result[stage] ? [[stage, result[stage]]] : []);
@@ -13,9 +21,11 @@ export const createBuildIndexOutcome = ({ result = {}, repo = null, requestedSta
   const stages = entries.map(([stage, value]) => {
     const facts = value.embeddings || value.sqlite || value;
     const perModeFacts = Array.isArray(facts.perMode) ? facts.perMode.map(entry => entry.embeddings || entry) : [];
+    const queued = facts.queued || value.queued || perModeFacts.some(entry => entry.queued);
+    const rejected = facts.notAdmitted || value.notAdmitted || perModeFacts.some(entry => entry.notAdmitted);
     const status = facts.cancelled || value.cancelled ? 'cancelled'
-      : facts.notAdmitted || value.notAdmitted || perModeFacts.some(entry => entry.notAdmitted) ? 'not-admitted'
-        : facts.queued || value.queued || perModeFacts.some(entry => entry.queued) ? 'pending'
+      : queued ? 'pending'
+        : rejected ? 'not-admitted'
           : facts.background || value.background ? 'pending'
             : facts.skipped || value.skipped ? 'skipped'
               : 'completed';
@@ -24,6 +34,11 @@ export const createBuildIndexOutcome = ({ result = {}, repo = null, requestedSta
       validation: value.validation || { status: 'unknown' },
       publication: value.publication || { status: 'unknown' },
       diagnosticEvidence: facts.diagnosticEvidence || value.diagnosticEvidence || null,
+      admission: { status: queued && rejected ? 'partial' : rejected ? 'rejected' : queued ? 'admitted' : 'not-reported',
+        requestedModeCount: Number.isSafeInteger(facts.requestedModeCount) ? facts.requestedModeCount : null,
+        admittedModeCount: Number.isSafeInteger(facts.admittedModeCount) ? facts.admittedModeCount : null,
+        rejectedModes: Array.isArray(facts.rejectedModes) ? facts.rejectedModes : [],
+        jobs: Array.isArray(facts.jobs) ? facts.jobs.map(job => ({ id: job.id || null, mode: job.mode || null })) : [] },
       perMode: Array.isArray(facts.perMode) ? facts.perMode : null };
   });
   const generations = entries.filter(([, value]) => value.buildId || value.buildRoot || value.runtimeAttemptId)
@@ -68,5 +83,7 @@ export const describeBuildIndexOutcome = (outcome, seconds) => {
     skipped: 'Requested work skipped by configuration', 'not-admitted': 'Requested work was not admitted',
     cancelled: 'Index command cancelled', failed: 'Index command failed', 'stage-completed': 'Requested stage completed' }[outcome.status];
   const skipped = outcome.stages.filter(row => row.status === 'skipped').map(row => row.stage);
-  return `${label || 'Index command completed'} in ${seconds} seconds.${skipped.length ? ` Skipped: ${skipped.join(', ')}.` : ''}`;
+  const reasons = outcome.stages.flatMap(row => [row.reason,
+    ...(row.admission?.rejectedModes || []).map(entry => `${entry.mode}: ${entry.reason}`)]).filter(Boolean);
+  return `${label || 'Index command completed'} in ${seconds} seconds.${skipped.length ? ` Skipped: ${skipped.join(', ')}.` : ''}${reasons.length ? ` ${reasons.join('; ')}.` : ''}`;
 };

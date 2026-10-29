@@ -90,6 +90,7 @@ export const buildStreamedStage3Result = ({
  * @returns {Promise<object>}
  */
 async function buildIndexRun(repoRoot, options = {}) {
+  validateBuildIntent(options);
   const root = getRepoRoot(repoRoot);
   if (options.compareAttempts) {
     const comparison = await readBuildAttemptComparison(options.compareAttempts);

@@ -105,8 +105,14 @@ export async function assembleIndexPieces({
   const compatibilityKey = uniqueCompatibilityKeys.size === 1
     ? Array.from(uniqueCompatibilityKeys)[0]
     : null;
+  const cohortKeys = new Map();
   for (const dir of sortedInputs) {
     const input = await loadIndexArtifacts(dir, { strict, expectedMode: mode });
+    const cohortKey = input.indexState?.fields?.cohortKey ?? input.indexState?.cohortKey ?? null;
+    cohortKeys.set(dir, cohortKey);
+    if (new Set(cohortKeys.values()).size > 1) {
+      throw new Error(`assemble-pieces cohortKey mismatch: ${Array.from(cohortKeys, ([inputDir, key]) => `${inputDir}: ${key ?? 'missing'}`).join('; ')}`);
+    }
     const { chunkCount } = mergeIndexInput({ input, dir, state, mergeState });
     stageInputs.push({ indexState: input.indexState, chunkCount });
   }

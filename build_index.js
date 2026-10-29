@@ -7,6 +7,7 @@ const { parseBuildArgs } = await import('./src/index/build/args.js');
 const { buildIndex } = await import('./src/integrations/core/index.js');
 const { createBuildIndexOutcome, describeBuildIndexOutcome } = await import('./src/integrations/core/build-index/outcome.js');
 const { createDisplay } = await import('./src/shared/cli/display.js');
+const { createSafeWritableStream } = await import('./src/shared/cli/display/stream.js');
 const { setProgressHandlers } = await import('./src/shared/progress-runtime.js');
 const { buildAutoPolicy } = await import('./src/shared/auto-policy/build.js');
 const { parseObservabilityContextEnv } = await import('./src/shared/observability.js');
@@ -59,6 +60,8 @@ export const main = async ({
     setVerboseEnv(true);
   }
 
+  const terminalStderr = createSafeWritableStream(stderr);
+  const terminalStdout = createSafeWritableStream(stdout);
   const display = createDisplay({
     stream: stderr,
     progressMode: argv.progress,
@@ -80,7 +83,7 @@ export const main = async ({
       display.log(String(line));
       return;
     }
-    stderr.write(`${line}\n`);
+    terminalStderr.stream.write(`${line}\n`);
   };
   let displayClosed = false;
   let terminalEmitted = false;
@@ -96,9 +99,9 @@ export const main = async ({
         outcome = { ...outcome, status: 'failed', cleanupError: { message: String(cleanupError.message || cleanupError) } };
         message = `Index command output cleanup failed: ${cleanupError.message || cleanupError}`;
       }
-      if (argv.json) stdout.write(`${JSON.stringify(outcome)}\n`);
+      if (argv.json) terminalStdout.stream.write(`${JSON.stringify(outcome)}\n`);
       else if (display.jsonl) display.log(message, { kind: 'terminal-outcome', outcome, forceOutput: true });
-      else stderr.write(`${message}\n`);
+      else terminalStderr.stream.write(`${message}\n`);
     });
   };
   const closeDisplay = () => {
@@ -158,6 +161,8 @@ export const main = async ({
     process.off('SIGINT', handleSigint);
     process.off('SIGTERM', handleSigterm);
     closeDisplay();
+    terminalStderr.close();
+    terminalStdout.close();
   }
 };
 

@@ -39,6 +39,7 @@ const {
 } = await loadRuntimeModule('../src/retrieval/cli-args.js');
 const { resolveDispatchRuntimeEnv, isWorkspaceDispatchScript } = await loadRuntimeModule('./dispatch-runtime-env.js');
 const { readFlagValue } = await loadRuntimeModule('../src/shared/cli/argv.js');
+const { validateBuildRawIntent } = await loadRuntimeModule('../src/shared/cli-option-validators.js');
 const { STORAGE_ACTIONS, STORAGE_OPTIONS } = await loadRuntimeModule('../tools/storage/options.js');
 const { isStrictDispatchEnvEnabled } = await loadRuntimeModule('../src/shared/env/runtime.js');
 
@@ -113,6 +114,7 @@ function resolveCommand(primary, rest) {
   if (primary === 'index') {
     const sub = rest.shift();
     if (!sub) {
+      admitIndexBuildArgs(rest);
       return { script: 'tools/index/cli-entry.js', extraArgs: [], args: rest };
     }
     if (sub === 'help' || isHelpCommand(sub)) {
@@ -122,9 +124,11 @@ function resolveCommand(primary, rest) {
       if (readFlagValue(rest, 'workspace')) {
         return resolveWorkspaceBuildCommand(rest);
       }
+      admitIndexBuildArgs(rest);
       return { script: 'tools/index/cli-entry.js', extraArgs: [], args: rest };
     }
     if (sub === 'watch') {
+      admitIndexBuildArgs(rest);
       return { script: 'tools/index/cli-entry.js', extraArgs: ['--watch'], args: rest };
     }
     if (sub === 'validate') {
@@ -238,6 +242,7 @@ function resolveCommand(primary, rest) {
       return { script: 'tools/index-diff.js', extraArgs: [], args: rest };
     }
     if (sub.startsWith('-')) {
+      admitIndexBuildArgs([sub, ...rest]);
       return { script: 'tools/index/cli-entry.js', extraArgs: [], args: [sub, ...rest] };
     }
     failCli(`Unknown index command: ${sub}`, { code: ERROR_CODES.INVALID_REQUEST,
@@ -1028,6 +1033,15 @@ function resolveCommand(primary, rest) {
  * @param {string[]} rest
  * @returns {{script:string,extraArgs:string[],args:string[]}}
  */
+function admitIndexBuildArgs(args) {
+  try { validateBuildRawIntent(args); }
+  catch (error) {
+    if (error.code !== 'ERR_BUILD_ARG_VALIDATION') throw error;
+    failCli(error.message, { code: ERROR_CODES.INVALID_REQUEST,
+      hint: 'Use pairofcleats index build --help for supported stage, mode and quality values.' });
+  }
+}
+
 function resolveWorkspaceBuildCommand(rest) {
   validateArgs(rest, WORKSPACE_BUILD_ALLOWED_FLAGS, WORKSPACE_BUILD_VALUE_FLAGS);
   return { script: 'tools/workspace/build.js', extraArgs: [], args: rest };

@@ -382,6 +382,9 @@ export async function createIndexerWorkerPool(input = {}) {
       }
       return new IndexerThreadPool(new Piscina({
         filename: fileURLToPath(new URL('./indexer-worker.js', import.meta.url)),
+        // Tiny/inline-only builds need no idle worker startup. Preserve the
+        // admitted ceiling and create native workers when actual tasks arrive.
+        minThreads: 0,
         maxThreads: maxWorkers,
         idleTimeout: poolConfig.idleTimeoutMs,
         taskTimeout: poolConfig.taskTimeoutMs,

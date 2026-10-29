@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { runNode } from '../../helpers/run-node.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 const cases = ['version-absent', 'version-present', 'help-group', 'help-actions', 'help-json', 'invalid'];
@@ -16,18 +17,29 @@ try {
   const original = '{"quality":"fast"}\n';
   const env = applyTestEnv({ syncProcess: false, cacheRoot: path.join(target, 'cache'),
     extraEnv: { PAIROFCLEATS_TRUSTED_CONFIG: null } });
-  const run = args => runNode([path.join(root, 'bin/pairofcleats.js'), ...args], 'CLI metadata admission', root, env,
-    { stdio: 'pipe', allowFailure: true });
+  const run = args => runNode([...(selected === 'invalid' ? ['--import', pathToFileURL(path.join(root, 'tests/fixtures/workspace/index-dispatch-admission-preload.js')).href] : []),
+    path.join(root, 'bin/pairofcleats.js'), ...args], 'CLI metadata admission', root,
+  { ...env, POC_INVALID_CHILD_MARKER: path.join(target, 'unexpected-child') },
+  { stdio: 'pipe', allowFailure: true });
   const present = selected !== 'version-absent';
   if (present) await fs.writeFile(config, original);
   if (selected.startsWith('version-')) {
     if (present) await fs.writeFile(config, original); else await fs.rm(config, { force: true });
     for (const flag of ['-v', '--version']) {
-      const result = run(['config', 'reset', '--force', '--repo', target, flag]);
-      assert.equal(result.status, 0, result.stderr);
-      assert.match(result.stdout + result.stderr, /\d+\.\d+\.\d+/);
+      for (const command of [[], ['config', 'reset', '--force', '--repo', target],
+        ['cache', 'clear', '--cache-root', path.join(target, 'cache')], ['tooling', 'install', '--repo', target, '--tools', 'pyright']]) {
+        const result = run([...command, flag]);
+        assert.equal(result.status, 0, result.stderr);
+        assert.match(result.stdout + result.stderr, /\d+\.\d+\.\d+/);
+        assert.equal(await fs.readFile(config, 'utf8').catch(() => null), present ? original : null);
+        assert.deepEqual((await fs.readdir(target)).sort(), present ? ['.pairofcleats.json'] : []);
+        assert.doesNotMatch(result.stdout + result.stderr, /confirm|installing|download/i);
+      }
+      const literal = run(['config', 'reset', '--force', '--repo', target, '--', flag]);
+      assert.equal(literal.status, 1); assert.match(literal.stderr, /positional arguments/);
       assert.equal(await fs.readFile(config, 'utf8').catch(() => null), present ? original : null);
-      assert.deepEqual((await fs.readdir(target)).sort(), present ? ['.pairofcleats.json'] : []);
+      const missingValue = run(['config', 'reset', '--repo', target, '--config', flag]);
+      assert.equal(missingValue.status, 1); assert.match(missingValue.stderr, /Missing value for --config/);
     }
   }
   const helpCases = { 'help-group': [['index', '--help'], ['index', '-h'], ['index', 'help'], ['help', 'index']],
@@ -48,10 +60,14 @@ try {
     assert.match(invalidHelp.stderr, /Unknown flag: --poc-unknown-option/);
   }
   if (selected === 'invalid') {
-    for (const args of [['index', 'status'], ['index', 'bulid'], ['index', 'build', '--stage', 'stage5']]) {
+    for (const args of [['index', 'status'], ['index', 'bulid'], ['index', 'build', 'extra'],
+      ...['stage5', ''].map(stage => ['index', 'build', `--stage=${stage}`]), ['index', 'build', '--stage'],
+      ...['cod', ''].map(mode => ['index', 'build', `--mode=${mode}`]), ['index', 'build', '--mode'],
+      ...['fas', ''].map(quality => ['index', 'build', `--quality=${quality}`]), ['index', 'build', '--quality']]) {
       const result = run([...args, '--repo', target]);
       assert.notEqual(result.status, 0);
-      assert.match(result.stdout + result.stderr, /Unknown index command|stage must/);
+      assert.match(result.stdout + result.stderr, /Unknown index command|stage must|mode must|quality must|positional|Missing|requires|required/i);
+      assert.match(result.stderr, /INVALID_REQUEST/);
     }
   }
   assert.deepEqual((await fs.readdir(target)).sort(), present ? ['.pairofcleats.json'] : []);

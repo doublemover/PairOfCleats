@@ -98,7 +98,7 @@ export const validateOrderingLedger = ({
   const stageKey = resolveLedgerStageKey(orderingLedger, indexState?.stage || 'stage2', mode);
   const ledgerStage = stageKey ? orderingLedger.stages?.[stageKey] : null;
   if (!ledgerStage || !ledgerStage.artifacts) {
-    const warning = `ordering ledger missing stage ${stageKey || 'unknown'}`;
+    const warning = `ordering ledger missing stage ${stageKey || indexState?.stage || 'stage2'}${mode ? ` for mode ${mode}` : ''}`;
     if (orderingStrict) {
       modeReport.ok = false;
       modeReport.missing.push(warning);
