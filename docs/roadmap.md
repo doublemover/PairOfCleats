@@ -38,8 +38,9 @@ pass 46 controls. [Focused repairs](archived/windows-focused-failure-repairs-202
 pass 26/26; [comment/handoff repairs](archived/windows-comment-and-handoff-failure-repairs-2026-10-28.md)
 pass 73 controls. Together they resolve 21 original failures, leaving 25.
 
-[CI repairs](archived/windows-ci-failure-repairs-2026-10-29.md) cover the 49-case
-catalog, strict empty-call publication and native snapshot setup; hosted CI remains open.
+[CI repairs](archived/windows-ci-failure-repairs-2026-10-29.md) and the
+[native-path follow-up](archived/windows-ci-native-path-followup-2026-10-29.md)
+retain focused fixes; hosted CI remains open.
 [Stable upgrades](archived/windows-stable-upgrades-2026-10-29.md)
 and Rust 1.99.1 are locally qualified; remaining P1 acceptances follow.
 

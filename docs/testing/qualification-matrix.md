@@ -60,9 +60,14 @@ The [49-case repair batch](../archived/windows-ci-failure-repairs-2026-10-29.md)
 retains original hosted failures, focused Windows rechecks and transferred
 export-wrapper coverage. Strict empty-call datasets, selected-generation
 observations, resource retirement and bounded benchmark settlement are repaired.
-Hosted native artifact actions pass all seven partitions; the remaining Windows
-snapshot-create case passes locally with compact disposable paths and unchanged
-backends. Required hosted authority and final CI acceptance remain open.
+Hosted native artifact actions pass all seven partitions and Windows snapshot-create
+passes at the recorded prior head. The [native-path follow-up](../archived/windows-ci-native-path-followup-2026-10-29.md)
+qualifies LanceDB 0.41 creation, closed-payload publication and querying at a long
+Windows generation path. Its new regression fails with the old allocator;
+15 focused checks pass, including native validate/search in 22.9 seconds.
+Contained source reads also retain extended-length path authority without new
+links. Hosted authority, snapshot-helper startup and the two historical Windows
+indexing hangs retain separate acceptance; final CI remains open.
 
 The [full Windows campaign](../archived/windows-full-validation-checkpoint-265-2026-10-28.md)
 completed all 6,098 required fixtures at `90d0e510a`: 5,819 passed and 279 failed,
