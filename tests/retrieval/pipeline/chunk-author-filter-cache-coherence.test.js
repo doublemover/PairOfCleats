@@ -37,8 +37,11 @@ try {
   const hydrate = idx => hydrateChunkAuthorsForIndex({ idx, mode: 'prose', rootDir: root,
     userConfig: { indexing: { scm: { provider: 'git' } } }, fileChargramN: 3,
     filtersActive: true, chunkAuthorFilterActive: true, emitOutput: false });
-  const ids = (idx, indexed = true) => [...filterChunkIds(idx.chunkMeta, { chunkAuthor: 'Bob' },
-    indexed ? idx.filterIndex : null, null, { preferBitmap: false })];
+  const ids = (idx, indexed = true) => {
+    const selected = filterChunkIds(idx.chunkMeta, { chunkAuthor: 'Bob' },
+      indexed ? idx.filterIndex : null, null, { preferBitmap: false });
+    return selected === null ? idx.chunkMeta.map(chunk => chunk.id) : [...selected];
+  };
   const first = await load(), coordinated = await load();
   assert.strictEqual(first.chunkMeta, base.chunkMeta); assert.strictEqual(coordinated.chunkMeta, base.chunkMeta);
   await hydrate(first); assert.deepEqual(ids(first), [0]); assert.deepEqual(ids(first, false), [0]);

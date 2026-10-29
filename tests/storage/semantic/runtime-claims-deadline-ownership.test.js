@@ -169,7 +169,7 @@ try {
         assert.equal(receipt.pointerState, scenario === 'promotion-expiry' || scenario === 'cleanup-failure' ? 'not-started'
           : scenario === 'commit-uncertain' ? 'commit-unconfirmed' : 'committed');
         assert.deepEqual(classifyRuntimeEvidenceError(error).runtimeClaimPublication, receipt);
-        assert.deepEqual(formatToolError(error).details.runtimeClaimPublication, receipt);
+        assert.deepEqual(formatToolError(error).runtimeClaimPublication, receipt);
         assert.equal(formatToolError(error).nativeCode, error.code);
         if (scenario === 'commit-uncertain') assert.ok(contains(error, ioFailure));
         if (scenario === 'cleanup-failure') assert.ok(contains(error, cleanupFailure));
@@ -191,7 +191,7 @@ try {
   const forged = Object.assign(new Error('forged'), { runtimeClaimPublication: { claimGeneration: generation } });
   assert.equal(getRuntimeClaimPublication(forged), null);
   assert.equal(classifyRuntimeEvidenceError(forged).runtimeClaimPublication, undefined);
-  assert.equal(formatToolError(forged).details?.runtimeClaimPublication, undefined);
+  assert.equal(formatToolError(forged).runtimeClaimPublication, undefined);
   console.log('runtime comparison deadline, owned cleanup and publication reconciliation passed');
 } finally {
   releases.forEach(release => release());

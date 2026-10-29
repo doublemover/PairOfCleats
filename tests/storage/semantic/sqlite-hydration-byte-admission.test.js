@@ -29,9 +29,11 @@ try {
   const descriptor = await fixture.write([semanticNode(0, 7), { family: 'node', row: occurrence },
     { family: 'lookup', row: lookup }, { family: 'edge', row: edge },
     ...[0, 1, 2, 3].map(ordinal => ({ family: 'operand', row: operand(ordinal) })),
-    { family: 'ownership', row: ownership }]);
+    { family: 'ownership', row: ownership }], { structuralSlots: [operand(0).slot] });
   db.pragma('user_version = ' + SCHEMA_VERSION); db.exec(CREATE_SEMANTIC_TABLES_SQL); writeSqliteIndexFormat(db);
-  await ingestSemanticPartition({ db, store: fixture.store([descriptor]), descriptor });
+  db.exec('BEGIN');
+  try { await ingestSemanticPartition({ db, store: fixture.store([descriptor]), descriptor }); db.exec('COMMIT'); }
+  catch (error) { if (db.inTransaction) db.exec('ROLLBACK'); throw error; }
   db.prepare('INSERT INTO index_format_meta(key,value) VALUES (?,?)').run('semanticGeneration', JSON.stringify(fixture.generation));
   const limited = make({ maxRowBytes: 1024 });
   assert.ok(JSON.stringify(lookup).length < 1024);

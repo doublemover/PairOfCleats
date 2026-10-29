@@ -17,7 +17,7 @@ try {
   const source = 'export function needle() {\n  return true;\n}\n';
   await fs.writeFile(path.join(repo, 'source.js'), source);
   const hits = [1, 2, 3].map((id) => ({ id, file: 'source.js', name: `needle${id}`, kind: 'Function',
-    start: 0, end: source.length, startLine: 50, endLine: 52, score: 1 / id, scoreType: 'bm25' }));
+    start: 0, end: source.length, startLine: 50, endLine: 52, score: 1 / id, scoreType: 'bm25', scoreSpace: null }));
   const before = structuredClone(hits);
   const render = async ({ tty = true, plain = false, noColor = null, term = 'xterm-256color', columns = '40', json = false } = {}) => {
     Object.defineProperty(process.stdout, 'isTTY', { configurable: true, value: tty });

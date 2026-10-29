@@ -12,6 +12,10 @@ import { resolveNativeExecutable } from '../../../src/index/semantic/native-tool
 import { NATIVE_DEPENDENCY_KEY } from '../../../src/index/semantic/native-task-authority.js';
 import { normalizeSemanticConfig } from '../../../src/index/semantic/config.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
+import { skipIf } from '../../helpers/skip.js';
+
+skipIf(process.platform !== 'linux' || !['x64', 'arm64'].includes(process.arch),
+  'Linux ELF/clangd positive qualification; native-toolchain-platform owns Windows/macOS rejection and portable authority.');
 
 // Actual installed tools are required. Missing native setup fails qualification;
 // it cannot silently substitute a fake LSP server or count a skip as closure.

@@ -41,8 +41,8 @@ try {
 
   const changed = source.replace('Needle', 'LATEST');
   await fs.writeFile(path.join(repo, 'source.js'), changed);
-  assert.match(read(hit, { queryTokens: ['Needle'], maxLines: 3 }).lines.join('\n'), /Needle/,
-    'a render reuses only its own read');
+  assert.equal(read(hit, { queryTokens: ['Needle'], maxLines: 3 }), null,
+    'a changed source revokes the original render snapshot instead of showing stale text');
   assert.match(readSourcePreview(repo, hit, { queryTokens: ['LATEST'], maxLines: 3 }).lines.join('\n'), /LATEST/,
     'a new render must not reuse old source text');
   const args = { chunk: hit, index: 1, mode: 'code', color, queryTokens: ['LATEST'], rootDir: repo,

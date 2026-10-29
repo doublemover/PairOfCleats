@@ -107,7 +107,9 @@ try {
   } });
   fs.open = async (location, ...values) => {
     const normalized = path.resolve(String(location));
-    if (normalized.startsWith(outDir + path.sep) && (normalized.endsWith('.jsonl') || normalized.endsWith('.offsets.bin'))) {
+    const relative = path.relative(path.toNamespacedPath(outDir), path.toNamespacedPath(normalized));
+    if (relative && relative !== '..' && !relative.startsWith('..' + path.sep) && !path.isAbsolute(relative)
+      && (normalized.endsWith('.jsonl') || normalized.endsWith('.offsets.bin'))) {
       opened.set(normalized, (opened.get(normalized) || 0) + 1);
     }
     return originalOpen(location, ...values);

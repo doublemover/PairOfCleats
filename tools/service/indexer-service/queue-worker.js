@@ -367,6 +367,7 @@ export const createQueueWorker = ({
     if (retirement) throw retirement.error;
     if (claimControl.leaseLost) {
       console.error(`[indexer] job ${job.id} completion skipped after lease loss: ${claimControl.leaseLost.message}`);
+      metrics.failed += 1;
       return true;
     }
     if (execution?.handled) {

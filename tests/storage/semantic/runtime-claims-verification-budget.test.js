@@ -102,9 +102,11 @@ try {
     try { await assert.rejects(queryRuntimeDerivedClaims({ destination, request: lookup }), { code: 'ERR_RUNTIME_FAMILY_UNAVAILABLE' }); }
     finally { await fs.rename(missing, rawFile); }
     for (const changed of [{ repositoryNamespace: 'wrong-namespace' },
-      { generation: { ...lookup.generation, semanticRevision: lookup.generation.semanticRevision + 1 } }]) {
+      { generation: { ...lookup.generation, baseBuildId: lookup.generation.baseBuildId + '-foreign' } }]) {
       await assert.rejects(queryRuntimeDerivedClaims({ destination, request: { ...lookup, ...changed } }), { code: 'ERR_RUNTIME_QUERY_SCOPE' });
     }
+    await assert.rejects(queryRuntimeDerivedClaims({ destination, request: { ...lookup,
+      generation: { ...lookup.generation, semanticRevision: 1 } } }), { code: 'ERR_RUNTIME_CLAIMS_CONTRACT' });
     assert.equal(handles.size, 0);
     const fake = Object.assign(new Error('lookalike'), { code: 'ERR_RUNTIME_QUERY_BUDGET', runtimeClaimVerification: page1.verification });
     assert.equal(Object.hasOwn(classifyRuntimeEvidenceError(fake), 'runtimeClaimVerification'), false);

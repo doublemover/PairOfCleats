@@ -175,9 +175,9 @@ await processDocumentTypes({
 
 const entry = byChunkUid[chunkUid] || null;
 assert.ok(entry, 'expected tooling entry for semantic/inlay mode');
-assert.equal(entry.payload?.returnType, 'number', 'expected inlay return type enrichment');
-assert.equal(entry.payload?.paramTypes?.a?.[0]?.type, 'number', 'expected inlay param type enrichment');
-assert.equal(entry.payload?.paramTypes?.b?.[0]?.type, 'number', 'expected second inlay param type enrichment');
+assert.equal(entry.payload?.returnType, 'integer', 'inlay enrichment preserves the provider type without an authorized alias');
+assert.equal(entry.payload?.paramTypes?.a?.[0]?.type, 'integer', 'expected inlay param type enrichment');
+assert.equal(entry.payload?.paramTypes?.b?.[0]?.type, 'integer', 'expected second inlay param type enrichment');
 assert.equal(entry.symbolRef?.kind, 'function', 'expected semantic token class to feed symbolRef kind');
 assert.equal(entry.provenance?.stages?.semanticTokens?.succeeded, true, 'expected semantic token stage provenance');
 assert.equal(entry.provenance?.stages?.inlayHints?.succeeded, true, 'expected inlay-hint stage provenance');

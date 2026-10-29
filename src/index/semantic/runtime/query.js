@@ -101,6 +101,9 @@ export const queryRuntimeEvidence = async ({ destination, request, signal = null
     result.status = 'partial'; result.warnings.push('derived_claim_projection_not_supported_by_current_offline_adapters');
   }
   const updateCursor = () => { result.nextCursor = position.familyIndex < request.familyGenerations.length ? cursorFor(queryId, position.familyIndex, position.ordinal) : null; };
+  const dispositions = [];
+  const omittedRow = (manifest, entry, reference, reason) => ({ generationId: manifest.generationId,
+    evidenceId: entry.evidence_id, reference, reason });
   try {
     for (let familyIndex = 0; familyIndex < request.familyGenerations.length; familyIndex += 1) {
       result.cost.familyOpens += 1;
@@ -150,14 +153,20 @@ export const queryRuntimeEvidence = async ({ destination, request, signal = null
           result.cost.visitedRecords += 1;
           const row = await family.hydrate(entry, request.limits.maxBytes);
           const reference = { family: familyIndex, rowHash: entry.row_hash };
+          const disposition = { before: { familyIndex, ordinal: entry.ordinal }, bucket: null,
+            occurrence: null, explanation: null, omitted: null,
+            omission: omittedRow(manifest, entry, reference, 'response_byte_allowance') };
+          dispositions.push(disposition);
           position = { familyIndex, ordinal: entry.ordinal + 1 }; updateCursor();
           if (row) {
             const bucket = row.evidenceClass === 'observed' ? result.observations : result.derivedClaims;
             const occurrence = { ...row, reference };
-            bucket.push(occurrence); result.explanations.push(explain(occurrence));
+            const explanation = explain(occurrence);
+            bucket.push(occurrence); result.explanations.push(explanation);
             if (responseBytes(result) <= request.limits.maxBytes - 256) result.cost.hydratedRecords += 1;
-            else { bucket.pop(); result.explanations.pop(); result.omitted.push({ generationId: manifest.generationId, evidenceId: entry.evidence_id, reference, reason: 'response_byte_allowance' }); result.status = 'partial'; }
-          } else { result.omitted.push({ generationId: manifest.generationId, evidenceId: entry.evidence_id, reference, reason: 'row_byte_allowance' }); result.status = 'partial'; }
+            else { bucket.pop(); result.explanations.pop(); disposition.omitted = disposition.omission; result.omitted.push(disposition.omitted); result.status = 'partial'; }
+            if (!disposition.omitted) Object.assign(disposition, { bucket, occurrence, explanation });
+          } else { disposition.omitted = omittedRow(manifest, entry, reference, 'row_byte_allowance'); result.omitted.push(disposition.omitted); result.status = 'partial'; }
         }
         if (entries.length <= remaining && !deadlineReached()) position = { familyIndex: familyIndex + 1, ordinal: 0 };
       } catch (error) { familyErrorPresent = true; familyError = error; throw error; }
@@ -166,7 +175,28 @@ export const queryRuntimeEvidence = async ({ destination, request, signal = null
     if (deadlineReached()) { result.status = 'partial'; result.warnings.push('query_time_allowance_exhausted'); }
     updateCursor();
     result.cost.elapsedMs = Date.now() - started;
-    for (let i = 0; i < 4; i += 1) result.cost.responseBytes = responseBytes(result);
+    const measure = () => {
+      result.omitted = dispositions.filter(row => row.omitted).map(row => row.omitted);
+      updateCursor();
+      for (let i = 0; i < 4; i += 1) result.cost.responseBytes = responseBytes(result);
+    };
+    measure();
+    // Later omission/coverage metadata shares the same response allowance as
+    // retained rows. Prefer truthful bounded omission receipts to a late error.
+    for (let index = dispositions.length - 1; result.cost.responseBytes > request.limits.maxBytes && index >= 0; index--) {
+      const row = dispositions[index];
+      if (!row.occurrence) continue;
+      row.bucket.splice(row.bucket.indexOf(row.occurrence), 1);
+      result.explanations.splice(result.explanations.indexOf(row.explanation), 1);
+      row.occurrence = null; row.omitted = row.omission;
+      result.cost.hydratedRecords--; result.status = 'partial'; measure();
+    }
+    // If even all omission receipts cannot fit, leave their exact suffix for
+    // the next page. Physical visitation cost remains recorded on this call.
+    while (result.cost.responseBytes > request.limits.maxBytes && dispositions.length) {
+      position = dispositions.pop().before;
+      result.status = 'partial'; measure();
+    }
     if (result.cost.responseBytes > request.limits.maxBytes) throw runtimeImportError('Runtime response metadata exceeds the byte allowance.', 'ERR_RUNTIME_QUERY_BUDGET');
     throwIfAborted(signal);
     assertRuntimeQuery('result', result);

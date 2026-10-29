@@ -8,9 +8,10 @@ import { runNode } from '../../helpers/run-node.js';
 import { getTriageConfig } from '../../../src/shared/dict-utils.js';
 import { loadTriageRecordSnapshot } from '../../../tools/triage/record-snapshot.js';
 import { readTriageHistoryRecord } from '../../../tools/triage/history.js';
+import { withTemporaryEnv } from '../../helpers/test-env.js';
 
-const { root, repoRoot, cacheRoot, env } = await getTriageContext({ name: 'triage-decision-snapshot', fixtureBuilder: async () => {} });
-const recordsDir = getTriageConfig(repoRoot, { cache: { root: cacheRoot } }).recordsDir;
+const { root, repoRoot, env } = await getTriageContext({ name: 'triage-decision-snapshot', fixtureBuilder: async () => {} });
+const recordsDir = await withTemporaryEnv(env, () => getTriageConfig(repoRoot).recordsDir);
 await fs.mkdir(recordsDir, { recursive: true });
 const id = 'finding-a', file = path.join(recordsDir, `${id}.json`);
 const record = { recordId: id, recordType: 'finding', source: 'fixture', createdAt: '2026-10-25T00:00:00Z',

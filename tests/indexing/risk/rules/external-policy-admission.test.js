@@ -119,8 +119,10 @@ try {
   assert.ok(failure?.cacheOwnershipPending); assert.ok(find(failure, value => value === original));
   const ownerError = find(failure, value => Boolean(getContainedFileSession(value))); assert.ok(ownerError);
   const readCount = reads; behavior = {};
-  const receipt = getContainedFileSession(ownerError).releaseAfterCloseSync();
-  assert.equal(receipt.settled, true); assert.equal(reads, readCount); assert.equal(descriptors.size, 0);
+  const session = getContainedFileSession(ownerError);
+  assert.throws(() => session.releaseAfterCloseSync(), error => Boolean(find(error, value => value === original)));
+  assert.equal(session.isSettled(), false, 'an unconfirmed numeric descriptor close cannot establish its original generation');
+  assert.equal(reads, readCount); assert.equal(descriptors.size, 1, 'recovery does not repeat the original close by fd number');
 } finally {
   fs.openSync = originalOpen; fs.readSync = originalRead; fs.closeSync = originalClose; fs.fstatSync = originalStat;
   for (const fd of descriptors) originalClose.call(fs, fd);

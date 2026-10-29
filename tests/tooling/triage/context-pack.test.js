@@ -148,7 +148,7 @@ if (totalEvidenceHits === 0) {
 
 assert.equal(pack.evidenceVersion, TRIAGE_EVIDENCE_VERSION);
 assert.equal(artifact.evidenceVersion, TRIAGE_EVIDENCE_VERSION);
-assert.equal(artifact.searchedRepository.root, repoRoot);
+assert.equal(path.relative(artifact.searchedRepository.root, repoRoot), '');
 assert.equal(artifact.outPath, contextOut);
 for (const [mode, query, file] of [
   ['code', 'add-helper', 'src/util.js'],
@@ -162,7 +162,7 @@ for (const [mode, query, file] of [
   assert.ok(expected, `${mode} independently expected ${file}`);
   const evidence = pack.repoEvidence.queries.find(row => row.mode === mode && row.query === query);
   assert.equal(evidence?.status, 'success');
-  assert.equal(evidence.repository.root, repoRoot);
+  assert.equal(path.relative(evidence.repository.root, repoRoot), '');
   const hit = evidence.hits.find(row => row.file === file);
   assert.ok(hit, `actual persisted ${mode} evidence must retain ${file}`);
   assert.equal(hit.source.chunkUid, expected.chunkUid || expected.metaV2?.chunkUid || null);
