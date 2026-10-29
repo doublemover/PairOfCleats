@@ -174,11 +174,22 @@ try {
   const findAll = async store => {const service=createSemanticFindService(),records=[];let cursor=null;do {const page=await service({store,request:{repoRoot:fixture.root,generation:fixture.generation,selector,limits:{records:1},cursor}});records.push(...page.records);assert.ok(page.matches.every(match=>match.category==='structural-candidate'));cursor=page.cursor;}while(cursor);return records;};
   assert.deepEqual(await findAll(artifact),await findAll(sqlite),'operation selector pagination parity');
   const queryPlans = [];
-  const observedDb = { pragma: (...args) => db.pragma(...args), prepare(sql) { if (sql.includes('FROM semantic_edges')) queryPlans.push(sql); return db.prepare(sql); } };
-  createSqliteSemanticStore({ db: observedDb, repoRoot: fixture.root, indexPath: ':memory:', generation: fixture.generation, artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION });
+  const observedDb = { pragma: (...args) => db.pragma(...args), prepare(sql) {
+    const statement = db.prepare(sql);
+    if (!sql.includes('FROM semantic_edges')) return statement;
+    return new Proxy(statement, { get(target, property) {
+      const value = Reflect.get(target, property, target);
+      if (typeof value !== 'function') return value;
+      return (...args) => {
+        if (['all', 'get', 'iterate'].includes(property)) queryPlans.push({ sql, args });
+        return value.apply(target, args);
+      };
+    } });
+  } };
+  const observedStore = createSqliteSemanticStore({ db: observedDb, repoRoot: fixture.root, indexPath: ':memory:', generation: fixture.generation, artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION });
+  await observedStore.getRelatedPage(refs[0], 'semantic_edges', { limit: 1 });
   assert.ok(queryPlans.length >= 2);
-  for (const sql of queryPlans) {
-    const args = [analysisId, fixture.partitionId, call.id, analysisId, fixture.partitionId, call.id, ...(sql.includes('LIMIT ?') ? [1,0] : [])];
+  for (const { sql, args } of queryPlans) {
     const plan = db.prepare('EXPLAIN QUERY PLAN ' + sql).all(...args).map(row => row.detail).join(' ');
     assert.ok(plan.includes('semantic_edges_forward') && plan.includes('semantic_edges_reverse')); assert.ok(!plan.includes('SCAN semantic_edges'), 'only endpoint indexes select neighbor facts');
   }
