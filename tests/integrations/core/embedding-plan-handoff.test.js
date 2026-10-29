@@ -13,15 +13,18 @@ import { attachEmbeddingExecutionPlan, validateEmbeddingExecutionPlan, createEmb
 import { applyTestEnv, withTemporaryEnv } from '../../helpers/test-env.js';
 import { toRealPathSync } from '../../../src/workspace/identity.js';
 import { prepareIsolatedTestCacheDir } from '../../helpers/test-cache.js';
+import { getRepoId } from '../../../src/shared/repo-paths.js';
 
 const { dir: temp } = await prepareIsolatedTestCacheDir('embedding-plan-handoff');
 const repo = path.join(temp, 'repo');
-const build = path.join(temp, 'build');
+const cacheRoot = path.join(temp, 'cache');
 const queueDir = path.join(temp, 'queue');
 const output = path.join(temp, 'capture.json');
 const toolRoot = path.join(temp, 'tool');
 const script = path.join(toolRoot, 'tools', 'build', 'embeddings.js');
 await fs.mkdir(repo);
+const repoCacheRoot = path.join(cacheRoot, 'repos', getRepoId(repo));
+const build = path.join(repoCacheRoot, 'builds', 'build-fixture');
 await fs.mkdir(path.join(build, 'index-code'), { recursive: true });
 await fs.mkdir(path.dirname(script), { recursive: true });
 const parserUrl = pathToFileURL(path.resolve('tools/build/embeddings/cli.js')).href;
@@ -30,7 +33,7 @@ await fs.writeFile(script, `const fs = await import('node:fs');
   const c = parseBuildEmbeddingsArgs();
   fs.writeFileSync(${JSON.stringify(output)}, JSON.stringify({argv:c.argv,model:c.modelId,dims:c.configuredDims,
     provider:c.embeddingProvider,normalize:c.embeddingsConfig.normalize,plan:c.executionPlan,rawThreads:c.envConfig.threads}));`);
-const env = applyTestEnv({ syncProcess: false, cacheRoot: path.join(temp, 'cache'), embeddings: 'stub' });
+const env = applyTestEnv({ syncProcess: false, cacheRoot, embeddings: 'stub' });
 const config = { models: { id: 'original-config-model' }, indexing: { embeddings: { normalize: false, mode: 'service' } } };
 await fs.writeFile(path.join(repo, '.pairofcleats.json'), JSON.stringify(config));
 const callerHook = () => {};
@@ -49,7 +52,7 @@ assert.equal(canonicalWins['scheduler-cpu'], 4);
 assert.equal(canonicalWins['stub-embeddings'], false);
 assert.equal(resolveBuildInvocationArgs({ ...apiOptions, rawArgv: [], 'scheduler-cpu': 5 }).argv['scheduler-cpu'], 5);
 const base = { root: repo, argv, embedModes: ['code'], userConfig: config, indexRoot: build,
-  includeEmbeddings: true, overallProgressRef: {}, log: () => {}, repoCacheRoot: path.join(temp, 'repo-cache'),
+  includeEmbeddings: true, overallProgressRef: {}, log: () => {}, repoCacheRoot,
   runtimeEnv: env, recordIndexMetric: () => {}, buildEmbeddingsPath: script };
 try {
   const inlineIntent = { embeddingEnabled: true, embeddingService: false, useStubEmbeddings: true, resolvedEmbeddingMode: 'stub' };

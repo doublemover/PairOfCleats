@@ -5,6 +5,7 @@ import { createEmbeddingExecutionPlan, captureEmbeddingExecutionPlan, bindEmbedd
 import { prepareIsolatedTestCacheDir } from '../../helpers/test-cache.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 import { EMBEDDING_GEMMA2_REVISION } from '../../../src/shared/embedding-model-profile.js';
+import { toRealPathSync } from '../../../src/workspace/identity.js';
 
 const mode = process.env.PAIROFCLEATS_TEST_ID?.split('integrations/core/embedding-plan-late-binding/')[1];
 assert.ok(['selection', 'mode-scope', 'generation-scope', 'immutable', 'profile', 'inactive'].includes(mode));
@@ -17,7 +18,7 @@ const plan = captureEmbeddingExecutionPlan(createEmbeddingExecutionPlan({ root: 
   intent: { embeddingEnabled: true, useStubEmbeddings: true, resolvedEmbeddingMode: 'stub' } }));
 const bound = bindEmbeddingExecutionPlan(plan, { root: dir, indexRoot: path.join(dir, 'build'), buildId: 'build-fixture', modes: ['code'] });
 assert.equal(plan.indexRoot, null); assert.equal(plan.buildId, null); assert.deepEqual(plan.modes, ['code', 'prose']);
-assert.equal(bound.indexRoot, path.resolve(dir, 'build')); assert.equal(bound.buildId, 'build-fixture');
+assert.equal(bound.indexRoot, toRealPathSync(path.resolve(dir, 'build'))); assert.equal(bound.buildId, 'build-fixture');
 assert.equal(bound.selectedAt, plan.selectedAt); assert.notEqual(bound.digest, plan.digest);
 assert.equal(validateEmbeddingExecutionPlan(bound, { root: dir, indexRoot: path.join(dir, 'build'), modes: ['code'] }), bound);
 if (mode === 'selection') {
