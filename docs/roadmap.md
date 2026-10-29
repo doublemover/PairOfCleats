@@ -41,6 +41,10 @@ pass 26/26; [comment/handoff repairs](archived/windows-comment-and-handoff-failu
 pass 73 controls. Together they resolve 21 original failures, leaving 25.
 Astro bounds, refusal coverage, line reuse and Stage3 launch authority are repaired.
 
+[CI repairs](archived/windows-ci-repairs-2026-10-28.md) pass 15 native workflow
+cases and 12 affected controls. Stable runtime pins and CI-owned gopls provisioning
+are implemented; hosted qualification and remaining dependency upgrades follow.
+
 [Five dependency retirements](archived/dependency-ownership-implementation-2026-10-27.md)
 removed 110 lock records. Setup identities and retained inputs are archived;
 runtime qualification remains separate.

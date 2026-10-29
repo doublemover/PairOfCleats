@@ -1,6 +1,6 @@
 # Lane Evidence
 
-Generated: 2026-10-23T23:23:14.606Z
+Generated: 2026-10-29T03:51:33.391Z
 
 ## How To Use
 
@@ -13,7 +13,7 @@ Generated: 2026-10-23T23:23:14.606Z
 ## Lane Summary
 
 - `gate`: 40 tests, 0 with timings, 0 ms known duration, p50=n/a ms, p95=n/a ms, target 15s
-- `ci-lite`: 1232 tests, 49 with timings, 27090 ms known duration, p50=190 ms, p95=2140 ms, target 15s
+- `ci-lite`: 1374 tests, 49 with timings, 27090 ms known duration, p50=190 ms, p95=2140 ms, target 15s
 - `ci`: 228 tests, 22 with timings, 101770 ms known duration, p50=5020 ms, p95=5030 ms, target 60s
 - `ci-long`: 23 tests, 3 with timings, 15060 ms known duration, p50=5020 ms, p95=5030 ms, target 180s
 - `usr-full-conformance`: 11 tests, 0 with timings, 0 ms known duration, p50=n/a ms, p95=n/a ms, target 60s
@@ -25,16 +25,16 @@ Generated: 2026-10-23T23:23:14.606Z
 ## Top Families
 
 - `storage/sqlite`: 80 tests, 25860 ms known duration
-- `indexing/chunking`: 11 tests, 10530 ms known duration
-- `tooling/triage`: 5 tests, 10060 ms known duration
+- `indexing/chunking`: 12 tests, 10530 ms known duration
+- `tooling/triage`: 6 tests, 10060 ms known duration
 - `indexing/shards`: 4 tests, 8870 ms known duration
 - `indexing/file-processor`: 10 tests, 8370 ms known duration
 - `tooling/install`: 46 tests, 8330 ms known duration
-- `indexing/type-inference`: 14 tests, 5700 ms known duration
-- `indexing/imports`: 34 tests, 5550 ms known duration
+- `indexing/type-inference`: 16 tests, 5700 ms known duration
+- `indexing/imports`: 35 tests, 5550 ms known duration
 - `cli/general`: 9 tests, 5410 ms known duration
-- `indexing/runtime`: 4 tests, 5040 ms known duration
-- `lang/contracts`: 16 tests, 5030 ms known duration
+- `indexing/runtime`: 8 tests, 5040 ms known duration
+- `lang/contracts`: 33 tests, 5030 ms known duration
 - `indexing/language-fixture`: 1 tests, 5030 ms known duration
 - `retrieval/ann`: 13 tests, 5020 ms known duration
 - `retrieval/filters`: 5 tests, 5020 ms known duration
@@ -42,17 +42,17 @@ Generated: 2026-10-23T23:23:14.606Z
 
 ## Setup Hotspots
 
-- `index-build-heavy`: 424 tests, 70250 ms known duration
+- `index-build-heavy`: 473 tests, 70250 ms known duration
   Index construction, replay, and build-heavy setup overlap.
 - `sqlite-heavy`: 80 tests, 25860 ms known duration
   SQLite maintenance, fail-closed, and migration tests often rebuild the same sample fixture.
 - `cli-cold-start`: 11 tests, 5410 ms known duration
   CLI process startup and argument-routing overlap.
-- `api-server-boot`: 7 tests, 3400 ms known duration
+- `api-server-boot`: 8 tests, 3400 ms known duration
   HTTP server startup, routing, and streaming harness reuse.
-- `embeddings-cache`: 40 tests, 60 ms known duration
+- `embeddings-cache`: 45 tests, 60 ms known duration
   Embedding cache and stub fast-path families frequently overlap on the same fixture/setup.
-- `lsp-bootstrap`: 106 tests, 0 ms known duration
+- `lsp-bootstrap`: 107 tests, 0 ms known duration
   Dedicated/configured provider bootstrap and session reuse.
 - `search-cli-contract`: 88 tests, 0 ms known duration
   Search CLI help, explain, and contract surfaces share fixture/index bootstrap.

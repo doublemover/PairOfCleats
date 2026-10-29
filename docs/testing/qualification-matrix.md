@@ -6,6 +6,12 @@ Current execution evidence and unresolved failures belong to the
 [deep test audit](../archived/deep-test-audit-2026-10-18.md) and the
 [active roadmap](../roadmap.md).
 
+The [CI repair receipt](../archived/windows-ci-repairs-2026-10-28.md) records
+15/15 focused native workflow cases and 12 passing affected controls on Node
+26.13.0/Windows x64. The recorded existing native binary does not qualify the new
+Rust 1.99.1 pin. Hosted setup, physical-link authority and Linux/macOS execution
+remain pending; the earlier suite campaign was not restarted.
+
 The [full Windows campaign](../archived/windows-full-validation-checkpoint-265-2026-10-28.md)
 completed all 6,098 required fixtures at `90d0e510a`: 5,819 passed and 279 failed,
 including 14 runner timeouts. There were no skips, omissions, duplicate IDs or
