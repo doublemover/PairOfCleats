@@ -8,7 +8,7 @@ import { admitCompilationDatabase, revalidateCompilationDatabase } from '../../.
 import { prepareIsolatedTestCacheDir } from '../../helpers/test-cache.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 import { grantFixtureRepositoryExecution } from '../../helpers/execution-authority.js';
-import { resolveLspFixtureCommand } from '../../helpers/lsp-provider-fixture.js';
+import { resolveLspFixtureCommand } from '../../helpers/lsp-fixture-command.js';
 
 const selected = process.env.PAIROFCLEATS_TEST_ID?.split('compilation-database-admission/')[1];
 assert.ok(['missing', 'wrong-kind', 'malformed', 'empty', 'unrelated', 'mixed', 'partial', 'ambiguous',
@@ -123,7 +123,8 @@ try {
       assert.ok(checks.some(check => check.name === 'clangd_compilation_context'));
       const blocked = ['required', 'argument-conflict', 'response-changed', 'database-changed', 'launch-changed',
         'source-replaced', 'empty-selection', 'wrong-kind', 'unreadable', 'malformed', 'explicit-invalid', 'over-budget'].includes(selected);
-      assert.equal(calls.length, blocked ? 0 : 1, 'actual provider dispatch must follow its captured database/launch receipt');
+      assert.equal(calls.length, blocked ? 0 : 1,
+        `actual provider dispatch must follow its captured database/launch receipt: ${JSON.stringify(checks)}`);
       if (blocked) {
         if (selected.endsWith('-changed') || selected === 'source-replaced') assert.ok(checks.some(check => check.name === 'clangd_compilation_context_changed'));
         assert.deepEqual(output.byChunkUid, {});
