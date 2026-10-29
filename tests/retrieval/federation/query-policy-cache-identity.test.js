@@ -20,7 +20,9 @@ const cacheRoot = path.join(root, 'cache');
 applyTestEnv({ cacheRoot, embeddings: 'off' });
 const originalStorageTier = process.env.PAIROFCLEATS_STORAGE_TIER;
 const originalApiToken = process.env.PAIROFCLEATS_API_TOKEN;
+const originalQueryCachePrewarm = process.env.PAIROFCLEATS_QUERY_CACHE_PREWARM;
 process.env.PAIROFCLEATS_STORAGE_TIER = 'balanced';
+process.env.PAIROFCLEATS_QUERY_CACHE_PREWARM = 'false';
 try {
   const repos = new Map();
   const config = enabled => ({ cache: { root: cacheRoot }, quality: 'balanced',
@@ -64,8 +66,8 @@ try {
 
   // The explicit ANN flag wins over both raw defaults. Cache-only policy does
   // not affect result meaning. Neither change should fragment the effective key.
-  await writeConfig(repos.get('a'), { ...config(true), search: { annDefault: true },
-    retrieval: { ...config(true).retrieval, queryCache: { prewarm: true } } });
+  await writeConfig(repos.get('a'), { ...config(true), search: { annDefault: true } });
+  process.env.PAIROFCLEATS_QUERY_CACHE_PREWARM = 'true';
   assert.deepEqual(await runFederatedSearch(request, context), changed); assert.equal(calls, 4);
 
   const rawArgs = ['--mode', 'code', '--backend', 'memory', '--no-ann', '--json', '--', 'alpha'];
@@ -74,6 +76,7 @@ try {
   const invocation = buildCoreSearchInvocation(repos.get('a'), { args: rawArgs, argsMode: 'complete' });
   const binding = { rootDir: inputs.rootDir, rawArgs: invocation.rawArgs, exactMode: 'code' };
   const captured = consumeEffectiveSearchPlan(token, binding);
+  assert.equal(captured.normalized.queryCachePrewarm, true, 'the supported environment owner applies cache-only policy');
   assert.equal(captured.identity, token.identity);
   const proseArgs = rawArgs.slice(); proseArgs[1] = 'prose';
   assert.notEqual(captureFederatedSearchPolicy(inputs, { args: proseArgs, query: '', exactMode: 'prose' }).identity,
@@ -136,6 +139,8 @@ try {
   else process.env.PAIROFCLEATS_STORAGE_TIER = originalStorageTier;
   if (originalApiToken == null) delete process.env.PAIROFCLEATS_API_TOKEN;
   else process.env.PAIROFCLEATS_API_TOKEN = originalApiToken;
+  if (originalQueryCachePrewarm == null) delete process.env.PAIROFCLEATS_QUERY_CACHE_PREWARM;
+  else process.env.PAIROFCLEATS_QUERY_CACHE_PREWARM = originalQueryCachePrewarm;
   await fs.rm(root, { recursive: true, force: true });
 }
 console.log('Effective per-repository policy binds outer/local reuse and actual child ranking without leaking raw config or mixing invocation policy.');
