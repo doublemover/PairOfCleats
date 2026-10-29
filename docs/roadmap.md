@@ -13,10 +13,10 @@ qualified checks closed 85 reports. The
 leaves **685 open**: 449 qualification-pending,
 147 partial and 89 unresolved entries.
 
-The [complete assessment](archived/github-issue-closeout-2026-10-26.json) retains
-source/test mappings and closure witnesses; [earlier receipts](archived/solo-issue-repairs-2026-10-25.md)
-retain historical evidence. Work is solo and Windows-only; hosted failures and
-platform acceptance retain their source identities in the linked receipts.
+The [assessment](archived/github-issue-closeout-2026-10-26.json) maps sources,
+tests and closure witnesses; [earlier receipts](archived/solo-issue-repairs-2026-10-25.md)
+retain historical evidence. Work is solo and Windows-only; hosted checks retain
+their source identities.
 
 Completed source-bound checks are indexed in the
 [qualification archive](archived/native-runtime-qualification-index-2026-10-27.md)
@@ -38,9 +38,10 @@ pass 46 controls. [Focused repairs](archived/windows-focused-failure-repairs-202
 pass 26/26; [comment/handoff repairs](archived/windows-comment-and-handoff-failure-repairs-2026-10-28.md)
 pass 73 controls. Together they resolve 21 original failures, leaving 25.
 
-[CI repairs](archived/windows-ci-failure-repairs-2026-10-29.md),
-[native paths](archived/windows-ci-native-path-followup-2026-10-29.md) and
-[VSIX/CI](archived/vscode-native-closeout-2026-10-29.md) closes #1288; CI stays open.
+[CI](archived/windows-ci-failure-repairs-2026-10-29.md),
+[paths](archived/windows-ci-native-path-followup-2026-10-29.md),
+[VSIX #1288](archived/vscode-native-closeout-2026-10-29.md) and
+[Git admission](archived/windows-git-admission-deadlock-2026-10-29.md) retain receipts; CI remains open.
 [Stable upgrades](archived/windows-stable-upgrades-2026-10-29.md)
 and Rust 1.99.1 are locally qualified; remaining P1 acceptances follow.
 

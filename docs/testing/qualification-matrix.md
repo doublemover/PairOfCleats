@@ -6,6 +6,14 @@ Current execution evidence and unresolved failures belong to the
 [deep test audit](../archived/deep-test-audit-2026-10-18.md) and the
 [active roadmap](../roadmap.md).
 
+The [Git admission repair](../archived/windows-git-admission-deadlock-2026-10-29.md)
+reproduces the Windows sample-index stall under four CPUs/16 GB: queued Git work
+retained compute needed by earlier commands. Queue admission now suspends CPU
+and provider work resumes under its original file lease. Both original fixtures
+pass with fresh caches at the constrained resource settings; hosted acceptance
+of this repair remains separate. At preceding head `fe4ee1a05`, all 43 Windows
+authority fixtures and the three hosted native-inspection jobs pass.
+
 The [CI repair receipt](../archived/windows-ci-repairs-2026-10-28.md) records
 15/15 focused native workflow cases and 12 passing affected controls on Node
 26.13.0/Windows x64. The recorded existing native binary does not qualify the new
