@@ -1,6 +1,7 @@
 import { iterateColumnarRows } from '../columnar-rows.js';
 import { readJsonFile } from '../json.js';
 import { createLoaderError } from './shared.js';
+import path from 'node:path';
 import {
   iterateBinaryColumnarRows,
   streamJsonlRowsFromSources
@@ -19,7 +20,8 @@ export const streamArrayArtifactRowsFromSources = async function* (
     maxInFlight = 0,
     onBackpressure = null,
     onResume = null,
-    enforceBinaryDataBudget = true
+    enforceBinaryDataBudget = true,
+    signal = null
   }
 ) {
   if (sources.format === 'json') {
@@ -60,7 +62,12 @@ export const streamArrayArtifactRowsFromSources = async function* (
     validationMode,
     maxInFlight,
     onBackpressure,
-    onResume
+    onResume,
+    signal,
+    expectedCounts: strict ? sources.paths.map(filename => {
+      const relative = path.relative(dir, filename).split(path.sep).join('/');
+      return manifest?.pieces?.find(piece => piece.name === baseName && piece.path === relative)?.count ?? null;
+    }) : null
   })) {
     yield row;
   }

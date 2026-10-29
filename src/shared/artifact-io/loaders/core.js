@@ -64,7 +64,8 @@ export const loadJsonArrayArtifactRows = async function* (
     maxInFlight = 0,
     onBackpressure = null,
     onResume = null,
-    enforceBinaryDataBudget = true
+    enforceBinaryDataBudget = true,
+    signal = null
   } = {}
 ) {
   const validationMode = strict ? 'strict' : 'trusted';
@@ -92,7 +93,8 @@ export const loadJsonArrayArtifactRows = async function* (
     maxInFlight,
     onBackpressure,
     onResume,
-    enforceBinaryDataBudget
+    enforceBinaryDataBudget,
+    signal
   });
 };
 

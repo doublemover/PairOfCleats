@@ -16,6 +16,7 @@ import {
 } from '../manifest.js';
 import {
   DEFAULT_PACKED_BLOCK_SIZE,
+  createPackedTfPostingDecoder,
   decodePackedOffsets,
   unpackTfPostingSlice
 } from '../../packed-postings.js';
@@ -384,6 +385,28 @@ const loadTokenPostingsRaw = (
         postings[i] = unpackTfPostingSlice(windowBuffer.subarray(localStart, localEnd), { blockSize });
       }
     };
+    const readLargeList = (descriptor, index) => {
+      const start = offsets[index], end = offsets[index + 1];
+      const decoder = createPackedTfPostingDecoder({ byteLength: end - start, blockSize });
+      const scratch = Buffer.allocUnsafe(resolvedWindowBytes);
+      for (let position = start; position < end;) {
+        const length = Math.min(scratch.length, end - position);
+        let used = 0;
+        while (used < length) {
+          const read = descriptor.read(scratch, used, length - used, position + used);
+          if (!Number.isSafeInteger(read) || read <= 0 || read > length - used) {
+            throw Object.assign(new Error('Packed token_postings truncated or invalid read progress.'),
+              { code: 'ERR_ARTIFACT_CORRUPT' });
+          }
+          used += read;
+        }
+        const bytes = scratch.subarray(0, length);
+        packedChecksum?.update(bytes);
+        decoder.push(bytes);
+        position += length;
+      }
+      postings[index] = decoder.finish();
+    };
     const consumePacked = descriptor => {
       const dataBytes = descriptor.stat().size;
       if (!Number.isSafeInteger(dataBytes) || dataBytes < 0 || offsets[0] !== 0
@@ -393,6 +416,10 @@ const loadTokenPostingsRaw = (
       }
       let startToken = 0;
       while (startToken < totalTokens) {
+        if (offsets[startToken + 1] - offsets[startToken] > resolvedWindowBytes) {
+          readLargeList(descriptor, startToken++);
+          continue;
+        }
         let endToken = Math.min(totalTokens, startToken + 1);
         while (endToken < totalTokens && endToken - startToken < resolvedWindowTokens) {
           const candidateBytes = offsets[endToken + 1] - offsets[startToken];

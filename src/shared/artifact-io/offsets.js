@@ -584,11 +584,14 @@ export const readJsonlRowsAt = async (jsonlPath, offsetsPath, indexes, options =
  * @param {{signal?:AbortSignal|null}} [options]
  * @returns {Promise<boolean>}
  */
-const validateOffsetsAgainstSources = async (jsonlPath, offsetsPath, { signal = null } = {}, [jsonlHandle, offsetsHandle], observation = null) => {
+const validateOffsetsAgainstSources = async (jsonlPath, offsetsPath, { signal = null, expectedCount = null } = {}, [jsonlHandle, offsetsHandle], observation = null) => {
   throwIfAborted(signal);
   const [jsonlStat, offsetsStat] = await Promise.all([jsonlHandle.stat(), offsetsHandle.stat()]);
   throwIfAborted(signal);
   const count = resolveOffsetCountFromSize(offsetsStat.size, offsetsPath);
+  if (expectedCount != null && (!Number.isSafeInteger(expectedCount) || expectedCount < 0 || expectedCount !== count)) {
+    throw createOffsetsInvalidError('Offsets cardinality differs from the selected manifest count for ' + offsetsPath);
+  }
   const fileSize = jsonlStat.size;
   if (count === 0 && fileSize !== 0) {
     throw createOffsetsInvalidError('Empty offsets sidecar requires an empty JSONL payload for ' + jsonlPath);

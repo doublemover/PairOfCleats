@@ -115,6 +115,7 @@ export const streamJsonlRowsFromSources = async function* (
     onResume = null,
     containedRoot = null,
     rowMapper = null,
+    expectedCounts = null,
     signal = null
   }
 ) {
@@ -123,7 +124,7 @@ export const streamJsonlRowsFromSources = async function* (
     const partPath = paths[i];
     const offsetsPath = hasOffsets ? offsetsPaths[i] : null;
     if (offsetsPath) {
-      await ensureOffsetsValid(partPath, offsetsPath, { containedRoot, signal });
+      await ensureOffsetsValid(partPath, offsetsPath, { containedRoot, signal, expectedCount: expectedCounts?.[i] });
     }
     for await (const row of readJsonLinesIterator(partPath, {
       maxBytes,

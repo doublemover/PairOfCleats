@@ -110,6 +110,48 @@ export const unpackTfPostingSlice = (buffer, { blockSize = DEFAULT_BLOCK_SIZE } 
   return decodeTfPostingList(buffer, blockSize);
 };
 
+/** Decode one selected list across bounded I/O windows, retaining only output pairs. */
+export const createPackedTfPostingDecoder = ({ byteLength, blockSize = DEFAULT_BLOCK_SIZE }) => {
+  let consumed = 0, value = 0, varintBytes = 0, field = 0, count = null;
+  let list = null, index = 0, previous = 0, delta = 0;
+  return {
+    push(buffer) {
+      for (const byte of buffer) {
+        if (count !== null && index === count) throw invalidPackedValue('Packed posting row contains trailing bytes.');
+        consumed++;
+        value += (byte & 0x7f) * (2 ** (7 * varintBytes));
+        varintBytes++;
+        if (varintBytes > MAX_VARINT_BYTES || !Number.isSafeInteger(value)) {
+          throw invalidPackedValue('Packed varint exceeds Number.MAX_SAFE_INTEGER.');
+        }
+        if (byte & 0x80) continue;
+        const decoded = value;
+        value = 0; varintBytes = 0;
+        if (field === 0) {
+          count = decoded;
+          if (count > Math.floor((byteLength - consumed) / 2)) {
+            throw invalidPackedValue('Packed posting count exceeds the available pair bytes.');
+          }
+          list = new Array(count); field = 1;
+        } else if (field === 1) {
+          delta = decoded; field = 2;
+        } else {
+          if (index % blockSize === 0) previous = 0;
+          const docId = previous + delta;
+          if (!Number.isSafeInteger(docId)) throw invalidPackedValue('Packed posting document ID exceeds Number.MAX_SAFE_INTEGER.');
+          list[index++] = [docId, decoded]; previous = docId; field = 1;
+        }
+      }
+    },
+    finish() {
+      if (consumed !== byteLength || varintBytes || count === null || index !== count || field === 2) {
+        throw invalidPackedValue('Invalid or truncated packed varint sequence.');
+      }
+      return list;
+    }
+  };
+};
+
 /**
  * Encode an offsets array as little-endian uint64 values.
  * @param {number[]} offsets

@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { streamJsonlRowsFromSources } from '../../../src/shared/artifact-io/loaders/core-array-payload.js';
+import { loadJsonArrayArtifactRows } from '../../../src/shared/artifact-io/loaders/core.js';
+import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
 import { openJsonlRowReader, validateOffsetsAgainstFile } from '../../../src/shared/artifact-io/offsets.js';
 import { makeTempDir, rmDirRecursive } from '../../helpers/temp.js';
 
@@ -14,6 +16,17 @@ const encode = offsets => {
   return buffer;
 };
 const offsets = encode([0, Buffer.byteLength(rows[0])]);
+const manifest = { artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION, pieces: [
+  { name: 'sample', path: 'rows.jsonl', format: 'jsonl', count: 2 },
+  { name: 'sample_meta', path: 'rows.meta.json', format: 'json' }
+] };
+await fs.writeFile(path.join(root, 'rows.meta.json'), JSON.stringify({ format: 'jsonl-sharded',
+  parts: ['rows.jsonl'], offsets: ['rows.offsets.bin'] }));
+const exported = async options => {
+  const result = [];
+  for await (const row of loadJsonArrayArtifactRows(root, 'sample', { manifest, strict: true, ...options })) result.push(row);
+  return result;
+};
 const collect = async (options = {}) => {
   const out = [];
   for await (const row of streamJsonlRowsFromSources([dataPath], [sidecar], {
@@ -37,6 +50,7 @@ try {
     return handle;
   };
   assert.deepEqual(await collect(), expected);
+  assert.deepEqual(await exported(), expected, 'the exported streaming owner admits the original pair');
   const firstOpens = opened;
   assert.deepEqual(await collect(), expected);
   assert.ok(opened >= firstOpens + 2, 'each invocation owns fresh bounded validation, with no permanent path proof');
@@ -44,10 +58,17 @@ try {
     await reset(); assert.deepEqual(await collect(), expected);
     await fs.writeFile(sidecar, encode(invalid));
     await fs.utimes(sidecar, 1000000000, 1000000000);
+    await assert.rejects(exported(), { code: 'ERR_OFFSETS_INVALID' }, 'later exported calls cannot reuse earlier path-only proof');
     await assert.rejects(collect(), { code: 'ERR_OFFSETS_INVALID' });
     await assert.rejects(validateOffsetsAgainstFile(dataPath, sidecar, { containedRoot: root }), { code: 'ERR_OFFSETS_INVALID' });
     assert.equal(opened, closed);
   }
+  await reset(); await collect();
+  await fs.writeFile(sidecar, encode([0]));
+  await assert.rejects(exported(), /cardinality/, 'manifest cardinality rejects an otherwise valid but incomplete offset table');
+  await reset(); assert.deepEqual(await exported(), expected);
+  await fs.truncate(sidecar, 0);
+  await assert.rejects(exported(), { code: 'ERR_OFFSETS_INVALID' }, 'truncation after success cannot report zero semantic records');
   await reset(); await collect();
   await fs.unlink(sidecar); await assert.rejects(collect(), { code: 'ENOENT' });
   await fs.writeFile(sidecar, encode([0, 0])); // Replacement at the previously validated path.
@@ -56,6 +77,7 @@ try {
   const otherRoot = path.join(root, 'different-authority'); await fs.mkdir(otherRoot);
   await assert.rejects(collect({ containedRoot: otherRoot }), { code: 'ERR_UNSAFE_FILE_PATH' });
   const cancelled = new AbortController(); cancelled.abort();
+  await assert.rejects(exported({ signal: cancelled.signal }), { name: 'AbortError' });
   await assert.rejects(collect({ signal: cancelled.signal }), { name: 'AbortError' });
   abortOnRead = new AbortController();
   await assert.rejects(collect({ signal: abortOnRead.signal }), { name: 'AbortError' });

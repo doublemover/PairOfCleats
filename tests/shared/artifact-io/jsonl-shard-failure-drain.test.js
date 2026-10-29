@@ -27,7 +27,8 @@ const contains = (value, wanted, seen = new Set()) => {
 try {
   await fsp.writeFile(path.join(dir, 'sample.meta.json'), JSON.stringify({ format: 'jsonl-sharded', parts: paths.map(file => path.basename(file)) }));
   await Promise.all(paths.map((file, index) => fsp.writeFile(file, zstdCompressSync(Buffer.from(JSON.stringify(expected[index]) + '\n')))));
-  for (const route of ['direct', 'artifact']) {
+  for (const route of ['direct', 'artifact']) for (const fault of ['io', 'parse']) {
+    await fsp.writeFile(paths[0], zstdCompressSync(Buffer.from(fault === 'parse' ? '{invalid\n' : JSON.stringify(expected[0]) + '\n')));
     const sourceFailure = Object.freeze(Object.assign(new Error(`${route}: original source read failed`), { code: 'EIO' }));
     const closeFailure = route === 'artifact' ? Object.freeze(new Error('independent held source-close failure')) : null;
     const bOpened = deferred(), bCloseHeld = deferred();
@@ -39,9 +40,16 @@ try {
       started.push(selected); streams.push(stream); closed.push(new Promise(resolve => stream.once('close', resolve)));
       if (selected === paths[0]) {
         let requested = false;
-        stream._read = () => {
+        const read = stream._read;
+        stream._read = function (size) {
           if (requested) return; requested = true;
-          void bOpened.promise.then(() => stream.destroy(sourceFailure));
+          void bOpened.promise.then(() => {
+            if (fault === 'io') stream.destroy(sourceFailure);
+            else {
+              stream._read = read;
+              read.call(stream, size);
+            }
+          });
         };
       } else if (selected === paths[1]) {
         if (Number.isInteger(stream.fd)) bOpened.resolve(); else stream.once('open', bOpened.resolve);
@@ -66,7 +74,8 @@ try {
       assert.equal(publicSettled, false, 'the outward operation still owns the held cleanup');
       assert.deepEqual(started, paths.slice(0, 2), 'unstarted shards remain unclaimed after the original failure');
       release(); await handled;
-      assert.ok(contains(failure, sourceFailure), 'the original first failure survives the joined boundary');
+      if (fault === 'io') assert.ok(contains(failure, sourceFailure), 'the original first failure survives the joined boundary');
+      else assert.equal(failure.code, 'ERR_JSONL_INVALID', 'the original parse failure survives the joined boundary');
       if (closeFailure) assert.ok(contains(failure, closeFailure), 'independent close failure is retained beside the primary');
       assert.ok(streams.every(stream => stream.closed));
       assert.deepEqual(started, paths.slice(0, 2), 'cleanup completion cannot reopen admission for later shards');
@@ -75,6 +84,7 @@ try {
       await Promise.allSettled(closed); await handled; fs.createReadStream = createReadStream;
     }
   }
+  await fsp.writeFile(paths[0], zstdCompressSync(Buffer.from(JSON.stringify(expected[0]) + '\n')));
   assert.deepEqual(await readJsonLinesArray(paths, { concurrency: 2 }), expected, 'successful bounded concurrency retains input order');
   assert.deepEqual(await loadJsonArrayArtifact(dir, 'sample', { manifest, strict: true, concurrency: 2 }), expected);
   assert.deepEqual(await readJsonLinesArray(paths[0]), [expected[0]], 'single-source behavior remains');
