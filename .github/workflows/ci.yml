@@ -444,6 +444,9 @@ jobs:
           assert.equal(receipt.result.capabilities.definition, true);
           '
 
+      - name: Serial crash-log ownership and latency qualification
+        run: node tests/run.js --lane all --match '/^indexing\/crash-log-(terminal-ownership|state-write-contention|independent-sinks|boundary-controls)(\/|$)/' --match '/^perf\/crash-log-error-latency\//' --jobs 1 --pairofcleats-threads 1 --timeout-ms 30000 --retries 0 --native-status-redo=false --report-file .diagnostics/crash-log-qualification.json
+
       - name: CI Suite
         run: |
           node tools/ci/run-suite.js --mode ci --skip-prechecks
@@ -473,6 +476,7 @@ jobs:
             .diagnostics/go-sdk.json
             .diagnostics/gopls-provisioning.json
             .diagnostics/gopls-startup.json
+            .diagnostics/crash-log-qualification.json
             .diagnostics/serial-runtime-budgets.json
             .diagnostics/api-contracts.json
             .diagnostics/test-summary.json
@@ -693,6 +697,9 @@ jobs:
           console.log(JSON.stringify(receipt));
           '
 
+      - name: Serial crash-log ownership and latency qualification
+        run: node tests/run.js --lane all --match '/^indexing\/crash-log-(terminal-ownership|state-write-contention|independent-sinks|boundary-controls)(\/|$)/' --match '/^perf\/crash-log-error-latency\//' --jobs 1 --pairofcleats-threads 1 --timeout-ms 30000 --retries 0 --native-status-redo=false --report-file .diagnostics/crash-log-qualification.json
+
       - name: CI Suite
         run: |
           node tools/ci/run-suite.js --mode ci --skip-prechecks
@@ -712,6 +719,7 @@ jobs:
             .diagnostics/gopls-provisioning.json
             .diagnostics/gopls-startup.json
             .diagnostics/windows-subprocess-ownership.json
+            .diagnostics/crash-log-qualification.json
             .diagnostics/serial-runtime-budgets.json
             .diagnostics/api-contracts.json
             .diagnostics/test-summary.json
@@ -1039,6 +1047,9 @@ jobs:
           assert.equal(receipt.result.capabilities.definition, true);
           '
 
+      - name: Serial crash-log ownership and latency qualification
+        run: node tests/run.js --lane all --match '/^indexing\/crash-log-(terminal-ownership|state-write-contention|independent-sinks|boundary-controls)(\/|$)/' --match '/^perf\/crash-log-error-latency\//' --jobs 1 --pairofcleats-threads 1 --timeout-ms 30000 --retries 0 --native-status-redo=false --report-file .diagnostics/crash-log-qualification.json
+
       - name: CI Suite
         run: |
           node tools/ci/run-suite.js --mode ci --skip-prechecks
@@ -1059,6 +1070,7 @@ jobs:
             .diagnostics/go-sdk.json
             .diagnostics/gopls-provisioning.json
             .diagnostics/gopls-startup.json
+            .diagnostics/crash-log-qualification.json
             .diagnostics/serial-runtime-budgets.json
             .diagnostics/api-contracts.json
             .diagnostics/test-summary.json

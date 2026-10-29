@@ -422,6 +422,18 @@ if (ownershipStepIndex < 0 || ownershipStepIndex >= windowsJob.steps.findIndex(s
 }
 for (const platform of ['ubuntu', 'windows', 'macos']) {
   const steps = parse(ciWorkflow).jobs[platform].steps;
+  const crash = steps.findIndex(step => step.name === 'Serial crash-log ownership and latency qualification');
+  assert.ok(crash >= 0 && crash < steps.findIndex(step => step.name === 'CI Suite'),
+    `${platform}: qualify crash-log ownership and serial latency before the broad suite`);
+  const crashCommand = steps[crash].run;
+  assert.ok(crashCommand.includes('terminal-ownership|state-write-contention|independent-sinks|boundary-controls')
+    && crashCommand.includes('perf\\/crash-log-error-latency\\/')
+    && crashCommand.includes('--jobs 1 --pairofcleats-threads 1 --timeout-ms 30000 --retries 0 --native-status-redo=false')
+    && crashCommand.includes('--report-file .diagnostics/crash-log-qualification.json'),
+  `${platform}: retain original crash ownership cases, raw latency receipts and strict serial bounds`);
+  const crashUpload = steps.find(step => step.name === 'Upload quality artifacts');
+  assert.ok(crashUpload.with.path.split(/\r?\n/u).includes('.diagnostics/crash-log-qualification.json'),
+    `${platform}: upload the source-bound crash-log report and test logs`);
   const goSetup = steps.findIndex(step => step.name === 'Setup qualified Go SDK');
   const goVerify = steps.findIndex(step => step.name === 'Verify selected Go SDK');
   const goStartup = steps.findIndex(step => step.name === 'Qualify real Go language server startup');
