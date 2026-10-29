@@ -62,6 +62,10 @@ if (Object.hasOwn(cases, selected)) {
     assert.equal(meta.documentation.state, 'parsed'); assert.deepEqual(meta.params, []); assert.equal(meta.returns, false);
   } else if (['source-unavailable', 'byte-budget'].includes(selected)) {
     assert.equal(meta.documentation.state, 'unavailable'); assert.deepEqual(meta.params, []);
+    if (selected === 'byte-budget') {
+      assert.deepEqual(meta.documentation.range, { start: 0, end: text.indexOf('*/') + 2 });
+      assert.deepEqual(meta.documentation.problems, ['doc-comment-byte-budget']);
+    }
   } else {
     assert.equal(meta.documentation.state, 'absent'); assert.deepEqual(meta.params, []);
     assert.deepEqual(meta.paramTypes, {}); assert.equal(meta.returns, false); assert.equal(meta.returnType, null);

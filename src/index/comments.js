@@ -462,7 +462,7 @@ export function extractComments({
   if (!style) {
     return { comments: [], configSegments: [] };
   }
-  if (!hasPotentialCommentMarkers(text, style)) {
+  if (!commentOccurrences && !hasPotentialCommentMarkers(text, style)) {
     return { comments: [], configSegments: [] };
   }
   const comments = [];

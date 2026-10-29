@@ -92,13 +92,14 @@ export const createJavaScriptDocCommentOwner = (ast, text) => {
     if (start - range.end > 4096) return empty('absent');
     const gap = text.slice(range.end, start);
     if (!/^\s*(?:(?:export|default|async|declare|const|let|var)\s+)*$/u.test(gap)) return empty('absent');
-    if (range.end - range.start > LIMITS.commentBytes) return empty('unavailable', 'doc-comment-byte-budget');
+    if (!text.startsWith('/**', range.start) || !text.startsWith('*/', range.end - 2)) return empty('absent');
+    const unavailable = () => freezeDocumentation({ ...empty('unavailable', 'doc-comment-byte-budget'), range });
+    if (range.end - range.start > LIMITS.commentBytes) return unavailable();
     const raw = text.slice(range.start, range.end);
-    if (!raw.startsWith('/**') || !raw.endsWith('*/')) return empty('absent');
     const key = `${range.start}:${range.end}`;
     if (parsed.has(key)) return parsed.get(key);
     const size = Buffer.byteLength(raw);
-    if (size > LIMITS.commentBytes || size > LIMITS.fileBytes - bytes) return empty('unavailable', 'doc-comment-byte-budget');
+    if (size > LIMITS.commentBytes || size > LIMITS.fileBytes - bytes) return unavailable();
     bytes += size;
     const result = parseDocumentation(raw, range); parsed.set(key, result); return result;
   };
