@@ -3,7 +3,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { captureCommandTerminalRun } from '../../tools/testing/search-debug-capture.js';
-import { reconstructTerminalScreen } from '../../tools/testing/terminal-screen.js';
+import { createTerminalScreen } from '../../tools/testing/terminal-screen.js';
 import { getRepoCacheRoot, loadUserConfig } from '../../tools/shared/dict-utils.js';
 import { normalizeEnvPathKeys } from '../../src/shared/env-path.js';
 import { resolveTrustedTuiCommand } from '../../tools/tui/operator/command.js';
@@ -47,6 +47,8 @@ await fs.mkdir(getRepoCacheRoot(repo, loadUserConfig(repo)), { recursive: true }
 const binary = path.join(root, 'crates/pairofcleats-tui/target/debug',
   process.platform === 'win32' ? 'pairofcleats-tui.exe' : 'pairofcleats-tui');
 const binarySha256 = createHash('sha256').update(await fs.readFile(binary)).digest('hex');
+await fs.writeFile(path.join(dir, 'native-source-identity.json'), JSON.stringify({ binary, binarySha256,
+  node: process.version, platform: process.platform, requestedSource: process.env.GITHUB_SHA || null }));
 const lines = async (base, name) => {
   try { const text = await fs.readFile(path.join(base, name), 'utf8');
     return text.slice(0, text.lastIndexOf('\n') + 1).split(/\r?\n/).filter(Boolean).map(JSON.parse); }
@@ -63,8 +65,11 @@ try {
     label: `native-artifact-${mode}`, logsRoot: path.join(dir, 'capture'), timeoutMs: 22000, env,
     onSpawn: async terminal => {
       let output = '', tail = '', frame = 0;
+      const terminalScreen = createTerminalScreen({ columns, rows });
+      let revision = 0, paintedRevision = -1, paintedScreen = '';
       const subscription = terminal.onData(data => {
         output = (output + data).slice(-1024 * 1024);
+        terminalScreen.write(data); revision++;
         if (process.platform !== 'win32') {
           const wire = tail + data;
           for (let count = wire.split('\x1b[6n').length - 1; count > 0; count--) terminal.write('\x1b[1;1R');
@@ -73,10 +78,21 @@ try {
       });
       const deadline = Date.now() + 14000;
       const wait = async (predicate, label) => {
-        while (!await predicate()) { assert.ok(Date.now() < deadline, `Native artifact witness timed out: ${label}`);
+        while (!await predicate()) {
+          if (Date.now() >= deadline) {
+            await fs.writeFile(path.join(dir, 'failure-screen.txt'), screen());
+            await fs.writeFile(path.join(dir, 'failure-observation.json'), JSON.stringify({ label,
+              binarySha256, metrics: terminalScreen.metrics(), events: (await events()).slice(-16)
+                .map(event => ({ event: event.event, jobId: event.jobId, status: event.status, code: event.code })),
+              pids: (await lines(dir, 'pids.jsonl')).slice(-16) }));
+            assert.fail(`Native artifact witness timed out: ${label}`);
+          }
           await new Promise(resolve => setTimeout(resolve, 20)); }
       };
-      const screen = () => reconstructTerminalScreen(output, { columns, rows }).text;
+      const screen = () => {
+        if (paintedRevision !== revision) { paintedRevision = revision; paintedScreen = terminalScreen.snapshot().text; }
+        return paintedScreen;
+      };
       const rendered = async label => { await wait(() => { const frame = screen(); return frame.includes(label)
         && (label !== 'Tab pane' || /\bconn\s+(?:connected|streaming)\b/.test(frame)); }, label);
       await fs.writeFile(path.join(dir, `screen-${frame++}.txt`), screen()); };
