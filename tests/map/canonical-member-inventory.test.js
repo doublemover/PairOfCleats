@@ -19,7 +19,7 @@ const chunks = [
     metaV2: { chunkUid: 'chunk:beta', symbol: { symbolId: 'sym:v1:beta' } } }
 ];
 const relations = new Map([
-  ['src/a.js', { exports: ['alpha'], importLinks: ['src/empty.js', 'external/pkg.js'] }],
+  ['src/a.js', { exports: ['alpha'], importLinks: ['src/empty.js', 'other/target.js', 'external/pkg.js', 'src'] }],
   ['src/b.js', { exports: ['beta'] }]
 ]);
 const repoMap = [...createRepoMapIterator({ chunks, fileRelations: relations })()];
@@ -35,7 +35,7 @@ try {
   await write('file_relations', [...relations].map(([file, value]) => ({ file, relations: value })));
   // Inventory-only files have neither named chunks nor repo_map entries. The
   // JSONL shards exercise the canonical owner instead of file_meta.json.
-  const fileRows = ['src/a.js', 'src/b.js', 'src/empty.js', 'src/comment-only.js']
+  const fileRows = ['src/a.js', 'src/b.js', 'src/empty.js', 'src/comment-only.js', 'other/target.js']
     .map((file, id) => ({ id, file, ext: '.js' }));
   const parts = [];
   for (const [shard, rows] of [fileRows.slice(0, 2), fileRows.slice(2)].entries()) {
@@ -62,7 +62,26 @@ try {
   assert.equal(map.edges.filter(edge => edge.type === 'alias').length, 5);
   assert.ok(map.edges.some(edge => edge.type === 'import' && edge.to.file === 'src/empty.js'));
   assert.ok(!map.nodes.some(node => node.path === 'external/pkg.js'));
-  assert.equal(map.summary.omittedEndpoints.unavailable, 1);
+  assert.equal(map.summary.omittedEndpoints.unavailable, 2);
+  for (const collapse of ['file', 'dir']) {
+    const collapsed = JSON.parse(JSON.stringify(await buildCodeMap({ repoRoot: dir, indexDir: dir,
+      options: { ...options, collapse, topKByDegree: true } })));
+    const nodes = new Set(collapsed.nodes.map(node => node.path));
+    assert.ok(!nodes.has('external') && !nodes.has('external/pkg.js'));
+    assert.equal(collapsed.summary.omittedEndpoints.unavailable, 2,
+      'unavailable import authority is classified before directory projection');
+    assert.equal(collapsed.summary.omittedEndpoints.displayFiltered, 0);
+    assert.ok(collapsed.edges.every(edge => edge.from && edge.to
+      && nodes.has(edge.from.file) && nodes.has(edge.to.file)), 'serialized collapsed edges retain two admitted endpoints');
+    assert.ok(collapsed.edges.some(edge => edge.type === 'import'
+      && edge.to.file === (collapse === 'dir' ? 'src' : 'src/empty.js')),
+    'known inventory-only import endpoints survive collapse');
+    const limited = await buildCodeMap({ repoRoot: dir, indexDir: dir,
+      options: { ...options, collapse, maxFiles: 1 } });
+    assert.equal(limited.summary.omittedEndpoints.unavailable, 2);
+    assert.ok(limited.summary.omittedEndpoints.displayFiltered > 0,
+      'display removal of an admitted endpoint is distinct from unavailable evidence');
+  }
   const capped = await buildCodeMap({ repoRoot: dir, indexDir: dir, options: { ...options, maxEdges: 2 } });
   assert.equal(capped.edges.length + capped.summary.dropped.edges, map.edges.length);
 
@@ -92,6 +111,29 @@ try {
   assert.equal(durableDisplay.memberById.size, 2);
   assert.equal(durableDisplay.memberById.get('sym:v1:alpha').exported, true);
   assert.equal(durableDisplay.memberById.get('sym:v1:alpha').range.endLine, 2);
+  for (const [legacy, dataflow, expected] of [
+    [false, { aliases: ['a=b'] }, ['a=b']],
+    [false, { reads: ['input'], writes: ['output'], aliases: ['a=b', 'b=c', 'c=d', 'd=e', 'e=f', 'f=g', 'g=h', 'h=i'] },
+      ['a=b', 'b=c', 'c=d', 'd=e', 'e=f', 'f=g', 'g=h', 'h=i']],
+    [true, { aliases: ['a=b', 'b=c', 'c=d', 'd=e'] }, ['a=b', 'b=c', 'c=d', 'd=e']],
+    [false, { aliases: [] }, []],
+    [true, { aliases: [null, {}, 42, false, 'kept=value'] }, ['kept=value']]
+  ]) {
+    const rows = structuredClone(chunks);
+    delete rows[0].metaV2.dataflow;
+    if (legacy) rows[0].docmeta = { dataflow };
+    else rows[0].metaV2.dataflow = dataflow;
+    const produced = [...createRepoMapIterator({ chunks: rows, fileRelations: relations })()];
+    await fs.writeFile(path.join(dir, 'repo_map.json'), JSON.stringify(produced));
+    await fs.writeFile(path.join(dir, 'chunk_meta.json'), JSON.stringify(rows));
+    const actual = JSON.parse(JSON.stringify(await buildCodeMap({ repoRoot: dir, indexDir: dir, options })));
+    const aliases = actual.edges.filter(edge => edge.type === 'alias');
+    assert.deepEqual(aliases.map(edge => edge.label).sort(), expected.map(value => `alias:${value}`).sort());
+    assert.ok(aliases.every(edge => edge.from.file === 'src/a.js' && edge.to.file === 'src/a.js'
+      && edge.from.member === 'sym:v1:alpha' && edge.to.member === 'sym:v1:alpha'),
+    'producer alias annotations do not invent dependencies on other symbols');
+    assert.deepEqual(actual.nodes.find(node => node.path === 'src/a.js').members[0].dataflow?.aliases || [], expected);
+  }
 } finally {
   await fs.rm(dir, { recursive: true, force: true });
 }

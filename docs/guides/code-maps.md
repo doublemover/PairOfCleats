@@ -164,3 +164,9 @@ quadratic work and visits each adjacency edge once, retaining linear graph state
 The same ordering policy applies above 300 items; there is no abrupt lexical-only
 fallback. This is an algorithmic work reduction; browser rebuild and latency
 measurements remain separate qualification.
+
+## Canonical members and collapsed endpoints
+
+Durable symbol/chunk identities are reconciled before legacy name/range fallback. A resolved durable join does not allocate or scan its same-name fallback bucket; ambiguous legacy origins remain explicit and cannot transfer export authority.
+
+File and directory collapse use only endpoints admitted by the selected generation. An unavailable import cannot become a null endpoint or a directory-name collision. Such edges count as unavailable before projection; removal of an admitted endpoint by display limits counts as display-filtered. Map cache producer4 separates these results from earlier cached projections; the model schema is unchanged.

@@ -250,6 +250,10 @@ export async function buildCodeMap({ repoRoot, indexDir, options = {} }) {
   let dropped = { files: 0, members: 0, edges: 0 };
   const omittedEndpoints = { unavailable: 0, displayFiltered: 0 };
   const inventoryFiles = new Set(membersByFile.keys());
+  const unavailableEndpoint = endpoint => !endpoint
+    || (!endpoint.file && endpoint.member == null)
+    || (endpoint.file && !inventoryFiles.has(endpoint.file))
+    || (endpoint.member != null && !memberById.has(String(endpoint.member)));
   let limitedNodes = [];
   let limitedEdges = [];
   const edgeAggregateMap = new Map();
@@ -311,6 +315,7 @@ export async function buildCodeMap({ repoRoot, indexDir, options = {} }) {
         const degree = new Map();
         for (const edge of edgeIteratorFactory()) {
           if (!edgeFilter(edge)) continue;
+          if ([edge.from, edge.to].some(unavailableEndpoint)) continue;
           const next = transformEdge(edge);
           const fromFile = next.from?.file || null;
           const toFile = next.to?.file || null;
@@ -359,6 +364,7 @@ export async function buildCodeMap({ repoRoot, indexDir, options = {} }) {
     }
 
     const edgeLimitFilter = (edge) => {
+      if (!edge.from || !edge.to) return false;
       const fromMember = normalizeMemberId(edge.from?.member);
       const toMember = normalizeMemberId(edge.to?.member);
       const fromFile = edge.from?.file || null;
@@ -381,12 +387,16 @@ export async function buildCodeMap({ repoRoot, indexDir, options = {} }) {
     await timer.track('build-edges', async () => {
       for (const edge of edgeIteratorFactory()) {
         if (!edgeFilter(edge)) continue;
+        // Classify against the admitted generation before collapsing file IDs
+        // to directory labels. Unknown targets must not become null endpoints
+        // that bypass filters or collide with a legitimate directory node.
+        if ([edge.from, edge.to].some(unavailableEndpoint)) {
+          omittedEndpoints.unavailable += 1;
+          continue;
+        }
         const next = transformEdge(edge);
         if (!edgeLimitFilter(next)) {
-          const unavailable = [next.from, next.to].some(endpoint =>
-            (endpoint?.file && !inventoryFiles.has(endpoint.file))
-            || (endpoint?.member != null && !memberById.has(String(endpoint.member))));
-          omittedEndpoints[unavailable ? 'unavailable' : 'displayFiltered'] += 1;
+          omittedEndpoints.displayFiltered += 1;
           continue;
         }
         if (keptEdges >= limits.maxEdges) {
@@ -594,7 +604,7 @@ export function buildNodeList(mapModel) {
 }
 
 export function buildMapCacheKey({ buildId, indexIdentity, options }) {
-  const payload = { producerVersion: 3, modelVersion: MAP_MODEL_VERSION,
+  const payload = { producerVersion: 4, modelVersion: MAP_MODEL_VERSION,
     buildId: buildId || null, indexIdentity: indexIdentity || null, options: options || null };
   return buildLocalCacheKey({
     namespace: 'code-map',

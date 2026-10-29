@@ -107,18 +107,23 @@ export const buildMapMembers = ({ repoMap, chunkMeta, fileMeta, fileRelations, i
       || (originOf(entry) && member.virtualPath && member.virtualPath !== originOf(entry)))) {
       throw new Error(`repo_map identity disagrees with chunk_meta: ${file}::${name}`);
     }
-    const candidates = [...(byLocation.get(locationKey(file, name)) || [])]
-      .map(id => memberById.get(id)).filter(candidate => compatible(candidate, entry));
     if (!member && (uid || symbolId)) {
       unresolved += 1;
       warnings.push(`repo_map durable identity unavailable in selected generation: ${file}::${name}`);
       continue;
     }
-    if (!member && candidates.length === 1) member = candidates[0];
-    if (!member && candidates.length > 1) {
-      ambiguous += 1;
-      warnings.push(`Ambiguous legacy repo_map member: ${file}::${name}`);
-      continue;
+    // Durable joins are already authoritative. Building and scanning their
+    // same-name legacy bucket adds quadratic work for generated overloads and
+    // cannot change the selected member or its conflict checks above.
+    if (!member) {
+      const candidates = [...(byLocation.get(locationKey(file, name)) || [])]
+        .map(id => memberById.get(id)).filter(candidate => compatible(candidate, entry));
+      if (candidates.length === 1) member = candidates[0];
+      if (candidates.length > 1) {
+        ambiguous += 1;
+        warnings.push(`Ambiguous legacy repo_map member: ${file}::${name}`);
+        continue;
+      }
     }
     const id = member?.id || buildSymbolId({ file, name, kind: entry.kind, startLine: entry.startLine });
     if (!member && memberById.has(id) && !compatible(memberById.get(id), entry)) {
