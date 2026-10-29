@@ -66,7 +66,7 @@ try {
     const metadata = html.getHtmlMetadata(text, { ...input.options, context });
     assert.equal(state.parses.length - before, 1, 'same prepared source imports and metadata do not parse again');
     assert.deepEqual(metadata, context.htmlMeta);
-    assert.deepEqual(imports.entries.map(value => value.specifier), metadata.imports);
+    assert.deepEqual(imports.entries.map(value => value.specifier), [...metadata.imports].sort(), 'collector entries use canonical ordering; metadata preserves document order');
     assert.equal(imports.receipt.source.textHash, context.htmlPreparation.source.sha256);
     const relations = lang.buildRelations({ ...input, context });
     assert.deepEqual(relations.imports, metadata.imports);

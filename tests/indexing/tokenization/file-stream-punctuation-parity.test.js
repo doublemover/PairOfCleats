@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { createFileLineTokenStream, createTokenizationContext, sliceFileLineTokenStream,
   tokenizeChunkText } from '../../../src/index/build/tokenization.js';
 import { appendChunk, createIndexState } from '../../../src/index/build/state.js';
@@ -42,18 +43,24 @@ for (const entry of cases) {
   }
 }
 
-const text = 'const request = build(x);\r\n' + ';'.repeat(10001) + '\r\n' + ','.repeat(10001);
-const processed = [];
-for (const fileStream of [false, true]) {
-  const evidence = createTokenizationEvidence();
-  const { context: processing } = createProcessChunksFixtureContext({ text,
-    languageOptions: { tokenization: { fileStream } }, riskAnalysisEnabled: false, typeInferenceEnabled: false,
-    overrides: { tokenizationStats: { chunks: 0, tokens: 0, seq: 0, routeObservations: evidence } } });
-  const result = await processFixtureChunks(processing);
-  assert.equal(result.chunks.length, 1);
-  assert.equal(evidence.routes[fileStream ? 'pretokenized' : 'inline'], 1, 'exercise the actual exact-span file-stream selection');
-  processed.push(result.chunks[0]);
+for (const punctuation of [4000, 10001]) {
+  const text = 'const request = build(x);\r\n' + ';'.repeat(punctuation) + '\r\n' + ','.repeat(punctuation);
+  const admitted = punctuation === 4000, processed = [];
+  for (const fileStream of [false, true]) {
+    const evidence = createTokenizationEvidence();
+    const { context: processing } = createProcessChunksFixtureContext({ text,
+      languageOptions: { tokenization: { fileStream } }, riskAnalysisEnabled: false, typeInferenceEnabled: false,
+      overrides: { fileHash: createHash('sha256').update(text).digest('hex'), fileHashAlgo: 'sha256',
+        fileLineDictionaryReceipt: createHash('sha256').update('fixture empty dictionary revision one').digest('hex'),
+        tokenizationStats: { chunks: 0, tokens: 0, seq: 0, routeObservations: evidence } } });
+    const result = await processFixtureChunks(processing);
+    assert.equal(result.chunks.length, 1);
+    assert.equal(evidence.routes[fileStream && admitted ? 'pretokenized' : 'inline'], 1,
+      'admitted windows reuse exact line tokens; oversized windows retain exact inline fallback');
+    if (fileStream && !admitted) assert.equal(processing.tokenizationStats.fileLineReuse.refusals['input-byte-admission'], 1);
+    processed.push(result.chunks[0]);
+  }
+  for (const key of [...keys, 'phraseTokens']) assert.deepEqual(processed[1][key], processed[0][key], 'production route ' + key);
+  assert.equal(processed[1].stats.punctuation.truncated, !admitted);
 }
-for (const key of [...keys, 'phraseTokens']) assert.deepEqual(processed[1][key], processed[0][key], 'production route ' + key);
-assert.equal(processed[1].stats.punctuation.truncated, true);
 console.log('Direct and file-line tokenization share exact chunk punctuation admission, statistics and sparse postings.');
