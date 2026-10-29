@@ -45,7 +45,6 @@ const argv = yargs(hideBin(process.argv))
     default: 'function'
   })
   .option('work-mode', { type: 'string', choices: ['retrieval', 'result-cache'], default: 'retrieval' })
-  .option('quality', { type: 'string', choices: ['auto', 'fast', 'balanced', 'max'] })
   .option('queries', { type: 'string', describe: 'Frozen ordered query file' })
   .option('comparison-axis', { type: 'string', choices: ['none', 'backend'], default: 'none' })
   .option('iterations', {
@@ -225,7 +224,7 @@ async function runSearch(scoreMode, query) {
   const ann = scoreMode !== 'sparse';
   return await search(repoRoot, {
     query,
-    args: ['--stats', ...(argv.quality ? ['--quality', argv.quality] : [])], [INTERNAL_QUERY_CACHE_BYPASS]: argv['work-mode'] === 'retrieval',
+    args: ['--stats'], [INTERNAL_QUERY_CACHE_BYPASS]: argv['work-mode'] === 'retrieval',
     mode,
     backend,
     ann,
@@ -242,7 +241,7 @@ async function validateScoreMode(scoreMode) {
   const ann = scoreMode !== 'sparse';
   const payload = await search(repoRoot, {
     query: querySchedule.queries[0],
-    args: ['--stats', ...(argv.quality ? ['--quality', argv.quality] : [])], [INTERNAL_QUERY_CACHE_BYPASS]: argv['work-mode'] === 'retrieval',
+    args: ['--stats'], [INTERNAL_QUERY_CACHE_BYPASS]: argv['work-mode'] === 'retrieval',
     mode,
     backend,
     ann,

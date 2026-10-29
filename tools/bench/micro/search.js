@@ -16,8 +16,7 @@ export async function runSearchBenchmark({
   indexCache,
   sqliteCache,
   workMode = 'retrieval',
-  querySchedule = null,
-  quality = null
+  querySchedule = null
 }) {
   if (![warmRuns, warmupRuns].every(value => Number.isSafeInteger(value) && value >= 0 && value <= 10000)) {
     throw new TypeError('Search microbenchmark run counts must be safe integers between zero and 10000.');
@@ -26,7 +25,7 @@ export async function runSearchBenchmark({
   const schedule = captureMicroQuerySchedule(query, querySchedule);
   const collector = createSearchMicroCollector({ mode, scoreMode, workMode, requestedBackend: backend, annBackend });
   const cursors = new Map();
-  const searchArgs = ['--stats', ...(quality ? ['--quality', quality] : [])];
+  const searchArgs = ['--stats'];
   const validateScoreMode = async () => {
     if (!scoreMode) return;
     const payload = await search(repoRoot, {

@@ -14,7 +14,7 @@ const repoRoot = path.join(dir, 'repo'); await fs.mkdir(repoRoot);
 await fs.writeFile(path.join(repoRoot, 'sample.js'),
   'export function microcacheprobe() { return 123; }\nexport function microcacheother() { return 456; }\n');
 const env = applyTestEnv({ cacheRoot: path.join(dir, 'cache'), embeddings: 'stub',
-  testConfig: createFastIndexingTestConfig({ indexing: { embeddings: { enabled: false } } }) });
+  testConfig: createFastIndexingTestConfig({ quality: 'balanced', indexing: { embeddings: { enabled: false } } }) });
 runNode([path.join(process.cwd(), 'build_index.js'), '--repo', repoRoot, '--stage', 'stage2', '--mode', 'code',
   '--threads', '1', '--stub-embeddings'], 'microbench tiny index', process.cwd(), env, { stdio: 'pipe', timeoutMs: 30000 });
 const { search } = await import('../../../../src/integrations/core/search.js');
@@ -23,7 +23,7 @@ const { runSearchBenchmark } = await import('../../../../tools/bench/micro/searc
 const indexCache = new Map(), sqliteCache = createSqliteDbCache();
 await withMicrobenchCacheOwner(sqliteCache, async () => {
   const args = { query: 'microcacheprobe', mode: 'code', backend: 'memory', ann: false, scoreMode: 'sparse',
-    args: ['--stats', '--quality', 'balanced'], json: true, emitOutput: false, indexCache, sqliteCache };
+    args: ['--stats'], json: true, emitOutput: false, indexCache, sqliteCache };
   const miss = await search(repoRoot, args), hit = await search(repoRoot, args);
   assert.equal(miss.retrieval.cache.hit, false, 'fresh task-owned result cache must first execute retrieval');
   assert.equal(hit.retrieval.cache.hit, true, JSON.stringify({
@@ -33,7 +33,7 @@ await withMicrobenchCacheOwner(sqliteCache, async () => {
   const hits = miss.code.filter(row => row.file === 'sample.js');
   assert.ok(hits.length > 0, 'independent indexed source must be retrieved before timing');
   const common = { repoRoot, query: 'microcacheprobe', mode: 'code', backend: 'memory', ann: false,
-    scoreMode: 'sparse', warmRuns: 2, warmupRuns: 1, indexCache, sqliteCache, quality: 'balanced' };
+    scoreMode: 'sparse', warmRuns: 2, warmupRuns: 1, indexCache, sqliteCache };
   const cache = await runSearchBenchmark({ ...common, workMode: 'result-cache' });
   assert.equal(cache.work.phases.initial.cacheHits, 1,
     'clearing index/SQLite handles cannot relabel an existing result-cache hit as a cold miss');
@@ -50,7 +50,7 @@ await withMicrobenchCacheOwner(sqliteCache, async () => {
 });
 const queries = path.join(dir, 'queries.txt'); await fs.writeFile(queries, 'microcacheprobe\nmicrocacheother\n');
 const output = runNode([path.join(process.cwd(), 'tools', 'bench', 'micro', 'tinybench.js'), '--repo', repoRoot,
-  '--no-build', '--no-compare', '--components', 'search-sparse', '--quality', 'balanced', '--work-mode', 'retrieval',
+  '--no-build', '--no-compare', '--components', 'search-sparse', '--work-mode', 'retrieval',
   '--queries', queries, '--iterations', '2', '--time', '0', '--warmup-iterations', '1', '--warmup-time', '0', '--json'],
 'tinybench real workload receipt', process.cwd(), env, { stdio: 'pipe', timeoutMs: 30000 });
 const report = JSON.parse(output.stdout);
