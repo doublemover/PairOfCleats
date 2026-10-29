@@ -15,6 +15,8 @@ import { throwIfAborted } from '../../../src/shared/abort.js';
 import { buildNativeBackendReuseKey } from './backend-reuse-key.js';
 import { inventoryBackendPayload } from './backend-payload-copy.js';
 import { resolveEmbeddingQuantizationSpec } from '../../../src/shared/embedding-quantization-spec.js';
+import { lanceDbCloseFailure } from '../../../src/retrieval/ann/lancedb-lifetime.js';
+import { createLanceDbWriterStage } from './lancedb-writer-stage.js';
 
 let warnedMissing = false;
 const TRACE_ARTIFACT_IO = getEnvConfig().traceArtifactIo === true;
@@ -122,12 +124,15 @@ export async function writeLanceDbIndex({
   await recoverLanceDbReplacement({ dir, metaPath });
   const publicationId = randomUUID();
   const stageRoot = path.join(indexDir, `.lancedb-staging-${publicationId}`);
-  await fs.mkdir(stageRoot);
   const stagedDir = path.join(stageRoot, path.basename(dir));
   const stagedMetaPath = path.join(stageRoot, path.basename(metaPath));
   let primaryError = null;
+  let hasPrimary = false;
+  let nativeStage = null;
+  let closeFailed = false;
   try {
-    const db = await connect(stagedDir);
+    nativeStage = await createLanceDbWriterStage(indexDir);
+    const db = nativeStage.acquire(await connect(nativeStage.dir), 'connection');
     const tableName = resolvedConfig.table;
     const idColumn = resolvedConfig.idColumn;
     const embeddingColumn = resolvedConfig.embeddingColumn;
@@ -137,6 +142,7 @@ export async function writeLanceDbIndex({
     let writtenCount = 0;
     let actualCount = 0;
     let buildError = null;
+    let hasBuildError = false;
     try {
       const { createLanceVectorContract } = await import('./lancedb-arrow.js');
       const contract = createLanceVectorContract({ dims, idColumn, embeddingColumn,
@@ -145,7 +151,10 @@ export async function writeLanceDbIndex({
         const data = contract.take();
         if (!data) return;
         try {
-          if (!table) table = await db.createTable(tableName, data, { mode: 'overwrite', schema: contract.schema });
+          if (!table) {
+            const created = await db.createTable(tableName, data, { mode: 'overwrite', schema: contract.schema });
+            if (created) table = nativeStage.acquire(created, 'table');
+          }
           else await table.add(data);
           if (!table) throw new Error('LanceDB could not create a nonempty table.');
           writtenCount += data.numRows;
@@ -176,16 +185,20 @@ export async function writeLanceDbIndex({
       if (actualCount !== writtenCount) throw new Error(`LanceDB insert count mismatch (${actualCount} of ${writtenCount}).`);
     } catch (error) {
       buildError = error;
+      hasBuildError = true;
+      nativeStage.observe(error);
       throw error;
     } finally {
-      const closeErrors = [];
-      for (const resource of [table, db]) {
-        try { await resource?.close?.(); } catch (error) { closeErrors.push(error); }
+      try { await nativeStage.closeResources(); }
+      catch (error) {
+        closeFailed = true;
+        throw lanceDbCloseFailure({ owner: nativeStage, cleanupErrors: [error],
+          hasPrimary: hasBuildError, primaryError: buildError });
       }
-      if (closeErrors.length) throw new AggregateError(buildError ? [buildError, ...closeErrors] : closeErrors,
-        'LanceDB writer failed to close native resources.', { cause: buildError || closeErrors[0] });
     }
 
+    await fs.mkdir(stageRoot);
+    await nativeStage.publishTo(stagedDir);
     const nativePayloadInventory = await inventoryBackendPayload({ dir: stagedDir, signal });
     const meta = {
       version: 1,
@@ -221,8 +234,19 @@ export async function writeLanceDbIndex({
     return { skipped: false, count: writtenCount, ...(publication.cleanupError ? { publication } : {}) };
   } catch (error) {
     primaryError = error;
+    hasPrimary = true;
+    if (!closeFailed) nativeStage?.observe(error);
     throw error;
   } finally {
+    let nativeCleanupError = null;
+    if (nativeStage) {
+      if (!closeFailed) {
+        try { await nativeStage.close(); }
+        catch (error) { nativeCleanupError = error; }
+      }
+      if (nativeCleanupError) throw lanceDbCloseFailure({ owner: nativeStage,
+        hasPrimary, primaryError, cleanupErrors: [nativeCleanupError] });
+    }
     let retainedForRecovery = false;
     try {
       const journal = JSON.parse((await readContainedFile(indexDir, `${metaPath}.publication.json`, { maxBytes: 65536 })).toString('utf8'));
@@ -231,7 +255,7 @@ export async function writeLanceDbIndex({
     if (!retainedForRecovery) {
       try { await fs.rm(stageRoot, { recursive: true, force: true }); }
       catch (cleanupError) {
-        if (!primaryError) throw cleanupError;
+        if (!hasPrimary) throw cleanupError;
         throw new AggregateError([primaryError, cleanupError],
           `LanceDB build failed; staging cleanup retained at ${stageRoot}`, { cause: primaryError });
       }

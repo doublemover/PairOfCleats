@@ -99,9 +99,25 @@ try {
     assert.equal((await fs.readdir(root)).some(name => name.includes('.bak-')), false);
   }
   fault = 'add'; closeFailure = true;
-  await assert.rejects(write(), error => error instanceof AggregateError && error.cause === primary
-    && error.errors[0] === primary && error.errors[1] === cleanup);
+  const closedBefore = databaseCloses;
+  let retainedFailure;
+  await assert.rejects(write(), error => {
+    retainedFailure = error;
+    return error instanceof AggregateError && error.cause === primary
+      && error.errors[0] === primary && error.errors[1] === cleanup;
+  });
+  assert.equal(retainedFailure.cacheOwnershipReleased(), false);
+  assert.equal(databaseCloses, closedBefore, 'connection stays open until the original table closes');
+  const retainedStage = retainedFailure.lanceDbOwner.dir;
+  assert.equal(path.basename(retainedStage).startsWith('.lb-'), true);
+  assert.equal((await fs.stat(retainedStage)).isDirectory(), true, 'pending native files remain available');
+  assert.equal((await fs.readdir(root)).some(name => name.startsWith('.lancedb-staging-')), false);
   await priorUnchanged();
+  closeFailure = false;
+  await retainedFailure.lanceDbOwner.close();
+  assert.equal(retainedFailure.cacheOwnershipReleased(), true);
+  await assert.rejects(fs.stat(retainedStage), { code: 'ENOENT' });
+  assert.equal(databaseCloses, closedBefore + 1, 'explicit reconciliation closes the original parent');
   closeFailure = false; fault = 'cleanup';
   await assert.rejects(write(), error => error instanceof AggregateError && error.cause === primary
     && error.errors.includes(cleanup) && /staging cleanup retained/.test(error.message));
@@ -121,7 +137,7 @@ try {
   assert.equal(result.count, 2);
   assert.equal(JSON.parse(await fs.readFile(metaPath, 'utf8')).count, 2);
   assert.equal((await fs.readdir(root)).some(name => name.includes('.bak-')), false);
-  assert.equal(tableCloses, tables, 'each acquired table closes after build or failure');
+  assert.equal(tableCloses, tables + 1, 'each acquired table closes; only the explicitly failed close is reconciled');
   assert.equal(databaseCloses, connections, 'each acquired connection closes after build or failure');
 } finally {
   fs.rename = originalRename; fs.rm = originalRm;
