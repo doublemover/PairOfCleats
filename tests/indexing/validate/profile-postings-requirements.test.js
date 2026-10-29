@@ -35,7 +35,7 @@ try {
     assert.equal(report.ok, false, 'queued work cannot substitute for required dense artifacts');
     assert.ok(report.issues.some(issue => issue.includes('dense_vectors')), report.issues.join('\n'));
     assert.ok(!report.issues.some(issue => /field_postings|field_tokens|token_postings/u.test(issue)),
-      'the actual vector-only validation owner cannot require intentionally omitted sparse output');
+      'the actual vector-only validation owner cannot require intentionally omitted sparse output:\n' + report.issues.join('\n'));
     const sparse = await run(strict, { ...userConfig, indexing: { postings } });
     for (const name of ['field_postings', 'field_tokens', 'token_postings']) {
       assert.ok(sparse.issues.some(issue => issue.includes(name)), 'default profiles retain required ' + name);
@@ -49,5 +49,9 @@ try {
     const report = await run(strict);
     assert.ok(report.issues.some(issue => issue.includes('token_postings')), 'present corrupt sparse data remains invalid');
   }
+  await updatePiecesManifest(indexDir, manifest => { manifest.pieces.push({
+    type: 'postings', name: 'field_tokens', format: 'json', path: 'missing-field-tokens.json' }); });
+  assert.ok((await run(false)).issues.some(issue => issue.includes('field_tokens')),
+    'an explicitly declared missing optional artifact cannot become an allowed omission');
 } finally { await fs.rm(root, { recursive: true, force: true }); }
 console.log('Profile-aware sparse validation retains dense readiness and present-data integrity.');

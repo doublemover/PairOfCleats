@@ -121,8 +121,11 @@ export const createArtifactPresenceHelpers = ({
   };
 
   const shouldLoadOptional = (name) => {
-    if (!strict) return true;
     const presence = resolvePresence(name);
+    // Missing optional data is allowed in both modes. Non-strict validation
+    // still reads declared, invalid, or physically present legacy artifacts;
+    // it cannot turn a declared missing shard into a successful omission.
+    if (!strict) return Boolean(presence && (presence.format !== 'missing' || presence.error)) || hasLegacyArtifact(name);
     return presence && presence.format !== 'missing' && !presence.error;
   };
 
