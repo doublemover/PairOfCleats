@@ -33,6 +33,13 @@ Csharp/PHPactor installation and exact workspace grants are implemented; vendor
 installation and real handshake qualification still require the hosted candidate.
 Product storage admission and original physical-link controls remain intact.
 
+The [next CI follow-up](../archived/windows-ci-qualification-followup-2026-10-29.md)
+records all three hosted native jobs passing at `ac69aa559`, including 32 Windows
+terminal/artifact/index cases. Actual Csharp initialization/shutdown succeeds on
+all platforms; its single-digit-hour info classifier is repaired. Exact fresh Go
+command identity, unchanged production launch assertions and the macOS binding
+deployment floor are repaired; their final hosted acceptance remains pending.
+
 The [full Windows campaign](../archived/windows-full-validation-checkpoint-265-2026-10-28.md)
 completed all 6,098 required fixtures at `90d0e510a`: 5,819 passed and 279 failed,
 including 14 runner timeouts. There were no skips, omissions, duplicate IDs or
