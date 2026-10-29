@@ -22,7 +22,7 @@ const argv = createCli({
 }).parse();
 
 const { display, logger } = createToolDisplayLogger({ argv, stream: process.stderr });
-const totalSteps = (argv['skip-build'] ? 0 : 1) + (argv['skip-sqlite'] ? 0 : 1) + 1;
+const totalSteps = (argv['skip-build'] ? 0 : 1) + (argv['skip-build'] && !argv['skip-sqlite'] ? 1 : 0) + 1;
 let stepIndex = 0;
 const updateProgress = (message) => {
   display.showProgress('CI', stepIndex, totalSteps, { stage: 'ci', message });
@@ -56,6 +56,7 @@ if (!argv['skip-build']) {
     path.join(scriptRoot, 'build_index.js'),
     '--repo',
     root,
+    argv['skip-sqlite'] ? '--no-sqlite' : '--sqlite',
     '--progress',
     childProgress
   ];
@@ -67,7 +68,7 @@ if (!argv['skip-build']) {
   stepIndex += 1;
 }
 
-if (!argv['skip-sqlite']) {
+if (!argv['skip-sqlite'] && argv['skip-build']) {
   const childProgress = argv.verbose ? (argv.progress || 'auto') : 'off';
   const args = [
     path.join(scriptRoot, 'build_index.js'),

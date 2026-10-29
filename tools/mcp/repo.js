@@ -110,18 +110,19 @@ const hasRepoArtifacts = (repoPath) => {
  * @param {string} inputPath
  * @returns {string}
  */
-export function resolveRepoPath(inputPath) {
+export function resolveRepoPath(inputPath, { preserveExplicitTarget = false } = {}) {
   const base = inputPath ? path.resolve(inputPath) : process.cwd();
   if (!fs.existsSync(base) || !fs.statSync(base).isDirectory()) {
     throw createError(ERROR_CODES.INVALID_REQUEST, `Repo path not found: ${base}`);
   }
+  const explicitPath = toRealPathSync(base);
+  if (preserveExplicitTarget && inputPath) return explicitPath;
   const resolvedRoot = toRealPathSync(resolveRepoRoot(base));
   if (!inputPath) return resolvedRoot;
 
-  const explicitPath = toRealPathSync(base);
   if (explicitPath === resolvedRoot) return resolvedRoot;
-  if (hasRepoArtifacts(resolvedRoot)) return resolvedRoot;
   if (hasRepoArtifacts(explicitPath)) return explicitPath;
+  if (hasRepoArtifacts(resolvedRoot)) return resolvedRoot;
   return resolvedRoot;
 }
 
@@ -131,10 +132,10 @@ export function resolveRepoPath(inputPath) {
  * @param {{repoPath?:string}|null|undefined} args
  * @returns {string}
  */
-const resolveConfigRoot = (args) => {
+const resolveConfigRoot = (args, options = {}) => {
   const candidate = args?.repoPath ? path.resolve(String(args.repoPath)) : null;
   if (candidate && fs.existsSync(candidate) && fs.statSync(candidate).isDirectory()) {
-    return toRealPathSync(resolveRepoRoot(candidate));
+    return resolveRepoPath(candidate, options);
   }
   return toRealPathSync(resolveRepoRoot(process.cwd()));
 };
@@ -145,8 +146,8 @@ const resolveConfigRoot = (args) => {
  * @param {{repoPath?:string}|null|undefined} args
  * @returns {object}
  */
-const resolveMcpConfig = (args) => {
-  const repoRoot = resolveConfigRoot(args);
+const resolveMcpConfig = (args, options = {}) => {
+  const repoRoot = resolveConfigRoot(args, options);
   const cfg = loadUserConfig(repoRoot);
   return cfg?.mcp && typeof cfg.mcp === 'object' ? cfg.mcp : {};
 };
@@ -180,7 +181,7 @@ export const parseTimeoutMs = (value) => {
  * @returns {number|null}
  */
 export const resolveToolTimeoutMs = (name, args, { envToolTimeoutMs, defaultToolTimeoutMs, defaultToolTimeouts }) => {
-  const mcpConfig = resolveMcpConfig(args);
+  const mcpConfig = resolveMcpConfig(args, { preserveExplicitTarget: name === 'build_index' || name === 'build_sqlite_index' });
   const toolTimeouts = mcpConfig.toolTimeouts && typeof mcpConfig.toolTimeouts === 'object'
     ? mcpConfig.toolTimeouts
     : {};

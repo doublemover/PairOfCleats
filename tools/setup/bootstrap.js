@@ -130,16 +130,18 @@ export const runBootstrap = async (argv, {
     activeStep = 'index';
     signal?.throwIfAborted();
     if (!argv['skip-index'] && !summary.restoredArtifacts) {
-      await run([path.join(toolRoot, 'build_index.js'), '--repo', root, ...(useIncremental ? ['--incremental'] : [])], 'build index');
+      await run([path.join(toolRoot, 'build_index.js'), '--repo', root,
+        ...(argv['with-sqlite'] ? ['--sqlite'] : []), ...(useIncremental ? ['--incremental'] : [])], 'build index');
       recordStep('index', { skipped: false, built: true });
     } else recordStep('index', { skipped: argv['skip-index'] === true, built: false });
 
     activeStep = 'sqlite';
     signal?.throwIfAborted();
-    if (argv['with-sqlite']) {
+    if (argv['with-sqlite'] && !summary.steps.index.built) {
       await run([path.join(toolRoot, 'build_index.js'), '--repo', root, '--stage', '4', ...(useIncremental ? ['--incremental'] : [])], 'build sqlite index');
       recordStep('sqlite', { skipped: false, built: true });
-    } else recordStep('sqlite', { skipped: true, built: false });
+    } else recordStep('sqlite', { skipped: !argv['with-sqlite'], built: argv['with-sqlite'] === true,
+      ...(argv['with-sqlite'] ? { owner: 'core-index-build' } : {}) });
     signal?.throwIfAborted();
     log('[bootstrap] Tip: run pairofcleats index validate to verify index artifacts.');
     log('Bootstrap complete.');

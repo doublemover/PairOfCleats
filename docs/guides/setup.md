@@ -142,3 +142,10 @@ scratch conventions belong in [contributing](contributing.md). The
 [archived setup account](../archived/setup-2026-10-22.md) preserves dated
 node-pty/docx/Perl, scheduler and platform evidence and its limitations. This
 reorganization does not claim new native/platform qualification.
+# Build ownership and selected targets
+
+Setup forwards its explicit repository target to index and artifact-restoration children. After a child completes, guided setup checks artifacts under that target's configured cache before reporting index readiness. A successful child exit alone does not establish target readiness.
+
+A normal core build owns its selected-generation SQLite work. Bootstrap with --with-sqlite requests SQLite in that build; a separate Stage4 is used when the normal build was skipped or artifacts were restored. CI artifact builds similarly forward --sqlite or --no-sqlite and avoid a second normal-build pass. Existing/restored generations use the core Stage4 selection and validation owner.
+
+Build terminal outcomes describe the selected stage, generation and attempt. Human and structured summaries share those facts; queued/background work remains pending, and partial queue admission retains the admitted job IDs and rejected mode reasons. Missing run-qualified counts stay unavailable. A stale repository preprocess.json never qualifies source counts for an unrelated stage or attempt.

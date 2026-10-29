@@ -24,7 +24,7 @@ export const resolveMcpRepoContext = (repoArg, options = {}) => {
     includeRuntimeEnv = true,
     includeUserConfig = true
   } = options;
-  const repoPath = resolveRepoPath(repoArg);
+  const repoPath = resolveRepoPath(repoArg, { preserveExplicitTarget: options.preserveExplicitTarget === true });
   const shouldLoadConfig = includeUserConfig || includeRuntimeEnv;
   const userConfig = shouldLoadConfig ? loadUserConfig(repoPath) : null;
   if (!includeRuntimeEnv) {

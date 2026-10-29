@@ -492,9 +492,12 @@ if (argv.plan || argv['apply-plan']) {
     };
     const codeIndexPresent = hasChunkMeta(codeIndexDir);
     const proseIndexPresent = hasChunkMeta(proseIndexDir);
-    let indexReady = restoredArtifacts || codeIndexPresent || proseIndexPresent;
+    let indexReady = codeIndexPresent || proseIndexPresent;
     let indexBuilt = false;
     let indexBuildOk = true;
+    let sqliteBuiltByIndex = false;
+    const indexSqliteArgs = argv['skip-sqlite'] ? ['--no-sqlite'] : argv['with-sqlite'] ? ['--sqlite'] : [];
+    const refreshIndexReadiness = () => hasChunkMeta(codeIndexDir) || hasChunkMeta(proseIndexDir);
 
     if (!argv['skip-index'] && !restoredArtifacts) {
       const shouldBuild = await promptYesNo(
@@ -502,7 +505,7 @@ if (argv.plan || argv['apply-plan']) {
         !indexReady
       );
       if (shouldBuild) {
-        const args = [path.join(toolRoot, 'build_index.js'), '--repo', root];
+        const args = [path.join(toolRoot, 'build_index.js'), '--repo', root, ...indexSqliteArgs];
         if (useIncremental) args.push('--incremental');
         const result = await runCommand(process.execPath, args);
         if (!result.ok) {
@@ -510,7 +513,8 @@ if (argv.plan || argv['apply-plan']) {
           recordError('index', result, 'build failed');
           indexBuildOk = false;
         }
-        indexReady = indexReady || result.ok;
+        indexReady = refreshIndexReadiness();
+        sqliteBuiltByIndex = result.ok && !argv['skip-sqlite'] && (argv['with-sqlite'] || userConfig.sqlite?.use !== false);
         indexBuilt = true;
       }
     }
@@ -530,7 +534,7 @@ if (argv.plan || argv['apply-plan']) {
         if (!indexReady) {
           const shouldBuildIndex = await promptYesNo('SQLite build requires file-backed indexes. Build index now?', true);
           if (shouldBuildIndex && !argv['skip-index']) {
-            const args = [path.join(toolRoot, 'build_index.js'), '--repo', root];
+            const args = [path.join(toolRoot, 'build_index.js'), '--repo', root, ...indexSqliteArgs];
             if (useIncremental) args.push('--incremental');
             const result = await runCommand(process.execPath, args);
             if (!result.ok) {
@@ -538,11 +542,14 @@ if (argv.plan || argv['apply-plan']) {
               recordError('index', result, 'build failed (sqlite dependency)');
               indexBuildOk = false;
             }
-            indexReady = indexReady || result.ok;
+            indexReady = refreshIndexReadiness();
+            sqliteBuiltByIndex = result.ok && !argv['skip-sqlite'] && (argv['with-sqlite'] || userConfig.sqlite?.use !== false);
             indexBuilt = true;
           }
         }
-        if (indexReady) {
+        if (indexReady && sqliteBuiltByIndex) {
+          sqliteBuilt = true;
+        } else if (indexReady) {
           const sqliteArgs = [path.join(toolRoot, 'build_index.js'), '--stage', '4', '--repo', root];
           if (useIncremental) sqliteArgs.push('--incremental');
           const result = await runCommand(process.execPath, sqliteArgs);

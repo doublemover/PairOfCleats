@@ -15,7 +15,7 @@ import { getIndexDir } from '../../../../src/shared/dict-utils.js';
 export async function buildIndex(args = {}, context = {}) {
   throwIfAborted(context.signal);
   const { buildIndex: coreBuildIndex, buildSqliteIndex: coreBuildSqliteIndex } = await import('../../../../src/integrations/core/build-index.js');
-  const { repoPath, userConfig, runtimeEnv } = resolveMcpRepoContext(args.repoPath);
+  const { repoPath, userConfig, runtimeEnv } = resolveMcpRepoContext(args.repoPath, { preserveExplicitTarget: true });
   const sqliteConfigured = userConfig.sqlite?.use !== false;
   const shouldUseSqlite = typeof args.sqlite === 'boolean' ? args.sqlite : sqliteConfigured;
   const mode = args.mode || 'all';
@@ -54,12 +54,13 @@ export async function buildIndex(args = {}, context = {}) {
   };
 
   let restoredArtifacts = false;
+  let coreResult = null;
   if (useArtifacts) {
     restoredArtifacts = await maybeRestoreArtifacts(repoPath, args.artifactsDir, context, runtimeEnv);
   }
 
   if (!restoredArtifacts) {
-    await withHeartbeat(
+    coreResult = await withHeartbeat(
       `Building ${mode} index${incremental ? ' (incremental)' : ''}.`,
       () => coreBuildIndex(repoPath, {
         mode,
@@ -74,12 +75,14 @@ export async function buildIndex(args = {}, context = {}) {
   }
 
   if (buildSqlite && restoredArtifacts) {
-    await withHeartbeat(
+    coreResult = await withHeartbeat(
       `Building SQLite index${incremental ? ' (incremental)' : ''}.`,
       () => coreBuildSqliteIndex(repoPath, {
         mode,
         codeDir: ['all', 'code'].includes(mode) ? getIndexDir(repoPath, 'code', userConfig) : undefined,
         proseDir: ['all', 'prose'].includes(mode) ? getIndexDir(repoPath, 'prose', userConfig) : undefined,
+        extractedProseDir: ['all', 'extracted-prose'].includes(mode) ? getIndexDir(repoPath, 'extracted-prose', userConfig) : undefined,
+        recordsDir: ['all', 'records'].includes(mode) ? getIndexDir(repoPath, 'records', userConfig) : undefined,
         incremental,
         abortSignal: context.signal,
         emitOutput: false
@@ -87,7 +90,9 @@ export async function buildIndex(args = {}, context = {}) {
     );
   }
   throwIfAborted(context.signal);
-  reporter?.done('Index build complete.', { observability });
+  const outcome = coreResult?.outcome || null;
+  const pending = outcome?.status === 'pending' || coreResult?.stage2?.queued === true || coreResult?.stage2?.background === true;
+  reporter?.done(pending ? 'Index work queued or running in the background.' : 'Index build complete.', { observability });
   clearRepoCaches(repoPath);
 
   return attachObservability({
@@ -95,7 +100,8 @@ export async function buildIndex(args = {}, context = {}) {
     mode,
     sqlite: buildSqlite,
     incremental,
-    restoredArtifacts
+    restoredArtifacts,
+    outcome
   }, observability);
 }
 
@@ -108,6 +114,7 @@ export async function buildSqliteIndex(args = {}, context = {}) {
   throwIfAborted(context.signal);
   const { buildSqliteIndex: coreBuildSqliteIndex } = await import('../../../../src/integrations/core/build-index.js');
   const { repoPath } = resolveMcpRepoContext(args.repoPath, {
+    preserveExplicitTarget: true,
     includeRuntimeEnv: false,
     includeUserConfig: false
   });

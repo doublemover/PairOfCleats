@@ -37,11 +37,13 @@ try {
     assert.equal(result.summary.steps.install.installed, false);
     assert.equal(result.summary.steps.index.built, true);
     assert.equal(result.summary.steps.sqlite.built, true);
-    assert.equal(calls.length, 4);
+    assert.equal(calls.length, 3, 'normal core build owns SQLite without a duplicate Stage4 child');
+    assert.ok(calls.find(args => args[0].endsWith('build_index.js')).includes('--sqlite'));
+    assert.equal(calls.some(args => args.includes('--stage')), false);
     for (const args of calls.filter(args => !args[0].endsWith('validate.js'))) {
       assert.equal(args[args.indexOf('--repo') + 1], selectedRoot, 'every target child keeps the explicit selected folder');
     }
-    assert.equal(progress.length, 8);
+    assert.equal(progress.length, 6);
     assert.ok(logs.some(text => text.includes('[bootstrap]')));
     const writes = [];
     createStdoutGuard({ enabled: true, stream: { write: text => writes.push(text) } }).writeJson(result.summary);
