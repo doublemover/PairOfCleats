@@ -1,6 +1,6 @@
 # Platform and performance qualification
 
-Audited: 2026-10-28. Source contracts and workflow definitions describe required
+Audited: 2026-10-29. Source contracts and workflow definitions describe required
 behavior; a configured job is not evidence that the current candidate passed it.
 Current execution evidence and unresolved failures belong to the
 [deep test audit](../archived/deep-test-audit-2026-10-18.md) and the
@@ -11,6 +11,15 @@ The [CI repair receipt](../archived/windows-ci-repairs-2026-10-28.md) records
 26.13.0/Windows x64. The recorded existing native binary does not qualify the new
 Rust 1.99.1 pin. Hosted setup, physical-link authority and Linux/macOS execution
 remain pending; the earlier suite campaign was not restarted.
+
+The [stable refresh](../archived/windows-stable-upgrades-2026-10-29.md) rebuilds
+the native binary with Rust 1.99.1: 152 Rust tests, strict Clippy and formatting
+pass. Both previously timed-out Windows build/search workflows pass with the real
+rebuilt binary. Upgraded parser lifecycle, semantic, storage and SDK controls
+retain exact inputs and negative assertions. Long Windows LanceDB writes use a
+compact same-generation native directory and move only a fully closed payload
+into the existing publication layout. Hosted reruns and unrestricted long-root
+LanceDB support remain separate; no full-suite pass is implied.
 
 The [full Windows campaign](../archived/windows-full-validation-checkpoint-265-2026-10-28.md)
 completed all 6,098 required fixtures at `90d0e510a`: 5,819 passed and 279 failed,

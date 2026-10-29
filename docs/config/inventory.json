@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-29T02:51:03.250Z",
+  "generatedAt": "2026-10-29T04:51:48.681Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
@@ -5334,6 +5334,7 @@
       "name": "PAIROFCLEATS_TRUSTED_REPOS",
       "files": [
         "src/shared/config-authority.js",
+        "tests/ci/workflow-contract.test.js",
         "tests/helpers/execution-authority.js",
         "tests/helpers/sourcekit-preflight-fixture.js",
         "tests/indexing/runtime/shared-resource-scope-isolation.test.js",
@@ -5758,7 +5759,7 @@
   ],
   "envVarsUnknown": [],
   "cliFlags": {
-    "totalFlags": 503,
+    "totalFlags": 504,
     "publicFlags": [
       "all",
       "allow-unauthenticated",
@@ -5936,6 +5937,7 @@
       "draw-files",
       "draw-labels",
       "draw-members",
+      "dtype",
       "duplicate-bucket",
       "duplicate-rate",
       "edits",
@@ -7177,6 +7179,12 @@
         "file": "tests/tooling/install/gopls-allocation-recipe.test.js",
         "flags": [
           "cwd"
+        ]
+      },
+      {
+        "file": "tests/tooling/install/lancedb-transformers-runtime.test.js",
+        "flags": [
+          "dtype"
         ]
       },
       {

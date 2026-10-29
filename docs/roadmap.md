@@ -1,8 +1,8 @@
 # PairOfCleats Roadmap
 
 Status: Windows baseline retained; focused failure repairs and qualification
-Last audited: 2026-10-28
-Last reconciled: 2026-10-28
+Last audited: 2026-10-29
+Last reconciled: 2026-10-29
 Canonical for: initiative status, execution order, and remaining work
 
 ## Current GitHub repair program
@@ -28,12 +28,11 @@ timeouts. Import/registry follow-ups now pass 109/109 cases, including all five
 original failures. Three Cargo/TUI cases and four R acceptance controls pass;
 queued vector-only readiness and other catalogued failures remain.
 
-The [security/validation follow-up](archived/windows-security-and-validation-followup-2026-10-28.md)
-patches both October 28 dependency advisories; fresh locked setup has no warnings
-or errors and audit reports zero vulnerabilities. Affected checks pass 76/77;
-queued vector-only readiness remains failing. Debugger error retention and
-profile-aware optional inputs are repaired. The frozen checkpoint-305 campaign
-stopped at user request: **2,606 passed, 46 failed (five timeouts), 3,450 unrun**.
+The [security follow-up](archived/windows-security-and-validation-followup-2026-10-28.md)
+repairs both advisories, debugger errors and profile-aware inputs; 76/77 checks
+pass. Its dated setup/audit receipt is clean. Queued vector-only readiness fails.
+Checkpoint-305 stopped at user request:
+**2,606 passed, 46 failed (five timeouts), 3,450 unrun**.
 Use focused failure rechecks and direct regressions; no full rerun is scheduled.
 The [contract repairs](archived/windows-contract-repair-checkpoint-305-2026-10-28.md)
 pass 46 controls. [Focused repairs](archived/windows-focused-failure-repairs-2026-10-28.md)
@@ -41,9 +40,10 @@ pass 26/26; [comment/handoff repairs](archived/windows-comment-and-handoff-failu
 pass 73 controls. Together they resolve 21 original failures, leaving 25.
 Astro bounds, refusal coverage, line reuse and Stage3 launch authority are repaired.
 
-[CI repairs](archived/windows-ci-repairs-2026-10-28.md) pass 15 native workflow
-cases and 12 affected controls. Stable runtime pins and CI-owned gopls provisioning
-are implemented; hosted qualification and remaining dependency upgrades follow.
+[CI repairs](archived/windows-ci-repairs-2026-10-28.md) pass 15 native workflows
+and 12 controls. The [stable refresh](archived/windows-stable-upgrades-2026-10-29.md)
+updates dependencies, repairs Windows LanceDB staging and qualifies Rust 1.99.1;
+hosted reruns and the remaining P1 acceptances follow.
 
 [Five dependency retirements](archived/dependency-ownership-implementation-2026-10-27.md)
 removed 110 lock records. Setup identities and retained inputs are archived;
@@ -88,7 +88,7 @@ and forensic drain are wired; native qualification remains.
 Checkpoint 265 completed the full Windows baseline; repair its shared failures.
 Real-tool/model, non-Windows and release checks remain explicit.
 
-Current reconciliation, 2026-10-28: the full baseline is complete; shared-failure
+Current reconciliation, 2026-10-29: the full baseline is complete; shared-failure
 repairs and current qualification continue.
 Gate B1-B7 technical, compatibility, matrix, conformance,
 observability, quality, and security-risk controls need

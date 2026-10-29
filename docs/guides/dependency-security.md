@@ -9,6 +9,35 @@ below retain their original provenance. Current acceptance belongs in the
 [roadmap](../roadmap.md); neither those inventories nor an offline contract
 establish a fresh hosted security scan.
 
+## October 29 stable-version refresh
+
+The current manifest selects the latest stable direct dependency releases checked
+on October 29, including Babel 8, Astro 4, GraphQL 17, LanceDB 0.40, Arrow 21,
+Tree-sitter 0.25.1 and the maintained `@prometheus-io/client` metrics package.
+The latter replaces deprecated `prom-client`. Scoped LanceDB overrides use the
+current Transformers and OpenAI SDKs; the old optional Transformers 3 dependency
+otherwise reintroduced vulnerable Sharp. Consumers retain LanceDB's own Arrow
+instance for its declared schema contract.
+
+TypeScript stays on 6.0.3, the latest complete JavaScript compiler API and
+`tsserver` distribution. TypeScript 7.0.2's native distribution omits both required
+interfaces; the official compatibility package supplies the compiler API but no
+`tsserver`. This exception remains explicit until the embedded provider and
+language server support those replacements. Transitive majors remain subject to
+their upstream consumers' compatibility requirements.
+
+The Tree-sitter and Transformers patches are ported to their current releases.
+DOCX 9.15.0 no longer needs the browser-storage compatibility patch: pristine ESM
+and CommonJS bundles generate real documents without storage reads or warnings.
+Node-gyp now clears executable-only PGO flags for Windows addon builds, matching
+its existing LTO isolation. The official Node headers remain unchanged.
+
+Fresh locked setup on Node 26.13.0 verifies 37 packages, 33 language routes and
+seven required patches. MSVC emits no compiler/linker warnings after the PGO
+repair. npm still reports upstream `prebuild-install@7.1.3` deprecation through
+Perl and optional Zstandard; it is not suppressed. Runtime and hosted acceptance
+remain source-bound in the [stable refresh receipt](../archived/windows-stable-upgrades-2026-10-29.md).
+
 ## October 24 advisory repair
 
 The hosted gate at `50c62e7ea` stopped on seven affected npm entries (six high,
@@ -157,22 +186,21 @@ no patched release for this advisory. The scoped override avoids a global parser
 change; the existing checked package-patch installer applies
 `patches/mammoth+1.13.0.patch`. It preserves CLI argument names, choices, output
 paths and mutual exclusion while using snake_case methods, `String` types and
-the v2 `default` option. Argparse 2's absent values become `undefined` instead of
+the modern `default` option. Modern argparse's absent values become `undefined` instead of
 `null`; Mammoth's truthiness checks support both. See the
 [v1-to-v2 migration guide](https://github.com/nodeca/argparse/blob/2.0.1/doc/migrate_v1_to_v2.md).
-Argparse 3's additional help/parser changes are unnecessary for this fix.
+The October 29 refresh selects argparse 3.0.4 with the same adapter and real CLI controls.
 Real DOCX tests require the Mammoth backend, compare text and image bytes, run
 conversion/error cases under `--throw-deprecation`, and verify first/repeated
 patch application plus version/partial-patch rejection. Do not accept npm's
 suggested Mammoth downgrade or restore sprintf-js.
 
-On Node 26, the locked DOCX fixture generator's bundled browser deprecation
-helper accessed the experimental localStorage getter in both official Node
-exports. `patches/docx+9.5.3.patch` uses Node's deprecation process flags in those
-two exports and leaves browser behavior intact. Fresh ESM/CommonJS processes
-must generate real documents with no warnings and no browser-storage access;
-the Mammoth migration fixture also rejects parent-process runtime warnings.
-This compatibility repair changes no package version or lockfile resolution.
+The original DOCX 9.5.3 generator needed a compatibility patch because its bundled
+browser helper read Node's experimental localStorage getter. The October 29
+upgrade retires that patch after proving pristine DOCX 9.15.0 avoids the access.
+Fresh ESM/CommonJS processes still generate real documents without warnings or
+browser-storage access; the Mammoth migration fixture also rejects parent-process
+runtime warnings.
 
 The [additional regression baseline](../../tests/fixtures/security/dependency-advisories-2026-10-06.json)
 records the five advisory ranges with official links. The historical October 2
