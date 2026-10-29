@@ -10,7 +10,7 @@ import { isProcessAlive } from '../../../src/shared/locks/file-lock-owner.js';
 import { killProcessTree } from '../../../src/shared/kill-tree.js';
 
 const cases = ['success', 'unexpected-stderr', 'unresponsive-initialize', 'unresponsive-shutdown',
-  'diagnostics-truncated', 'observer-throw', 'untrusted-command', 'version-timeout', 'fixture-without-testing',
+  'diagnostics-truncated', 'observer-throw', 'untrusted-command', 'workspace-not-trusted', 'version-timeout', 'fixture-without-testing',
   'phpactor-info', 'phpactor-unexpected-stderr', 'phpactor-duplicate-info'];
 const selected = process.env.PAIROFCLEATS_TEST_ID?.split('tooling/ci/lsp-runtime-qualification/')[1];
 assert.ok(cases.includes(selected));
@@ -54,7 +54,8 @@ if (process.platform === 'win32') {
 }
 const qualificationWorkspace = path.join(dir, 'diagnostics', '.lsp-qualification', providerId);
 const env = applyTestEnv({ syncProcess: false, cacheRoot: path.join(dir, 'cache'), extraEnv: {
-  PAIROFCLEATS_TRUSTED_REPOS: JSON.stringify(selected === 'untrusted-command' ? [] : [dir, qualificationWorkspace])
+  PAIROFCLEATS_TRUSTED_REPOS: JSON.stringify(selected === 'untrusted-command' ? []
+    : selected === 'workspace-not-trusted' ? [dir] : [dir, qualificationWorkspace])
 } });
 await withTemporaryEnv(env, async () => {
   try {
@@ -98,6 +99,11 @@ await withTemporaryEnv(env, async () => {
         const pid = Number(await fs.readFile(versionPidFile, 'utf8'));
         assert.equal(isProcessAlive(pid), false, 'the actual slow version descendant is reaped');
         await assert.rejects(fs.access(pidFile), { code: 'ENOENT' }, 'failed version qualification never launches the protocol server');
+        return;
+      } else if (selected === 'workspace-not-trusted') {
+        assert.equal(result.receipt.result.errorCode, 'csharp-ls_workspace_trust_required');
+        await fs.access(marker);
+        await assert.rejects(fs.access(pidFile), { code: 'ENOENT' }, 'repository trust cannot authorize a separately selected qualification workspace');
         return;
       } else {
         const reason = { 'unexpected-stderr': 'unexpected_stderr', 'diagnostics-truncated': 'diagnostics_truncated',

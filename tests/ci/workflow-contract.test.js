@@ -445,6 +445,7 @@ for (const platform of ['ubuntu', 'windows', 'macos']) {
   const dotnetSetup = steps.findIndex(step => step.name === 'Setup qualified .NET SDK');
   const dotnetVerify = steps.findIndex(step => step.name === 'Verify selected .NET SDK');
   const csharpStartup = steps.findIndex(step => step.name === 'Qualify real Csharp language server startup');
+  const csharpProvision = steps.findIndex(step => step.name === 'Provision pinned Csharp language server for CI');
   const dotnet = steps[dotnetSetup];
   if (dotnetSetup < 0 || dotnetVerify <= dotnetSetup
     || dotnetVerify >= steps.findIndex(step => step.name === 'Install optional LSP tools (best effort)')
@@ -459,7 +460,12 @@ for (const platform of ['ubuntu', 'windows', 'macos']) {
     || !steps[dotnetVerify].run.includes('.diagnostics/dotnet-sdk.json')
     || csharpStartup <= steps.findIndex(step => step.name === 'Install optional LSP tools (best effort)')
     || csharpStartup >= steps.findIndex(step => step.name === 'CI Suite')
-    || steps[csharpStartup].env?.PAIROFCLEATS_TRUSTED_REPOS !== "${{ format('[{0}]', toJSON(github.workspace)) }}"
+    || csharpProvision <= dotnetVerify || csharpProvision >= csharpStartup
+    || steps[csharpProvision].run !== 'node tools/ci/provision-csharp-ls.js'
+    || steps[csharpStartup].env?.PAIROFCLEATS_TRUSTED_REPOS !== "${{ format('[{0},{1}]', toJSON(github.workspace), toJSON(format('{0}/.diagnostics/.lsp-qualification/csharp-ls', github.workspace))) }}"
+    || !steps[csharpStartup].run.includes('dir: provision.toolingRoot')
+    || !steps[csharpStartup].run.includes('fs.realpathSync(provision.command)')
+    || !steps[csharpStartup].run.includes('receipt.binarySha256, provision.binarySha256')
     || !steps[csharpStartup].run.includes('qualifyInstalledLspRuntime')
     || !steps[csharpStartup].run.includes('providerId: "csharp-ls"')) {
     throw new Error(`${platform}: qualify the isolated .NET SDK and real C# runtime, bind host/architecture roots, and prevent unrelated development-certificate generation.`);
@@ -469,13 +475,16 @@ for (const platform of ['ubuntu', 'windows', 'macos']) {
   const optional = steps.findIndex(step => step.name === 'Install optional LSP tools (best effort)');
   assert.ok(!/--tools\s+[^\s]*\bgopls\b/u.test(steps[optional].run), 'CI runtime setup cannot depend on the application\'s unqualified managed gopls build forecast');
   assert.ok(paths.includes('.diagnostics/gopls-provisioning.json'), 'CI must retain the separately provisioned Go server identity');
+  assert.ok(paths.includes('.diagnostics/csharp-ls-provisioning.json'), 'CI must retain the separately provisioned Csharp server identity');
+  assert.ok(!/--tools\s+[^\s]*\bcsharp-ls\b/u.test(steps[optional].run), 'Required Csharp setup cannot depend on an unqualified product install forecast');
   const phpSetup = steps.findIndex(step => step.name === 'Setup qualified PHP runtime');
   const phpVerify = steps.findIndex(step => step.name === 'Verify selected PHP runtime');
   const phpStartup = steps.findIndex(step => step.name === 'Qualify real PHPactor startup');
+  const phpProvision = steps.findIndex(step => step.name === 'Provision pinned PHPactor for CI');
   if (platform === 'windows') {
     const declaration = steps.findIndex(step => step.name === 'Record PHPactor native platform limitation');
     const selected = /--tools\s+([^\s]+)/.exec(steps[optional].run)?.[1].split(',') || [];
-    if (selected.includes('phpactor') || phpSetup !== -1 || phpStartup !== -1
+    if (selected.includes('phpactor') || phpSetup !== -1 || phpStartup !== -1 || phpProvision !== -1
       || declaration <= optional || declaration >= steps.findIndex(step => step.name === 'CI Suite')
       || !steps[declaration].run.includes('"unsupported_platform"')
       || !steps[declaration].run.includes('tooling/install/phpactor-platform-contract')
@@ -491,7 +500,14 @@ for (const platform of ['ubuntu', 'windows', 'macos']) {
       || !steps[phpVerify].run.includes('get_loaded_extensions()')
       || steps[optional].env?.PAIROFCLEATS_DOWNLOAD_REDIRECT_ORIGINS !== '["https://release-assets.githubusercontent.com"]'
       || phpStartup <= optional || phpStartup >= steps.findIndex(step => step.name === 'CI Suite')
-      || steps[phpStartup].env?.PAIROFCLEATS_TRUSTED_REPOS !== "${{ format('[{0}]', toJSON(github.workspace)) }}"
+      || steps[phpStartup].env?.PAIROFCLEATS_TRUSTED_REPOS !== "${{ format('[{0},{1}]', toJSON(github.workspace), toJSON(format('{0}/.diagnostics/.lsp-qualification/phpactor', github.workspace))) }}"
+      || phpProvision <= phpVerify || phpProvision >= phpStartup
+      || steps[phpProvision].run !== 'node tools/ci/provision-phpactor.js'
+      || steps[phpProvision].env?.PAIROFCLEATS_DOWNLOAD_REDIRECT_ORIGINS !== '["https://release-assets.githubusercontent.com"]'
+      || !steps[phpStartup].run.includes('dir: provision.toolingRoot')
+      || !steps[phpStartup].run.includes('fs.realpathSync(provision.command)')
+      || !steps[phpStartup].run.includes('receipt.binarySha256, provision.binarySha256')
+      || !paths.includes('.diagnostics/phpactor-provisioning.json')
       || !steps[phpStartup].run.includes('qualifyInstalledLspRuntime')
       || !steps[phpStartup].run.includes('providerId: "phpactor"')
       || !steps[phpStartup].env?.XDG_CACHE_HOME?.startsWith('${{ runner.temp }}/')

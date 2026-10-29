@@ -24,6 +24,7 @@ import { getToolingConfig, resolveToolRoot } from '../shared/dict-utils.js';
 import { CLANGD_STORAGE_ESTIMATE, CLANGD_RELEASE_INDEX_URL, CLANGD_MAX_DOWNLOAD_BYTES,
   resolveClangdArchiveTarget, resolveManagedClangd } from '../../src/shared/managed-clangd.js';
 import { PHPACTOR_APPROVED_RELEASE } from './approved-artifacts.js';
+import { CSHARP_LS_VERSION } from './csharp-ls-recipe.js';
 import { resolveManagedLuaLanguageServer } from '../../src/shared/managed-lua.js';
 import { createToolProvisioningPlan, normalizeToolProvisioningDeclaration, verifyToolProvisioningPlan } from './provisioning-plan.js';
 import { resolveManagedToolInstallation } from '../../src/shared/managed-installation.js';
@@ -616,9 +617,9 @@ export function getToolingRegistry(toolingRoot, repoRoot) {
       languages: ['csharp'],
       detect: { cmd: 'csharp-ls', args: ['--version'], binDirs: [dotnetDir, ...globalDotnetBins] },
       install: {
-        cache: { cmd: 'dotnet', args: ['tool', 'install', '--tool-path', dotnetDir, 'csharp-ls', '--version', '0.28.0'], requires: 'dotnet',
+        cache: { cmd: 'dotnet', args: ['tool', 'install', '--tool-path', dotnetDir, 'csharp-ls', '--version', CSHARP_LS_VERSION], requires: 'dotnet',
           prerequisites: [{ id: 'dotnet', command: 'dotnet', family: 'dotnet', versionRange: '>=10.0.0', kind: 'sdk', phase: 'install', dependsOn: [] }] },
-        user: { cmd: 'dotnet', args: ['tool', 'install', '-g', 'csharp-ls', '--version', '0.28.0'], requires: 'dotnet',
+        user: { cmd: 'dotnet', args: ['tool', 'install', '-g', 'csharp-ls', '--version', CSHARP_LS_VERSION], requires: 'dotnet',
           prerequisites: [{ id: 'dotnet', command: 'dotnet', family: 'dotnet', versionRange: '>=10.0.0', kind: 'sdk', phase: 'install', dependsOn: [] }] }
       },
       docs: TOOL_DOCS['csharp-ls']

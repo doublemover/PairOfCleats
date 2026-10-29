@@ -193,6 +193,13 @@ jobs:
             .tmp/dev/tests/cache/native-index-*/screen-*.txt
             .tmp/dev/tests/cache/native-index-*/seed-*.json
             .tmp/dev/tests/cache/native-index-*/pids.jsonl
+            .tmp/dev/tests/cache/native-artifacts-*/native-source-identity.json
+            .tmp/dev/tests/cache/native-artifacts-*/terminal-receipt.json
+            .tmp/dev/tests/cache/native-artifacts-*/screen-*.txt
+            .tmp/dev/tests/cache/native-artifacts-*/failure-*.txt
+            .tmp/dev/tests/cache/native-artifacts-*/failure-observation.json
+            .tmp/dev/tests/cache/native-artifacts-*/terminal-output.ansi.log
+            .tmp/dev/tests/cache/native-artifacts-*/pids.jsonl
           include-hidden-files: true
           retention-days: 7
           if-no-files-found: warn
@@ -284,6 +291,11 @@ jobs:
           console.log(JSON.stringify(receipt));
           '
 
+
+      - name: Provision pinned PHPactor for CI
+        env:
+          PAIROFCLEATS_DOWNLOAD_REDIRECT_ORIGINS: '["https://release-assets.githubusercontent.com"]'
+        run: node tools/ci/provision-phpactor.js
       - name: Setup qualified .NET SDK
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         env:
@@ -349,13 +361,16 @@ jobs:
       - name: Provision pinned Go language server for CI
         run: node tools/ci/provision-gopls.js
 
+      - name: Provision pinned Csharp language server for CI
+        run: node tools/ci/provision-csharp-ls.js
+
       - name: Install optional LSP tools (best effort)
         shell: bash
         env:
           PAIROFCLEATS_DOWNLOAD_REDIRECT_ORIGINS: '["https://release-assets.githubusercontent.com"]'
         run: |
           set +e
-          node tools/tooling/install.js --scope cache --tools pyright,yaml-language-server,csharp-ls,solargraph,phpactor --json
+          node tools/tooling/install.js --scope cache --tools pyright,yaml-language-server,solargraph --json
           status=$?
           if [ $status -ne 0 ]; then
             echo "optional tooling install had non-fatal failures (continuing)."
@@ -381,7 +396,7 @@ jobs:
 
       - name: Qualify real Csharp language server startup
         env:
-          PAIROFCLEATS_TRUSTED_REPOS: ${{ format('[{0}]', toJSON(github.workspace)) }}
+          PAIROFCLEATS_TRUSTED_REPOS: ${{ format('[{0},{1}]', toJSON(github.workspace), toJSON(format('{0}/.diagnostics/.lsp-qualification/csharp-ls', github.workspace))) }}
         run: |
           node --input-type=module -e '
           import assert from "node:assert/strict";
@@ -389,18 +404,21 @@ jobs:
           import path from "node:path";
           import { getToolingConfig } from "./tools/shared/dict-utils.js";
           import { qualifyInstalledLspRuntime } from "./tools/ci/qualify-lsp-runtime.js";
-          const result = await qualifyInstalledLspRuntime({ providerId: "csharp-ls", repoRoot: process.cwd(), toolingConfig: getToolingConfig(process.cwd()), diagnosticsDir: path.resolve(".diagnostics") });
+          const provision = JSON.parse(fs.readFileSync(".diagnostics/csharp-ls-provisioning.json", "utf8"));
+          const result = await qualifyInstalledLspRuntime({ providerId: "csharp-ls", repoRoot: process.cwd(), toolingConfig: { ...getToolingConfig(process.cwd()), dir: provision.toolingRoot }, diagnosticsDir: path.resolve(".diagnostics") });
           const receipt = { ...result.receipt, ok: result.ok, process: result.process, sdk: JSON.parse(fs.readFileSync(".diagnostics/dotnet-sdk.json", "utf8")), qualification: "initialize-shutdown-clean-exit" };
           fs.writeFileSync(".diagnostics/csharp-ls-startup.json", JSON.stringify(receipt, null, 2) + "\n");
           console.log(JSON.stringify({ ok: result.ok, result: result.receipt?.result, process: result.process }));
           assert.equal(result.ok, true, JSON.stringify(receipt));
+          assert.equal(receipt.commandRealpath, fs.realpathSync(provision.command));
+          assert.equal(receipt.binarySha256, provision.binarySha256);
           assert.equal(receipt.result.capabilities.documentSymbol, true);
           assert.equal(receipt.result.capabilities.definition, true);
           '
 
       - name: Qualify real PHPactor startup
         env:
-          PAIROFCLEATS_TRUSTED_REPOS: ${{ format('[{0}]', toJSON(github.workspace)) }}
+          PAIROFCLEATS_TRUSTED_REPOS: ${{ format('[{0},{1}]', toJSON(github.workspace), toJSON(format('{0}/.diagnostics/.lsp-qualification/phpactor', github.workspace))) }}
           XDG_CACHE_HOME: ${{ runner.temp }}/poc-phpactor-cache
           XDG_CONFIG_HOME: ${{ runner.temp }}/poc-phpactor-config
           XDG_DATA_HOME: ${{ runner.temp }}/poc-phpactor-data
@@ -411,11 +429,14 @@ jobs:
           import path from "node:path";
           import { getToolingConfig } from "./tools/shared/dict-utils.js";
           import { qualifyInstalledLspRuntime } from "./tools/ci/qualify-lsp-runtime.js";
-          const result = await qualifyInstalledLspRuntime({ providerId: "phpactor", repoRoot: process.cwd(), toolingConfig: getToolingConfig(process.cwd()), diagnosticsDir: path.resolve(".diagnostics") });
+          const provision = JSON.parse(fs.readFileSync(".diagnostics/phpactor-provisioning.json", "utf8"));
+          const result = await qualifyInstalledLspRuntime({ providerId: "phpactor", repoRoot: process.cwd(), toolingConfig: { ...getToolingConfig(process.cwd()), dir: provision.toolingRoot }, diagnosticsDir: path.resolve(".diagnostics") });
           const receipt = { ...result.receipt, ok: result.ok, process: result.process, sdk: JSON.parse(fs.readFileSync(".diagnostics/php-sdk.json", "utf8")), qualification: "initialize-shutdown-clean-exit" };
           fs.writeFileSync(".diagnostics/phpactor-startup.json", JSON.stringify(receipt, null, 2) + "\n");
           console.log(JSON.stringify({ ok: result.ok, result: result.receipt?.result, process: result.process }));
           assert.equal(result.ok, true, JSON.stringify(receipt));
+          assert.equal(receipt.commandRealpath, fs.realpathSync(provision.command));
+          assert.equal(receipt.binarySha256, provision.binarySha256);
           assert.equal(receipt.result.capabilities.documentSymbol, true);
           assert.equal(receipt.result.capabilities.definition, true);
           '
@@ -440,8 +461,10 @@ jobs:
           name: ci-quality-artifacts-ubuntu
           path: |
             .diagnostics/dotnet-sdk.json
+            .diagnostics/csharp-ls-provisioning.json
             .diagnostics/csharp-ls-startup.json
             .diagnostics/php-sdk.json
+            .diagnostics/phpactor-provisioning.json
             .diagnostics/phpactor-startup.json
             .diagnostics/serial-native-lifecycle.json
             .diagnostics/go-sdk.json
@@ -593,10 +616,13 @@ jobs:
       - name: Provision pinned Go language server for CI
         run: node tools/ci/provision-gopls.js
 
+      - name: Provision pinned Csharp language server for CI
+        run: node tools/ci/provision-csharp-ls.js
+
       - name: Install optional LSP tools (best effort)
         shell: pwsh
         run: |
-          node tools/tooling/install.js --scope cache --tools pyright,yaml-language-server,csharp-ls,solargraph --json
+          node tools/tooling/install.js --scope cache --tools pyright,yaml-language-server,solargraph --json
           if ($LASTEXITCODE -ne 0) {
             Write-Host 'optional tooling install had non-fatal failures (continuing).'
           }
@@ -625,7 +651,7 @@ jobs:
 
       - name: Qualify real Csharp language server startup
         env:
-          PAIROFCLEATS_TRUSTED_REPOS: ${{ format('[{0}]', toJSON(github.workspace)) }}
+          PAIROFCLEATS_TRUSTED_REPOS: ${{ format('[{0},{1}]', toJSON(github.workspace), toJSON(format('{0}/.diagnostics/.lsp-qualification/csharp-ls', github.workspace))) }}
         run: |
           node --input-type=module -e '
           import assert from "node:assert/strict";
@@ -633,11 +659,14 @@ jobs:
           import path from "node:path";
           import { getToolingConfig } from "./tools/shared/dict-utils.js";
           import { qualifyInstalledLspRuntime } from "./tools/ci/qualify-lsp-runtime.js";
-          const result = await qualifyInstalledLspRuntime({ providerId: "csharp-ls", repoRoot: process.cwd(), toolingConfig: getToolingConfig(process.cwd()), diagnosticsDir: path.resolve(".diagnostics") });
+          const provision = JSON.parse(fs.readFileSync(".diagnostics/csharp-ls-provisioning.json", "utf8"));
+          const result = await qualifyInstalledLspRuntime({ providerId: "csharp-ls", repoRoot: process.cwd(), toolingConfig: { ...getToolingConfig(process.cwd()), dir: provision.toolingRoot }, diagnosticsDir: path.resolve(".diagnostics") });
           const receipt = { ...result.receipt, ok: result.ok, process: result.process, sdk: JSON.parse(fs.readFileSync(".diagnostics/dotnet-sdk.json", "utf8")), qualification: "initialize-shutdown-clean-exit" };
           fs.writeFileSync(".diagnostics/csharp-ls-startup.json", JSON.stringify(receipt, null, 2) + "\n");
           console.log(JSON.stringify({ ok: result.ok, result: result.receipt?.result, process: result.process }));
           assert.equal(result.ok, true, JSON.stringify(receipt));
+          assert.equal(receipt.commandRealpath, fs.realpathSync(provision.command));
+          assert.equal(receipt.binarySha256, provision.binarySha256);
           assert.equal(receipt.result.capabilities.documentSymbol, true);
           assert.equal(receipt.result.capabilities.definition, true);
           '
@@ -669,6 +698,7 @@ jobs:
           name: ci-quality-artifacts-windows
           path: |
             .diagnostics/dotnet-sdk.json
+            .diagnostics/csharp-ls-provisioning.json
             .diagnostics/csharp-ls-startup.json
             .diagnostics/phpactor-platform.json
             .diagnostics/serial-native-lifecycle.json
@@ -850,6 +880,11 @@ jobs:
           console.log(JSON.stringify(receipt));
           '
 
+
+      - name: Provision pinned PHPactor for CI
+        env:
+          PAIROFCLEATS_DOWNLOAD_REDIRECT_ORIGINS: '["https://release-assets.githubusercontent.com"]'
+        run: node tools/ci/provision-phpactor.js
       - name: Setup qualified .NET SDK
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         env:
@@ -915,13 +950,16 @@ jobs:
       - name: Provision pinned Go language server for CI
         run: node tools/ci/provision-gopls.js
 
+      - name: Provision pinned Csharp language server for CI
+        run: node tools/ci/provision-csharp-ls.js
+
       - name: Install optional LSP tools (best effort)
         shell: bash
         env:
           PAIROFCLEATS_DOWNLOAD_REDIRECT_ORIGINS: '["https://release-assets.githubusercontent.com"]'
         run: |
           set +e
-          node tools/tooling/install.js --scope cache --tools pyright,yaml-language-server,csharp-ls,solargraph,phpactor --json
+          node tools/tooling/install.js --scope cache --tools pyright,yaml-language-server,solargraph --json
           status=$?
           if [ $status -ne 0 ]; then
             echo "optional tooling install had non-fatal failures (continuing)."
@@ -947,7 +985,7 @@ jobs:
 
       - name: Qualify real Csharp language server startup
         env:
-          PAIROFCLEATS_TRUSTED_REPOS: ${{ format('[{0}]', toJSON(github.workspace)) }}
+          PAIROFCLEATS_TRUSTED_REPOS: ${{ format('[{0},{1}]', toJSON(github.workspace), toJSON(format('{0}/.diagnostics/.lsp-qualification/csharp-ls', github.workspace))) }}
         run: |
           node --input-type=module -e '
           import assert from "node:assert/strict";
@@ -955,18 +993,21 @@ jobs:
           import path from "node:path";
           import { getToolingConfig } from "./tools/shared/dict-utils.js";
           import { qualifyInstalledLspRuntime } from "./tools/ci/qualify-lsp-runtime.js";
-          const result = await qualifyInstalledLspRuntime({ providerId: "csharp-ls", repoRoot: process.cwd(), toolingConfig: getToolingConfig(process.cwd()), diagnosticsDir: path.resolve(".diagnostics") });
+          const provision = JSON.parse(fs.readFileSync(".diagnostics/csharp-ls-provisioning.json", "utf8"));
+          const result = await qualifyInstalledLspRuntime({ providerId: "csharp-ls", repoRoot: process.cwd(), toolingConfig: { ...getToolingConfig(process.cwd()), dir: provision.toolingRoot }, diagnosticsDir: path.resolve(".diagnostics") });
           const receipt = { ...result.receipt, ok: result.ok, process: result.process, sdk: JSON.parse(fs.readFileSync(".diagnostics/dotnet-sdk.json", "utf8")), qualification: "initialize-shutdown-clean-exit" };
           fs.writeFileSync(".diagnostics/csharp-ls-startup.json", JSON.stringify(receipt, null, 2) + "\n");
           console.log(JSON.stringify({ ok: result.ok, result: result.receipt?.result, process: result.process }));
           assert.equal(result.ok, true, JSON.stringify(receipt));
+          assert.equal(receipt.commandRealpath, fs.realpathSync(provision.command));
+          assert.equal(receipt.binarySha256, provision.binarySha256);
           assert.equal(receipt.result.capabilities.documentSymbol, true);
           assert.equal(receipt.result.capabilities.definition, true);
           '
 
       - name: Qualify real PHPactor startup
         env:
-          PAIROFCLEATS_TRUSTED_REPOS: ${{ format('[{0}]', toJSON(github.workspace)) }}
+          PAIROFCLEATS_TRUSTED_REPOS: ${{ format('[{0},{1}]', toJSON(github.workspace), toJSON(format('{0}/.diagnostics/.lsp-qualification/phpactor', github.workspace))) }}
           XDG_CACHE_HOME: ${{ runner.temp }}/poc-phpactor-cache
           XDG_CONFIG_HOME: ${{ runner.temp }}/poc-phpactor-config
           XDG_DATA_HOME: ${{ runner.temp }}/poc-phpactor-data
@@ -977,11 +1018,14 @@ jobs:
           import path from "node:path";
           import { getToolingConfig } from "./tools/shared/dict-utils.js";
           import { qualifyInstalledLspRuntime } from "./tools/ci/qualify-lsp-runtime.js";
-          const result = await qualifyInstalledLspRuntime({ providerId: "phpactor", repoRoot: process.cwd(), toolingConfig: getToolingConfig(process.cwd()), diagnosticsDir: path.resolve(".diagnostics") });
+          const provision = JSON.parse(fs.readFileSync(".diagnostics/phpactor-provisioning.json", "utf8"));
+          const result = await qualifyInstalledLspRuntime({ providerId: "phpactor", repoRoot: process.cwd(), toolingConfig: { ...getToolingConfig(process.cwd()), dir: provision.toolingRoot }, diagnosticsDir: path.resolve(".diagnostics") });
           const receipt = { ...result.receipt, ok: result.ok, process: result.process, sdk: JSON.parse(fs.readFileSync(".diagnostics/php-sdk.json", "utf8")), qualification: "initialize-shutdown-clean-exit" };
           fs.writeFileSync(".diagnostics/phpactor-startup.json", JSON.stringify(receipt, null, 2) + "\n");
           console.log(JSON.stringify({ ok: result.ok, result: result.receipt?.result, process: result.process }));
           assert.equal(result.ok, true, JSON.stringify(receipt));
+          assert.equal(receipt.commandRealpath, fs.realpathSync(provision.command));
+          assert.equal(receipt.binarySha256, provision.binarySha256);
           assert.equal(receipt.result.capabilities.documentSymbol, true);
           assert.equal(receipt.result.capabilities.definition, true);
           '
@@ -997,8 +1041,10 @@ jobs:
           name: ci-quality-artifacts-macos
           path: |
             .diagnostics/dotnet-sdk.json
+            .diagnostics/csharp-ls-provisioning.json
             .diagnostics/csharp-ls-startup.json
             .diagnostics/php-sdk.json
+            .diagnostics/phpactor-provisioning.json
             .diagnostics/phpactor-startup.json
             .diagnostics/serial-native-lifecycle.json
             .diagnostics/go-sdk.json

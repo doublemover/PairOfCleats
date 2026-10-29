@@ -11,6 +11,7 @@ import { isTestingEnv } from '../../src/shared/env/testing.js';
 import { hashManagedToolFile } from '../../src/shared/managed-tool-file.js';
 import { PHPACTOR_APPROVED_RELEASE, PHPACTOR_POSIX_SHIM } from '../tooling/approved-artifacts.js';
 import { GOPLS_VERSION } from '../tooling/gopls-recipe.js';
+import { CSHARP_LS_VERSION } from '../tooling/csharp-ls-recipe.js';
 import { describeStorageFailure } from '../../src/shared/storage/failure-observation.js';
 
 // Internal qualification recipes: no public CLI, configuration or execution grant.
@@ -18,7 +19,7 @@ const recipes = {
   gopls: { command: 'gopls', args: ['serve'], versionArgs: ['version'], versionPrefix: `golang.org/x/tools/gopls v${GOPLS_VERSION}`,
     files: { 'go.mod': 'module example.com/poc-qualification\n\ngo 1.26.0\n',
       'answer.go': 'package qualification\n\nfunc Answer() int { return 42 }\n' } },
-  'csharp-ls': { command: 'csharp-ls', args: [], versionArgs: ['--version'], versionPrefix: 'csharp-ls, 0.28.0 ',
+  'csharp-ls': { command: 'csharp-ls', args: [], versionArgs: ['--version'], versionPrefix: `csharp-ls, ${CSHARP_LS_VERSION} `,
     files: { 'Qualification.csproj': '<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><TargetFramework>net10.0</TargetFramework></PropertyGroup></Project>\n',
       'Answer.cs': 'public static class Qualification { public static int Answer() => 42; }\n' } },
   phpactor: { command: 'phpactor', args: ['language-server'], versionArgs: ['--version'],
@@ -33,7 +34,7 @@ const phpactorStartupInfo = 'Starting language server, use -vvv for verbose outp
 
 const expectedCsharpInfo = [
   /^\d{2}:\d{2}:\d{2}\.\d{3} info: (?:LifeCycle|Roslyn\.Solution)\[\d+\]$/u,
-  /^initializing, csharp-ls version 0\.28\.0 /u,
+  new RegExp(`^initializing, csharp-ls version ${CSHARP_LS_VERSION.replaceAll('.', '\\.')} `, 'u'),
   /^csharp-ls is released under MIT license and is not affiliated with Microsoft Corp\.; see https:\/\/github\.com\/razzmatazz\/csharp-language-server$/u,
   /^SDK instances found, as reported by MSBuild:$/u,
   /^- SDK="\.NET Core SDK", Version=[\d.]+, MSBuildPath="[^"]+", DiscoveryType=DotNetSdk$/u,
