@@ -47,3 +47,7 @@ Nine of those failures now have passing focused rechecks; the remaining 37 need
 repair or qualification. This is not a full-suite pass or a new native crash
 attribution. Further validation follows the user's focused-recheck instruction.
 Raw `.tmp/` paths are historical author-workspace locations.
+
+The [next focused batch](windows-comment-and-handoff-failure-repairs-2026-10-28.md)
+qualifies 12 further original failures, leaving 25; this receipt retains its
+original source scope and all nine repaired-failure witnesses.

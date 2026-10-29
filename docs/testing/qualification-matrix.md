@@ -49,6 +49,12 @@ null chunk contexts and canonical fixture inputs are repaired. Windows spool
 identity rejection uses controlled stat disagreement; POSIX retains real rename
 coverage. The remaining 37 partial-campaign failures retain their original receipts.
 
+The [comment/handoff follow-up](../archived/windows-comment-and-handoff-failure-repairs-2026-10-28.md)
+records 56 language/tokenization, seven embedding identity/handoff and ten Stage3
+controls passing at their stated source identities. It resolves 12 more original
+failures, leaving 25. Rust/JSDoc refusals remain explicit; Stage3 storage admission
+honors its captured launch environment while rejecting unselected cache roots.
+
 Current Clangd acquisition and managed-file lifetime source is **unvalidated**
 at `773e6893e`; [20 authored checks and remaining qualification](../archived/clangd-acquisition-implementation-2026-10-27.md)
 separate inert archive/format fixtures from actual Windows installation,

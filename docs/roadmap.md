@@ -7,19 +7,16 @@ Canonical for: initiative status, execution order, and remaining work
 
 ## Current GitHub repair program
 
-The [closeout review](archived/github-issue-closeout-2026-10-26.md) assessed
-**770 issues/238 comments**, closing 27; later batches closed 25 more.
-[Checkpoint 285](archived/windows-validation-publication-checkpoint-285-2026-10-28.json)
-closed nine qualified reports after publication and all eight front-gate checks
-(40/40 gate cases). The R follow-up closes #1497; the
-[later review](archived/windows-partial-validation-checkpoint-305-2026-10-28.md)
-records 20 qualified closures, leaving **688 open**: 452 qualification-pending,
+The [closeout review](archived/github-issue-closeout-2026-10-26.md) and later
+qualified checks closed 82 reports. The
+[current reconciliation](archived/windows-partial-validation-checkpoint-305-2026-10-28.md)
+leaves **688 open**: 452 qualification-pending,
 147 partial and 89 unresolved entries.
 
 The [complete assessment](archived/github-issue-closeout-2026-10-26.json) retains
 source/test mappings and closure witnesses; [earlier receipts](archived/solo-issue-repairs-2026-10-25.md)
-retain historical evidence. Work is solo and Windows-only. Hosted gate/policy/Rust
-TUI passed at `f8532f1d2`; seven broader jobs failed (see the review).
+retain historical evidence. Work is solo and Windows-only; hosted failures and
+platform acceptance retain their source identities in the linked receipts.
 
 Completed source-bound checks are indexed in the
 [qualification archive](archived/native-runtime-qualification-index-2026-10-27.md)
@@ -40,8 +37,9 @@ stopped at user request: **2,606 passed, 46 failed (five timeouts), 3,450 unrun*
 Use focused failure rechecks and direct regressions; no full rerun is scheduled.
 The [contract repairs](archived/windows-contract-repair-checkpoint-305-2026-10-28.md)
 pass 46 controls. [Focused repairs](archived/windows-focused-failure-repairs-2026-10-28.md)
-pass 26/26, resolving nine failures: Astro bounds/UTF-16, nullable chunk contexts,
-canonical fixture inputs and Windows spool identity. Both publication gates pass.
+pass 26/26; [comment/handoff repairs](archived/windows-comment-and-handoff-failure-repairs-2026-10-28.md)
+pass 73 controls. Together they resolve 21 original failures, leaving 25.
+Astro bounds, refusal coverage, line reuse and Stage3 launch authority are repaired.
 
 [Five dependency retirements](archived/dependency-ownership-implementation-2026-10-27.md)
 removed 110 lock records. Setup identities and retained inputs are archived;

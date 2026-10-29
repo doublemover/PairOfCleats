@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-29T01:20:59.118Z",
+  "generatedAt": "2026-10-29T02:51:03.250Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
@@ -3353,6 +3353,7 @@
         "tests/indexing/scm/no-build-id.test.js",
         "tests/indexing/shards/shard-merge.test.js",
         "tests/integrations/core/cache-rebuild-owner.test.js",
+        "tests/integrations/core/embedding-plan-handoff.test.js",
         "tests/perf/baseline-artifacts.test.js",
         "tests/perf/bench/language-default-cache-root.test.js",
         "tests/perf/bench/language-resource-roots.test.js",
