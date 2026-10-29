@@ -65,8 +65,10 @@ mod tests {
     use super::*;
     #[test]
     fn recovery_selects_only_the_original_scope_and_never_launches() {
-        let mut ui = WorkflowUi::default();
-        ui.available = true;
+        let mut ui = WorkflowUi {
+            available: true,
+            ..WorkflowUi::default()
+        };
         assert!(ui.open_recovery("/original repository", "index.validate"));
         let select = ui.outbox.pop_front().unwrap();
         assert_eq!(select["method"], "select");
@@ -88,8 +90,10 @@ mod tests {
     }
     #[test]
     fn recovery_cannot_replace_reservations_or_choose_a_mutating_command() {
-        let mut ui = WorkflowUi::default();
-        ui.available = true;
+        let mut ui = WorkflowUi {
+            available: true,
+            ..WorkflowUi::default()
+        };
         assert!(!ui.open_recovery("/repo", "tooling.install"));
         ui.preview = Some(json!({"previewId":"reserved"}));
         assert!(!ui.open_recovery("/repo", "index.validate"));
