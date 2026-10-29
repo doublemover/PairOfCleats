@@ -19,12 +19,13 @@ import { requireBootstrap } from '../../../src/shared/bootstrap-readiness.js';
 // This is real-browser qualification, deliberately outside ordinary DOM tests.
 const options = Object.fromEntries(Array.from({ length: Math.floor((process.argv.length - 2) / 2) }, (_, i) =>
   [process.argv[2 + i * 2].replace(/^--/, ''), process.argv[3 + i * 2]]));
-for (const key of ['playwright', 'chromium', 'out']) if (!options[key]) throw new Error('Required --' + key);
+for (const key of ['playwright', 'chromium', 'out', 'scenario']) if (!options[key]) throw new Error('Required --' + key);
+assert.ok(['workspace', 'three'].includes(options.scenario), 'Run both explicit --scenario workspace and --scenario three cohorts.');
 await requireBootstrap();
 const destination = path.resolve(options.out); await fs.mkdir(destination, { recursive: true });
 const root = await fs.mkdtemp(path.join(destination, 'fixture-'));
 const { chromium } = await import(pathToFileURL(path.resolve(options.playwright)).href);
-const receipt = { schemaVersion: 1, head: execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim(),
+const receipt = { schemaVersion: 1, scenario: options.scenario, head: execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8', windowsHide: true }).trim(),
   node: process.version, platform: process.platform, architecture: process.arch, startedAt: new Date().toISOString(),
   tests: [], screenshots: [], requests: [], runtimeVerification: [], artifactPages: [], browser: null,
   pageErrors: [], consoleErrors: [], resourceFailures: [], assets: [], phases: [], captures: [],
@@ -49,258 +50,291 @@ const watchdog = setTimeout(() => {
 const record = name => { checkDeadline(); receipt.tests.push(name); };
 try {
   const witness = await createPublishedSemanticWitness({ root, abortSignal: deadline.signal }); checkDeadline();
-  runtime = await createPublishedRuntimeWitness(witness, { signal: deadline.signal }); checkDeadline();
-  receipt.generation = witness.manifest.generation;
-  receipt.runtimeMeasurement = { kind: 'synthetic saved SSR fixture; no live capture',
-    verifiedSourceRefs: runtime.functions.map(row => row.ref),
-    sourceUnitId: runtime.source.sourceUnitId, sourceHash: runtime.source.byteHash,
-    cpuTimeDeltas: [10, 10], cpuClockUnit: 'us', causalClaims: 'inferred and separately labelled' };
+  if (options.scenario === 'workspace') {
+    runtime = await createPublishedRuntimeWitness(witness, { signal: deadline.signal }); checkDeadline();
+    receipt.generation = witness.manifest.generation;
+    receipt.runtimeMeasurement = { kind: 'synthetic saved SSR fixture; no live capture',
+      verifiedSourceRefs: runtime.functions.map(row => row.ref),
+      sourceUnitId: runtime.source.sourceUnitId, sourceHash: runtime.source.byteHash,
+      cpuTimeDeltas: [10, 10], cpuClockUnit: 'us', causalClaims: 'inferred and separately labelled' };
+  }
   receipt.sources = [...witness.sources.values()].map(source => ({ path: source.path, sourceUnitId: source.sourceUnitId, byteHash: source.byteHash }));
-  router = createApiRouter({ host: '127.0.0.1', defaultRepo: witness.repoRoot, allowedRepoRoots: [witness.repoRoot] });
-  server = http.createServer(router.handleRequest); await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
-  const base = 'http://127.0.0.1:' + server.address().port;
+  let base;
+  if (options.scenario === 'workspace') {
+    router = createApiRouter({ host: '127.0.0.1', defaultRepo: witness.repoRoot, allowedRepoRoots: [witness.repoRoot] });
+    server = http.createServer(router.handleRequest); await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+    base = 'http://127.0.0.1:' + server.address().port;
+  }
   browser = await chromium.launch({ executablePath: path.resolve(options.chromium), headless: true,
     timeout: Math.max(1, receipt.limits.totalWorkMs - (performance.now() - started)),
     args: ['--no-sandbox', '--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
   receipt.browser = { version: browser.version(), executable: path.resolve(options.chromium), rendererMode: 'requested ANGLE SwiftShader; observed renderer below' };
   context = await browser.newContext({ viewport: { width: 1440, height: 1000 }, acceptDownloads: true, ignoreHTTPSErrors: true });
   page = await context.newPage(); page.setDefaultTimeout(5000);
-  const diagnostics = attachQualificationDiagnostics(page, receipt, 'workspace');
+  const diagnostics = attachQualificationDiagnostics(page, receipt, options.scenario === 'workspace' ? 'workspace' : 'three-setup');
   diagnosticOwners.push(diagnostics);
-  await page.goto(base + '/map/workspace'); await page.locator('#query-toggle').click();
-  await page.locator('#operation option[value="catalog"]').waitFor({ state: 'attached' });
-  const query = async (operation, input, success = true) => {
-    checkDeadline();
-    if (!success) {
-      const url = base + OPERATIONS[operation];
-      diagnostics.begin(`workspace-negative-${operation}-${receipt.requests.length}`);
-      diagnostics.expect({ type: 'http', url, statuses: [400, 404, 409, 422], maxCount: 1 });
-      diagnostics.expect({ type: 'console', url, messagePattern: '^Failed to load resource: the server responded with a status of (400|404|409|422)\\b', maxCount: 1 });
-    }
-    await page.locator('#operation').selectOption(operation); await page.locator('#request').fill(JSON.stringify(input));
-    const responsePromise = page.waitForResponse(response => response.url().endsWith(OPERATIONS[operation]) && response.request().method() === 'POST');
-    await page.locator('#run').click(); const response = await responsePromise;
-    checkDeadline();
-    receipt.requests.push({ operation, status: response.status() });
-    if (success) {
-      assert.equal(response.status(), 200, operation); const data = (await response.json()).result;
-      await page.waitForFunction(({ family, operation }) => document.getElementById('family').textContent === family
+  if (options.scenario === 'workspace') {
+    await page.goto(base + '/map/workspace'); await page.locator('#query-toggle').click();
+    await page.locator('#operation option[value="catalog"]').waitFor({ state: 'attached' });
+    const query = async (operation, input, success = true) => {
+      checkDeadline();
+      if (!success) {
+        const url = base + OPERATIONS[operation];
+        diagnostics.begin(`workspace-negative-${operation}-${receipt.requests.length}`);
+        diagnostics.expect({ type: 'http', url, statuses: [409], maxCount: 1 });
+        // The response owner deliberately cancels an unadmitted error body.
+        // Chromium reports that exact bounded negative request as ERR_ABORTED.
+        diagnostics.expect({ type: 'requestfailed', url, message: 'net::ERR_ABORTED', maxCount: 1 });
+        diagnostics.expect({ type: 'console', url, messagePattern: '^Failed to load resource: the server responded with a status of (400|404|409|422)\\b', maxCount: 1 });
+      }
+      await page.locator('#operation').selectOption(operation); await page.locator('#request').fill(JSON.stringify(input));
+      const responsePromise = page.waitForResponse(response => response.url().endsWith(OPERATIONS[operation]) && response.request().method() === 'POST');
+      await page.locator('#run').click(); const response = await responsePromise;
+      checkDeadline();
+      receipt.requests.push({ operation, status: response.status() });
+      if (success) {
+        assert.equal(response.status(), 200, operation); const data = (await response.json()).result;
+        await page.waitForFunction(({ family, operation }) => document.getElementById('family').textContent === family
         && document.getElementById('notice').textContent.includes(operation + ' response'), { family: projectOutput(data).family, operation });
-      return data;
-    }
-    assert.ok(response.status() >= 400); await page.locator('#notice.error').waitFor();
-    diagnostics.begin(`workspace-after-negative-${receipt.requests.length}`); return null;
-  };
-  const catalog = await query('catalog', { repoRoot: witness.repoRoot });
-  assert.ok(catalog.artifacts.some(row => row.name === 'semantic_records' && row.available));
-  await page.locator('#tree button').filter({ hasText: /^semantic_records/ }).first().click();
-  const artifactResponse = page.waitForResponse(response => response.url().endsWith('/map/artifact') && response.request().method() === 'POST');
-  await page.getByRole('button', { name: 'Inspect this artifact', exact: true }).click();
-  const firstArtifactResponse = await artifactResponse; assert.equal(firstArtifactResponse.status(), 200);
-  let artifact = (await firstArtifactResponse.json()).result;
-  await page.waitForFunction(() => document.getElementById('notice').textContent.startsWith('semantic_records'));
-  const rememberArtifactPage = () => {
-    checkDeadline(); assert.equal(artifact.generation, catalog.generation);
-    receipt.artifactPages.push({ ordinal: artifact.ordinal, returned: artifact.rows.length, cursor: !!artifact.cursor,
-      generation: artifact.generation, kinds: [...new Set(artifact.rows.map(row => row.row?.kind))] });
-  };
-  rememberArtifactPage();
-  const sourceExpression = row => row.ref && row.generation && row.row?.kind === 'expression'
+        return data;
+      }
+      assert.equal(response.status(), 409); await page.locator('#notice.error').waitFor();
+      diagnostics.begin(`workspace-after-negative-${receipt.requests.length}`); return null;
+    };
+    const catalog = await query('catalog', { repoRoot: witness.repoRoot });
+    assert.ok(catalog.artifacts.some(row => row.name === 'semantic_records' && row.available));
+    await page.locator('#tree button').filter({ hasText: /^semantic_records/ }).first().click();
+    const artifactResponse = page.waitForResponse(response => response.url().endsWith('/map/artifact') && response.request().method() === 'POST');
+    await page.getByRole('button', { name: 'Inspect this artifact', exact: true }).click();
+    const firstArtifactResponse = await artifactResponse; assert.equal(firstArtifactResponse.status(), 200);
+    let artifact = (await firstArtifactResponse.json()).result;
+    await page.waitForFunction(() => document.getElementById('notice').textContent.startsWith('semantic_records'));
+    const rememberArtifactPage = () => {
+      checkDeadline(); assert.equal(artifact.generation, catalog.generation);
+      receipt.artifactPages.push({ ordinal: artifact.ordinal, returned: artifact.rows.length, cursor: !!artifact.cursor,
+        generation: artifact.generation, kinds: [...new Set(artifact.rows.map(row => row.row?.kind))] });
+    };
+    rememberArtifactPage();
+    const sourceExpression = row => row.ref && row.generation && row.row?.kind === 'expression'
     && row.row.data?.astKind === 'CallExpression'
     && Array.isArray(row.row.span) && row.row.span.length === 2 && row.row.span[1] > row.row.span[0];
-  let selectedIndex = artifact.rows.findIndex(sourceExpression);
-  while (selectedIndex < 0 && artifact.cursor && receipt.artifactPages.length < 8) {
-    const responsePromise = page.waitForResponse(response => response.url().endsWith('/map/artifact') && response.request().method() === 'POST');
-    await page.locator('#next-response').click(); const response = await responsePromise;
-    assert.equal(response.status(), 200); artifact = (await response.json()).result;
-    await page.waitForFunction(({ label }) => document.getElementById('notice').textContent.includes('artifact response')
+    let selectedIndex = artifact.rows.findIndex(sourceExpression);
+    while (selectedIndex < 0 && artifact.cursor && receipt.artifactPages.length < 8) {
+      const responsePromise = page.waitForResponse(response => response.url().endsWith('/map/artifact') && response.request().method() === 'POST');
+      await page.locator('#next-response').click(); const response = await responsePromise;
+      assert.equal(response.status(), 200); artifact = (await response.json()).result;
+      await page.waitForFunction(({ label }) => document.getElementById('notice').textContent.includes('artifact response')
       && document.querySelector('#tree button')?.childNodes[0].textContent === label, { label: projectOutput(artifact).nodes[0]?.label });
-    rememberArtifactPage();
-    selectedIndex = artifact.rows.findIndex(sourceExpression);
-  }
-  assert.ok(selectedIndex >= 0, 'an actual expression must occur within eight bounded service pages');
-  const selected = artifact.rows[selectedIndex];
-  const selectedSource = witness.sourceFor(selected.ref); assert.ok(selectedSource);
-  const [sourceSpan] = await witness.store.getSourceSpans([selected.ref], { signal: deadline.signal, maxBytes: 65536 });
-  assert.ok(sourceSpan); assert.equal(sourceSpan.sourceUnitId, selectedSource.sourceUnitId);
-  assert.equal(sourceSpan.sourceHash, selectedSource.byteHash);
-  receipt.selectedSourceExpression = { ref: selected.ref, span: selected.row.span,
-    sourceUnitId: sourceSpan.sourceUnitId, sourceHash: sourceSpan.sourceHash, text: sourceSpan.text };
-  await page.locator('#tree button').nth(selectedIndex).click();
-  const detailResponse = page.waitForResponse(response => response.url().endsWith('/analysis/semantic-detail') && response.request().method() === 'POST');
-  await page.getByRole('button', { name: 'Load semantic detail', exact: true }).click();
-  const detail = (await (await detailResponse).json()).result;
-  const exact = detail.records.find(row => refKey(row.ref) === refKey(selected.ref));
-  assert.ok(exact); assert.deepEqual(exact.data, selected.row.data); assert.equal(exact.kind, selected.row.kind);
-  assert.deepEqual(exact.span, selected.row.span);
-  await page.locator('#diagram svg .pick-target').first().waitFor();
-  const targets = await page.locator('#diagram .pick-target').evaluateAll(nodes => nodes.map(node => node.dataset.entityId));
-  assert.deepEqual([...targets].sort(), projectOutput(detail).nodes.map(node => node.id).sort());
-  const target = page.locator('#diagram .pick-target').first(); await target.focus(); await target.press('Enter');
-  assert.equal(await target.evaluate(node => node === document.activeElement), true);
-  assert.ok(await page.locator('#detail').textContent()); await target.press('Space');
-  const workerGeometry = await page.locator('#diagram svg').evaluate(svg => {
-    const rect = svg.getBoundingClientRect(); return { width: rect.width, height: rect.height, targets: svg.querySelectorAll('.pick-target').length };
-  });
-  assert.ok(workerGeometry.width > 0 && workerGeometry.height > 0); receipt.workerGeometry = workerGeometry;
-  record('catalog → actual artifact → exact semantic detail → real Worker/SVG selection and keyboard focus');
-  const downloadPromise = page.waitForEvent('download'); await page.locator('#export-evidence').click();
-  const download = await downloadPromise, downloaded = path.join(destination, 'semantic-detail.json');
-  await download.saveAs(downloaded); assert.deepEqual(JSON.parse(await fs.readFile(downloaded, 'utf8')).result, detail);
-  record('download preserves the complete admitted service envelope');
-  const candidates = await query('find', { repoRoot: witness.repoRoot, generation: witness.manifest.generation,
-    selector: { field: 'astKind', value: 'CallExpression' }, limits: { records: 2, bytes: 65536, workMs: 250 } });
-  assert.ok(candidates.records.length);
-  assert.equal(candidates.records[0].generation, undefined, 'canonical records pin generation on their envelope');
-  await page.locator('#tree button').first().click();
-  const hydrationResponse = page.waitForResponse(response => response.url().endsWith('/analysis/semantic-detail') && response.request().method() === 'POST');
-  await page.getByRole('button', { name: 'Load semantic detail', exact: true }).click();
-  const hydration = await hydrationResponse;
-  assert.equal(hydration.status(), 200);
-  const hydrationInput = hydration.request().postDataJSON();
-  assert.deepEqual(hydrationInput.generation, candidates.generation);
-  assert.deepEqual(hydrationInput.refs, [candidates.records[0].ref]);
-  assert.equal(hydrationInput.repoRoot, witness.repoRoot);
-  const hydrated = (await hydration.json()).result;
-  assert.ok(hydrated.operands.length, 'hydration loads actual operands of the selected call');
-  await page.waitForFunction(() => document.getElementById('notice').textContent.startsWith('semantic detail'));
-  await page.locator('#tree button').first().click();
-  await page.getByRole('button', { name: 'Load semantic detail', exact: true }).waitFor();
-  record('canonical find → exact envelope generation/ref → hydrated operands; canonical detail remains hydratable');
-  const typed = await query('find', { repoRoot: witness.repoRoot, generation: witness.manifest.generation,
-    selector: { typeExpression: { expression: 'number', match: 'exact-expression', sources: ['compiler'], roles: ['parameter'] } },
-    limits: { records: 2, bytes: 65536, workMs: 250 } });
-  assert.ok(typed.matches.length); assert.ok(typed.matches.every(row => row.category === 'type-fact'
-    && row.fact.source === 'compiler' && row.fact.role === 'parameter' && row.fact.sourceHash));
-  const literals = await query('find', { repoRoot: witness.repoRoot, generation: witness.manifest.generation,
-    selector: { literal: { type: 'number', representation: '10' } }, limits: { records: 2, bytes: 65536, workMs: 250 } });
-  assert.ok(literals.matches.length); assert.ok(literals.matches.every(row => row.category === 'literal-value' && row.fact.source === 'literal'));
-  record('real service/browser strict compiler-role fact and exact scalar occurrence provenance');
-  const search = await query('search', { repoPath: witness.repoRoot, query: 'build', mode: 'code', backend: 'memory', ann: false, top: 5 });
-  assert.ok(search.code.length); const ranked = projectOutput(search);
-  const labels = await page.locator('#tree button').evaluateAll(nodes => nodes.map(node => node.childNodes[0].textContent));
-  assert.deepEqual(labels, ranked.nodes.map(node => node.label));
-  record('ranked search preserves service order and scores');
-  const beforeStale = await page.locator('#family').textContent();
-  await query('detail', { repoRoot: witness.repoRoot, generation: { ...witness.manifest.generation, baseBuildId: 'stale-browser-generation' }, refs: [selected.ref] }, false);
-  assert.equal(await page.locator('#family').textContent(), beforeStale);
-  assert.deepEqual(await page.locator('#tree button').evaluateAll(nodes => nodes.map(node => node.childNodes[0].textContent)), labels);
-  record('stale generation error retains the prior ranked view');
-  let release, startedResolve;
-  const held = new Promise(resolve => { release = resolve; }), dispatched = new Promise(resolve => { startedResolve = resolve; });
-  await page.route('**/search', async route => {
-    const response = await route.fetch(); startedResolve(); await held;
-    await route.fulfill({ response }).catch(() => {});
-  });
-  await page.locator('#operation').selectOption('search'); await page.locator('#request').fill(JSON.stringify({ repoPath: witness.repoRoot, query: 'render', mode: 'code', backend: 'memory', ann: false }));
-  diagnostics.begin('workspace-cancel-search', [{ type: 'requestfailed', url: base + '/search', message: 'net::ERR_ABORTED', maxCount: 1 }]);
-  await page.locator('#run').click(); await dispatched; await page.locator('#cancel').click(); release(); await page.unroute('**/search');
-  await page.waitForFunction(() => document.getElementById('notice').textContent.includes('Request cancelled'));
-  assert.deepEqual(await page.locator('#tree button').evaluateAll(nodes => nodes.map(node => node.childNodes[0].textContent)), labels);
-  record('cancel suppresses a delayed real-service reply and retains prior view');
-  diagnostics.begin('workspace-runtime-and-layout');
-  const common = { schemaVersion: 1, repoRoot: witness.repoRoot, destination: 'runtime-import' };
-  const generation = witness.manifest.generation, repositoryNamespace = runtime.source.repositoryNamespace;
-  const families = await query('families', { ...common, limits: { maxFamilies: 8, maxScan: 32, maxBytes: 65536, maxMs: 1000 }, cursor: null });
-  assert.ok(families.families.some(row => row.generationId === runtime.first.pointer.generationId));
-  const observed = await query('runtime', { ...common, request: { schemaVersion: 1, repositoryNamespace, generation,
-    familyGenerations: [runtime.first.pointer.generationId], selectors: { ...defaultRuntimeQuerySelectors(), records: [runtime.functions[0].ref] },
-    limits: { maxRecords: 1, maxBytes: 65536, maxMs: 1000 }, cursor: null } });
-  assert.equal(observed.observations.length, 1); assert.deepEqual(observed.observations[0].join.targets, [runtime.functions[0].ref]);
-  assert.equal(observed.observations[0].join.targetQuality, 'verified-coordinate'); receipt.runtimeVerification.push(observed.cost);
-  await page.locator('#tree button').first().click(); assert.ok(await page.locator('#detail').textContent());
-  const comparison = await query('compare', { ...common, request: { schemaVersion: 1, repositoryNamespace, generation,
-    leftFamily: runtime.first.pointer.generationId, rightFamily: runtime.second.pointer.generationId, sources: runtime.base.capture.sources,
-    limits: { maxRecords: 32, maxBytes: 65536, maxMs: 1000 }, persist: true } });
-  const claims = await query('claims', { ...common, request: { schemaVersion: 1, repositoryNamespace, generation,
-    claimGeneration: comparison.claimGeneration, limits: { maxRecords: 32, maxBytes: 65536, maxMs: 1000 }, cursor: null } });
-  assert.ok(claims.claims.length); assert.ok(claims.claims.every(row => row.evidenceClass === 'inferred'));
-  record('saved family → observed exact SSR source coordinate → separate immutable inferred claim');
-  await query('detail', { repoRoot: witness.repoRoot, generation: selected.generation, refs: [selected.ref], include: ['operands', 'names', 'ownership'] });
-  await page.locator('#diagram svg').waitFor(); await page.locator('#editor-toggle').click();
-  const priorSvg = await page.locator('#diagram svg').innerHTML();
-  await page.route('**/reladraw-worker.js', route => route.fulfill({ contentType: 'text/javascript', body: 'self.onmessage = () => {};' }));
-  const deadlineStart = performance.now(); await page.locator('#compile').click();
-  await page.waitForFunction(() => document.getElementById('compile-status').textContent.includes('1-second deadline'));
-  receipt.workerDeadlineMs = performance.now() - deadlineStart; assert.ok(receipt.workerDeadlineMs < 2200);
-  assert.equal(await page.locator('#diagram svg').innerHTML(), priorSvg); await page.unroute('**/reladraw-worker.js');
-  record('real Worker watchdog terminates an injected stall and retains prior SVG');
-  for (const [name, width, height] of [['desktop', 1440, 1000], ['mobile-portrait', 390, 844], ['mobile-landscape', 844, 390]]) {
-    await page.setViewportSize({ width, height });
-    const layout = await page.evaluate(() => {
-      const footer = document.querySelector('footer').getBoundingClientRect();
-      const main = document.querySelector('main').getBoundingClientRect();
-      const toolbar = document.querySelector('.toolbar').getBoundingClientRect();
-      const editor = document.querySelector('#editor').getBoundingClientRect();
-      const editorControlsBottom = Math.max(editor.bottom, ...[...document.querySelectorAll('#editor button,#compile-status')]
-        .map(node => node.getBoundingClientRect().bottom));
-      return { horizontal: document.documentElement.scrollWidth <= innerWidth,
-        footerTop: footer.top, mainBottom: main.bottom, toolbarBottom: toolbar.bottom, editorBottom: editor.bottom, editorControlsBottom };
+      rememberArtifactPage();
+      selectedIndex = artifact.rows.findIndex(sourceExpression);
+    }
+    assert.ok(selectedIndex >= 0, 'an actual expression must occur within eight bounded service pages');
+    const selected = artifact.rows[selectedIndex];
+    const selectedSource = witness.sourceFor(selected.ref); assert.ok(selectedSource);
+    const [sourceSpan] = await witness.store.getSourceSpans([selected.ref], { signal: deadline.signal, maxBytes: 65536 });
+    assert.ok(sourceSpan); assert.equal(sourceSpan.sourceUnitId, selectedSource.sourceUnitId);
+    assert.equal(sourceSpan.sourceHash, selectedSource.byteHash);
+    receipt.selectedSourceExpression = { ref: selected.ref, span: selected.row.span,
+      sourceUnitId: sourceSpan.sourceUnitId, sourceHash: sourceSpan.sourceHash, text: sourceSpan.text };
+    await page.locator('#tree button').nth(selectedIndex).click();
+    const detailResponse = page.waitForResponse(response => response.url().endsWith('/analysis/semantic-detail') && response.request().method() === 'POST');
+    await page.getByRole('button', { name: 'Load semantic detail', exact: true }).click();
+    const detail = (await (await detailResponse).json()).result;
+    const exact = detail.records.find(row => refKey(row.ref) === refKey(selected.ref));
+    assert.ok(exact); assert.deepEqual(exact.data, selected.row.data); assert.equal(exact.kind, selected.row.kind);
+    assert.deepEqual(exact.span, selected.row.span);
+    await page.locator('#diagram svg .pick-target').first().waitFor();
+    const targets = await page.locator('#diagram .pick-target').evaluateAll(nodes => nodes.map(node => node.dataset.entityId));
+    assert.deepEqual([...targets].sort(), projectOutput(detail).nodes.map(node => node.id).sort());
+    const target = page.locator('#diagram .pick-target').first(); await target.focus(); await target.press('Enter');
+    assert.equal(await target.evaluate(node => node === document.activeElement), true);
+    assert.ok(await page.locator('#detail').textContent()); await target.press('Space');
+    const workerGeometry = await page.locator('#diagram svg').evaluate(svg => {
+      const rect = svg.getBoundingClientRect(); return { width: rect.width, height: rect.height, targets: svg.querySelectorAll('.pick-target').length };
     });
-    assert.equal(layout.horizontal, true, name + ' horizontal layout');
-    assert.ok(layout.footerTop >= Math.max(layout.mainBottom, layout.toolbarBottom, layout.editorControlsBottom) - 1,
-      name + ' footer must follow the complete workspace controls');
-    (receipt.viewportLayouts ||= []).push({ name, width, height, ...layout });
-    const filename = name + '.png'; await page.screenshot({ path: path.join(destination, filename), fullPage: true }); receipt.screenshots.push(filename);
-    receipt.captures.push({ file: filename, phase: diagnostics.phase.name, viewport: { width, height }, dpr: await page.evaluate(() => devicePixelRatio) });
-  }
-  diagnostics.assertClean();
-  record('desktop/mobile portrait/mobile landscape rendered layout receipts');
+    assert.ok(workerGeometry.width > 0 && workerGeometry.height > 0); receipt.workerGeometry = workerGeometry;
+    record('catalog → actual artifact → exact semantic detail → real Worker/SVG selection and keyboard focus');
+    const downloadPromise = page.waitForEvent('download'); await page.locator('#export-evidence').click();
+    const download = await downloadPromise, downloaded = path.join(destination, 'semantic-detail.json');
+    await download.saveAs(downloaded); assert.deepEqual(JSON.parse(await fs.readFile(downloaded, 'utf8')).result, detail);
+    record('download preserves the complete admitted service envelope');
+    const candidates = await query('find', { repoRoot: witness.repoRoot, generation: witness.manifest.generation,
+      selector: { field: 'astKind', value: 'CallExpression' }, limits: { records: 2, bytes: 65536, workMs: 250 } });
+    assert.ok(candidates.records.length);
+    assert.equal(candidates.records[0].generation, undefined, 'canonical records pin generation on their envelope');
+    await page.locator('#tree button').first().click();
+    const hydrationResponse = page.waitForResponse(response => response.url().endsWith('/analysis/semantic-detail') && response.request().method() === 'POST');
+    await page.getByRole('button', { name: 'Load semantic detail', exact: true }).click();
+    const hydration = await hydrationResponse;
+    assert.equal(hydration.status(), 200);
+    const hydrationInput = hydration.request().postDataJSON();
+    assert.deepEqual(hydrationInput.generation, candidates.generation);
+    assert.deepEqual(hydrationInput.refs, [candidates.records[0].ref]);
+    assert.equal(hydrationInput.repoRoot, witness.repoRoot);
+    const hydrated = (await hydration.json()).result;
+    assert.ok(hydrated.operands.length, 'hydration loads actual operands of the selected call');
+    await page.waitForFunction(() => document.getElementById('notice').textContent.startsWith('semantic detail'));
+    await page.locator('#tree button').first().click();
+    await page.getByRole('button', { name: 'Load semantic detail', exact: true }).waitFor();
+    record('canonical find → exact envelope generation/ref → hydrated operands; canonical detail remains hydratable');
+    const typed = await query('find', { repoRoot: witness.repoRoot, generation: witness.manifest.generation,
+      selector: { typeExpression: { expression: 'number', match: 'exact-expression', sources: ['compiler'], roles: ['parameter'] } },
+      limits: { records: 2, bytes: 65536, workMs: 250 } });
+    assert.ok(typed.matches.length); assert.ok(typed.matches.every(row => row.category === 'type-fact'
+    && row.fact.source === 'compiler' && row.fact.role === 'parameter' && row.fact.sourceHash));
+    const literals = await query('find', { repoRoot: witness.repoRoot, generation: witness.manifest.generation,
+      selector: { literal: { type: 'number', representation: '10' } }, limits: { records: 2, bytes: 65536, workMs: 250 } });
+    assert.ok(literals.matches.length); assert.ok(literals.matches.every(row => row.category === 'literal-value' && row.fact.source === 'literal'));
+    record('real service/browser strict compiler-role fact and exact scalar occurrence provenance');
+    const search = await query('search', { repoPath: witness.repoRoot, query: 'build', mode: 'code', backend: 'memory', ann: false, top: 5 });
+    assert.ok(search.code.length); const ranked = projectOutput(search);
+    const labels = await page.locator('#tree button').evaluateAll(nodes => nodes.map(node => node.childNodes[0].textContent));
+    assert.deepEqual(labels, ranked.nodes.map(node => node.label));
+    record('ranked search preserves service order and scores');
+    const beforeStale = await page.locator('#family').textContent();
+    await query('detail', { repoRoot: witness.repoRoot, generation: { ...witness.manifest.generation, baseBuildId: 'stale-browser-generation' }, refs: [selected.ref] }, false);
+    assert.equal(await page.locator('#family').textContent(), beforeStale);
+    assert.deepEqual(await page.locator('#tree button').evaluateAll(nodes => nodes.map(node => node.childNodes[0].textContent)), labels);
+    record('stale generation error retains the prior ranked view');
+    let release, startedResolve;
+    const held = new Promise(resolve => { release = resolve; }), dispatched = new Promise(resolve => { startedResolve = resolve; });
+    await page.route('**/search', async route => {
+      const response = await route.fetch(); startedResolve(); await held;
+      await route.fulfill({ response }).catch(() => {});
+    });
+    await page.locator('#operation').selectOption('search'); await page.locator('#request').fill(JSON.stringify({ repoPath: witness.repoRoot, query: 'render', mode: 'code', backend: 'memory', ann: false }));
+    diagnostics.begin('workspace-cancel-search', [{ type: 'requestfailed', url: base + '/search', message: 'net::ERR_ABORTED', maxCount: 1 }]);
+    await page.locator('#run').click(); await dispatched; await page.locator('#cancel').click(); release(); await page.unroute('**/search');
+    await page.waitForFunction(() => document.getElementById('notice').textContent.includes('Request cancelled'));
+    assert.deepEqual(await page.locator('#tree button').evaluateAll(nodes => nodes.map(node => node.childNodes[0].textContent)), labels);
+    record('cancel suppresses a delayed real-service reply and retains prior view');
+    diagnostics.begin('workspace-runtime-and-layout');
+    const common = { schemaVersion: 1, repoRoot: witness.repoRoot, destination: 'runtime-import' };
+    const generation = witness.manifest.generation, repositoryNamespace = runtime.source.repositoryNamespace;
+    const families = await query('families', { ...common, limits: { maxFamilies: 8, maxScan: 32, maxBytes: 65536, maxMs: 1000 }, cursor: null });
+    assert.ok(families.families.some(row => row.generationId === runtime.first.pointer.generationId));
+    const observed = await query('runtime', { ...common, request: { schemaVersion: 1, repositoryNamespace, generation,
+      familyGenerations: [runtime.first.pointer.generationId], selectors: { ...defaultRuntimeQuerySelectors(), records: [runtime.functions[0].ref] },
+      limits: { maxRecords: 1, maxBytes: 65536, maxMs: 1000 }, cursor: null } });
+    assert.equal(observed.observations.length, 1); assert.deepEqual(observed.observations[0].join.targets, [runtime.functions[0].ref]);
+    assert.equal(observed.observations[0].join.targetQuality, 'verified-coordinate'); receipt.runtimeVerification.push(observed.cost);
+    await page.locator('#tree button').first().click(); assert.ok(await page.locator('#detail').textContent());
+    const comparison = await query('compare', { ...common, request: { schemaVersion: 1, repositoryNamespace, generation,
+      leftFamily: runtime.first.pointer.generationId, rightFamily: runtime.second.pointer.generationId, sources: runtime.base.capture.sources,
+      limits: { maxRecords: 32, maxBytes: 65536, maxMs: 1000 }, persist: true } });
+    const claims = await query('claims', { ...common, request: { schemaVersion: 1, repositoryNamespace, generation,
+      claimGeneration: comparison.claimGeneration, limits: { maxRecords: 32, maxBytes: 65536, maxMs: 1000 }, cursor: null } });
+    assert.ok(claims.claims.length); assert.ok(claims.claims.every(row => row.evidenceClass === 'inferred'));
+    record('saved family → observed exact SSR source coordinate → separate immutable inferred claim');
+    await query('detail', { repoRoot: witness.repoRoot, generation: selected.generation, refs: [selected.ref], include: ['operands', 'names', 'ownership'] });
+    await page.locator('#diagram svg').waitFor(); await page.locator('#editor-toggle').click();
+    const priorSvg = await page.locator('#diagram svg').innerHTML();
+    await page.route('**/reladraw-worker.js', route => route.fulfill({ contentType: 'text/javascript', body: 'self.onmessage = () => {};' }));
+    const deadlineStart = performance.now(); await page.locator('#compile').click();
+    await page.waitForFunction(() => document.getElementById('compile-status').textContent.includes('1-second deadline'));
+    receipt.workerDeadlineMs = performance.now() - deadlineStart; assert.ok(receipt.workerDeadlineMs < 2200);
+    assert.equal(await page.locator('#diagram svg').innerHTML(), priorSvg); await page.unroute('**/reladraw-worker.js');
+    record('real Worker watchdog terminates an injected stall and retains prior SVG');
+    for (const [name, width, height] of [['desktop', 1440, 1000], ['mobile-portrait', 390, 844], ['mobile-landscape', 844, 390]]) {
+      await page.setViewportSize({ width, height });
+      const layout = await page.evaluate(() => {
+        const footer = document.querySelector('footer').getBoundingClientRect();
+        const main = document.querySelector('main').getBoundingClientRect();
+        const toolbar = document.querySelector('.toolbar').getBoundingClientRect();
+        const editor = document.querySelector('#editor').getBoundingClientRect();
+        const editorControlsBottom = Math.max(editor.bottom, ...[...document.querySelectorAll('#editor button,#compile-status')]
+          .map(node => node.getBoundingClientRect().bottom));
+        return { horizontal: document.documentElement.scrollWidth <= innerWidth,
+          footerTop: footer.top, mainBottom: main.bottom, toolbarBottom: toolbar.bottom, editorBottom: editor.bottom, editorControlsBottom };
+      });
+      assert.equal(layout.horizontal, true, name + ' horizontal layout');
+      assert.ok(layout.footerTop >= Math.max(layout.mainBottom, layout.toolbarBottom, layout.editorControlsBottom) - 1,
+        name + ' footer must follow the complete workspace controls');
+      (receipt.viewportLayouts ||= []).push({ name, width, height, ...layout });
+      const filename = name + '.png'; await page.screenshot({ path: path.join(destination, filename), fullPage: true }); receipt.screenshots.push(filename);
+      receipt.captures.push({ file: filename, phase: diagnostics.phase.name, viewport: { width, height }, dpr: await page.evaluate(() => devicePixelRatio) });
+    }
+    diagnostics.assertClean();
+    record('desktop/mobile portrait/mobile landscape rendered layout receipts');
 
+  }
+  if (options.scenario === 'three') {
   // The independent real Three.js CLI/server remains a separate viewer authority.
-  isoController = new AbortController(); let readyResolve, launcherLog = '', launcherOutput = '';
-  const ready = new Promise(resolve => { readyResolve = resolve; });
-  isoResult = spawnSubprocess(process.execPath, ['bin/pairofcleats.js', 'report', 'map', '--serve', '--repo', witness.repoRoot, '--no-open'],
-    { cwd: process.cwd(), env: process.env, signal: isoController.signal, timeoutMs: 30000, outputMode: 'string',
-      onStderr: chunk => { launcherLog += String(chunk); },
-      onStdout: chunk => { launcherOutput += String(chunk); for (const line of launcherOutput.split('\n').slice(0,-1)) { const event = JSON.parse(line); if(event.type==='map-preview-ready')readyResolve(event.url); } } })
-    .then(result => ({ result }), error => ({ error }));
-  const isoUrl = await Promise.race([ready, isoResult.then(result => { throw new Error('Three.js launcher ended before readiness: ' + launcherLog + ' ' + (result.error?.message || '')); })]);
-  diagnostics.begin('three-desktop');
-  await page.setViewportSize({ width: 1440, height: 1000 });
-  await page.goto(isoUrl); await page.waitForFunction(() => document.querySelectorAll('#stack-tree details').length > 0 && document.querySelector('canvas'));
-  const renderer = await page.evaluate(() => {
-    const canvas = document.querySelector('canvas'), gl = canvas.getContext('webgl2'), debug = gl?.getExtension('WEBGL_debug_renderer_info');
-    return { vendor: debug ? gl.getParameter(debug.UNMASKED_VENDOR_WEBGL) : null, renderer: debug ? gl.getParameter(debug.UNMASKED_RENDERER_WEBGL) : null,
-      version: gl?.getParameter(gl.VERSION), contextLost: gl?.isContextLost(), width: canvas.width, height: canvas.height };
-  });
-  receipt.renderedFrames = [await captureRenderedViewerFrame(page)];
-  assert.ok(renderer.width > 0 && renderer.height > 0); assert.equal(renderer.contextLost, false); receipt.renderer = renderer;
-  diagnostics.phase.renderer = { requested: 'ANGLE SwiftShader', effective: renderer.renderer, hardwareQualification: false };
-  await page.locator('#stack-search').fill('build'); const member = page.locator('#stack-tree button').filter({ hasText: /^build/ }).first();
-  await member.focus(); await member.press('Enter'); await page.waitForFunction(() => document.getElementById('stack-breadcrumb').textContent.includes('build'));
-  assert.match(await page.locator('#selection-body').textContent(), /Directed relationships/);
-  await page.locator('#stack-mode').selectOption('segments'); await page.locator('#stack-focus').click();
-  receipt.renderedFrames.push(await captureRenderedViewerFrame(page));
-  await page.screenshot({ path: path.join(destination, 'three-selection.png'), fullPage: true }); receipt.screenshots.push('three-selection.png');
-  receipt.captures.push({ file: 'three-selection.png', phase: diagnostics.phase.name, viewport: page.viewportSize(), dpr: receipt.renderedFrames.at(-1).dpr });
-  diagnostics.assertClean();
-  record('independent actual Three.js server/submitted scene frame/keyboard source-member selection');
-  diagnostics.begin('three-narrow');
-  diagnostics.phase.renderer = { requested: 'ANGLE SwiftShader', effective: renderer.renderer, hardwareQualification: false };
-  await page.setViewportSize({ width: 390, height: 844 });
-  receipt.renderedFrames.push(await captureRenderedViewerFrame(page));
-  await page.screenshot({ path: path.join(destination, 'three-narrow.png'), fullPage: true });
-  receipt.screenshots.push('three-narrow.png');
-  receipt.captures.push({ file: 'three-narrow.png', phase: diagnostics.phase.name, viewport: page.viewportSize(), dpr: receipt.renderedFrames.at(-1).dpr });
-  diagnostics.assertClean();
-  const fallback = await context.newPage(); fallback.setDefaultTimeout(5000);
-  const fallbackDiagnostics = attachQualificationDiagnostics(fallback, receipt, 'three-injected-no-webgl');
-  diagnosticOwners.push(fallbackDiagnostics);
-  fallbackDiagnostics.phase.renderer = { requested: 'injected no WebGL', effective: 'source-only', hardwareQualification: false };
-  fallbackDiagnostics.expect({ type: 'console', message: 'THREE.WebGLRenderer: Error creating WebGL context.', maxCount: 1 });
-  await fallback.setViewportSize({ width: 1440, height: 1000 });
-  await fallback.addInitScript(() => {
-    const get = HTMLCanvasElement.prototype.getContext;
-    HTMLCanvasElement.prototype.getContext = function(type, ...args) { return /^webgl/.test(type) ? null : get.call(this, type, ...args); };
-  });
-  await fallback.goto(isoUrl); await fallback.waitForFunction(() => document.getElementById('summary').textContent.includes('3D unavailable'));
-  await fallback.locator('#stack-search').fill('build'); await fallback.locator('#stack-tree button').filter({ hasText: /^build/ }).first().click();
-  assert.match(await fallback.locator('#stack-breadcrumb').textContent(), /build/); assert.match(await fallback.locator('#selection-body').textContent(), /All source fields/);
-  await fallback.screenshot({ path: path.join(destination, 'three-no-webgl.png'), fullPage: true }); receipt.screenshots.push('three-no-webgl.png');
-  fallbackDiagnostics.assertClean();
-  receipt.captures.push({ file: 'three-no-webgl.png', phase: fallbackDiagnostics.phase.name, viewport: fallback.viewportSize(), requestedRenderer: 'injected no WebGL', effectiveRenderer: 'source-only' });
-  await fallback.close(); record('injected WebGL unavailability preserves real source hierarchy and inspector');
+    isoController = new AbortController(); let readyResolve, launcherLog = '', launcherOutput = '';
+    const ready = new Promise(resolve => { readyResolve = resolve; });
+    isoResult = spawnSubprocess(process.execPath, ['bin/pairofcleats.js', 'report', 'map', '--serve', '--repo', witness.repoRoot, '--no-open'],
+      { cwd: process.cwd(), env: process.env, signal: isoController.signal, timeoutMs: 30000, outputMode: 'string',
+        onStderr: chunk => { launcherLog += String(chunk); },
+        onStdout: chunk => { launcherOutput += String(chunk); for (const line of launcherOutput.split('\n').slice(0,-1)) { const event = JSON.parse(line); if(event.type==='map-preview-ready')readyResolve(event.url); } } })
+      .then(result => ({ result }), error => ({ error }));
+    const isoUrl = await Promise.race([ready, isoResult.then(result => { throw new Error('Three.js launcher ended before readiness: ' + launcherLog + ' ' + (result.error?.message || '')); })]);
+    diagnostics.begin('three-startup');
+    // initStackNavigation owns the initial direct file query. Worker readiness
+    // supersedes it through that exact owner's AbortController before refreshing.
+    const expectStartupCancellation = (owner, url) => owner.expect({ type: 'requestfailed',
+      url: new URL('/map-snapshot', url).href, method: 'POST', requestKind: 'files',
+      message: 'net::ERR_ABORTED', maxCount: 1 });
+    expectStartupCancellation(diagnostics, isoUrl);
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await page.goto(isoUrl); await page.waitForFunction(() => document.querySelectorAll('#stack-tree details').length > 0 && document.querySelector('canvas'));
+    const renderer = await page.evaluate(() => {
+      const canvas = document.querySelector('canvas'), gl = canvas.getContext('webgl2'), debug = gl?.getExtension('WEBGL_debug_renderer_info');
+      return { vendor: debug ? gl.getParameter(debug.UNMASKED_VENDOR_WEBGL) : null, renderer: debug ? gl.getParameter(debug.UNMASKED_RENDERER_WEBGL) : null,
+        version: gl?.getParameter(gl.VERSION), contextLost: gl?.isContextLost(), width: canvas.width, height: canvas.height };
+    });
+    receipt.renderedFrames = [await captureRenderedViewerFrame(page)];
+    diagnostics.begin('three-desktop');
+    assert.ok(renderer.width > 0 && renderer.height > 0); assert.equal(renderer.contextLost, false); receipt.renderer = renderer;
+    diagnostics.phase.renderer = { requested: 'ANGLE SwiftShader', effective: renderer.renderer, hardwareQualification: false };
+    await page.getByRole('button', { name: 'Explore', exact: true }).click();
+    await page.locator('#stack-search').fill('build'); const member = page.locator('#stack-tree button').filter({ hasText: /^(?:snapshot\.ts \/ )?build(?:$| ·)/u }).first();
+    await member.focus(); await member.press('Enter'); await page.waitForFunction(() => document.getElementById('stack-breadcrumb').textContent.includes('build'));
+    const assertSourceInspector = async current => {
+      const trigger = current.getByRole('button', { name: 'Inspect', exact: true });
+      if (await trigger.getAttribute('aria-expanded') !== 'true') await trigger.click();
+      await current.waitForFunction(() => document.getElementById('selection-body').textContent
+        .includes('3 incoming / 0 outgoing · 3 distinct available relationships.'));
+      const details = current.locator('#selection-body > details').filter({ has: current.locator('summary', { hasText: 'Source fields · load on demand' }) }).first();
+      await details.locator('summary').first().click(); await details.locator('.evidence').first().waitFor();
+      const text = await details.textContent();
+      assert.match(text, /name: build/); assert.match(text, /kind: FunctionDeclaration/);
+    };
+    await assertSourceInspector(page);
+    await page.locator('#stack-mode').selectOption('segments'); await page.locator('#stack-focus').click();
+    receipt.renderedFrames.push(await captureRenderedViewerFrame(page));
+    await page.screenshot({ path: path.join(destination, 'three-selection.png'), fullPage: true }); receipt.screenshots.push('three-selection.png');
+    receipt.captures.push({ file: 'three-selection.png', phase: diagnostics.phase.name, viewport: page.viewportSize(), dpr: receipt.renderedFrames.at(-1).dpr });
+    diagnostics.assertClean();
+    record('independent actual Three.js server/submitted scene frame/keyboard source-member selection');
+    diagnostics.begin('three-narrow');
+    diagnostics.phase.renderer = { requested: 'ANGLE SwiftShader', effective: renderer.renderer, hardwareQualification: false };
+    await page.setViewportSize({ width: 390, height: 844 });
+    receipt.renderedFrames.push(await captureRenderedViewerFrame(page));
+    await page.screenshot({ path: path.join(destination, 'three-narrow.png'), fullPage: true });
+    receipt.screenshots.push('three-narrow.png');
+    receipt.captures.push({ file: 'three-narrow.png', phase: diagnostics.phase.name, viewport: page.viewportSize(), dpr: receipt.renderedFrames.at(-1).dpr });
+    diagnostics.assertClean();
+    const fallback = await context.newPage(); fallback.setDefaultTimeout(5000);
+    const fallbackDiagnostics = attachQualificationDiagnostics(fallback, receipt, 'three-injected-no-webgl');
+    diagnosticOwners.push(fallbackDiagnostics);
+    fallbackDiagnostics.phase.renderer = { requested: 'injected no WebGL', effective: 'source-only', hardwareQualification: false };
+    fallbackDiagnostics.expect({ type: 'console', url: new URL('/three/three.core.js', isoUrl).href, message: 'THREE.WebGLRenderer: THREE.WebGLRenderer: Error creating WebGL context.', maxCount: 1 });
+    await fallback.setViewportSize({ width: 1440, height: 1000 });
+    await fallback.addInitScript(() => {
+      const get = HTMLCanvasElement.prototype.getContext;
+      HTMLCanvasElement.prototype.getContext = function(type, ...args) { return /^webgl/.test(type) ? null : get.call(this, type, ...args); };
+    });
+    expectStartupCancellation(fallbackDiagnostics, isoUrl);
+    await fallback.goto(isoUrl); await fallback.waitForFunction(() => document.getElementById('summary').textContent.includes('3D unavailable'));
+    await fallback.getByRole('button', { name: 'Explore', exact: true }).click();
+    await fallback.locator('#stack-search').fill('build'); await fallback.locator('#stack-tree button').filter({ hasText: /^(?:snapshot\.ts \/ )?build(?:$| ·)/u }).first().click();
+    await fallback.waitForFunction(() => document.getElementById('stack-breadcrumb').textContent.includes('build'));
+    assert.match(await fallback.locator('#stack-breadcrumb').textContent(), /build/); await assertSourceInspector(fallback);
+    await fallback.screenshot({ path: path.join(destination, 'three-no-webgl.png'), fullPage: true }); receipt.screenshots.push('three-no-webgl.png');
+    fallbackDiagnostics.assertClean();
+    receipt.captures.push({ file: 'three-no-webgl.png', phase: fallbackDiagnostics.phase.name, viewport: fallback.viewportSize(), requestedRenderer: 'injected no WebGL', effectiveRenderer: 'source-only' });
+    await fallback.close(); record('injected WebGL unavailability preserves real source hierarchy and inspector');
+  }
   diagnostics.assertClean();
   assert.ok(receipt.phases.every(phase => phase.status === 'passed'));
   checkDeadline(); receipt.workMs = performance.now() - started; receipt.status = 'passed';

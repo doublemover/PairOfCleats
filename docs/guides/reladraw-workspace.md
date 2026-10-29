@@ -167,8 +167,12 @@ Run the harness with explicitly supplied task-owned browser assets and an isolat
 receipt directory; it does not install browser dependencies or capture a live process:
 
 ```text
-node tests/map/workspace/browser-qualification.js --playwright /task/browser/node_modules/playwright/index.mjs --chromium /task/browser/chrome --out /task/evidence
+node tests/map/workspace/browser-qualification.js --scenario workspace --playwright /task/browser/node_modules/playwright/index.mjs --chromium /task/browser/chrome --out /task/evidence/workspace
+node tests/map/workspace/browser-qualification.js --scenario three --playwright /task/browser/node_modules/playwright/index.mjs --chromium /task/browser/chrome --out /task/evidence/three
 ```
+
+Both explicit scenarios are required. Each builds a fresh published source fixture
+and has a separate 30-second bound including cleanup; neither substitutes for the other.
 
 `browser-qualification.json` records the checkout, source/generation identity, browser,
 observed renderer, request statuses, measured worker deadline and workflow results.

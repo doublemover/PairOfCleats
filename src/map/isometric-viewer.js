@@ -17,6 +17,7 @@ export function renderIsometricHtml({
   return `<!doctype html>
 <html lang="en">
 <head>
+<link rel="icon" href="data:," />
 <meta charset="utf-8" />
 <title>PairOfCleats · Semantic stacks</title>
 <meta name="viewport" content="width=device-width,initial-scale=1" />

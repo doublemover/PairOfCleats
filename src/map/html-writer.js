@@ -18,6 +18,7 @@ export function renderSvgHtml({ svg, mapModel, title = 'Code Map' }) {
   return `<!doctype html>
 <html lang="en">
 <head>
+<link rel="icon" href="data:," />
 <meta charset="utf-8" />
 <title>${escapeHtml(title)}</title>
 <style>

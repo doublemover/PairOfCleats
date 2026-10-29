@@ -6,6 +6,9 @@ export const classifyQualificationPhase = phase => {
     const rule = phase.expected.find(candidate => candidate.type === event.type
       && (!candidate.url || candidate.url === event.url)
       && (!candidate.message || candidate.message === event.message)
+      && (!candidate.method || candidate.method === event.method)
+      && (!candidate.requestKind || candidate.requestKind === event.requestKind)
+      && (!candidate.requestId || candidate.requestId === event.requestId)
       && (!candidate.statuses || candidate.statuses.includes(event.status))
       && (!candidate.messagePattern || new RegExp(candidate.messagePattern).test(event.message || ''))
       && (expectedCounts.get(candidate) || 0) < candidate.maxCount);
@@ -36,12 +39,20 @@ export const attachQualificationDiagnostics = (page, receipt, initialPhase, { li
     phase.events.push({ timestamp: new Date().toISOString(), pageUrl: page.url(), phase: phase.name,
       origin, severity: 'error', ...event });
   };
+  const requests = new WeakMap(); let requestSequence = 0;
+  const requestFields = request => {
+    if (!requests.has(request)) requests.set(request, ++requestSequence);
+    let body = null;
+    try { const text = request.postData?.(); if (text && text.length <= 4096) body = JSON.parse(text); } catch {}
+    return { requestId: requests.get(request), method: request.method?.() || null,
+      requestKind: typeof body?.kind === 'string' ? body.kind.slice(0, 64) : null };
+  };
   page.on('pageerror', error => emit({ type: 'pageerror', url: page.url(), message: error.message }));
   page.on('console', message => {
     if (message.type() === 'error') emit({ type: 'console', url: message.location()?.url || page.url(), message: message.text() });
   });
   page.on('requestfailed', request => emit({ type: 'requestfailed', url: request.url(),
-    resourceType: request.resourceType(), message: request.failure()?.errorText || 'request failed' }));
+    resourceType: request.resourceType(), ...requestFields(request), message: request.failure()?.errorText || 'request failed' }));
   page.on('response', response => {
     if (response.status() >= 400) emit({ type: 'http', url: response.url(), status: response.status(),
       resourceType: response.request().resourceType(), message: `HTTP ${response.status()}` });

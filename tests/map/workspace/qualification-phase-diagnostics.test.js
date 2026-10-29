@@ -32,3 +32,14 @@ scopedPage.emit('console', { type: () => 'error', location: () => ({}), text: ()
 scoped.begin('ordinary-three-retry');
 scopedPage.emit('console', { type: () => 'error', location: () => ({}), text: () => expected.message });
 assert.throws(() => scoped.assertClean(), /unexpected errors/u, 'an injected-step exception is not a retry-page allowlist');
+
+const cancellation = { type: 'requestfailed', url: 'https://localhost/map-snapshot',
+  method: 'POST', requestKind: 'files', requestId: 7, message: 'net::ERR_ABORTED', maxCount: 1 };
+const matchesCancellation = event => classifyQualificationPhase({ events: [event], expected: [cancellation], overflow: 0 }).ok;
+assert.equal(matchesCancellation({ ...cancellation }), true);
+for (const changed of [{ requestKind: 'detail' }, { requestId: 8 }, { method: 'GET' },
+  { url: 'https://localhost/module.js' }, { message: 'net::ERR_FAILED' }]) {
+  assert.equal(matchesCancellation({ ...cancellation, ...changed }), false);
+}
+assert.equal(classifyQualificationPhase({ events: [{ ...cancellation }, { ...cancellation }],
+  expected: [cancellation], overflow: 0 }).ok, false, 'only one exact owned cancellation is admitted');
