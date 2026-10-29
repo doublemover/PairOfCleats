@@ -77,7 +77,11 @@ deadline.context.countAwareAnnPolicy = { ...settings, exactRows: 0, maxMs: 10 };
 const keepAlive = setTimeout(() => {}, 100);
 try {
   await createSearchPipeline(deadline.context)(deadline.idx, 'code', [1, 0]);
-  assert.equal(deadline.stageTracker.stages.find(row => row.stage === 'ann').countAware.reasonEnded, 'deadline');
+  const ended = deadline.stageTracker.stages.find(row => row.stage === 'ann').countAware;
+  assert.equal(ended.reasonEnded, 'deadline');
+  assert.equal(ended.attempts.at(-1).status, 'deadline');
+  assert.equal(ended.complete, false); assert.equal(ended.recallCertified, false);
+  assert.equal(deadline.context.signal?.aborted ?? false, false, 'planner deadline does not cancel the caller');
   assert.equal(getGenerationProviderRuntime(deadline.idx).getProviderModeState(deadlineProvider, 'code').failures, 0,
     'planner deadline is not a native provider health failure');
 } finally { clearTimeout(keepAlive); }

@@ -1,3 +1,4 @@
+import { loadDenseArtifactMetadata } from './dense-artifact-metadata.js';
 import path from 'node:path';
 import fs from 'node:fs';
 import { buildLocalCacheKey } from '../shared/cache-key.js';
@@ -114,7 +115,9 @@ export async function loadIndex(dir, options) {
   const loadOptionalDenseBinary = async (artifactName) => {
     const descriptor = resolveDenseVectorBinaryArtifact(artifactName);
     if (!descriptor) return null;
-    const meta = await loadOptionalObject(descriptor.metaName);
+    const meta = strict
+      ? await loadDenseArtifactMetadata(dir, descriptor.metaName, { manifest, strict })
+      : await loadOptionalObject(descriptor.metaName);
     if (!meta || typeof meta !== 'object') return null;
     return await loadDenseVectorBinaryFromMetaAsync({
       dir,

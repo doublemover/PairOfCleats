@@ -21,7 +21,7 @@ import { requireBootstrap } from '../../../src/shared/bootstrap-readiness.js';
 const options = Object.fromEntries(Array.from({ length: Math.floor((process.argv.length - 2) / 2) }, (_, i) =>
   [process.argv[2 + i * 2].replace(/^--/, ''), process.argv[3 + i * 2]]));
 for (const key of ['playwright', 'chromium', 'out', 'scenario']) if (!options[key]) throw new Error('Required --' + key);
-assert.ok(['workspace', 'three', 'three-module-404', 'three-shader-failure', 'three-render-noop'].includes(options.scenario), 'Run both explicit --scenario workspace and --scenario three cohorts.');
+assert.ok(['workspace', 'three', 'three-module-404', 'three-shader-failure', 'three-render-noop', 'three-render-exception', 'three-fallback-page-error'].includes(options.scenario), 'Run both explicit --scenario workspace and --scenario three cohorts.');
 await requireBootstrap();
 const destination = path.resolve(options.out); await fs.mkdir(destination, { recursive: true });
 const root = await fs.mkdtemp(path.join(destination, 'fixture-'));
@@ -48,9 +48,9 @@ const watchdog = setTimeout(() => {
   isoController?.abort(deadline.signal.reason);
   void context?.close().catch(() => {});
 }, receipt.limits.totalWorkMs);
-const record = name => { checkDeadline(); receipt.tests.push(name); };
+const record = name => { checkDeadline(); receipt.tests.push(name); (receipt.steps ||= []).push({ name, elapsedMs: performance.now() - started }); };
 try {
-  const witness = await createPublishedSemanticWitness({ root, abortSignal: deadline.signal }); checkDeadline();
+  const witness = await createPublishedSemanticWitness({ root, abortSignal: deadline.signal }); record('fresh published semantic witness ready');
   if (options.scenario === 'workspace') {
     runtime = await createPublishedRuntimeWitness(witness, { signal: deadline.signal }); checkDeadline();
     receipt.generation = witness.manifest.generation;
@@ -71,7 +71,7 @@ try {
     args: ['--no-sandbox', '--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
   receipt.browser = { version: browser.version(), executable: path.resolve(options.chromium), rendererMode: 'requested ANGLE SwiftShader; observed renderer below' };
   context = await browser.newContext({ viewport: { width: 1440, height: 1000 }, acceptDownloads: true, ignoreHTTPSErrors: true });
-  page = await context.newPage(); page.setDefaultTimeout(5000);
+  page = await context.newPage(); page.setDefaultTimeout(5000); record('actual browser page ready');
   const diagnostics = attachQualificationDiagnostics(page, receipt, options.scenario === 'workspace' ? 'workspace' : 'three-setup');
   diagnosticOwners.push(diagnostics);
   if (options.scenario === 'workspace') {
@@ -269,6 +269,7 @@ try {
         onStdout: chunk => { launcherOutput += String(chunk); for (const line of launcherOutput.split('\n').slice(0,-1)) { const event = JSON.parse(line); if(event.type==='map-preview-ready')readyResolve(event.url); } } })
       .then(result => ({ result }), error => ({ error }));
     const isoUrl = await Promise.race([ready, isoResult.then(result => { throw new Error('Three.js launcher ended before readiness: ' + launcherLog + ' ' + (result.error?.message || '')); })]);
+    record('independent Three.js CLI server ready');
     if (options.scenario !== 'three') {
       receipt.rendererFault = await qualifyRendererFault({ page, url: isoUrl, diagnostics, scenario: options.scenario });
       record('actual browser injected renderer fault: ' + options.scenario);

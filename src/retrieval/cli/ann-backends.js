@@ -1,3 +1,4 @@
+import { loadDenseArtifactMetadata } from '../dense-artifact-metadata.js';
 import path from 'node:path';
 import { stableStringify } from '../../shared/stable-json.js';
 import { embeddingBindingMismatches } from '../../shared/embedding-generation.js';
@@ -116,7 +117,7 @@ export const attachDenseVectorLoader = ({
         if (!candidatePresent(descriptor.metaName)) continue;
         let meta = null;
         try {
-          meta = await loadJsonObjectArtifact(dir, descriptor.metaName, {
+          meta = await loadDenseArtifactMetadata(dir, descriptor.metaName, {
             maxBytes: MAX_JSON_BYTES,
             manifest,
             strict

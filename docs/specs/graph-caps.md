@@ -143,3 +143,14 @@ When `explain=true`, each ranked entry includes `scoreBreakdown.graph`:
 ```
 
 This is appended to any existing score breakdown data.
+
+## Explicit count/preparation qualification
+
+Run `node --expose-gc tests/graph/qualification-neighborhood-cost.js` on the prepared
+supported runtime. The internal fixture records ordinary/CSR index construction,
+full order/count admission, first incoming reverse-CSR setup, warm exact counts,
+raw normalization/deduplication and repeated traversal-cache misses separately.
+Degrees8/256/20000, fanout1/3, out/in/both and three fresh generations retain exact
+ordinary/CSR output and source identity. It reports exact typed-array bytes and
+retained heap/RSS boundaries; encoded adjacency bytes are wire size, not object
+heap attribution. Cold setup is separate from cooperative traversal budgets.

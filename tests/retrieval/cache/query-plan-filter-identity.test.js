@@ -30,3 +30,14 @@ for (const field of ['branchesMin', 'loopsMin', 'breaksMin', 'continuesMin']) {
   assert.equal(one, key(plan('all', { [field]: 1 })), `${field}: repeated equal thresholds reuse the same identity`);
 }
 console.log('Query-cache identity binds Boolean policy and all control-flow thresholds.');
+
+for (const field of ['branchesMin', 'loopsMin', 'breaksMin', 'continuesMin']) {
+  const cachePath = path.resolve('.tmp', 'query-plan-threshold-' + process.pid + '-' + field + '.json');
+  const oneKey = key(plan('all', { [field]: 1 })), twoKey = key(plan('all', { [field]: 2 }));
+  rememberQueryCacheEntry(cachePath, oneKey, 'threshold-generation', { key: oneKey,
+    signature: 'threshold-generation', value: [{ id: 1, threshold: field }], ts: Date.now() }, 16);
+  const lookup = value => findQueryCacheEntry(null, value, 'threshold-generation', { strategy: 'memory-first', cachePath });
+  assert.deepEqual(lookup(oneKey).value, [{ id: 1, threshold: field }]);
+  assert.deepEqual(lookup(key(plan('all', { [field]: 1 }))).value, [{ id: 1, threshold: field }]);
+  assert.equal(lookup(twoKey), null, field + ': another threshold cannot borrow a repeated-query hit');
+}

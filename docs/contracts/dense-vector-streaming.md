@@ -13,3 +13,12 @@ No-op base vectors receive zero payload writes. Optional ANN rows are still reco
 Textual dense artifacts remain published. Current consumers include retrieval artifact loaders, index validation, SQLite artifact ingestion, evaluation/inspection tools and legacy native handoffs. Omitting textual output requires a separately versioned compatibility cutover across those owners. This change prefers binary for native backend input without silently removing either published representation.
 
 The authored regressions cover binary/text parity and masks, xxh64 manifest verification, truncated/mismatched input, positive-short-read progress, cancellation cleanup, bounded SQLite reconciliation, exact edits/deletions and rollback after an earlier mutation batch. All execution, native and performance qualification is deferred.
+
+Strict direct and lazy retrieval distinguish an absent optional binary metadata
+family from a declared missing, malformed or integrity-invalid family. Metadata
+checksums (SHA1/SHA256/xxh64) are verified against the same bounded raw bytes then
+decoded/parsed, including manifested compressed metadata and backup selection.
+A previous stat/cache observation cannot authorize different restored-mtime bytes.
+Absent preferred split vectors may select healthy merged vectors; declared failures
+propagate instead of turning into ANN unavailability. Permissive optional-format
+fallback retains its existing rules.
