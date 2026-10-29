@@ -1,28 +1,14 @@
 param([string]$LockPath)
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot '../windows/native-call.ps1')
 [Console]::Out.WriteLine('native-api-loading')
 [Console]::Out.Flush()
 $library = [Runtime.InteropServices.NativeLibrary]::Load('kernel32.dll')
 # Call the same native APIs without starting the C# compiler in a timed fixture.
 # Primitive/pointer arguments use explicit UTF-16 path and disposition storage.
-function New-NativeCall {
-  param([string]$Name, [type]$ReturnType, [type[]]$ParameterTypes)
-  $address = [Runtime.InteropServices.NativeLibrary]::GetExport($library, $Name)
-  $method = [Reflection.Emit.DynamicMethod]::new($Name, $ReturnType, $ParameterTypes)
-  $il = $method.GetILGenerator()
-  for ($index = 0; $index -lt $ParameterTypes.Length; $index++) {
-    $il.Emit([Reflection.Emit.OpCodes]::Ldarg, [int16]$index)
-  }
-  $il.Emit([Reflection.Emit.OpCodes]::Ldc_I8, $address.ToInt64())
-  $il.Emit([Reflection.Emit.OpCodes]::Conv_I)
-  $il.EmitCalli([Reflection.Emit.OpCodes]::Calli,
-    [Runtime.InteropServices.CallingConvention]::StdCall, $ReturnType, $ParameterTypes)
-  $il.Emit([Reflection.Emit.OpCodes]::Ret)
-  return $method
-}
-$create = New-NativeCall 'CreateFileW' ([IntPtr]) @([IntPtr], [uint32], [uint32], [IntPtr], [uint32], [uint32], [IntPtr])
-$setDisposition = New-NativeCall 'SetFileInformationByHandle' ([int]) @([IntPtr], [int], [IntPtr], [uint32])
-$close = New-NativeCall 'CloseHandle' ([int]) @([IntPtr])
+$create = New-PocNativeCall $library 'CreateFileW' ([IntPtr]) @([IntPtr], [uint32], [uint32], [IntPtr], [uint32], [uint32], [IntPtr])
+$setDisposition = New-PocNativeCall $library 'SetFileInformationByHandle' ([int]) @([IntPtr], [int], [IntPtr], [uint32])
+$close = New-PocNativeCall $library 'CloseHandle' ([int]) @([IntPtr])
 [Console]::Out.WriteLine('native-api-ready')
 [Console]::Out.Flush()
 $pathPointer = [Runtime.InteropServices.Marshal]::StringToHGlobalUni($LockPath)

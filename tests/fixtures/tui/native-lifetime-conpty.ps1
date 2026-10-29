@@ -1,25 +1,29 @@
 param([string]$Binary, [string]$FixtureRoot, [string]$Mode, [string]$Wrapper = '')
 $ErrorActionPreference = 'Stop'
-Add-Type -TypeDefinition @'
-using System;
-using System.Runtime.InteropServices;
-public static class PocConsoleMode {
-  [DllImport("kernel32.dll", SetLastError=true)] public static extern IntPtr GetStdHandle(int which);
-  [DllImport("kernel32.dll", SetLastError=true)] public static extern bool GetConsoleMode(IntPtr handle, out uint mode);
-  public static uint Read(int which) {
-    uint mode;
-    if (!GetConsoleMode(GetStdHandle(which), out mode)) throw new System.ComponentModel.Win32Exception();
-    return mode;
+. (Join-Path $PSScriptRoot '../windows/native-call.ps1')
+$library = [Runtime.InteropServices.NativeLibrary]::Load('kernel32.dll')
+$getHandle = New-PocNativeCall $library 'GetStdHandle' ([IntPtr]) @([int])
+$getMode = New-PocNativeCall $library 'GetConsoleMode' ([int]) @([IntPtr], [IntPtr])
+function Read-PocConsoleMode {
+  param([int]$Which)
+  $pointer = [Runtime.InteropServices.Marshal]::AllocHGlobal(4)
+  try {
+    $handle = $getHandle.Invoke($null, @($Which))
+    if ($getMode.Invoke($null, @($handle, $pointer)) -eq 0) {
+      throw "GetConsoleMode failed for standard handle $Which"
+    }
+    return [uint32][Runtime.InteropServices.Marshal]::ReadInt32($pointer)
+  } finally {
+    [Runtime.InteropServices.Marshal]::FreeHGlobal($pointer)
   }
 }
-'@
-$beforeInput = [PocConsoleMode]::Read(-10)
-$beforeOutput = [PocConsoleMode]::Read(-11)
+$beforeInput = Read-PocConsoleMode -10
+$beforeOutput = Read-PocConsoleMode -11
 $seedName = if ($Mode -eq 'validate-search') { 'seed-complete-build.json' }
   elseif ($Mode -in @('build-search', 'workspace')) { 'seed-partial-build.json' }
   else { $null }
 if ($seedName) {
-  # Compile the independent console observer while the canonical seed builds.
+  # Initialize the independent console observer while the canonical seed builds.
   # Start the native lifetime only after the seed owner has actually completed.
   $seedDeadline = [DateTime]::UtcNow.AddSeconds(20)
   while (!(Test-Path -LiteralPath (Join-Path $FixtureRoot $seedName))) {
@@ -69,8 +73,8 @@ try {
     $native.StandardOutput.Close()
   }
   if (!$native.WaitForExit(18000)) { throw 'Native process exceeded lifetime deadline' }
-  $afterInput = [PocConsoleMode]::Read(-10)
-  $afterOutput = [PocConsoleMode]::Read(-11)
+  $afterInput = Read-PocConsoleMode -10
+  $afterOutput = Read-PocConsoleMode -11
   @{ mode = $Mode; exitCode = $native.ExitCode; stderr = $stderr.GetAwaiter().GetResult();
     beforeInput = $beforeInput; afterInput = $afterInput; beforeOutput = $beforeOutput; afterOutput = $afterOutput;
     terminalRestored = ($beforeInput -eq $afterInput -and $beforeOutput -eq $afterOutput)
@@ -78,4 +82,5 @@ try {
 } finally {
   if (!$native.HasExited) { $native.Kill($true); $native.WaitForExit() }
   $native.Dispose()
+  [Runtime.InteropServices.NativeLibrary]::Free($library)
 }
