@@ -16,9 +16,9 @@ leaves **471 open**: 233 qualification-pending,
 The [assessment](archived/github-issue-closeout-2026-10-26.json) maps sources,
 tests and closure witnesses; [earlier receipts](archived/solo-issue-repairs-2026-10-25.md)
 retain historical evidence. Parent and two persistent agents work on Windows; hosted checks retain
-their source identities. Consumer candidate `47d1f6058` adds 255 passing affected/gate cases; Stage4
-code/prose partitions pass, while #1350 retains a semantic-drain timeout.
-The last two waves closed 91 further reports with individual readback; #1384 retains its excluded editor component.
+their source identities. Consumer candidate `27c2a65af` adds273 passing affected/gate cases and29
+qualified issue proofs; #1362’s backend fault matrix is complete. #1350 retains its semantic-drain
+timeout; #1384 retains its excluded editor component.
 
 Completed source-bound checks are indexed in the
 [qualification archive](archived/native-runtime-qualification-index-2026-10-27.md)
