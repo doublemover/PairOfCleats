@@ -63,6 +63,9 @@ registered relations and source/time/match limits.
 
 [Checkpoint 285 publication and nine verified issue closures](windows-validation-publication-checkpoint-285-2026-10-28.json)
 retain the exact published head, all eight gate results and GitHub readbacks.
+After this follow-up was published at `1564be778`, issue #1497 was also closed
+as completed and read back. Its exact original and mapped controls passed at
+`98682fdbb`; all eight publication checks and 40/40 gate cases passed there.
 The complete baseline and focused reports preserve exact source identities;
 raw `.tmp/` receipts are historical author-workspace evidence, unavailable in a
 clean checkout.

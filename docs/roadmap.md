@@ -11,8 +11,8 @@ The [closeout review](archived/github-issue-closeout-2026-10-26.md) assessed
 **770 issues/238 comments**, closing 27; later batches closed 25 more.
 [Checkpoint 285](archived/windows-validation-publication-checkpoint-285-2026-10-28.json)
 closed nine qualified reports after publication and all eight front-gate checks
-(40/40 gate cases). Its **709-open snapshot** has 473 qualification-pending,
-147 partial and 89 unresolved entries.
+(40/40 gate cases). The R acceptance follow-up closes #1497, leaving **708 open**:
+472 qualification-pending, 147 partial and 89 unresolved entries.
 
 The [complete assessment](archived/github-issue-closeout-2026-10-26.json) retains
 source/test mappings and closure witnesses; [earlier receipts](archived/solo-issue-repairs-2026-10-25.md)

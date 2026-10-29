@@ -1842,5 +1842,14 @@
     "matchingLines": 4,
     "onlyMatchingCase": "shared/subprocess/windows-cdb-child/simulated-native-exit",
     "interpretation": "All matching lines are the intentional process.exit fixture signed/unsigned assertion. No actual native-crash attribution follows from this text scan."
+  },
+  "githubCloseout": {
+    "number": 1497,
+    "state": "closed",
+    "stateReason": "completed",
+    "closedAt": "2026-10-29T00:18:15Z",
+    "publishedHead": "1564be7783025e39fb514e3c9212436d9f4f8176",
+    "qualifiedSource": "98682fdbba758821347e88b99a7665534805a6cb",
+    "readBackVerified": true
   }
 }
