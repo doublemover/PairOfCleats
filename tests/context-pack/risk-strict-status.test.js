@@ -10,6 +10,7 @@ import { ARTIFACT_SURFACE_VERSION } from '../../src/contracts/versioning.js';
 import { applyTestEnv } from '../helpers/test-env.js';
 import { resolveTestCachePath } from '../helpers/test-cache.js';
 import { buildCapHeavyRiskPacksReport, renderDiagnosticsReportHuman } from '../../tools/reports/diagnostics-report.js';
+import { createRiskSourceConsumerCase } from '../helpers/risk-source-consumer.js';
 
 applyTestEnv({ testing: '1' });
 
@@ -87,7 +88,7 @@ const writeManifest = async (indexDir, pieces) => {
   });
 };
 
-const buildPack = async ({ name, stats = null, summaries = null, flows = null, invalidFlows = false, riskStrict = false }) => {
+const buildPack = async ({ name, stats = null, summaries = null, flows = null, callSites = null, metadata = chunkMeta, invalidFlows = false, riskStrict = false }) => {
   const indexDir = path.join(tempRoot, name, 'index-code');
   await fs.rm(indexDir, { recursive: true, force: true });
   await fs.mkdir(indexDir, { recursive: true });
@@ -108,10 +109,14 @@ const buildPack = async ({ name, stats = null, summaries = null, flows = null, i
     }
     pieces.push({ name: 'risk_flows', path: 'risk_flows.jsonl', format: 'jsonl' });
   }
+  if (callSites) {
+    await writeJsonl(path.join(indexDir, 'call_sites.jsonl'), callSites);
+    pieces.push({ name: 'call_sites', path: 'call_sites.jsonl', format: 'jsonl' });
+  }
   await writeManifest(indexDir, pieces);
   return assembleCompositeContextPack({
-    seed: { type: 'chunk', chunkUid: 'chunk-primary' },
-    chunkMeta,
+    seed: { type: 'chunk', chunkUid: metadata[0].chunkUid },
+    chunkMeta: metadata,
     repoRoot,
     indexDir,
     includeGraph: false,
@@ -301,5 +306,19 @@ for (const family of ['stats', 'summaries']) {
       syncBuiltinESMExports();
     }
   }
+}
+for (const [name, caps, count] of [['actual-complete-local', {}, 1], ['actual-capped-local', { maxBytes: 10 }, 0]]) {
+  const actual = await createRiskSourceConsumerCase({ caps });
+  await fs.writeFile(path.join(repoRoot, 'src/actual-source.js'), actual.sourceText);
+  await fs.writeFile(path.join(repoRoot, 'src/actual-sink.js'), actual.sinkText);
+  assert.equal(actual.result.flowRows.length, count);
+  const pack = await buildPack({ name, stats: actual.result.stats, summaries: actual.result.summaryRows,
+    flows: actual.result.flowRows, callSites: actual.callSites, metadata: actual.chunks });
+  assert.equal(pack.risk.analysisStatus.strictFailure, true, 'unknown cross-file admission remains an independent strict qualification');
+  assert.ok(pack.risk.caps.hits.includes('upstream:cross-file-analysis:unknown'));
+  assert.equal(pack.risk.caps.hits.includes('upstream:maxBytes'), count === 0, 'the real detector cap reaches the strict pack consumer');
+  await assert.rejects(buildPack({ name: name + '-strict', stats: actual.result.stats, summaries: actual.result.summaryRows,
+    flows: actual.result.flowRows, callSites: actual.callSites, metadata: actual.chunks, riskStrict: true }),
+  error => error.code === 'ERR_CONTEXT_PACK_RISK_STRICT');
 }
 console.log('context pack risk strict status test passed');

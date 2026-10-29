@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { detectRiskSignals, normalizeRiskConfig } from '../../../../src/index/risk.js';
 import { buildRiskSummaries } from '../../../../src/index/risk-interprocedural/summaries.js';
 import { computeInterproceduralRisk } from '../../../../src/index/risk-interprocedural/engine.js';
+import { createRiskSourceConsumerCase } from '../../../helpers/risk-source-consumer.js';
 
 const runtime = { riskInterproceduralEnabled: true, riskInterproceduralConfig: { enabled: true, summaryOnly: false,
   caps: { maxDepth: 4, maxTotalFlows: 20, maxPathsPerPair: 3, maxEdgeExpansions: 20, maxMs: null } } };
@@ -37,4 +38,23 @@ const dropped = computeInterproceduralRisk({ chunks: [], summaries: [], runtime,
 assert.equal(dropped.stats.inputCoverage.droppedRows, 2);
 assert.equal(dropped.stats.inputCoverage.droppedChunkWitnessesOmitted, 1);
 assert.equal(dropped.status, 'partial');
+const surviving = await createRiskSourceConsumerCase();
+assert.equal(surviving.result.flowRows.length, 1, 'the actual uncapped source detector reaches the other authored chunk sink');
+assert.equal(surviving.result.summaryRows[0].inputCoverage.status, 'complete');
+assert.equal(surviving.result.stats.executionStatus, 'completed');
+assert.equal(surviving.result.stats.inputCoverage.upstreamCoverage.analysis.status, 'unknown', 'local success cannot fabricate unrelated cross-file completeness');
+for (const [reason, options] of [
+  ['maxBytes', { caps: { maxBytes: 10 } }], ['maxLines', { caps: { maxLines: 1 } }],
+  ['maxNodes', { caps: { maxNodes: 1 }, sourceText: 'const value=SOURCE;\nconst alias=value;\nS(alias);' }],
+  ['maxEdges', { caps: { maxEdges: 1 }, sourceText: 'const value=SOURCE;\nconst alias=value;\nS(alias);' }],
+  ['maxFlows', { caps: { maxFlows: 1 }, sourceText: 'const value=SOURCE;\nSINK(value);\nSINK_ALT(value);\nS(value);' }],
+  ['maxMs', { caps: { maxMs: 1 }, clockStep: 10 }]
+]) {
+  const value = await createRiskSourceConsumerCase(options);
+  assert.equal(value.chunks[0].docmeta.risk.analysisStatus.status, 'capped');
+  assert.ok(value.result.stats.capsHit.includes('upstream:' + reason), reason);
+  assert.equal(value.result.stats.executionStatus, 'completed');
+  assert.notEqual(value.result.stats.inputCoverage.status, 'complete');
+  assert.equal(value.result.summaryRows.find(row => row.chunkUid === value.chunks[0].chunkUid).inputCoverage.localAnalysis.reason, reason);
+}
 console.log('Local admission and summary reductions survive zero-flow completion.');

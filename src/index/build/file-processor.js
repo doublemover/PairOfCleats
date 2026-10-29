@@ -188,6 +188,7 @@ export function createFileProcessor(options) {
             ...(Number.isFinite(Number(unit.pageNumber)) ? { pageNumber: Math.floor(Number(unit.pageNumber)) } : {}),
             ...(Number.isFinite(Number(unit.index)) ? { index: Math.floor(Number(unit.index)) } : {}),
             ...(typeof unit.style === 'string' ? { style: unit.style } : {}),
+            ...(Object.hasOwn(unit, 'headingLevel') ? { headingLevel: unit.headingLevel } : {}),
             start: Math.max(0, Math.floor(Number(unit.start) || 0)),
             end: Math.max(0, Math.floor(Number(unit.end) || 0))
           }))
@@ -684,6 +685,7 @@ export function createFileProcessor(options) {
         formatCrashErrorMeta,
         warnEncodingFallback,
         documentSourceType,
+        signal,
         wasmBinary: Boolean(semantic && mode === 'code' && ext === '.wasm'),
         documentExtractionPolicy,
         artifacts

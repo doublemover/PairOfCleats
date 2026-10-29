@@ -43,7 +43,8 @@ export const DOCUMENT_EXTRACTION_RECEIPT_SCHEMA = object({
     sourceBytesHash: { type: 'string', pattern: '^[a-f0-9]{64}$' }, sourceBytesHashAlgo: { const: 'sha256' },
     counts: object({ pages: count, paragraphs: count, totalUnits: count }),
     units: { type: 'array', maxItems: DOCUMENT_EXTRACTION_RECEIPT_MAX_UNITS, items: object({ type: sourceType,
-      start: count, end: count, pageNumber: { ...count, minimum: 1 }, index: { ...count, minimum: 1 }, style: nullableText
+      start: count, end: count, pageNumber: { ...count, minimum: 1 }, index: { ...count, minimum: 1 }, style: nullableText,
+      headingLevel: { type: ['integer', 'null'], minimum: 1, maximum: 9 }
     }, ['type', 'start', 'end']) }, normalizationPolicy: text,
     warnings: { type: 'array', maxItems: 100000, items: text }, policy, fidelity, admission })
 });

@@ -42,6 +42,31 @@ try {
   assert.equal(opened, 1, 'queued reads must not start after cancellation');
   releaseClose();
   await rejected;
+  for (const [code, partial] of [['EACCES', false], ['EIO', true]]) {
+    const primary = Object.freeze(Object.assign(new Error('controlled line read failure'), { code }));
+    let closed = false;
+    fs.createReadStream = () => {
+      let started = false;
+      const stream = new Readable({ read() { if (started) return; started = true;
+        if (partial) this.push(Buffer.from('partial\r\nsource'));
+        queueMicrotask(() => this.destroy(primary)); } });
+      stream.once('close', () => { closed = true; }); return stream;
+    };
+    await assert.rejects(countFileLines(text), error => error.code === 'ERR_FILE_LINE_COUNT' && error.cause === primary && error.causeCode === code);
+    assert.equal(closed, true, 'unknown/partially read counts never settle as reusable zero before original close');
+  }
+  const between = new AbortController(); let streams = 0;
+  fs.createReadStream = () => {
+    streams++;
+    const stream = Readable.from([Buffer.from('one\r\ntwo')]);
+    stream.once('end', () => between.abort()); return stream;
+  };
+  await assert.rejects(countLinesForEntries([{ abs: text, rel: 'first' }, { abs: text, rel: 'second' }],
+    { signal: between.signal, concurrency: 1 }), { name: 'AbortError' });
+  assert.equal(streams, 1, 'cancellation between files stops queued admission');
+  fs.createReadStream = originalCreate;
+  const counts = await countLinesForEntries([{ abs: text, rel: 'text' }, { abs: empty, rel: 'empty' }], { concurrency: 2 });
+  assert.deepEqual([...counts].sort(), [['empty', 0], ['text', 2]], 'concurrent healthy observations distinguish genuine empty and CRLF source');
 } finally {
   fs.createReadStream = originalCreate;
   await fsPromises.rm(dir, { recursive: true, force: true });

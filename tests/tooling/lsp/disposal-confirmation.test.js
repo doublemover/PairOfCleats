@@ -27,18 +27,19 @@ try {
   const options = { repoRoot: process.cwd(), cmd: 'authored', enabled: true, log: () => {},
     timeoutMs: 1000, retries: 0, breakerThreshold: 10, sessionIdleTimeoutMs: 10000 };
   await withLspSession(options, async () => {});
-  const failed = await drainLspSessionPool({ timeoutMs: 1000, killFirst: false });
+  const diagnosticFailure = new Error('controlled drain logger failure');
+  const failed = await drainLspSessionPool({ timeoutMs: 1000, killFirst: false, log: () => { throw diagnosticFailure; } });
   assert.equal(failed.status, 'failed');
   assert.equal(failed.rejected, 1);
   assert.ok(__testLspSessionPool.getPendingDisposals() > 0);
   await assert.rejects(withLspSession(options, async () => {}), { code: 'ERR_LSP_DISPOSAL_UNCONFIRMED' });
   assert.equal(creations, 1, 'same-key replacement cannot pass an unconfirmed teardown');
   outcome = 'rejected';
-  const denied = await drainLspSessionPool({ timeoutMs: 1000, killFirst: false });
+  const denied = await drainLspSessionPool({ timeoutMs: 1000, killFirst: false, log: () => { throw diagnosticFailure; } });
   assert.equal(denied.status, 'failed'); assert.equal(denied.rejected, 1);
   assert.equal(__testLspSessionPool.getMetrics().disposalFailures, 1, 'one failed owner has once-only failure accounting');
   outcome = 'confirmed';
-  const complete = await drainLspSessionPool({ timeoutMs: 1000, killFirst: false });
+  const complete = await drainLspSessionPool({ timeoutMs: 1000, killFirst: false, log: () => { throw diagnosticFailure; } });
   assert.equal(complete.status, 'ok'); assert.equal(complete.rejected, 0);
   await withLspSession(options, async () => {});
   assert.equal(creations, 2);

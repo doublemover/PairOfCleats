@@ -8,9 +8,11 @@ import { isAbsolutePathNative, toPosix } from '../../shared/file-paths.js';
 import { isWithinRoot, toRealPathSync } from '../../workspace/identity.js';
 import {
   buildGeneratedPolicyConfig,
+  resolveGeneratedPolicyDecision,
   GENERATED_POLICY_DEFAULT_SKIP_DIRS,
   GENERATED_POLICY_DEFAULT_SKIP_GLOBS
 } from './generated-policy.js';
+import { compileGeneratedIncludeTraversal, GENERATED_INCLUDE_SELECTION_CONTRACT } from './generated-policy-traversal.js';
 
 /**
  * Build ignore matcher for indexing.
@@ -148,10 +150,21 @@ export async function buildIgnoreMatcher({ root, userConfig, generatedPolicy = n
     const includeUnignore = generatedIncludePatterns.map((pattern) => `!${pattern}`);
     ignoreMatcher.add(expandIgnorePatterns(includeUnignore));
   }
+  const mayContainGeneratedInclude = compileGeneratedIncludeTraversal(generatedIncludePatterns);
+  // Explicit generated-policy includes already override ordinary ignore rules
+  // for literal paths. Apply that same final-leaf authority for globbed parents;
+  // traversal alone must never admit their unselected siblings.
+  const ignores = ignoreMatcher.ignores.bind(ignoreMatcher);
+  ignoreMatcher.ignores = relPath => {
+    if (!ignores(relPath)) return false;
+    const decision = resolveGeneratedPolicyDecision({ generatedPolicy: effectiveGeneratedPolicy, relPath });
+    return decision?.policy !== 'include';
+  };
 
   ignoreMatcher.shouldTraverseIgnoredDirectory = (relPath) => {
     const normalized = toPosix(String(relPath || '')).replace(/^\/+/, '').replace(/\/+$/, '');
     if (!normalized) return false;
+    if (mayContainGeneratedInclude(normalized)) return true;
     const bounded = `${normalized}/`;
     for (const prefix of traversalUnignorePrefixes) {
       if (prefix === bounded || prefix.startsWith(bounded)) {
@@ -162,7 +175,7 @@ export async function buildIgnoreMatcher({ root, userConfig, generatedPolicy = n
   };
   ignoreMatcher.policyFingerprint = policyComplete ? sha1(stableStringify({ config,
     defaultSkips: config.useDefaultSkips ? [Array.from(SKIP_DIRS), Array.from(SKIP_FILES), Array.from(SKIP_GLOBS)] : null,
-    generatedIncludePatterns, policyFileInputs })) : null;
+    generatedIncludePatterns, selectionContract: GENERATED_INCLUDE_SELECTION_CONTRACT, policyFileInputs })) : null;
 
   return { ignoreMatcher, config, ignoreFiles: loadedFiles, warnings };
 }

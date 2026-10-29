@@ -38,6 +38,7 @@ const buildDocumentExtractionUnits = (units) => {
     if (Number.isFinite(unit.pageNumber)) nextUnit.pageNumber = unit.pageNumber;
     if (Number.isFinite(unit.index)) nextUnit.index = unit.index;
     if (unit.style) nextUnit.style = unit.style;
+    if (Object.hasOwn(unit, 'headingLevel')) nextUnit.headingLevel = unit.headingLevel;
     nextUnits.push(nextUnit);
   }
   return nextUnits;
@@ -98,6 +99,7 @@ export async function resolvePreCpuFileContent({
   fileStat,
   fileScanner,
   runIo,
+  signal = null,
   throwIfAborted,
   updateCrashStage,
   formatCrashErrorMeta,
@@ -160,6 +162,7 @@ export async function resolvePreCpuFileContent({
       : await extractDocx({
         filePath: abs,
         buffer: artifacts.fileBuffer,
+        signal,
         policy: documentExtractionPolicy
       });
     updateCrashStage('pre-cpu:extract:done', {

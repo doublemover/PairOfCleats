@@ -3,8 +3,15 @@ import assert from 'node:assert/strict';
 import { applyTestEnv } from '../../../helpers/test-env.js';
 import { buildRiskSummaries } from '../../../../src/index/risk-interprocedural/summaries.js';
 import { computeInterproceduralRisk } from '../../../../src/index/risk-interprocedural/engine.js';
+import { normalizeRiskInterproceduralSemantics } from '../../../../src/index/risk-interprocedural/semantics.js';
 
 applyTestEnv();
+for (const field of ['fromArgs', 'toParams']) {
+  const invalid = [null, '', '  ', false, true, -1, '-1', 0.5, '0.5', Number.MAX_SAFE_INTEGER + 1, '9007199254740992', 'word', {}, []];
+  const normalized = normalizeRiskInterproceduralSemantics([{ kind: 'wrapper', patterns: ['foo'], [field]: [...invalid, 2, '0', 1, '2', ' 1 '] }]);
+  assert.deepEqual(normalized[0][field], [0, 1, 2], `${field}: only explicit nonnegative safe integral indices survive, ordered and deduplicated`);
+  assert.deepEqual(normalizeRiskInterproceduralSemantics([{ kind: 'unknown-semantic', patterns: ['foo'], [field]: [0] }]), []);
+}
 
 const createChunks = (frameworkId = 'express') => ([
   {

@@ -1040,7 +1040,7 @@ export const drainLspSessionPool = async (options = {}) => {
     if (waited.timedOut) {
       hardKillSessionsSync(liveSessions);
       if (log) {
-        log(
+        emitPoolWarning(log,
           `[tooling:lsp] session pool drain timed out after ${timeoutMs}ms; `
           + `attempted hard kill for ${liveSessions.length} session(s); exit remains unconfirmed.`
         );
@@ -1058,7 +1058,7 @@ export const drainLspSessionPool = async (options = {}) => {
       retireUnusedHealthySessionRecords();
     }
     if (log) {
-      log(
+      emitPoolWarning(log,
         `[tooling:lsp] session pool drain complete: sessions=${liveSessions.length}, `
         + `rejected=${rejected}, timeoutMs=${timeoutMs}.`
       );

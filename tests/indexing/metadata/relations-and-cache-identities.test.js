@@ -41,4 +41,13 @@ assert.equal(context.tokenClassificationRuntime.remainingBytes, before.remaining
 const blocks = await detectBoilerplateCommentBlocks({ text: '// SPDX-License-Identifier: MIT\n// Copyright 2024 Bob\nconst x=1;' });
 assert.ok(blocks[0].tags.includes('spdx:mit'));
 assert.ok(!blocks[0].tags.some(tag => tag.startsWith('spdx:mit-copyright')));
+for (const newline of ['\n', '\r\n']) for (const [header, expected] of [
+  [['// SPDX-License-Identifier: MIT', '// Copyright 2024 Bob'], 'spdx:mit'],
+  [['/*', ' * SPDX-License-Identifier: (MIT OR Apache-2.0) AND BSD-3-Clause', ' * Copyright 2024 Bob', ' */'], 'spdx:(mit-or-apache-2.0)-and-bsd-3-clause'],
+  [['# SPDX-License-Identifier: GPL-2.0-only WITH Classpath-exception-2.0', '# Licensed under selected terms'], 'spdx:gpl-2.0-only-with-classpath-exception-2.0']
+]) {
+  const found = await detectBoilerplateCommentBlocks({ text: [...header, 'const value = 1;'].join(newline) });
+  assert.ok(found.some(block => block.tags.includes(expected)), 'SPDX meaning is bounded by its original physical header line');
+  assert.ok(found.every(block => !block.tags.some(tag => tag.startsWith('spdx:') && tag.includes('copyright'))));
+}
 console.log('relation metadata and cache identity test passed');

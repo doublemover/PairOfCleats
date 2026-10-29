@@ -82,6 +82,7 @@ export const buildDocxExtractionText = (paragraphs) => {
       type: 'docx',
       index: Number(paragraph?.index) || units.length + 1,
       style: paragraph?.style || null,
+      ...(Object.hasOwn(paragraph, 'headingLevel') ? { headingLevel: paragraph.headingLevel } : {}),
       start,
       end: cursor,
       text

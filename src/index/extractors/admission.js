@@ -14,7 +14,7 @@ export const resolveDocumentExtractorIdentity = async sourceType => {
   const runtime = sourceType === 'pdf'
     ? await (await import('./pdf.js')).loadPdfExtractorRuntime()
     : await (await import('./docx.js')).loadDocxExtractorRuntime();
-  return { name: runtime.name || (sourceType === 'pdf' ? 'pdfjs-dist' : 'mammoth'),
+  return { name: runtime.name || (sourceType === 'pdf' ? 'pdfjs-dist' : 'docx-xml'),
     version: runtime.version || null, target: runtime.target || null };
 };
 

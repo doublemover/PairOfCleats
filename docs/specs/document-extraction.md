@@ -2,10 +2,11 @@
 
 ## Scope
 
-The DOCX ZIP fallback applies `maxBytesPerFile` independently to compressed input
-and expanded `word/document.xml` bytes. Declared sizes cannot bypass zlib's actual
-output bound; XML parsing only receives bounded output. Expansion overflow is an
-`oversize` extraction failure.
+DOCX applies `maxBytesPerFile` to compressed input and to the combined expanded
+`word/document.xml` and optional `word/styles.xml` bytes. Declared sizes cannot
+bypass zlib's actual output bound; XML parsing only receives bounded output.
+Duplicate or inconsistent ZIP member identities fail extraction. Expansion
+overflow is an `oversize` extraction failure.
 
 The direct DOCX pathname adapter also uses the existing bounded contained-file
 descriptor reader before allocation. Source read/close failures retain their
@@ -23,12 +24,22 @@ XML admission caps depth at 256, elements at 250,000, attributes per element at
 128, events at 1,000,000 and physical paragraphs at 100,000. Decoded input is
 bounded by the file allowance and a 64 Mi-character parser ceiling. Tokenization
 runs in 16 Ki-character pieces with monotonic deadline checks; ZIP expansion and
-decoding consume the same structural phase allowance. Structural admission
-precedes preferred-provider work. Empty and omitted revision paragraphs retain
-their physical positions, while only admitted nonempty paragraphs become chunks.
-DOCX structural producer version 3 invalidates prior extraction/bundle products;
-persisted normalization identity `v1:docx-xml:3` also distinguishes the changed
-source transformation. The installed provider's package version remains exact.
+decoding consume the same structural phase allowance. The canonical `docx-xml`
+runtime uses this one structural product; it launches no optional raw-text
+provider pass whose text would be discarded. There is no detached provider work
+after a timeout/cancellation result. Installed Mammoth remains a differential
+text and CLI security oracle in acceptance tests, rather than production work.
+Empty and omitted revision paragraphs retain their physical positions, while
+only admitted nonempty paragraphs become chunks.
+
+Raw paragraph style IDs remain in `style`. The nullable `headingLevel` carries
+resolved direct/inherited outline levels 1–9 into units, cached receipts and
+heading-aware chunks. Outline level 9 is body text; missing/cyclic custom style
+provenance stays unavailable with a warning rather than a guessed heading.
+Style inheritance is bounded to 64 links and 10,000 unique paragraph styles.
+DOCX structural producer version 4 invalidates prior extraction/bundle products;
+persisted normalization identity `v1:docx-xml:4` distinguishes the changed source
+transformation. PDF extraction identity is unchanged.
 
 Incremental extracted-document bundles carry a version 1 extraction receipt,
 bounded to 16 MiB and 100,000 source units. It binds the source SHA-1/size and

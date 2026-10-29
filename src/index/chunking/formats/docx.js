@@ -4,8 +4,7 @@ import {
   normalizeDocumentChunkingBudgets,
   splitRangeByCharBudget
 } from './document-common.js';
-
-const HEADING_PATTERN = /heading[\s_-]*([1-9][0-9]*)/i;
+import { builtinDocxHeadingLevel } from '../../extractors/docx-xml-structure.js';
 
 const toDocxParagraphUnits = (context) => {
   const units = context?.documentExtraction?.units;
@@ -15,19 +14,12 @@ const toDocxParagraphUnits = (context) => {
     .map((unit) => ({
       index: Number(unit?.index) || 0,
       style: unit?.style || null,
+      ...(Object.hasOwn(unit, 'headingLevel') ? { headingLevel: unit.headingLevel } : {}),
       start: Number(unit?.start) || 0,
       end: Number(unit?.end) || 0
     }))
     .filter((unit) => unit.index > 0 && unit.end > unit.start)
     .sort((a, b) => (a.index - b.index) || (a.start - b.start));
-};
-
-const resolveHeadingLevel = (style) => {
-  if (!style) return null;
-  const match = String(style).match(HEADING_PATTERN);
-  if (!match) return null;
-  const level = Number(match[1]);
-  return Number.isFinite(level) && level > 0 ? level : null;
 };
 
 const updateHeadingPath = (stack, level, label) => {
@@ -52,7 +44,7 @@ const buildParagraphWindows = (text, paragraphUnits, budgets) => {
   };
   for (const paragraph of paragraphUnits) {
     const paragraphLength = Math.max(0, paragraph.end - paragraph.start);
-    const headingLevel = resolveHeadingLevel(paragraph.style);
+    const headingLevel = Object.hasOwn(paragraph, 'headingLevel') ? paragraph.headingLevel : builtinDocxHeadingLevel(paragraph.style);
     if (headingLevel && current) {
       flushCurrent();
     }

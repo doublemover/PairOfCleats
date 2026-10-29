@@ -34,7 +34,7 @@ const baseline = chunked(expected);
 assert.deepEqual(baseline.extracted.units.map(unit => unit.index), [2, 3, 5]);
 assert.equal(baseline.chunks[0].segment.paragraphStart, 2);
 assert.equal(baseline.chunks.at(-1).segment.paragraphEnd, 5);
-assert.equal(resolveExtractionNormalizationPolicy('docx'), 'v1:docx-xml:3');
+assert.equal(resolveExtractionNormalizationPolicy('docx'), 'v1:docx-xml:4');
 assert.equal(resolveExtractionNormalizationPolicy('pdf'), 'v1:pdf-text:2');
 for (const xml of [document('w'), document('m'), document(''), document('m', strictWord)]) {
   assert.deepEqual(parseDocxParagraphsFromXml(xml), expected);
@@ -75,28 +75,20 @@ for (const bytes of [Buffer.from([0xff, 0xfe, 0, 0]), Buffer.from([0xff]), utf16
 }
 const runtime = await loadDocxExtractorRuntime({ refresh: true });
 assert.equal(runtime.ok, true, 'this provider regression requires the bootstrapped DOCX dependency');
-assert.equal(runtime.backend, 'mammoth', 'the preferred provider positive uses the actual installed Mammoth implementation');
-const saved = { ...runtime };
-try {
-  for (const backend of ['mammoth', 'docx']) {
-    runtime.backend = backend;
-    for (const xml of [document('w'), document('m'), document(''), Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), utf8])]) {
-      const result = await extractDocx({ buffer: buildMinimalDocxBuffer([], { xml }) });
-      assert.equal(result.ok, true, `${backend}: ${result.reason || result.warnings?.join('; ')}`);
-      assert.deepEqual(result.paragraphs, expected); assert.deepEqual(chunked(result.paragraphs), baseline);
-      const allowedWarnings = new Set(['Paragraph style with ID Heading1 was referenced but not defined in the document',
-        'An unrecognised element was ignored: w:cr',
-        'An unrecognised element was ignored: {urn:foreign}group']);
-      assert.ok(result.warnings.every(value => allowedWarnings.has(value)), `unexpected provider diagnostics: ${result.warnings.join('; ')}`);
-    }
-    for (const xml of [document('w', 'urn:foreign'), '<!DOCTYPE x><x/>', utf16le, utf16be,
-      Buffer.from(document('w').replace('UTF-8', 'ISO-8859-1'))]) {
-      const result = await extractDocx({ buffer: buildMinimalDocxBuffer([], { xml }) });
-      assert.equal(result.ok, false); assert.equal(result.reason, 'extract_failed');
-      assert.ok(result.warnings.length > 0);
-    }
-  }
-} finally { Object.assign(runtime, saved); }
+assert.equal(runtime.backend, 'docx-xml', 'capability identity names the one actual structural product');
+const expectedResolved = expected.map(row => row.style ? { ...row, headingLevel: 1 } : row);
+for (const xml of [document('w'), document('m'), document(''), Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), utf8])]) {
+  const result = await extractDocx({ buffer: buildMinimalDocxBuffer([], { xml }) });
+  assert.equal(result.ok, true, result.reason || result.warnings?.join('; '));
+  assert.deepEqual(result.paragraphs, expectedResolved);
+  assert.deepEqual(chunked(result.paragraphs), chunked(expectedResolved));
+  assert.deepEqual(result.warnings, []);
+}
+for (const xml of [document('w', 'urn:foreign'), '<!DOCTYPE x><x/>', utf16le, utf16be,
+  Buffer.from(document('w').replace('UTF-8', 'ISO-8859-1'))]) {
+  const result = await extractDocx({ buffer: buildMinimalDocxBuffer([], { xml }) });
+  assert.equal(result.ok, false); assert.equal(result.reason, 'extract_failed'); assert.ok(result.warnings.length > 0);
+}
 const { dir } = await prepareIsolatedTestCacheDir('docx-source-byte-admission');
 const file = path.join(dir, 'input.docx'); await fs.writeFile(file, buildMinimalDocxBuffer([], { xml: document('w') }));
 const readFile = fs.readFile;
@@ -105,7 +97,7 @@ try {
     assert.notEqual(path.resolve(String(target)), file, 'the direct pathname adapter must use bounded descriptor admission');
     return readFile.call(fs, target, ...args);
   };
-  const result = await extractDocx({ filePath: file }); assert.equal(result.ok, true); assert.deepEqual(result.paragraphs, expected);
+  const result = await extractDocx({ filePath: file }); assert.equal(result.ok, true); assert.deepEqual(result.paragraphs, expectedResolved);
   const refused = await extractDocx({ filePath: file, policy: { maxBytesPerFile: 16 } });
   assert.equal(refused.ok, false); assert.equal(refused.reason, 'oversize');
 } finally { fs.readFile = readFile; }

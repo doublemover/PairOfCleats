@@ -1,3 +1,4 @@
+import zlib from 'node:zlib';
 const PDF_HEADER = '%PDF-1.4\n';
 
 const escapePdfText = (value) => String(value || '')
@@ -88,7 +89,7 @@ const writeUInt32 = (value) => {
   return buffer;
 };
 
-const buildStoredZip = (entries) => {
+export const buildStoredZip = (entries) => {
   const localParts = [];
   const centralParts = [];
   let localOffset = 0;
@@ -96,33 +97,36 @@ const buildStoredZip = (entries) => {
     const name = String(entry?.name || '');
     const nameBuffer = Buffer.from(name, 'utf8');
     const data = toBuffer(entry?.data);
+    const compression = entry.compression === 8 ? 8 : 0;
+    const payload = compression ? zlib.deflateRawSync(data) : data;
+    const declaredSize = entry.declaredSize ?? data.length;
     const checksum = crc32(data);
     const localHeader = Buffer.concat([
       writeUInt32(0x04034b50),
       writeUInt16(20),
       writeUInt16(0),
-      writeUInt16(0),
+      writeUInt16(compression),
       writeUInt16(0),
       writeUInt16(0),
       writeUInt32(checksum),
-      writeUInt32(data.length),
-      writeUInt32(data.length),
+      writeUInt32(payload.length),
+      writeUInt32(declaredSize),
       writeUInt16(nameBuffer.length),
       writeUInt16(0),
       nameBuffer
     ]);
-    localParts.push(localHeader, data);
+    localParts.push(localHeader, payload);
     const centralHeader = Buffer.concat([
       writeUInt32(0x02014b50),
       writeUInt16(20),
       writeUInt16(20),
       writeUInt16(0),
-      writeUInt16(0),
+      writeUInt16(compression),
       writeUInt16(0),
       writeUInt16(0),
       writeUInt32(checksum),
-      writeUInt32(data.length),
-      writeUInt32(data.length),
+      writeUInt32(payload.length),
+      writeUInt32(declaredSize),
       writeUInt16(nameBuffer.length),
       writeUInt16(0),
       writeUInt16(0),
@@ -133,7 +137,7 @@ const buildStoredZip = (entries) => {
       nameBuffer
     ]);
     centralParts.push(centralHeader);
-    localOffset += localHeader.length + data.length;
+    localOffset += localHeader.length + payload.length;
   }
   const central = Buffer.concat(centralParts);
   const local = Buffer.concat(localParts);
@@ -155,7 +159,7 @@ const escapeXml = (value) => String(value || '')
   .replace(/</g, '&lt;')
   .replace(/>/g, '&gt;');
 
-export const buildMinimalDocxBuffer = (paragraphs = ['docx fixture text'], { xml = null } = {}) => {
+export const buildMinimalDocxBuffer = (paragraphs = ['docx fixture text'], { xml = null, stylesXml = null } = {}) => {
   const paragraphXml = paragraphs.map((text) => (
     `<w:p><w:r><w:t>${escapeXml(text)}</w:t></w:r></w:p>`
   )).join('');
@@ -194,6 +198,11 @@ export const buildMinimalDocxBuffer = (paragraphs = ['docx fixture text'], { xml
       data: xml ?? documentXml
     }
   ];
+  if (stylesXml !== null) entries[0].data = entries[0].data.replace('</Types>', '<Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/></Types>');
+  if (stylesXml !== null) entries.push({ name: 'word/styles.xml', data: stylesXml }, {
+    name: 'word/_rels/document.xml.rels',
+    data: '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="styles" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>'
+  });
   return buildStoredZip(entries);
 };
 
