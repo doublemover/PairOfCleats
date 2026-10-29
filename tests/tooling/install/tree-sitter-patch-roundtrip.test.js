@@ -29,6 +29,8 @@ for (const file of Object.keys(blobs)) {
   await fs.writeFile(path.join(dir, relative), value); snapshots.set(relative, value);
 }
 await fs.copyFile('node_modules/tree-sitter/package.json', path.join(dir, 'node_modules/tree-sitter/package.json'));
+assert.match(snapshots.get('node_modules/tree-sitter/binding.gyp'), /"MACOSX_DEPLOYMENT_TARGET": "13\.5"/u,
+  'the runtime binding must match the static runtime and Node 26 macOS deployment floor');
 await fs.mkdir(path.join(dir, 'patches')); await fs.writeFile(path.join(dir, 'patches', name), patch);
 const config = path.join(dir, 'empty.gitconfig'); await fs.writeFile(config, '');
 const env = { ...process.env, GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: config };

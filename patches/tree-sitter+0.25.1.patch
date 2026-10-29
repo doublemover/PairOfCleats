@@ -11,6 +11,15 @@ index 786d17d81..8c64b6d75 100644
        ],
        "conditions": [
          ["OS=='mac'", {
+@@ -29,7 +31,7 @@
+           "xcode_settings": {
+             "GCC_SYMBOLS_PRIVATE_EXTERN": "YES", # -fvisibility=hidden
+             "CLANG_CXX_LANGUAGE_STANDARD": "<(cxxstd)",
+-            "MACOSX_DEPLOYMENT_TARGET": "10.9",
++            "MACOSX_DEPLOYMENT_TARGET": "13.5",
+           },
+         }],
+         ["OS=='win'", {
 diff --git a/node_modules/tree-sitter/src/tree.cc b/node_modules/tree-sitter/src/tree.cc
 index 32241baff..391edb9b6 100644
 --- a/node_modules/tree-sitter/src/tree.cc
