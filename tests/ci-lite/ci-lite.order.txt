@@ -1481,3 +1481,4 @@ retrieval/backend/sqlite-uncached-close-ownership/explicit-false
 retrieval/backend/sqlite-uncached-close-ownership/initialization-failure
 tooling/index/clean-artifacts-reader-exclusion
 tooling/release/readiness-gate-duplicate-tui
+shared/concurrency/scheduler-git-queue-admission

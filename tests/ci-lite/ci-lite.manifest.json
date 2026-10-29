@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 1323,
+    "hero": 1324,
     "matrix": 108,
     "meta": 49,
     "soak": 1,
@@ -8899,6 +8899,12 @@
     {
       "id": "tooling/release/readiness-gate-duplicate-tui",
       "order": 1481,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/concurrency/scheduler-git-queue-admission",
+      "order": 1482,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }
