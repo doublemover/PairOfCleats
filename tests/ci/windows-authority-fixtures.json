@@ -42,7 +42,6 @@
     "tooling/reports/map-selected-index-identity",
     "tui/operator-artifact-file-authority",
     "tui/operator-search-file-authority",
-    "tui/operator-settings-authority",
-    "workspace/config-contract-matrix"
+    "tui/operator-settings-authority"
   ]
 }

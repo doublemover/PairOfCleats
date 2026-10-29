@@ -16,6 +16,9 @@ const manifest = JSON.parse(fs.readFileSync(path.join(root, 'tests/ci/windows-au
 const required = findWindowsLinkFixtures(root, tests);
 const available = tests.map(test => test.id);
 const ids = validateAuthorityManifest(manifest, available, required);
+assert.ok(available.includes('workspace/config-contract-matrix'), 'ordinary CI owns portable workspace identity and actual Windows case aliases');
+assert.equal(ids.includes('workspace/config-contract-matrix'), false,
+  'workspace identity creates no links and must not require symlink privilege');
 assert.ok(available.includes('tooling/ci/lsp-runtime-artifact-admission'), 'the ordinary cohort still owns stock runtime admission');
 assert.equal(ids.includes('tooling/ci/lsp-runtime-artifact-admission'), false,
   'POSIX PHAR symlinks cannot be counted as native Windows link coverage; its Windows branch asserts unsupported');
