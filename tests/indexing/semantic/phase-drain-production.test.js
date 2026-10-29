@@ -6,20 +6,26 @@ import path from 'node:path';
 import { buildIndex } from '../../../src/integrations/core/index.js';
 import { getIndexDir, loadUserConfig } from '../../../tools/shared/dict-utils.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
+import { createFastIndexingTestConfig } from '../../helpers/fast-indexing-config.js';
 import { runSemanticEnrichmentService } from '../../../src/semantic/enrichment.js';
 import { openPublishedSemanticStore } from '../../../src/semantic/published-store.js';
 const temp = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-semantic-phase-drain-'));
 const repoRoot = path.join(temp, 'repo');
 await fs.mkdir(repoRoot);
-await fs.writeFile(path.join(repoRoot, 'tsconfig.json'), JSON.stringify({ compilerOptions: { types: [], target: 'ES2022' }, include: ['*.ts'] }));
+// This source exercises compiler authority/reuse, not DOM or modern library
+// coverage. Retain a real standard library and fresh parses without copying
+// dozens of unrelated declaration inputs through both generation snapshots.
+await fs.writeFile(path.join(repoRoot, 'tsconfig.json'), JSON.stringify({ compilerOptions: { types: [], lib: ['ES5'], target: 'ES2022' }, include: ['*.ts'] }));
 await fs.writeFile(path.join(repoRoot, 'input.ts'), 'export function scale(x:number) { return x*2; } export function run() { const payload={value:scale(3)}; return payload.value; }');
 await fs.writeFile(path.join(repoRoot, 'input.vue'), '<template>Hello</template><script lang="ts">export function wrap(x:number) { return x+1; } const result=wrap(4);</script>');
-applyTestEnv({ cacheRoot: path.join(temp, 'cache'), embeddings: 'stub', testConfig: { indexing: {
+applyTestEnv({ cacheRoot: path.join(temp, 'cache'), embeddings: 'stub', testConfig: createFastIndexingTestConfig({ threads: 1, indexing: {
   workerPool: { enabled: false }, semantic: { enabled: true, profile: 'rich', enrichment: { bindings: 'deferred', localFlow: 'deferred', crossFileFlow: 'deferred' } },
   embeddings: { enabled: false }, typeInference: false, typeInferenceCrossFile: false, riskAnalysis: false, treeSitter: { enabled: false }
-} } });
+} }) });
 try {
-  await buildIndex(repoRoot, { mode: 'code', stage: 'stage2', incremental: false, 'stub-embeddings': true, 'scm-provider': 'none' });
+  const initialStart = performance.now();
+  await buildIndex(repoRoot, { mode: 'code', stage: 'stage2', threads: 1, incremental: false, 'stub-embeddings': true, 'scm-provider': 'none' });
+  console.log(JSON.stringify({ phase: 'deferred-source-publication', elapsedMs: performance.now() - initialStart }));
   const indexDir = getIndexDir(repoRoot, 'code', loadUserConfig(repoRoot));
   const manifest = JSON.parse(await fs.readFile(path.join(indexDir, 'semantic_manifest.json'), 'utf8'));
   assert.equal(manifest.completedTasks.length, 0);
@@ -29,7 +35,9 @@ try {
   const selected = plan.tasks.filter(task => ['localFlow', 'crossFileFlow'].includes(task.kind));
   assert.equal(selected.length, 2);
   assert.ok(selected.every(task => task.executable));
+  const drainStart = performance.now();
   const result = await runSemanticEnrichmentService({ request: { ...request, action: 'drain', taskIds: selected.map(task => task.taskId) } });
+  console.log(JSON.stringify({ phase: 'selected-phase-drain', elapsedMs: performance.now() - drainStart }));
   assert.equal(result.status, 'published');
   assert.equal(result.lineage.length, 2);
   assert.ok(result.workScopes.compilerParseReused.count > 0, 'Selected normal compiler work consumes actual retained preflight trees.');

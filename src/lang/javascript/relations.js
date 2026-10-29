@@ -1,6 +1,7 @@
 import { createJavaScriptDeclarationCatalog } from './callable-occurrences.js';
 import { callableEvaluationChildren } from './evaluation-children.js';
 import { throwIfAborted } from '../../shared/abort.js';
+import { createJavaScriptImportResult } from './import-extraction.js';
 import { projectJsTsCallArguments } from '../js-ts/call-arguments.js';
 import { projectBabelCallable } from '../js-ts/callable-metadata.js';
 import { projectJsTsLiteral, collectCallLiteralEvidence } from '../js-ts/literal.js';
@@ -726,8 +727,11 @@ export function buildCodeRelations(text, relPath, options = {}) {
   }
   callDetails.sort((a, b) => (a.start ?? 0) - (b.start ?? 0) || (a.end ?? 0) - (b.end ?? 0));
 
+  const importResult = createJavaScriptImportResult({ entries: Array.from(imports), text, ast,
+    signal: options.abortSignal || options.signal });
   return {
-    imports: Array.from(imports),
+    imports: importResult.entries,
+    importExtraction: importResult.receipt,
     exports: Array.from(exports),
     calls,
     callDetails,

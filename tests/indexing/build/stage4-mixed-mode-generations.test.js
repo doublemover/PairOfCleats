@@ -11,7 +11,9 @@ import { createFastIndexingTestConfig } from '../../helpers/fast-indexing-config
 import { runNode } from '../../helpers/run-node.js';
 
 const root = process.cwd();
-const { dir } = await prepareIsolatedTestCacheDir('stage4-mixed-mode-generations');
+const selectedMode = process.env.PAIROFCLEATS_TEST_ID?.split('indexing/build/stage4-mixed-mode-generations/')[1];
+assert.ok(['code', 'prose'].includes(selectedMode));
+const { dir } = await prepareIsolatedTestCacheDir(`stage4-mixed-mode-generations-${selectedMode}`);
 const repoRoot = path.join(dir, 'repo'), cacheRoot = path.join(dir, 'cache');
 await fs.mkdir(repoRoot, { recursive: true });
 await fs.writeFile(path.join(repoRoot, 'code.js'), 'export function answer() { return 1; }\n');
@@ -40,6 +42,7 @@ assert.deepEqual(after.buildRootsByMode, before.buildRootsByMode, 'SQLite comple
 assert.equal(after.buildId, before.buildId);
 assert.equal(after.buildRoot, before.buildRoot);
 for (const [mode, query, expected] of [['code', 'answer', 'code.js'], ['prose', 'oranges', 'prose.md']]) {
+  if (mode !== selectedMode) continue;
   const indexRoot = path.dirname(getIndexDir(repoRoot, mode, config));
   const sqlite = resolveSqlitePaths(repoRoot, config, { indexRoot });
   const db = new Database(mode === 'code' ? sqlite.codePath : sqlite.prosePath, { readonly: true, fileMustExist: true });

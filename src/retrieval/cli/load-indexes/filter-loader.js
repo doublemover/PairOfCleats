@@ -4,6 +4,7 @@ import {
   resolveDenseVector
 } from '../index-loader.js';
 import { attachDenseVectorLoader } from '../ann-backends.js';
+import { assertRequiredRelationCoverage } from '../relation-readiness.js';
 
 export function applyFallbackIndexStates({
   idxCode,
@@ -137,4 +138,10 @@ export async function hydrateLoadedIndexes({
   if (relationLoadTasks.length) {
     await Promise.all(relationLoadTasks);
   }
+  const fields = [relationFilters?.importName && 'imports', relationFilters?.uses && 'usages'].filter(Boolean);
+  for (const [enabled, idx, mode, indexDir] of [
+    [runCode, idxCode, 'code', codeIndexDir], [runProse, idxProse, 'prose', proseIndexDir],
+    [resolvedLoadExtractedProse, idxExtractedProse, 'extracted-prose', extractedProseDir],
+    [runRecords, idxRecords, 'records', recordsDir]
+  ]) if (enabled) assertRequiredRelationCoverage({ idx, fields, mode, indexDir });
 }

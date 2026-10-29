@@ -358,9 +358,11 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
     } catch (err) {
       return bail(err?.message || 'Invalid --as-of value.', 1, err?.code || ERROR_CODES.INVALID_REQUEST);
     }
-    const admittedDirs = { ...(asOfContext?.strict ? asOfContext.indexDirByMode : {}) };
-    const admittedRoots = { ...(asOfContext?.strict ? asOfContext.indexBaseRootByMode : {}) };
-    if (!asOfContext?.strict) {
+    // Latest already resolved one canonical pointer snapshot, including optional
+    // joins. Discarding it would admit a second generation during promotion.
+    const admittedDirs = { ...(asOfContext?.indexDirByMode || {}) };
+    const admittedRoots = { ...(asOfContext?.indexBaseRootByMode || {}) };
+    if (!asOfContext?.strict && asOfContext?.unresolved) {
       // Capture every possible join before the first request await. Mutable
       // current pointers are never consulted again during this request.
       for (const mode of ['code', 'prose', 'extracted-prose', 'records']) {
@@ -470,8 +472,9 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
     const backendPathsForMode = (resolvePaths, mode, selection) => {
       // Latest pointers may pin each mode to a different published generation.
       // Explicit as-of requests retain their single-root backend contract.
-      const indexRoot = !asOfContext?.strict && dbModeSelection.includes(mode)
-        ? path.dirname(resolveSearchIndexDir(mode)) : selection.root;
+      const indexRoot = !asOfContext?.strict
+        ? admittedRoots[mode] || admittedRoots[dbModeSelection[0]] || Object.values(admittedRoots)[0]
+        : selection.root;
       return resolvePaths(rootDir, userConfig, indexRoot ? { indexRoot } : {});
     };
     const lmdbCodePath = backendPathsForMode(resolveLmdbPaths, 'code', lmdbRootSelection).codePath;

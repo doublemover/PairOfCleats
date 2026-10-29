@@ -41,6 +41,7 @@ const SEARCH_TIMEOUT_MS = 30 * 1000;
  */
 const runGit = (args, label, cwd, envOverride = {}) => {
   const result = spawnSync('git', args, {
+    windowsHide: true,
     cwd,
     encoding: 'utf8',
     env: applyTestEnv({ syncProcess: false, extraEnv: envOverride }),
@@ -60,6 +61,7 @@ const runGit = (args, label, cwd, envOverride = {}) => {
 
 const hasGit = () => {
   const check = spawnSync('git', ['--version'], {
+    windowsHide: true,
     encoding: 'utf8',
     timeout: GIT_COMMAND_TIMEOUT_MS
   });
