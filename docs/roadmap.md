@@ -8,9 +8,9 @@ Canonical for: initiative status, execution order, and remaining work
 ## Current GitHub repair program
 
 The [closeout review](archived/github-issue-closeout-2026-10-26.md) and later
-qualified checks closed 83 reports. The
+qualified checks closed 84 reports. The
 [current reconciliation](archived/windows-partial-validation-checkpoint-305-2026-10-28.md)
-leaves **687 open**: 451 qualification-pending,
+leaves **686 open**: 450 qualification-pending,
 147 partial and 89 unresolved entries.
 
 The [complete assessment](archived/github-issue-closeout-2026-10-26.json) retains
@@ -38,8 +38,8 @@ pass 46 controls. [Focused repairs](archived/windows-focused-failure-repairs-202
 pass 26/26; [comment/handoff repairs](archived/windows-comment-and-handoff-failure-repairs-2026-10-28.md)
 pass 73 controls. Together they resolve 21 original failures, leaving 25.
 
-[CI follow-up](archived/windows-lsp-exit-repair-2026-10-29.md) repairs graceful
-server exit, launcher selection and final GYP settings; CI remains open.
+[CI repairs](archived/windows-ci-failure-repairs-2026-10-29.md) cover the 49-case
+catalog, strict empty-call publication and native snapshot setup; hosted CI remains open.
 [Stable upgrades](archived/windows-stable-upgrades-2026-10-29.md)
 and Rust 1.99.1 are locally qualified; remaining P1 acceptances follow.
 
@@ -49,8 +49,8 @@ removed 110 lock records; runtime qualification remains separate.
 [Sublime #1289](archived/sublime-native-closeout-2026-10-29.md) closes after all
 three Windows native package cases; broader editor/platform acceptance remains.
 
-[Crash-log latency](archived/crash-log-latency-qualification-2026-10-29.md) passes
-10 Windows controls; POSIX remains (#1315). [Storage repairs](archived/storage-space-implementation-2026-10-27.md)
+[Crash-log closeout](archived/crash-log-posix-qualification-2026-10-29.md) closes
+#1315 with Windows and both POSIX cohorts. [Storage repairs](archived/storage-space-implementation-2026-10-27.md)
 await execution; lifecycle policy (#1267) and custom cleanup (#1574) remain.
 
 The [owner queue](archived/remaining-issue-batches-2026-10-26.json) orders

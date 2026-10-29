@@ -53,8 +53,16 @@ passes ten Windows controls and retains 20 serial samples per small/long-log
 case. Synchronous p95 is 10.37/9.92 ms; settled p95 is 16.12/16.49 ms against
 250/1,000 ms bounds. Every sample checks original error/redaction, terminal
 precedence, append identity and record order. This warm local-filesystem
-measurement excludes construction and forensic export; hosted POSIX acceptance
-remains under #1315.
+measurement excludes construction and forensic export. The [POSIX closeout](../archived/crash-log-posix-qualification-2026-10-29.md)
+adds 10/10 Linux and 10/10 macOS cases from an identical Git tree and closes #1315.
+
+The [49-case repair batch](../archived/windows-ci-failure-repairs-2026-10-29.md)
+retains original hosted failures, focused Windows rechecks and transferred
+export-wrapper coverage. Strict empty-call datasets, selected-generation
+observations, resource retirement and bounded benchmark settlement are repaired.
+Hosted native artifact actions pass all seven partitions; the remaining Windows
+snapshot-create case passes locally with compact disposable paths and unchanged
+backends. Required hosted authority and final CI acceptance remain open.
 
 The [full Windows campaign](../archived/windows-full-validation-checkpoint-265-2026-10-28.md)
 completed all 6,098 required fixtures at `90d0e510a`: 5,819 passed and 279 failed,
