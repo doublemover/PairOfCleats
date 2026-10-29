@@ -16,7 +16,9 @@ leaves **565 open**: 326 qualification-pending,
 The [assessment](archived/github-issue-closeout-2026-10-26.json) maps sources,
 tests and closure witnesses; [earlier receipts](archived/solo-issue-repairs-2026-10-25.md)
 retain historical evidence. Parent and two persistent agents work on Windows; hosted checks retain
-their source identities.
+their source identities. Consumer candidate `d95cc983c` adds 358 passing
+affected/gate fixtures; the original Stage4 wrapper remains over 30 seconds.
+Published issue reconciliation follows the durable receipt.
 
 Completed source-bound checks are indexed in the
 [qualification archive](archived/native-runtime-qualification-index-2026-10-27.md)
@@ -172,7 +174,7 @@ claims remain distinct from current-source validation and accepted issue closure
 
 Work is **Windows-only**; Linux/macOS execution is deferred. Do not launch WSL,
 change machine security settings or register a machine-wide debugger. Current
-Node is **26.12.1**, ABI 147, Windows x64. The
+Node is **26.13.0**, ABI 147, Windows x64. The
 [workspace/runtime receipt](archived/workspace-layout-node-2026-10-21.md) records
 a clean locked bootstrap (37 required packages/33 routes; zero warning/error
 lines), 16 focused passes and all 40 front-gate passes at checkpoint 8685a0dec.
