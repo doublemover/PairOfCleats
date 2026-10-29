@@ -85,6 +85,15 @@ and failed original owners. Native build/search, validate/search and workspace
 pass locally within unchanged bounds. Ordered CI now includes the storage cases;
 custom-backend deletion and final hosted qualification remain open.
 
+[VSIX acceptance](../archived/vscode-native-closeout-2026-10-29.md) closes #1288
+on official VS Code 1.144.0/Windows x64. The exact deterministic VSIX activates,
+registers 54 commands and searches through a separately bootstrapped CLI. Official
+uninstall plus a fresh host proves extension/command absence. Both private-desktop
+sessions exit naturally with captured descendant settlement; the editor retains
+its own cached payload policy. Nine focused checks, a separate authority contract
+and serial XML source/budget controls pass. POSIX seed-clock repair requires hosted
+acceptance; Windows native timing/capture failures remain open.
+
 The [full Windows campaign](../archived/windows-full-validation-checkpoint-265-2026-10-28.md)
 completed all 6,098 required fixtures at `90d0e510a`: 5,819 passed and 279 failed,
 including 14 runner timeouts. There were no skips, omissions, duplicate IDs or

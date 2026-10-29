@@ -8,9 +8,9 @@ Canonical for: initiative status, execution order, and remaining work
 ## Current GitHub repair program
 
 The [closeout review](archived/github-issue-closeout-2026-10-26.md) and later
-qualified checks closed 84 reports. The
+qualified checks closed 85 reports. The
 [current reconciliation](archived/windows-partial-validation-checkpoint-305-2026-10-28.md)
-leaves **686 open**: 450 qualification-pending,
+leaves **685 open**: 449 qualification-pending,
 147 partial and 89 unresolved entries.
 
 The [complete assessment](archived/github-issue-closeout-2026-10-26.json) retains
@@ -40,7 +40,7 @@ pass 73 controls. Together they resolve 21 original failures, leaving 25.
 
 [CI repairs](archived/windows-ci-failure-repairs-2026-10-29.md),
 [native paths](archived/windows-ci-native-path-followup-2026-10-29.md) and
-[Python/cleanup](archived/python-stable-ci-2026-10-29.md) retain focused fixes; CI stays open.
+[VSIX/CI](archived/vscode-native-closeout-2026-10-29.md) closes #1288; CI stays open.
 [Stable upgrades](archived/windows-stable-upgrades-2026-10-29.md)
 and Rust 1.99.1 are locally qualified; remaining P1 acceptances follow.
 
