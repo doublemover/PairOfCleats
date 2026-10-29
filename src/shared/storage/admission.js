@@ -209,7 +209,9 @@ export const acquireStorageWriteReservation = async ({ root, resourceId, coordin
         if (!settlementResourcesSettled()) throw settlementFailure();
         if (!removed) {
           settlementLock ||= admissionLock;
-          settlementLock ||= await acquireFileLock({ lockPath, waitMs: 0, staleMs: Number.MAX_SAFE_INTEGER,
+          // Independent admitted writers can finish together. Join the existing
+          // metadata lock briefly; contention cannot imply original release.
+          settlementLock ||= await acquireFileLock({ lockPath, waitMs: 5000, pollMs: 20, staleMs: Number.MAX_SAFE_INTEGER,
             metadata: { scope: 'storage-write-settlement', hostname: os.hostname(), resourceId } });
           if (!settlementLock) throw fail('admission-owner-busy-during-settlement');
           const current = await readReservation(file);

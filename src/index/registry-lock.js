@@ -68,9 +68,10 @@ export async function acquireRegistryLock({
     lockPath: path.resolve(lockPath), lockId: lock.payload.lockId, active: true };
   const release = handle.release;
   handle.release = async () => {
-    const result = await release();
+    // Borrowed mutation authority ends when retirement starts, even if the
+    // original lock still needs explicit cleanup after a failed release.
     lease.active = false;
-    return result;
+    return release();
   };
   registryLeases.set(handle, lease);
   return handle;
@@ -89,6 +90,7 @@ export const assertBorrowedRegistryLock = async (handle, repoCacheRoot, domain) 
   }
   const current = await readLockInfo(expectedPath);
   if (!current?.lockId || current.lockId !== lease.lockId) {
+    lease.active = false;
     throw Object.assign(new Error('Borrowed registry lock no longer owns its on-disk lease.'), {
       code: 'ERR_REGISTRY_LOCK_OWNERSHIP'
     });

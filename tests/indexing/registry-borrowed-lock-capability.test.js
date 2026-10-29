@@ -11,6 +11,10 @@ try {
   const wrong = await acquireRegistryLock({ repoCacheRoot: root, domain: 'diffs' });
   try { await assert.rejects(use(wrong), { code: 'ERR_REGISTRY_LOCK_OWNERSHIP' }); }
   finally { await wrong.release(); }
+  const completed = await acquireRegistryLock({ repoCacheRoot: root, domain: 'snapshots' });
+  assert.equal(await use(completed), 42);
+  await completed.release();
+  await assert.rejects(use(completed), { code: 'ERR_REGISTRY_LOCK_OWNERSHIP' });
   const lock = await acquireRegistryLock({ repoCacheRoot: root, domain: 'snapshots' });
   try {
     assert.equal(await use(lock), 42);
@@ -23,7 +27,12 @@ try {
     try { await assert.rejects(use(lock), { code: 'ERR_REGISTRY_LOCK_OWNERSHIP' }); }
     finally { await fs.writeFile(lockPath, original); }
   }
-  finally { await lock.release(); }
+  finally {
+    // Restoring bytes cannot restore the sealed native metadata identity.
+    // A changed owner must preserve evidence rather than pretend release.
+    await assert.rejects(lock.release(), /lock.*release|metadata identity/i);
+    assert.equal(JSON.parse(await fs.readFile(resolveRegistryLockPath(root, 'snapshots'), 'utf8')).lockId, lock.payload.lockId);
+  }
   await assert.rejects(use(lock), { code: 'ERR_REGISTRY_LOCK_OWNERSHIP' });
 } finally { await fs.rm(root, { recursive: true, force: true }); }
 console.log('borrowed registry capabilities passed');

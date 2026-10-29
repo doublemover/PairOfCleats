@@ -133,7 +133,7 @@ export function createDisplay(options = {}) {
   };
 
   const maybeLogProgressLine = (task) => {
-    if (interactive || !progressEnabled || jsonl) return;
+    if (quiet || interactive || !progressEnabled || jsonl) return;
     const now = Date.now();
     if (now - state.lastProgressLogMs < progressLogIntervalMs && task.status !== 'done') return;
     state.lastProgressLogMs = now;

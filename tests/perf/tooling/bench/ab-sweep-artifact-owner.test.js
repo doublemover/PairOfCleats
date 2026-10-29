@@ -23,7 +23,7 @@ const afterChild = async receipt => {
 };
 let a, b;
 try {
-  [a, b] = await Promise.all([runAbSweep({ argv, afterChild }), runAbSweep({ argv, afterChild })]);
+  [a, b] = await Promise.all([runAbSweep({ argv, root: dir, afterChild }), runAbSweep({ argv, root: dir, afterChild })]);
 } finally { clearTimeout(timer); }
 assert.notEqual(a.report.experimentId, b.report.experimentId);
 assert.equal(arrived.length, 2);
@@ -38,7 +38,7 @@ for (const result of [a, b]) {
   assert.equal(final.experimentId, result.report.experimentId);
 }
 assert.notEqual(a.report.runs[0].reportPath, b.report.runs[0].reportPath);
-const c = await runAbSweep({ argv });
+const c = await runAbSweep({ argv, root: dir });
 assert.notEqual(c.report.experimentId, a.report.experimentId);
 for (const own of arrived) assert.deepEqual(await fs.readFile(own.outPath), own.bytes, 'later runs cannot overwrite earlier evidence');
 
@@ -61,7 +61,7 @@ assert.throws(() => buildSweepMatrix({ cpuTokens: Array.from({ length: AB_SWEEP_
   error => error.code === 'ERR_AB_SWEEP_MATRIX_LIMIT');
 
 const abort = new AbortController(); abort.abort(new Error('fixture cancellation before launch'));
-const cancelled = await runAbSweep({ argv: { ...argv, knobs: { cpuTokens: [2, 3] } }, signal: abort.signal });
+const cancelled = await runAbSweep({ argv: { ...argv, knobs: { cpuTokens: [2, 3] } }, root: dir, signal: abort.signal });
 assert.equal(cancelled.exitCode, 1); assert.equal(cancelled.report.recommendation, null);
 assert.equal(cancelled.report.outcome, 'cancelled');
 assert.equal(cancelled.report.runs.length, 2);

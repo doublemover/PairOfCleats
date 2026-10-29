@@ -1,4 +1,4 @@
-import { dispatchSelfSignal } from './signal-dispatch.js';
+import { dispatchSelfSignal } from './signals.js';
 
 /**
  * Exit current process using child-command semantics.

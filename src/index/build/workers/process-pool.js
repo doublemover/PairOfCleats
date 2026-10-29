@@ -217,7 +217,9 @@ export class IndexerProcessPool extends EventEmitter {
     child.once('disconnect', () => {
       if (slot.stopping) return;
       slot.stopping = true; slot.ready = false;
-      if (slot.task) this.settle(slot.task, createWorkerFatalError('process transport disconnected'));
+      // IPC disconnect commonly precedes the actual crash exit. Keep the task
+      // and its reservation through bounded teardown; close owns classification
+      // and release, including a child that disconnects but remains alive.
       void this.stop(slot).catch(error => this.reportError(error));
     });
     child.once('close', (code, signal) => {
