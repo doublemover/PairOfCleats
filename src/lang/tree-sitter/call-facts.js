@@ -4,7 +4,7 @@ import { buildLineIndex, offsetToLine } from '../../shared/lines.js';
 import { createOwnedNativeFlow, MANAGED_NATIVE_FLOW_LANGUAGES } from './flow-facts.js';
 import { readStaticShellWord } from '../shared/shell-word.js';
 
-export const SYNTAX_CALL_FACTS_VERSION = 9;
+export const SYNTAX_CALL_FACTS_VERSION = 10;
 const callTypes = new Set(['call_expression', 'function_call', 'call', 'method_invocation', 'invocation_expression', 'function_call_expression', 'juxt_function_call',
   'member_call_expression', 'nullsafe_member_call_expression', 'scoped_call_expression', 'object_creation_expression', 'command']);
 const scopeBarriers = new Set(['function_definition', 'function_declaration', 'method', 'singleton_method', 'function_item',
@@ -28,7 +28,7 @@ const dartCallTarget = (node, text) => {
 /** Copy compact ordinary call-detail data before the parser-owned tree closes.
  * A traversal interruption fails closed; it never labels a partial tail complete.
  */
-export const attachSyntaxCallFacts = (root, text, chunks, { maxNodes = 250000, declarations = null, languageId = null } = {}) => {
+export const attachSyntaxCallFacts = (root, text, chunks, { maxNodes = 250000, maxStack = 250000, declarations = null, languageId = null } = {}) => {
   const flow = MANAGED_NATIVE_FLOW_LANGUAGES.has(languageId) ? createOwnedNativeFlow({ text, languageId, chunks }) : null;
   const owners = new Map();
   const omissions = new Map();
@@ -56,13 +56,13 @@ export const attachSyntaxCallFacts = (root, text, chunks, { maxNodes = 250000, d
       ];
       chunk.meta.syntaxCallCoverage = reasons.length ? 'partial-' + reasons.join(';') : 'complete-supported-call-roles';
     }
+    return { visited, maxFrontier, frontierChildAccesses, truncated };
   };
   const lines = buildLineIndex(text), stack = [{ node: root, owner: null, blockedOwner: null, exclusion: null }];
-  let visited = 0;
+  let visited = 0, maxFrontier = 1, frontierChildAccesses = 0;
   while (stack.length) {
     if (++visited > maxNodes) {
-      finish(true);
-      return;
+      return finish(true);
     }
     const { node, owner: inherited, blockedOwner: inheritedBlocked, exclusion: inheritedExclusion } = stack.pop();
     const declared = owners.get(keyOf(node)) || (languageId === 'dart' && node.type === 'function_body'
@@ -135,13 +135,16 @@ export const attachSyntaxCallFacts = (root, text, chunks, { maxNodes = 250000, d
     const childCount = getNamedChildCount(node);
     // Admit the frontier before materializing native child handles. A broad
     // node cannot allocate/read its entire tail after the visit budget ends.
-    if (childCount > maxNodes - visited - stack.length) {
-      finish(true);
-      return;
+    if (childCount > maxNodes - visited - stack.length || childCount > maxStack - stack.length) {
+      return finish(true);
     }
-    for (let i = childCount - 1; i >= 0; i--) stack.push({ node: getNamedChild(node,i), owner, blockedOwner, exclusion });
+    for (let i = childCount - 1; i >= 0; i--) {
+      frontierChildAccesses++;
+      stack.push({ node: getNamedChild(node,i), owner, blockedOwner, exclusion });
+    }
+    maxFrontier = Math.max(maxFrontier, stack.length);
   }
-  finish(false);
+  return finish(false);
 };
 
 export const syntaxRelationsForChunks = chunks => {

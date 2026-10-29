@@ -8,6 +8,8 @@ import { toPosix } from '../../shared/file-paths.js';
 import { normalizeOptionalNumber } from '../../shared/limits.js';
 import { resolveProvenance } from '../../shared/provenance.js';
 import { validateApiContracts } from '../../contracts/validators/analysis.js';
+import { validateArtifact } from '../../contracts/validators/artifacts.js';
+import { throwIfAborted } from '../../shared/abort.js';
 import { MAX_JSON_BYTES } from '../../shared/artifact-io/constants.js';
 import {
   loadPiecesManifest,
@@ -91,15 +93,19 @@ const collectRows = async (iterator) => {
  * @param {object} manifest
  * @returns {Promise<object|null>} Opaque captured call index.
  */
-const loadCallSitesByTarget = async (indexDir, manifest) => {
-  const jsonlPaths = resolveJsonlSources(indexDir, manifest, 'call_sites');
-  if (!jsonlPaths) return null;
+const loadCallSitesByTarget = async (indexDir, manifest, signal) => {
   const builder = createApiContractCallTargetIndex();
-  for (const target of jsonlPaths) {
-    for await (const callSite of readJsonlRows(target)) {
-      builder.add(callSite);
+  for await (const callSite of loadJsonArrayArtifactRows(indexDir, 'call_sites', { manifest, strict: true, signal })) {
+    throwIfAborted(signal);
+    const validation = validateArtifact('call_sites', [callSite]);
+    if (!validation.ok) {
+      throw Object.assign(new Error(`Invalid call_sites evidence: ${validation.errors.join('; ')}`), {
+        code: 'ERR_ARTIFACT_INVALID', artifact: 'call_sites'
+      });
     }
+    builder.add(callSite);
   }
+  throwIfAborted(signal);
   return builder.finish();
 };
 
@@ -595,7 +601,8 @@ export const buildApiContractsReport = ({
  * @param {string[]} [rawArgs]
  * @returns {Promise<object>}
  */
-export async function runApiContractsCli(rawArgs = process.argv.slice(2)) {
+export async function runApiContractsCli(rawArgs = process.argv.slice(2), { signal = null } = {}) {
+  throwIfAborted(signal);
   const cli = createCli({
     scriptName: 'api-contracts',
     argv: ['node', 'api-contracts', ...rawArgs],
@@ -626,7 +633,7 @@ export async function runApiContractsCli(rawArgs = process.argv.slice(2)) {
   const symbols = symbolJsonlPaths
     ? await loadJsonlRowsIntoArray(symbolJsonlPaths)
     : await collectRows(loadJsonArrayArtifactRows(indexDir, 'symbols', { manifest, strict: true }));
-  const callSitesByTarget = await loadCallSitesByTarget(indexDir, manifest);
+  const callSitesByTarget = await loadCallSitesByTarget(indexDir, manifest, signal);
   const callSites = callSitesByTarget
     ? []
     : await collectRows(loadJsonArrayArtifactRows(indexDir, 'call_sites', { manifest, strict: true }));
@@ -636,6 +643,7 @@ export async function runApiContractsCli(rawArgs = process.argv.slice(2)) {
     strict: true
   });
   const indexSignature = await buildIndexSignature(indexDir);
+  throwIfAborted(signal);
 
   const caps = {
     maxSymbols: normalizeOptionalNumber(argv.maxSymbols),

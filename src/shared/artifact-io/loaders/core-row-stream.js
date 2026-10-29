@@ -2,6 +2,7 @@ import { iterateColumnarRows } from '../columnar-rows.js';
 import { readJsonFile } from '../json.js';
 import { createLoaderError } from './shared.js';
 import path from 'node:path';
+import { throwIfAborted } from '../../abort.js';
 import {
   iterateBinaryColumnarRows,
   streamJsonlRowsFromSources
@@ -25,11 +26,20 @@ export const streamArrayArtifactRowsFromSources = async function* (
   }
 ) {
   if (sources.format === 'json') {
+    throwIfAborted(signal);
     for (const sourcePath of sources.paths) {
+      throwIfAborted(signal);
       const payload = readJsonFile(sourcePath, { maxBytes, containedRoot: sources.containedRoot });
-      const rows = Array.isArray(payload) ? payload : [];
-      for (const row of rows) yield row;
+      throwIfAborted(signal);
+      if (!Array.isArray(payload)) {
+        throw createLoaderError('ERR_ARTIFACT_INVALID', `Invalid JSON array payload for ${baseName}`);
+      }
+      for (const row of payload) {
+        throwIfAborted(signal);
+        yield row;
+      }
     }
+    throwIfAborted(signal);
     return;
   }
   if (sources.format === 'columnar') {

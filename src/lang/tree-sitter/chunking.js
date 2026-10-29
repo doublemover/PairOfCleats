@@ -434,6 +434,12 @@ function gatherChunkNodes(root, text, config, budget) {
       if (chunk) chunks.push(chunk);
     }
     const count = getNamedChildCount(node);
+    if (count > maxAstStack - stack.length) {
+      return { chunks: null, reason: 'maxAstStack', visited, matched };
+    }
+    if (count > maxAstNodes - visited - stack.length) {
+      return { chunks: null, reason: 'maxAstNodes', visited, matched };
+    }
     for (let i = count - 1; i >= 0; i -= 1) {
       stack.push(getNamedChild(node, i));
     }
@@ -809,7 +815,7 @@ export function buildTreeSitterChunks({ text, languageId, ext, options, captureN
 
     if (queryResult?.usedQuery) {
       if (Array.isArray(queryResult.chunks) && queryResult.chunks.length) {
-        attachSyntaxCallFacts(rootNode,text,queryResult.chunks,{maxNodes:traversalBudget.maxAstNodes,languageId:resolvedId});
+        attachSyntaxCallFacts(rootNode,text,queryResult.chunks,{maxNodes:traversalBudget.maxAstNodes,maxStack:traversalBudget.maxAstStack,languageId:resolvedId});
         queryResult.chunks = withLeafProduct(withParserCoverage(queryResult.chunks, resolvedId, parserRecovered));
         if (cacheKey && cacheRef) {
           storeCachedChunks({
@@ -901,7 +907,7 @@ export function buildTreeSitterChunks({ text, languageId, ext, options, captureN
       return null;
     }
 
-    attachSyntaxCallFacts(rootNode,text,traversalResult.chunks,{maxNodes:traversalBudget.maxAstNodes,languageId:resolvedId});
+    attachSyntaxCallFacts(rootNode,text,traversalResult.chunks,{maxNodes:traversalBudget.maxAstNodes,maxStack:traversalBudget.maxAstStack,languageId:resolvedId});
     traversalResult.chunks = withLeafProduct(withParserCoverage(traversalResult.chunks, resolvedId, parserRecovered));
 
     if (cacheKey && cacheRef) {
