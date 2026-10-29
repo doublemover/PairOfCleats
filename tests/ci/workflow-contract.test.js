@@ -437,6 +437,14 @@ for (const platform of ['ubuntu', 'windows', 'macos']) {
   const goSetup = steps.findIndex(step => step.name === 'Setup qualified Go SDK');
   const goVerify = steps.findIndex(step => step.name === 'Verify selected Go SDK');
   const goStartup = steps.findIndex(step => step.name === 'Qualify real Go language server startup');
+  const shutdown = steps.findIndex(step => step.name === 'Serial LSP shutdown ownership qualification');
+  assert.ok(shutdown >= 0 && shutdown < goStartup
+    && steps[shutdown].run.includes('graceful-exit-after-transport-close\\/')
+    && steps[shutdown].run.includes('handshake-admission-and-cancellation')
+    && steps[shutdown].run.includes('--jobs 1 --pairofcleats-threads 1 --timeout-ms 30000 --retries 0 --native-status-redo=false')
+    && steps[shutdown].run.includes('--report-file .diagnostics/lsp-shutdown-qualification.json')
+    && crashUpload.with.path.split(/\r?\n/u).includes('.diagnostics/lsp-shutdown-qualification.json'),
+  `${platform}: require serial graceful/forced LSP shutdown and retain exact ownership receipts before real server qualification`);
   const goProvision = steps.findIndex(step => step.name === 'Provision pinned Go language server for CI');
   const go = steps[goSetup];
   if (goSetup < 0 || goVerify <= goSetup

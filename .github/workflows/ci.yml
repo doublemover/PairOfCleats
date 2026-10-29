@@ -377,6 +377,9 @@ jobs:
           fi
           exit 0
 
+      - name: Serial LSP shutdown ownership qualification
+        run: node tests/run.js --lane all --match '/^tooling\/lsp\/(graceful-exit-after-transport-close\/|reader-closed-restart-reaps-stale-process$|writer-closed-restart-reaps-stale-process$|shutdown-does-not-respawn-on-closed-transport$)/' --match '/^tooling\/doctor\/handshake-admission-and-cancellation$/' --jobs 1 --pairofcleats-threads 1 --timeout-ms 30000 --retries 0 --native-status-redo=false --report-file .diagnostics/lsp-shutdown-qualification.json
+
       - name: Qualify real Go language server startup
         run: |
           node --input-type=module -e '
@@ -476,6 +479,7 @@ jobs:
             .diagnostics/go-sdk.json
             .diagnostics/gopls-provisioning.json
             .diagnostics/gopls-startup.json
+            .diagnostics/lsp-shutdown-qualification.json
             .diagnostics/crash-log-qualification.json
             .diagnostics/serial-runtime-budgets.json
             .diagnostics/api-contracts.json
@@ -639,6 +643,9 @@ jobs:
         run: |
           node tests/run.js --lane all --match '/^shared\/kill-tree\.windows$/' --match '/^shared\/kill-tree\.windows-orphan-descendant-fallback$/' --match '/^shared\/kill-tree-windows-snapshot$/' --match '/^shared\/subprocess\/sync-timeout-kills-child-tree$/' --match '/^shared\/locks\/windows-delete-pending$/' --jobs 1 --pairofcleats-threads 1 --timeout-ms 30000 --retries 0 --native-status-redo=false --report-file .diagnostics/windows-subprocess-ownership.json
 
+      - name: Serial LSP shutdown ownership qualification
+        run: node tests/run.js --lane all --match '/^tooling\/lsp\/(graceful-exit-after-transport-close\/|reader-closed-restart-reaps-stale-process$|writer-closed-restart-reaps-stale-process$|shutdown-does-not-respawn-on-closed-transport$)/' --match '/^tooling\/doctor\/handshake-admission-and-cancellation$/' --jobs 1 --pairofcleats-threads 1 --timeout-ms 30000 --retries 0 --native-status-redo=false --report-file .diagnostics/lsp-shutdown-qualification.json
+
       - name: Qualify real Go language server startup
         run: |
           node --input-type=module -e '
@@ -719,6 +726,7 @@ jobs:
             .diagnostics/gopls-provisioning.json
             .diagnostics/gopls-startup.json
             .diagnostics/windows-subprocess-ownership.json
+            .diagnostics/lsp-shutdown-qualification.json
             .diagnostics/crash-log-qualification.json
             .diagnostics/serial-runtime-budgets.json
             .diagnostics/api-contracts.json
@@ -980,6 +988,9 @@ jobs:
           fi
           exit 0
 
+      - name: Serial LSP shutdown ownership qualification
+        run: node tests/run.js --lane all --match '/^tooling\/lsp\/(graceful-exit-after-transport-close\/|reader-closed-restart-reaps-stale-process$|writer-closed-restart-reaps-stale-process$|shutdown-does-not-respawn-on-closed-transport$)/' --match '/^tooling\/doctor\/handshake-admission-and-cancellation$/' --jobs 1 --pairofcleats-threads 1 --timeout-ms 30000 --retries 0 --native-status-redo=false --report-file .diagnostics/lsp-shutdown-qualification.json
+
       - name: Qualify real Go language server startup
         run: |
           node --input-type=module -e '
@@ -1070,6 +1081,7 @@ jobs:
             .diagnostics/go-sdk.json
             .diagnostics/gopls-provisioning.json
             .diagnostics/gopls-startup.json
+            .diagnostics/lsp-shutdown-qualification.json
             .diagnostics/crash-log-qualification.json
             .diagnostics/serial-runtime-budgets.json
             .diagnostics/api-contracts.json

@@ -118,6 +118,7 @@ export const runLspQualificationWorker = async input => {
       if (receipt.events.length >= 64) { receipt.truncated = true; return; }
       receipt.events.push({ at: event.at, kind: event.kind, pid: event.pid ?? null,
         code: event.code ?? null, signal: event.signal ?? null,
+        ...(event.reason ? { reason: redactDiagnosticText(event.reason, 160) } : {}),
         ...(event.message ? { message: redactDiagnosticText(event.message, 1024) } : {}) });
     },
     onMetrics: metrics => { receipt.metrics = metrics; }

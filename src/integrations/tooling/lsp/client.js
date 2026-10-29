@@ -216,6 +216,7 @@ export function createLspClient(options) {
   const resourceSettlementObservers = new Set();
   let unknownSpawnResource = false;
   const staleReapInFlight = new WeakMap();
+  const gracefulExitChildren = new WeakSet();
   const STALE_REAP_RETRY_MS = 500;
   let nextId = 1;
   const pending = new Map();
@@ -428,6 +429,9 @@ export function createLspClient(options) {
 
   const reapStaleChildProcess = (child, reason = 'stale_child') => {
     if (!child || !isChildRunning(child)) return;
+    // EOF can precede native exit during an admitted shutdown. Its original
+    // bounded wait still owns the child; explicit kill/errors remain immediate.
+    if (gracefulExitChildren.has(child) && ['reader_closed', 'writer_closed'].includes(reason)) return;
     const lastAttemptAt = Number(staleReapInFlight.get(child) || 0);
     const nowMs = Date.now();
     if (lastAttemptAt > 0 && (nowMs - lastAttemptAt) < STALE_REAP_RETRY_MS) return;
@@ -640,6 +644,11 @@ export function createLspClient(options) {
 
   const start = () => {
     beforeSpawn?.();
+    if (proc && gracefulExitChildren.has(proc) && isChildRunning(proc)) {
+      throw Object.assign(new Error('LSP restart blocked until the shutting-down child settles.'), {
+        code: 'ERR_LSP_RESTART_STALE_PROCESS'
+      });
+    }
     if (proc) {
       if (proc.killed || proc.exitCode !== null || writerClosed) {
         const staleChild = proc;
@@ -763,7 +772,7 @@ export function createLspClient(options) {
       markTransportClosed('writer_closed');
     };
     child.stdin?.on('close', markWriterClosed);
-    child.stdin?.on('error', markWriterClosed);
+    child.stdin?.on('error', () => markTransportClosed('writer_error'));
     child.stdout?.on('data', (chunk) => {
       if (proc !== child || childGen !== generation) return;
       childParser?.push(chunk);
@@ -847,6 +856,9 @@ export function createLspClient(options) {
     timeoutMs,
     startIfNeeded = true
   } = {}) => {
+    if (proc && gracefulExitChildren.has(proc) && method !== 'shutdown') {
+      return Promise.reject(Object.assign(new Error('LSP transport is shutting down.'), { code: 'ERR_LSP_TRANSPORT_CLOSED' }));
+    }
     try {
       if (startIfNeeded) {
         start();
@@ -899,6 +911,7 @@ export function createLspClient(options) {
   };
 
   const notify = (method, params, { startIfNeeded = true } = {}) => {
+    if (proc && gracefulExitChildren.has(proc) && !['exit', '$/cancelRequest'].includes(method)) return false;
     try {
       if (startIfNeeded) {
         start();
@@ -943,6 +956,7 @@ export function createLspClient(options) {
     if (!proc) return;
     const current = proc;
     const currentGen = generation;
+    gracefulExitChildren.add(current);
     if (isTransportRunning()) {
       try {
         await request('shutdown', null, { timeoutMs: 5000, startIfNeeded: false });
