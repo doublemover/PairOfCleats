@@ -942,7 +942,7 @@
       "number": 992,
       "title": "[P2] Custom risk semantics treat null and boolean argument indices as real positions",
       "priority": "P2",
-      "status": "qualification-required",
+      "status": "qualified-closed",
       "initialDisposition": "qualification_pending",
       "sourcePaths": [
         "src/index/risk-interprocedural/semantics.js"
@@ -955,10 +955,27 @@
         "indexing/risk/interprocedural/stats-effective-config",
         "indexing/risk/interprocedural/summary-only-status"
       ],
-      "remaining": [
+      "remaining": [],
+      "originalRequirements": [
         "Verify resolution of the reported Custom risk semantics treat null and boolean argument indices as real positions contract, including the original reproduction and healthy controls.",
         "Pass the related existing checks and the complete original/follow-up acceptance on the resulting candidate; preserve positive and negative controls."
-      ]
+      ],
+      "closeout": {
+        "head": "0afde906d49a1ca135a27483a46d1eeba000d932",
+        "sourceHead": "47d1f6058ec32eb0eda8ed575e62182de6c10ffd",
+        "tests": [
+          "indexing/risk/interprocedural/framework-semantics",
+          "indexing/risk/interprocedural/config-normalization",
+          "indexing/risk/interprocedural/engine-shape-guards",
+          "indexing/risk/interprocedural/immutable-edge-preparation",
+          "indexing/risk/interprocedural/stats-effective-config",
+          "indexing/risk/interprocedural/summary-only-status"
+        ],
+        "note": "Both fromArgs/toParams reject null, empty/whitespace, booleans, negative, fractional, unsafe/nonnumeric values; accept explicit integer/numeric strings, deduplicate/order, retain unknown-kind control.",
+        "state": "closed",
+        "state_reason": "completed",
+        "readback": true
+      }
     },
     {
       "number": 993,
@@ -1114,7 +1131,7 @@
       "number": 1005,
       "title": "[P2] SPDX boilerplate tag swallows all following header lines",
       "priority": "P2",
-      "status": "qualification-required",
+      "status": "qualified-closed",
       "initialDisposition": "qualification_pending",
       "sourcePaths": [
         "src/index/boilerplate.js"
@@ -1127,10 +1144,27 @@
         "indexing/file-processor/tokenization-line-stream-boundary",
         "indexing/metadata/relations-and-cache-identities"
       ],
-      "remaining": [
+      "remaining": [],
+      "originalRequirements": [
         "Add a multi-line license-header regression.",
         "Pass the related existing checks and the complete original/follow-up acceptance on the resulting candidate; preserve positive and negative controls."
-      ]
+      ],
+      "closeout": {
+        "head": "0afde906d49a1ca135a27483a46d1eeba000d932",
+        "sourceHead": "47d1f6058ec32eb0eda8ed575e62182de6c10ffd",
+        "tests": [
+          "indexing/metadata/relations-and-cache-identities",
+          "indexing/file-processor/docmeta-null-guards",
+          "indexing/file-processor/framework-profile-resolver-cache",
+          "indexing/file-processor/heavy-file-coalescing-segment-tail",
+          "indexing/file-processor/segment-relations-cache-uses-full-segment-text",
+          "indexing/file-processor/tokenization-line-stream-boundary"
+        ],
+        "note": "Exact original multi-line SPDX MIT tag excludes copyright suffix; CRLF/LF, compound expression and line/block/hash comment controls.",
+        "state": "closed",
+        "state_reason": "completed",
+        "readback": true
+      }
     },
     {
       "number": 1008,
@@ -1262,7 +1296,7 @@
       "number": 1017,
       "title": "[P2] DOCX ZIP fallback can inflate past the document size policy without a bound",
       "priority": "P2",
-      "status": "qualification-required",
+      "status": "qualified-closed",
       "initialDisposition": "qualification_pending",
       "sourcePaths": [
         "src/index/extractors/docx.js",
@@ -1276,13 +1310,32 @@
         "indexing/file-processor/file-scan-tier1-probe-size",
         "indexing/file-processor/generated-artifact-policy-requalification"
       ],
-      "remaining": [
+      "remaining": [],
+      "originalRequirements": [
         "Bound decompressed entry output and XML parse work independently of compressed input size; reject oversize entries with an explicit extraction failure and test a small compressed/large inflated fixture on a prepared runtime. Full extraction suite not run because local Node 26.8.1 is below the repository's >=26.10.0 floor and bootstrap readiness is unverified.",
         "Admit archive structure and policy-relevant expanded parts before an optional whole-document provider pass. Reuse one bounded structural owner for the paragraphs/styles already required by #1418 and #1562. Decide whether the provider's remaining warnings justify a second pass at all; remove redundant text production when it is not consumed.",
         "Use a small highly compressible fixture with a deliberately low policy cap, not a huge memory bomb. A counting provider fixture must prove rejected input never reaches the expensive provider; accepted input performs only the intended structural/provider passes.",
         "Test a deferred provider with cancellation/late settlement, an extraction error, and malformed ZIP metadata; assert one terminal result, no publication after cancellation, and resource/task accounting remains truthful until the operation ends. Real-provider qualification is separately required on the supported pinned runtime, with unchanged timeout/retry policy.",
         "Pass the related existing checks and the complete original/follow-up acceptance on the resulting candidate; preserve positive and negative controls."
-      ]
+      ],
+      "closeout": {
+        "head": "0afde906d49a1ca135a27483a46d1eeba000d932",
+        "sourceHead": "47d1f6058ec32eb0eda8ed575e62182de6c10ffd",
+        "tests": [
+          "indexing/documents/docx-structural-provider-consumer",
+          "indexing/documents/expanded-docx-and-pdf-disposal",
+          "indexing/extracted-prose/mammoth-security-migration",
+          "indexing/documents/docx-namespace-encoding-bounds",
+          "indexing/extracted-prose/document-security-guardrails",
+          "indexing/extracted-prose/docx-smoke",
+          "indexing/file-processor/file-scan-tier1-probe-size",
+          "indexing/file-processor/generated-artifact-policy-requalification"
+        ],
+        "note": "Small compressed/large expanded XML with honest and low declared metadata; combined document/styles allowance; structural timeout, preabort, malformed ZIP; no optional/deferred provider task launched. Removed discarded Mammoth pass after verifying no product consumer; installed real Mammoth remains independent differential oracle and original security/CLI protections.",
+        "state": "closed",
+        "state_reason": "completed",
+        "readback": true
+      }
     },
     {
       "number": 1019,
@@ -1431,7 +1484,7 @@
       "number": 1032,
       "title": "[P2] Root-level .markdown files are excluded from both indexing modes",
       "priority": "P2",
-      "status": "qualification-required",
+      "status": "qualified-closed",
       "initialDisposition": "qualification_pending",
       "sourcePaths": [
         "src/index/constants.js",
@@ -1445,11 +1498,28 @@
         "indexing/discovery/max-files-no-drop-during-inflight-reject",
         "indexing/preprocess/files"
       ],
-      "remaining": [
+      "remaining": [],
+      "originalRequirements": [
         "Retain the intended small root README.markdown discovery/watch regression and an independently expected prose-artifact assertion for closure. Do not keep reporting the old omission as current. #1028 now owns a distinct remaining production-stage parity issue: discoverSegments still selects Markdown parsing only for .md/.mdx despite the repaired initial admission and direct chunk dispatch. Fixing or testing that stage does not require reopening this historical source-classification finding.",
         "Add .markdown to the canonical prose routing set and verify build/watch discovery plus heading-aware chunking with a root-level fixture. Pure ESM predicate probe only; no full index under unsupported local Node 26.8.1/unverified bootstrap.",
         "Pass the related existing checks and the complete original/follow-up acceptance on the resulting candidate; preserve positive and negative controls."
-      ]
+      ],
+      "closeout": {
+        "head": "0afde906d49a1ca135a27483a46d1eeba000d932",
+        "sourceHead": "47d1f6058ec32eb0eda8ed575e62182de6c10ffd",
+        "tests": [
+          "indexing/discovery/root-markdown-build-watch-consumer",
+          "indexing/discovery/max-files-abort-crawl",
+          "indexing/discovery/max-files-continues-after-reject",
+          "indexing/discovery/max-files-fdir-no-raw-cap",
+          "indexing/discovery/max-files-no-drop-during-inflight-reject",
+          "indexing/preprocess/files"
+        ],
+        "note": "Actual tiny ordinary-root README.markdown/README.md stage2 prose artifacts and real watch path/file processor preserve independently expected Intro/Next heading chunks, with unsupported extension excluded. No physical alias/symlink fixture executed.",
+        "state": "closed",
+        "state_reason": "completed",
+        "readback": true
+      }
     },
     {
       "number": 1033,
@@ -1478,7 +1548,7 @@
       "number": 1034,
       "title": "[P2] Token-classification budget is spent before confirming Tree-sitter can run",
       "priority": "P2",
-      "status": "qualification-required",
+      "status": "qualified-closed",
       "initialDisposition": "qualification_pending",
       "sourcePaths": [
         "src/index/build/tokenization/classification-helpers.js"
@@ -1491,10 +1561,27 @@
         "indexing/read/utf8-truncation-buffer-budget",
         "indexing/tokenization/minhash-distinct-token-work"
       ],
-      "remaining": [
+      "remaining": [],
+      "originalRequirements": [
         "Cover an unsupported first segment followed by a supported segment.",
         "Pass the related existing checks and the complete original/follow-up acceptance on the resulting candidate; preserve positive and negative controls."
-      ]
+      ],
+      "closeout": {
+        "head": "0afde906d49a1ca135a27483a46d1eeba000d932",
+        "sourceHead": "47d1f6058ec32eb0eda8ed575e62182de6c10ffd",
+        "tests": [
+          "indexing/tokenization/token-classification-budget",
+          "indexing/file-processor/mixed-scm-token-waits-admission/normal",
+          "indexing/read/utf8-truncation-buffer-budget",
+          "indexing/tokenization/minhash-distinct-token-work",
+          "indexing/tokenization/token-classification-tree-sitter",
+          "indexing/tree-sitter/scheduler-classification-leaf-handoff"
+        ],
+        "note": "Unsupported first segment then supported actual native classification share one-chunk runtime; unsupported leaves both allowances unchanged; supported charges once, existing exhausted/native-leaf controls retained.",
+        "state": "closed",
+        "state_reason": "completed",
+        "readback": true
+      }
     },
     {
       "number": 1035,
@@ -2222,7 +2309,7 @@
       "number": 1070,
       "title": "[P2] Risk traversal discards alternate same-depth paths before maxPathsPerPair",
       "priority": "P2",
-      "status": "qualification-required",
+      "status": "qualified-closed",
       "initialDisposition": "qualification_pending",
       "sourcePaths": [
         "src/index/risk-interprocedural/engine.js"
@@ -2235,10 +2322,28 @@
         "indexing/risk/interprocedural/summary-only-status",
         "indexing/risk/interprocedural/upstream-input-coverage"
       ],
-      "remaining": [
+      "remaining": [],
+      "originalRequirements": [
         "Retain distinct bounded paths up to maxPathsPerPair (with cycle/expansion guards), or align the exposed cap/flow identity with one-path behavior. Add a deterministic diamond-graph fixture asserting both path/call-site witnesses survive under maxPathsPerPair: 2.",
         "Pass the related existing checks and the complete original/follow-up acceptance on the resulting candidate; preserve positive and negative controls."
-      ]
+      ],
+      "closeout": {
+        "head": "0afde906d49a1ca135a27483a46d1eeba000d932",
+        "sourceHead": "47d1f6058ec32eb0eda8ed575e62182de6c10ffd",
+        "tests": [
+          "indexing/risk/interprocedural/converging-witnesses",
+          "indexing/risk/interprocedural/engine-shape-guards",
+          "indexing/risk/interprocedural/framework-semantics",
+          "indexing/risk/interprocedural/immutable-edge-preparation",
+          "indexing/risk/interprocedural/stats-effective-config",
+          "indexing/risk/interprocedural/summary-only-status",
+          "indexing/risk/interprocedural/upstream-input-coverage"
+        ],
+        "note": "Deterministic diamond at maxPathsPerPair1/2 preserves two distinct chunk/call-site witnesses and flow IDs at2, stable reversed-order projection; cycle/depth/expansion/time caps and partial frontiers.",
+        "state": "closed",
+        "state_reason": "completed",
+        "readback": true
+      }
     },
     {
       "number": 1075,
@@ -2492,7 +2597,7 @@
       "number": 1087,
       "title": "[P2] Piece assembly drops SCM and file-level metadata from input indexes",
       "priority": "P2",
-      "status": "qualification-required",
+      "status": "qualified-closed",
       "initialDisposition": "qualification_pending",
       "sourcePaths": [
         "src/index/build/piece-assembly/load.js",
@@ -2506,17 +2611,35 @@
         "indexing/artifacts/chunk-meta-cached-jsonl-reuse",
         "indexing/artifacts/chunk-meta-jsonl-cleanup"
       ],
-      "remaining": [
+      "remaining": [],
+      "originalRequirements": [
         "Add an assembly regression with one input piece whose chunk has file/ext and whose file_meta has nonempty SCM/churn/external-doc fields; verify the assembled file_meta preserves them. ## Audit provenance Current source HEAD 9a2380368131c3bca35d1a05b46e9e7f90f9467d; producer/assembly/writer source proof.",
         "Separate from #1084, which is the analogous LMDB *reader* path; this issue concerns persisted output from piece assembly.",
         "Pass the related existing checks and the complete original/follow-up acceptance on the resulting candidate; preserve positive and negative controls."
-      ]
+      ],
+      "closeout": {
+        "head": "0afde906d49a1ca135a27483a46d1eeba000d932",
+        "sourceHead": "47d1f6058ec32eb0eda8ed575e62182de6c10ffd",
+        "tests": [
+          "indexing/piece-assembly/strict-input-preservation",
+          "indexing/piece-assembly/core",
+          "indexing/piece-assembly/minhash-identity",
+          "indexing/artifacts/chunk-meta-binary-eager-start",
+          "indexing/artifacts/chunk-meta-cached-jsonl-reuse",
+          "indexing/artifacts/chunk-meta-jsonl-cleanup",
+          "indexing/piece-assembly/persisted-metadata-and-field-tokens"
+        ],
+        "note": "indexing/piece-assembly/strict-input-preservation, indexing/piece-assembly/core, indexing/piece-assembly/minhash-identity, indexing/artifacts/chunk-meta-binary-eager-start, indexing/artifacts/chunk-meta-cached-jsonl-reuse, indexing/artifacts/chunk-meta-jsonl-cleanup, indexing/piece-assembly/persisted-metadata-and-field-tokens",
+        "state": "closed",
+        "state_reason": "completed",
+        "readback": true
+      }
     },
     {
       "number": 1088,
       "title": "[P2] Piece assembly silently drops sharded field_tokens inputs",
       "priority": "P2",
-      "status": "qualification-required",
+      "status": "qualified-closed",
       "initialDisposition": "qualification_pending",
       "sourcePaths": [
         "src/index/build/artifacts-write/index.js",
@@ -2530,10 +2653,28 @@
         "indexing/artifacts/field-postings-legacy-merge-reuses-shards",
         "indexing/artifacts/artifact-write-adaptive-concurrency-controller"
       ],
-      "remaining": [
+      "remaining": [],
+      "originalRequirements": [
         "Use loadJsonArrayArtifact(dir, 'field_tokens', { manifest, strict }) and preserve/validate its rows regardless of JSON vs sharded format. Add an assembly round-trip with a forced sharded field_tokens input and verify output parity with an unsharded equivalent.",
         "Pass the related existing checks and the complete original/follow-up acceptance on the resulting candidate; preserve positive and negative controls."
-      ]
+      ],
+      "closeout": {
+        "head": "0afde906d49a1ca135a27483a46d1eeba000d932",
+        "sourceHead": "47d1f6058ec32eb0eda8ed575e62182de6c10ffd",
+        "tests": [
+          "indexing/piece-assembly/core",
+          "indexing/piece-assembly/minhash-identity",
+          "indexing/piece-assembly/strict-input-preservation",
+          "indexing/artifacts/field-postings-adaptive-shards-and-binary",
+          "indexing/artifacts/field-postings-legacy-merge-reuses-shards",
+          "indexing/artifacts/artifact-write-adaptive-concurrency-controller",
+          "indexing/piece-assembly/persisted-metadata-and-field-tokens"
+        ],
+        "note": "indexing/piece-assembly/core, indexing/piece-assembly/minhash-identity, indexing/piece-assembly/strict-input-preservation, indexing/artifacts/field-postings-adaptive-shards-and-binary, indexing/artifacts/field-postings-legacy-merge-reuses-shards, indexing/artifacts/artifact-write-adaptive-concurrency-controller, indexing/piece-assembly/persisted-metadata-and-field-tokens",
+        "state": "closed",
+        "state_reason": "completed",
+        "readback": true
+      }
     },
     {
       "number": 1090,
@@ -2687,7 +2828,7 @@
       "number": 1102,
       "title": "[P2] Canceled worker tokenization is retried on the main thread and can return success",
       "priority": "P2",
-      "status": "qualification-required",
+      "status": "qualified-closed",
       "initialDisposition": "qualification_pending",
       "sourcePaths": [
         "src/index/build/file-processor/process-chunks/token-flow.js",
@@ -2705,12 +2846,32 @@
         "indexing/runtime/worker-pool-explicit-policy",
         "indexing/tokenization/native-leaf-product-reuse"
       ],
-      "remaining": [
+      "remaining": [],
+      "originalRequirements": [
         "Complete the existing issue with a recording parser/pool fixture that proves no sync parse and no cache publication after the request is aborted. Include already-aborted warm-cache input, abort during a deferred worker, worker fulfillment after abort, a queue-full decision while aborted, and an ordinary recoverable worker failure control. Preserve the original cancellation and any pending native/worker cleanup ownership; do not merely rename a still-running task's rejection. Verify file/build cancellation is actually carried through the language-context options at the real caller, not just supplied by the test directly to the leaf. No new native/runtime execution was performed in this audit.",
         "Include follow-up acceptance: Fix signal delivery as well as the catch/fallback. token-flow.js:412-414 in both direct and runProc branches, omitting its second { signal } argument. pool.js:600-626 only passes cancellation into pressure-slot admission and pool.run when supplied. Cancelling an outer scheduler wait is not equivalent to cancelling already-admitted token work. Forward the same file/run signal into the actual task, retain ownership until termination, and test cancellation while queued, pressure-blocked and running. Coordinate bounded zero-slot liveness with #1342 rather than adding another pressure owner.",
         "Include follow-up acceptance: The parser boundary has the same abort-to-inline fallback family: buildTreeSitterChunksAsync:951-979 supplies options.abortSignal to Piscina but catches every rejection and immediately calls synchronous buildTreeSitterChunks. It also lacks an abort check before dispatch/cache return and before synchronous fallback. Preserve cancellation here, not only in tokenization, so a cancelled native worker does not cause main-thread reparsing. Cover an already-aborted signal, abort during worker execution, queue-full fallback, and genuine non-abort worker failure. The synchronous fallback should remain only for the intended recoverable failure policy.",
         "Pass the related existing checks and the complete original/follow-up acceptance on the resulting candidate; preserve positive and negative controls."
-      ]
+      ],
+      "closeout": {
+        "head": "0afde906d49a1ca135a27483a46d1eeba000d932",
+        "sourceHead": "47d1f6058ec32eb0eda8ed575e62182de6c10ffd",
+        "tests": [
+          "indexing/workers/worker-pool-stuck-drain-real-worker",
+          "indexing/file-processor/token-worker-abort-and-evidence",
+          "indexing/file-processor/tokenization-line-stream-boundary",
+          "indexing/runtime/worker-pool-default-concurrency",
+          "indexing/runtime/worker-pool-explicit-policy",
+          "indexing/tokenization/native-leaf-product-reuse",
+          "indexing/tree-sitter/async-request-cancellation-boundaries",
+          "indexing/workers/pressure-reconfigure-admission-authority",
+          "indexing/workers/hard-pressure-no-progress"
+        ],
+        "note": "indexing/workers/worker-pool-stuck-drain-real-worker, indexing/file-processor/token-worker-abort-and-evidence, indexing/file-processor/tokenization-line-stream-boundary, indexing/runtime/worker-pool-default-concurrency, indexing/runtime/worker-pool-explicit-policy, indexing/tokenization/native-leaf-product-reuse, indexing/tree-sitter/async-request-cancellation-boundaries, indexing/workers/pressure-reconfigure-admission-authority, indexing/workers/hard-pressure-no-progress",
+        "state": "closed",
+        "state_reason": "completed",
+        "readback": true
+      }
     },
     {
       "number": 1103,
@@ -3108,7 +3269,7 @@
       "number": 1333,
       "title": "[P2] Cancel preprocessing line reads and preserve unknown counts on IO failure",
       "priority": "P2",
-      "status": "qualification-required",
+      "status": "qualified-closed",
       "initialDisposition": "qualification_pending",
       "sourcePaths": [
         "src/index/build/preprocess.js",
@@ -3122,13 +3283,32 @@
         "indexing/build/ordinary-failed-stage-reuse",
         "indexing/build/preprocess-original-resource-ownership"
       ],
-      "remaining": [
+      "remaining": [],
+      "originalRequirements": [
         "Thread the same AbortSignal through preprocessing, the shared concurrency helper and every owned line-count stream. Reject pre-aborted calls before opening files; stop scheduling after abort, destroy/close active streams and settle cancellation only when resources are drained. Do not merely race the promise and leave IO running.",
         "Preserve error/unknown separately from true empty=0. Return a typed observation or propagate a classified error to the existing scan failure policy. If best-effort behavior is selected, mark incomplete coverage and exclude unknown counts from successful totals/cap decisions; do not silently stamp 0 into future reuse receipts.",
         "Bound any slow/unresponsive filesystem handling through existing deadline/ownership mechanisms. Resume must not compete with lingering line-count IO or infer successful completion from partial counts.",
         "Keep #887 authoritative cap precedence and #1320 freshness-qualified count reuse; this issue fixes cancellation/error semantics even when no cache exists.",
         "Pass the related existing checks and the complete original/follow-up acceptance on the resulting candidate; preserve positive and negative controls."
-      ]
+      ],
+      "closeout": {
+        "head": "0afde906d49a1ca135a27483a46d1eeba000d932",
+        "sourceHead": "47d1f6058ec32eb0eda8ed575e62182de6c10ffd",
+        "tests": [
+          "shared/file-stats-cancellation",
+          "indexing/build/preprocess-cancel-lock-consumer",
+          "contracts/module-export-surface-compat",
+          "indexing/artifacts/completed-stage-recovery",
+          "indexing/build/failed-stage-import-authority",
+          "indexing/build/immutable-graph-capability",
+          "indexing/build/ordinary-failed-stage-reuse",
+          "indexing/build/preprocess-original-resource-ownership"
+        ],
+        "note": "Real empty/nonempty/CRLF, missing/error/cancel/read ownership controls; preabort0 opens, EACCES/EIO partial read exact causes, between-file stop, concurrent reads; actual build preprocess cancellation retains lock until original source close settles and publishes no successful stats.",
+        "state": "closed",
+        "state_reason": "completed",
+        "readback": true
+      }
     },
     {
       "number": 1335,
@@ -3213,7 +3393,7 @@
       "number": 1339,
       "title": "[P2] Fail closed when an explicitly configured ONNX model path is missing",
       "priority": "P2",
-      "status": "qualification-required",
+      "status": "qualified-closed",
       "initialDisposition": "qualification_pending",
       "sourcePaths": [
         "src/shared/onnx-embeddings/config.js",
@@ -3228,13 +3408,30 @@
         "indexing/embeddings/dense-model-encoding-contract",
         "indexing/embeddings/embedding-onnx-execution-observation"
       ],
-      "remaining": [
+      "remaining": [],
+      "originalRequirements": [
         "Separate an explicit authoritative selection from implicit discovery. Missing, inaccessible, nonregular or unusable explicit paths fail with the requested path and actionable setup guidance.",
         "Preserve cache discovery only when no explicit path was supplied, or behind an explicit, observable fallback policy.",
         "Validate nested candidates as readable regular files rather than existence-only entries. Keep runtime, readiness, downloader and identity resolution on this shared contract.",
         "The downloader may need a separate source-discovery call when staging to a new target. Do not break that flow by confusing a destination path with the already-present source selection.",
         "Pass the related existing checks and the complete original/follow-up acceptance on the resulting candidate; preserve positive and negative controls."
-      ]
+      ],
+      "closeout": {
+        "head": "0afde906d49a1ca135a27483a46d1eeba000d932",
+        "sourceHead": "47d1f6058ec32eb0eda8ed575e62182de6c10ffd",
+        "tests": [
+          "embeddings/onnx/explicit-model-selection",
+          "embeddings/onnx/model-selection-observation",
+          "embeddings/onnx/installation-closure",
+          "embeddings/onnx/installation-fault-ownership",
+          "indexing/embeddings/dense-model-encoding-contract",
+          "indexing/embeddings/embedding-onnx-execution-observation"
+        ],
+        "note": "embeddings/onnx/explicit-model-selection, embeddings/onnx/model-selection-observation, embeddings/onnx/installation-closure, embeddings/onnx/installation-fault-ownership, indexing/embeddings/dense-model-encoding-contract, indexing/embeddings/embedding-onnx-execution-observation",
+        "state": "closed",
+        "state_reason": "completed",
+        "readback": true
+      }
     },
     {
       "number": 1343,
@@ -3483,7 +3680,7 @@
       "number": 1352,
       "title": "[P2] Pin every search read to the request's selected per-mode generation",
       "priority": "P2",
-      "status": "qualification-required",
+      "status": "qualified-closed",
       "initialDisposition": "qualification_pending",
       "sourcePaths": [
         "src/retrieval/cli/run-search/plan-runner.js",
@@ -3500,19 +3697,36 @@
         "retrieval/cli/run-search-module-load",
         "retrieval/cli/search-backend-finally"
       ],
-      "remaining": [
+      "remaining": [],
+      "originalRequirements": [
         "Resolve one validated per-mode generation map at request admission and carry it to every state/manifest/backend/artifact/signature/cache lookup, including optional extracted-prose joins, lazy ANN loads and later hydration.",
         "Reuse canonical generation resolution and leases. Do not require all modes to share one build root: retained-mode roots may legitimately differ, but each mode's actual data must match its admitted identity.",
         "Pass exact resolved directories to supplemental loaders rather than making them re-follow mutable aliases. Bind returned provenance/cache identities to what was actually read; reject/restart coherently if an admitted immutable generation is unavailable, never mix it with new current.",
         "Inject A→B promotion between DB setup, dictionary load, metadata loading and supplemental hydration. Verify source identities, filter/relationship behavior, final provenance and cache keys remain consistent for memory/SQLite/LMDB, code/prose/optional extracted-prose, long-lived and CLI callers.",
         "Pass the related existing checks and the complete original/follow-up acceptance on the resulting candidate; preserve positive and negative controls."
-      ]
+      ],
+      "closeout": {
+        "head": "0afde906d49a1ca135a27483a46d1eeba000d932",
+        "sourceHead": "47d1f6058ec32eb0eda8ed575e62182de6c10ffd",
+        "tests": [
+          "retrieval/cli/request-generation-promotion/memory",
+          "retrieval/cli/request-generation-promotion/sqlite",
+          "retrieval/cli/request-generation-promotion/lmdb",
+          "retrieval/cli/search-backend-finally",
+          "retrieval/cli/run-search-module-load",
+          "indexing/watch/edit-to-search"
+        ],
+        "note": "Actual memory, SQLite and LMDB search retain admitted A through five A-to-B promotion points, independent code/prose roots, optional extracted joins, exact provenance/cache signatures, real filters, lazy dense reads, cancellation and admitted-generation disappearance. Isolated old committed modules fail the new witness.",
+        "state": "closed",
+        "state_reason": "completed",
+        "readback": true
+      }
     },
     {
       "number": 1353,
       "title": "[P2] Honor bare --no-fallback before selecting a user-scope tooling install",
       "priority": "P2",
-      "status": "qualification-required",
+      "status": "qualified-closed",
       "initialDisposition": "qualification_pending",
       "sourcePaths": [
         "src/shared/cli-option-sets.js",
@@ -3528,10 +3742,31 @@
         "tooling/install/tool-install-receipt-drift",
         "tooling/install/tooling-report-cancellation"
       ],
-      "remaining": [
+      "remaining": [],
+      "originalRequirements": [
         "Test canonical CLI and direct installer parsing, bare --no-fallback, equals form, omitted flag, config true/false and unavailable requested scopes. Use a missing rust-analyzer plus a harmless fake rustup in a scoped fixture; assert zero out-of-scope installer calls under no-fallback, in dry-run plans and real execution. Preserve intentionally allowed fallback when requested/defaulted.",
         "Pass the related existing checks and the complete original/follow-up acceptance on the resulting candidate; preserve positive and negative controls."
-      ]
+      ],
+      "closeout": {
+        "head": "0afde906d49a1ca135a27483a46d1eeba000d932",
+        "sourceHead": "47d1f6058ec32eb0eda8ed575e62182de6c10ffd",
+        "tests": [
+          "tooling/install/no-fallback-scope-consumer/canonical-preview",
+          "tooling/install/no-fallback-scope-consumer/direct-preview",
+          "tooling/install/no-fallback-scope-consumer/canonical-execution",
+          "tooling/install/no-fallback-scope-consumer/direct-execution",
+          "tooling/install/install-preview-no-execution",
+          "tooling/install/lua-language-server-install",
+          "tooling/install/managed-install-publication-lifetime",
+          "tooling/install/tool-install-receipt-drift",
+          "tooling/install/tooling-report-cancellation",
+          "tooling/install/tooling-resolve-preferred-enabled-fallback"
+        ],
+        "note": "Canonical/direct real parsing for bare, equals true/false, omitted, config true/false/unavailable cache scope. Task-owned harmless rustup spy only: no out-of-scope calls under no-fallback, previews execute0 installers; permitted fallback performs exactly1 fake install.",
+        "state": "closed",
+        "state_reason": "completed",
+        "readback": true
+      }
     },
     {
       "number": 1354,
@@ -3601,7 +3836,7 @@
       "number": 1356,
       "title": "[P2] Preserve upstream risk coverage when reporting zero flows and strict readiness",
       "priority": "P2",
-      "status": "qualification-required",
+      "status": "qualified-closed",
       "initialDisposition": "qualification_pending",
       "sourcePaths": [
         "src/index/risk.js",
@@ -3618,19 +3853,37 @@
         "context-pack/fd-zero-close",
         "context-pack/federated-risk-parity"
       ],
-      "remaining": [
+      "remaining": [],
+      "originalRequirements": [
         "Run the actual local detector for R with maxBytes=10 on its 25-byte source.",
         "Feed actual summary-builder output to the complete unchanged interprocedural engine.",
         "Control: identical inputs with only R's local byte cap raised to10000.",
         "Persist per-chunk local-analysis admission/completion and summary reductions, including which inputs were skipped, partially scanned, timed out, clamped or dropped. Preserve counts/reasons and effective policy, not only booleans.",
         "Pass the related existing checks and the complete original/follow-up acceptance on the resulting candidate; preserve positive and negative controls."
-      ]
+      ],
+      "closeout": {
+        "head": "0afde906d49a1ca135a27483a46d1eeba000d932",
+        "sourceHead": "47d1f6058ec32eb0eda8ed575e62182de6c10ffd",
+        "tests": [
+          "indexing/risk/interprocedural/upstream-input-coverage",
+          "indexing/risk/interprocedural/upstream-coverage-replay-piece-consumer",
+          "context-pack/risk-strict-status",
+          "context-pack/fd-zero-close",
+          "context-pack/federated-risk-parity",
+          "indexing/risk/risk-contract-matrix",
+          "indexing/risk/rules/risk-config"
+        ],
+        "note": "Actual configured two-chunk detector source→sink positive1 flow versus capped0; byte/line/node/edge/local-flow/time and summary reductions/row drops; actual immutable bundle write/read and piece publication; strict pack carries incompleteness and execution completion separately, preserves unknown cross-file coverage.",
+        "state": "closed",
+        "state_reason": "completed",
+        "readback": true
+      }
     },
     {
       "number": 1361,
       "title": "[P2] Forward configured gzip options through JSONL batch writers",
       "priority": "P2",
-      "status": "qualification-required",
+      "status": "qualified-closed",
       "initialDisposition": "qualification_pending",
       "sourcePaths": [
         "src/shared/json-stream/jsonl-batch.js",
@@ -3646,7 +3899,8 @@
         "indexing/tree-sitter/scheduler-paged-json-gzip",
         "shared/artifact-io/jsonl-row-short-read-consumers"
       ],
-      "remaining": [
+      "remaining": [],
+      "originalRequirements": [
         "Keep deterministic mtime handling and existing supported-option validation.",
         "Cover direct JSON, direct JSONL, multi-shard JSONL, configured levels 0/1/9, unsupported/clamped options and explicit mtime.",
         "Use a codec-factory spy plus decompression/byte checks; compare actual level-dependent output size/CPU in focused qualified probes.",
@@ -3654,7 +3908,24 @@
         "Include follow-up acceptance: src/index/build/artifacts/repo-map.js:158 receives compressionGzipOptions in enqueueRepoMapArtifacts but omits it from the ordinary JSON-array write; the JSONL branch does forward it. That ordinary JSON route does not pass through jsonl-batch, so fixing only the batch constructor leaves it inconsistent.",
         "Include follow-up acceptance: src/index/build/artifacts/token-postings.js:272 writes compressed JSON shards with compression and atomic only. enqueueTokenPostingsArtifacts does not accept/forward the build's gzip-options object for that route.",
         "Pass the related existing checks and the complete original/follow-up acceptance on the resulting candidate; preserve positive and negative controls."
-      ]
+      ],
+      "closeout": {
+        "head": "0afde906d49a1ca135a27483a46d1eeba000d932",
+        "sourceHead": "47d1f6058ec32eb0eda8ed575e62182de6c10ffd",
+        "tests": [
+          "shared/json-stream/gzip-options-all-writers",
+          "shared/json-stream/gzip-options-forwarded",
+          "indexing/artifacts/core-metadata-bypass-writers",
+          "indexing/artifacts/writers/writer-common-contract",
+          "indexing/tree-sitter/scheduler-paged-json-gzip",
+          "shared/artifact-io/jsonl-row-short-read-consumers",
+          "indexing/artifacts/gzip-family-configuration"
+        ],
+        "note": "shared/json-stream/gzip-options-all-writers, shared/json-stream/gzip-options-forwarded, indexing/artifacts/core-metadata-bypass-writers, indexing/artifacts/writers/writer-common-contract, indexing/tree-sitter/scheduler-paged-json-gzip, shared/artifact-io/jsonl-row-short-read-consumers, indexing/artifacts/gzip-family-configuration",
+        "state": "closed",
+        "state_reason": "completed",
+        "readback": true
+      }
     },
     {
       "number": 1362,
@@ -3688,7 +3959,7 @@
       "number": 1368,
       "title": "[P2] Derive JSONL block length from encoded bytes instead of trusting optional lineBytes",
       "priority": "P2",
-      "status": "qualification-required",
+      "status": "qualified-closed",
       "initialDisposition": "qualification_pending",
       "sourcePaths": [
         "src/shared/json-stream/jsonl-batch.js"
@@ -3701,10 +3972,28 @@
         "shared/json-stream/jsonl-worker-order",
         "shared/prepared-jsonl-row"
       ],
-      "remaining": [
+      "remaining": [],
+      "originalRequirements": [
         "Cover omitted/null/undefined, negative/zero/short/long/nonfinite hints, Buffer and string rows, multibyte Unicode, mixed rows, exact block boundary, huge single row, plain/gzip/zstd and abort. Reconstructed bytes and rows must match exactly. Assert bounded queued bytes even if hints are bad; no successful empty/truncated/padded output for nonempty rows. Preserve existing error propagation and atomic publication behavior.",
         "Pass the related existing checks and the complete original/follow-up acceptance on the resulting candidate; preserve positive and negative controls."
-      ]
+      ],
+      "closeout": {
+        "head": "0afde906d49a1ca135a27483a46d1eeba000d932",
+        "sourceHead": "47d1f6058ec32eb0eda8ed575e62182de6c10ffd",
+        "tests": [
+          "shared/artifact-io/jsonl-row-short-read-consumers",
+          "shared/artifact-io/jsonl-stream-roundtrip",
+          "shared/json-stream/jsonl-line-byte-hints",
+          "shared/json-stream/jsonl-utf8",
+          "shared/json-stream/jsonl-worker-order",
+          "shared/prepared-jsonl-row",
+          "shared/json-stream/jsonl-byte-authority-and-bounds"
+        ],
+        "note": "shared/artifact-io/jsonl-row-short-read-consumers, shared/artifact-io/jsonl-stream-roundtrip, shared/json-stream/jsonl-line-byte-hints, shared/json-stream/jsonl-utf8, shared/json-stream/jsonl-worker-order, shared/prepared-jsonl-row, shared/json-stream/jsonl-byte-authority-and-bounds",
+        "state": "closed",
+        "state_reason": "completed",
+        "readback": true
+      }
     },
     {
       "number": 1371,
@@ -3943,7 +4232,7 @@
       "number": 1380,
       "title": "[P2] Resolve index stats from every published mode root instead of one latest build",
       "priority": "P2",
-      "status": "qualification-required",
+      "status": "qualified-closed",
       "initialDisposition": "qualification_pending",
       "sourcePaths": [
         "tools/index/stats.js",
@@ -3957,13 +4246,31 @@
         "cli/build-index/all/sqlite-stage4",
         "indexing/build/stage4-mixed-mode-generations"
       ],
-      "remaining": [
+      "remaining": [],
+      "originalRequirements": [
         "For repository selection, resolve each requested/available mode through the canonical per-mode owner and capture the complete selection once. Single-mode prose must not be inferred from the newest code build.",
         "Keep explicit --index-dir as a literal forensic root, not a request to merge arbitrary current artifacts.",
         "Report per-mode root/build/compatibility provenance. Do not label a mixed-generation aggregate with whichever manifest happened to be first (current payload construction).",
         "Test code-only and prose-only refreshes after an all-mode build, custom cache roots, multiple retained modes, absent modes and explicit-root controls. Totals must include exactly the selected published modes.",
         "Pass the related existing checks and the complete original/follow-up acceptance on the resulting candidate; preserve positive and negative controls."
-      ]
+      ],
+      "closeout": {
+        "head": "0afde906d49a1ca135a27483a46d1eeba000d932",
+        "sourceHead": "47d1f6058ec32eb0eda8ed575e62182de6c10ffd",
+        "tests": [
+          "indexing/build/stage4-mixed-mode-generations/code",
+          "indexing/build/stage4-mixed-mode-generations/prose",
+          "indexing/build/stage4-explicit-index-root-no-promotion",
+          "indexing/build/stage4-repo-root-pointer-prefers-active-root",
+          "tooling/index/selected-mode-root-capture",
+          "tooling/paths/current-build-repo-root-pointer-prefers-active-root",
+          "cli/build-index/all/sqlite-stage4"
+        ],
+        "note": "Real Stage4 completes SQLite at each retained mode root without changing current generation identity. Fresh independently bounded code/prose cases retain every original query, native DB count and five invalid root publication controls. All original mapped controls pass.",
+        "state": "closed",
+        "state_reason": "completed",
+        "readback": true
+      }
     },
     {
       "number": 1383,
@@ -4171,7 +4478,7 @@
       "number": 1398,
       "title": "[P2] Preserve exclusion and quoted-phrase gates under --match any",
       "priority": "P2",
-      "status": "qualification-required",
+      "status": "qualified-closed",
       "initialDisposition": "qualification_pending",
       "sourcePaths": [
         "src/retrieval/query.js",
@@ -4187,13 +4494,29 @@
         "indexing/scm/retained-change-history",
         "indexing/tokenization/multilingual-symmetry"
       ],
-      "remaining": [
+      "remaining": [],
+      "originalRequirements": [
         "Define and implement the policy on the intended positive-term region, preserving mandatory phrase/exclusion gates and authored explicit Boolean/group scope. Do not flatten all negatives into a global filter: a user-authored alpha OR NOT beta must still retain its branch-local semantics.",
         "Cover NOT beta, -beta, !beta, positive/negative phrases, multiple ordinary positive terms, explicit AND/OR, parentheses and different adjacency orders for auto/all/any.",
         "Assert both inclusion and exclusion under sparse/FTS and ANN hard eligibility, with cold/warm plan and result caches; keep the independently authored OR-complement cases working.",
         "Include a no-positive-term case and a phrase gate with no matching evidence. Preserve current auto behavior and avoid a backend-only workaround.",
         "Pass the related existing checks and the complete original/follow-up acceptance on the resulting candidate; preserve positive and negative controls."
-      ]
+      ],
+      "closeout": {
+        "head": "0afde906d49a1ca135a27483a46d1eeba000d932",
+        "sourceHead": "47d1f6058ec32eb0eda8ed575e62182de6c10ffd",
+        "tests": [
+          "retrieval/query/match-policy-backend-cache-consumers",
+          "retrieval/cli/match-policy-hard-gates",
+          "retrieval/cli/search-controls",
+          "retrieval/query/literal-phrase-and-eligibility",
+          "cli/search/symbol-boost"
+        ],
+        "note": "Independent expected membership for twenty auto/all/any Boolean, exclusion, phrase, group and negative-only policies through real sparse, native SQLite FTS and controlled ANN session/cold-warm plan/result caches; authored OR-complement semantics remain.",
+        "state": "closed",
+        "state_reason": "completed",
+        "readback": true
+      }
     },
     {
       "number": 1399,
@@ -4246,7 +4569,7 @@
       "number": 1407,
       "title": "[P2] Keep ignored siblings excluded when expanding a nested include",
       "priority": "P2",
-      "status": "qualification-required",
+      "status": "qualified-closed",
       "initialDisposition": "qualification_pending",
       "sourcePaths": [
         "src/index/build/ignore.js",
@@ -4261,13 +4584,31 @@
         "indexing/artifacts/manifest/report-artifacts-driven",
         "indexing/artifacts/runtime-cache-metadata-roundtrip"
       ],
-      "remaining": [
+      "remaining": [],
+      "originalRequirements": [
         "Choose and document the supported parent-negation contract. If retaining implicit ancestor traversal/reinclusion, compute it against all preceding effective rules and preserve exclusions for every non-selected descendant.",
         "Cover same-file directory exclusion plus nested include, nested parents, multiple allowed descendants, later re-exclusion, and a matching rule from a prior ignore file.",
         "Exercise .gitignore, .pairofcleatsignore, explicit ignoreFiles and extraIgnore; ensure a narrow include does not reveal ignored sibling content in discovery or watch.",
         "Assert file-level decisions as well as whether traversal is allowed. Traversal permission is not blanket indexing permission.",
         "Pass the related existing checks and the complete original/follow-up acceptance on the resulting candidate; preserve positive and negative controls."
-      ]
+      ],
+      "closeout": {
+        "head": "0afde906d49a1ca135a27483a46d1eeba000d932",
+        "sourceHead": "47d1f6058ec32eb0eda8ed575e62182de6c10ffd",
+        "tests": [
+          "indexing/discovery/generated-include-traversal-consumer",
+          "contracts/module-export-surface-compat",
+          "indexing/artifacts/completed-stage-recovery",
+          "indexing/artifacts/manifest/report-artifacts-driven",
+          "indexing/artifacts/runtime-cache-metadata-roundtrip",
+          "indexing/ignore/ordered-rule-program",
+          "indexing/type-inference/providers/type-inference-clangd-include-root-inference"
+        ],
+        "note": "Globstar/literal/globbed ancestor includes reopen actual discovery/watch only for selected leaves; mixed-case reachability agrees with node-ignore; ignored siblings, later ordinary re-exclusions/generated excludes, root/depth/file caps and fingerprint invalidation retained.",
+        "state": "closed",
+        "state_reason": "completed",
+        "readback": true
+      }
     },
     {
       "number": 1413,
@@ -4302,7 +4643,7 @@
       "number": 1418,
       "title": "[P2] Preserve DOCX source paragraphs and headings in the preferred Mammoth path",
       "priority": "P2",
-      "status": "qualification-required",
+      "status": "qualified-closed",
       "initialDisposition": "qualification_pending",
       "sourcePaths": [
         "src/index/extractors/docx.js"
@@ -4315,13 +4656,32 @@
         "indexing/semantic/wasm-source-admission",
         "indexing/documents/ordered-text-boundaries"
       ],
-      "remaining": [
+      "remaining": [],
+      "originalRequirements": [
         "Retain bounded structural paragraph ordinals and styles through the preferred adapter, using a supported structured provider representation or a shared safe XML structural pass. Preserve blank source positions without creating empty searchable chunks. Keep normalized offset units explicit and report unavailable provenance honestly rather than labeling dense text-line ordinals as source paragraphs. Reuse extraction ownership and avoid duplicate whole-document work where possible. Update derived extraction/semantic identity versions so old flattened artifacts are not silently reused.",
         "Exercise actual Mammoth extraction → normalized units → DOCX chunker, not manually fabricated styled units alone.",
         "The five-paragraph fixture preserves original source ordinals, both heading boundaries and heading paths.",
         "Cover blank/self-closing paragraphs, multiline text, attributed breaks, tables, custom/inherited heading styles and Unicode; define unsupported provenance rather than inventing precision.",
         "Pass the related existing checks and the complete original/follow-up acceptance on the resulting candidate; preserve positive and negative controls."
-      ]
+      ],
+      "closeout": {
+        "head": "0afde906d49a1ca135a27483a46d1eeba000d932",
+        "sourceHead": "47d1f6058ec32eb0eda8ed575e62182de6c10ffd",
+        "tests": [
+          "indexing/documents/docx-structural-provider-consumer",
+          "indexing/documents/docx-namespace-encoding-bounds",
+          "indexing/incremental/document-extraction-receipt",
+          "indexing/extracted-prose/mammoth-security-migration",
+          "indexing/documents/expanded-docx-and-pdf-disposal",
+          "indexing/documents/ordered-text-boundaries",
+          "indexing/extracted-prose/docx-smoke",
+          "indexing/semantic/wasm-source-admission"
+        ],
+        "note": "Installed actual Mammoth independent differential oracle; shared single canonical structural product→real normalized units/chunks, cold/warm actual file-processor cache clones, strict receipts; physical2/3/4/5 ordinals around blank, Unicode/multiline/break/table, inherited custom heading1/2 paths/full ranges/deterministic anchors, cycle/unavailable provenance null, producer3 refused under4. No fabricated preferred/fallback dual pass retained after obsolete product audit.",
+        "state": "closed",
+        "state_reason": "completed",
+        "readback": true
+      }
     },
     {
       "number": 1423,
@@ -6422,7 +6782,7 @@
       "number": 1548,
       "title": "[P2] Serialize each yielded JSONL row before advancing a reusable synchronous iterator",
       "priority": "P2",
-      "status": "qualification-required",
+      "status": "qualified-closed",
       "initialDisposition": "qualification_pending",
       "sourcePaths": [
         "src/shared/json-stream/jsonl-sharded.js"
@@ -6435,13 +6795,33 @@
         "embeddings/pipeline/grouped-work-failure-ledger",
         "embeddings/pipeline/inflight-terminal-settlement"
       ],
-      "remaining": [
+      "remaining": [],
+      "originalRequirements": [
         "Make the shared owner consume and serialize the current yield before requesting the next. Prefer a normal iterator/for-of sequence with awaited per-item admission, retaining O(1) producer rows plus existing bounded writer buffers.",
         "Remove eager hasMore lookahead if possible. Close a full part as needed and defer opening its successor until an actual next item arrives. Preserve the no-empty-trailing-part behavior without reading the next value early.",
         "Keep disk reservation, offsets, counts and maxBytes defined from the exact captured bytes. Reuse the existing writer and promotion owner rather than adding a second sharding implementation.",
         "Preserve iterator closure and source/write/cleanup error ownership; this repair must not turn cancellation into extra source advancement. Keep sync and async semantics aligned while respecting their respective iterator protocols.",
         "Pass the related existing checks and the complete original/follow-up acceptance on the resulting candidate; preserve positive and negative controls."
-      ]
+      ],
+      "closeout": {
+        "head": "0afde906d49a1ca135a27483a46d1eeba000d932",
+        "sourceHead": "47d1f6058ec32eb0eda8ed575e62182de6c10ffd",
+        "tests": [
+          "indexing/artifacts/chunk-meta-cached-jsonl-reuse",
+          "indexing/artifacts/chunk-meta-jsonl-cleanup",
+          "shared/json-stream/sharded-reusable-row-lifetime",
+          "contracts/module-export-surface-compat",
+          "embeddings/pipeline/grouped-work-failure-ledger",
+          "embeddings/pipeline/inflight-terminal-settlement",
+          "shared/json-stream/sharded-serialization-work/gzip",
+          "shared/json-stream/sharded-serialization-work/plain",
+          "shared/json-stream/sharded-serialization-work/zstd"
+        ],
+        "note": "indexing/artifacts/chunk-meta-cached-jsonl-reuse, indexing/artifacts/chunk-meta-jsonl-cleanup, shared/json-stream/sharded-reusable-row-lifetime, contracts/module-export-surface-compat, embeddings/pipeline/grouped-work-failure-ledger, embeddings/pipeline/inflight-terminal-settlement, shared/json-stream/sharded-serialization-work",
+        "state": "closed",
+        "state_reason": "completed",
+        "readback": true
+      }
     },
     {
       "number": 1549,
@@ -6478,7 +6858,7 @@
       "number": 1552,
       "title": "[P2] Apply phrase spill thresholds to the default hashed-bucket producer",
       "priority": "P2",
-      "status": "qualification-required",
+      "status": "qualified-closed",
       "initialDisposition": "qualification_pending",
       "sourcePaths": [
         "src/shared/postings-config.js",
@@ -6494,13 +6874,42 @@
         "indexing/artifacts/graph-spill-disk-admission",
         "indexing/postings/phrase-hash-source-contract"
       ],
-      "remaining": [
+      "remaining": [],
+      "originalRequirements": [
         "Separate phrase-row production from sort/spill/fold execution. Expose a lazy iterator over both single and collision buckets, resolving token IDs into exactly the current phrase key one row at a time.",
         "Bound the *assembly transient* explicitly and report rows/bytes/run counts for both routes. The existing final vocab/postings arrays still materialize, and the input bucket map already exists; do not advertise an end-to-end bounded-memory pipeline until those separate owners are changed.",
         "Preserve source ownership until each row is safely accepted. Release consumed bucket/string references when compatible with the caller contract, rather than retaining both full representations through final assembly.",
         "Keep cooperative yielding, cancellation/error cleanup and deterministic merge behavior in the shared owner. Do not add an independent sorting implementation for hashed phrases.",
         "Pass the related existing checks and the complete original/follow-up acceptance on the resulting candidate; preserve positive and negative controls."
-      ]
+      ],
+      "closeout": {
+        "head": "0afde906d49a1ca135a27483a46d1eeba000d932",
+        "sourceHead": "47d1f6058ec32eb0eda8ed575e62182de6c10ffd",
+        "tests": [
+          "indexing/postings/phrase-hash-parity",
+          "indexing/postings/phrase-hash-adaptive-spill",
+          "indexing/postings/phrase-hash-spill-failure-ownership",
+          "indexing/artifacts/call-sites-spill-preservation",
+          "indexing/artifacts/graph-spill-disk-admission",
+          "indexing/postings/phrase-hash-source-contract",
+          "indexing/postings/phrase-hash-resource-observations/collision-hashed-bytes",
+          "indexing/postings/phrase-hash-resource-observations/collision-hashed-none",
+          "indexing/postings/phrase-hash-resource-observations/collision-hashed-unique",
+          "indexing/postings/phrase-hash-resource-observations/collision-legacy-bytes",
+          "indexing/postings/phrase-hash-resource-observations/collision-legacy-none",
+          "indexing/postings/phrase-hash-resource-observations/collision-legacy-unique",
+          "indexing/postings/phrase-hash-resource-observations/unique-hashed-bytes",
+          "indexing/postings/phrase-hash-resource-observations/unique-hashed-none",
+          "indexing/postings/phrase-hash-resource-observations/unique-hashed-unique",
+          "indexing/postings/phrase-hash-resource-observations/unique-legacy-bytes",
+          "indexing/postings/phrase-hash-resource-observations/unique-legacy-none",
+          "indexing/postings/phrase-hash-resource-observations/unique-legacy-unique"
+        ],
+        "note": "indexing/postings/phrase-hash-parity, indexing/postings/phrase-hash-adaptive-spill, indexing/postings/phrase-hash-spill-failure-ownership, indexing/artifacts/call-sites-spill-preservation, indexing/artifacts/graph-spill-disk-admission, indexing/postings/phrase-hash-source-contract, indexing/postings/phrase-hash-resource-observations",
+        "state": "closed",
+        "state_reason": "completed",
+        "readback": true
+      }
     },
     {
       "number": 1553,
@@ -7362,7 +7771,7 @@
       "number": 1595,
       "title": "[P2] Keep transient degraded search results out of indefinitely refreshed healthy caches",
       "priority": "P2",
-      "status": "qualification-required",
+      "status": "qualified-closed",
       "initialDisposition": "qualification_pending",
       "sourcePaths": [
         "src/retrieval/pipeline/ann-stage.js",
@@ -7382,7 +7791,8 @@
         "perf/bench/language-query-capabilities",
         "retrieval/ann/provider-cancellation-health"
       ],
-      "remaining": [
+      "remaining": [],
+      "originalRequirements": [
         "Introduce a compact per-mode execution outcome at the existing pipeline/session boundary: requested/effective provider route, complete/partial/unavailable state, fallback reason and cacheability classification. Do not scrape warning text or infer success from nonempty hits.",
         "Refuse ordinary reusable admission for transiently incomplete outcomes, or use a separately typed negative/degraded entry with a short absolute retry deadline. Last access may update eviction recency but must not postpone recovery forever.",
         "Preserve the outcome on cache hits so CLI/API/editor diagnostics remain honest. Existing profile warnings alone are not the observed provider outcome.",
@@ -7390,13 +7800,26 @@
         "Reuse current immutable payload, generation, locking, cancellation and touch-publication owners. Keep metadata bounded and version cache admission semantics if needed.",
         "Document A is a lexical hit; B is a semantically relevant independent ANN hit that has no positive lexical score.",
         "Pass the related existing checks and the complete original/follow-up acceptance on the resulting candidate; preserve positive and negative controls."
-      ]
+      ],
+      "closeout": {
+        "head": "0afde906d49a1ca135a27483a46d1eeba000d932",
+        "sourceHead": "47d1f6058ec32eb0eda8ed575e62182de6c10ffd",
+        "tests": [
+          "retrieval/cache/degraded-session-recovery",
+          "retrieval/ann/provider-cancellation-health",
+          "retrieval/cli/backend-lifecycle"
+        ],
+        "note": "Actual session excludes transiently degraded ANN and FTS outcomes from healthy reuse, recovers an independent ANN-only hit without generation/config changes, then reuses healthy cache; empty and cancellation controls remain.",
+        "state": "closed",
+        "state_reason": "completed",
+        "readback": true
+      }
     },
     {
       "number": 1598,
       "title": "[P2] Reject partial dictionary reads before caching lexical analyzer state",
       "priority": "P2",
-      "status": "qualification-required",
+      "status": "qualified-closed",
       "initialDisposition": "qualification_pending",
       "sourcePaths": [
         "src/shared/dictionary-wordlists.js",
@@ -7413,13 +7836,33 @@
         "integrations/inference-history/archive-lexical",
         "retrieval/cli/dictionary-summary-languages"
       ],
-      "remaining": [
+      "remaining": [],
+      "originalRequirements": [
         "Give each selected dictionary read an explicit terminal outcome: complete verified input, permitted optional absence, or failed input. Keep optional-ENOENT policy explicit at the selection boundary; do not use a blanket catch.",
         "Stage per-file additions until normal exhaustion and actual resource closure. A failed file must not leave a successful-looking subset in a shared target Set. For multi-file loads, commit the selected complete set only after required inputs succeed, or return an explicitly degraded profile that cannot masquerade as the complete analyzer identity.",
         "Propagate operational errors with the path/scope and original error/cleanup ownership. Preserve the existing one-global-reader-budget and actual-close lease protections.",
         "Admit daemon/shared-dictionary entries only from a complete qualified receipt. Failure must not overwrite an earlier complete entry; an allowed degraded profile needs a distinct identity, visible omitted-input reason and downstream invalidation policy.",
         "Pass the related existing checks and the complete original/follow-up acceptance on the resulting candidate; preserve positive and negative controls."
-      ]
+      ],
+      "closeout": {
+        "head": "0afde906d49a1ca135a27483a46d1eeba000d932",
+        "sourceHead": "47d1f6058ec32eb0eda8ed575e62182de6c10ffd",
+        "tests": [
+          "indexing/runtime/dictionary-content-qualified-reuse",
+          "shared/dictionary-content-completion",
+          "shared/dictionary-wordlists",
+          "indexing/build-state/produced-contract",
+          "integrations/inference-history/archive-lexical",
+          "retrieval/cli/dictionary-summary-languages",
+          "shared/storage/dictionary-secondary-failures-retain-ownership",
+          "shared/storage/dictionary-real-stream-lifetime",
+          "shared/contained-file-resource-lifetime"
+        ],
+        "note": "indexing/runtime/dictionary-content-qualified-reuse, shared/dictionary-content-completion, shared/dictionary-wordlists, indexing/build-state/produced-contract, integrations/inference-history/archive-lexical, retrieval/cli/dictionary-summary-languages, shared/storage/dictionary-secondary-failures-retain-ownership, shared/storage/dictionary-real-stream-lifetime, shared/contained-file-resource-lifetime",
+        "state": "closed",
+        "state_reason": "completed",
+        "readback": true
+      }
     },
     {
       "number": 1599,
@@ -7453,7 +7896,7 @@
       "number": 1600,
       "title": "[P2] Keep cached filter indexes coherent after shared chunk-author hydration",
       "priority": "P2",
-      "status": "qualification-required",
+      "status": "qualified-closed",
       "initialDisposition": "qualification_pending",
       "sourcePaths": [
         "tools/api/router.js",
@@ -7477,13 +7920,26 @@
         "perf/indexing/filter-index/bitmap-roundtrip",
         "retrieval/cache/query-plan-filter-identity"
       ],
-      "remaining": [
+      "remaining": [],
+      "originalRequirements": [
         "Use one stable generation with a dense ordinal row id: 0, a real file/line range, no existing chunk-author arrays, and an initial file-level last_author: 'Alice'. An admitted SCM fixture returns line author Bob.",
         "Retain the same real createIndexCache / backend-loader payload between requests, with includeFilterIndex enabled.",
         "Request A hydrates Bob and filters chunkAuthor: 'Bob': expected IDs [0].",
         "Request B reloads the same cached artifact and repeats the author filter: expected IDs remain [0], not [].",
         "Pass the related existing checks and the complete original/follow-up acceptance on the resulting candidate; preserve positive and negative controls."
-      ]
+      ],
+      "closeout": {
+        "head": "0afde906d49a1ca135a27483a46d1eeba000d932",
+        "sourceHead": "47d1f6058ec32eb0eda8ed575e62182de6c10ffd",
+        "tests": [
+          "retrieval/pipeline/chunk-author-filter-cache-coherence",
+          "retrieval/pipeline/load-indexes-chunk-author-cache"
+        ],
+        "note": "Actual shared index cache, two acquired wrappers and request-owned author/filter pairs retain independent expected Bob membership over repeated warm requests and generation replacement; bounded hydration/rebuild counts remain.",
+        "state": "closed",
+        "state_reason": "completed",
+        "readback": true
+      }
     },
     {
       "number": 1601,
@@ -7570,7 +8026,7 @@
       "number": 1605,
       "title": "[P2] Retry unavailable chunk-author hydration instead of caching it as terminal evidence",
       "priority": "P2",
-      "status": "qualification-required",
+      "status": "qualified-closed",
       "initialDisposition": "qualification_pending",
       "sourcePaths": [
         "src/retrieval/cli/chunk-authors.js",
@@ -7594,19 +8050,32 @@
         "perf/tooling/bench/search-micro-evidence",
         "retrieval/ranking/sqlite-selective-bm25-hydration"
       ],
-      "remaining": [
+      "remaining": [],
+      "originalRequirements": [
         "One stable generation, one valid indexed row without chunk authors. The admitted annotation fixture first returns {ok:false, reason:'unavailable'}, then returns lines authored by Bob. After the defined retry boundary, a second request must reach annotation and recover Bob without rebuilding the corpus. Keep the separate query-result cache disabled so it cannot mask behavior.",
         "Two files: A succeeds and B fails. A later call must reuse A's immutable evidence and retry only B. An empty success, unsupported provider, retryable error and partial success must not collapse into the same terminal empty Map.",
         "First request uses an explicitly disabled provider; the next changes effective provider/config while retaining identical artifact bytes. The old entry cannot bypass current policy resolution. Include a stable successful same-policy hit as a control.",
         "Use fresh row objects for these cases to isolate cache outcome/identity from #1600's separate shared-row/filter-index coherence defect.",
         "Pass the related existing checks and the complete original/follow-up acceptance on the resulting candidate; preserve positive and negative controls."
-      ]
+      ],
+      "closeout": {
+        "head": "0afde906d49a1ca135a27483a46d1eeba000d932",
+        "sourceHead": "47d1f6058ec32eb0eda8ed575e62182de6c10ffd",
+        "tests": [
+          "retrieval/pipeline/chunk-author-retry-qualification",
+          "retrieval/pipeline/load-indexes-chunk-author-cache"
+        ],
+        "note": "Actual annotation/cache consumers distinguish unavailable, partial, explicit empty and unsupported outcomes, retry unresolved files, reuse successful evidence, bind changed provider/revision/config, and preserve cancellation/failure ownership.",
+        "state": "closed",
+        "state_reason": "completed",
+        "readback": true
+      }
     },
     {
       "number": 1606,
       "title": "[P2] Qualify branch filters against their declared source instead of stale index metrics",
       "priority": "P2",
-      "status": "qualification-required",
+      "status": "qualified-closed",
       "initialDisposition": "qualification_pending",
       "sourcePaths": [
         "src/integrations/mcp/defs.js",
@@ -7625,13 +8094,29 @@
         "retrieval/backend/retrieval-auto-sqlite-resolve-index-stats-compressed-jsonl",
         "retrieval/cli/bm25-input-and-metrics-policy"
       ],
-      "remaining": [
+      "remaining": [],
+      "originalRequirements": [
         "Build/retain metrics on branch A, then switch the working checkout to branch B without rebuilding the index. Ask for --branch B. The resolver returns A and the guard returns an empty mismatch response, although B is the current branch. Conversely, --branch A is admitted.",
         "Remove/omit usable metrics and make Git status unavailable. The requested predicate becomes an ordinary matched path, not an explicit unknown/unverified filter result.",
         "Return a typed branch receipt with requested value, observed value, source basis, relevant revision/generation and verified/mismatch/unavailable state. An unavailable requested predicate must not be presented as an ordinary verified match: reject it, or require an explicit degraded policy and retain that qualification in JSON/API/editor diagnostics. Preserve known mismatch as a legitimate empty result.",
         "Do not turn this into repeated unbounded Git status calls. Cache only against a proven branch/HEAD/worktree observation identity with clear invalidation and bounded cancellation; static metrics alone are not that identity.",
         "Pass the related existing checks and the complete original/follow-up acceptance on the resulting candidate; preserve positive and negative controls."
-      ]
+      ],
+      "closeout": {
+        "head": "0afde906d49a1ca135a27483a46d1eeba000d932",
+        "sourceHead": "47d1f6058ec32eb0eda8ed575e62182de6c10ffd",
+        "tests": [
+          "retrieval/filters/branch-checkout-index-metrics/checkout-recovery",
+          "retrieval/filters/branch-checkout-index-metrics/mixed-historical",
+          "retrieval/filters/branch-source-authority",
+          "retrieval/filters/branch-publication-settlement",
+          "retrieval/filters/search-filter-git-prose-contract"
+        ],
+        "note": "Real two-branch checkout with warm requests, independently authored code/prose identities, stale/conflicting metrics, historical generation, detached refusal/recovery and typed current-checkout provenance; bounded source/cancellation controls remain.",
+        "state": "closed",
+        "state_reason": "completed",
+        "readback": true
+      }
     },
     {
       "number": 1608,
@@ -9975,7 +10460,7 @@
       "number": 1729,
       "title": "[P2][Perf] Admit dense-vector validity once instead of reserializing its full bitmap per SQLite row",
       "priority": "P2",
-      "status": "qualification-required",
+      "status": "qualified-closed",
       "initialDisposition": "qualification_pending",
       "sourcePaths": [
         "src/shared/dense-vector-artifacts.js",
@@ -9992,14 +10477,33 @@
         "indexing/embeddings/sqlite-dense-isolate",
         "indexing/embeddings/sqlite-dense-stream-reconciliation"
       ],
-      "remaining": [
+      "remaining": [],
+      "originalRequirements": [
         "Admit the validity envelope once per ingestion/generation and retain a bounded immutable prepared bitmap plus row count. Construct a request/build-owned O(1) row-presence predicate from that prepared state, then reuse it during collection and insertion.",
         "Do not simply remove signature validation from the shared mutable-object decoder. Preserve its changed-envelope/count/corruption behavior for callers that do not own an immutable admitted snapshot.",
         "Define ownership across awaited stream yields: freeze/copy the admitted metadata/bitmap or explicitly reject changed input. Never silently use stale validity after an asynchronous producer changes the envelope.",
         "Preserve stable document ordinals and missing-channel semantics from #696. Padding bytes are not proof of presence; all-missing, genuine zero/low-amplitude, partial and legacy-no-bitmap representations must retain their existing contracts.",
         "Qualify the requested resource/work or latency evidence with meaningful inputs; run actual measurements serially and retain raw samples.",
         "Pass the related existing checks and the complete original/follow-up acceptance on the resulting candidate; preserve positive and negative controls."
-      ]
+      ],
+      "closeout": {
+        "head": "0afde906d49a1ca135a27483a46d1eeba000d932",
+        "sourceHead": "47d1f6058ec32eb0eda8ed575e62182de6c10ffd",
+        "tests": [
+          "storage/sqlite/quantization/dense-validity-admission",
+          "retrieval/providers/provider-runtime-contract-matrix",
+          "indexing/embeddings/dense-channel-validity",
+          "indexing/embeddings/sqlite-dense-ann-backfill",
+          "indexing/embeddings/sqlite-dense-isolate",
+          "indexing/embeddings/sqlite-dense-stream-reconciliation",
+          "storage/sqlite/quantization/dense-validity-consumer-snapshots",
+          "storage/sqlite/quantization/dense-validity-work-ladder"
+        ],
+        "note": "storage/sqlite/quantization/dense-validity-admission, retrieval/providers/provider-runtime-contract-matrix, indexing/embeddings/dense-channel-validity, indexing/embeddings/sqlite-dense-ann-backfill, indexing/embeddings/sqlite-dense-isolate, indexing/embeddings/sqlite-dense-stream-reconciliation, storage/sqlite/quantization/dense-validity-consumer-snapshots, storage/sqlite/quantization/dense-validity-work-ladder",
+        "state": "closed",
+        "state_reason": "completed",
+        "readback": true
+      }
     },
     {
       "number": 1730,
@@ -19585,6 +20089,230 @@
       "number": 1742,
       "note": "Only finite explicit query latency observations update adaptive EWMA; preflight and unmeasured successes preserve unknown/count state, with 18 serial useful actual-pipeline observations.",
       "head": "2eed0daa7a806da1cac63659377649e78702cd60",
+      "state": "closed",
+      "state_reason": "completed",
+      "readback": true
+    },
+    {
+      "number": 992,
+      "note": "Both fromArgs/toParams reject null, empty/whitespace, booleans, negative, fractional, unsafe/nonnumeric values; accept explicit integer/numeric strings, deduplicate/order, retain unknown-kind control.",
+      "head": "0afde906d49a1ca135a27483a46d1eeba000d932",
+      "state": "closed",
+      "state_reason": "completed",
+      "readback": true
+    },
+    {
+      "number": 1005,
+      "note": "Exact original multi-line SPDX MIT tag excludes copyright suffix; CRLF/LF, compound expression and line/block/hash comment controls.",
+      "head": "0afde906d49a1ca135a27483a46d1eeba000d932",
+      "state": "closed",
+      "state_reason": "completed",
+      "readback": true
+    },
+    {
+      "number": 1017,
+      "note": "Small compressed/large expanded XML with honest and low declared metadata; combined document/styles allowance; structural timeout, preabort, malformed ZIP; no optional/deferred provider task launched. Removed discarded Mammoth pass after verifying no product consumer; installed real Mammoth remains independent differential oracle and original security/CLI protections.",
+      "head": "0afde906d49a1ca135a27483a46d1eeba000d932",
+      "state": "closed",
+      "state_reason": "completed",
+      "readback": true
+    },
+    {
+      "number": 1032,
+      "note": "Actual tiny ordinary-root README.markdown/README.md stage2 prose artifacts and real watch path/file processor preserve independently expected Intro/Next heading chunks, with unsupported extension excluded. No physical alias/symlink fixture executed.",
+      "head": "0afde906d49a1ca135a27483a46d1eeba000d932",
+      "state": "closed",
+      "state_reason": "completed",
+      "readback": true
+    },
+    {
+      "number": 1034,
+      "note": "Unsupported first segment then supported actual native classification share one-chunk runtime; unsupported leaves both allowances unchanged; supported charges once, existing exhausted/native-leaf controls retained.",
+      "head": "0afde906d49a1ca135a27483a46d1eeba000d932",
+      "state": "closed",
+      "state_reason": "completed",
+      "readback": true
+    },
+    {
+      "number": 1070,
+      "note": "Deterministic diamond at maxPathsPerPair1/2 preserves two distinct chunk/call-site witnesses and flow IDs at2, stable reversed-order projection; cycle/depth/expansion/time caps and partial frontiers.",
+      "head": "0afde906d49a1ca135a27483a46d1eeba000d932",
+      "state": "closed",
+      "state_reason": "completed",
+      "readback": true
+    },
+    {
+      "number": 1087,
+      "note": "indexing/piece-assembly/strict-input-preservation, indexing/piece-assembly/core, indexing/piece-assembly/minhash-identity, indexing/artifacts/chunk-meta-binary-eager-start, indexing/artifacts/chunk-meta-cached-jsonl-reuse, indexing/artifacts/chunk-meta-jsonl-cleanup, indexing/piece-assembly/persisted-metadata-and-field-tokens",
+      "head": "0afde906d49a1ca135a27483a46d1eeba000d932",
+      "state": "closed",
+      "state_reason": "completed",
+      "readback": true
+    },
+    {
+      "number": 1088,
+      "note": "indexing/piece-assembly/core, indexing/piece-assembly/minhash-identity, indexing/piece-assembly/strict-input-preservation, indexing/artifacts/field-postings-adaptive-shards-and-binary, indexing/artifacts/field-postings-legacy-merge-reuses-shards, indexing/artifacts/artifact-write-adaptive-concurrency-controller, indexing/piece-assembly/persisted-metadata-and-field-tokens",
+      "head": "0afde906d49a1ca135a27483a46d1eeba000d932",
+      "state": "closed",
+      "state_reason": "completed",
+      "readback": true
+    },
+    {
+      "number": 1102,
+      "note": "indexing/workers/worker-pool-stuck-drain-real-worker, indexing/file-processor/token-worker-abort-and-evidence, indexing/file-processor/tokenization-line-stream-boundary, indexing/runtime/worker-pool-default-concurrency, indexing/runtime/worker-pool-explicit-policy, indexing/tokenization/native-leaf-product-reuse, indexing/tree-sitter/async-request-cancellation-boundaries, indexing/workers/pressure-reconfigure-admission-authority, indexing/workers/hard-pressure-no-progress",
+      "head": "0afde906d49a1ca135a27483a46d1eeba000d932",
+      "state": "closed",
+      "state_reason": "completed",
+      "readback": true
+    },
+    {
+      "number": 1333,
+      "note": "Real empty/nonempty/CRLF, missing/error/cancel/read ownership controls; preabort0 opens, EACCES/EIO partial read exact causes, between-file stop, concurrent reads; actual build preprocess cancellation retains lock until original source close settles and publishes no successful stats.",
+      "head": "0afde906d49a1ca135a27483a46d1eeba000d932",
+      "state": "closed",
+      "state_reason": "completed",
+      "readback": true
+    },
+    {
+      "number": 1339,
+      "note": "embeddings/onnx/explicit-model-selection, embeddings/onnx/model-selection-observation, embeddings/onnx/installation-closure, embeddings/onnx/installation-fault-ownership, indexing/embeddings/dense-model-encoding-contract, indexing/embeddings/embedding-onnx-execution-observation",
+      "head": "0afde906d49a1ca135a27483a46d1eeba000d932",
+      "state": "closed",
+      "state_reason": "completed",
+      "readback": true
+    },
+    {
+      "number": 1352,
+      "note": "Actual memory, SQLite and LMDB search retain admitted A through five A-to-B promotion points, independent code/prose roots, optional extracted joins, exact provenance/cache signatures, real filters, lazy dense reads, cancellation and admitted-generation disappearance. Isolated old committed modules fail the new witness.",
+      "head": "0afde906d49a1ca135a27483a46d1eeba000d932",
+      "state": "closed",
+      "state_reason": "completed",
+      "readback": true
+    },
+    {
+      "number": 1353,
+      "note": "Canonical/direct real parsing for bare, equals true/false, omitted, config true/false/unavailable cache scope. Task-owned harmless rustup spy only: no out-of-scope calls under no-fallback, previews execute0 installers; permitted fallback performs exactly1 fake install.",
+      "head": "0afde906d49a1ca135a27483a46d1eeba000d932",
+      "state": "closed",
+      "state_reason": "completed",
+      "readback": true
+    },
+    {
+      "number": 1356,
+      "note": "Actual configured two-chunk detector source→sink positive1 flow versus capped0; byte/line/node/edge/local-flow/time and summary reductions/row drops; actual immutable bundle write/read and piece publication; strict pack carries incompleteness and execution completion separately, preserves unknown cross-file coverage.",
+      "head": "0afde906d49a1ca135a27483a46d1eeba000d932",
+      "state": "closed",
+      "state_reason": "completed",
+      "readback": true
+    },
+    {
+      "number": 1361,
+      "note": "shared/json-stream/gzip-options-all-writers, shared/json-stream/gzip-options-forwarded, indexing/artifacts/core-metadata-bypass-writers, indexing/artifacts/writers/writer-common-contract, indexing/tree-sitter/scheduler-paged-json-gzip, shared/artifact-io/jsonl-row-short-read-consumers, indexing/artifacts/gzip-family-configuration",
+      "head": "0afde906d49a1ca135a27483a46d1eeba000d932",
+      "state": "closed",
+      "state_reason": "completed",
+      "readback": true
+    },
+    {
+      "number": 1368,
+      "note": "shared/artifact-io/jsonl-row-short-read-consumers, shared/artifact-io/jsonl-stream-roundtrip, shared/json-stream/jsonl-line-byte-hints, shared/json-stream/jsonl-utf8, shared/json-stream/jsonl-worker-order, shared/prepared-jsonl-row, shared/json-stream/jsonl-byte-authority-and-bounds",
+      "head": "0afde906d49a1ca135a27483a46d1eeba000d932",
+      "state": "closed",
+      "state_reason": "completed",
+      "readback": true
+    },
+    {
+      "number": 1380,
+      "note": "Real Stage4 completes SQLite at each retained mode root without changing current generation identity. Fresh independently bounded code/prose cases retain every original query, native DB count and five invalid root publication controls. All original mapped controls pass.",
+      "head": "0afde906d49a1ca135a27483a46d1eeba000d932",
+      "state": "closed",
+      "state_reason": "completed",
+      "readback": true
+    },
+    {
+      "number": 1398,
+      "note": "Independent expected membership for twenty auto/all/any Boolean, exclusion, phrase, group and negative-only policies through real sparse, native SQLite FTS and controlled ANN session/cold-warm plan/result caches; authored OR-complement semantics remain.",
+      "head": "0afde906d49a1ca135a27483a46d1eeba000d932",
+      "state": "closed",
+      "state_reason": "completed",
+      "readback": true
+    },
+    {
+      "number": 1407,
+      "note": "Globstar/literal/globbed ancestor includes reopen actual discovery/watch only for selected leaves; mixed-case reachability agrees with node-ignore; ignored siblings, later ordinary re-exclusions/generated excludes, root/depth/file caps and fingerprint invalidation retained.",
+      "head": "0afde906d49a1ca135a27483a46d1eeba000d932",
+      "state": "closed",
+      "state_reason": "completed",
+      "readback": true
+    },
+    {
+      "number": 1418,
+      "note": "Installed actual Mammoth independent differential oracle; shared single canonical structural product→real normalized units/chunks, cold/warm actual file-processor cache clones, strict receipts; physical2/3/4/5 ordinals around blank, Unicode/multiline/break/table, inherited custom heading1/2 paths/full ranges/deterministic anchors, cycle/unavailable provenance null, producer3 refused under4. No fabricated preferred/fallback dual pass retained after obsolete product audit.",
+      "head": "0afde906d49a1ca135a27483a46d1eeba000d932",
+      "state": "closed",
+      "state_reason": "completed",
+      "readback": true
+    },
+    {
+      "number": 1548,
+      "note": "indexing/artifacts/chunk-meta-cached-jsonl-reuse, indexing/artifacts/chunk-meta-jsonl-cleanup, shared/json-stream/sharded-reusable-row-lifetime, contracts/module-export-surface-compat, embeddings/pipeline/grouped-work-failure-ledger, embeddings/pipeline/inflight-terminal-settlement, shared/json-stream/sharded-serialization-work",
+      "head": "0afde906d49a1ca135a27483a46d1eeba000d932",
+      "state": "closed",
+      "state_reason": "completed",
+      "readback": true
+    },
+    {
+      "number": 1552,
+      "note": "indexing/postings/phrase-hash-parity, indexing/postings/phrase-hash-adaptive-spill, indexing/postings/phrase-hash-spill-failure-ownership, indexing/artifacts/call-sites-spill-preservation, indexing/artifacts/graph-spill-disk-admission, indexing/postings/phrase-hash-source-contract, indexing/postings/phrase-hash-resource-observations",
+      "head": "0afde906d49a1ca135a27483a46d1eeba000d932",
+      "state": "closed",
+      "state_reason": "completed",
+      "readback": true
+    },
+    {
+      "number": 1595,
+      "note": "Actual session excludes transiently degraded ANN and FTS outcomes from healthy reuse, recovers an independent ANN-only hit without generation/config changes, then reuses healthy cache; empty and cancellation controls remain.",
+      "head": "0afde906d49a1ca135a27483a46d1eeba000d932",
+      "state": "closed",
+      "state_reason": "completed",
+      "readback": true
+    },
+    {
+      "number": 1598,
+      "note": "indexing/runtime/dictionary-content-qualified-reuse, shared/dictionary-content-completion, shared/dictionary-wordlists, indexing/build-state/produced-contract, integrations/inference-history/archive-lexical, retrieval/cli/dictionary-summary-languages, shared/storage/dictionary-secondary-failures-retain-ownership, shared/storage/dictionary-real-stream-lifetime, shared/contained-file-resource-lifetime",
+      "head": "0afde906d49a1ca135a27483a46d1eeba000d932",
+      "state": "closed",
+      "state_reason": "completed",
+      "readback": true
+    },
+    {
+      "number": 1600,
+      "note": "Actual shared index cache, two acquired wrappers and request-owned author/filter pairs retain independent expected Bob membership over repeated warm requests and generation replacement; bounded hydration/rebuild counts remain.",
+      "head": "0afde906d49a1ca135a27483a46d1eeba000d932",
+      "state": "closed",
+      "state_reason": "completed",
+      "readback": true
+    },
+    {
+      "number": 1605,
+      "note": "Actual annotation/cache consumers distinguish unavailable, partial, explicit empty and unsupported outcomes, retry unresolved files, reuse successful evidence, bind changed provider/revision/config, and preserve cancellation/failure ownership.",
+      "head": "0afde906d49a1ca135a27483a46d1eeba000d932",
+      "state": "closed",
+      "state_reason": "completed",
+      "readback": true
+    },
+    {
+      "number": 1606,
+      "note": "Real two-branch checkout with warm requests, independently authored code/prose identities, stale/conflicting metrics, historical generation, detached refusal/recovery and typed current-checkout provenance; bounded source/cancellation controls remain.",
+      "head": "0afde906d49a1ca135a27483a46d1eeba000d932",
+      "state": "closed",
+      "state_reason": "completed",
+      "readback": true
+    },
+    {
+      "number": 1729,
+      "note": "storage/sqlite/quantization/dense-validity-admission, retrieval/providers/provider-runtime-contract-matrix, indexing/embeddings/dense-channel-validity, indexing/embeddings/sqlite-dense-ann-backfill, indexing/embeddings/sqlite-dense-isolate, indexing/embeddings/sqlite-dense-stream-reconciliation, storage/sqlite/quantization/dense-validity-consumer-snapshots, storage/sqlite/quantization/dense-validity-work-ladder",
+      "head": "0afde906d49a1ca135a27483a46d1eeba000d932",
       "state": "closed",
       "state_reason": "completed",
       "readback": true
@@ -105380,7 +106108,260 @@
       1606,
       1729
     ],
-    "qualifiedIssueCloseouts": [],
+    "qualifiedIssueCloseouts": [
+      {
+        "number": 992,
+        "state": "closed",
+        "stateReason": "completed",
+        "closedAt": "2026-10-29T21:04:07Z",
+        "url": "https://github.com/doublemover/PairOfCleats/issues/992",
+        "source": "47d1f6058ec32eb0eda8ed575e62182de6c10ffd",
+        "publishedHead": "0afde906d49a1ca135a27483a46d1eeba000d932"
+      },
+      {
+        "number": 1005,
+        "state": "closed",
+        "stateReason": "completed",
+        "closedAt": "2026-10-29T21:04:08Z",
+        "url": "https://github.com/doublemover/PairOfCleats/issues/1005",
+        "source": "47d1f6058ec32eb0eda8ed575e62182de6c10ffd",
+        "publishedHead": "0afde906d49a1ca135a27483a46d1eeba000d932"
+      },
+      {
+        "number": 1017,
+        "state": "closed",
+        "stateReason": "completed",
+        "closedAt": "2026-10-29T21:04:10Z",
+        "url": "https://github.com/doublemover/PairOfCleats/issues/1017",
+        "source": "47d1f6058ec32eb0eda8ed575e62182de6c10ffd",
+        "publishedHead": "0afde906d49a1ca135a27483a46d1eeba000d932"
+      },
+      {
+        "number": 1032,
+        "state": "closed",
+        "stateReason": "completed",
+        "closedAt": "2026-10-29T21:04:12Z",
+        "url": "https://github.com/doublemover/PairOfCleats/issues/1032",
+        "source": "47d1f6058ec32eb0eda8ed575e62182de6c10ffd",
+        "publishedHead": "0afde906d49a1ca135a27483a46d1eeba000d932"
+      },
+      {
+        "number": 1034,
+        "state": "closed",
+        "stateReason": "completed",
+        "closedAt": "2026-10-29T21:04:14Z",
+        "url": "https://github.com/doublemover/PairOfCleats/issues/1034",
+        "source": "47d1f6058ec32eb0eda8ed575e62182de6c10ffd",
+        "publishedHead": "0afde906d49a1ca135a27483a46d1eeba000d932"
+      },
+      {
+        "number": 1070,
+        "state": "closed",
+        "stateReason": "completed",
+        "closedAt": "2026-10-29T21:04:15Z",
+        "url": "https://github.com/doublemover/PairOfCleats/issues/1070",
+        "source": "47d1f6058ec32eb0eda8ed575e62182de6c10ffd",
+        "publishedHead": "0afde906d49a1ca135a27483a46d1eeba000d932"
+      },
+      {
+        "number": 1087,
+        "state": "closed",
+        "stateReason": "completed",
+        "closedAt": "2026-10-29T21:04:17Z",
+        "url": "https://github.com/doublemover/PairOfCleats/issues/1087",
+        "source": "47d1f6058ec32eb0eda8ed575e62182de6c10ffd",
+        "publishedHead": "0afde906d49a1ca135a27483a46d1eeba000d932"
+      },
+      {
+        "number": 1088,
+        "state": "closed",
+        "stateReason": "completed",
+        "closedAt": "2026-10-29T21:04:18Z",
+        "url": "https://github.com/doublemover/PairOfCleats/issues/1088",
+        "source": "47d1f6058ec32eb0eda8ed575e62182de6c10ffd",
+        "publishedHead": "0afde906d49a1ca135a27483a46d1eeba000d932"
+      },
+      {
+        "number": 1102,
+        "state": "closed",
+        "stateReason": "completed",
+        "closedAt": "2026-10-29T21:04:20Z",
+        "url": "https://github.com/doublemover/PairOfCleats/issues/1102",
+        "source": "47d1f6058ec32eb0eda8ed575e62182de6c10ffd",
+        "publishedHead": "0afde906d49a1ca135a27483a46d1eeba000d932"
+      },
+      {
+        "number": 1333,
+        "state": "closed",
+        "stateReason": "completed",
+        "closedAt": "2026-10-29T21:04:22Z",
+        "url": "https://github.com/doublemover/PairOfCleats/issues/1333",
+        "source": "47d1f6058ec32eb0eda8ed575e62182de6c10ffd",
+        "publishedHead": "0afde906d49a1ca135a27483a46d1eeba000d932"
+      },
+      {
+        "number": 1339,
+        "state": "closed",
+        "stateReason": "completed",
+        "closedAt": "2026-10-29T21:04:24Z",
+        "url": "https://github.com/doublemover/PairOfCleats/issues/1339",
+        "source": "47d1f6058ec32eb0eda8ed575e62182de6c10ffd",
+        "publishedHead": "0afde906d49a1ca135a27483a46d1eeba000d932"
+      },
+      {
+        "number": 1352,
+        "state": "closed",
+        "stateReason": "completed",
+        "closedAt": "2026-10-29T21:03:45Z",
+        "url": "https://github.com/doublemover/PairOfCleats/issues/1352",
+        "source": "47d1f6058ec32eb0eda8ed575e62182de6c10ffd",
+        "publishedHead": "0afde906d49a1ca135a27483a46d1eeba000d932"
+      },
+      {
+        "number": 1353,
+        "state": "closed",
+        "stateReason": "completed",
+        "closedAt": "2026-10-29T21:04:25Z",
+        "url": "https://github.com/doublemover/PairOfCleats/issues/1353",
+        "source": "47d1f6058ec32eb0eda8ed575e62182de6c10ffd",
+        "publishedHead": "0afde906d49a1ca135a27483a46d1eeba000d932"
+      },
+      {
+        "number": 1356,
+        "state": "closed",
+        "stateReason": "completed",
+        "closedAt": "2026-10-29T21:04:28Z",
+        "url": "https://github.com/doublemover/PairOfCleats/issues/1356",
+        "source": "47d1f6058ec32eb0eda8ed575e62182de6c10ffd",
+        "publishedHead": "0afde906d49a1ca135a27483a46d1eeba000d932"
+      },
+      {
+        "number": 1361,
+        "state": "closed",
+        "stateReason": "completed",
+        "closedAt": "2026-10-29T21:04:30Z",
+        "url": "https://github.com/doublemover/PairOfCleats/issues/1361",
+        "source": "47d1f6058ec32eb0eda8ed575e62182de6c10ffd",
+        "publishedHead": "0afde906d49a1ca135a27483a46d1eeba000d932"
+      },
+      {
+        "number": 1368,
+        "state": "closed",
+        "stateReason": "completed",
+        "closedAt": "2026-10-29T21:04:32Z",
+        "url": "https://github.com/doublemover/PairOfCleats/issues/1368",
+        "source": "47d1f6058ec32eb0eda8ed575e62182de6c10ffd",
+        "publishedHead": "0afde906d49a1ca135a27483a46d1eeba000d932"
+      },
+      {
+        "number": 1380,
+        "state": "closed",
+        "stateReason": "completed",
+        "closedAt": "2026-10-29T21:04:33Z",
+        "url": "https://github.com/doublemover/PairOfCleats/issues/1380",
+        "source": "47d1f6058ec32eb0eda8ed575e62182de6c10ffd",
+        "publishedHead": "0afde906d49a1ca135a27483a46d1eeba000d932"
+      },
+      {
+        "number": 1398,
+        "state": "closed",
+        "stateReason": "completed",
+        "closedAt": "2026-10-29T21:04:35Z",
+        "url": "https://github.com/doublemover/PairOfCleats/issues/1398",
+        "source": "47d1f6058ec32eb0eda8ed575e62182de6c10ffd",
+        "publishedHead": "0afde906d49a1ca135a27483a46d1eeba000d932"
+      },
+      {
+        "number": 1407,
+        "state": "closed",
+        "stateReason": "completed",
+        "closedAt": "2026-10-29T21:04:36Z",
+        "url": "https://github.com/doublemover/PairOfCleats/issues/1407",
+        "source": "47d1f6058ec32eb0eda8ed575e62182de6c10ffd",
+        "publishedHead": "0afde906d49a1ca135a27483a46d1eeba000d932"
+      },
+      {
+        "number": 1418,
+        "state": "closed",
+        "stateReason": "completed",
+        "closedAt": "2026-10-29T21:04:38Z",
+        "url": "https://github.com/doublemover/PairOfCleats/issues/1418",
+        "source": "47d1f6058ec32eb0eda8ed575e62182de6c10ffd",
+        "publishedHead": "0afde906d49a1ca135a27483a46d1eeba000d932"
+      },
+      {
+        "number": 1548,
+        "state": "closed",
+        "stateReason": "completed",
+        "closedAt": "2026-10-29T21:04:39Z",
+        "url": "https://github.com/doublemover/PairOfCleats/issues/1548",
+        "source": "47d1f6058ec32eb0eda8ed575e62182de6c10ffd",
+        "publishedHead": "0afde906d49a1ca135a27483a46d1eeba000d932"
+      },
+      {
+        "number": 1552,
+        "state": "closed",
+        "stateReason": "completed",
+        "closedAt": "2026-10-29T21:04:41Z",
+        "url": "https://github.com/doublemover/PairOfCleats/issues/1552",
+        "source": "47d1f6058ec32eb0eda8ed575e62182de6c10ffd",
+        "publishedHead": "0afde906d49a1ca135a27483a46d1eeba000d932"
+      },
+      {
+        "number": 1595,
+        "state": "closed",
+        "stateReason": "completed",
+        "closedAt": "2026-10-29T21:04:42Z",
+        "url": "https://github.com/doublemover/PairOfCleats/issues/1595",
+        "source": "47d1f6058ec32eb0eda8ed575e62182de6c10ffd",
+        "publishedHead": "0afde906d49a1ca135a27483a46d1eeba000d932"
+      },
+      {
+        "number": 1598,
+        "state": "closed",
+        "stateReason": "completed",
+        "closedAt": "2026-10-29T21:04:44Z",
+        "url": "https://github.com/doublemover/PairOfCleats/issues/1598",
+        "source": "47d1f6058ec32eb0eda8ed575e62182de6c10ffd",
+        "publishedHead": "0afde906d49a1ca135a27483a46d1eeba000d932"
+      },
+      {
+        "number": 1600,
+        "state": "closed",
+        "stateReason": "completed",
+        "closedAt": "2026-10-29T21:04:46Z",
+        "url": "https://github.com/doublemover/PairOfCleats/issues/1600",
+        "source": "47d1f6058ec32eb0eda8ed575e62182de6c10ffd",
+        "publishedHead": "0afde906d49a1ca135a27483a46d1eeba000d932"
+      },
+      {
+        "number": 1605,
+        "state": "closed",
+        "stateReason": "completed",
+        "closedAt": "2026-10-29T21:04:47Z",
+        "url": "https://github.com/doublemover/PairOfCleats/issues/1605",
+        "source": "47d1f6058ec32eb0eda8ed575e62182de6c10ffd",
+        "publishedHead": "0afde906d49a1ca135a27483a46d1eeba000d932"
+      },
+      {
+        "number": 1606,
+        "state": "closed",
+        "stateReason": "completed",
+        "closedAt": "2026-10-29T21:04:49Z",
+        "url": "https://github.com/doublemover/PairOfCleats/issues/1606",
+        "source": "47d1f6058ec32eb0eda8ed575e62182de6c10ffd",
+        "publishedHead": "0afde906d49a1ca135a27483a46d1eeba000d932"
+      },
+      {
+        "number": 1729,
+        "state": "closed",
+        "stateReason": "completed",
+        "closedAt": "2026-10-29T21:04:51Z",
+        "url": "https://github.com/doublemover/PairOfCleats/issues/1729",
+        "source": "47d1f6058ec32eb0eda8ed575e62182de6c10ffd",
+        "publishedHead": "0afde906d49a1ca135a27483a46d1eeba000d932"
+      }
+    ],
     "producerVersions": {
       "sourceChunking": "49",
       "documentExtraction": "7",
@@ -105485,7 +106466,9 @@
       "Ignored .tmp/.testLogs references are historical author-workspace evidence and are not promised in clean checkouts."
     ],
     "publication": {
-      "status": "pending-push",
+      "status": "pushed-and-verified",
+      "sourceCommit": "47d1f6058ec32eb0eda8ed575e62182de6c10ffd",
+      "receiptHead": "0afde906d49a1ca135a27483a46d1eeba000d932",
       "branch": "codex/pr557-audit-repairs-20261012",
       "pullRequest": 572
     },
@@ -106782,6 +107765,26 @@
       "ordinaryUbuntu": "Six stale incremental fixture failures repaired in0a69d7308; exact six cases pass onWindows. Hosted rerun pending.",
       "nativeMac": "Bootstrap preflight reports Make unavailable; no local POSIX execution or claimed qualification.",
       "windowsNative": "Hosted job cancelled; no pass claimed."
+    },
+    "programTotals": {
+      "closed": 299,
+      "open": 471,
+      "qualificationPending": 233,
+      "partial": 149,
+      "unresolved": 89,
+      "p2p3": {
+        "intake": 329,
+        "excluded": 6,
+        "targets": 323,
+        "qualifiedClosed": 211,
+        "remaining": 112
+      }
+    },
+    "openInventory": {
+      "path": ".tmp/tasks/p2-p3-closeout-20261029/current-open-issue-numbers.txt",
+      "count": 471,
+      "sha256": "7e693d6646377181b3de4db5c8b18ce43061ef398241321cd0b9ddd209d2708f",
+      "source": "GitHub paginated open issue readback, PR objects excluded"
     }
   }
 }
