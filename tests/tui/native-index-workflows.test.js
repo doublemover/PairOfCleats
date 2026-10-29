@@ -208,8 +208,13 @@ try {
         const after = await last('native-workflow-');
         // The native child inherits this cwd. Exercise real relative-path
         // resolution, retaining spaces, without typing the checkout prefix.
-        const target = path.relative(root, mode === 'workspace' ? workspace : repo);
-        terminal.write(`${mode === 'workspace' ? '\t' : ''}\x15${paste(target)}\r`);
+        if (['build-search', 'validate-search'].includes(mode)) {
+          assert.ok(screen().includes(repo), 'the actual native scope form must show its selected repository');
+          terminal.write('\r');
+        } else {
+          const target = path.relative(root, mode === 'workspace' ? workspace : repo);
+          terminal.write(`${mode === 'workspace' ? '\t' : ''}\x15${paste(target)}\r`);
+        }
         catalog = await settled('native-workflow-', 'describe', after); await rendered('Canonical command catalog loaded; no work started.');
         assert.ok(catalog.commands.some(command => command.id === 'index.build' && !command.unsupportedReason));
         assert.equal(new Set(catalog.commands.map(command => command.id)).size, catalog.commands.length);
@@ -348,6 +353,10 @@ try {
   const owned = [...new Set(recorded.flatMap(row => ['native', 'proxy', 'supervisor', 'job'].map(key => row[key]).filter(Number.isInteger)))];
   assert.deepEqual(owned.filter(isProcessAlive), []);
   assert.ok(recorded.some(row => row.request?.op === 'workflow:run' && row.request.method === 'preview'));
+  if (['build-search', 'validate-search'].includes(mode)) {
+    const selected = recorded.find(row => row.request?.op === 'workflow:run' && row.request.method === 'select');
+    assert.equal(selected.request.params.kind, 'repo'); assert.equal(selected.request.params.target, repo);
+  }
   assert.deepEqual((await events()).filter(event => event.event === 'log' && ['warn', 'error'].includes(event.level)), []);
   console.log(JSON.stringify({ mode, binarySha256, node: process.version, platform: process.platform, owned, receipt, capture: capture.outputDir }));
   if (mode === 'build-search') {
@@ -365,6 +374,8 @@ try {
     const queried = JSON.parse((await cli(['search', ...built.args, '--', built.query], 'produced-search')).stdout);
     assert.ok(queried.code.some(hit => hit.file === 'answer.js'), JSON.stringify(queried));
   }
+  await fs.writeFile(path.join(dir, 'fixture-settlement.json'), JSON.stringify({ mode, at: new Date().toISOString(),
+    resources: process.getActiveResourcesInfo() }, null, 2));
 } finally {
   for (const row of await lines('pids.jsonl')) if (row.proxy && isProcessAlive(row.proxy)) await killProcessTree(row.proxy);
 }

@@ -380,6 +380,8 @@ jobs:
           '
 
       - name: Qualify real Csharp language server startup
+        env:
+          PAIROFCLEATS_TRUSTED_REPOS: ${{ format('[{0}]', toJSON(github.workspace)) }}
         run: |
           node --input-type=module -e '
           import assert from "node:assert/strict";
@@ -398,6 +400,7 @@ jobs:
 
       - name: Qualify real PHPactor startup
         env:
+          PAIROFCLEATS_TRUSTED_REPOS: ${{ format('[{0}]', toJSON(github.workspace)) }}
           XDG_CACHE_HOME: ${{ runner.temp }}/poc-phpactor-cache
           XDG_CONFIG_HOME: ${{ runner.temp }}/poc-phpactor-config
           XDG_DATA_HOME: ${{ runner.temp }}/poc-phpactor-data
@@ -621,6 +624,8 @@ jobs:
           '
 
       - name: Qualify real Csharp language server startup
+        env:
+          PAIROFCLEATS_TRUSTED_REPOS: ${{ format('[{0}]', toJSON(github.workspace)) }}
         run: |
           node --input-type=module -e '
           import assert from "node:assert/strict";
@@ -941,6 +946,8 @@ jobs:
           '
 
       - name: Qualify real Csharp language server startup
+        env:
+          PAIROFCLEATS_TRUSTED_REPOS: ${{ format('[{0}]', toJSON(github.workspace)) }}
         run: |
           node --input-type=module -e '
           import assert from "node:assert/strict";
@@ -959,6 +966,7 @@ jobs:
 
       - name: Qualify real PHPactor startup
         env:
+          PAIROFCLEATS_TRUSTED_REPOS: ${{ format('[{0}]', toJSON(github.workspace)) }}
           XDG_CACHE_HOME: ${{ runner.temp }}/poc-phpactor-cache
           XDG_CONFIG_HOME: ${{ runner.temp }}/poc-phpactor-config
           XDG_DATA_HOME: ${{ runner.temp }}/poc-phpactor-data

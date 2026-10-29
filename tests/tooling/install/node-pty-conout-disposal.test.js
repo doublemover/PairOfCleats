@@ -37,8 +37,11 @@ const bounded = async (promise, label) => {
   })]); } finally { clearTimeout(timer); }
 };
 try {
-  for (const mode of ['fin-race', 'unexpected', 'disconnect', 'natural']) {
-    const sourceName = process.platform === 'win32' ? `\\\\.\\pipe\\poc-conout-${randomUUID()}` : path.join(root, randomUUID());
+  for (const [index, mode] of ['fin-race', 'unexpected', 'disconnect', 'natural'].entries()) {
+    // The already unique private directory supplies isolation. Repeating a UUID
+    // in the socket filename exceeds macOS's sockaddr_un bound under its TMPDIR.
+    const sourceName = process.platform === 'win32' ? `\\\\.\\pipe\\poc-conout-${randomUUID()}` : path.join(root, `p${index}`);
+    if (process.platform !== 'win32') assert.ok(Buffer.byteLength(`${sourceName}-worker`) < 104, 'UNIX socket exceeds sockaddr_un capacity');
     let producer, terminal;
     const errors = [];
     const source = net.createServer(socket => { producer = socket; socket.on('error', error => errors.push(error.code)); });

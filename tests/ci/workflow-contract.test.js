@@ -459,6 +459,7 @@ for (const platform of ['ubuntu', 'windows', 'macos']) {
     || !steps[dotnetVerify].run.includes('.diagnostics/dotnet-sdk.json')
     || csharpStartup <= steps.findIndex(step => step.name === 'Install optional LSP tools (best effort)')
     || csharpStartup >= steps.findIndex(step => step.name === 'CI Suite')
+    || steps[csharpStartup].env?.PAIROFCLEATS_TRUSTED_REPOS !== "${{ format('[{0}]', toJSON(github.workspace)) }}"
     || !steps[csharpStartup].run.includes('qualifyInstalledLspRuntime')
     || !steps[csharpStartup].run.includes('providerId: "csharp-ls"')) {
     throw new Error(`${platform}: qualify the isolated .NET SDK and real C# runtime, bind host/architecture roots, and prevent unrelated development-certificate generation.`);
@@ -490,6 +491,7 @@ for (const platform of ['ubuntu', 'windows', 'macos']) {
       || !steps[phpVerify].run.includes('get_loaded_extensions()')
       || steps[optional].env?.PAIROFCLEATS_DOWNLOAD_REDIRECT_ORIGINS !== '["https://release-assets.githubusercontent.com"]'
       || phpStartup <= optional || phpStartup >= steps.findIndex(step => step.name === 'CI Suite')
+      || steps[phpStartup].env?.PAIROFCLEATS_TRUSTED_REPOS !== "${{ format('[{0}]', toJSON(github.workspace)) }}"
       || !steps[phpStartup].run.includes('qualifyInstalledLspRuntime')
       || !steps[phpStartup].run.includes('providerId: "phpactor"')
       || !steps[phpStartup].env?.XDG_CACHE_HOME?.startsWith('${{ runner.temp }}/')

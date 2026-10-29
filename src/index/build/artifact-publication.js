@@ -7,6 +7,7 @@ import { assertArtifactFilePath, resolveArtifactPath, resolveArtifactIdentityPat
 import { ARTIFACT_SURFACE_VERSION } from '../../contracts/versioning.js';
 import { observeStorageResource } from '../../shared/storage/failure-observation.js';
 import { addStorageFailureContext } from '../../shared/storage/operation-error.js';
+import { assertNoSymlinkPath } from '../../shared/contained-file.js';
 
 export const ARTIFACT_PUBLICATION_SCHEMA_VERSION = 1;
 export const ARTIFACT_PUBLICATION_FAMILY_CONTRACTS_VERSION = 1;
@@ -75,6 +76,28 @@ const normalizeFamilyMembers = (values) => Array.from(new Set(
 const resolveGenerationId = ({ buildId, buildRoot, mode }) => (
   String(buildId || path.basename(buildRoot) || mode || 'generation').trim()
 );
+
+const samePublicationDirectory = async (recorded, expected) => {
+  if (typeof recorded !== 'string' || !path.isAbsolute(recorded)) return false;
+  if (path.relative(path.resolve(recorded), path.resolve(expected)) === '') return true;
+  if (process.platform !== 'win32') return false;
+  // Windows short names and extended-length paths can name the same directory
+  // with different lexical prefixes. Admit only the identical existing object;
+  // junctions/symlinks and an unavailable filesystem identity cannot grant it.
+  try {
+    for (const directory of [recorded, expected]) {
+      const volume = path.parse(directory).root;
+      const first = path.relative(volume, directory).split(path.sep).filter(Boolean)[0];
+      if (!first) return false;
+      // lstat cannot inspect the extended-length volume root on Node/Windows.
+      // Start at its first component, still checking every directory component.
+      assertNoSymlinkPath(path.join(volume, first), directory);
+    }
+    const [left, right] = await Promise.all([fs.stat(recorded, { bigint: true }), fs.stat(expected, { bigint: true })]);
+    return left.isDirectory() && right.isDirectory() && left.ino !== 0n
+      && left.dev === right.dev && left.ino === right.ino;
+  } catch (error) { if (error.code === 'ENOENT') return false; throw error; }
+};
 
 const normalizeCleanupSummary = (cleanup) => {
   if (!cleanup || typeof cleanup !== 'object') return null;
@@ -395,8 +418,8 @@ export const assertArtifactPublicationReady = async ({
     }
     const expectedIndexDir = path.resolve(buildRoot, `index-${mode}`);
     if (payload.schemaVersion !== ARTIFACT_PUBLICATION_SCHEMA_VERSION || payload.mode !== mode
-      || path.relative(path.resolve(payload.buildRoot || '.'), path.resolve(buildRoot)) !== ''
-      || path.relative(path.resolve(payload.indexDir || '.'), expectedIndexDir) !== ''
+      || !await samePublicationDirectory(payload.buildRoot, buildRoot)
+      || !await samePublicationDirectory(payload.indexDir, expectedIndexDir)
       || payload.generationId !== resolveGenerationId({ buildId: payload.buildId, buildRoot: payload.buildRoot, mode })
       || payload.artifactSurfaceVersion !== ARTIFACT_SURFACE_VERSION) {
       throw new Error(`[artifact-publication] ${mode} record does not belong to the requested generation.`);
