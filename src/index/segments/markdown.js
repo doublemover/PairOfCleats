@@ -82,7 +82,7 @@ export const segmentMarkdown = ({ text, ext, relPath, segmentsConfig }) => {
   if (proseStart < text.length) {
     segments.push({
       type: 'prose',
-      languageId: ext === '.md' ? 'markdown' : null,
+      languageId: ext === '.mdx' ? null : 'markdown',
       start: proseStart,
       end: text.length,
       parentSegmentId: null,

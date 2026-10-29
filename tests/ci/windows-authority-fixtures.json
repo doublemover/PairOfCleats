@@ -31,7 +31,6 @@
     "shared/fs/find-upwards-contract",
     "shared/index-ref",
     "storage/semantic/retained-cache-cleanup",
-    "storage/semantic/runtime-opened-byte-integrity",
     "tooling/cache/gc-contract-matrix",
     "tooling/install/bootstrap-preflight",
     "tooling/lsp/pyright-workspace-config-jsonc",

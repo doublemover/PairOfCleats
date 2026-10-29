@@ -541,7 +541,7 @@ const collectDependencyNeighborhood = (files) => {
     const specs = isObject(rawFileCache?.specs) ? rawFileCache.specs : null;
     if (!specs) continue;
     for (const [rawSpec, rawSpecCache] of Object.entries(specs)) {
-      const spec = typeof rawSpec === 'string' ? rawSpec.trim() : '';
+      const spec = typeof rawSpec === 'string' ? rawSpec : '';
       if (!spec) continue;
       const resolvedPath = normalizeRelPath(rawSpecCache?.resolvedPath);
       if (resolvedPath) {
@@ -566,7 +566,7 @@ const collectDependencyNeighborhood = (files) => {
 const resolveRelativeImportCandidates = (importer, specifier) => {
   const normalizedImporter = normalizeRelPath(importer);
   const normalizedSpecifier = typeof specifier === 'string'
-    ? specifier.trim().replace(/\\/g, '/')
+    ? specifier.replace(/\\/g, '/')
     : '';
   if (!normalizedImporter || !normalizedSpecifier) return [];
   if (!(normalizedSpecifier.startsWith('.') || normalizedSpecifier.startsWith('/'))) return [];

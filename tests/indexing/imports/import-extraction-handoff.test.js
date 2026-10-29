@@ -28,6 +28,7 @@ let available = false;
 const calls = new Map();
 const parseStructure = text => {
   calls.set(text, (calls.get(text) || 0) + 1);
+  if (text.startsWith('QUAL:')) return { coverage: 'unavailable', reason: text.slice(5), sourceLines: 1, importEntries: [] };
   return { coverage: text === 'FAIL' && !available ? 'unavailable' : 'partial',
     reason: text === 'FAIL' && !available ? 'parser-unavailable' : null, sourceLines: 1, importEntries: [] };
 };
@@ -48,9 +49,9 @@ try {
   assert.equal(result.importExtractionByFile['failed.yaml'].state, 'unavailable');
   assert.equal(result.importExtractionByFile['healthy.yaml'].recognition, 'empty');
   const state = { fileRelations: new Map(), importResolutionGraph: null };
-  const post = async input => postScanImports({ mode: 'code', relationsEnabled: true,
+  const post = async (input, entries = files) => postScanImports({ mode: 'code', relationsEnabled: true,
     scanPlan: { importScanMode: 'pre', enableImportLinks: true, shouldScan: true, importGraphEnabled: true }, state,
-    timing: {}, runtime: { root, toolInfo: { version: 'test' }, indexingConfig: { importResolution: {} } }, entries: files,
+    timing: {}, runtime: { root, toolInfo: { version: 'test' }, indexingConfig: { importResolution: {} } }, entries,
     importResult: input, incrementalState: null, fileTextByFile: null, hangProbeConfig: null, abortSignal: null });
   const resolved = await post(result);
   assert.equal(resolved.stats.unresolved, 0, 'no candidate specifier means no invented unresolved edge');
@@ -115,6 +116,24 @@ try {
   const recovered = await scan(); await post(recovered);
   assert.equal(state.fileRelations.get('failed.yaml').importScanExtraction.recognition, 'empty', 'fresh capability can recover through the real producer');
   assert.equal(state.importResolutionGraph.extractionCoverage.states.unavailable || 0, 0);
+  for (const [reason, expectedState] of [['parse-failed', 'invalid'], ['depth-limit', 'partial'], ['node-limit', 'partial'],
+    ['parser-unsupported', 'unsupported'], ['cancelled', 'cancelled']]) {
+    const source = 'QUAL:' + reason, rel = reason + '.yaml', abs = path.join(root, rel);
+    await fs.writeFile(abs, source); const stat = await fs.stat(abs), entry = { abs, rel, stat };
+    const before = calls.get(source) || 0;
+    const qualified = await scanImports({ files: [entry, files[1]], root, mode: 'code',
+      languageOptions: { collectorScanBudget: { maxMs: 0 } }, importConcurrency: 1 });
+    assert.equal(calls.get(source), before + 1);
+    assert.equal(qualified.importExtractionByFile[rel].state, expectedState);
+    await post(qualified, [entry, files[1]]);
+    assert.equal(state.fileRelations.get(rel).importScanExtraction.state, expectedState);
+    assert.equal(state.importResolutionGraph.extractionCoverage.reasonCounts[reason], 1);
+    assert.equal(state.importResolutionGraph.edges.length, 0, 'file-level extraction failure is not an invented unresolved edge');
+    manifest.files[rel] = await writeIncrementalBundle({ enabled: true, bundleDir, manifest, relKey: rel, fileStat: stat,
+      fileHash: sha1(source), fileChunks: [], bundleFormat: 'json', fileRelations: state.fileRelations.get(rel) });
+    assert.equal(await read({ abs, rel, stat }, qualified.importScanFingerprint), null,
+      'degraded/unsupported/cancelled empty extraction never becomes valid-empty replay');
+  }
   const missing = await scanImports({ files: [{ rel: 'missing.yaml', abs: path.join(root, 'missing.yaml') }], root, mode: 'code',
     languageOptions: {}, importConcurrency: 1 });
   assert.deepEqual(missing.importsByFile['missing.yaml'], []);

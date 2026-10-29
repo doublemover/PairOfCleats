@@ -12,22 +12,35 @@ import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
 import { buildCrossFileFingerprint } from '../../../src/index/type-inference-crossfile/cache.js';
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
+import { readCachedBundle, writeIncrementalBundle } from '../../../src/index/build/incremental.js';
+import { sha1 } from '../../../src/shared/hash.js';
+import { SQL_RELATION_PRODUCER_VERSION } from '../../../src/lang/sql/version.js';
+import { SQL_RELATION_EVIDENCE_SCHEMA } from '../../../src/contracts/schemas/sql-relations.js';
 
 applyTestEnv();
 const route = getLanguageForFile('.sql', 'query.sql');
 const options = { sql: { dialect: 'postgresql' }, treeSitter: { enabled: false } };
 const records = new Map();
+const sources = new Map();
 const extract = async (text, file) => {
   const input = { text, relPath: file, ext: '.sql', options };
   const context = await route.prepare(input);
   const relations = route.buildRelations({ ...input, context });
   const projected = buildFileRelations(relations, file);
   records.set(file, projected);
+  sources.set(file, text);
   assert.equal(stripFileRelations(relations).sqlRelationEvidence, undefined, 'file evidence is not duplicated on every chunk');
   return relations;
 };
 const names = result => result.sqlRelationEvidence.occurrences.filter(row => row.role === 'relation-use').map(row => row.parts).sort();
 const first = await extract('SELECT u.id FROM public.users AS u;', 'first.sql');
+assert.equal(SQL_RELATION_EVIDENCE_SCHEMA.properties.producerVersion.const, SQL_RELATION_PRODUCER_VERSION);
+assert.equal(first.sqlRelationEvidence.producerVersion, SQL_RELATION_PRODUCER_VERSION);
+assert.equal(validateArtifact('file_relations', [{ file: 'first.sql', relations: records.get('first.sql') }]).ok, true);
+const oldProducer = structuredClone(records.get('first.sql'));
+oldProducer.sqlRelationEvidence.producerVersion = String(Number(SQL_RELATION_PRODUCER_VERSION) - 1);
+assert.equal(validateArtifact('file_relations', [{ file: 'first.sql', relations: oldProducer }]).ok, false,
+  'canonical synchronization does not admit a historical producer');
 const renamed = await extract('SELECT account.id FROM public.users AS account;', 'renamed.sql');
 assert.deepEqual(names(first), [['public', 'users']]); assert.deepEqual(names(renamed), names(first));
 assert.deepEqual(first.usages, ['public.users']); assert.deepEqual(renamed.usages, first.usages);
@@ -73,6 +86,19 @@ assert.ok(oversized.sqlRelationEvidence.coverage.reasons.source_budget);
 
 const root = resolveTestCachePath(process.cwd(), `sql-role-identities-${randomUUID()}`);
 try {
+  const bundleDir = path.join(root, 'bundles'); await fs.mkdir(bundleDir, { recursive: true });
+  const manifest = { artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION, bundleFormat: 'json', files: {} };
+  for (const relKey of ['first.sql', 'literal.sql', 'odd.sql', 'cte.sql', 'derived.sql', 'failed.sql']) {
+    const text = sources.get(relKey), absPath = path.join(root, relKey); await fs.writeFile(absPath, text);
+    const stat = await fs.stat(absPath), relations = records.get(relKey);
+    manifest.files[relKey] = await writeIncrementalBundle({ enabled: true, bundleDir, manifest, relKey,
+      fileStat: stat, fileHash: sha1(text), fileChunks: [], bundleFormat: 'json', fileRelations: relations });
+    const { cachedBundle } = await readCachedBundle({ enabled: true, absPath, relKey, fileStat: stat, manifest, bundleDir, bundleFormat: 'json' });
+    assert.deepEqual(cachedBundle.fileRelations.sqlRelationEvidence, relations.sqlRelationEvidence);
+    assert.deepEqual(cachedBundle.fileRelations.usages, relations.usages);
+    const fingerprint = value => buildCrossFileFingerprint({ chunks: [], fileRelations: new Map([[relKey, value]]), enableTypeInference: true });
+    assert.equal(fingerprint(cachedBundle.fileRelations), fingerprint(relations), 'the actual usage-cache input retains source and role identity after bundle replay');
+  }
   for (const maxJsonBytes of [1024 * 1024, 8192]) {
     const outDir = path.join(root, String(maxJsonBytes)); await fs.mkdir(outDir, { recursive: true });
     const writes = [], pieces = [];

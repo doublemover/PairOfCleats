@@ -7,6 +7,7 @@ import { classifyGeneratedArtifactPrefix, classifyGeneratedArtifactContentPrefix
 import { createGeneratedArtifactPrefixObservation } from '../../src/shared/generated-artifact-observation.js';
 import { withGeneratedArtifactMetadata } from '../../src/shared/generated-artifact-core.js';
 import { withGeneratedCacheMetadata } from '../../src/shared/generated-artifact-cache.js';
+import { getContainedFileSession } from '../../src/shared/contained-file-resource.js';
 import { discoverEntries } from '../../src/index/build/discover.js';
 
 const repoRoot = process.cwd(), identity = generatedMapCacheIdentity('eof-map-fixture');
@@ -76,16 +77,23 @@ assert.throws(() => createGeneratedArtifactPrefixObservation({ bytes: Buffer.all
 
 const root = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-map-prefix-'));
 const originalOpen = fs.open;
-let reads = 0, opens = 0;
+let reads = 0, opens = 0, control = {}, closes = 0;
+const cleanup = new Set();
 try {
   const filename = path.join(root, identity.fileName), mapFamily = families[0];
   fs.open = async function (...args) {
     opens++;
-    const handle = await originalOpen.apply(this, args), read = handle.read.bind(handle);
+    const handle = await originalOpen.apply(this, args), read = handle.read.bind(handle), close = handle.close.bind(handle);
+    const selected = path.resolve(String(args[0])) === path.resolve(filename); let localReads = 0;
+    cleanup.add(close);
     handle.read = async (buffer, offset, length, position) => {
       assert.ok(position >= 0 && position + length <= 8192, 'no unconditional byte 8193 probe'); reads++;
-      return read(buffer, offset, length, position);
+      if (selected && control.readError) throw control.readError;
+      const result = await read(buffer, offset, selected ? Math.min(length, control.shortRead || length) : length, position);
+      if (selected && ++localReads === 1 && control.afterRead) control.afterRead();
+      return result;
     };
+    handle.close = async () => { if (selected) { closes++; if (control.closeError) throw control.closeError; } return close(); };
     return handle;
   };
   const invalid = completeAt(mapFamily, 8193).subarray(0, 8192);
@@ -111,5 +119,30 @@ try {
   assert.ok(found.entries.some(row => row.rel === malformed.fileName), 'malformed marker-shaped input remains searchable source');
   assert.ok(found.entries.some(row => row.rel === 'authored.js'));
   assert.equal(found.entries.some(row => row.rel === identity.fileName), false, 'valid owned cache is omitted');
+  control = { shortRead: 17 };
+  assert.equal((await readGeneratedArtifactPrefix(root, filename)).bytes.length, 8192, 'short descriptor reads still capture the exact capped prefix');
+  const during = new AbortController(); control = { shortRead: 17, afterRead: () => during.abort() };
+  const beforeClose = closes;
+  await assert.rejects(readGeneratedArtifactPrefix(root, filename, undefined, { signal: during.signal }), { code: 'ABORT_ERR' });
+  assert.equal(closes, beforeClose + 1);
+  const readError = Object.freeze(Object.assign(new Error('prefix read fault'), { code: 'EIO' }));
+  control = { readError }; await assert.rejects(readGeneratedArtifactPrefix(root, filename), error => error === readError || error.cause === readError);
+  assert.equal(await inspectGeneratedArtifact({ repoRoot: root, filePath: filename, relativePath: identity.fileName }), null,
+    'a settled unavailable observation retains source under the existing fail-open classification policy');
+  const closeError = Object.freeze(Object.assign(new Error('prefix original close pending'), { code: 'EIO' }));
+  control = { closeError }; let failure;
+  try { await inspectGeneratedArtifact({ repoRoot: root, filePath: filename, relativePath: identity.fileName }); } catch (error) { failure = error; }
+  assert.ok(failure?.cacheOwnershipPending, 'unconfirmed original resources cannot become an ordinary unrecognized prefix');
+  const pending = [failure], visited = new Set(); let session;
+  while (pending.length) {
+    const error = pending.pop(); if (!error || typeof error !== 'object' || visited.has(error)) continue;
+    visited.add(error); session ||= getContainedFileSession(error); pending.push(error.cause, ...(error.errors || []));
+  }
+  assert.ok(session); const capturedReads = reads; control = {};
+  assert.equal((await session.releaseAfterClose()).settled, true); assert.equal(reads, capturedReads);
   console.log('map/core/cache visible grammar, descriptor EOF, UTF-8 boundaries and source-retaining discovery passed');
-} finally { fs.open = originalOpen; await fs.rm(root, { recursive: true, force: true }); }
+} finally {
+  fs.open = originalOpen;
+  for (const close of cleanup) { try { await close(); } catch {} }
+  await fs.rm(root, { recursive: true, force: true });
+}

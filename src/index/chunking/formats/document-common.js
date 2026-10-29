@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { MARKDOWN_EXTS } from '../../constants.js';
 
 export const DOCUMENT_CHUNKER_VERSION = 'v1';
 
@@ -8,9 +9,7 @@ export const DOCUMENT_CHUNKING_DEFAULTS = Object.freeze({
   maxTokensPerChunk: 700
 });
 export const EXTRACTED_PROSE_DOCUMENT_EXTENSIONS = Object.freeze([
-  '.md',
-  '.markdown',
-  '.mdx',
+  ...MARKDOWN_EXTS,
   '.rst',
   '.adoc',
   '.asciidoc',

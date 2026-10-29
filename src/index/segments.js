@@ -1,6 +1,7 @@
 import { getSegmentSemanticContext } from './semantic/embedded-source.js';
 import { buildLineIndex, offsetToLine } from '../shared/lines.js';
 import { smartChunk } from './chunking.js';
+import { MARKDOWN_EXTS } from './constants.js';
 import { computeSegmentUid } from './identity/chunk-uid.js';
 import { finalizeSegments } from './segments/finalize.js';
 import {
@@ -115,7 +116,7 @@ export function discoverSegments({
   if (config.onlyExtras) {
     return finalizeSegments(extraSegments || [], relPath);
   }
-  if (ext === '.md' || ext === '.mdx') {
+  if (MARKDOWN_EXTS.has(ext)) {
     const segments = segmentMarkdown({ text, ext, relPath, segmentsConfig: config });
     return extraSegments && extraSegments.length
       ? finalizeSegments([...segments, ...extraSegments], relPath)

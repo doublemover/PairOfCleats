@@ -109,5 +109,33 @@ try {
   assert.equal(new Set(equalText.map(chunk => chunk.chunkUid)).size, 2);
   assert.equal(new Set(equalText.map(chunk => chunk.metaV2.recordSource.rootKey)).size, 2);
   assert.notDeepEqual(equalText[0].docmeta.record, equalText[1].docmeta.record);
+  const equalState = await loadIncrementalState({ repoRoot: root, repoCacheRoot, mode: 'records', enabled: true, bundleFormat: 'json' });
+  const equalDbPath = path.join(dir, 'equal-text-records.db');
+  const equalBuilt = await buildDatabaseFromBundles({ Database, outPath: equalDbPath, repoRoot: root, mode: 'records',
+    incrementalData: { manifest: equalState.manifest, bundleDir: equalState.bundleDir }, envConfig: { bundleThreads: 1 },
+    threadLimits: { fileConcurrency: 1 }, emitOutput: false, validateMode: 'off', vectorConfig: { enabled: false }, modelConfig: { id: null } });
+  assert.equal(equalBuilt.count, 2);
+  const equalDb = new Database(equalDbPath, { readonly: true });
+  try {
+    const rows = equalDb.prepare('SELECT file,metaV2_json FROM chunks ORDER BY file').all();
+    assert.equal(rows.length, 2);
+    for (const row of rows) {
+      const expected = equalText.find(chunk => chunk.file === row.file), meta = JSON.parse(row.metaV2_json);
+      assert.deepEqual(meta.recordSource, expected.recordSource);
+      const selected = await readRecordEmbeddingSource({ repoRoot: root, recordsDir, file: row.file, items: [{ chunk: expected }] });
+      assert.equal(selected.text, repositoryText); assert.equal(selected.sourceHash, expected.fileHash);
+    }
+    assert.equal(new Set(rows.map(row => JSON.parse(row.metaV2_json).recordSource.rootKey)).size, 2);
+  } finally { equalDb.close(); }
+  for (const folder of ['a', 'b']) {
+    await fs.mkdir(path.join(recordsDir, folder)); await fs.writeFile(path.join(recordsDir, folder, 'incident.md'), '# Nested ' + folder);
+  }
+  await run(); const nested = captures.at(-1).chunks;
+  assert.equal(nested.length, 4); assert.equal(new Set(nested.map(chunk => chunk.chunkUid)).size, 4);
+  assert.equal(new Set(nested.map(chunk => chunk.file)).size, 4);
+  runtime.userConfig.triage.recordsDir = path.dirname(repoFile);
+  await run(); const inside = captures.at(-1).chunks;
+  assert.equal(inside.length, 1); assert.equal(inside[0].recordSource.kind, 'triage');
+  assert.equal(inside[0].recordSource.relativePath, 'incident.md', 'an inside-repository configured root has one declared authority');
 } finally { hooks.deregister(); delete globalThis[key]; }
 console.log('Records publication, hot/cold metadata, incremental replay, SQLite and deferred reads retain both root namespaces.');

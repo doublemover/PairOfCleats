@@ -6,11 +6,30 @@ import { persistRuntimeDerivedClaims, runtimeClaimsBudget, runtimeClaimsFailure,
 import { runtimeCaptureCompatibility } from './compatibility.js';
 import { mergeRuntimeObservationWarnings } from './adapters/shared.js';
 import { closeRuntimeResources } from './close-resources.js';
+import { SEMANTIC_ANALYSIS_VERSIONS } from '../analysis-versions.js';
 
 const same = (a, b) => canonicalSemanticJson(a) === canonicalSemanticJson(b);
 const location = row => canonicalSemanticJson({ sourceUnitId: row.join.sourceUnitId, sourceHash: row.join.sourceHash,
   targets: row.join.targets, lineNumber: row.data.lineNumber, columnNumber: row.data.columnNumber,
   coordinateConvention: row.data.coordinateConvention });
+
+/** Only emitted claim support/contradiction is a retained dependency. Exact
+ * source locations that could not be compared still qualify the result as
+ * partial, but do not grant unrelated raw artifacts authority over that claim. */
+export const selectRuntimeClaimCitations = (claims, citations) => {
+  const owners = new Map();
+  for (const citation of citations) {
+    const prior = owners.get(citation.evidenceId);
+    if (prior && !same(prior, citation)) throw runtimeImportError('Ambiguous comparison citation owner.', 'ERR_RUNTIME_CLAIMS_INTEGRITY');
+    if (!prior) owners.set(citation.evidenceId, citation);
+  }
+  const required = new Set();
+  for (const claim of claims) for (const id of [...claim.data.supportingEvidenceIds, ...claim.data.contradictingEvidenceIds]) {
+    if (!owners.has(id)) throw runtimeImportError('Comparison claim citation is unavailable.', 'ERR_RUNTIME_CLAIMS_INTEGRITY');
+    required.add(id);
+  }
+  return [...owners.values()].filter(citation => required.has(citation.evidenceId));
+};
 
 /** Descriptive saved sample counts only. Names, code IDs, timestamps and duration never establish cross-capture equivalence. */
 export const compareRuntimeCaptures = async ({ destination, request, signal = null }) => {
@@ -68,7 +87,7 @@ export const compareRuntimeCaptures = async ({ destination, request, signal = nu
         'Equal source coordinates do not assert equal code versions or runtime producer identity.',
         'No cross-capture timestamp alignment or duration equivalence is asserted.'],
       supportingEvidenceIds: observed.map(row => row.evidenceId), contradictingEvidenceIds: [],
-      method: { id: 'saved-exact-source-sample-count-comparison', version: '1' }, confidence: 'high',
+      method: { id: 'saved-exact-source-sample-count-comparison', version: SEMANTIC_ANALYSIS_VERSIONS.runtimeClaims }, confidence: 'high',
       confidenceBasis: ['Exact retained observations and raw hashes support the descriptive arithmetic only.'],
       alternatives: ['Sampling variation, different window lengths and unobserved executions can explain different counts.'],
       nextObservation: { question: 'Does another compatible saved capture report the same source-location sample pattern?',
@@ -91,7 +110,8 @@ export const compareRuntimeCaptures = async ({ destination, request, signal = nu
     if (Buffer.byteLength(JSON.stringify(result)) > request.limits.maxBytes) throw runtimeImportError('Comparison result exceeds byte allowance.', 'ERR_RUNTIME_QUERY_BUDGET');
     check();
     if (request.persist && result.claims.length) result.claimGeneration = await persistRuntimeDerivedClaims({ destination,
-      repositoryNamespace: request.repositoryNamespace, generation: request.generation, inputs: pins, citations,
+      repositoryNamespace: request.repositoryNamespace, generation: request.generation, inputs: pins,
+      citations: selectRuntimeClaimCitations(result.claims, citations),
       claims: result.claims, limits: request.limits, signal: check.signal, budget: check });
     check(); return assertRuntimeClaims('compareResult', result);
   } catch (error) {

@@ -144,7 +144,8 @@ export const MANIFEST_FILES = new Set(MANIFEST_FILENAMES);
 
 export const LOCK_FILES = new Set(LOCK_FILENAMES);
 
-export const EXTS_PROSE = new Set(['.md', '.markdown', '.mdx', '.txt', '.rst', '.adoc', '.asciidoc']);
+export const MARKDOWN_EXTS = new Set(['.md', '.markdown', '.mdx']);
+export const EXTS_PROSE = new Set([...MARKDOWN_EXTS, '.txt', '.rst', '.adoc', '.asciidoc']);
 
 const extensionsFor = (id) => new Set(getLanguageDescriptor(id)?.extensions || []);
 

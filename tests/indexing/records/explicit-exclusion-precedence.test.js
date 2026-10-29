@@ -5,6 +5,8 @@ import { createRecordsClassifier } from '../../../src/index/build/records.js';
 import { preprocessFiles } from '../../../src/index/build/preprocess.js';
 import { buildIgnoreMatcher } from '../../../src/index/build/ignore.js';
 import { prepareIsolatedTestCacheDir } from '../../helpers/test-cache.js';
+import { createWatchPathClassifier } from '../../../src/index/build/watch/classify-path.js';
+import { toRealPathSync } from '../../../src/workspace/identity.js';
 
 const { dir: root } = await prepareIsolatedTestCacheDir('record-exclusion-precedence');
 const config = { includeGlobs: ['private/**', 'included/**'], excludeGlobs: ['private/**'] };
@@ -43,5 +45,34 @@ try {
   assert.ok(result.entriesByMode.prose.some(entry => entry.rel === 'private/incident.txt'),
     'records-only exclusion preserves legitimate prose admission');
   assert.equal(excludedOpens, baselineOpens, 'enabling record sniffing adds no read beyond ordinary prose admission for an excluded input');
+} finally { fs.open = open; }
+const excludedPaths = [];
+for (const ext of ['.txt', '.text', '', '.log']) {
+  const file = path.join(root, 'private', 'incident' + ext);
+  await fs.writeFile(file, samples.join('\n')); excludedPaths.push(file);
+}
+const counts = new Map(), key = file => path.resolve(String(file));
+try {
+  fs.open = async (file, ...args) => { counts.set(key(file), (counts.get(key(file)) || 0) + 1); return open.call(fs, file, ...args); };
+  const initial = recordsConfig => preprocessFiles({ root, modes: ['prose', 'records'], recordsConfig, ignoreMatcher, concurrency: 1 });
+  await initial({ ...config, sniffBytes: 0 }); const baseline = new Map(counts); counts.clear();
+  const fresh = await initial(config);
+  for (const file of excludedPaths) {
+    assert.equal(counts.get(key(file)) || 0, baseline.get(key(file)) || 0, 'excluded initial inputs add no sniff reads for any admitted extension');
+    assert.ok(!fresh.entriesByMode.records.some(entry => entry.abs === file));
+  }
+  const watch = (recordsConfig, normalizedRecordsRoot = null) => createWatchPathClassifier({ root,
+    canonicalRoot: toRealPathSync(root), normalizedRecordsRoot, maxDepthCap: null, ignoreMatcher,
+    recordsClassifier: createRecordsClassifier({ root, config: recordsConfig }), maxFileBytes: null, fileCaps: null });
+  counts.clear(); const zero = watch({ ...config, sniffBytes: 0 });
+  for (const file of excludedPaths) assert.equal((await zero(file)).record, null);
+  const ordinary = new Map(counts); counts.clear(); const full = watch(config);
+  for (const file of excludedPaths) {
+    assert.equal((await full(file)).record, null);
+    assert.equal(counts.get(key(file)) || 0, ordinary.get(key(file)) || 0, 'watch adds no excluded record sniff read beyond ordinary shebang admission');
+  }
+  assert.equal((await full(path.join(root, 'allowed', 'incident.txt'))).record.recordType, 'stack');
+  const explicitRoot = watch(config, toRealPathSync(path.join(root, 'private')));
+  assert.equal((await explicitRoot(excludedPaths[0])).record.reason, 'records-dir', 'separate configured-root authority remains explicit');
 } finally { fs.open = open; }
 console.log('records path exclusion is terminal before initial/watch sniff admission');

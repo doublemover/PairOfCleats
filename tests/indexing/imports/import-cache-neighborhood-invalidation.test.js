@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { resolveImportLinks } from '../../../src/index/build/import-resolution.js';
-import { applyImportResolutionCacheFileSetDiffInvalidation } from '../../../src/index/build/import-resolution-cache.js';
+import { applyImportResolutionCacheFileSetDiffInvalidation, loadImportResolutionCache, saveImportResolutionCache } from '../../../src/index/build/import-resolution-cache.js';
 
 import { createImportResolutionCacheStats } from '../../helpers/import-resolution-fixture.js';
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
@@ -250,6 +250,38 @@ const runResolution = ({
     (second.cacheStats.staleEdgeInvalidated || 0) >= 1,
     'expected generated counterpart stale-edge invalidation'
   );
+}
+
+{
+  const importer = 'src/whitespace-owner.js', target = 'src/ foo.js', ordinary = 'src/foo.js';
+  const spec = './ foo.js';
+  await fs.writeFile(path.join(tempRoot, importer), `import '${spec}';\n`);
+  await fs.writeFile(path.join(tempRoot, ordinary), 'export const ordinary = true;\n');
+  fileHashes.set(importer, 'whitespace-owner');
+  let cache = {};
+  const roundTrip = async () => {
+    const incrementalState = { incrementalDir: tempRoot };
+    const { cachePath } = await loadImportResolutionCache({ incrementalState });
+    await saveImportResolutionCache({ cache, cachePath });
+    cache = (await loadImportResolutionCache({ incrementalState })).cache;
+    assert.ok(Object.hasOwn(cache.files[importer].specs, spec), 'the real cache codec retains the exact literal specifier');
+  };
+  const entries = [importer, ordinary].map(rel => ({ rel, abs: path.join(tempRoot, rel) }));
+  const importsByFile = { [importer]: [spec] };
+  const first = new Map([[importer, { imports: [spec] }]]);
+  runResolution({ cache, entries, importsByFile, fileRelations: first });
+  assert.deepEqual(first.get(importer).importLinks, [], 'ordinary sibling cannot satisfy the literal space-prefixed dependency');
+  await roundTrip();
+  await fs.writeFile(path.join(tempRoot, target), 'export const spaced = true;\n');
+  const added = new Map([[importer, { imports: [spec] }]]);
+  const outcome = runResolution({ cache, entries: [...entries, { rel: target, abs: path.join(tempRoot, target) }], importsByFile, fileRelations: added });
+  assert.deepEqual(added.get(importer).importLinks, [target]);
+  assert.equal(outcome.cacheStats.staleEdgeInvalidated, 1);
+  await roundTrip();
+  await fs.unlink(path.join(tempRoot, target));
+  const removed = new Map([[importer, { imports: [spec] }]]);
+  runResolution({ cache, entries, importsByFile, fileRelations: removed });
+  assert.deepEqual(removed.get(importer).importLinks, []);
 }
 
 console.log('import cache neighborhood invalidation test passed');

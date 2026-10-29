@@ -104,5 +104,49 @@ try {
   assert.deepEqual(cachedBundle.chunks[0].metaV2.javascriptDeclaration, payload.metaV2.javascriptDeclaration);
   assert.deepEqual(cachedBundle.chunks[0].docmeta.flowEvidence, payload.docmeta.flowEvidence);
   assert.deepEqual(JSON.parse(JSON.stringify(cachedBundle.fileRelations.jsDeclarations)), JSON.parse(JSON.stringify(file.jsDeclarations)));
+  const complexText = `class Box {
+    same(value = seed()) { instanceOnly(value); return value; }
+    static same(other) { staticOnly(other); throw new Error(); }
+    get item() { return getOnly(); }
+    set item(value) { setOnly(value); }
+  }
+  function outer() { class Child extends baseFactory() { [key()]() { bodyOnly(); } } }
+  function* generator() { return; }
+  const literal = () => 42;`;
+  for (const parser of ['babel', 'acorn']) {
+    const currentOptions = { ...options, javascript: { parser } };
+    const currentContext = await lang.prepare({ text: complexText, ext: '.js', relPath: 'fixture.js', mode: 'code', options: currentOptions });
+    const currentRelations = lang.buildRelations({ text: complexText, relPath: 'fixture.js', context: currentContext, options: currentOptions });
+    const currentChunks = buildJsChunks(complexText, { ...currentOptions, ast: currentContext.jsAst });
+    const currentIndex = buildCallIndex(currentRelations), currentFile = buildFileRelations(currentRelations, 'fixture.js');
+    const rows = currentChunks.map(chunk => {
+      const docmeta = enrichFlowFixture({ text: complexText, chunk, lang, context: currentContext, options: currentOptions,
+        fileRelations: currentRelations, callIndex: currentIndex, relationsEnabled: true });
+      return assembleFlowFixture({ text: complexText, chunk, docmeta, lang: 'javascript', ext: '.js',
+        codeRelations: buildChunkRelations({ lang, chunk, fileRelations: currentRelations, callIndex: currentIndex }) });
+    });
+    await fs.writeFile(absPath, complexText); const currentStat = await fs.stat(absPath);
+    manifest.files['fixture.js'] = await writeIncrementalBundle({ enabled: true, bundleDir, manifest, relKey: 'fixture.js',
+      fileStat: currentStat, fileHash: sha1(complexText), fileChunks: rows, bundleFormat: 'json', fileRelations: currentFile });
+    const { cachedBundle: restored } = await readCachedBundle({ enabled: true, absPath, relKey: 'fixture.js', fileStat: currentStat, manifest, bundleDir, bundleFormat: 'json' });
+    assert.deepEqual(restored.chunks.map(row => row.docmeta), JSON.parse(JSON.stringify(rows.map(row => row.docmeta))));
+    const methods = restored.chunks.filter(row => row.name === 'Box.same');
+    assert.equal(methods.length, 2);
+    for (const method of methods) {
+      const own = method.docmeta.modifiers.static ? ['staticOnly'] : ['seed', 'instanceOnly'];
+      assert.deepEqual(method.codeRelations.calls.map(([, callee]) => callee), own);
+      assert.deepEqual(method.docmeta.params, method.docmeta.modifiers.static ? ['other'] : ['value']);
+    }
+    const outer = restored.chunks.find(row => row.name === 'outer');
+    const details = outer.codeRelations.callDetails;
+    assert.deepEqual(details.map(row => [row.callee, row.evaluationPhase]), [['baseFactory', 'definition-evaluation'], ['key', 'definition-evaluation']]);
+    assert.equal(restored.chunks.find(row => row.name === 'generator').docmeta.modifiers.generator, true);
+    assert.equal(restored.chunks.find(row => row.name === 'generator').docmeta.returnsValue, false);
+    assert.equal(restored.chunks.find(row => row.name === 'literal').docmeta.returnsValue, true);
+    const callSites = createCallSites({ chunks: restored.chunks });
+    assert.equal(validateArtifact('call_sites', callSites).ok, true);
+    const staticOwner = methods.find(row => row.docmeta.modifiers.static).docmeta.javascriptDeclaration.occurrenceId;
+    assert.deepEqual(callSites.filter(row => row.extensions.javascriptEvaluation.occurrenceId === staticOwner).map(row => row.calleeNormalized), ['staticOnly', 'Error']);
+  }
 } finally { await fs.rm(root, { recursive: true, force: true }); }
 console.log('JavaScript declaration ownership survives fragments, embedded offsets, canonical artifacts and incremental replay.');

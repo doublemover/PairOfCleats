@@ -18,6 +18,7 @@ import {
   isCss,
   isLua,
   isSql,
+  MARKDOWN_EXTS,
   CMAKE_EXTS,
   STARLARK_EXTS,
   NIX_EXTS,
@@ -419,7 +420,7 @@ const PROSE_CHUNKERS = [
   { id: 'docx', match: (ext) => ext === '.docx', chunk: ({ text, context }) => chunkDocxDocument(text, context) },
   {
     id: 'markdown',
-    match: (ext) => ext === '.md' || ext === '.markdown' || ext === '.mdx',
+    match: (ext) => MARKDOWN_EXTS.has(ext),
     chunk: ({ text, ext, context }) => chunkMarkdown(text, ext, context)
   },
   { id: 'rst', match: (ext) => ext === '.rst', chunk: ({ text }) => chunkRst(text) },

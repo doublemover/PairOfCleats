@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
+import fsSync from 'node:fs';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { prepareIsolatedTestCacheDir } from '../../helpers/test-cache.js';
@@ -30,7 +31,7 @@ const store = createArtifactSemanticStore({ root: stagingRoot, repoRoot: root, g
 for await (const row of store.iterateRows(facts.syntaxPartitionId, 'semantic_sources')) sourceRows.push(row);
 assert.equal(sourceRows.length, 1);
 const source = sourceRows[0], target = path.join(stagingRoot, 'semantic-sources', source.byteHash + '.utf8');
-const originalOpen = fs.open, originalReadFile = fs.readFile, cleanup = new Set();
+const originalOpen = fs.open, originalReadFile = fs.readFile, originalLstat = fsSync.lstatSync, cleanup = new Set();
 const same = file => path.relative(path.resolve(String(file)), target) === '';
 let control = {}, observations = [];
 const run = signal => readRetainedWasmSourceSnapshot({ store, partitionId: facts.syntaxPartitionId, source, signal });
@@ -59,6 +60,7 @@ try {
     };
     handle.close = async function () {
       row.closes++;
+      if (control.beforeClose) control.beforeClose();
       if (control.closeError) throw control.closeError;
       await nativeClose.call(handle);
       if (control.afterClose) control.afterClose();
@@ -126,11 +128,50 @@ try {
   assert.equal(observations.length, 0, 'decoder allowance is checked before payload allocation/read');
   const lateAbort = new AbortController(); control = { afterClose: () => lateAbort.abort() };
   await assert.rejects(run(lateAbort.signal), { name: 'AbortError' });
+  const midAbort = new AbortController(); observations = [];
+  control = { shortRead: 3, afterRead: () => midAbort.abort() };
+  await assert.rejects(executeWasmTask({ state, runtime, item, signal: midAbort.signal }), { name: 'AbortError' });
+  assert.equal(observations.length, 1); assert.equal(observations[0].closes, 1);
+  assert.equal(state.semanticFactsByFile.get('module.wasm'), beforeFacts);
+  assert.equal(state.semanticEvidenceArtifacts, undefined, 'capture interruption precedes deferred decode/staging');
+  const whileClosing = new AbortController(); observations = [];
+  control = { beforeClose: () => whileClosing.abort(), closeError };
+  let closingFailure;
+  try { await executeWasmTask({ state, runtime, item, signal: whileClosing.signal }); } catch (error) { closingFailure = error; }
+  assert.ok(closingFailure?.cacheOwnershipPending);
+  assert.equal(state.semanticFactsByFile.get('module.wasm'), beforeFacts);
+  assert.equal(state.semanticEvidenceArtifacts, undefined);
+  const stack = [closingFailure], inspected = new Set(); let closeSession;
+  while (stack.length) {
+    const error = stack.pop(); if (!error || typeof error !== 'object' || inspected.has(error)) continue;
+    inspected.add(error); closeSession ||= getContainedFileSession(error); stack.push(error.cause, ...(error.errors || []));
+  }
+  assert.ok(closeSession); const readsBeforeRecovery = observations[0].reads; control = {};
+  assert.equal((await closeSession.releaseAfterClose()).settled, true);
+  assert.equal(observations[0].reads, readsBeforeRecovery, 'late cancellation cannot cause replacement-owner reread or decode');
+  observations = [];
+  fsSync.lstatSync = function (file, ...args) {
+    const stat = originalLstat.call(fsSync, file, ...args);
+    return same(file) ? { ...stat, isSymbolicLink: () => true } : stat;
+  };
+  await assert.rejects(run(), { code: 'ERR_UNSAFE_FILE_PATH' });
+  assert.equal(observations.length, 0, 'an injected symlink-kind observation is refused without opening bytes');
+  fsSync.lstatSync = originalLstat;
+  const displaced = target + '.captured-original';
+  observations = []; control = { shortRead: 3, afterRead: async () => {
+    await fs.rename(target, displaced); await fs.writeFile(target, replacement);
+  } };
+  try {
+    const snapshot = await run(); assert.deepEqual(snapshot.bytes, bytes, 'a borrowed descriptor may only return its original verified snapshot');
+  } catch (error) { assert.ok(['ERR_FILE_CHANGED', 'ERR_FILE_INTEGRITY', 'ERR_UNSAFE_FILE_PATH'].includes(error.code)); }
+  finally { await fs.unlink(target); await fs.rename(displaced, target); }
+  assert.equal(observations.length, 1); assert.equal(observations[0].closes, 1);
+  assert.ok(observations[0].maxBuffer <= 65536);
   control = {};
   const result = await executeWasmTask({ state, runtime, item });
   assert.ok(result.partitions.length > 0); assert.equal(state.semanticFactsByFile.get('module.wasm').sourceHash, source.byteHash);
 } finally {
-  fs.open = originalOpen; fs.readFile = originalReadFile;
+  fs.open = originalOpen; fs.readFile = originalReadFile; fsSync.lstatSync = originalLstat;
   for (const close of cleanup) { try { await close(); } catch {} }
 }
 console.log('retained WASM snapshot capture and producer handoff passed');

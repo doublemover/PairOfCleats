@@ -129,6 +129,13 @@ for (const [file, expected] of [['docs/guide.rst', ['Guide', 'Section One', 'Sec
   }
 }
 
+const markdownRows = proseMeta.filter(chunk => (chunk.file || proseFileById.get(chunk.fileId)) === 'docs/extension.markdown');
+if (!markdownRows.some(chunk => chunk.name === 'Extension Manual') || !markdownRows.some(chunk => chunk.name === 'Extension End')) {
+  failures.push('Markdown extension lost persisted host headings.');
+}
+if (markdownRows.some(chunk => chunk.name === 'Impostor' && chunk.kind === 'Section')) failures.push('A fenced Python comment became a prose heading.');
+if (!markdownRows.some(chunk => chunk.segment?.languageId === 'python' && chunk.segment.type === 'embedded')) failures.push('Markdown extension lost persisted embedded Python metadata.');
+
 if (failures.length) {
   failures.forEach((msg) => console.error(msg));
   process.exit(1);

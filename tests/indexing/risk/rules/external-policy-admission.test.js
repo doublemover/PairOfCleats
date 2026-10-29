@@ -99,7 +99,10 @@ try {
   };
   fs.readSync = (fd, ...args) => {
     if (descriptors.has(fd)) { reads++; if (behavior.readError) throw behavior.readError; }
-    return originalRead.call(fs, fd, ...args);
+    if (descriptors.has(fd) && behavior.shortRead) args[2] = Math.min(args[2], behavior.shortRead);
+    const result = originalRead.call(fs, fd, ...args);
+    if (descriptors.has(fd) && behavior.abortController) behavior.abortController.abort();
+    return result;
   };
   fs.closeSync = fd => {
     if (descriptors.has(fd) && behavior.closeError) throw behavior.closeError;
@@ -113,6 +116,14 @@ try {
   }
   reads = 0; behavior = { oversized: true };
   assert.throws(load, error => error.riskRuleInput?.reason === 'oversized'); assert.equal(reads, 0);
+  reads = 0; behavior = { shortRead: 7 };
+  assert.deepEqual(getRiskRulesPolicyReceipt(load().rules), identity);
+  assert.ok(reads > 1, 'short descriptor reads must complete the exact admitted policy');
+  assert.equal(descriptors.size, 0);
+  const midReadAbort = new AbortController();
+  behavior = { shortRead: 7, abortController: midReadAbort };
+  assert.throws(() => load({}, { signal: midReadAbort.signal }), { name: 'AbortError' });
+  assert.equal(descriptors.size, 0, 'cancellation settles the original descriptor before rejection');
   const original = Object.freeze(Object.assign(new Error('controlled policy close'), { code: 'EIO' }));
   behavior = { closeError: original };
   let failure; try { load(); } catch (error) { failure = error; }

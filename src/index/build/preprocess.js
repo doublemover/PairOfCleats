@@ -12,6 +12,7 @@ import { createPreprocessSnapshotSession } from './preprocess-snapshot.js';
 import { createRecordsClassifier } from './records.js';
 import { captureRecordSamplePrefix, sampleRecordContent } from './record-sample.js';
 import { SEMANTIC_ANALYSIS_VERSIONS } from '../semantic/analysis-versions.js';
+import { MARKDOWN_EXTS } from '../constants.js';
 import { resolveFileCaps } from './file-processor/read.js';
 import { isCodeEntryForPath, isProseEntryForPath } from './mode-routing.js';
 import { atomicWriteJson } from '../../shared/io/atomic-write.js';
@@ -25,7 +26,7 @@ import {
 const DOCUMENT_EXTS = new Set(['.pdf', '.docx']);
 const isDocumentExt = (ext) => DOCUMENT_EXTS.has(String(ext || '').toLowerCase());
 const EXTRACTED_PROSE_PREFILTER_SAMPLE_BYTES = 4096;
-const EXTRACTED_PROSE_ALWAYS_INCLUDE_EXTS = new Set(['.md', '.mdx']);
+const EXTRACTED_PROSE_ALWAYS_INCLUDE_EXTS = MARKDOWN_EXTS;
 const EXTRACTED_PROSE_SAMPLE_MARKER = /(^|\n)\s*(---|\+\+\+)\s*$|<!--|\/\*|\/\/|(^|\n)\s*#|```/m;
 
 const isLikelyExtractedProseProseCandidate = ({ ext, sampleText }) => {

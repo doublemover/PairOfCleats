@@ -157,6 +157,23 @@ for (const parser of ['babel', 'acorn']) {
   }
   for (const detail of details) assert.ok(phases.slice(detail.start, detail.end).startsWith(detail.callee), 'exact source call occurrence survives phase projection');
 
+  for (const [source, expectedPhase, ownsOuter, conditional] of [
+    ['function outer(value = effect()) { return {}; }', 'parameter-initialization', true, true],
+    ['function outer() { return { [effect()]() {} }; }', 'definition-evaluation', true, false],
+    ['function outer() { return { method() { effect(); } }; }', 'invocation-body', false, false]
+  ]) {
+    const moved = await prepare(source, parser), effects = moved.relations.callDetails.filter(row => row.callee === 'effect');
+    assert.equal(effects.length, 1);
+    const occurrence = effects[0], outer = moved.values.find(row => row.chunk.name === 'outer');
+    assert.equal(occurrence.evaluationPhase, expectedPhase);
+    assert.equal(occurrence.callerOccurrenceId === outer.docmeta.javascriptDeclaration.occurrenceId, ownsOuter);
+    assert.equal(occurrence.conditional, conditional);
+    assert.equal(occurrence.start, source.indexOf('effect()'));
+    assert.equal(source.slice(occurrence.start, occurrence.end), 'effect()');
+    const projected = moved.values.flatMap(row => row.projected.callDetails || []).filter(row => row.callee === 'effect');
+    assert.equal(projected.length, 1, 'moving the same effect changes its phase/owner without dropping or duplicating it');
+  }
+
   const returns = await prepare(returnShapes, parser), docs = Object.fromEntries(returns.values.map(value => [value.chunk.name, value.docmeta]));
   for (const name of ['empty', 'bareGenerator', 'valueGenerator', 'yielding', 'asyncItems']) assert.equal(docs[name].modifiers.generator, true);
   assert.equal(docs.bareGenerator.returnsValue, false); assert.equal(docs.bareGenerator.controlFlow.returns, 1);

@@ -8,6 +8,7 @@ import { createRecordsMarkdownInventory } from '../../../src/integrations/triage
 import { analyzeLiteralText } from '../../../src/shared/text-analyzer.js';
 import { loadIncrementalState } from '../../../src/index/build/incremental/planning.js';
 import { persistIncrementalManifest } from '../../../src/index/build/incremental/manifest-codec.js';
+import { createQueryAstHelpers } from '../../../src/retrieval/pipeline/query-ast.js';
 
 const { dir } = await prepareIsolatedTestCacheDir('records-inventory-source-contract');
 const root = path.join(dir, 'repo'), recordsDir = path.join(root, 'records'), repoCacheRoot = path.join(dir, 'repo-cache');
@@ -50,7 +51,7 @@ const runtime = { root, buildRoot: path.join(dir, 'build'), repoCacheRoot,
   getChunkEmbedding: async text => { embeddingInputs.push(text); return []; },
   profile: { id: 'default' }, indexingConfig: { profile: 'default' }, embeddingEnabled: false, embeddingService: false,
   incrementalEnabled: true, incrementalBundleFormat: 'json', shards: { enabled: false }, twoStage: { enabled: false } };
-const opendir = fs.opendir;
+const opendir = fs.opendir, lstat = fs.lstat, open = fs.open;
 try {
   const { buildRecordsIndexForRepo } = await import('../../../src/integrations/triage/index-records.js');
   const run = abortSignal => buildRecordsIndexForRepo({ runtime, abortSignal });
@@ -63,6 +64,11 @@ try {
   assert.deepEqual(first.phraseTokens, analyzeLiteralText(originalText, { caseSensitive: true }));
   assert.notDeepEqual(first.phraseTokens, analyzeLiteralText(originalText.normalize('NFKD'), { caseSensitive: true }));
   assert.ok(first.phraseTokens.includes('ﬃ')); assert.equal(first.phraseTokens.includes('ffi'), false);
+  for (const [phrase, expected] of [['CaseSensitive ﬃ', true], ['casesensitive ﬃ', false], ['CaseSensitive ffi', false]]) {
+    const ast = { type: 'phrase', tokens: analyzeLiteralText(phrase, { caseSensitive: true }), caseSensitive: true };
+    assert.equal(createQueryAstHelpers({ queryAst: ast }).matchesQueryAst({ chunkMeta: [first] }, 0, first), expected,
+      'literal matching uses the original compatibility-character representation');
+  }
   assert.ok(first.tokens.includes('ffi'), 'compatibility expansion remains available to scoring without changing literal/source coordinates');
   assert.ok(embeddingInputs.includes(originalText), 'source embedding input is explicit and retains the original decoded representation');
   assert.equal(captures[0].indexState.extensions.recordsInventory.triage.complete, true);
@@ -89,6 +95,37 @@ try {
     assert.deepEqual(await fs.readFile(prior.manifestPath), beforeManifest, 'unknown subtree cannot publish completion or prune prior unseen inputs');
     fs.opendir = opendir;
   }
+  for (const [method, file] of [['stat', secondFile], ['read', firstFile]]) {
+    const original = Object.freeze(Object.assign(new Error('controlled record ' + method), { code: 'EIO' }));
+    if (method === 'stat') fs.lstat = async (target, ...args) => {
+      if (path.resolve(String(target)) === path.resolve(file)) throw original;
+      return lstat.call(fs, target, ...args);
+    };
+    else fs.open = async (target, ...args) => {
+      if (path.resolve(String(target)) === path.resolve(file)) throw original;
+      return open.call(fs, target, ...args);
+    };
+    const count = captures.length;
+    await assert.rejects(run(), error => {
+      const stack = [error], seen = new Set();
+      while (stack.length) {
+        const item = stack.pop(); if (item === original) return true;
+        if (!item || typeof item !== 'object' || seen.has(item)) continue;
+        seen.add(item); stack.push(item.cause, ...(item.errors || []));
+      }
+      return false;
+    });
+    assert.equal(captures.length, count); assert.deepEqual(await fs.readFile(prior.manifestPath), beforeManifest);
+    fs.lstat = lstat; fs.open = open;
+  }
+  const sidecar = secondFile.slice(0, -3) + '.json';
+  for (const invalid of ['{', '[]']) {
+    await fs.writeFile(sidecar, invalid); const count = captures.length;
+    await assert.rejects(run(), /Cannot establish record sidecar identity/);
+    assert.equal(captures.length, count); assert.deepEqual(await fs.readFile(prior.manifestPath), beforeManifest,
+      'malformed canonical sidecars cannot publish complete records or prune the prior manifest');
+  }
+  await fs.unlink(sidecar);
   const during = new AbortController();
   fs.opendir = async (target, ...args) => {
     const handle = await opendir.call(fs, target, ...args);
@@ -98,5 +135,5 @@ try {
   const publications = captures.length;
   await assert.rejects(run(during.signal), { name: 'AbortError' });
   assert.equal(captures.length, publications); assert.deepEqual(await fs.readFile(prior.manifestPath), beforeManifest);
-} finally { fs.opendir = opendir; hook.deregister(); delete globalThis[captureKey]; }
+} finally { fs.opendir = opendir; fs.lstat = lstat; fs.open = open; hook.deregister(); delete globalThis[captureKey]; }
 console.log('records inventory completion and original source coordinates retain fresh/replay parity');
