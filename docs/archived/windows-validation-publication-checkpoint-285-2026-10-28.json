@@ -1,0 +1,173 @@
+{
+  "schemaVersion": 1,
+  "kind": "windows-validation-publication-and-issue-closeout",
+  "date": "2026-10-28",
+  "publication": {
+    "branch": "codex/pr557-audit-repairs-20261012",
+    "sourceHead": "7b05a3dbda973c48fba9335b063ce2926371147d",
+    "tree": "6f12abdc5ca4fb6e8c352f4058dd4a6942b7a873",
+    "remoteBranchShaVerified": "7b05a3dbda973c48fba9335b063ce2926371147d",
+    "pullRequest": "https://github.com/doublemover/PairOfCleats/pull/572",
+    "pullRequestBodyReadBack": true
+  },
+  "frontGate": {
+    "checks": [
+      {
+        "exitCode": 0,
+        "id": "format",
+        "startedAt": "2026-10-28T23:43:30.1384208Z",
+        "finishedAt": "2026-10-28T23:43:35.9143214Z",
+        "log": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-repair-282-20261028\\front-285-format.log"
+      },
+      {
+        "exitCode": 0,
+        "id": "config-budget",
+        "startedAt": "2026-10-28T23:43:35.9326782Z",
+        "finishedAt": "2026-10-28T23:43:38.2570121Z",
+        "log": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-repair-282-20261028\\front-285-config-budget.log"
+      },
+      {
+        "exitCode": 0,
+        "id": "env-check",
+        "startedAt": "2026-10-28T23:43:38.2608939Z",
+        "finishedAt": "2026-10-28T23:43:39.5418489Z",
+        "log": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-repair-282-20261028\\front-285-env-check.log"
+      },
+      {
+        "exitCode": 0,
+        "id": "generated-freshness",
+        "startedAt": "2026-10-28T23:43:39.5442191Z",
+        "finishedAt": "2026-10-28T23:43:57.5946697Z",
+        "log": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-repair-282-20261028\\front-285-generated-freshness.log"
+      },
+      {
+        "exitCode": 0,
+        "id": "command-surface",
+        "startedAt": "2026-10-28T23:43:57.5970079Z",
+        "finishedAt": "2026-10-28T23:44:00.4840907Z",
+        "log": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-repair-282-20261028\\front-285-command-surface.log"
+      },
+      {
+        "exitCode": 0,
+        "id": "workflow-contract",
+        "startedAt": "2026-10-28T23:44:00.4864108Z",
+        "finishedAt": "2026-10-28T23:44:00.7327279Z",
+        "log": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-repair-282-20261028\\front-285-workflow-contract.log"
+      },
+      {
+        "exitCode": 0,
+        "id": "gate",
+        "startedAt": "2026-10-28T23:44:00.7353240Z",
+        "finishedAt": "2026-10-28T23:44:08.0333307Z",
+        "log": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-repair-282-20261028\\front-285-gate.log"
+      },
+      {
+        "exitCode": 0,
+        "id": "diff-check",
+        "startedAt": "2026-10-28T23:44:08.0359578Z",
+        "finishedAt": "2026-10-28T23:44:08.0981829Z",
+        "log": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-repair-282-20261028\\front-285-diff-check.log"
+      }
+    ],
+    "sourceHead": "7b05a3dbda973c48fba9335b063ce2926371147d",
+    "tree": "6f12abdc5ca4fb6e8c352f4058dd4a6942b7a873"
+  },
+  "acceptanceReceipt": "windows-shared-repair-qualification-2026-10-28.json",
+  "issueControlsSource": "1623dd0c28ab1d400f1f831126f812c6e9226d44",
+  "issues": [
+    {
+      "number": 987,
+      "title": "[P3] Diff event totals lose or corrupt counts for inherited-key event kinds",
+      "url": "https://github.com/doublemover/PairOfCleats/issues/987",
+      "state": "closed",
+      "stateReason": "completed",
+      "closedAt": "2026-10-28T23:47:15Z",
+      "verifiedClosed": true
+    },
+    {
+      "number": 988,
+      "title": "[P3] Field-postings builder silently drops a __proto__ field",
+      "url": "https://github.com/doublemover/PairOfCleats/issues/988",
+      "state": "closed",
+      "stateReason": "completed",
+      "closedAt": "2026-10-28T23:47:16Z",
+      "verifiedClosed": true
+    },
+    {
+      "number": 994,
+      "title": "[P3] Performance profile crashes on inherited-key language IDs",
+      "url": "https://github.com/doublemover/PairOfCleats/issues/994",
+      "state": "closed",
+      "stateReason": "completed",
+      "closedAt": "2026-10-28T23:47:18Z",
+      "verifiedClosed": true
+    },
+    {
+      "number": 998,
+      "title": "[P3] Stage checkpoint summary corrupts inherited-key stage names",
+      "url": "https://github.com/doublemover/PairOfCleats/issues/998",
+      "state": "closed",
+      "stateReason": "completed",
+      "closedAt": "2026-10-28T23:47:20Z",
+      "verifiedClosed": true
+    },
+    {
+      "number": 1004,
+      "title": "[P3] Ingest summary counters corrupt inherited-key kinds and languages",
+      "url": "https://github.com/doublemover/PairOfCleats/issues/1004",
+      "state": "closed",
+      "stateReason": "completed",
+      "closedAt": "2026-10-28T23:47:22Z",
+      "verifiedClosed": true
+    },
+    {
+      "number": 1014,
+      "title": "[P3] Scan-profile count maps silently discard reserved category keys",
+      "url": "https://github.com/doublemover/PairOfCleats/issues/1014",
+      "state": "closed",
+      "stateReason": "completed",
+      "closedAt": "2026-10-28T23:47:23Z",
+      "verifiedClosed": true
+    },
+    {
+      "number": 1015,
+      "title": "[P3] Feature-metrics recorder drops inherited-name language and setting buckets",
+      "url": "https://github.com/doublemover/PairOfCleats/issues/1015",
+      "state": "closed",
+      "stateReason": "completed",
+      "closedAt": "2026-10-28T23:47:24Z",
+      "verifiedClosed": true
+    },
+    {
+      "number": 1018,
+      "title": "[P2] Lexicon filter keeps qualified keyword calls but drops their details and ranges",
+      "url": "https://github.com/doublemover/PairOfCleats/issues/1018",
+      "state": "closed",
+      "stateReason": "completed",
+      "closedAt": "2026-10-28T23:47:25Z",
+      "verifiedClosed": true
+    },
+    {
+      "number": 1066,
+      "title": "[P2] Graph-relation edge cap counts duplicate links before deduplication",
+      "url": "https://github.com/doublemover/PairOfCleats/issues/1066",
+      "state": "closed",
+      "stateReason": "completed",
+      "closedAt": "2026-10-28T23:47:27Z",
+      "verifiedClosed": true
+    }
+  ],
+  "openIssueSnapshot": {
+    "previous": 718,
+    "closedInThisBatch": 9,
+    "remaining": 709,
+    "qualificationPending": 473,
+    "partial": 147,
+    "unresolved": 89
+  },
+  "scope": {
+    "fullSuitePass": false,
+    "baseline": "windows-full-validation-checkpoint-265-2026-10-28.json",
+    "localRawReceipts": "Historical author-workspace .tmp/tasks/windows-repair-282-20261028; not distributed with clean checkouts."
+  }
+}

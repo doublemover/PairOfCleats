@@ -9,8 +9,10 @@ Canonical for: initiative status, execution order, and remaining work
 
 The [closeout review](archived/github-issue-closeout-2026-10-26.md) assessed
 **770 issues/238 comments**, closing 27; later batches closed 25 more.
-The latest **718-open source snapshot** records 482 qualification-pending,
-147 partial and 89 unresolved entries, including unpublished implementations.
+[Checkpoint 285](archived/windows-validation-publication-checkpoint-285-2026-10-28.json)
+closed nine qualified reports after publication and all eight front-gate checks
+(40/40 gate cases). Its **709-open snapshot** has 473 qualification-pending,
+147 partial and 89 unresolved entries.
 
 The [complete assessment](archived/github-issue-closeout-2026-10-26.json) retains
 source/test mappings and closure witnesses; [earlier receipts](archived/solo-issue-repairs-2026-10-25.md)
@@ -23,12 +25,14 @@ and [qualification matrix](testing/qualification-matrix.md).
 
 The [full Windows baseline](archived/windows-full-validation-checkpoint-265-2026-10-28.md)
 executed all 6,098 required fixtures: 5,819 passed and 279 failed, including 14
-timeouts. Shared repairs and issue acceptance follow this complete catalog.
+timeouts. Import/registry follow-ups now pass 109/109 cases, including all five
+original failures. Three Cargo/TUI cases and four R acceptance controls pass;
+queued vector-only readiness and other catalogued failures remain.
 
 [Five dependency retirements](archived/dependency-ownership-implementation-2026-10-27.md)
 removed 110 lock records. Locked bootstrap passed without warnings/errors:
 37 packages, 33 routes, 8 patches/26 targets/61 hunks. Retained inputs and exact
-receipts remain in the archive; functional checks/publication gate are deferred.
+receipts remain in the archive; full-suite acceptance remains separate.
 
 Suite/platform/model/release acceptance remains separate. [Storage repairs](archived/storage-space-implementation-2026-10-27.md)
 await execution; lifecycle policy (#1267) and custom cleanup (#1574) remain.

@@ -67,3 +67,9 @@ codes through the closed TUI catalog. Issue closure requires source review and
 its original controls, rather than a matching test name.
 Remaining native workflow failures, timeout owners, managed-tool availability,
 shared-module review drift and the other catalogued failures remain open work.
+
+The subsequent [import and TUI follow-up](windows-import-and-tui-validation-2026-10-28.md)
+passes all 109 selected import/registry controls and the three original Cargo/TUI
+cases. It repairs the import failures described above; queued vector-only dense
+readiness and the remaining catalog are still open. Exact follow-up case/source
+identities are retained separately from this frozen baseline.

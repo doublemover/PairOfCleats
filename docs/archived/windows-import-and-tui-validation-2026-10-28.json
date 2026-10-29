@@ -1,0 +1,1846 @@
+{
+  "schemaVersion": 1,
+  "kind": "windows-import-and-tui-followup",
+  "date": "2026-10-28",
+  "branch": "codex/pr557-audit-repairs-20261012",
+  "runtime": {
+    "node": "v26.12.1",
+    "platform": "win32",
+    "arch": "x64",
+    "abi": "147",
+    "rust": "1.88.0"
+  },
+  "policy": {
+    "jobs": 1,
+    "timeoutMs": 30000,
+    "retries": 0,
+    "nativeStatusRedo": false
+  },
+  "baseline": "windows-full-validation-checkpoint-265-2026-10-28.json",
+  "importFamily": {
+    "initial": {
+      "sourceHead": "033bba7378d02d67034449512978b40deb14d107",
+      "reportSha256": "8424ea9251972ff043d80afd85f89816b2e10ef0bf72291ac3e77a8b95ec1f38",
+      "summary": {
+        "durationMs": 86544,
+        "failed": 1,
+        "passed": 108,
+        "skipped": 0,
+        "total": 109
+      },
+      "tests": [
+        {
+          "id": "indexing/imports/async-fs-memo-parity",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 1122
+        },
+        {
+          "id": "indexing/imports/bazel-label-graph-replay",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 947
+        },
+        {
+          "id": "indexing/imports/bazel-label-identity",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 112
+        },
+        {
+          "id": "indexing/imports/cache-file-set-diff-preserves-cache-key",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 159
+        },
+        {
+          "id": "indexing/imports/cmake-directory",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 951
+        },
+        {
+          "id": "indexing/imports/collector-hints",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 947
+        },
+        {
+          "id": "indexing/imports/comment-state-and-dotted-directories",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 108
+        },
+        {
+          "id": "indexing/imports/config-origins-and-package-scope",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 280
+        },
+        {
+          "id": "indexing/imports/css-import-registry-replay",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 1016
+        },
+        {
+          "id": "indexing/imports/decision-metamorphic",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 930
+        },
+        {
+          "id": "indexing/imports/decision-model-contract",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 919
+        },
+        {
+          "id": "indexing/imports/discovery-inventory-reuse",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 632
+        },
+        {
+          "id": "indexing/imports/esmodule-lexer-init",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 727
+        },
+        {
+          "id": "indexing/imports/expected-artifacts-index",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 966
+        },
+        {
+          "id": "indexing/imports/external-fallback-ephemeral-cache",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 1180
+        },
+        {
+          "id": "indexing/imports/fs-exists-bloom-hash-work",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 129
+        },
+        {
+          "id": "indexing/imports/fs-exists-index",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 932
+        },
+        {
+          "id": "indexing/imports/fs-exists-index-abort",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 920
+        },
+        {
+          "id": "indexing/imports/gate-eligibility",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 926
+        },
+        {
+          "id": "indexing/imports/generated-counterpart-suffixes",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 913
+        },
+        {
+          "id": "indexing/imports/import-build-context-plugins",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 918
+        },
+        {
+          "id": "indexing/imports/import-build-context-typescript-emit",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 910
+        },
+        {
+          "id": "indexing/imports/import-cache-contract-matrix",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 1046
+        },
+        {
+          "id": "indexing/imports/import-cache-neighborhood-invalidation",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 949
+        },
+        {
+          "id": "indexing/imports/import-extraction-handoff",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 1566
+        },
+        {
+          "id": "indexing/imports/import-graph-contract-matrix",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 1010
+        },
+        {
+          "id": "indexing/imports/import-graph-incremental-reuse",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 958
+        },
+        {
+          "id": "indexing/imports/import-graph-resolver-adapter-diagnostics",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 715
+        },
+        {
+          "id": "indexing/imports/import-links",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 13935
+        },
+        {
+          "id": "indexing/imports/import-resolution",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 985
+        },
+        {
+          "id": "indexing/imports/import-resolution-build-context-cache-key",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 961
+        },
+        {
+          "id": "indexing/imports/import-resolution-cache-save-failure-health",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 187
+        },
+        {
+          "id": "indexing/imports/import-resolution-language-coverage",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 1019
+        },
+        {
+          "id": "indexing/imports/import-resolution-llvm-fixture-paths",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 942
+        },
+        {
+          "id": "indexing/imports/import-resolution-lookup-shape-guards",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 96
+        },
+        {
+          "id": "indexing/imports/import-resolution-policy-contract-matrix",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 1123
+        },
+        {
+          "id": "indexing/imports/import-resolution-typescript-runtime-extensions",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 978
+        },
+        {
+          "id": "indexing/imports/import-resolver-relative",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 770
+        },
+        {
+          "id": "indexing/imports/import-scan",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 724
+        },
+        {
+          "id": "indexing/imports/import-scan-budget-runtime-signals",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 922
+        },
+        {
+          "id": "indexing/imports/import-scan-live-suppression-diagnostics",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 878
+        },
+        {
+          "id": "indexing/imports/import-scan-non-js-end-to-end",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 967
+        },
+        {
+          "id": "indexing/imports/import-scan-post-graph-stats",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 929
+        },
+        {
+          "id": "indexing/imports/json-collector-admission/anonymous-budget",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 105
+        },
+        {
+          "id": "indexing/imports/json-collector-admission/cancelled",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 101
+        },
+        {
+          "id": "indexing/imports/json-collector-admission/deep-jsonc-only",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 112
+        },
+        {
+          "id": "indexing/imports/json-collector-admission/duplicate-depth",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 111
+        },
+        {
+          "id": "indexing/imports/json-collector-admission/frontier",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 103
+        },
+        {
+          "id": "indexing/imports/json-collector-admission/invalid-reference",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 106
+        },
+        {
+          "id": "indexing/imports/json-collector-admission/json-budget",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 102
+        },
+        {
+          "id": "indexing/imports/json-collector-admission/jsonc-budget",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 110
+        },
+        {
+          "id": "indexing/imports/json-collector-admission/line-admission",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 102
+        },
+        {
+          "id": "indexing/imports/json-collector-admission/match-budget",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 99
+        },
+        {
+          "id": "indexing/imports/json-collector-admission/namespace-budget",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 97
+        },
+        {
+          "id": "indexing/imports/json-collector-admission/nested-keys",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 99
+        },
+        {
+          "id": "indexing/imports/json-collector-admission/registry-handoff",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 101
+        },
+        {
+          "id": "indexing/imports/json-collector-admission/resolved-budget",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 98
+        },
+        {
+          "id": "indexing/imports/json-collector-admission/source-admission",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 97
+        },
+        {
+          "id": "indexing/imports/json-collector-admission/strict-syntax",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 115
+        },
+        {
+          "id": "indexing/imports/json-collector-admission/time-after",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 99
+        },
+        {
+          "id": "indexing/imports/json-collector-admission/time-before",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 99
+        },
+        {
+          "id": "indexing/imports/json-collector-admission/wide",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 99
+        },
+        {
+          "id": "indexing/imports/json-collector-admission/zero-caps",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 98
+        },
+        {
+          "id": "indexing/imports/lookup-fingerprint-compatibility-gate",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 936
+        },
+        {
+          "id": "indexing/imports/non-indexed-fallback-root-containment",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 980
+        },
+        {
+          "id": "indexing/imports/parsed-attribute-and-r-import-replay",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 1170
+        },
+        {
+          "id": "indexing/imports/path-utils-normalize-rel-path",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 92
+        },
+        {
+          "id": "indexing/imports/prose-skip",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 11569
+        },
+        {
+          "id": "indexing/imports/proto-safe-module-keys",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 760
+        },
+        {
+          "id": "indexing/imports/replay-corpus",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 910
+        },
+        {
+          "id": "indexing/imports/replay-harness",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 930
+        },
+        {
+          "id": "indexing/imports/replay-harness-gate-eligible-stats",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 925
+        },
+        {
+          "id": "indexing/imports/replay-perf-budget",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 1327
+        },
+        {
+          "id": "indexing/imports/replay-stage-percentiles",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 905
+        },
+        {
+          "id": "indexing/imports/require-regex-fallback-on-lexer-failure",
+          "status": "failed",
+          "exitCode": 1,
+          "timedOut": false,
+          "durationMs": 918
+        },
+        {
+          "id": "indexing/imports/stage-pipeline-metrics",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 904
+        },
+        {
+          "id": "indexing/imports/swift-registry-bridge",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 268
+        },
+        {
+          "id": "indexing/imports/typescript-path-pattern-ties",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 302
+        },
+        {
+          "id": "indexing/imports/unresolved-cache-budget-correctness",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 942
+        },
+        {
+          "id": "indexing/imports/warm-lookup-structure-reuse",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 919
+        },
+        {
+          "id": "indexing/imports/warning-dispositions",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 83
+        },
+        {
+          "id": "indexing/imports/xml-schema-reference-replay",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 1026
+        },
+        {
+          "id": "indexing/incremental/manifest-bound-snapshots",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 967
+        },
+        {
+          "id": "indexing/incremental/shared-buffer-hash-for-imports-and-bundle",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 903
+        },
+        {
+          "id": "indexing/language-registry/build-language-context-skip-prepare",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 173
+        },
+        {
+          "id": "indexing/language-registry/config-data-adapters-contract",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 208
+        },
+        {
+          "id": "indexing/language-registry/config-literal-import-identities",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 895
+        },
+        {
+          "id": "indexing/language-registry/descriptor-routing-parity",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 176
+        },
+        {
+          "id": "indexing/language-registry/import-extraction-receipts",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 672
+        },
+        {
+          "id": "indexing/language-registry/linguist-metadata-parity",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 491
+        },
+        {
+          "id": "indexing/language-registry/metadata-import-boundary/extensions",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 110
+        },
+        {
+          "id": "indexing/language-registry/metadata-import-boundary/filtered",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 103
+        },
+        {
+          "id": "indexing/language-registry/metadata-import-boundary/special-files",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 108
+        },
+        {
+          "id": "indexing/language-registry/metadata-import-boundary/unknown",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 114
+        },
+        {
+          "id": "indexing/language-registry/operation-import-boundary/cold-registry",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 176
+        },
+        {
+          "id": "indexing/language-registry/operation-import-boundary/config",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 177
+        },
+        {
+          "id": "indexing/language-registry/operation-import-boundary/javascript",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 440
+        },
+        {
+          "id": "indexing/language-registry/operation-import-boundary/load-failure",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 172
+        },
+        {
+          "id": "indexing/language-registry/operation-import-boundary/prose",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 176
+        },
+        {
+          "id": "indexing/language-registry/operation-import-boundary/typescript",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 465
+        },
+        {
+          "id": "indexing/language-registry/prepare-chunk-builder-options-forwarding",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 79
+        },
+        {
+          "id": "indexing/language-registry/python-ast-heavy-skip",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 139
+        },
+        {
+          "id": "indexing/language-registry/python-prepared-ast-runtime",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 591
+        },
+        {
+          "id": "indexing/language-registry/python-prepared-chunks",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 615
+        },
+        {
+          "id": "indexing/language-registry/registry-wiring",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 166
+        },
+        {
+          "id": "indexing/language-registry/special-file-catalog-parity",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 87
+        },
+        {
+          "id": "indexing/language-registry/typescript-callable-payload",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 848
+        },
+        {
+          "id": "lang/css-import-source-tokens",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 122
+        },
+        {
+          "id": "lang/javascript/javascript-contract-matrix",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 1053
+        }
+      ]
+    },
+    "final": {
+      "sourceHead": "0a148ab1369ef06952455a1b668c36cbc459d8e0",
+      "reportSha256": "7cea8ad7feafcebe4494894b6890e0b0096795046cac709754fee818c4ecdc3a",
+      "summary": {
+        "durationMs": 96924,
+        "failed": 0,
+        "passed": 109,
+        "skipped": 0,
+        "total": 109
+      },
+      "tests": [
+        {
+          "id": "indexing/imports/async-fs-memo-parity",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 1041
+        },
+        {
+          "id": "indexing/imports/bazel-label-graph-replay",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 975
+        },
+        {
+          "id": "indexing/imports/bazel-label-identity",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 127
+        },
+        {
+          "id": "indexing/imports/cache-file-set-diff-preserves-cache-key",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 157
+        },
+        {
+          "id": "indexing/imports/cmake-directory",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 934
+        },
+        {
+          "id": "indexing/imports/collector-hints",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 940
+        },
+        {
+          "id": "indexing/imports/comment-state-and-dotted-directories",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 95
+        },
+        {
+          "id": "indexing/imports/config-origins-and-package-scope",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 279
+        },
+        {
+          "id": "indexing/imports/css-import-registry-replay",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 1034
+        },
+        {
+          "id": "indexing/imports/decision-metamorphic",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 932
+        },
+        {
+          "id": "indexing/imports/decision-model-contract",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 961
+        },
+        {
+          "id": "indexing/imports/discovery-inventory-reuse",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 653
+        },
+        {
+          "id": "indexing/imports/esmodule-lexer-init",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 747
+        },
+        {
+          "id": "indexing/imports/expected-artifacts-index",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 985
+        },
+        {
+          "id": "indexing/imports/external-fallback-ephemeral-cache",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 961
+        },
+        {
+          "id": "indexing/imports/fs-exists-bloom-hash-work",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 120
+        },
+        {
+          "id": "indexing/imports/fs-exists-index",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 954
+        },
+        {
+          "id": "indexing/imports/fs-exists-index-abort",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 951
+        },
+        {
+          "id": "indexing/imports/gate-eligibility",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 933
+        },
+        {
+          "id": "indexing/imports/generated-counterpart-suffixes",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 943
+        },
+        {
+          "id": "indexing/imports/import-build-context-plugins",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 951
+        },
+        {
+          "id": "indexing/imports/import-build-context-typescript-emit",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 921
+        },
+        {
+          "id": "indexing/imports/import-cache-contract-matrix",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 1085
+        },
+        {
+          "id": "indexing/imports/import-cache-neighborhood-invalidation",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 982
+        },
+        {
+          "id": "indexing/imports/import-extraction-handoff",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 1688
+        },
+        {
+          "id": "indexing/imports/import-graph-contract-matrix",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 1101
+        },
+        {
+          "id": "indexing/imports/import-graph-incremental-reuse",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 1117
+        },
+        {
+          "id": "indexing/imports/import-graph-resolver-adapter-diagnostics",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 824
+        },
+        {
+          "id": "indexing/imports/import-links",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 15921
+        },
+        {
+          "id": "indexing/imports/import-resolution",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 1068
+        },
+        {
+          "id": "indexing/imports/import-resolution-build-context-cache-key",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 1108
+        },
+        {
+          "id": "indexing/imports/import-resolution-cache-save-failure-health",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 193
+        },
+        {
+          "id": "indexing/imports/import-resolution-language-coverage",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 1148
+        },
+        {
+          "id": "indexing/imports/import-resolution-llvm-fixture-paths",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 1058
+        },
+        {
+          "id": "indexing/imports/import-resolution-lookup-shape-guards",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 103
+        },
+        {
+          "id": "indexing/imports/import-resolution-policy-contract-matrix",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 2721
+        },
+        {
+          "id": "indexing/imports/import-resolution-typescript-runtime-extensions",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 1606
+        },
+        {
+          "id": "indexing/imports/import-resolver-relative",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 922
+        },
+        {
+          "id": "indexing/imports/import-scan",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 848
+        },
+        {
+          "id": "indexing/imports/import-scan-budget-runtime-signals",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 1006
+        },
+        {
+          "id": "indexing/imports/import-scan-live-suppression-diagnostics",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 1001
+        },
+        {
+          "id": "indexing/imports/import-scan-non-js-end-to-end",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 1032
+        },
+        {
+          "id": "indexing/imports/import-scan-post-graph-stats",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 990
+        },
+        {
+          "id": "indexing/imports/json-collector-admission/anonymous-budget",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 105
+        },
+        {
+          "id": "indexing/imports/json-collector-admission/cancelled",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 102
+        },
+        {
+          "id": "indexing/imports/json-collector-admission/deep-jsonc-only",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 124
+        },
+        {
+          "id": "indexing/imports/json-collector-admission/duplicate-depth",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 115
+        },
+        {
+          "id": "indexing/imports/json-collector-admission/frontier",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 113
+        },
+        {
+          "id": "indexing/imports/json-collector-admission/invalid-reference",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 114
+        },
+        {
+          "id": "indexing/imports/json-collector-admission/json-budget",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 107
+        },
+        {
+          "id": "indexing/imports/json-collector-admission/jsonc-budget",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 118
+        },
+        {
+          "id": "indexing/imports/json-collector-admission/line-admission",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 112
+        },
+        {
+          "id": "indexing/imports/json-collector-admission/match-budget",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 120
+        },
+        {
+          "id": "indexing/imports/json-collector-admission/namespace-budget",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 127
+        },
+        {
+          "id": "indexing/imports/json-collector-admission/nested-keys",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 119
+        },
+        {
+          "id": "indexing/imports/json-collector-admission/registry-handoff",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 106
+        },
+        {
+          "id": "indexing/imports/json-collector-admission/resolved-budget",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 121
+        },
+        {
+          "id": "indexing/imports/json-collector-admission/source-admission",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 109
+        },
+        {
+          "id": "indexing/imports/json-collector-admission/strict-syntax",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 121
+        },
+        {
+          "id": "indexing/imports/json-collector-admission/time-after",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 111
+        },
+        {
+          "id": "indexing/imports/json-collector-admission/time-before",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 119
+        },
+        {
+          "id": "indexing/imports/json-collector-admission/wide",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 112
+        },
+        {
+          "id": "indexing/imports/json-collector-admission/zero-caps",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 114
+        },
+        {
+          "id": "indexing/imports/lookup-fingerprint-compatibility-gate",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 1058
+        },
+        {
+          "id": "indexing/imports/non-indexed-fallback-root-containment",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 1052
+        },
+        {
+          "id": "indexing/imports/parsed-attribute-and-r-import-replay",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 1176
+        },
+        {
+          "id": "indexing/imports/path-utils-normalize-rel-path",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 83
+        },
+        {
+          "id": "indexing/imports/prose-skip",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 11702
+        },
+        {
+          "id": "indexing/imports/proto-safe-module-keys",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 752
+        },
+        {
+          "id": "indexing/imports/replay-corpus",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 936
+        },
+        {
+          "id": "indexing/imports/replay-harness",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 1020
+        },
+        {
+          "id": "indexing/imports/replay-harness-gate-eligible-stats",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 1042
+        },
+        {
+          "id": "indexing/imports/replay-perf-budget",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 1386
+        },
+        {
+          "id": "indexing/imports/replay-stage-percentiles",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 992
+        },
+        {
+          "id": "indexing/imports/require-regex-fallback-on-lexer-failure",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 1069
+        },
+        {
+          "id": "indexing/imports/stage-pipeline-metrics",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 1041
+        },
+        {
+          "id": "indexing/imports/swift-registry-bridge",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 307
+        },
+        {
+          "id": "indexing/imports/typescript-path-pattern-ties",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 345
+        },
+        {
+          "id": "indexing/imports/unresolved-cache-budget-correctness",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 1072
+        },
+        {
+          "id": "indexing/imports/warm-lookup-structure-reuse",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 1081
+        },
+        {
+          "id": "indexing/imports/warning-dispositions",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 82
+        },
+        {
+          "id": "indexing/imports/xml-schema-reference-replay",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 1200
+        },
+        {
+          "id": "indexing/incremental/manifest-bound-snapshots",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 1008
+        },
+        {
+          "id": "indexing/incremental/shared-buffer-hash-for-imports-and-bundle",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 997
+        },
+        {
+          "id": "indexing/language-registry/build-language-context-skip-prepare",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 191
+        },
+        {
+          "id": "indexing/language-registry/config-data-adapters-contract",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 217
+        },
+        {
+          "id": "indexing/language-registry/config-literal-import-identities",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 1009
+        },
+        {
+          "id": "indexing/language-registry/descriptor-routing-parity",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 188
+        },
+        {
+          "id": "indexing/language-registry/import-extraction-receipts",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 754
+        },
+        {
+          "id": "indexing/language-registry/linguist-metadata-parity",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 966
+        },
+        {
+          "id": "indexing/language-registry/metadata-import-boundary/extensions",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 466
+        },
+        {
+          "id": "indexing/language-registry/metadata-import-boundary/filtered",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 615
+        },
+        {
+          "id": "indexing/language-registry/metadata-import-boundary/special-files",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 302
+        },
+        {
+          "id": "indexing/language-registry/metadata-import-boundary/unknown",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 184
+        },
+        {
+          "id": "indexing/language-registry/operation-import-boundary/cold-registry",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 427
+        },
+        {
+          "id": "indexing/language-registry/operation-import-boundary/config",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 280
+        },
+        {
+          "id": "indexing/language-registry/operation-import-boundary/javascript",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 515
+        },
+        {
+          "id": "indexing/language-registry/operation-import-boundary/load-failure",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 184
+        },
+        {
+          "id": "indexing/language-registry/operation-import-boundary/prose",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 187
+        },
+        {
+          "id": "indexing/language-registry/operation-import-boundary/typescript",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 526
+        },
+        {
+          "id": "indexing/language-registry/prepare-chunk-builder-options-forwarding",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 84
+        },
+        {
+          "id": "indexing/language-registry/python-ast-heavy-skip",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 149
+        },
+        {
+          "id": "indexing/language-registry/python-prepared-ast-runtime",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 614
+        },
+        {
+          "id": "indexing/language-registry/python-prepared-chunks",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 657
+        },
+        {
+          "id": "indexing/language-registry/registry-wiring",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 174
+        },
+        {
+          "id": "indexing/language-registry/special-file-catalog-parity",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 84
+        },
+        {
+          "id": "indexing/language-registry/typescript-callable-payload",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 970
+        },
+        {
+          "id": "lang/css-import-source-tokens",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 134
+        },
+        {
+          "id": "lang/javascript/javascript-contract-matrix",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 1144
+        }
+      ]
+    },
+    "originalFailures": [
+      "indexing/imports/css-import-registry-replay",
+      "indexing/imports/import-extraction-handoff",
+      "indexing/incremental/manifest-bound-snapshots",
+      "indexing/incremental/shared-buffer-hash-for-imports-and-bundle",
+      "indexing/language-registry/import-extraction-receipts"
+    ],
+    "interpretation": "All 109 selected import/registry controls passed. The intervening broken-source positive remains covered with bounded tokenized candidates and refresh-required replay; original failure receipts are retained."
+  },
+  "nativeTui": {
+    "preparation": {
+      "startedAt": "2026-10-29T00:05:50.6211253Z",
+      "exitCode": 0,
+      "finishedAt": "2026-10-29T00:06:14.8997657Z",
+      "sourceHead": "0a148ab1369ef06952455a1b668c36cbc459d8e0",
+      "target": "x86_64-pc-windows-msvc",
+      "kind": "release-build-preparation",
+      "toolchain": "1.88.0",
+      "compilerWarningLines": [],
+      "logSha256": "7fb7479602882ff8f6927cee30b5bae6ea8f578cea1f245f2538b175c228c6c8",
+      "testTimingQualification": false
+    },
+    "initial": {
+      "sourceHead": "0a148ab1369ef06952455a1b668c36cbc459d8e0",
+      "reportSha256": "e609196f934a7a49e722ce56b49aa874b3be29efa42d72b25de5b1195b45336a",
+      "summary": {
+        "durationMs": 8780,
+        "failed": 1,
+        "passed": 2,
+        "skipped": 0,
+        "total": 3
+      },
+      "tests": [
+        {
+          "id": "tui/build-verify-manifest",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 2881
+        },
+        {
+          "id": "tui/frame-capture-harness",
+          "status": "failed",
+          "exitCode": 1,
+          "timedOut": false,
+          "durationMs": 5016
+        },
+        {
+          "id": "tui/headless-smoke",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 871
+        }
+      ]
+    },
+    "final": {
+      "sourceHead": "98682fdbba758821347e88b99a7665534805a6cb",
+      "reportSha256": "c4d983870212bc3d71d676bc0851928ee84274bd762551ded2c9a73fa50ffc02",
+      "summary": {
+        "durationMs": 8906,
+        "failed": 0,
+        "passed": 7,
+        "skipped": 0,
+        "total": 7
+      },
+      "tests": [
+        {
+          "id": "indexing/imports/parsed-attribute-and-r-import-replay",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 1463
+        },
+        {
+          "id": "indexing/imports/require-regex-fallback-on-lexer-failure",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 1112
+        },
+        {
+          "id": "indexing/incremental/dependency-scoped-signatures",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 473
+        },
+        {
+          "id": "lang/contracts/r-static-argument-ownership",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 238
+        },
+        {
+          "id": "tui/build-verify-manifest",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 1794
+        },
+        {
+          "id": "tui/frame-capture-harness",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 3052
+        },
+        {
+          "id": "tui/headless-smoke",
+          "status": "passed",
+          "exitCode": 0,
+          "timedOut": false,
+          "durationMs": 761
+        }
+      ]
+    },
+    "renderOwner": {
+      "path": "crates/pairofcleats-tui/src/interaction.rs",
+      "compactWidthBelow": 100,
+      "compactHeightBelow": 32,
+      "desktop": {
+        "width": 120,
+        "height": 40
+      },
+      "originalCompactVariantsRetained": true,
+      "fixtureFiles": [
+        {
+          "path": "tests/tui/fixtures/bench-replay.json",
+          "sha256": "48089dcba240196f8102fe79a29f70b85a4d10e41f932e0be984c216ae93edc3"
+        },
+        {
+          "path": "tests/tui/fixtures/external-observability.json",
+          "sha256": "38ba73d24564d1a6af3c92a06679b8bf1663e4b63a2f587fed79b09be0a99e04"
+        },
+        {
+          "path": "tests/tui/fixtures/indexing-summary.json",
+          "sha256": "8661f66ebd5b997412f7e0367d278ede01b1ca3ca561ccfa1b71e4e799bd29eb"
+        },
+        {
+          "path": "tests/tui/fixtures/navigation-scroll.json",
+          "sha256": "fbc693e26c6d7d02ce0700f07e45e88e91930ef1a1914b679d1e477032b13ca2"
+        },
+        {
+          "path": "tests/tui/fixtures/operator-workflows.json",
+          "sha256": "c3bb5960ddc3dae84dece0f73e3a2ef4cde8dce80d99f165874674335e46e686"
+        },
+        {
+          "path": "tests/tui/fixtures/service-summary.json",
+          "sha256": "ac1b8a7c4f66d88fb6389c7e42efb21cc4649ec25ea507bf4e7d0aa38e336e56"
+        },
+        {
+          "path": "tests/tui/fixtures/supervised-session.json",
+          "sha256": "c125e6dd5d68dc8fee29833c9ca0ebbf9e583bd9426f6c1fb3222e0eb35a8374"
+        }
+      ]
+    }
+  },
+  "issueReviews": [
+    {
+      "issue": 1497,
+      "originalBodyReviewed": true,
+      "commentsReviewed": 0,
+      "qualified": true,
+      "githubStateAtReceipt": "open",
+      "checks": [
+        "lang/contracts/r-static-argument-ownership",
+        "indexing/imports/parsed-attribute-and-r-import-replay",
+        "indexing/imports/require-regex-fallback-on-lexer-failure",
+        "indexing/incremental/dependency-scoped-signatures"
+      ],
+      "proof": "Exact original require/character.only reproduction, bare/quoted/named/positional arguments, comments/newlines/options, escapes/raw strings, dynamic/member/namespace/lookalike negatives, registered relations, bounded source/match/time behavior and persisted refresh policy."
+    }
+  ],
+  "remaining": {
+    "fullSuitePass": false,
+    "vectorOnlyServiceReadiness": "open; no dense/search requirement waived",
+    "nativeWorkflowLifetimes": "open",
+    "sqliteStage3CrashAttribution": "open",
+    "otherBaselineFailures": "not globally requalified",
+    "externalQualifications": [
+      "Linux/macOS",
+      "physical links",
+      "optional backends",
+      "real models",
+      "release qualification"
+    ]
+  },
+  "localRawReceipts": "Historical author-workspace .tmp/tasks/windows-import-repair-286-20261028; not distributed with clean checkouts.",
+  "frontGate": {
+    "checks": [
+      {
+        "log": ".tmp/tasks/windows-import-repair-286-20261028/front-289-format.log",
+        "exitCode": 0,
+        "startedAt": "2026-10-29T00:15:36.3221072Z",
+        "id": "format",
+        "finishedAt": "2026-10-29T00:16:22.1130896Z"
+      },
+      {
+        "log": ".tmp/tasks/windows-import-repair-286-20261028/front-289-config-budget.log",
+        "exitCode": 0,
+        "startedAt": "2026-10-29T00:16:22.1178221Z",
+        "id": "config-budget",
+        "finishedAt": "2026-10-29T00:16:25.0967491Z"
+      },
+      {
+        "log": ".tmp/tasks/windows-import-repair-286-20261028/front-289-env-check.log",
+        "exitCode": 0,
+        "startedAt": "2026-10-29T00:16:25.1003496Z",
+        "id": "env-check",
+        "finishedAt": "2026-10-29T00:16:26.7999146Z"
+      },
+      {
+        "log": ".tmp/tasks/windows-import-repair-286-20261028/front-289-generated-freshness.log",
+        "exitCode": 0,
+        "startedAt": "2026-10-29T00:16:26.8024642Z",
+        "id": "generated-freshness",
+        "finishedAt": "2026-10-29T00:16:41.0814795Z"
+      },
+      {
+        "log": ".tmp/tasks/windows-import-repair-286-20261028/front-289-command-surface.log",
+        "exitCode": 0,
+        "startedAt": "2026-10-29T00:16:41.0836266Z",
+        "id": "command-surface",
+        "finishedAt": "2026-10-29T00:16:44.4308044Z"
+      },
+      {
+        "log": ".tmp/tasks/windows-import-repair-286-20261028/front-289-workflow-contract.log",
+        "exitCode": 0,
+        "startedAt": "2026-10-29T00:16:44.4324910Z",
+        "id": "workflow-contract",
+        "finishedAt": "2026-10-29T00:16:44.7235219Z"
+      },
+      {
+        "log": ".tmp/tasks/windows-import-repair-286-20261028/front-289-gate.log",
+        "exitCode": 0,
+        "startedAt": "2026-10-29T00:16:44.7255594Z",
+        "id": "gate",
+        "finishedAt": "2026-10-29T00:16:52.9449822Z"
+      },
+      {
+        "log": ".tmp/tasks/windows-import-repair-286-20261028/front-289-diff-check.log",
+        "exitCode": 0,
+        "startedAt": "2026-10-29T00:16:52.9474116Z",
+        "id": "diff-check",
+        "finishedAt": "2026-10-29T00:16:53.0331698Z"
+      }
+    ],
+    "sourceHead": "98682fdbba758821347e88b99a7665534805a6cb",
+    "tree": "71755c2b333a40bf775b5f7418fd173c9a3680f6",
+    "gateSummary": {
+      "durationMs": 5598,
+      "failed": 0,
+      "passed": 40,
+      "skipped": 0,
+      "total": 40
+    },
+    "gateReportSha256": "d3267a75e6b0e551555ec3fc4d857a2d682328215ea1710b59f114d475f4307c"
+  },
+  "nativeStatusLogAudit": {
+    "failedFixtureLogsScanned": 279,
+    "patterns": [
+      "0xC0000005",
+      "3221225477",
+      "-1073741819",
+      "ACCESS_VIOLATION",
+      "SIGSEGV"
+    ],
+    "matchingLines": 4,
+    "onlyMatchingCase": "shared/subprocess/windows-cdb-child/simulated-native-exit",
+    "interpretation": "All matching lines are the intentional process.exit fixture signed/unsigned assertion. No actual native-crash attribution follows from this text scan."
+  }
+}

@@ -13,7 +13,12 @@ recorded test-process access-violation exits. Native lifecycle results were
 1,412/1,504 passing; performance/resource contracts were 184/202 passing, run
 serially with unchanged thresholds on a shared desktop. The receipt retains
 every fixture, explicit exclusion and report hash. Shared repairs and focused
-qualification continue; the suite remains failing. Earlier 40-case front gates,
+qualification continue; the suite remains failing. Checkpoint 285 passed all
+eight front-gate checks and closed nine original issue acceptances after verified
+publication. The import/registry repair passes 109/109 cases; the Windows Cargo
+follow-up passes all three TUI build/capture cases after a pinned offline release
+build. Four R argument/replay controls also pass in the
+[source-bound follow-up](../archived/windows-import-and-tui-validation-2026-10-28.md). These focused observations,
 152-case pinned Rust checks and ConPTY observations retain their own source
 identities in the linked historical receipts.
 
