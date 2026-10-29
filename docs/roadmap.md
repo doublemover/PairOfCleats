@@ -1,6 +1,6 @@
 # PairOfCleats Roadmap
 
-Status: Windows baseline retained; focused failure repairs and qualification
+Status: P2/P3 closeout; Windows repairs and focused qualification
 Last audited: 2026-10-29
 Last reconciled: 2026-10-29
 Canonical for: initiative status, execution order, and remaining work
@@ -8,9 +8,9 @@ Canonical for: initiative status, execution order, and remaining work
 ## Current GitHub repair program
 
 The [closeout review](archived/github-issue-closeout-2026-10-26.md) and later
-qualified checks closed 85 reports. The
-[current reconciliation](archived/windows-partial-validation-checkpoint-305-2026-10-28.md)
-leaves **685 open**: 449 qualification-pending,
+qualified checks closed 90 reports. The
+[current reconciliation](archived/p2-p3-closeout-2026-10-29.md)
+leaves **680 open**: 444 qualification-pending,
 147 partial and 89 unresolved entries.
 
 The [assessment](archived/github-issue-closeout-2026-10-26.json) maps sources,
@@ -58,7 +58,7 @@ await execution; lifecycle policy (#1267) and custom cleanup (#1574) remain.
 The [owner queue](archived/remaining-issue-batches-2026-10-26.json) orders
 implementation by severity and shared dependencies:
 
-1. P1 #1574: [multi-repo proof](archived/windows-cleanup-multi-repository-2026-10-29.md) qualifies Windows cleanup; custom deletion and #1627 remain.
+1. [P2/P3 closeout](archived/p2-p3-closeout-2026-10-29.md): 318 targets remain after five qualified closures; six editor-dependent issues are excluded. P1 #1574 remains outside this request.
 2. Worker/service ownership and provider installation (#631); [compilation context and report refresh](archived/throughput-materialization-implementation-2026-10-28.md) await qualification.
 3. Language/semantic/replay and retrieval/API evidence contracts; [comment source/demand ownership](archived/comment-pipeline-implementation-2026-10-27.md)
    has 38 authored JS/TS/Rust/import cases. [Frontmatter interiors](archived/frontmatter-content-implementation-2026-10-27.md)

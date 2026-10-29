@@ -6,6 +6,15 @@ Current execution evidence and unresolved failures belong to the
 [deep test audit](../archived/deep-test-audit-2026-10-18.md) and the
 [active roadmap](../roadmap.md).
 
+The [P2/P3 closeout](../archived/p2-p3-closeout-2026-10-29.md) reuses exact
+Windows hosted observations at `4c535a148` where source and complete issue controls
+match. Five reports close without rerunning passing controls. Six editor-dependent
+issues are excluded by request. Current repairs preserve cached native header
+inputs, isolate workspace configuration and close real LSP streams. The console
+observer uses the existing direct native-call method; both original Windows
+TUI workflows pass locally with unchanged 18/26/30-second bounds. Hosted acceptance
+of those repairs and the remaining issue qualifications are still pending.
+
 The [Git admission repair](../archived/windows-git-admission-deadlock-2026-10-29.md)
 reproduces the Windows sample-index stall under four CPUs/16 GB: queued Git work
 retained compute needed by earlier commands. Queue admission now suspends CPU
