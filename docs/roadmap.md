@@ -29,6 +29,13 @@ timeouts. Import/registry follow-ups now pass 109/109 cases, including all five
 original failures. Three Cargo/TUI cases and four R acceptance controls pass;
 queued vector-only readiness and other catalogued failures remain.
 
+The [security/validation follow-up](archived/windows-security-and-validation-followup-2026-10-28.md)
+patches both October 28 dependency advisories; fresh locked setup has no warnings
+or errors and audit reports zero vulnerabilities. Affected checks pass 76/77;
+queued vector-only readiness remains failing. Debugger error retention and
+profile-aware optional inputs are repaired. Next full Windows pass: checkpoint
+305, twenty commits after `7b05a3dbd`, with explicit inventory/exclusion coverage.
+
 [Five dependency retirements](archived/dependency-ownership-implementation-2026-10-27.md)
 removed 110 lock records. Locked bootstrap passed without warnings/errors:
 37 packages, 33 routes, 8 patches/26 targets/61 hunks. Retained inputs and exact
@@ -85,18 +92,15 @@ Historical [459-case observations](archived/windows-historical-rechecks-2026-10-
 their original source identities; the current baseline supersedes their active counts.
 The
 [next repair receipt](archived/windows-failure-repairs-2026-10-24.md) records
-37 passing checks plus 15 cache/setup, 12 import/lease, 19 runtime and eight coverage/probe checks; heap
-acknowledgement, batch byte receipts and closed admission now work correctly.
-It also records dependency, regex/PHP, preflight, delegation, MCP, VSIX and fallback fixes. No access violation was
-recorded; these observations are not a final-tree deep-suite pass.
+the earlier cache/setup, import/lease, runtime, coverage/probe and service repairs
+with their individual checks; these are historical, not final-tree acceptance.
 The earlier CDB-attributed
 Node-API finalizer lifetime repair retains its fail-before, ten-process and
 exposing-fixture evidence; no crash workaround or Node downgrade is used.
 Older campaign details remain in the linked source-bound receipts.
-The current narrow security repair excludes DOCX deleted/moved-from text,
+The published document security repair excludes DOCX deleted/moved-from text,
 versions extraction and bundle reuse, and corrects UNC service-root authority.
-Focused regressions and the 40-case front gate passed and were published. Existing
-published document indexes need a normal rebuild to reflect corrected extraction.
+Its focused checks/front gate passed. Existing indexes need a normal rebuild.
 
 Continue on `codex/pr557-audit-repairs-20261012` through
 [PR #572](https://github.com/doublemover/PairOfCleats/pull/572), retaining its

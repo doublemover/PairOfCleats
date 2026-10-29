@@ -22,6 +22,15 @@ build. Four R argument/replay controls also pass in the
 152-case pinned Rust checks and ConPTY observations retain their own source
 identities in the linked historical receipts.
 
+The [security/validation follow-up](../archived/windows-security-and-validation-followup-2026-10-28.md)
+at `bfa2e8beb` passes 76/77 required affected cases, with one queued vector-only
+readiness failure, no timeouts and no skips. Fresh locked Windows setup verifies
+37 packages/33 routes/eight patches without warnings/errors; audit reports zero
+vulnerabilities after the Hono/RE2JS advisory repairs. Synthetic CDB controls
+qualify original launch-error retention, not a new native crash attribution.
+Profile-aware sparse omissions preserve present/corrupt and required-dense
+negatives. Next full Windows candidate acceptance is scheduled at checkpoint 305.
+
 Current Clangd acquisition and managed-file lifetime source is **unvalidated**
 at `773e6893e`; [20 authored checks and remaining qualification](../archived/clangd-acquisition-implementation-2026-10-27.md)
 separate inert archive/format fixtures from actual Windows installation,
