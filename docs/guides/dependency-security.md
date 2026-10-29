@@ -12,12 +12,14 @@ establish a fresh hosted security scan.
 ## October 29 stable-version refresh
 
 The current manifest selects the latest stable direct dependency releases checked
-on October 29, including Babel 8, Astro 4, GraphQL 17, LanceDB 0.40, Arrow 21,
+on October 29, including Babel 8, Astro 4, GraphQL 17, LanceDB 0.41, Arrow 21,
 Tree-sitter 0.25.1 and the maintained `@prometheus-io/client` metrics package.
 The latter replaces deprecated `prom-client`. Scoped LanceDB overrides use the
 current Transformers and OpenAI SDKs; the old optional Transformers 3 dependency
 otherwise reintroduced vulnerable Sharp. Consumers retain LanceDB's own Arrow
-instance for its declared schema contract.
+instance for its declared schema contract. LanceDB 0.41 now declares support for
+Arrow 15 through 21. The follow-up registry check leaves only the TypeScript
+compatibility exception below behind its upstream `latest` tag.
 
 TypeScript stays on 6.0.3, the latest complete JavaScript compiler API and
 `tsserver` distribution. TypeScript 7.0.2's native distribution omits both required

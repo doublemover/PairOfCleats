@@ -3662,9 +3662,13 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts, onCleanup) {
           logArtifactLocation(mode, 'dense_vectors_code_uint8_bin', `${codeVectorsBasePath}.bin`);
         }
 
-        // Keep the owned stage inside this generation without adding two long
-        // path components before Windows mkdtemp and native backend filenames.
-        const backendStageRoot = modeIndexRoot || indexDir;
+        // Windows Lance writers cannot persist their long native filenames
+        // below a generation path. Use this launch's already-authorized repo
+        // cache for its private stage, then retain the same closed-payload,
+        // same-volume publication into the selected immutable generation.
+        // An external index never grants authority over another cache root.
+        const backendStageRoot = process.platform === 'win32' && isPathWithinRoot(indexDir, repoCacheRootResolved)
+          ? repoCacheRootResolved : modeIndexRoot || indexDir;
         const backendStageDir = await scheduleIo(async () => {
           await fs.mkdir(backendStageRoot, { recursive: true });
           return fs.mkdtemp(path.join(backendStageRoot, '.ann-'));

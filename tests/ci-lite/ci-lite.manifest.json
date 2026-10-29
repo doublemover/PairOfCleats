@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 1225,
+    "hero": 1226,
     "matrix": 108,
     "meta": 49,
     "soak": 1,
@@ -8311,6 +8311,12 @@
     {
       "id": "indexing/stage1/extracted-prose-extras-cache-lru",
       "order": 1383,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "embeddings/runner/lancedb-generation-paths",
+      "order": 1384,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }
