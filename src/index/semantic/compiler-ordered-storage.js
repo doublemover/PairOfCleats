@@ -159,6 +159,11 @@ export const createCompilerOrderedStorage = ({ ts, checker, isDefaultLibrary, ow
       }
       if (ts.isVariableDeclaration(parent) && ts.isIdentifier(parent.name)
         && (parent.name === node || parent.initializer === node) && (parent.parent.flags & ts.NodeFlags.Const)) return true;
+      // Returning this bounded aggregate consumes its current element values
+      // before the function exits. Treating that same expression as an earlier
+      // escape invalidates a returned view/copy before its own CFG operation.
+      // Unsupported containers, captures and external calls still escape.
+      if (ts.isReturnStatement(parent) && parent.expression === node && resolve(node)?.kind === 'uint8') return true;
       if ((ts.isPropertyAccessExpression(parent) || ts.isElementAccessExpression(parent)) && parent.expression === node) {
         if (ts.isDeleteExpression(parent.parent)) return false;
         return locationsFor(parent).length > 0 || ts.isPropertyAccessExpression(parent)

@@ -34,7 +34,7 @@ const sample = (count, withViews = false) => {
   assert.ok(visits <= nodes.length * 4, 'owner discovery and storage passes have linear node work');
   return { functions: count, withViews, nodes: nodes.length, visits, lookups, signatures };
 };
-const results = [100, 200, 400].map(sample);
+const results = [100, 200, 400].map(count => sample(count));
 assert.ok(results[2].visits < results[0].visits * 4.1);
 const viewResults = [30, 60, 120].map(count => sample(count, true));
 assert.ok(viewResults[2].visits < viewResults[0].visits * 4.1);
