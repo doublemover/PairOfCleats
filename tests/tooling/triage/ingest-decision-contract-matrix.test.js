@@ -5,6 +5,8 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 
 import { getTriageContext, runJson } from '../../helpers/triage.js';
+import { promoteRecordFields, snapshotFindingPackages } from '../../../src/integrations/triage/record-utils.js';
+import { buildTriageHistory } from '../../../tools/triage/history.js';
 
 const runLegacyWrapperCase = async () => {
   const { root, repoRoot, cacheRoot, env } = await getTriageContext({
@@ -134,8 +136,53 @@ const runSourceMatrixCase = async () => {
   assert.ok(Array.isArray(inspector.recordIds) && inspector.recordIds.length > 0);
 };
 
+const runInspectorDecisionOccurrences = async () => {
+  const { root, repoRoot, cacheRoot, env } = await getTriageContext({ name: 'triage-inspector-decision-occurrences' });
+  const input = path.join(cacheRoot, 'affected-packages.json');
+  const packages = [
+    { name: 'alpha', version: '1', filePath: '/a', fixedInVersion: '1.1' },
+    { name: 'zeta', version: '2', filePath: '/b', fixedInVersion: '2.2' },
+    { name: 'zeta', version: '3', filePath: '/c', fixedInVersion: '3.3' }
+  ];
+  const finding = { findingArn: 'synthetic:decision-occurrences', title: 'Affected packages',
+    packageVulnerabilityDetails: { vulnerabilityId: 'CVE-MULTI', vulnerablePackages: packages } };
+  const ingest = async value => {
+    await fsPromises.writeFile(input, JSON.stringify([value]));
+    return runJson('ingest Inspector occurrences', [path.join(root, 'tools/triage/ingest.js'), '--source', 'aws_inspector',
+      '--in', input, '--repo', repoRoot], { env });
+  };
+  const first = await ingest(finding);
+  const stored = JSON.parse(await fsPromises.readFile(first.records[0].jsonPath, 'utf8'));
+  assert.equal(stored.packages.length, 3);
+  const repeated = await ingest({ ...finding, packageVulnerabilityDetails: { ...finding.packageVulnerabilityDetails,
+    vulnerablePackages: [...packages].reverse() } });
+  assert.deepEqual(repeated.recordIds, first.recordIds, 'reordered import preserves parent identity');
+  const reordered = JSON.parse(await fsPromises.readFile(repeated.records[0].jsonPath, 'utf8'));
+  assert.deepEqual(reordered.packages, stored.packages, 'occurrence identity and associated values are order invariant');
+  const saved = runJson('save Inspector decision', [path.join(root, 'tools/triage/decision.js'), '--repo', repoRoot,
+    '--finding', first.recordIds[0], '--status', 'accept', '--justification', 'Full affected-package observation'], { env });
+  const decision = JSON.parse(await fsPromises.readFile(saved.jsonPath, 'utf8'));
+  assert.deepEqual(decision.packages, stored.packages);
+  assert.equal(new Set(decision.packages.map(pkg => pkg.occurrenceId)).size, 3);
+  assert.equal(decision.decision.findingRecordId, stored.recordId);
+  assert.ok(decision.decision.findingObservation, 'the decision binds its saved finding observation');
+  const markdown = await fsPromises.readFile(saved.mdPath, 'utf8');
+  for (const pkg of stored.packages) {
+    assert.ok(markdown.includes(pkg.name)); assert.ok(markdown.includes(pkg.installedVersion));
+    assert.ok(markdown.includes(pkg.fixedVersion)); assert.ok(markdown.includes(pkg.manifestPath));
+  }
+  assert.deepEqual(promoteRecordFields(decision, ['packageName']).packageName, ['alpha', 'zeta']);
+  const related = { recordId: 'other-finding', packages: [stored.packages.find(pkg => pkg.name === 'zeta')] };
+  const history = await buildTriageHistory({ recordsDir: saved.recordsDir, recordId: related.recordId, finding: related });
+  assert.ok(history.some(row => row.recordId === saved.recordId), 'nonrepresentative package alone contributes to actual history matching');
+  const legacy = { package: { name: 'legacy', installedVersion: '1' } };
+  assert.deepEqual(snapshotFindingPackages(legacy).packages, [legacy.package]);
+  assert.deepEqual(snapshotFindingPackages({ packages: [] }).packages, []);
+};
+
 await runLegacyWrapperCase();
 await runGenericExposureCase();
 await runDecisionCase();
 await runSourceMatrixCase();
+await runInspectorDecisionOccurrences();
 console.log('tooling triage ingest/decision contract matrix test passed');

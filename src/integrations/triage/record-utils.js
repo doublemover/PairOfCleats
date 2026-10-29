@@ -15,6 +15,17 @@ export const getRecordPackages = record => Array.isArray(record?.packages)
   ? record.packages.filter(pkg => pkg && typeof pkg === 'object')
   : record?.package && typeof record.package === 'object' ? [record.package] : [];
 
+/** Snapshot the finding's admitted package occurrences for a manual decision.
+ * The compatibility representative is separate from the canonical collection;
+ * legacy records remain readable without manufacturing occurrence identities.
+ * @param {object} finding
+ * @returns {{package:object|null,packages:object[]}}
+ */
+export const snapshotFindingPackages = finding => ({
+  package: finding?.package ? structuredClone(finding.package) : null,
+  packages: structuredClone(getRecordPackages(finding))
+});
+
 /**
  * Build a stable record id from a source and stable key.
  * @param {string} source
