@@ -225,7 +225,7 @@
     "nodesReturned": 4,
     "edgesReturned": 3,
     "pathsReturned": 3,
-    "workUnitsUsed": 3
+    "workUnitsUsed": 13
   },
   "capsTriggered": {
     "maxCandidates": 2,

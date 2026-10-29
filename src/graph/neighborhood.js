@@ -226,7 +226,7 @@ export const buildGraphNeighborhood = ({
   const cacheKeyInfo = traversalCacheEnabled
     ? buildLocalCacheKey({
       namespace: 'graph-neighborhood',
-      version: '2',
+      version: '3',
       payload: {
         indexSignature: graphIndexEffective.indexSignature || null,
         repoRoot: effectiveRepoRoot || null,
@@ -400,7 +400,22 @@ export const buildGraphNeighborhood = ({
     });
   }
   const resolveGraphNeighbors = createDirectedGraphNeighborResolver({ graphIndex: graphIndexEffective, iterableCsr: true });
+  // Preparation owns the checkpoint: deferred candidate commitment must not
+  // construct all evidence/projections before noticing an exhausted budget.
+  let preparationStopped = false;
+  const admitPreparation = () => {
+    if (preparationStopped) return false;
+    const state = budget.consume(1);
+    if (!state.stop) return true;
+    preparationStopped = true;
+    recordTruncation(state.reason, {
+      limit: state.limit,
+      observed: state.reason === 'maxWallClockMs' ? state.elapsedMs : state.used
+    });
+    return false;
+  };
   const candidateControls = () => ({
+    admit: admitPreparation,
     limit: normalizedCaps.maxFanoutPerNode == null ? Infinity
       : Math.max(0, normalizedCaps.maxFanoutPerNode - edgeCandidates.length),
     onCount: count => { observedCandidateCount += count; }
@@ -466,7 +481,7 @@ export const buildGraphNeighborhood = ({
       }
     }
 
-    if (includeGraph('usageGraph') && currentRef.type === GRAPH_NODE_TYPES.usageGraph && usageGraphIndex.size
+    if (!preparationStopped && includeGraph('usageGraph') && currentRef.type === GRAPH_NODE_TYPES.usageGraph && usageGraphIndex.size
       && allowEdge({ graph: 'usageGraph', edgeType: GRAPH_EDGE_TYPES.usageGraph, confidence: null })) {
       const neighbors = resolveGraphNeighbors(
         usageGraphIndex,
@@ -494,7 +509,7 @@ export const buildGraphNeighborhood = ({
       }
     }
 
-    if (includeGraph('importGraph') && importGraphIndex.size
+    if (!preparationStopped && includeGraph('importGraph') && importGraphIndex.size
       && allowEdge({ graph: 'importGraph', edgeType: GRAPH_EDGE_TYPES.importGraph, confidence: null })) {
       const sourceId = resolveImportSourceId(currentRef);
       if (sourceId) {
@@ -531,7 +546,7 @@ export const buildGraphNeighborhood = ({
       }
     }
 
-    if (includeGraph('symbolEdges') && hasSymbolEdges) {
+    if (!preparationStopped && includeGraph('symbolEdges') && hasSymbolEdges) {
       const symbolNeighbors = resolveSymbolNeighbors(
         hasSymbolEdges,
         symbolIndex,
@@ -539,12 +554,23 @@ export const buildGraphNeighborhood = ({
         normalizedDirection
       );
       for (const entry of symbolNeighbors) {
+        if (!admitPreparation()) break;
         if (!entry?.edge || !entry?.toRef) continue;
         const edgeType = entry.edge.type || 'symbol';
         const confidence = Number.isFinite(entry.edge.confidence)
           ? entry.edge.confidence
           : null;
         if (!allowEdge({ graph: 'symbolEdges', edgeType, confidence })) continue;
+        // Reserve bounded projection work before slicing/filtering/sorting the
+        // candidate prefix. A prepared row can be large even at fanout zero:
+        // its ambiguity/candidate-cap notices still belong to this request.
+        const rawCount = Array.isArray(entry.toRef.candidates) ? entry.toRef.candidates.length : 0;
+        const projectedCount = normalizedCaps.maxCandidates == null ? rawCount
+          : Math.min(rawCount, normalizedCaps.maxCandidates);
+        for (let slot = 0; slot < projectedCount; slot += 1) {
+          if (!admitPreparation()) break;
+        }
+        if (preparationStopped) break;
         const cappedToRef = applyCandidateCap(
           entry.toRef,
           normalizedCaps.maxCandidates,
@@ -564,10 +590,12 @@ export const buildGraphNeighborhood = ({
         // Keep source evidence when the candidate budget admits no traversal.
         // An explicit null prevents the generic resolved-endpoint fallback.
         if (!targets.length) {
+          if (!admitPreparation()) break;
           if (admitCandidate()) edgeCandidates.push({ edge, nextRef: null });
           continue;
         }
         for (const target of targets) {
+          if (!admitPreparation()) break;
           if (!admitCandidate()) continue;
           const symbolRef = { type: 'symbol', symbolId: target.symbolId };
           const witnessEdge = { from: fromRef, to: symbolRef, edgeType };
@@ -592,15 +620,6 @@ export const buildGraphNeighborhood = ({
 
     for (const candidate of edgeCandidates) {
       const edge = candidate.edge;
-      const budgetState = budget.consume(1);
-      if (budgetState.stop) {
-        recordTruncation(budgetState.reason, {
-          limit: budgetState.limit,
-          observed: budgetState.reason === 'maxWallClockMs' ? budgetState.elapsedMs : budgetState.used
-        });
-        queue.length = queueIndex;
-        break;
-      }
       if (minConfidence != null && edge.confidence != null && edge.confidence < minConfidence) {
         continue;
       }

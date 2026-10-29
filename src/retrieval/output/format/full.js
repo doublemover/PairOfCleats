@@ -1,3 +1,4 @@
+import { containsNormalizedText } from '../../normalized-text.js';
 import { sanitizeTerminalMetadata, sanitizeTerminalText, readSourcePreview, formatSourcePreview } from './source.js';
 import { highlightText } from '../../cli/highlight.js';
 import { collectDeclaredReturnTypes } from '../../../index/metadata/docmeta.js';
@@ -480,7 +481,7 @@ export function formatFullChunk({
   }
 
   if (matched && queryTokens.length && chunk.headline) {
-    const matchedTokens = queryTokens.filter((tok) => chunk.headline.includes(tok));
+    const matchedTokens = queryTokens.filter((tok) => containsNormalizedText(chunk.headline, [tok]));
     if (matchedTokens.length) {
       out += c.gray('   Matched: ') + matchedTokens.join(', ') + '\n';
     }

@@ -1,47 +1,11 @@
 import { reconcileSelectedScore } from '../scoring/score-adjustment.js';
-import { resolveGraphNodeIndexes } from '../../graph/prepared-node-indexes.js';
+import { resolveGraphNodeIndexes, resolveGraphRankingNeighbors } from '../../graph/prepared-node-indexes.js';
 import { createWorkBudget } from '../../graph/work-budget.js';
 import { resolveGraphRankingPolicy } from './graph-ranking-policy.js';
-import { compareStrings } from '../../shared/sort.js';
 
 const resolveChunkUid = (chunk) => (
   chunk?.chunkUid || chunk?.metaV2?.chunkUid || null
 );
-
-const resolveNeighbors = (index, nodeId) => {
-  const node = index.get(nodeId);
-  if (!node) return [];
-  const out = Array.isArray(node.out) ? node.out : [];
-  const incoming = Array.isArray(node.in) ? node.in : [];
-  const set = new Set([...out, ...incoming].filter(Boolean));
-  const list = Array.from(set);
-  list.sort(compareStrings);
-  return list;
-};
-
-/**
- * Create a memoized resolver that merges call+usage neighbors into one
- * deterministic sorted adjacency list per node.
- *
- * @param {Map<string, object>} callIndex
- * @param {Map<string, object>} usageIndex
- * @returns {(nodeId:string)=>string[]}
- */
-const createNeighborResolver = (callIndex, usageIndex) => {
-  const cache = new Map();
-  return (nodeId) => {
-    if (!nodeId) return [];
-    const cached = cache.get(nodeId);
-    if (cached) return cached;
-    const merged = Array.from(new Set([
-      ...resolveNeighbors(callIndex, nodeId),
-      ...resolveNeighbors(usageIndex, nodeId)
-    ]));
-    merged.sort(compareStrings);
-    cache.set(nodeId, merged);
-    return merged;
-  };
-};
 
 const resolveDegree = (index, nodeId) => {
   const node = index.get(nodeId);
@@ -165,18 +129,23 @@ export const applyGraphRanking = ({
     maxWallClockMs, expansionPolicy } = resolveGraphRankingPolicy(config);
   if (!degreeWeight && !proximityWeight) return { entries, stats: null };
 
-  const { callGraph: callIndex, usageGraph: usageIndex } = resolveGraphNodeIndexes(graphRelations, ['callGraph', 'usageGraph']);
-  const resolveMergedNeighbors = createNeighborResolver(callIndex, usageIndex);
+  const preparation = { nodeIndexesBuilt: 0, nodeSlotsVisited: 0, adjacencyListsBuilt: 0,
+    adjacencyInputsVisited: 0, adjacencyCacheHits: 0, elapsedMs: 0,
+    scope: 'generation lookup and demanded canonical adjacency; separate from traversal edge work' };
+  const { callGraph: callIndex, usageGraph: usageIndex } = resolveGraphNodeIndexes(graphRelations,
+    ['callGraph', 'usageGraph'], preparation);
+  const resolveMergedNeighbors = nodeId => resolveGraphRankingNeighbors(graphRelations, nodeId, preparation);
 
   const seedList = resolveSeeds(entries, seedSelection, seedK);
   const seedSet = new Set(seedList);
   const budget = createWorkBudget({ maxWorkUnits: maxGraphWorkUnits, maxWallClockMs });
-  const expanded = expandSeedNeighborhood({
+  const expanded = proximityWeight ? expandSeedNeighborhood({
     seedList,
     resolveMergedNeighbors,
     expansionPolicy,
     budget
-  });
+  }) : { depthByNode: new Map(seedList.map(id => [id, 0])), widthLimitedNodes: 0,
+    depthLimitedNodes: 0, stop: { reason: null } };
   const stopReason = resolveStopReason(expanded);
 
   const ranked = entries.map((entry) => {
@@ -225,6 +194,7 @@ export const applyGraphRanking = ({
   return {
     entries: ranked,
     stats: {
+      preparation,
       workUnitsUsed: budget.getUsed(),
       truncated: Boolean(stopReason),
       stopReason,

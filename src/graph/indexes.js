@@ -26,10 +26,11 @@ export const normalizeFileRef = (ref, repoRoot) => {
   return { ...ref, path: normalized };
 };
 
-export const buildGraphNodeIndex = (graph, { normalizeId = null } = {}) => {
+export const buildGraphNodeIndex = (graph, { normalizeId = null, metrics = null } = {}) => {
   const map = new Map();
   const nodes = Array.isArray(graph?.nodes) ? graph.nodes : [];
   for (const node of nodes) {
+    if (metrics) metrics.nodeSlotsVisited = (metrics.nodeSlotsVisited || 0) + 1;
     if (!node || typeof node.id !== 'string' || !node.id) continue;
     const normalizedId = normalizeId ? normalizeId(node.id) : node.id;
     if (!normalizedId) continue;

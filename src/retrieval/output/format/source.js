@@ -1,3 +1,4 @@
+import { normalizeMatchSpelling, containsNormalizedText, findNormalizedTextRange } from '../../normalized-text.js';
 import { createRenderSourceReader, isRenderSourceReader, MAX_RENDER_SCAN_CHARS } from '../source-snapshot.js';
 
 import { stripVTControlCharacters } from 'node:util';
@@ -30,40 +31,19 @@ export function sanitizeTerminalMetadata(value, seen = new WeakMap(), depth = 0)
 
 const normalizePreviewTokens = (tokens) => Array.isArray(tokens)
   ? [...new Set(tokens.slice(0, 64).filter((token) => typeof token === 'string' && token.trim())
-    .map((token) => sanitizeTerminalText(token, { multiline: false }).slice(0, 128).toLowerCase())
+    .map((token) => normalizeMatchSpelling(sanitizeTerminalText(token, { multiline: false }).slice(0, 128)))
     .filter(Boolean))]
   : [];
 
-const containsQueryText = (line, tokens) => {
-  const lower = line.toLowerCase();
-  return tokens.some((token) => lower.includes(token));
-};
+const containsQueryText = containsNormalizedText;
 
 const sourceSegments = new Intl.Segmenter('en', { granularity: 'grapheme' });
 const clipSourceLine = (text, limit, tokens) => {
   if (text.length <= limit) return text;
   if (limit <= 1) return '…';
-  const lower = text.toLowerCase();
-  const matches = tokens.map((token) => ({ index: lower.indexOf(token), length: token.length }))
-    .filter((match) => match.index >= 0).sort((a, b) => a.index - b.index);
-  const match = matches[0];
-  // Lowercasing can expand a character (for example İ). Translate the matched
-  // lowercased span back to original UTF-16 offsets before clipping source text.
-  let matchStart = 0;
-  let matchEnd = 0;
-  if (match) {
-    let originalOffset = 0;
-    let lowerOffset = 0;
-    for (const char of text) {
-      const lowerEnd = lowerOffset + char.toLowerCase().length;
-      if (lowerOffset <= match.index && match.index < lowerEnd) matchStart = originalOffset;
-      if (lowerEnd >= match.index + match.length) { matchEnd = originalOffset + char.length; break; }
-      originalOffset += char.length;
-      lowerOffset = lowerEnd;
-    }
-  }
-  const from = match && matchEnd > limit - 1
-    ? Math.max(0, matchStart - Math.floor(limit / 3)) : 0;
+  const match = findNormalizedTextRange(text, tokens);
+  const from = match && match.end > limit - 1
+    ? Math.max(0, match.start - Math.floor(limit / 3)) : 0;
   const prefix = from ? '…' : '';
   const parts = [];
   let length = prefix.length;

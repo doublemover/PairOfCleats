@@ -36,6 +36,40 @@ Default mode is `legacy` unless `auto` is explicitly requested.
   existing behavior. Legacy mode retains its existing status/short-timeout fast
   classification and diagnostic reservation.
 
+## Classifying overload and tool failures
+
+Legacy transport uses a JSON-RPC error; SDK tool transport uses a failed tool
+result inside an otherwise successful JSON-RPC response:
+
+```json
+{"jsonrpc":"2.0","id":7,"error":{"code":-32001,"message":"Tool queue is full.","data":{"code":"QUEUE_OVERLOADED"}}}
+{"jsonrpc":"2.0","id":7,"result":{"isError":true,"content":[{"type":"text","text":"{\"code\":\"QUEUE_OVERLOADED\",\"message\":\"Tool queue is full.\"}"}]}}
+```
+
+Both classify as code `QUEUE_OVERLOADED`. The typed helper also accepts a direct
+SDK CallToolResult, preserves unknown error codes and malformed text as failures,
+and rejects malformed/conflicting envelopes. It classifies tool responses rather
+than arbitrary initialize/ping results. For example:
+
+```ts
+import { normalizeMcpToolResponse } from '../../src/integrations/mcp/result-envelope.js';
+
+function classifyToolResponse(response: unknown) {
+  const outcome = normalizeMcpToolResponse(response);
+  if (!outcome.ok) {
+    return { state: outcome.code === 'QUEUE_OVERLOADED' ? 'admission-rejected' : 'failed',
+      code: outcome.code, message: outcome.message, details: outcome.details };
+  }
+  return { state: 'completed', result: outcome.result };
+}
+```
+
+The helper's `retryable` field identifies queue admission rejection; it performs no
+retry. `TOOL_TIMEOUT`, cancellation and transport loss are separate outcomes and
+do not establish that mutating work had no effects. Inspect operation state and
+idempotency before deciding whether to submit it again; do not automatically
+replay every failed or disconnected tool call.
+
 ## Tools
 - `index_status`
 - `config_status`
@@ -86,7 +120,7 @@ a percentage/latency guarantee. Existing response/error envelopes are unchanged.
 ## Error codes and troubleshooting
 PairOfCleats uses the shared error code registry in `docs/contracts/mcp-error-codes.md`.
 Common cases:
-- `QUEUE_OVERLOADED`: tool queue is full; raise `mcp.queueMax` or retry later.
+- `QUEUE_OVERLOADED`: admission was rejected because the tool queue is full; reduce concurrent submissions.
 - `INVALID_REQUEST`: payload validation failed; check required fields and types.
 - `INTERNAL`: unexpected failure; check server logs for details.
 

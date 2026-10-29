@@ -5,8 +5,12 @@ import os from 'node:os';
 import path from 'node:path';
 import { createSourcePreviewReader, readSourcePreview, formatSourcePreview } from '../../../src/retrieval/output/format/source.js';
 import { formatShortChunk } from '../../../src/retrieval/output/format/short.js';
+import { formatFullChunk } from '../../../src/retrieval/output/format/full.js';
+import { buildHighlightRegex } from '../../../src/retrieval/cli/highlight.js';
 import { color } from '../../../src/retrieval/cli/ansi.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
+import { renderSearchOutput } from '../../../src/retrieval/cli/render.js';
+import { createSearchOutputOptions, createSearchOutputHitState, captureSearchOutputStdout } from '../helpers/search-output-fixture.js';
 
 applyTestEnv();
 const repo = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-query-preview-'));
@@ -64,6 +68,36 @@ try {
   const unicode = readSourcePreview(repo, { ...hit, file: 'unicode.js', end: expandingCase.length }, { queryTokens: ['needle'] });
   assert.match(formatSourcePreview(unicode, { styled: false, columns: 40 }), /needle/,
     'case-folded match offsets must map back to the original source string');
+  for (const [original, query] of [['café', 'cafe\u0301'], ['ｃａｆé', 'café'],
+    ['CAFÉ', 'café'], ['ﬃ', 'ffi'], ['각', '각']]) {
+    const body = Array.from({ length: 30 }, (_, index) => index === 21
+      ? 'İ'.repeat(100) + ' '.repeat(200) + original + ' original source tail'
+      : '// context ' + index).join('\n');
+    await fs.writeFile(path.join(repo, 'normalized.js'), body);
+    const chunk = { ...hit, file: 'normalized.js', end: body.length, headline: original };
+    const tokens = [query.normalize('NFKD')];
+    const preview = readSourcePreview(repo, chunk, { maxLines: 3, maxChars: 120, queryTokens: tokens });
+    assert.equal(preview.startLine, 21, 'normalized source match chooses the actual late line');
+    assert.deepEqual(preview.matchLines, [1]);
+    const output = formatSourcePreview(preview, { styled: false, columns: 40 });
+    assert.ok(output.split('\n').some(line => line.includes('> ') && line.includes(original)));
+    assert.equal(output.isWellFormed(), true);
+    for (const format of [formatShortChunk, formatFullChunk]) {
+      const text = format({ chunk, index: 0, mode: 'code', color, queryTokens: tokens,
+        rx: buildHighlightRegex(tokens), matched: true, rootDir: repo,
+        layout: { columns: 55, styled: false, cacheKey: 'normalized-55' } });
+      assert.ok(text.split('\n').some(line => line.includes('> ') && line.includes(original)),
+        'actual direct formatter retains original graphemes and marked query context');
+      assert.match(text, /Matched:/);
+    }
+    const rendered = await captureSearchOutputStdout(() => renderSearchOutput(createSearchOutputOptions({
+      emitOutput: true, jsonOutput: false, jsonCompact: false, plain: true, rootDir: repo, color,
+      queryTokens: tokens, highlightRegex: buildHighlightRegex(tokens), rawQuery: query,
+      ...createSearchOutputHitState({ codeHits: [{ ...chunk, id: 0, score: 1 }] })
+    })));
+    assert.ok(rendered.split('\n').some(line => line.includes('> ') && line.includes(original)),
+      'the actual CLI render owner passes normalized tokens into source window selection');
+  }
   console.log('query-centered bounded source preview test passed');
 } finally {
   await fs.rm(repo, { recursive: true, force: true });

@@ -86,7 +86,10 @@ export const createDirectedGraphNeighborResolver = options => {
       fromId: incoming ? neighborId : nodeId, toId: incoming ? nodeId : neighborId });
     if (dir !== 'both') {
       for (const neighborId of neighbors(dir)) {
-        if (visited++ < limit) yield edge(neighborId, dir === 'in');
+        if (visited++ < limit) {
+          if (controls.admit && !controls.admit()) return;
+          yield edge(neighborId, dir === 'in');
+        }
         if (total != null && visited >= limit) break;
       }
       if (total == null) controls.onCount?.(visited);
@@ -97,12 +100,18 @@ export const createDirectedGraphNeighborResolver = options => {
     while (!out.done || !into.done) {
       if (into.done || !out.done && compareStrings(out.value, into.value) <= 0) {
         const neighborId = out.value;
-        if (visited++ < limit) yield edge(neighborId, false);
+        if (visited++ < limit) {
+          if (controls.admit && !controls.admit()) return;
+          yield edge(neighborId, false);
+        }
         out = outgoing.next();
         // A self-loop appears in both rows but records only one directed edge.
         if (!into.done && neighborId === nodeId && into.value === neighborId) into = incoming.next();
       } else {
-        if (visited++ < limit) yield edge(into.value, true);
+        if (visited++ < limit) {
+          if (controls.admit && !controls.admit()) return;
+          yield edge(into.value, true);
+        }
         into = incoming.next();
       }
       if (total != null && visited >= limit) break;

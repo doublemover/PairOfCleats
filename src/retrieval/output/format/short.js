@@ -1,3 +1,4 @@
+import { containsNormalizedText } from '../../normalized-text.js';
 import { sanitizeTerminalMetadata, readSourcePreview, formatSourcePreview } from './source.js';
 import { highlightText } from '../../cli/highlight.js';
 import { formatScoreBreakdown } from '../explain.js';
@@ -143,7 +144,7 @@ export function formatShortChunk({
   }
 
   if (matched && queryTokens.length && chunk.headline) {
-    const matchedTokens = queryTokens.filter((tok) => chunk.headline.includes(tok));
+    const matchedTokens = queryTokens.filter((tok) => containsNormalizedText(chunk.headline, [tok]));
     if (matchedTokens.length) {
       out += `\n  ${color.gray(`Matched: ${matchedTokens.join(', ')}`)}`;
     }

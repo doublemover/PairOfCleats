@@ -1,3 +1,4 @@
+import { projectNormalizedText } from '../normalized-text.js';
 const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 export function buildHighlightRegex(queryTokens, { caseSensitive = false } = {}) {
@@ -11,22 +12,11 @@ export function buildHighlightRegex(queryTokens, { caseSensitive = false } = {})
   }
 }
 
-const graphemes = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
-
 /** Match the analyzer's normalized spelling, then style whole original graphemes. */
 export const highlightText = (value, regex, style) => {
   const text = String(value || '');
   if (!text || !regex) return text;
-  const starts = [], ends = [], normalizedParts = [];
-  for (const { segment, index } of graphemes.segment(text)) {
-    const normalized = segment.normalize('NFKD');
-    normalizedParts.push(normalized);
-    for (let offset = 0; offset < normalized.length; offset += 1) {
-      starts.push(index);
-      ends.push(index + segment.length);
-    }
-  }
-  const normalized = normalizedParts.join('');
+  const { normalized, starts, ends } = projectNormalizedText(text);
   const matcher = new RegExp(regex.source, regex.flags.includes('g') ? regex.flags : `${regex.flags}g`);
   const ranges = [];
   for (const match of normalized.matchAll(matcher)) {

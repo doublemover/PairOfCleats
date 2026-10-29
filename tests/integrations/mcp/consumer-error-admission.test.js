@@ -36,3 +36,21 @@ try {
   await assert.rejects(cacheGc({ maxBytes: 100 }), { code: 'INTERNAL' });
 } finally { hooks.deregister(); delete globalThis[key]; }
 console.log('MCP consumers distinguish overload envelopes and reject cache-GC non-actions before setup.');
+
+for (const response of [null, [], 42, { jsonrpc: '2.0', result: 'not a tool result' },
+  { jsonrpc: '2.0', result: {} }, { result: { content: [], isError: 'false' } },
+  { error: { code: -32001 }, result: { content: [] } }]) {
+  const result = normalizeMcpToolResponse(response);
+  assert.equal(result.ok, false, 'unknown/malformed envelopes never become successful tool execution');
+  assert.equal(result.retryable, false);
+}
+const unknownProtocol = normalizeMcpToolResponse({ error: { code: 'malformed', data: { code: 5 } } });
+assert.equal(unknownProtocol.ok, false); assert.equal(unknownProtocol.code, 'INTERNAL');
+assert.equal(unknownProtocol.protocolCode, null); assert.equal(unknownProtocol.retryable, false);
+const unknownDomain = normalizeMcpToolResponse({ result: { isError: true,
+  content: [{ type: 'text', text: '{"code":"FUTURE_DOMAIN_FAILURE","message":"retained"}' }] } });
+assert.equal(unknownDomain.code, 'FUTURE_DOMAIN_FAILURE'); assert.equal(unknownDomain.message, 'retained');
+assert.equal(unknownDomain.retryable, false);
+const timeout = normalizeMcpToolResponse({ isError: true, content: [{ type: 'text', text: '{"code":"TOOL_TIMEOUT"}' }] });
+assert.equal(timeout.retryable, false);
+assert.equal(normalizeMcpToolResponse({ result: { content: [] } }).ok, true);

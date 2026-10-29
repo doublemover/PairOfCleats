@@ -36,7 +36,19 @@ omit the field or set it to `null`.
 
 Work budget is enforced by `createWorkBudget`:
 
-- `maxWorkUnits` limits the number of edge-consumption units.
+- `maxWorkUnits` limits cooperative preparation/admission units. Call, usage and import
+  candidates consume before endpoint descriptors and call-site evidence are constructed.
+  Symbol entries consume before inspection, then reserve one unit per candidate-prefix
+  slot before copying/sorting that prefix and one per target witness. Candidate-cap
+  notices from discarded symbol fanout remain visible when the budget admits their
+  preparation. An exhausted preparation budget preserves already admitted edges.
+- `stats.counts.workUnitsUsed` includes these preparation checks; it is not just the
+  number of returned edges. Graph lookup/count-index construction and cold reverse-CSR
+  setup remain separate costs. A prepared exact-count row avoids discarded descriptors;
+  legacy normalization/deduplication still uses its full exact-count fallback.
+- The stopping checkpoint is counted and stops when `used >= maxWorkUnits`, before
+  its associated operation. This is a cooperative operation bound, not a hard deadline
+  over synchronous index construction or sorting.
 - `maxWallClockMs` is checked every 256 work units (`checkEvery=256`).
 - When a limit is exceeded, traversal stops and a truncation record is emitted with:
   - `cap`: the cap that triggered (`maxWorkUnits` or `maxWallClockMs`).
