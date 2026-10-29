@@ -1,4 +1,4 @@
 {
   "schemaVersion": 1,
-  "cases": ["actions", "stale", "missing", "untrusted", "cancel"]
+  "cases": ["actions", "copy", "export", "stale", "missing", "untrusted", "cancel"]
 }

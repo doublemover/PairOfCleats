@@ -14,7 +14,7 @@ import { isProcessAlive } from '../../src/shared/locks/file-lock-owner.js';
 import { killProcessTree } from '../../src/shared/kill-tree.js';
 
 const mode = process.env.PAIROFCLEATS_TEST_ID?.split('tui/native-artifact-actions/')[1];
-assert.ok(['actions', 'stale', 'missing', 'untrusted', 'cancel'].includes(mode));
+assert.ok(['actions', 'copy', 'export', 'stale', 'missing', 'untrusted', 'cancel'].includes(mode));
 const root = process.cwd(), { dir } = await prepareIsolatedTestCacheDir(`native-artifacts-${mode}`);
 const repo = path.join(dir, 'selected repository'), bin = path.join(repo, 'commands');
 await fs.mkdir(bin, { recursive: true }); initGitRepo(repo);
@@ -111,17 +111,11 @@ try {
           await fs.rename(source, path.join(repo, 'retired.json')); await fs.writeFile(source, body);
         } else if (mode === 'missing') await fs.unlink(source);
         else if (mode === 'cancel') await fs.writeFile(path.join(bin, 'block'), 'explicit fixture hang');
-        terminal.write('o'); await rendered('Open the verified artifact in VS Code?');
-        terminal.write('\x1b'); await rendered('Artifact action cancelled before execution');
-        assert.deepEqual(await calls(), []);
-        terminal.write('o'); await rendered('Open the verified artifact in VS Code?'); terminal.write('\r');
-        if (mode === 'cancel') {
-          await wait(async () => (await calls()).length === 1, 'actual launcher running'); terminal.write('\x1b');
-          await rendered('Artifact open cancelled: ABORT_ERR');
-        } else if (mode === 'actions') {
-          await rendered('Artifact open complete');
-          assert.deepEqual((await calls())[0].args, ['--reuse-window', source]);
-          terminal.write('y'); await rendered('Artifact copy complete'); assert.equal((await calls())[1].input, source);
+        if (mode === 'copy') {
+          terminal.write('y'); await rendered('Artifact copy complete');
+          const recorded = await calls();
+          assert.equal(recorded.length, 1); assert.equal(recorded[0].input, source);
+        } else if (mode === 'export') {
           terminal.write('e'); await rendered('Export new file within the selected repository:');
           terminal.write('exported.json\r'); await rendered('Artifact export complete');
           assert.deepEqual(await fs.readFile(path.join(repo, 'exported.json')), body);
@@ -131,10 +125,23 @@ try {
           terminal.write('e'); await rendered('Export new file within the selected repository:');
           terminal.write('../escape.json\r'); await rendered('Artifact export failed: ERR_UNSAFE_FILE_PATH');
           await assert.rejects(fs.stat(path.join(dir, 'escape.json')), { code: 'ENOENT' });
+          assert.deepEqual(await calls(), [], 'exports use the production artifact owner directly');
         } else {
-          await rendered(`Artifact open failed: ${mode === 'stale' ? 'ERR_FILE_CHANGED'
-            : mode === 'missing' ? 'ENOENT' : 'ERR_TUI_EDITOR_UNTRUSTED'}`);
+          terminal.write('o'); await rendered('Open the verified artifact in VS Code?');
+          terminal.write('\x1b'); await rendered('Artifact action cancelled before execution');
           assert.deepEqual(await calls(), []);
+          terminal.write('o'); await rendered('Open the verified artifact in VS Code?'); terminal.write('\r');
+          if (mode === 'cancel') {
+            await wait(async () => (await calls()).length === 1, 'actual launcher running'); terminal.write('\x1b');
+            await rendered('Artifact open cancelled: ABORT_ERR');
+          } else if (mode === 'actions') {
+            await rendered('Artifact open complete');
+            assert.deepEqual((await calls())[0].args, ['--reuse-window', source]);
+          } else {
+            await rendered(`Artifact open failed: ${mode === 'stale' ? 'ERR_FILE_CHANGED'
+              : mode === 'missing' ? 'ENOENT' : 'ERR_TUI_EDITOR_UNTRUSTED'}`);
+            assert.deepEqual(await calls(), []);
+          }
         }
         assert.ok(screen().includes('Job job-1'), 'internal operations never retarget the selected job');
         const requests = (await lines(dir, 'pids.jsonl')).filter(row => row.request?.op === 'artifact:run').map(row => row.request);
