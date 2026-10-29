@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
+import { once } from 'node:events';
 import {
   createStaleProcessRestartHarness
 } from './helpers/stale-process-restart-harness.js';
@@ -12,7 +13,9 @@ try {
   assert.equal(spawnedChildren.length, 1, 'expected initial owned child spawn');
 
   const firstChild = spawnedChildren[0];
-  firstChild.stdin.emit('close');
+  const writerClosed = once(firstChild.stdin, 'close');
+  firstChild.stdin.destroy();
+  await writerClosed;
   assert.throws(() => client.start(), { code: 'ERR_LSP_RESTART_STALE_PROCESS' });
   await startAfterSettlement();
   assert.equal(spawnedChildren.length, 2, 'expected replacement child spawn after stale writer close');
