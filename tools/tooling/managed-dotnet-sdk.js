@@ -5,15 +5,15 @@ import { runOperationalChildWithStorage } from './operational-storage.js';
 import { resolveNoProvisionToolingEnvironment } from '../../src/shared/toolchain-env.js';
 import { bindManagedDotnetEnvironment } from './dotnet-environment.js';
 
-// Official release metadata + Azure Blob HEAD lengths observed 2026-10-23.
+// Official release metadata + Azure Blob HEAD lengths observed 2026-10-29.
 // No archive was downloaded/executed for this source receipt.
 // https://builds.dotnet.microsoft.com/dotnet/release-metadata/10.0/releases.json
-export const DOTNET_SDK_VERSION = '10.0.402';
-export const DOTNET_RUNTIME_VERSION = '10.0.13';
+export const DOTNET_SDK_VERSION = '10.0.403';
+export const DOTNET_RUNTIME_VERSION = '10.0.14';
 const WINDOWS = Object.freeze({
-  x64: ['x64', 300755826, 'ae4fd528cb7e9f6af6aaf7de36715a69f761f183744f1bb3025d19f5a92447090ec561410e46266c1d10a63781ed6f3de771760bc76c876d87daabc367b898cd'],
-  ia32: ['x86', 287249583, 'ce6d67d39958e46c97bb899dae19b402a27d382df5ba58f107187d5acda9306440d911fabd218c0a3b64146f1e6b0dcd85c90377bc167d8ef1220ab52cd69196'],
-  arm64: ['arm64', 291070603, 'd736fefa5c089ed5e1e854e1c07e5686e1e22638d627f6797633b92b60b1b5daddb607650be07c9f178cdbed1a944646c1a5cf3f12fb6aeef7c8cf149c9ba328']
+  x64: ['x64', 300745255, '7a114c318fa7f1d9822991b534b2814d0e78386ceda816b371f5141acefe741d87ccb606ede06cadac8f9ac5070e32b708a67bbd1619ff5e5a7858a27874ef48'],
+  ia32: ['x86', 287234824, '5b5e61d1552c606868d7ce9003c8e77ec22f49d209db5beb3b2440ff99d70b9787a7c3fafba53f730f923575a4e8bc5c5ce0a56e0d3b80b5be0168745402a4fc'],
+  arm64: ['arm64', 291061166, 'f78ecd8b48e24fd72ee604687b75f1bbb81505e8343f7d52e4baf9ea32372557eb30e88facaaad195bf2646fcce117fd941e49da0d5bdee1d60d63d836968429']
 });
 
 export const resolveManagedDotnetSdkRecipe = ({ platform = process.platform, arch = process.arch } = {}) => {

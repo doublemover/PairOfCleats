@@ -31,7 +31,7 @@ export const planManagedPrerequisites = ({ provisioning, scope = 'cache', env = 
       || (step.requiredComponents || []).some(component => step.family !== 'dotnet-runtime' || component !== 'Microsoft.NETCore.App'))) {
       blockers.push({ code: 'pinned-dotnet-requirements-unsupported', requirements: required.map(step => ({ id: step.id,
         versionRange: step.versionRange || null, requiredComponents: step.requiredComponents || [] })),
-      nextAction: 'The pinned SDK 10.0.402/Core runtime 10.0.13 does not cover these exact version/component requirements; no incompatible download is attempted.' });
+      nextAction: `The pinned SDK ${DOTNET_SDK_VERSION}/Core runtime ${DOTNET_RUNTIME_VERSION} does not cover these exact version/component requirements; no incompatible download is attempted.` });
     }
     else {
       const recipe = resolveManagedDotnetSdkRecipe({ platform, arch });

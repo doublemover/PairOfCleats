@@ -14,6 +14,7 @@ import { withManagedProvisioningRequirements } from '../../../tools/tooling/prov
 import { withOperationalTool } from '../../../tools/tooling/operational-execution.js';
 import { detectToolOwned } from '../../../tools/tooling/owned-detect.js';
 import { planToolLifecycle } from '../../../tools/tooling/lifecycle.js';
+import { DOTNET_SDK_VERSION, DOTNET_RUNTIME_VERSION } from '../../../tools/tooling/managed-dotnet-sdk.js';
 
 const temporary = await makeTempDir('poc-sdk-prerequisite-consumers-');
 try {
@@ -45,9 +46,9 @@ try {
     }
     const archive = Buffer.from('explicit immutable SDK fixture archive');
     let downloads = 0, selectedSdk;
-    const fixtureDescriptor = { schemaVersion: 1, toolId: 'dotnet-sdk', recipeId: 'explicit-trusted-sdk-fixture', version: '10.0.402',
+    const fixtureDescriptor = { schemaVersion: 1, toolId: 'dotnet-sdk', recipeId: 'explicit-trusted-sdk-fixture', version: DOTNET_SDK_VERSION,
       platform: process.platform, arch: process.arch, command: 'dotnet.exe', args: [], requiredFiles: ['dotnet.exe'],
-      archive: { url: 'https://fixture.invalid/sdk-10.0.402.zip', type: 'zip', bytes: archive.length, sha512: createHash('sha512').update(archive).digest('hex') },
+      archive: { url: `https://fixture.invalid/sdk-${DOTNET_SDK_VERSION}.zip`, type: 'zip', bytes: archive.length, sha512: createHash('sha512').update(archive).digest('hex') },
       storageEstimate: { complete: true, writes: [{ destination: 'artifacts', requiredBytes: 1024 * 1024 }] } };
     const publishFixture = () => installPinnedManagedTool({ toolingRoot, descriptor: fixtureDescriptor, approvedOrigins: ['https://fixture.invalid'],
       download: async ({ url }) => { downloads++; return { body: archive, sourceUrl: url }; },
@@ -55,8 +56,8 @@ try {
       verify: async ({ resourceId }) => ({ ok: true, level: 'explicit-trusted-fixture-only', consumerQualified: false, settlement: { resourceId, settled: true, pending: false } }) });
     const probe = async (selected, args, options) => {
       assert.equal(selected, selectedSdk.command); assert.equal(options.env.DOTNET_ROOT, selectedSdk.root);
-      return { ok: true, stdout: args[0] === '--list-sdks' ? `10.0.402 [${path.join(selectedSdk.root, 'sdk')}]\n`
-        : `Microsoft.NETCore.App 10.0.13 [${path.join(selectedSdk.root, 'shared', 'Microsoft.NETCore.App')}]\n` };
+      return { ok: true, stdout: args[0] === '--list-sdks' ? `${DOTNET_SDK_VERSION} [${path.join(selectedSdk.root, 'sdk')}]\n`
+        : `Microsoft.NETCore.App ${DOTNET_RUNTIME_VERSION} [${path.join(selectedSdk.root, 'shared', 'Microsoft.NETCore.App')}]\n` };
     };
     // The source recipe is Windows-only. The generic immutable prerequisite
     // generation and actual consumers below remain portable fixture contracts.
