@@ -1499,3 +1499,6 @@ tooling/reports/compare-models-partial-ranks/different-source
 tooling/reports/compare-models-partial-ranks/renumbered
 tooling/reports/compare-models-partial-ranks/missing-source
 storage/semantic/runtime-query-index-hash-close
+indexing/chunking/fallback-scalar-boundaries
+indexing/imports/dart-package-identity
+indexing/type-inference/crossfile/global-call-summary-budget

@@ -80,3 +80,7 @@ for (const input of ['', 'root=1\n']) {
 }
 const prefixOnly = 'prefix only';
 complete(prefixOnly, smartChunk({ text: prefixOnly, ext: '.md', mode: 'prose', context: { treeSitter: { enabled: false } } }));
+
+assert.deepEqual(resolveChunkingLimits({ ext: '.js', relPath: 'src/a.js', chunking: {
+  languageRoleLimits: { javascript: { src: { maxBytes: 512 } } }
+} }), { maxBytes: 512, maxLines: 260 }, 'overriding bytes preserves the role line default');

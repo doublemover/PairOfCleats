@@ -14,3 +14,8 @@ assert.equal(flows('const value = SOURCE();\nvalue = "safe"; SINK(value);').leng
 assert.equal(flows('const value = SOURCE() === other;\nSINK(value);').length, 1,
   'an equality expression on the RHS does not turn a real assignment into a comparison');
 console.log('local risk statement ordering passed');
+
+for (const rhs of ['value + "a==b"', 'value + "a!=b"', 'value === other', 'value <= other'])
+  assert.equal(flows('const value = SOURCE();\nconst alias = ' + rhs + ';\nSINK(alias);').length, 1,
+    'RHS operators or quoted comparison text do not erase the LHS assignment');
+assert.equal(flows('const value = "safe";\nconst alias = value + "a==b";\nSINK(alias);').length, 0);

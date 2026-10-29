@@ -212,3 +212,18 @@ const wrongFramework = runScenario({
 assert.equal(wrongFramework.flowRows.length, 0, 'expected framework-scoped semantics not to apply outside their framework');
 
 console.log('risk interprocedural framework semantics test passed');
+
+for (const cap of [0, 1, 2, undefined]) {
+  const chunks = createChunks(), runtime = createRuntime();
+  const source = chunks[0];
+  source.codeRelations.callDetails.push({ ...source.codeRelations.callDetails[0],
+    callee: 'query', calleeRaw: 'query', calleeNormalized: 'query', targetChunkUid: 'uid-sink', startLine: 5 });
+  if (cap === undefined) delete runtime.riskInterproceduralConfig.caps.maxBlockedExpansionsPerPartial;
+  else runtime.riskInterproceduralConfig.caps.maxBlockedExpansionsPerPartial = cap;
+  const { rows } = buildRiskSummaries({ chunks, runtime, mode: 'code' });
+  const result = computeInterproceduralRisk({ chunks, summaries: rows, runtime });
+  const frontier = result.partialFlowRows.find(row => row.frontier.chunkUid === 'uid-source');
+  assert.ok(frontier, 'the original missing-argument frontier remains present');
+  assert.equal(frontier.frontier.blockedExpansions.length, cap === undefined ? 0 : Math.min(cap, 2),
+    'zero, positive and default blocked-edge limits retain their exact meaning');
+}

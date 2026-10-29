@@ -15,5 +15,12 @@ try {
   const result=await reconcileIndexIdentity({indexDir,strict:true});
   assert.equal(result.ok,false);
   assert.equal(result.issues.some(issue=>issue.code==='ERR_ID_CHUNK_UID_MAP_DOC_ID_OMITTED'&&issue.docId===1),true);
+  assert.equal(result.issues.some(issue=>issue.code==='ERR_ID_CHUNK_UID_MAP_UID_MISMATCH'),false,
+    'the valid first mapping does not hide the omitted second row');
+  await fs.writeFile(path.join(indexDir,'chunk_uid_map.json'),JSON.stringify(chunks.map((row,docId)=>({docId,chunkUid:row.chunkUid,file:row.file}))));
+  manifest.pieces.find(piece=>piece.name==='chunk_uid_map').count=2;
+  await fs.writeFile(path.join(indexDir,'pieces','manifest.json'),JSON.stringify(manifest));
+  const healthy=await reconcileIndexIdentity({indexDir,strict:true});
+  assert.equal(healthy.ok,true,JSON.stringify(healthy.issues));
 } finally {await fs.rm(root,{recursive:true,force:true});}
 console.log('UID map reverse coverage passed');

@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 1340,
+    "hero": 1343,
     "matrix": 108,
     "meta": 49,
     "soak": 1,
@@ -9001,6 +9001,24 @@
     {
       "id": "storage/semantic/runtime-query-index-hash-close",
       "order": 1498,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/chunking/fallback-scalar-boundaries",
+      "order": 1499,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/imports/dart-package-identity",
+      "order": 1500,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/type-inference/crossfile/global-call-summary-budget",
+      "order": 1501,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

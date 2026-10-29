@@ -244,6 +244,18 @@ try {
   const bounded = await discoverImportResolutionGraphReports({ rootDir: replayRoot, maxReports: 1 });
   assert.equal(bounded.length, 1, 'current roots retain the requested discovery bound');
   assert.ok(currentPaths.includes(bounded[0]), 'current outputs precede historical roots within the bound');
+  const originalReaddir = fs.readdir;
+  try {
+    for (const reverse of [false, true]) {
+      fs.readdir = async (...args) => {
+        const entries = await originalReaddir(...args);
+        entries.sort((left, right) => String(left.name || left).localeCompare(String(right.name || right)));
+        return reverse ? entries.reverse() : entries;
+      };
+      assert.deepEqual(await discoverImportResolutionGraphReports({ rootDir: replayRoot, maxReports: 1 }), bounded,
+        'selection before the limit is independent of actual filesystem enumeration order');
+    }
+  } finally { fs.readdir = originalReaddir; }
 
   const loaded = await loadImportResolutionGraphReports(discovered);
   assert.equal(loaded.length, 4, 'current and legacy roots both contribute replay reports');
