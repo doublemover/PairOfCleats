@@ -58,7 +58,9 @@ export const finalizePipelineModeRun = async ({
     buildId: runtimeRef.buildId,
     log
   });
-  await enqueueEmbeddingJob({ runtime: runtimeRef, mode, indexDir: outDir, abortSignal: effectiveAbortSignal });
+  if (runtime.enqueueServiceEmbeddings !== false) {
+    await enqueueEmbeddingJob({ runtime: runtimeRef, mode, indexDir: outDir, abortSignal: effectiveAbortSignal });
+  }
   throwIfAborted(effectiveAbortSignal);
   crashLogger.updatePhase('done');
   cacheReporter.report();

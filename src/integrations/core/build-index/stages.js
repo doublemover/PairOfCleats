@@ -771,7 +771,7 @@ export const runSqliteStage = async ({
 export const runStage = async (
   stage,
   context,
-  { allowSqlite = true, onStage2ModeCompleted = null, deferPublication = false } = {}
+  { allowSqlite = true, onStage2ModeCompleted = null, deferPublication = false, enqueueServiceEmbeddings = true } = {}
 ) => {
   const {
     root,
@@ -812,6 +812,7 @@ export const runStage = async (
     await runtime.loggerScope.run(async () => {
       await attachSemanticEnrichmentRuntime(runtime, options.semanticEnrichmentDrain);
       phaseStage = runtime.stage || phaseStage;
+      runtime.enqueueServiceEmbeddings = enqueueServiceEmbeddings;
       runtime.featureMetrics = createFeatureMetrics({
         buildId: runtime.buildId,
         configHash: runtime.configHash,

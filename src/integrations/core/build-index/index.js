@@ -333,6 +333,9 @@ async function buildIndexRun(repoRoot, options = {}) {
     const stage2Result = await runStage('stage2', stageContext, {
       allowSqlite: false,
       deferPublication: includeSqlite,
+      // The streamed Stage3 callback owns admission from its pinned execution
+      // plan. Explicit Stage2/direct pipeline routes retain their local owner.
+      enqueueServiceEmbeddings: !includeEmbeddings,
       onStage2ModeCompleted: async ({ mode: modeItem, runtime }) => {
         if (!includeEmbeddings || !embedModes.includes(modeItem)) return null;
         const modeEmbedResult = await runEmbeddingsStage({
