@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { SQL_EXTS } from '../../../constants.js';
 import { toPosix } from '../../../../shared/file-paths.js';
 import { resolveFromLookup } from '../lookup.js';
 import { normalizeRelPath } from '../path-utils.js';
@@ -65,7 +66,8 @@ export const PATH_LIKE_IMPORTER_EXTS = new Set([
   '.toml',
   '.bazel',
   '.html',
-  '.htm'
+  '.htm',
+  ...SQL_EXTS
 ]);
 
 const PATH_LIKE_SPEC_EXTS = new Set([
@@ -115,7 +117,8 @@ const PATH_LIKE_SPEC_EXTS = new Set([
   '.php',
   '.pm',
   '.lua',
-  '.sh'
+  '.sh',
+  ...SQL_EXTS
 ]);
 
 export const resolveFromCandidateList = (candidates, lookup) => {

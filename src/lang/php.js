@@ -406,11 +406,16 @@ export function buildPhpRelations(text, phpChunks) {
  * @returns {{doc:string,params:string[],returns:(string|null),signature:(string|null),decorators:string[],modifiers:string[],visibility:(string|null),returnType:(string|null)}}
  */
 export function extractPhpDocMeta(chunk) {
+  const meta = chunk?.meta || {};
   return buildDefaultDocMeta(chunk, {
     includeReturnType: true,
     decoratorsFrom: 'attributes',
     includeModifiers: true,
-    includeVisibility: true
+    includeVisibility: true,
+    extraFields: {
+      ...(meta.paramTypes && typeof meta.paramTypes === 'object' ? { paramTypes: { ...meta.paramTypes } } : {}),
+      ...(meta.paramDefaults && typeof meta.paramDefaults === 'object' ? { paramDefaults: { ...meta.paramDefaults } } : {})
+    }
   });
 }
 

@@ -2,6 +2,7 @@ import path from 'node:path';
 import picomatch from 'picomatch';
 import { isRelativePathEscape, toPosix } from '../../shared/file-paths.js';
 import { EXTS_CODE, EXTS_PROSE } from '../constants.js';
+import { normalizeRecordSniffBytes } from './record-sample.js';
 
 const RECORD_EXT_TYPES = new Map([
   ['.log', 'log'],
@@ -48,9 +49,7 @@ export const normalizeRecordsConfig = (input = {}) => {
     detect: cfg.detect !== false,
     includeGlobs: normalizeGlobs(cfg.includeGlobs),
     excludeGlobs: normalizeGlobs(cfg.excludeGlobs),
-    sniffBytes: Number.isFinite(Number(cfg.sniffBytes))
-      ? Math.max(0, Math.floor(Number(cfg.sniffBytes)))
-      : 16384
+    sniffBytes: normalizeRecordSniffBytes(cfg.sniffBytes)
   };
 };
 

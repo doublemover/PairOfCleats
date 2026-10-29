@@ -49,7 +49,18 @@ export const includeCDeclaration = node => ['function_declarator', 'operator_cas
   ? isCPrototype(node) : includeCTagDeclaration(node);
 export const resolveCDeclarationRange = node => {
   const owner = ['function_declarator', 'operator_cast'].includes(node.type) ? prototypeOwner(node) : null;
-  return owner ? resolveDeclarationPrefixRange(owner) : null;
+  if (owner) return resolveDeclarationPrefixRange(owner);
+  if (['struct_specifier', 'enum_specifier', 'union_specifier'].includes(node.type)) {
+    if (node.parent?.type === 'type_definition') return resolveDeclarationPrefixRange(node.parent);
+    if (node.parent?.type === 'declaration' && !field(node.parent, 'declarator')) {
+      return resolveDeclarationPrefixRange(node.parent);
+    }
+    if (node.nextSibling?.type === ';') {
+      const prefix = resolveDeclarationPrefixRange(node);
+      return { start: prefix.start, end: Math.max(prefix.end, node.nextSibling.endIndex) };
+    }
+  }
+  return null;
 };
 export const resolveCppName = (node, text) => {
   const name = field(node, 'name');

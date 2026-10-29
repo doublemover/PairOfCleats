@@ -178,8 +178,8 @@ function extractRuleName(text, node) {
   const block = Array.from({length:getNamedChildCount(node)},(_,i)=>getNamedChild(node,i)).find(child=>child.type === 'block');
   const end = selectors?.endIndex ?? block?.startIndex ?? node.endIndex;
   // The grammar already resolved punctuation inside strings and selector lists.
-  // Keep the complete normalized prelude as identity; signature is the preview.
-  return text.slice(selectors?.startIndex ?? node.startIndex,end).replace(/\s+/g,' ').replace(/;\s*$/,'').trim();
+  // Keep source spelling as identity, including quoted whitespace; signature is the preview.
+  return text.slice(selectors?.startIndex ?? node.startIndex,end).replace(/;\s*$/,'').trim();
 }
 
 function gatherRuleNodes(root, budget) {

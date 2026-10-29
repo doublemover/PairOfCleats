@@ -59,8 +59,9 @@ export const createYamlChunker = ({ parseStructure = parseYamlStructure, now = (
   for(let documentIndex=0;documentIndex<documents.length;documentIndex++) {
     const document=documents[documentIndex];
     const indexValue=document.documentIndex ?? documentIndex;
-    const start=documentIndex === 0 ? 0 : document.start;
-    const end=documents[documentIndex+1]?.start ?? source.length;
+    const start=documentIndex === 0 ? 0 : document.sourceStart ?? document.start;
+    const nextDocument=documents[documentIndex+1];
+    const end=nextDocument?.sourceStart ?? nextDocument?.start ?? source.length;
     const entries=headings.filter(heading=>heading.documentIndex === indexValue);
     if(!entries.length) {
       chunks.push({start,end,name: documents.length === 1 && !workflow ? 'root' : `document ${indexValue}`,kind:'ConfigSection',meta:{...meta,documentIndex:indexValue,
@@ -72,6 +73,7 @@ export const createYamlChunker = ({ parseStructure = parseYamlStructure, now = (
       const heading = entries[index];
       chunks.push({ start: index === 0 ? start : heading.sectionStart, end: entries[index + 1]?.sectionStart ?? end,
         name: heading.name, kind: 'ConfigSection', meta: { ...meta, title: heading.name, documentIndex: heading.documentIndex,
+          documentRange:{start:document.start,end:document.end},
           keyRange: heading.keyRange, valueRange: heading.valueRange, propertyRange: heading.propertyRange,
           sectionRangeSource: 'application-line-boundaries', propertyRangeSource: 'application-key/value-span' } });
     }

@@ -147,4 +147,39 @@ assert.ok(
   'expected nested payload keys to be excluded from top-level fast-scan routes'
 );
 
+// Original reproduction plus array/object nesting, escaped structural bytes,
+// and a real default-threshold input must agree with the parse path.
+for (const value of [
+  { nested: { name: 'Wrong', abstract: 'Nested Wrong' }, name: 'Right', abstract: 'Info' },
+  { nested: [{ name: 'Wrong', title: 'Wrong title', parent: 'Wrong parent', abstract: 'Wrong abstract' }],
+    title: 'Right title', parent: 'Right parent', description: 'Right description' },
+  { nested: { deep: { name: 'Wrong' } }, escaped: '\\" } ] name : abstract',
+    name: 'Right \\" title', abstract: 'Info' },
+  { nested: [{ name: 'Wrong' }], name: 'Right' }
+]) {
+  for (const shaped of [{ '/docs': value }, [{ route: '/docs', ...value }]]) {
+    const text = JSON.stringify(shaped);
+    const parsed = compactDocsSearchJsonText(text, { fastScanMinInputChars: 0 });
+    const scanned = compactDocsSearchJsonText(text, { fastScanMinInputChars: 1 });
+    assert.equal(scanned, parsed, text);
+    assert.ok(!scanned.includes('Wrong'));
+  }
+}
+const largeRaw = JSON.stringify({ '/docs': { nested: { name: 'Wrong' }, name: 'Right', abstract: 'Info' },
+  '/padding': { name: 'Padding', content: 'x'.repeat(1_500_000) },
+  '/later': { nested: [{ name: 'Wrong later' }], name: 'Later', abstract: 'Later info' } });
+assert.ok(largeRaw.length >= 1_500_000);
+const largeCompacted = compactDocsSearchJsonText(largeRaw);
+assert.ok(largeCompacted.includes('/docs | Right | Info'));
+assert.ok(largeCompacted.includes('/later | Later | Later info'));
+assert.ok(!largeCompacted.includes('Wrong'));
+// A truncated bounded window must not promote a nested field to fill a missing
+// top-level field or borrow it from the following route.
+const boundedRaw = JSON.stringify({ '/first': { nested: { name: 'Wrong' }, padding: 'x'.repeat(800), name: 'OutsideWindow' },
+  '/second': { name: 'Second' } });
+const bounded = compactDocsSearchJsonText(boundedRaw, { fastScanMinInputChars: 1, fastScanWindowChars: 512 });
+assert.ok(bounded.startsWith('/first\n'));
+assert.ok(bounded.includes('/second | Second'));
+assert.ok(!bounded.includes('Wrong') && !bounded.includes('OutsideWindow'));
+
 console.log('docs search json fast path test passed');

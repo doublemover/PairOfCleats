@@ -2,8 +2,9 @@ import { projectNativeCallArguments } from './call-arguments.js';
 import { getNamedChild, getNamedChildCount } from './ast.js';
 import { buildLineIndex, offsetToLine } from '../../shared/lines.js';
 import { createOwnedNativeFlow, MANAGED_NATIVE_FLOW_LANGUAGES } from './flow-facts.js';
+import { readStaticShellWord } from '../shared/shell-word.js';
 
-export const SYNTAX_CALL_FACTS_VERSION = 8;
+export const SYNTAX_CALL_FACTS_VERSION = 9;
 const callTypes = new Set(['call_expression', 'function_call', 'call', 'method_invocation', 'invocation_expression', 'function_call_expression', 'juxt_function_call',
   'member_call_expression', 'nullsafe_member_call_expression', 'scoped_call_expression', 'object_creation_expression', 'command']);
 const scopeBarriers = new Set(['function_definition', 'function_declaration', 'method', 'singleton_method', 'function_item',
@@ -49,6 +50,7 @@ export const attachSyntaxCallFacts = (root, text, chunks, { maxNodes = 250000, d
       chunk.meta.syntaxCallOmissions = Object.freeze(omitted);
       const reasons = [
         ...(truncated ? ['traversal-budget'] : []),
+        ...(root.hasError === true ? ['parser-recovered'] : []),
         ...(omitted?.anonymousScopeCalls ? ['unowned-callable-scope'] : []),
         ...(omitted?.declarationHeaderCalls ? ['declaration-header-call-roles'] : [])
       ];
@@ -92,6 +94,8 @@ export const attachSyntaxCallFacts = (root, text, chunks, { maxNodes = 250000, d
       'noexcept', 'noexcept_specifier', 'decltype'].includes(node.type)) {
       blockedOwner = owner || blockedOwner; owner = null; exclusion = 'declarationHeaderCalls';
     }
+    // Ruby defaults run as part of invocation and retain real syntax calls
+    // under their callable owner. The declared method name is not a call node.
     if (owner) flow?.observe(owner, node);
     const dartTarget = languageId === 'dart' ? dartCallTarget(node, text) : null;
     const invocation = callTypes.has(node.type) || dartTarget !== null;
@@ -101,15 +105,19 @@ export const attachSyntaxCallFacts = (root, text, chunks, { maxNodes = 250000, d
         || (languageId === 'perl' ? field(node, 'function_name') : null)
         || (['julia', 'kotlin'].includes(languageId) && node.type === 'call_expression' ? getNamedChild(node, 0) : null);
       let callee = dartTarget?.text ?? textOf(calleeNode, text);
+      const shellRaw = languageId === 'shell' ? callee : null;
+      const shellWord = languageId === 'shell' ? readStaticShellWord(callee) : null;
+      if (shellWord && shellWord.end === callee.length) callee = shellWord.value;
       const receiver = field(node, 'receiver') || field(node, 'object') || field(node, 'scope')
         || (languageId === 'perl' ? field(node, 'package_name') : null);
       if (receiver && callee && receiver.endIndex <= calleeNode.startIndex) callee = `${textOf(receiver,text)}.${callee}`;
       const dynamicRole = ['subscript_expression', 'element_access_expression', 'index_expression',
-        'array_access_expression', 'parenthesized_expression', 'call_expression', 'lambda_expression'].includes(calleeNode?.type);
+        'array_access_expression', 'parenthesized_expression', 'call_expression', 'lambda_expression'].includes(calleeNode?.type)
+        || languageId === 'shell' && (!shellWord || shellWord.end !== shellRaw.length);
       const staticName = !dynamicRole && /^[\p{L}_$][\p{L}\p{N}_$!.:\\?=+\-*/<>\[\]]*$/u.test(callee);
       const start = dartTarget?.startIndex ?? node.startIndex;
       const startLine = offsetToLine(lines, start), endLine = offsetToLine(lines, node.endIndex);
-      const raw = callee || textOf(node, text);
+      const raw = shellRaw || callee || textOf(node, text);
       let previewEnd = Math.min(raw.length, 512);
       if (previewEnd < raw.length && /[\uD800-\uDBFF]/.test(raw[previewEnd - 1])) previewEnd -= 1;
       const detail = Object.freeze({ caller: owner.name, callee: staticName ? callee.replace(/::|:/g,'.') : null,
@@ -124,7 +132,14 @@ export const attachSyntaxCallFacts = (root, text, chunks, { maxNodes = 250000, d
         callerStart: owner.start, callerEnd: owner.end });
       owner.meta.syntaxCalls.push(detail);
     }
-    for (let i = getNamedChildCount(node) - 1; i >= 0; i--) stack.push({ node: getNamedChild(node,i), owner, blockedOwner, exclusion });
+    const childCount = getNamedChildCount(node);
+    // Admit the frontier before materializing native child handles. A broad
+    // node cannot allocate/read its entire tail after the visit budget ends.
+    if (childCount > maxNodes - visited - stack.length) {
+      finish(true);
+      return;
+    }
+    for (let i = childCount - 1; i >= 0; i--) stack.push({ node: getNamedChild(node,i), owner, blockedOwner, exclusion });
   }
   finish(false);
 };

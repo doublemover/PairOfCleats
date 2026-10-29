@@ -139,6 +139,21 @@ export const createYamlStructureParser = ({ loadParser = () => require('yaml'),
       const jobs = [];
       const importEntries = [];
       const documentRanges = [];
+      // Standalone stream trivia/directives lead the following document. An
+      // explicit end marker and its inline comment stay with the preceding one.
+      // Content-node ranges remain the untouched vendor ranges below.
+      const documentSourceStarts = [];
+      let preludeStart = null;
+      for (const token of tokens) {
+        checkTime();
+        if (token.type === 'document') {
+          documentSourceStarts.push(preludeStart ?? token.offset);
+          preludeStart = null;
+        } else if (token.type === 'doc-end') preludeStart = null;
+        else if (['directive', 'comment', 'newline', 'space', 'byte-order-mark'].includes(token.type)) {
+          preludeStart ??= token.offset;
+        }
+      }
       const warningCodes = new Set();
       let nodeCount = 0;
       let unresolvedAliases = 0;
@@ -152,7 +167,8 @@ export const createYamlStructureParser = ({ loadParser = () => require('yaml'),
           if (typeof warning?.code === 'string') warningCodes.add(warning.code);
         }
         const documentRange = rangeOf(document);
-        documentRanges.push(documentRange);
+        documentRanges.push(Object.freeze({ ...documentRange,
+          sourceStart: documentIndex === 0 ? 0 : documentSourceStarts[documentIndex] ?? documentRange.start }));
         const data = document.contents ? [{ node: document.contents, depth: 0, parent: document.range }] : [];
         while (data.length) {
           checkTime();

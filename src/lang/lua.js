@@ -58,7 +58,8 @@ const LUA_DOC_OPTIONS = {
 const LUA_TREE_SITTER_NODE_TYPES = new Set([
   'function_declaration',
   'local_function',
-  'assignment_statement'
+  'assignment_statement',
+  'function_definition'
 ]);
 
 const LUA_TREE_SITTER_LOGGED = new Set();
@@ -124,6 +125,7 @@ const logLuaTreeSitterOnce = (options, key, message) => {
 
 const extractLuaTreeSitterName = (node, text) => {
   if (!node || typeof text !== 'string') return null;
+  if (node.type === 'function_definition') return null;
   if (node.type === 'assignment_statement') {
     const children = Array.from({length:getNamedChildCount(node)},(_,i)=>getNamedChild(node,i));
     const variables = children.find(child=>child.type === 'variable_list');
@@ -214,13 +216,22 @@ const buildLuaTreeSitterChunks = (text, options = {}) => {
     const chunks = [];
     const declarations = new Map();
     for (const node of nodes) {
-      const start = Number(node?.startIndex);
+      const rangeOwner = node.type === 'assignment_statement' && node.parent?.type === 'variable_declaration' ? node.parent : node;
+      const start = Number(rangeOwner?.startIndex);
       const end = Number(node?.endIndex);
       if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) continue;
       const name = extractLuaTreeSitterName(node, text);
       if (!name) continue;
       const kind = name.includes('.') ? 'MethodDeclaration' : 'FunctionDeclaration';
-      const signature = (text.slice(start, Math.min(end, start + 240)).split('\n', 1)[0] || '').trim();
+      let callable = node;
+      if (node.type === 'assignment_statement') {
+        const values = Array.from({length:getNamedChildCount(node)},(_,i)=>getNamedChild(node,i)).find(child=>child.type === 'expression_list');
+        callable = getNamedChild(values,0);
+      }
+      const parameters = callable.childForFieldName?.('parameters');
+      const signatureEnd = parameters?.endIndex ?? Math.min(end,start+240);
+      const signature = text.slice(start,Math.min(signatureEnd,start+2000)).replace(/\s+/gu,' ').trim();
+      const body = callable.childForFieldName?.('body');
       const startLine = offsetToLine(lineIndex, start);
       const docstring = extractDocComment(lines, Math.max(0, startLine - 1), LUA_DOC_OPTIONS);
       const chunk = {
@@ -233,18 +244,21 @@ const buildLuaTreeSitterChunks = (text, options = {}) => {
           endLine: offsetToLine(lineIndex, Math.max(start, end - 1)),
           signature,
           params: parseLuaParams(signature),
-          docstring
+          docstring,
+          definitionStart:callable.startIndex,definitionEnd:callable.endIndex,
+          ...(body ? {bodyStart:body.startIndex,bodyEnd:body.endIndex} : {})
         }
       };
       chunks.push(chunk);
-      let callable = node;
-      if (node.type === 'assignment_statement') {
-        const values = Array.from({length:getNamedChildCount(node)},(_,i)=>getNamedChild(node,i)).find(child=>child.type === 'expression_list');
-        callable = getNamedChild(values,0);
-      }
       declarations.set(`${callable.startIndex}:${callable.endIndex}`,chunk);
     }
     if (!chunks.length) return null;
+    const unownedFunctions = nodes.filter(node => node.type === 'function_definition'
+      && !declarations.has(`${node.startIndex}:${node.endIndex}`)).length;
+    for (const chunk of chunks) chunk.meta.luaDeclarationCoverage = {
+      state:unownedFunctions ? 'partial' : 'complete-supported-declaration-roles',
+      reason:unownedFunctions ? 'anonymous-or-ambiguous-function-owner' : null,unownedFunctions
+    };
     attachSyntaxCallFacts(rootNode,text,chunks,{maxNodes:200000,declarations});
     return normalizeDeclarationList(chunks);
   } finally {

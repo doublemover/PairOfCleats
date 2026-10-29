@@ -30,6 +30,29 @@ const SQL_KIND_MAP = {
 
 const SQL_CREATE_KINDS = ['table', 'view', 'function', 'procedure', 'trigger', 'index', 'schema', 'database'];
 
+// Client directives/trivia widen source envelopes while semantic statement
+// bounds remain explicit; this preserves the public declaration count.
+const retainSqlSourceGaps = (text, chunks) => {
+  const output = [], lines = buildLineIndex(text);
+  let cursor = 0, lastOwner = null;
+  for (const chunk of chunks) {
+    const owned = { ...chunk,meta:{...chunk.meta} };
+    if (owned.start > cursor) {
+      owned.meta.sqlStatementRange = {start:owned.start,end:owned.end};
+      owned.start=cursor;owned.meta.startLine=offsetToLine(lines,cursor);
+      owned.meta.sourceCoverage='statement-with-client-or-trivia-prefix';
+    }
+    output.push(owned);
+    if(owned.end >= cursor) {cursor=owned.end;lastOwner=owned;}
+  }
+  if(lastOwner && cursor < text.length) {
+    lastOwner.meta.sqlStatementRange ??= {start:lastOwner.start,end:lastOwner.end};
+    lastOwner.end=text.length;lastOwner.meta.endLine=offsetToLine(lines,text.length-1);
+    lastOwner.meta.sourceCoverage='statement-with-client-or-trivia-suffix';
+  }
+  return output;
+};
+
 /**
  * ASCII-only lowercase conversion for keyword scanning.
  * @param {number} code
@@ -136,31 +159,44 @@ function skipLeadingComments(text, start, options) {
  * Read one SQL name token starting at offset.
  * @param {string} text
  * @param {number} start
- * @returns {string}
+ * @returns {{name:string,segments:Array<object>}|null}
  */
-function readSqlNameToken(text, start) {
-  let cursor = start, name = '';
+function readSqlNameToken(text, start, options) {
+  let cursor = start;
+  const segments = [];
+  const dialect = String(options?.dialect || 'generic').toLowerCase();
   while(cursor < text.length) {
+    cursor = skipLeadingComments(text,cursor,options);
+    const segmentStart = cursor;
+    let value = '';
     const quote = text[cursor], close = quote === '[' ? ']' : quote;
     if(['"','`','['].includes(quote)) {
+      if (quote === '`' && !['generic','mysql','mariadb','sqlite'].includes(dialect)
+        || quote === '[' && !['generic','sqlite','mssql','tsql','sqlserver'].includes(dialect)) return null;
       cursor++;let closed=false;
       while(cursor < text.length) {
         if(text[cursor] === close) {
-          if(text[cursor+1] === close) {name+=close;cursor+=2;continue;}
+          if(text[cursor+1] === close) {value+=close;cursor+=2;continue;}
           cursor++;closed=true;break;
         }
-        name+=text[cursor++];
+        value+=text[cursor++];
       }
-      if(!closed) return '';
+      if(!closed) return null;
     } else {
       const match = text.slice(cursor).match(/^[\p{ID_Start}_][\p{ID_Continue}_$]*/u);
-      if(!match) return '';
-      name+=match[0];cursor+=match[0].length;
+      if(!match) return null;
+      value=match[0];cursor+=match[0].length;
+      if (['postgres','postgresql','pg'].includes(dialect)) value=value.toLowerCase();
     }
+    const quoted = ['"','`','['].includes(quote);
+    segments.push({ value, quoted, start:segmentStart, end:cursor });
+    cursor = skipLeadingComments(text,cursor,options);
     if(text[cursor] !== '.') break;
-    name+='.';cursor++;
+    cursor++;
+    if(cursor >= text.length) return null;
   }
-  return name;
+  return { name:segments.map(segment => segment.quoted && segment.value.includes('.')
+    ? `"${segment.value.replace(/"/g,'""')}"` : segment.value).join('.'), segments };
 }
 
 /**
@@ -222,12 +258,13 @@ function classifySqlStatement(statement, options) {
     if(afterExists < 0) return {kind:'Statement',name:'statement'};
     idx=skipWhitespace(statement,afterExists);
   }
-  const nameToken = readSqlNameToken(statement, idx);
+  const nameToken = readSqlNameToken(statement, idx, options);
   if (!nameToken) return { kind: 'Statement', name: 'statement' };
 
   return {
     kind: SQL_KIND_MAP[kindKey] || 'Statement',
-    name: nameToken
+    name: nameToken.name,
+    identifierSegments: nameToken.segments
   };
 }
 
@@ -378,7 +415,7 @@ export function buildSqlChunks(text, options = {}) {
 
   for (const stmt of statements) {
     const stmtText = text.slice(stmt.start, stmt.end);
-    const { kind, name } = classifySqlStatement(stmtText, lexicalOptions);
+    const { kind, name, identifierSegments } = classifySqlStatement(stmtText, lexicalOptions);
     const startLine = offsetToLine(lineIndex, stmt.start);
     const endLine = offsetToLine(lineIndex, stmt.end);
     const leading = extractSqlLeadingDoc(stmtText);
@@ -394,12 +431,14 @@ export function buildSqlChunks(text, options = {}) {
         endLine,
         signature: leading.signature || firstNonEmptyLine(stmtText),
         docstring,
-        dialect
+        dialect,
+        ...(identifierSegments ? { sqlIdentifierSegments: identifierSegments.map(segment => ({ ...segment,
+          start:segment.start+stmt.start,end:segment.end+stmt.start })) } : {})
       }
     });
   }
 
-  if(!treeChunks?.length) return decls;
+  if(!treeChunks?.length) return retainSqlSourceGaps(text,decls);
   const out = treeChunks.map(chunk=>({...chunk,meta:{...chunk.meta,dialect}}));
   // The declaration scanner consumes IF NOT EXISTS and quoted identifiers.
   // Generic native name search can instead pick a keyword or an identifier
@@ -409,7 +448,10 @@ export function buildSqlChunks(text, options = {}) {
     if (declaration.kind === 'Statement') continue;
     const owners = out.filter(chunk => chunk.kind === declaration.kind
       && chunk.start >= declaration.start && chunk.end <= declaration.end);
-    if (owners.length === 1) owners[0].name = declaration.name;
+    if (owners.length === 1) {
+      owners[0].name = declaration.name;
+      owners[0].meta.sqlIdentifierSegments = declaration.meta.sqlIdentifierSegments;
+    }
     else if (!owners.length) out.push(declaration);
   }
   // A count cannot prove source coverage. Keep authoritative native declarations
@@ -425,5 +467,5 @@ export function buildSqlChunks(text, options = {}) {
     }
     if(cursor < declaration.end && text.slice(cursor,declaration.end).replace(/;/g,'').trim()) out.push({...declaration,start:cursor,name:'statement',kind:'Statement'});
   }
-  return out.sort((a,b)=>a.start-b.start || a.end-b.end);
+  return retainSqlSourceGaps(text,out.sort((a,b)=>a.start-b.start || a.end-b.end));
 }

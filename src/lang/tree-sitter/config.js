@@ -4,7 +4,7 @@ import { includeCDeclaration, resolveCDeclarationRange, resolveCName, resolveCpp
 import { phpGrammarMetadata, rubyGrammarMetadata, resolveRubyQualifiedName, resolveScalaName, resolveRName, resolveRRange } from './declaration-metadata.js';
 import { resolveRustDeclaration } from './rust-prefix.js';
 // v4 binds declaration names, lexical scopes and attached source ranges to grammar roles.
-export const TREE_SITTER_CHUNK_VERSION = '13';
+export const TREE_SITTER_CHUNK_VERSION = '15';
 
 const LANGUAGE_GRAMMAR_KEYS = {
   javascript: 'native:javascript',
@@ -452,10 +452,9 @@ const LANG_CONFIG = {
     docComments: { linePrefixes: ['//'], blockStarts: ['/**'] },
     resolveKind: (node, kind) => {
       if (node.type !== 'type_spec') return kind;
-      const structNode = findDescendantByType(node, new Set(['struct_type']));
-      if (structNode) return 'StructDeclaration';
-      const ifaceNode = findDescendantByType(node, new Set(['interface_type']));
-      if (ifaceNode) return 'InterfaceDeclaration';
+      const declaredType = node.childForFieldName('type');
+      if (declaredType?.type === 'struct_type') return 'StructDeclaration';
+      if (declaredType?.type === 'interface_type') return 'InterfaceDeclaration';
       return kind;
     },
     resolveMemberName: (node, name) => {

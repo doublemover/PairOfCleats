@@ -385,7 +385,7 @@ const buildHeuristicManagedRelations = ({
   try {
     const source = budgetContext.source;
     const base = buildSimpleRelations({ imports: collectImports(source, options),
-      literalImports: adapterId === 'r' || adapterId === 'handlebars' });
+      literalImports: ['r','handlebars','cmake'].includes(adapterId) });
     const symbols = Array.isArray(chunks) && chunks.length ? sortUnique(chunks.map(chunk=>chunk.name))
       : collectPatternNames(source, symbolPatterns, budgetContext.scanBudget);
     if (Array.isArray(chunks) && chunks.some(chunk=>Array.isArray(chunk.meta?.syntaxCalls))) {
@@ -458,7 +458,7 @@ export const createHeuristicManagedAdapter = ({
   if (typeof collectImportEntries === 'function') {
     adapter.collectImportEntries = (text, options) => collectImportEntries(text, options);
   }
-  if (['handlebars','mustache','jinja','r'].includes(id)) adapter.collectImportEntries = (text,options) =>
+  if (['handlebars','mustache','jinja','r','cmake'].includes(id)) adapter.collectImportEntries = (text,options) =>
     toParsedLiteralImportEntries(normalizeImports(text,options));
   if (capabilityProfile) adapter.capabilityProfile = capabilityProfile;
   return adapter;

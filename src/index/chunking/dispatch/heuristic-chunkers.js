@@ -209,17 +209,18 @@ export const chunkCmake = (text, context = null) => chunkByLineRegex(
 export const chunkStarlark = (text, context = null) => {
   const { lines, lineIndex } = splitLinesWithIndex(text, context);
   const headings = [];
-  let quote=null,triple=false,escaped=false,depth=0;
+  let quote=null,triple=false,escaped=false,depth=0,continued=false;
   for (let i = 0; i < lines.length; i += 1) {
     const line = lines[i];
     const trimmed = line.trim();
-    const topLevel=!quote && depth === 0 && !/^\s/u.test(line) && !trimmed.startsWith('#');
+    const topLevel=!quote && depth === 0 && !continued && !/^\s/u.test(line) && !trimmed.startsWith('#');
     if(topLevel && line.length <= MAX_REGEX_LINE) {
       const defMatch=line.match(STARLARK_DEF_RX);
       const callMatch=!defMatch && line.match(STARLARK_CALL_RX);
       if(defMatch) headings.push({line:i,title:`${defMatch[1]} ${defMatch[2]}`});
       else if(callMatch) headings.push({line:i,title:callMatch[1]});
     }
+    continued=false;
     for(let cursor=0;cursor<line.length;cursor++) {
       const char=line[cursor];
       if(quote) {
@@ -230,6 +231,7 @@ export const chunkStarlark = (text, context = null) => {
         continue;
       }
       if(char === '#') break;
+      if(char === '\\' && !line.slice(cursor+1).trim()) continued=true;
       if(char === '"' || char === "'") {quote=char;triple=line.startsWith(char.repeat(3),cursor);if(triple) cursor+=2;continue;}
       if('([{'.includes(char)) depth++;
       else if(')]}'.includes(char)) depth=Math.max(0,depth-1);
@@ -237,6 +239,7 @@ export const chunkStarlark = (text, context = null) => {
     if(!triple && !escaped) quote=null;
     escaped=false;
   }
+  // Limits retain this unsplit owner range and title when a body spans windows.
   return buildFormattedChunksFromHeadings({
     text,
     headings,
@@ -244,7 +247,8 @@ export const chunkStarlark = (text, context = null) => {
     format: 'starlark',
     kind: 'Section',
     fallbackName: 'starlark'
-  });
+  }).map(chunk => chunk.meta?.preamble ? chunk : ({ ...chunk,
+    meta: { ...chunk.meta, sectionRange: { start: chunk.start, end: chunk.end } } }));
 };
 
 /**

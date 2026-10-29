@@ -1,4 +1,5 @@
 import { getNamedChild, getNamedChildCount } from './ast.js';
+import { setOwn } from '../../shared/object-record.js';
 const named = node => Array.from({ length:getNamedChildCount(node) },(_,i)=>getNamedChild(node,i));
 const field = (node,name) => node?.childForFieldName?.(name);
 const source = (node,text) => node ? text.slice(node.startIndex,node.endIndex) : '';
@@ -15,8 +16,8 @@ export const phpGrammarMetadata = (node,text) => {
     const name = source(field(parameter,'name'),text).replace(/^\$/,'');
     if (!name) continue;
     params.push(name);
-    const type = source(field(parameter,'type'),text); if (type) paramTypes[name] = type;
-    const value = source(field(parameter,'default_value'),text); if (value) paramDefaults[name] = value;
+    const type = source(field(parameter,'type'),text); if (type) setOwn(paramTypes,name,type);
+    const value = source(field(parameter,'default_value'),text); if (value) setOwn(paramDefaults,name,value);
   }
   const modifiers = named(node).filter(child => /_modifier$/.test(child.type)).map(child=>source(child,text).trim());
   let visibility = modifiers.find(value=>['public','private','protected'].includes(value));

@@ -10,6 +10,7 @@ import { discoverEntries } from './discover.js';
 import { forwardDiscoveryDirectoryInventory } from './discovery/directory-inventory.js';
 import { createPreprocessSnapshotSession } from './preprocess-snapshot.js';
 import { createRecordsClassifier } from './records.js';
+import { captureRecordSamplePrefix, sampleRecordContent } from './record-sample.js';
 import { SEMANTIC_ANALYSIS_VERSIONS } from '../semantic/analysis-versions.js';
 import { resolveFileCaps } from './file-processor/read.js';
 import { isCodeEntryForPath, isProseEntryForPath } from './mode-routing.js';
@@ -182,11 +183,18 @@ export async function preprocessFiles({
           }
         }
       }
+      const samplePrefixes = new WeakMap();
+      let latestSamplePrefix = null;
       const sample = async (filename, bytes) => {
+        let buffer;
         if (observation?.sample && (bytes <= observation.sample.length || observation.bytes <= observation.sample.length)) {
-          return observation.sample.subarray(0, Math.min(bytes, observation.sample.length));
+          buffer = observation.sample.subarray(0, Math.min(bytes, observation.sample.length));
+        } else {
+          buffer = await readFileSample(filename, bytes, root);
         }
-        return readFileSample(filename, bytes, root);
+        latestSamplePrefix = captureRecordSamplePrefix(buffer, bytes);
+        if (buffer) samplePrefixes.set(buffer, latestSamplePrefix);
+        return buffer;
       };
       const scanResult = await fileScanner.scanFile({
         absPath: entry.abs,
@@ -202,26 +210,24 @@ export async function preprocessFiles({
       let sampleText = null;
       let sampleBuffer = scanResult?.sampleBuffer || null;
       if (recordsClassifier && !entry.record) {
-        if (!sampleBuffer && recordsClassifier.shouldSniff({ absPath: entry.abs, relPath: entry.rel, ext: entry.ext })) {
+        let recordSampleText = null;
+        if (recordsClassifier.shouldSniff({ absPath: entry.abs, relPath: entry.rel, ext: entry.ext })) {
           try {
-            sampleBuffer = await sample(entry.abs, recordSniffBytes);
+            const recordSample = await sampleRecordContent({
+              maxBytes: recordSniffBytes,
+              prefix: sampleBuffer ? samplePrefixes.get(sampleBuffer) : latestSamplePrefix,
+              readSample: bytes => sample(entry.abs, bytes)
+            });
+            recordSampleText = recordSample.text;
           } catch (error) {
             observeStorageResource(error, { phase: 'preprocess-record-sample' }).requireSettled();
-            sampleBuffer = null;
-          }
-        }
-        if (sampleBuffer) {
-          try {
-            sampleText = sampleBuffer.toString('utf8');
-          } catch {
-            sampleText = null;
           }
         }
         const record = recordsClassifier.classify({
           absPath: entry.abs,
           relPath: entry.rel,
           ext: entry.ext,
-          sampleText
+          sampleText: recordSampleText
         });
         if (record) entry.record = record;
       }

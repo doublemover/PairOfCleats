@@ -125,4 +125,12 @@ attachSyntaxCallFacts(root, text, [limited], { maxNodes: 1 });
 assert.ok(Object.isFrozen(limited.meta.syntaxCalls));
 assert.ok(Object.isFrozen(limited.meta.syntaxCallOmissions));
 assert.equal(limited.meta.syntaxCallCoverage, 'partial-traversal-budget');
+let expandedChildren=0;
+const broadRoot={type:'function_definition',startIndex:0,endIndex:16,hasError:false,namedChildCount:1_000_000_000,
+  namedChild(){expandedChildren++;throw new Error('frontier expansion exceeded admission');}};
+const broadOwner={name:'owner',kind:'FunctionDeclaration',start:0,end:16,meta:{}};
+attachSyntaxCallFacts(broadRoot,text,[broadOwner],{maxNodes:1});
+assert.equal(expandedChildren,0,'a small visit budget rejects a huge frontier before allocating native child handles');
+assert.equal(broadOwner.meta.syntaxCallCoverage,'partial-traversal-budget');
+assert.ok(Object.isFrozen(broadOwner.meta.syntaxCalls));
 console.log('Native call roles preserve lexical ownership, omission reasons and canonical occurrence identity');

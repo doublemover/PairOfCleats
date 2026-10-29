@@ -151,7 +151,12 @@ export function collectShellImports(text) {
  */
 export function buildShellChunks(text, options = {}) {
   const treeChunks = buildTreeSitterChunks({ text, languageId: 'shell', options });
-  if (treeChunks && treeChunks.length) return treeChunks;
+  if (treeChunks && treeChunks.length) {
+    const ext = String(options.ext || '').toLowerCase();
+    return treeChunks.map(chunk => ({...chunk,meta:{...chunk.meta,shellSyntaxDialect:'bash',
+      ...(['.zsh','.ksh'].includes(ext) ? { shellDialectCoverage:'unsupported-dialect-bash-syntax-subset',
+        syntaxCallCoverage:'partial-bash-grammar-for-unsupported-shell-dialect' } : {})}}));
+  }
   const lineIndex = buildLineIndex(text);
   const lines = text.split('\n');
   const decls = [];

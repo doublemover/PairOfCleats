@@ -14,5 +14,5 @@ assert.ok(scalaChunks.some(chunk=>chunk.kind === 'ExtensionDeclaration' && chunk
 assert.ok(scalaChunks.some(chunk=>chunk.name === 'intOrdering' && chunk.kind === 'GivenDeclaration'));
 const css='.one,\n.two {color:red}\n[data-x="{"]{color:blue}\n[data-x=";"]{color:green}\n@scope (.panel) to (.nested) {.title {color:red}}\n';
 const chunks=buildCssChunks(css,options);
-for(const name of ['.one, .two','[data-x="{"]','[data-x=";"]','@scope (.panel) to (.nested)']) assert.equal(chunks.filter(chunk=>chunk.name === name).length,1,name);
+for(const name of ['.one,\n.two','[data-x="{"]','[data-x=";"]','@scope (.panel) to (.nested)']) assert.equal(chunks.filter(chunk=>chunk.name === name).length,1,name);
 console.log('native container and assignment binding roles passed');

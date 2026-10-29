@@ -1,8 +1,8 @@
-import fs from 'node:fs/promises';
-import { readExactAt } from '../../../shared/io/read-exact.js';
-import { runBuildCleanupWithTimeout } from '../cleanup-timeout.js';
 import { normalizeRoot } from './shared.js';
 import { isWithinRoot, toRealPathSync } from '../../../workspace/identity.js';
+import { sampleRecordContent } from '../record-sample.js';
+import { readFileSample } from '../file-scan.js';
+import { observeStorageResource } from '../../../shared/storage/failure-observation.js';
 
 export const resolveRecordsRoot = (root, recordsDir) => {
   if (!recordsDir) return null;
@@ -14,24 +14,11 @@ export const resolveRecordsRoot = (root, recordsDir) => {
 };
 
 export const readRecordSample = async (absPath, maxBytes) => {
-  const limit = maxBytes != null && Number.isFinite(Number(maxBytes)) && Number(maxBytes) >= 0
-    ? Math.floor(Number(maxBytes))
-    : 16384;
-  if (limit === 0) return '';
   try {
-    const handle = await fs.open(absPath, 'r');
-    try {
-      const buffer = Buffer.alloc(limit);
-      const result = await readExactAt(handle, buffer, 0, limit, 0);
-      return buffer.subarray(0, result.bytesRead || 0).toString('utf8');
-    } finally {
-      await runBuildCleanupWithTimeout({
-        label: 'watch.records.read-sample.close',
-        cleanup: () => handle.close(),
-        swallowTimeout: false
-      });
-    }
-  } catch {
+    return (await sampleRecordContent({ maxBytes,
+      readSample: bytes => readFileSample(absPath, bytes) })).text;
+  } catch (error) {
+    observeStorageResource(error, { phase: 'watch-record-sample' }).requireSettled();
     return '';
   }
 };
