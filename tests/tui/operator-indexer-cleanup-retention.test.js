@@ -6,9 +6,11 @@ import { createTuiSettingsSession } from '../../tools/tui/operator/settings.js';
 import { ensureQueueDir, enqueueJob, loadQueue, loadQuarantine } from '../../tools/service/queue.js';
 import { prepareIsolatedTestCacheDir } from '../helpers/test-cache.js';
 import { applyTestEnv } from '../helpers/test-env.js';
+import { initGitRepo } from '../helpers/git-fixture.js';
 
 const { dir } = await prepareIsolatedTestCacheDir('native-indexer-cleanup-retention');
 const repo = path.join(dir, 'repo'); await fs.mkdir(repo);
+initGitRepo(repo);
 const env = applyTestEnv({ cacheRoot: path.join(dir, 'cache') });
 const queueDir = path.join(dir, 'queue'); await ensureQueueDir(queueDir);
 const workspace = path.join(dir, 'workspace.jsonc');

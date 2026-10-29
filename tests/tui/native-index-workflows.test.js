@@ -3,7 +3,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { captureCommandTerminalRun } from '../../tools/testing/search-debug-capture.js';
-import { reconstructTerminalScreen } from '../../tools/testing/terminal-screen.js';
+import { createTerminalScreen } from '../../tools/testing/terminal-screen.js';
 import { prepareIsolatedTestCacheDir } from '../helpers/test-cache.js';
 import { applyTestEnv } from '../helpers/test-env.js';
 import { initGitRepo } from '../helpers/git-fixture.js';
@@ -12,14 +12,14 @@ import { killProcessTree } from '../../src/shared/kill-tree.js';
 import { spawnSubprocess } from '../../src/shared/subprocess/runner.js';
 import { buildSearchRequestArgs } from '../../src/shared/search-request.js';
 import { loadUserConfig } from '../../src/shared/dict-utils.js';
-import { createPointerSnapshot } from '../../src/index/snapshots/create.js';
+import { createPointerSnapshot, listSnapshots } from '../../src/index/snapshots/create.js';
 import { freezeSnapshot } from '../../src/index/snapshots/freeze.js';
 
 const mode = process.env.PAIROFCLEATS_TEST_ID?.split('tui/native-index-workflows/')[1];
 assert.ok(['build-search', 'validate-search', 'watch-cancel', 'build-cancel', 'preview-cancel', 'workspace', 'snapshot',
-  'snapshot-create', 'snapshot-show', 'snapshot-freeze', 'snapshot-remove', 'snapshot-prune', 'snapshot-gc',
+  'snapshot-create', 'snapshot-list-populated', 'snapshot-show', 'snapshot-freeze', 'snapshot-remove', 'snapshot-prune', 'snapshot-gc',
   'report', 'stats', 'stats-conflict', 'missing-model', 'invalid-provider', 'stale'].includes(mode));
-const root = process.cwd(), { dir } = await prepareIsolatedTestCacheDir(`native-index-${mode}`);
+const root = process.cwd(), { dir } = await prepareIsolatedTestCacheDir('native-index');
 const repo = path.join(dir, 'selected repository'); await fs.mkdir(repo); initGitRepo(repo);
 await fs.writeFile(path.join(repo, 'answer.js'), 'export function nativeWorkflowAnswer() { return 42; }\n');
 const config = path.join(repo, '.pairofcleats.json');
@@ -74,11 +74,19 @@ const cli = async (args, name) => {
   assert.equal(result.exitCode, 0, result.stderr); return result;
 };
 const needsCompleteSeed = mode.startsWith('snapshot-') || ['validate-search', 'report', 'stats'].includes(mode);
+const seedBuild = async (stage, name) => {
+  const { buildIndex } = await import('../../src/integrations/core/build-index.js');
+  const options = { modes: ['code'], ...(stage ? { stage } : {}), threads: 1, stubEmbeddings: true, progress: 'off', log: () => {} };
+  const started = Date.now(), result = await buildIndex(repo, options);
+  assert.ok(['index-published', 'stage-completed'].includes(result.outcome.status), JSON.stringify(result.outcome));
+  await fs.writeFile(path.join(dir, `${name}.json`), JSON.stringify({ owner: 'buildIndex', options,
+    durationMs: Date.now() - started, outcome: result.outcome }, null, 2));
+};
 if (['build-search', 'workspace'].includes(mode)) {
-  await cli(['index', 'build', '--repo', repo, '--mode=code', '--stage=stage2', '--threads=1', '--stub-embeddings', '--progress=off'], 'seed-partial-build');
+  await seedBuild('stage2', 'seed-partial-build');
 }
 if (needsCompleteSeed) {
-  await cli(['index', 'build', '--repo', repo, '--mode=code', '--threads=1', '--stub-embeddings', '--progress=off'], 'seed-complete-build');
+  await seedBuild(null, 'seed-complete-build');
 }
 // Setup calls the same canonical owners as the snapshot CLI. The operations
 // under test still traverse the actual keyboard, supervisor and public CLI.
@@ -88,14 +96,15 @@ const seedSnapshot = async (snapshotId, name, metadata = {}) => {
   const result = await createPointerSnapshot(input);
   await fs.writeFile(path.join(dir, `${name}.json`), JSON.stringify({ owner: 'createPointerSnapshot', input, result }, null, 2));
 };
-if (mode === 'snapshot-show') {
+if (['snapshot-show', 'snapshot-list-populated'].includes(mode)) {
   await seedSnapshot('snap-native-created', 'seed-labeled-snapshot', { tags: ['native-test', 'operator'], label: 'native label' });
 }
 if (['snapshot-freeze', 'snapshot-remove', 'snapshot-prune', 'snapshot-gc'].includes(mode)) {
   await seedSnapshot('snap-native-kept', 'seed-snapshot');
 }
-if (mode === 'snapshot-remove') {
-  const input = { repoRoot: repo, userConfig: loadUserConfig(repo, { env }), snapshotId: 'snap-native-kept', modes: ['code'] };
+if (['snapshot-remove', 'snapshot-list-populated'].includes(mode)) {
+  const input = { repoRoot: repo, userConfig: loadUserConfig(repo, { env }),
+    snapshotId: mode === 'snapshot-remove' ? 'snap-native-kept' : 'snap-native-created', modes: ['code'] };
   const result = await freezeSnapshot(input);
   await fs.writeFile(path.join(dir, 'seed-frozen-snapshot.json'), JSON.stringify({ owner: 'freezeSnapshot', input, result }, null, 2));
 }
@@ -103,6 +112,11 @@ if (['snapshot-prune', 'snapshot-gc'].includes(mode)) {
   await seedSnapshot('snap-native-new', 'seed-newer-snapshot');
 }
 const fixtureDeadline = Date.now() + 22000;
+let verifiedPublication = null;
+// Mutation cases read their persisted result through the CLI's canonical list
+// owner. The populated-list case independently exercises keyboard -> supervisor
+// -> public CLI with labels, tags and a frozen snapshot, within its own budget.
+const persistedSnapshots = () => listSnapshots({ repoRoot: repo, userConfig: loadUserConfig(repo, { env }) });
 try {
   const launcher = process.platform === 'win32'
     ? { command: 'pwsh.exe', args: ['-NoLogo', '-NoProfile', '-NonInteractive', '-File', path.join(root, 'tests/fixtures/tui/native-lifetime-conpty.ps1'), binary, dir, mode] }
@@ -112,8 +126,11 @@ try {
     env: { ...env, PAIROFCLEATS_TUI_RUN_ID: `index-workflow-native-${phase}` },
     onSpawn: async terminal => {
       let output = '', tail = '', frame = 0;
+      const terminalScreen = createTerminalScreen({ columns, rows });
+      let revision = 0;
       const subscription = terminal.onData(data => {
         output = (output + data).slice(-2 * 1024 * 1024);
+        terminalScreen.write(data); revision++;
         if (process.platform !== 'win32') {
           const wire = tail + data;
           for (let count = wire.split('\x1b[6n').length - 1; count > 0; count--) terminal.write('\x1b[1;1R');
@@ -124,9 +141,9 @@ try {
       const wait = async (predicate, label) => {
         while (!await predicate()) { assert.ok(Date.now() < deadline, `Native index witness timed out: ${label}`); await new Promise(resolve => setTimeout(resolve, 20)); }
       };
-      let paintedOutput = null, paintedScreen = '';
+      let paintedRevision = -1, paintedScreen = '';
       const screen = () => {
-        if (paintedOutput !== output) { paintedOutput = output; paintedScreen = reconstructTerminalScreen(output, { columns, rows }).text; }
+        if (paintedRevision !== revision) { paintedRevision = revision; paintedScreen = terminalScreen.snapshot().text; }
         return paintedScreen;
       };
       const rendered = async label => { await wait(() => { const frame = screen(); return frame.includes(label)
@@ -149,18 +166,23 @@ try {
         await rendered('Published generation observation; independent of process success');
         return result;
       };
-      let catalog;
+      let catalog, selectedField = 0;
+      const paste = value => `\x1b[200~${value}\x1b[201~`;
       const choose = async id => {
         const commands = catalog.commands.filter(command => command.scopeKind === (mode === 'workspace' ? 'workspace' : 'repo'));
         const index = commands.findIndex(command => command.id === id); assert.ok(index >= 0);
-        terminal.write('\x1b[A'.repeat(commands.length) + '\x1b[B'.repeat(index) + '\r');
-        await rendered(`Typed form: ${id}`); return commands[index];
+        // Esc returns the catalog to its first command. Flooding it with a full
+        // catalog of redundant Up keys forces hundreds of real native redraws.
+        terminal.write('\x1b[B'.repeat(index) + '\r');
+        await rendered(`Typed form: ${id}`); selectedField = 0; return commands[index];
       };
       const edit = async (command, name, value) => {
         const index = command.fields.findIndex(field => field.name === name); assert.ok(index >= 0);
-        terminal.write('\x1b[A'.repeat(command.fields.length) + '\x1b[B'.repeat(index) + 'e');
+        const delta = index - selectedField;
+        terminal.write((delta < 0 ? '\x1b[A'.repeat(-delta) : '\x1b[B'.repeat(delta)) + 'e');
         await rendered('Edit advanced JSON'); await rendered(`Field: ${name}`);
-        terminal.write(`\x15${JSON.stringify(value)}\r`);
+        selectedField = index;
+        terminal.write(`\x15${paste(JSON.stringify(value))}\r`);
         await rendered(`Typed form: ${command.id}`);
       };
       const run = async (id, values = {}) => {
@@ -184,7 +206,10 @@ try {
         await rendered('Tab pane');
         terminal.write('b'); await rendered('Workflow scope: repository directory');
         const after = await last('native-workflow-');
-        terminal.write(`${mode === 'workspace' ? '\t' : ''}\x15${mode === 'workspace' ? workspace : repo}\r`);
+        // The native child inherits this cwd. Exercise real relative-path
+        // resolution, retaining spaces, without typing the checkout prefix.
+        const target = path.relative(root, mode === 'workspace' ? workspace : repo);
+        terminal.write(`${mode === 'workspace' ? '\t' : ''}\x15${paste(target)}\r`);
         catalog = await settled('native-workflow-', 'describe', after); await rendered('Canonical command catalog loaded; no work started.');
         assert.ok(catalog.commands.some(command => command.id === 'index.build' && !command.unsupportedReason));
         assert.equal(new Set(catalog.commands.map(command => command.id)).size, catalog.commands.length);
@@ -231,19 +256,25 @@ try {
           if (mode === 'snapshot-create') {
             const created = await completed('index.snapshot.create', { id: 'snap-native-created', modes: 'code', tag: ['native-test', 'operator'], label: 'native label' });
             assert.equal(created.ok, true); assert.equal(created.snapshot.snapshotId, 'snap-native-created');
-            const listed = await completed('index.snapshot.list', {}); assert.ok(listed.snapshots.some(row => row.snapshotId === 'snap-native-created'));
+            assert.ok(persistedSnapshots().some(row => row.snapshotId === 'snap-native-created'));
+          } else if (mode === 'snapshot-list-populated') {
+            const listed = await completed('index.snapshot.list', {});
+            assert.equal(listed.ok, true); assert.equal(listed.snapshots.length, 1);
+            const [snapshot] = listed.snapshots;
+            assert.equal(snapshot.snapshotId, 'snap-native-created');
+            assert.equal(snapshot.label, 'native label'); assert.deepEqual(snapshot.tags, ['native-test', 'operator']);
+            assert.equal(snapshot.hasFrozen, true);
           } else if (mode === 'snapshot-show') {
             const shown = await completed('index.snapshot.show', { snapshotId: 'snap-native-created' });
             assert.equal(shown.snapshot.label, 'native label'); assert.deepEqual(shown.snapshot.tags, ['native-test', 'operator']);
           } else if (mode === 'snapshot-freeze') {
             const frozen = await completed('index.snapshot.freeze', { snapshotId: 'snap-native-kept', modes: 'code' });
             assert.equal(frozen.ok, true); assert.equal(frozen.freeze.snapshotId, 'snap-native-kept');
-            const listed = await completed('index.snapshot.list', {});
-            assert.equal(listed.snapshots.find(row => row.snapshotId === 'snap-native-kept').hasFrozen, true);
+            assert.equal(persistedSnapshots().find(row => row.snapshotId === 'snap-native-kept').hasFrozen, true);
           } else if (mode === 'snapshot-remove') {
             const removed = await completed('index.snapshot.remove', { snapshotId: 'snap-native-kept', force: true });
             assert.equal(removed.removed, 'snap-native-kept');
-            const listed = await completed('index.snapshot.list', {}); assert.deepEqual(listed.snapshots, []);
+            assert.deepEqual(persistedSnapshots(), []);
           } else if (['snapshot-prune', 'snapshot-gc'].includes(mode)) {
             if (mode === 'snapshot-prune') {
               const pruned = await completed('index.snapshot.prune', { 'dry-run': true, 'max-pointer-snapshots': 1 });
@@ -254,8 +285,7 @@ try {
               assert.equal(gc.gc.dryRun, true); assert.ok(gc.gc.removed.includes('snap-native-kept'));
               assert.ok(!gc.gc.removed.includes('snap-native-new'));
             }
-            const listed = await completed('index.snapshot.list', {});
-            assert.deepEqual(listed.snapshots.map(row => row.snapshotId).sort(), ['snap-native-kept', 'snap-native-new']);
+            assert.deepEqual(persistedSnapshots().map(row => row.snapshotId).sort(), ['snap-native-kept', 'snap-native-new']);
           } else if (mode === 'stats') {
             const stats = await completed('index.stats', { mode: 'code', verify: true });
             assert.equal(stats.verify.ok, true); assert.ok(stats.modes.code.chunkMeta.rows > 0);
@@ -303,6 +333,7 @@ try {
               assert.equal(end.workflow.publications[0].producerContractValid, true, JSON.stringify(end.workflow));
               assert.equal(end.workflow.publications[0].producedReadyGeneration, true, JSON.stringify(end.workflow));
               assert.ok(end.workflow.publications[0].generation.generationKey);
+              verifiedPublication = end.workflow.publications[0];
             }
           }
           await rendered('Process ended; inspect publication evidence separately'); await backToCatalog(); await closeCatalog(); terminal.write('q');
@@ -320,8 +351,14 @@ try {
   assert.deepEqual((await events()).filter(event => event.event === 'log' && ['warn', 'error'].includes(event.level)), []);
   console.log(JSON.stringify({ mode, binarySha256, node: process.version, platform: process.platform, owned, receipt, capture: capture.outputDir }));
   if (mode === 'build-search') {
-    const validation = JSON.parse((await cli(['index', 'validate', '--repo', repo, '--mode=code', '--json'], 'produced-validation')).stdout);
-    assert.equal(validation.ok, true);
+    // The real supervisor already ran the CLI validator's canonical owner in
+    // strict mode, then rechecked this generation's pointer and state hashes.
+    // Retain that stronger receipt instead of starting the validator twice.
+    assert.equal(verifiedPublication.readinessCheck, 'canonical-current-artifact-validation');
+    assert.equal(verifiedPublication.observationUnchanged, true);
+    assert.equal(verifiedPublication.currentValidation.strict, true);
+    assert.equal(verifiedPublication.currentValidation.ok, true);
+    assert.deepEqual(verifiedPublication.currentValidation.issues, []);
     const built = buildSearchRequestArgs({ query: 'nativeWorkflowAnswer', backend: 'memory', mode: 'code', ann: false },
       { includeRepo: true, repoPath: repo, defaultOutput: 'compact', allowedOutputs: ['compact'] });
     assert.equal(built.ok, true);

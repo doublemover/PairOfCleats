@@ -23,8 +23,10 @@ const launches = [];
 const actor = createTuiIndexWorkflows({ scopes, env, now: () => clock, startJob: async (...args) => { launches.push(args); } });
 const scope = await scopes.selectScope({ kind: 'repo', target: repo });
 const catalog = actor.describe({}).commands;
-assert.equal(catalog.filter(command => command.registryId.startsWith('index.') && command.registryId !== 'index.diff'
-  || command.registryId === 'workspace.build').length, 6 + Object.keys(SNAPSHOT_COMMANDS).length);
+assert.deepEqual(catalog.filter(command => command.registryId.startsWith('index.') && command.registryId !== 'index.diff'
+  || command.registryId === 'workspace.build').map(command => command.id).sort(),
+['index.build', 'index.recover', 'index.report', 'index.stats', 'index.validate', 'index.watch', 'workspace.build',
+  ...Object.keys(SNAPSHOT_COMMANDS).map(name => `index.snapshot.${name}`)].sort());
 for (const command of catalog) {
   const registered = describeCommandRegistryEntry(command.registryId);
   assert.equal(command.supportTier, registered.supportTier);
@@ -88,6 +90,6 @@ actor.discard({ scopeId: scope.id, previewId: normalizedStats.previewId });
 const old = await actor.preview({ scopeId: scope.id, commandId: 'index.stats', values: {} });
 await scopes.selectScope({ kind: 'repo', target: repo });
 await assert.rejects(actor.launch({ scopeId: scope.id, previewId: old.previewId, confirmed: true }), { code: 'ERR_TUI_SCOPE_CHANGED' });
-actor.dispose(); scopes.dispose();
+await actor.dispose(); scopes.dispose();
 assert.equal(launches.length, 1);
 console.log('Typed index catalog, value preservation, one-use confirmation and scope/expiry authority passed.');

@@ -7,10 +7,11 @@ import { ensureQueueDir, enqueueJob, loadQueue } from '../../tools/service/queue
 import { getServiceShutdownPaths, saveServiceShutdownState } from '../../tools/service/shutdown-state.js';
 import { prepareIsolatedTestCacheDir } from '../helpers/test-cache.js';
 import { applyTestEnv } from '../helpers/test-env.js';
+import { initGitRepo } from '../helpers/git-fixture.js';
 
 const { dir } = await prepareIsolatedTestCacheDir('native-indexer-ownership');
 const repos = [path.join(dir, 'a'), path.join(dir, 'b'), path.join(dir, 'foreign')];
-for (const repo of repos) await fs.mkdir(repo);
+for (const repo of repos) { await fs.mkdir(repo); initGitRepo(repo); }
 const env = applyTestEnv({ cacheRoot: path.join(dir, 'cache') });
 const queueDir = path.join(dir, 'queue'); await ensureQueueDir(queueDir);
 const workspace = path.join(dir, 'workspace.jsonc'), configFile = path.join(dir, 'service.json');

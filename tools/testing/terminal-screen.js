@@ -212,6 +212,65 @@ const consumeCsi = (state, input, startIndex) => {
   return input.length;
 };
 
+const renderScreenState = (state) => {
+  const lines = state.grid.map(row => row.join('').replace(/\s+$/u, ''));
+  while (lines.length && !lines.at(-1)) lines.pop();
+  return { text: lines.length ? `${lines.join('\n')}\n` : '', lines, stats: {
+    columns: state.columns, rows: state.rows, wrapCount: state.wrapCount,
+    blankPairCount: lines.reduce((count, line, index) => count + (index > 0 && !line && !lines[index - 1] ? 1 : 0), 0),
+    usedWidth: lines.reduce((max, line) => Math.max(max, line.length), 0),
+    lineCount: lines.length, nonEmptyLineCount: lines.filter(Boolean).length
+  } };
+};
+
+/** Consume each PTY fragment once, retaining only screen cells, a bounded CSI
+ * and one possible split surrogate. OSC contents never need to be retained. */
+export const createTerminalScreen = ({ columns = 120, rows = 30 } = {}) => {
+  const state = createScreenState(Number.isFinite(Number(columns)) && Number(columns) >= 20 ? Number(columns) : 120,
+    Number.isFinite(Number(rows)) && Number(rows) >= 10 ? Number(rows) : 30);
+  let mode = 'text', csi = '', high = '', consumedCodeUnits = 0;
+  return {
+    write(value) {
+      const input = String(value ?? ''); consumedCodeUnits += input.length;
+      for (const char of input) {
+        if (high) {
+          const code = char.charCodeAt(0);
+          if (code >= 0xdc00 && code <= 0xdfff) { writeChar(state, high + char); high = ''; continue; }
+          writeChar(state, high); high = '';
+        }
+        if (mode === 'osc' || mode === 'osc-escape') {
+          if (char === '\x07' || mode === 'osc-escape' && char === '\\') mode = 'text';
+          else mode = char === '\x1b' ? 'osc-escape' : 'osc';
+          continue;
+        }
+        if (mode === 'csi') {
+          if (CSI_FINAL_PATTERN.test(char)) { applyCsi(state, char, parseCsiArgs(csi)); csi = ''; mode = 'text'; }
+          else { if (csi.length >= 4096) throw new RangeError('Terminal CSI exceeds its bounded capture allowance.'); csi += char; }
+          continue;
+        }
+        if (mode === 'escape') {
+          mode = char === '[' ? 'csi' : char === ']' ? 'osc' : 'text';
+          if (char === '7') { state.savedRow = state.row; state.savedColumn = state.column; }
+          if (char === '8') moveCursor(state, state.savedRow, state.savedColumn);
+          continue;
+        }
+        if (char === '\x1b') mode = 'escape';
+        else if (char === '\r') applyCarriageReturn(state);
+        else if (char === '\n') newline(state);
+        else if (char === '\t') applyTab(state);
+        else if (char === '\b') moveCursor(state, state.row, state.column - 1);
+        else if (char >= ' ') {
+          const code = char.charCodeAt(0);
+          if (char.length === 1 && code >= 0xd800 && code <= 0xdbff) high = char;
+          else writeChar(state, char);
+        }
+      }
+    },
+    snapshot: () => renderScreenState(state),
+    metrics: () => ({ consumedCodeUnits, retainedEscapeCodeUnits: csi.length + high.length })
+  };
+};
+
 export const reconstructTerminalScreen = (value, {
   columns = 120,
   rows = 30
@@ -278,29 +337,7 @@ export const reconstructTerminalScreen = (value, {
     index += printable.length;
   }
 
-  const lines = state.grid
-    .map((row) => row.join('').replace(/\s+$/u, ''));
-  while (lines.length > 0 && !lines[lines.length - 1]) {
-    lines.pop();
-  }
-  const blankPairCount = lines.reduce((count, line, lineIndex) => (
-    lineIndex > 0 && !line && !lines[lineIndex - 1] ? count + 1 : count
-  ), 0);
-  const usedWidth = lines.reduce((max, line) => Math.max(max, line.length), 0);
-
-  return {
-    text: lines.length ? `${lines.join('\n')}\n` : '',
-    lines,
-    stats: {
-      columns: safeColumns,
-      rows: safeRows,
-      wrapCount: state.wrapCount,
-      blankPairCount,
-      usedWidth,
-      lineCount: lines.length,
-      nonEmptyLineCount: lines.filter(Boolean).length
-    }
-  };
+  return renderScreenState(state);
 };
 
 export const summarizeRenderedTerminal = (rendered, {

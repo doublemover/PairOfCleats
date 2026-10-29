@@ -13,7 +13,6 @@ import { loadServiceConfig, resolveRepoRegistry } from '../../service/config.js'
 import { resolveRepoPath } from '../../service/repos.js';
 import { loadServiceShutdownState } from '../../service/shutdown-state.js';
 import { createQueueWorker } from '../../service/indexer-service/queue-worker.js';
-import { createJobExecutor } from '../../service/indexer-service/job-executor.js';
 import { createJobCompletion } from '../../service/indexer-service/job-completion.js';
 import { createServiceRuntimeEnvResolver } from '../../service/indexer-service-helpers.js';
 import { resolveQueueLeasePolicy } from '../../service/lease-policy.js';
@@ -37,7 +36,7 @@ const localCancel = () => ({ mode: 'cancel', accepting: false, stopClaiming: tru
  * Native cancellation changes only this instance's local shutdown observation.
  */
 export const createTuiIndexer = ({ toolRoot, requireScope, env = process.env,
-  createExecutor = createJobExecutor } = {}) => {
+  createExecutor = null } = {}) => {
   const active = new Map();
   const prepare = async ({ scope, values, signal }) => {
     requireScope(scope.id); throwIfAborted(signal);
@@ -107,10 +106,13 @@ export const createTuiIndexer = ({ toolRoot, requireScope, env = process.env,
       let authorityError = null, metrics = null;
       const { config } = prepared;
       try {
+        const executorFactory = createExecutor || (await import('../../service/indexer-service/job-executor.js')).createJobExecutor;
+        throwIfAborted(combined);
+        if (capture().identity !== prepared.identity) fail('ERR_TUI_INDEXER_STALE', 'Indexer authority changed while loading its executor.');
         const completion = createJobCompletion({ queueDir, resolvedQueueName: 'index',
           queueMaxRetries: config.queue?.maxRetries ?? null, completeJob, quarantineJob });
         const runtime = createServiceRuntimeEnvResolver({ baseEnv: launchEnv || env });
-        const executor = createExecutor({ isEmbeddingsQueue: false, serviceExecutionMode: 'subprocess',
+        const executor = executorFactory({ isEmbeddingsQueue: false, serviceExecutionMode: 'subprocess',
           daemonWorkerConfig: {}, resolvedQueueName: 'index', embeddingExtraEnv: {},
           resolveRepoRuntimeEnv: runtime.resolveRepoRuntimeEnv, toolRoot,
           completeNonRetriableFailure: completion.completeNonRetriableFailure });

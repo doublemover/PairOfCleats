@@ -1,11 +1,15 @@
 import path from 'node:path';
-import { buildIndex, withBuildGraphCapability } from '../../../src/integrations/core/build-index/index.js';
 import { sameIdentityPath } from '../../../src/shared/indexing/build-pointer-roots.js';
 import { spawnSubprocess } from '../../../src/shared/subprocess/runner.js';
 import { throwIfAborted } from '../../../src/shared/abort.js';
 import { captureOwnedCleanup, combineOwnedErrors, settleOwnedActions } from './settle-owned.js';
 
 const MAX_BYTES = 768 * 1024;
+// Describing unrelated workflows must not load the indexing runtime. Keep the
+// canonical owners and their arguments intact when this route is requested.
+const buildIndex = async (...args) => (await import('../../../src/integrations/core/build-index/index.js')).buildIndex(...args);
+const withBuildGraphCapability = async (...args) =>
+  (await import('../../../src/integrations/core/build-index/index.js')).withBuildGraphCapability(...args);
 const fail = (code, message) => { throw Object.assign(new Error(message), { code }); };
 const exactArgv = (argv, indexRoot, capabilityId) => [...argv.filter(token =>
   !token.startsWith('--index-root=') && !token.startsWith('--graph-capability=') && !token.startsWith('--mode=')),
