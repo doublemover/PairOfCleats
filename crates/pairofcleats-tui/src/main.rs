@@ -7,6 +7,7 @@ mod input_ingress_tests;
 mod inspection;
 mod interaction;
 mod log_layout;
+mod process_command;
 #[cfg(test)]
 mod recording_tests;
 mod recordings;
@@ -34,7 +35,7 @@ mod task_state;
 use std::fs;
 use std::io::{BufReader, Write};
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
+use std::process::Stdio;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use task_state::{Lifecycle, TaskState};
 
@@ -1220,7 +1221,7 @@ fn spawn_supervisor(
         anyhow::bail!("TUI implementation paths must be absolute verified files");
     }
     supervisor_lifetime::prepare_containment()?;
-    let mut command = Command::new(&node);
+    let mut command = process_command::background_command(&node);
     #[cfg(unix)]
     {
         use std::os::unix::process::CommandExt;

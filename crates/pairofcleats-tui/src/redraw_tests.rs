@@ -3,7 +3,7 @@ use super::*;
 #[test]
 fn actual_javascript_unicode_frames_decode_and_settle_terminal_jobs() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let output = Command::new("node")
+    let output = process_command::background_command("node")
         .arg("tests/helpers/tui/unicode-frames.js")
         .current_dir(root)
         .output()
@@ -334,7 +334,7 @@ fn restored_paused_selection_reconciles_with_new_supervisor_jobs() {
         .find(|candidate| candidate.is_absolute() && candidate.is_file())
         .and_then(|candidate| candidate.canonicalize().ok())
         .expect("protocol fixture requires the supported external Node runtime on PATH");
-    let mut supervisor = std::process::Command::new(node)
+    let mut supervisor = process_command::background_command(node)
         .args(["-e", "process.stdin.once('data', bytes => { process.stdout.write(bytes); process.exit(0); });"])
         .stdin(Stdio::piped()).stdout(Stdio::piped()).spawn().unwrap();
     restored.last_input_at =

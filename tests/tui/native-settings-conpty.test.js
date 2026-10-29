@@ -102,6 +102,9 @@ try {
     };
     try {
       await wait(async () => (await readEvents()).some(row => row.event === 'hello'), 'real supervisor hello');
+      // The supervisor's disk log precedes native channel consumption. Wait
+      // for the actual host to apply hello before invoking a control action.
+      await rendered('supervisor connected');
       terminal.write('s'); await rendered('Select repository directory');
       const info = await select(mode === 'workspace' ? workspace : repo, mode === 'workspace');
       assert.equal(info.effective.userConfig.threads, 2);

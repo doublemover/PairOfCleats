@@ -36,7 +36,7 @@ fn model() -> AppModel {
 fn queued_keys_observe_prior_modal_transitions_on_both_sides_of_the_dispatch_boundary() {
     let mut model = model();
     let mut child = InputChild(
-        Command::new("node")
+        process_command::background_command("node")
             .args(["-e", "process.stdin.resume()"])
             .stdin(Stdio::piped())
             .spawn()
@@ -161,7 +161,7 @@ fn real_ingress_residence_is_measured_without_invented_supervisor_depth_samples(
 #[test]
 fn actual_javascript_flow_keeps_terminal_task_state_while_its_job_remains_active() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let output = Command::new("node")
+    let output = process_command::background_command("node")
         .arg("tests/helpers/tui/lifecycle-flow.js")
         .current_dir(root)
         .output()
@@ -255,7 +255,7 @@ fn sustained_ingress_yields_to_quit_and_render_without_backlog_idle_waits() {
         .iter()
         .any(|cell| cell.symbol() != " "));
     let mut child = InputChild(
-        Command::new("node")
+        process_command::background_command("node")
             .args(["-e", "process.stdin.resume()"])
             .stdin(Stdio::piped())
             .spawn()
@@ -451,7 +451,7 @@ fn job_and_task_presentation_is_bounded_by_the_admitted_viewport() {
 fn actual_dispatch_keeps_paste_inert_and_grapheme_cursor_edits_in_the_focused_field() {
     let mut model = model();
     let mut child = InputChild(
-        Command::new("node")
+        process_command::background_command("node")
             .args(["-e", "process.stdin.resume()"])
             .stdin(Stdio::piped())
             .spawn()
@@ -556,7 +556,7 @@ fn queued_mouse_respects_prior_focus_and_passive_palette_admission() {
         },
     );
     let mut child = InputChild(
-        Command::new("node")
+        process_command::background_command("node")
             .args(["-e", "process.stdin.resume()"])
             .stdin(Stdio::piped())
             .spawn()
