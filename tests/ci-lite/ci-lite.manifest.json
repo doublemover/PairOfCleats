@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 1324,
+    "hero": 1332,
     "matrix": 108,
     "meta": 49,
     "soak": 1,
@@ -8905,6 +8905,54 @@
     {
       "id": "shared/concurrency/scheduler-git-queue-admission",
       "order": 1482,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/index/clean-artifacts-multi-repository/reader",
+      "order": 1483,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/index/clean-artifacts-multi-repository/windows-locked-reader",
+      "order": 1484,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/index/clean-artifacts-multi-repository/builder",
+      "order": 1485,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/index/clean-artifacts-multi-repository/unknown-owner",
+      "order": 1486,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/index/clean-artifacts-multi-repository/saved-evidence",
+      "order": 1487,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/index/clean-artifacts-multi-repository/custom-sqlite",
+      "order": 1488,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/index/clean-artifacts-multi-repository/custom-lmdb",
+      "order": 1489,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/index/clean-artifacts-multi-repository/selected-repository",
+      "order": 1490,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

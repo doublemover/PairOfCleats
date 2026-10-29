@@ -1482,3 +1482,11 @@ retrieval/backend/sqlite-uncached-close-ownership/initialization-failure
 tooling/index/clean-artifacts-reader-exclusion
 tooling/release/readiness-gate-duplicate-tui
 shared/concurrency/scheduler-git-queue-admission
+tooling/index/clean-artifacts-multi-repository/reader
+tooling/index/clean-artifacts-multi-repository/windows-locked-reader
+tooling/index/clean-artifacts-multi-repository/builder
+tooling/index/clean-artifacts-multi-repository/unknown-owner
+tooling/index/clean-artifacts-multi-repository/saved-evidence
+tooling/index/clean-artifacts-multi-repository/custom-sqlite
+tooling/index/clean-artifacts-multi-repository/custom-lmdb
+tooling/index/clean-artifacts-multi-repository/selected-repository

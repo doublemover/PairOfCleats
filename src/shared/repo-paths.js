@@ -175,7 +175,8 @@ function resolveGitRoot(startPath) {
   try {
     const result = spawnSync('git', ['rev-parse', '--show-toplevel'], {
       cwd: startPath,
-      encoding: 'utf8'
+      encoding: 'utf8',
+      windowsHide: true
     });
     if (result.status !== 0) return null;
     const root = String(result.stdout || '').trim();
