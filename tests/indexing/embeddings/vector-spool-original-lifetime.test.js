@@ -6,8 +6,9 @@ import { createDeferredVectorSpoolRetirement } from '../../../tools/build/embedd
 import { errorGraphIncludes } from '../../helpers/error-graph.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 
-// UNVALIDATED: real original FileHandles, bounded IPC-free gates and exact nonce
-// retirement. No model, crash-status retry, links or elevated operation.
+// Real original FileHandles, bounded IPC-free gates and exact nonce retirement.
+// Windows directory replacement uses the stat gate below; POSIX retains rename.
+// No model, crash-status retry, links or elevated operation.
 applyTestEnv();
 const selected = process.env.PAIROFCLEATS_TEST_ID?.split('/').at(-1);
 assert.ok(['healthy', 'close-pending', 'close-recovery', 'unlink-recovery', 'unknown-child', 'replaced-file',
@@ -17,6 +18,7 @@ const parent = path.resolve('.tmp/tasks'); await fs.mkdir(parent, { recursive: t
 const root = await fs.mkdtemp(path.join(parent, 'spool-owner-'));
 const originalOpen = fs.open, originalUnlink = fs.unlink, originalLstat = fs.lstat;
 let ready = false, inspectThrows = true, inspectionReady = false, observationPrimed = false, spool, constructionFailure;
+let replacedDirectoryIdentity = false, directoryIdentityChecks = 0;
 let releaseGate, entered;
 const started = new Promise(resolve => { entered = resolve; }), gate = new Promise(resolve => { releaseGate = resolve; });
 const within = (promise, label) => {
@@ -68,7 +70,14 @@ fs.unlink = async (file, ...args) => {
 };
 fs.lstat = async (file, ...args) => {
   if (selected === 'unobserved-directory' && path.basename(file).startsWith('.stage3-vector-spool-')) throw owned;
-  return originalLstat(file, ...args);
+  const stat = await originalLstat(file, ...args);
+  if (replacedDirectoryIdentity && path.relative(String(file), spool.directory) === '') {
+    directoryIdentityChecks++;
+    const changed = Object.create(Object.getPrototypeOf(stat), Object.getOwnPropertyDescriptors(stat));
+    changed.ino += typeof changed.ino === 'bigint' ? 1n : 1;
+    return changed;
+  }
+  return stat;
 };
 const allCloses = () => Object.fromEntries(['code.uint8', 'doc.uint8', 'merged.uint8'].map(name => [name, closes.get(name) || 0]));
 const expectedCloses = code => ({ 'code.uint8': code, 'doc.uint8': 1, 'merged.uint8': 1 });
@@ -138,11 +147,22 @@ try {
       const savedFile = path.join(root, 'original-code.uint8'), savedDirectory = path.join(root, 'original-directory');
       if (selected === 'unknown-child') await fs.writeFile(unknown, 'saved sentinel');
       if (selected === 'replaced-file') { await fs.rename(code, savedFile); await fs.writeFile(code, 'unrelated replacement'); }
-      if (selected === 'replaced-directory') { await fs.rename(spool.directory, savedDirectory); await fs.mkdir(spool.directory); }
+      if (selected === 'replaced-directory') {
+        // Windows pins this directory while its native handles are open.
+        // Inject the pathname identity disagreement through the existing stat
+        // gate; keep actual rename/substitution coverage on capable platforms.
+        if (process.platform === 'win32') replacedDirectoryIdentity = true;
+        else { await fs.rename(spool.directory, savedDirectory); await fs.mkdir(spool.directory); }
+      }
       await assert.rejects(spool.close()); assert.equal(spool.isSettled(), false); assert.deepEqual(allCloses(), expectedCloses(1));
       if (selected === 'unknown-child') { assert.equal(await fs.readFile(unknown, 'utf8'), 'saved sentinel'); await fs.unlink(unknown); }
       if (selected === 'replaced-file') { assert.equal(await fs.readFile(code, 'utf8'), 'unrelated replacement'); await fs.unlink(code); await fs.rename(savedFile, code); }
-      if (selected === 'replaced-directory') { await fs.rmdir(spool.directory); await fs.rename(savedDirectory, spool.directory); }
+      if (selected === 'replaced-directory') {
+        if (process.platform === 'win32') {
+          assert.ok(directoryIdentityChecks > 0, 'the actual retirement owner observes the substituted pathname identity');
+          await fs.access(spool.directory); replacedDirectoryIdentity = false;
+        } else { await fs.rmdir(spool.directory); await fs.rename(savedDirectory, spool.directory); }
+      }
       if (selected === 'unlink-recovery') { await assert.rejects(spool.recoverAfterClose()); assert.deepEqual(allCloses(), expectedCloses(1)); }
       await recover(); assert.equal(spool.isSettled(), true); assert.deepEqual(allCloses(), expectedCloses(1));
     } else {
