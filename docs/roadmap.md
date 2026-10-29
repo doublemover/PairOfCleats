@@ -1,6 +1,6 @@
 # PairOfCleats Roadmap
 
-Status: Full Windows baseline complete; shared failure repairs and qualification
+Status: Windows baseline retained; focused failure repairs and qualification
 Last audited: 2026-10-28
 Last reconciled: 2026-10-28
 Canonical for: initiative status, execution order, and remaining work
@@ -11,8 +11,10 @@ The [closeout review](archived/github-issue-closeout-2026-10-26.md) assessed
 **770 issues/238 comments**, closing 27; later batches closed 25 more.
 [Checkpoint 285](archived/windows-validation-publication-checkpoint-285-2026-10-28.json)
 closed nine qualified reports after publication and all eight front-gate checks
-(40/40 gate cases). The R acceptance follow-up closes #1497, leaving **708 open**:
-472 qualification-pending, 147 partial and 89 unresolved entries.
+(40/40 gate cases). The R follow-up closes #1497; the
+[later review](archived/windows-partial-validation-checkpoint-305-2026-10-28.md)
+records 20 qualified closures, leaving **688 open**: 452 qualification-pending,
+147 partial and 89 unresolved entries.
 
 The [complete assessment](archived/github-issue-closeout-2026-10-26.json) retains
 source/test mappings and closure witnesses; [earlier receipts](archived/solo-issue-repairs-2026-10-25.md)
@@ -33,16 +35,17 @@ The [security/validation follow-up](archived/windows-security-and-validation-fol
 patches both October 28 dependency advisories; fresh locked setup has no warnings
 or errors and audit reports zero vulnerabilities. Affected checks pass 76/77;
 queued vector-only readiness remains failing. Debugger error retention and
-profile-aware optional inputs are repaired. Next full Windows pass: checkpoint
-305, twenty commits after `7b05a3dbd`, with explicit inventory/exclusion coverage.
-The [next eight repairs](archived/windows-contract-repair-checkpoint-305-2026-10-28.md)
-pass 40 affected and six warning/consumer checks: Clangd defaults/dispatch,
-returned aggregate flow, single-owner service queues and truthful warning totals.
+profile-aware optional inputs are repaired. The frozen checkpoint-305 campaign
+stopped at user request: **2,606 passed, 46 failed (five timeouts), 3,450 unrun**.
+Use focused failure rechecks and direct regressions; no full rerun is scheduled.
+The [contract repairs](archived/windows-contract-repair-checkpoint-305-2026-10-28.md)
+pass 46 controls. [Focused repairs](archived/windows-focused-failure-repairs-2026-10-28.md)
+pass 26/26, resolving nine failures: Astro bounds/UTF-16, nullable chunk contexts,
+canonical fixture inputs and Windows spool identity. Both publication gates pass.
 
 [Five dependency retirements](archived/dependency-ownership-implementation-2026-10-27.md)
-removed 110 lock records. Locked bootstrap passed without warnings/errors:
-37 packages, 33 routes, 8 patches/26 targets/61 hunks. Retained inputs and exact
-receipts remain in the archive; full-suite acceptance remains separate.
+removed 110 lock records. Setup identities and retained inputs are archived;
+runtime qualification remains separate.
 
 Suite/platform/model/release acceptance remains separate. [Storage repairs](archived/storage-space-implementation-2026-10-27.md)
 await execution; lifecycle policy (#1267) and custom cleanup (#1574) remain.

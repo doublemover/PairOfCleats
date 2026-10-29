@@ -48,12 +48,13 @@ publication remain open; eliminating duplicate jobs does not establish ready
 vectors. No public CLI/config/schema admission was relaxed, assertion or test
 removed, deadline extended or failure retried into acceptance.
 
-Checkpoint 305 is the next 20-commit boundary after `7b05a3dbd`. Freeze it after
-the publication gate, rediscover every fixture, reconcile explicit Windows
-cohorts and run the complete applicable suite. Native lifecycle/performance run
-serially; correctness keeps bounded concurrency. Physical links, POSIX/Linux,
-optional backends, real models and release qualification retain separate owners.
-Raw `.tmp/` results are historical author-workspace evidence.
+Checkpoint 305 reached the 20-commit boundary after `7b05a3dbd`. The
+[subsequent partial campaign](windows-partial-validation-checkpoint-305-2026-10-28.md)
+was stopped at the user's request after 68 cohorts. Further repairs use focused
+failure rechecks and direct regressions; no full-suite rerun is scheduled.
+Physical links, POSIX/Linux, optional backends, real models and release
+qualification retain separate owners. Raw `.tmp/` results are historical
+author-workspace evidence.
 
 All eight publication checks pass, including **40/40 gate cases**. The generated
 configuration inventory records only new references to existing environment

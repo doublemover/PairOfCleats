@@ -29,14 +29,25 @@ readiness failure, no timeouts and no skips. Fresh locked Windows setup verifies
 vulnerabilities after the Hono/RE2JS advisory repairs. Synthetic CDB controls
 qualify original launch-error retention, not a new native crash attribution.
 Profile-aware sparse omissions preserve present/corrupt and required-dense
-negatives. Next full Windows candidate acceptance is scheduled at checkpoint 305.
+negatives. The subsequent checkpoint-305 campaign was stopped at user request.
 
 The [checkpoint-305 repair batch](../archived/windows-contract-repair-checkpoint-305-2026-10-28.md)
 adds 40 passing affected checks and six passing warning/consumer controls, with
 exact parent-source/working-source identities. It repairs Clangd defaults and
 fixture dispatch, aggregate return ownership, duplicate service admission and
 contributing-provider warning totals; all eight publication checks pass.
-Its full frozen-candidate Windows campaign remains to execute separately.
+The [partial frozen-candidate campaign](../archived/windows-partial-validation-checkpoint-305-2026-10-28.md)
+completed 68 cohorts: 2,606 passed and 46 failed, including five timeouts, with
+zero skips; 3,450 required fixtures remain unrun. Further repairs use original
+failures and direct regressions. No full-suite rerun is scheduled, and these
+revision-specific results do not constitute a final-tree suite pass.
+
+The [focused failure repairs](../archived/windows-focused-failure-repairs-2026-10-28.md)
+pass 26/26 at `f8dc966bb`: nine original failures plus 17 direct controls,
+with no timeouts/skips and all publication checks passing. Astro source spans,
+null chunk contexts and canonical fixture inputs are repaired. Windows spool
+identity rejection uses controlled stat disagreement; POSIX retains real rename
+coverage. The remaining 37 partial-campaign failures retain their original receipts.
 
 Current Clangd acquisition and managed-file lifetime source is **unvalidated**
 at `773e6893e`; [20 authored checks and remaining qualification](../archived/clangd-acquisition-implementation-2026-10-27.md)
