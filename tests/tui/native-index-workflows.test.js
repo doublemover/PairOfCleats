@@ -25,6 +25,12 @@ assert.ok(['build-search', 'validate-search', 'watch-cancel', 'build-cancel', 'p
 const root = process.cwd(), prefix = resolveTestCachePath(root, 'ni-');
 await fs.mkdir(path.dirname(prefix), { recursive: true });
 const dir = await fs.mkdtemp(prefix);
+const fixtureStartedAt = performance.now();
+const recordFixturePhase = async phase => {
+  const entry = { mode, phase, elapsedMs: Math.round(performance.now() - fixtureStartedAt) };
+  await fs.appendFile(path.join(dir, 'fixture-phases.jsonl'), JSON.stringify(entry) + '\n');
+  console.log(JSON.stringify({ nativeWorkflowPhase: entry }));
+};
 const repo = path.join(dir, 'selected repository'); await fs.mkdir(repo); initGitRepo(repo);
 await fs.writeFile(path.join(repo, 'answer.js'), 'export function nativeWorkflowAnswer() { return 42; }\n');
 const config = path.join(repo, '.pairofcleats.json');
@@ -79,7 +85,12 @@ const cli = async (args, name) => {
   assert.equal(result.exitCode, 0, result.stderr); return result;
 };
 const needsCompleteSeed = mode.startsWith('snapshot-') || ['validate-search', 'report', 'stats'].includes(mode);
+const deferredSeed = mode === 'validate-search'
+  ? { stage: null, name: 'seed-complete-build' }
+  : process.platform === 'win32' && ['build-search', 'workspace'].includes(mode)
+    ? { stage: 'stage2', name: 'seed-partial-build' } : null;
 const seedBuild = async (stage, name) => {
+  await recordFixturePhase(`${name}:start`);
   const { buildIndex } = await import('../../src/integrations/core/build-index.js');
   const options = { modes: ['code'], ...(stage ? { stage } : {}), threads: 1, stubEmbeddings: true, progress: 'off', log: () => {} };
   const started = Date.now(), result = await buildIndex(repo, options);
@@ -93,8 +104,9 @@ const seedBuild = async (stage, name) => {
   }
   await fs.writeFile(path.join(dir, `${name}.json`), JSON.stringify({ owner: 'buildIndex', options,
     durationMs: Date.now() - started, outcome: result.outcome }, null, 2));
+  await recordFixturePhase(`${name}:complete`);
 };
-if (['build-search', 'workspace'].includes(mode)) {
+if (['build-search', 'workspace'].includes(mode) && !deferredSeed) {
   await seedBuild('stage2', 'seed-partial-build');
 }
 if (needsCompleteSeed && mode !== 'validate-search') {
@@ -133,6 +145,7 @@ try {
   const launcher = process.platform === 'win32'
     ? { command: 'pwsh.exe', args: ['-NoLogo', '-NoProfile', '-NonInteractive', '-File', path.join(root, 'tests/fixtures/tui/native-lifetime-conpty.ps1'), binary, dir, mode] }
     : { command: 'python3', args: [path.join(root, 'tests/fixtures/tui/native-terminal.py'), binary, dir, mode] };
+  await recordFixturePhase('terminal-capture:start');
   const capture = await captureCommandTerminalRun({ ...launcher, rootDir: root, cwd: root, cols: columns, rows,
     label: `native-index-${mode}-${phase}`, logsRoot: path.join(dir, 'capture'), timeoutMs: 26000,
     env: { ...env, PAIROFCLEATS_TUI_RUN_ID: `index-workflow-native-${phase}` },
@@ -215,15 +228,16 @@ try {
       const backToCatalog = async () => { terminal.write('\x1b'); await rendered('Arrows select | Enter form/reason'); };
       const closeCatalog = async () => { terminal.write('\x1b'); await rendered('Tab pane'); };
       try {
-        if (mode === 'validate-search') {
+        if (deferredSeed) {
           // The independent terminal can initialize while the canonical seed
           // builds. Join both owners before selecting a generation or starting
           // any workflow; retain every validator/search assertion and deadline.
-          const seed = seedBuild(null, 'seed-complete-build').then(() => { deadline = Date.now() + 22000; });
+          const seed = seedBuild(deferredSeed.stage, deferredSeed.name).then(() => { deadline = Date.now() + 22000; });
           const setup = await Promise.allSettled([seed, rendered('Tab pane')]);
           const failures = setup.filter(result => result.status === 'rejected').map(result => result.reason);
-          if (failures.length) throw failures.length === 1 ? failures[0] : new AggregateError(failures, 'Native validation setup failed.');
+          if (failures.length) throw failures.length === 1 ? failures[0] : new AggregateError(failures, 'Native workflow setup failed.');
         } else await rendered('Tab pane');
+        await recordFixturePhase('native-ui:ready');
         terminal.write('b'); await rendered('Workflow scope: repository directory');
         const after = await last('native-workflow-');
         // The native child inherits this cwd. Exercise real relative-path
@@ -366,6 +380,7 @@ try {
       } finally { subscription.dispose(); await fs.writeFile(path.join(dir, `terminal-output-${phase}.ansi.log`), output); }
     } });
   assert.equal(capture.timedOut, false); assert.equal(capture.exitCode, 0, capture.outputDir);
+  await recordFixturePhase('terminal-capture:closed');
   const receipt = JSON.parse(await fs.readFile(path.join(dir, 'terminal-receipt.json'), 'utf8'));
   assert.equal(receipt.exitCode, 0); assert.equal(receipt.stderr, ''); assert.equal(receipt.terminalRestored, true);
   await fs.writeFile(path.join(dir, `terminal-receipt-${phase}.json`), JSON.stringify(receipt));
@@ -380,6 +395,7 @@ try {
   assert.deepEqual((await events()).filter(event => event.event === 'log' && ['warn', 'error'].includes(event.level)), []);
   console.log(JSON.stringify({ mode, binarySha256, node: process.version, platform: process.platform, owned, receipt, capture: capture.outputDir }));
   if (mode === 'build-search') {
+    await recordFixturePhase('published-search:start');
     // The real supervisor already ran the CLI validator's canonical owner in
     // strict mode, then rechecked this generation's pointer and state hashes.
     // Retain that stronger receipt instead of starting the validator twice.
@@ -393,6 +409,7 @@ try {
     assert.equal(built.ok, true);
     const queried = JSON.parse((await cli(['search', ...built.args, '--', built.query], 'produced-search')).stdout);
     assert.ok(queried.code.some(hit => hit.file === 'answer.js'), JSON.stringify(queried));
+    await recordFixturePhase('published-search:complete');
   }
   await fs.writeFile(path.join(dir, 'fixture-settlement.json'), JSON.stringify({ mode, at: new Date().toISOString(),
     resources: process.getActiveResourcesInfo() }, null, 2));

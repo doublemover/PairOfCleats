@@ -204,11 +204,16 @@ jobs:
           path: |
             .diagnostics/native-inspection/**
             .testLogs/**
-            .tmp/dev/tests/cache/native-index-*/native-source-identity.json
-            .tmp/dev/tests/cache/native-index-*/terminal-receipt*.json
-            .tmp/dev/tests/cache/native-index-*/screen-*.txt
-            .tmp/dev/tests/cache/native-index-*/seed-*.json
-            .tmp/dev/tests/cache/native-index-*/pids.jsonl
+            .tmp/dev/tests/cache/ni-*/native-source-identity.json
+            .tmp/dev/tests/cache/ni-*/terminal-receipt*.json
+            .tmp/dev/tests/cache/ni-*/screen-*.txt
+            .tmp/dev/tests/cache/ni-*/seed-*.json
+            .tmp/dev/tests/cache/ni-*/pids.jsonl
+            .tmp/dev/tests/cache/ni-*/fixture-phases.jsonl
+            .tmp/dev/tests/cache/ni-*/terminal-output-*.ansi.log
+            .tmp/dev/tests/cache/ni-*/index-workflow-native-*.jsonl
+            .tmp/dev/tests/cache/ni-*/produced-search.json
+            .tmp/dev/tests/cache/ni-*/fixture-settlement.json
             .tmp/dev/tests/cache/native-artifacts-*/native-source-identity.json
             .tmp/dev/tests/cache/native-artifacts-*/terminal-receipt.json
             .tmp/dev/tests/cache/native-artifacts-*/screen-*.txt

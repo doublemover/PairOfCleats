@@ -15,12 +15,15 @@ public static class PocConsoleMode {
 '@
 $beforeInput = [PocConsoleMode]::Read(-10)
 $beforeOutput = [PocConsoleMode]::Read(-11)
-if ($Mode -eq 'validate-search') {
+$seedName = if ($Mode -eq 'validate-search') { 'seed-complete-build.json' }
+  elseif ($Mode -in @('build-search', 'workspace')) { 'seed-partial-build.json' }
+  else { $null }
+if ($seedName) {
   # Compile the independent console observer while the canonical seed builds.
   # Start the native lifetime only after the seed owner has actually completed.
   $seedDeadline = [DateTime]::UtcNow.AddSeconds(20)
-  while (!(Test-Path -LiteralPath (Join-Path $FixtureRoot 'seed-complete-build.json'))) {
-    if ([DateTime]::UtcNow -gt $seedDeadline) { throw 'Canonical validation seed did not complete' }
+  while (!(Test-Path -LiteralPath (Join-Path $FixtureRoot $seedName))) {
+    if ([DateTime]::UtcNow -gt $seedDeadline) { throw 'Canonical workflow seed did not complete' }
     Start-Sleep -Milliseconds 20
   }
 }
