@@ -1,0 +1,1498 @@
+{
+  "date": "2026-10-29T10:33:29.147Z",
+  "baseCommit": "516e29edf216289b8b84a37e7a0d2d770c5fcedc",
+  "identityNote": "Working-tree hashes record the actual Windows bytes. Source hashes are refreshed after format; no fresh native rebuild or whole-suite qualification is claimed.",
+  "sources": [
+    {
+      "path": ".python-version",
+      "sha256": "673e2ba07f95bfcfe0a543258b8e267954e403d1f466481c546f467f86b31d46",
+      "gitBlobSha256": "673e2ba07f95bfcfe0a543258b8e267954e403d1f466481c546f467f86b31d46",
+      "normalizedTextSha256": "673e2ba07f95bfcfe0a543258b8e267954e403d1f466481c546f467f86b31d46"
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "sha256": "c4abf6bf44df3bcb987ccfacb28f0af5213f41fb493019e79dd66eb95c842dfd",
+      "gitBlobSha256": "c4abf6bf44df3bcb987ccfacb28f0af5213f41fb493019e79dd66eb95c842dfd",
+      "normalizedTextSha256": "c4abf6bf44df3bcb987ccfacb28f0af5213f41fb493019e79dd66eb95c842dfd"
+    },
+    {
+      "path": ".github/workflows/ci-long.yml",
+      "sha256": "fd02f72c371a4561c8e37b425ecccc930d897ec49bfe5dce30e96024172057c6",
+      "gitBlobSha256": "fd02f72c371a4561c8e37b425ecccc930d897ec49bfe5dce30e96024172057c6",
+      "normalizedTextSha256": "fd02f72c371a4561c8e37b425ecccc930d897ec49bfe5dce30e96024172057c6"
+    },
+    {
+      "path": ".github/workflows/maintenance-full.yml",
+      "sha256": "73664eff9db16c5b94b06dde62642cf0bf451c8927ccb422c3b198603f010c4a",
+      "gitBlobSha256": "73664eff9db16c5b94b06dde62642cf0bf451c8927ccb422c3b198603f010c4a",
+      "normalizedTextSha256": "73664eff9db16c5b94b06dde62642cf0bf451c8927ccb422c3b198603f010c4a"
+    },
+    {
+      "path": ".github/workflows/nightly.yml",
+      "sha256": "59b1cbb26aee56bff42232ec619e8b441e1541b342c791ffd0f24c86c3f8d3e6",
+      "gitBlobSha256": "59b1cbb26aee56bff42232ec619e8b441e1541b342c791ffd0f24c86c3f8d3e6",
+      "normalizedTextSha256": "59b1cbb26aee56bff42232ec619e8b441e1541b342c791ffd0f24c86c3f8d3e6"
+    },
+    {
+      "path": ".github/workflows/release.yml",
+      "sha256": "c2f9683a06dc3ea332e3ad8fd7fd44a547c2ab390aa2923ecdc53558fceb27f9",
+      "gitBlobSha256": "c2f9683a06dc3ea332e3ad8fd7fd44a547c2ab390aa2923ecdc53558fceb27f9",
+      "normalizedTextSha256": "c2f9683a06dc3ea332e3ad8fd7fd44a547c2ab390aa2923ecdc53558fceb27f9"
+    },
+    {
+      "path": "src/lang/python/pool.js",
+      "sha256": "c4e13fc9c52eaed46398bda0f26a5cb72fd99f68f24380f0e110f47f5eff9a08",
+      "gitBlobSha256": "2936409c56324a8dd34b4b27667ab14d88fee5e93af56d7b297ef44d5ef31e68",
+      "normalizedTextSha256": "2936409c56324a8dd34b4b27667ab14d88fee5e93af56d7b297ef44d5ef31e68"
+    },
+    {
+      "path": "tests/ci/workflow-contract.test.js",
+      "sha256": "a9a070611732d02fa725bf432f781f48286a5e328aea686be8e46cf3f48523f5",
+      "gitBlobSha256": "e1ac2a9b3488e7f9932ab873ef93322bddc35f99cd238d883fb72a9251be4d31",
+      "normalizedTextSha256": "e1ac2a9b3488e7f9932ab873ef93322bddc35f99cd238d883fb72a9251be4d31"
+    },
+    {
+      "path": "tests/lang/python/ast-worker.test.js",
+      "sha256": "7ddc0595552f1ebd4c3f8faaac2bafa416ac7cb68e82bf3cc80d9005f203954a",
+      "gitBlobSha256": "e148be47c916281349f2fb75e0e563caa4d589d551e38cf07a5a248b0e5f0c34",
+      "normalizedTextSha256": "e148be47c916281349f2fb75e0e563caa4d589d551e38cf07a5a248b0e5f0c34"
+    },
+    {
+      "path": "tests/lang/python/pool-retirement-ownership.test.js",
+      "sha256": "d185330385e5e4d2ac9c2db760506ff027031a1b6d2b88090ca68b126309fea8",
+      "gitBlobSha256": "d185330385e5e4d2ac9c2db760506ff027031a1b6d2b88090ca68b126309fea8",
+      "normalizedTextSha256": "d185330385e5e4d2ac9c2db760506ff027031a1b6d2b88090ca68b126309fea8"
+    },
+    {
+      "path": "tests/storage/semantic/runtime-opened-byte-integrity.test.js",
+      "sha256": "42167fb66c27517a8cbf682cc9c01b566cc4e50a300db5014f15f2e3dc86e630",
+      "gitBlobSha256": "42167fb66c27517a8cbf682cc9c01b566cc4e50a300db5014f15f2e3dc86e630",
+      "normalizedTextSha256": "42167fb66c27517a8cbf682cc9c01b566cc4e50a300db5014f15f2e3dc86e630"
+    },
+    {
+      "path": "tests/storage/semantic/runtime-query-close-ownership.test.js",
+      "sha256": "5a3dffc1b202bbad58d9e67f56a2d1398bde30cd8506398db6d93c6d9197509b",
+      "gitBlobSha256": "5a3dffc1b202bbad58d9e67f56a2d1398bde30cd8506398db6d93c6d9197509b",
+      "normalizedTextSha256": "5a3dffc1b202bbad58d9e67f56a2d1398bde30cd8506398db6d93c6d9197509b"
+    },
+    {
+      "path": "tests/ci-lite/ci-lite.order.txt",
+      "sha256": "6bd9d20f61488f55c25b9635a0e4624244af8f959eaab124a528fad05442dc68",
+      "gitBlobSha256": "df875d165f815afb0e17c7c0b3f005d83806b784f37ff056e94efdf6ad60c894",
+      "normalizedTextSha256": "df875d165f815afb0e17c7c0b3f005d83806b784f37ff056e94efdf6ad60c894"
+    },
+    {
+      "path": "tests/ci-lite/ci-lite.manifest.json",
+      "sha256": "0a1f678033baa291a11f2dbcd06b206798e55ead5074d1c408dead4360bf862d",
+      "gitBlobSha256": "0a1f678033baa291a11f2dbcd06b206798e55ead5074d1c408dead4360bf862d",
+      "normalizedTextSha256": "0a1f678033baa291a11f2dbcd06b206798e55ead5074d1c408dead4360bf862d"
+    }
+  ],
+  "runtime": {
+    "node": "26.13.0",
+    "python": "3.15.2",
+    "platform": "win32",
+    "arch": "x64",
+    "abi": 147,
+    "pythonExecutableSha256": "d4e19e9a33268fb0ce575a24ab2d4b85972524f1933df008a6befc14dce19fbd",
+    "pythonArchiveSha256": "d012f3aa29cf07436dae8aea1fec0fd195c2612a0b059b1f915ae0afb9ad1f62",
+    "pythonOfficialRelease": "https://www.python.org/downloads/release/python-3152/",
+    "preflight": {
+      "path": ".tmp/tasks/ci-and-p1-20261028/python3152-preflight.json",
+      "sha256": "343c63efac8d4290a2c42ba7185b7f7ced2ee704311a514579c34a377941dd65",
+      "python": {
+        "version": [
+          3,
+          15,
+          2
+        ],
+        "executable": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\python-3.15.2-embed-amd64\\python.exe",
+        "releaselevel": "final",
+        "serial": 0,
+        "command": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\python-3.15.2-embed-amd64\\python.exe",
+        "args": [],
+        "source": "NODE_GYP_FORCE_PYTHON",
+        "prerelease": false
+      },
+      "qualification": "Actual selected Python and C++ compile/link capability; existing native/patch readiness, not a new full native rebuild with this interpreter."
+    }
+  },
+  "focused": [
+    {
+      "path": ".tmp/tasks/ci-and-p1-20261028/python3152-focused.json",
+      "sha256": "a430ce72d15c6e6ac9bb32b9295ea76d291d0b471fbab1cbd871661a4b12a5b2",
+      "report": {
+        "summary": {
+          "total": 13,
+          "passed": 13,
+          "failed": 0,
+          "skipped": 0,
+          "durationMs": 27991
+        },
+        "logDir": "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\python3152-focused\\run-1793269572717-h5k2er",
+        "junit": null,
+        "tests": [
+          {
+            "id": "lang/python/ast-chunks",
+            "path": "lang/python/ast-chunks.test.js",
+            "lane": "unit",
+            "tags": [
+              "lang",
+              "unit"
+            ],
+            "status": "passed",
+            "durationMs": 104,
+            "attempts": 1,
+            "exitCode": 0,
+            "signal": null,
+            "timedOut": false,
+            "timeoutClass": null,
+            "skipReason": null,
+            "termination": null,
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\python3152-focused\\run-1793269572717-h5k2er\\lang_python_ast-chunks.attempt-1.log"
+            ]
+          },
+          {
+            "id": "lang/python/ast-worker",
+            "path": "lang/python/ast-worker.test.js",
+            "lane": "unit",
+            "tags": [
+              "lang",
+              "unit"
+            ],
+            "status": "passed",
+            "durationMs": 469,
+            "attempts": 1,
+            "exitCode": 0,
+            "signal": null,
+            "timedOut": false,
+            "timeoutClass": null,
+            "skipReason": null,
+            "termination": null,
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\python3152-focused\\run-1793269572717-h5k2er\\lang_python_ast-worker.attempt-1.log"
+            ]
+          },
+          {
+            "id": "lang/python/byte-column-checkpoint-parity",
+            "path": "lang/python/byte-column-checkpoint-parity.test.js",
+            "lane": "unit",
+            "tags": [
+              "lang",
+              "unit"
+            ],
+            "status": "passed",
+            "durationMs": 70,
+            "attempts": 1,
+            "exitCode": 0,
+            "signal": null,
+            "timedOut": false,
+            "timeoutClass": null,
+            "skipReason": null,
+            "termination": null,
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\python3152-focused\\run-1793269572717-h5k2er\\lang_python_byte-column-checkpoint-parity.attempt-1.log"
+            ]
+          },
+          {
+            "id": "lang/python/import-continuation-boundaries",
+            "path": "lang/python/import-continuation-boundaries.test.js",
+            "lane": "unit",
+            "tags": [
+              "lang",
+              "unit"
+            ],
+            "status": "passed",
+            "durationMs": 177,
+            "attempts": 1,
+            "exitCode": 0,
+            "signal": null,
+            "timedOut": false,
+            "timeoutClass": null,
+            "skipReason": null,
+            "termination": null,
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\python3152-focused\\run-1793269572717-h5k2er\\lang_python_import-continuation-boundaries.attempt-1.log"
+            ]
+          },
+          {
+            "id": "lang/python/pool-retirement-ownership",
+            "path": "lang/python/pool-retirement-ownership.test.js",
+            "lane": "unit",
+            "tags": [
+              "lang",
+              "unit"
+            ],
+            "status": "passed",
+            "durationMs": 81,
+            "attempts": 1,
+            "exitCode": 0,
+            "signal": null,
+            "timedOut": false,
+            "timeoutClass": null,
+            "skipReason": null,
+            "termination": null,
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\python3152-focused\\run-1793269572717-h5k2er\\lang_python_pool-retirement-ownership.attempt-1.log"
+            ]
+          },
+          {
+            "id": "lang/python/positional-defaults",
+            "path": "lang/python/positional-defaults.test.js",
+            "lane": "unit",
+            "tags": [
+              "lang",
+              "unit"
+            ],
+            "status": "passed",
+            "durationMs": 500,
+            "attempts": 1,
+            "exitCode": 0,
+            "signal": null,
+            "timedOut": false,
+            "timeoutClass": null,
+            "skipReason": null,
+            "termination": null,
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\python3152-focused\\run-1793269572717-h5k2er\\lang_python_positional-defaults.attempt-1.log"
+            ]
+          },
+          {
+            "id": "lang/python/python-contract-matrix",
+            "path": "lang/python/python-contract-matrix.test.js",
+            "lane": "unit",
+            "tags": [
+              "lang",
+              "unit"
+            ],
+            "status": "passed",
+            "durationMs": 240,
+            "attempts": 1,
+            "exitCode": 0,
+            "signal": null,
+            "timedOut": false,
+            "timeoutClass": null,
+            "skipReason": null,
+            "termination": null,
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\python3152-focused\\run-1793269572717-h5k2er\\lang_python_python-contract-matrix.attempt-1.log"
+            ]
+          },
+          {
+            "id": "lang/python/registry-relations",
+            "path": "lang/python/registry-relations.test.js",
+            "lane": "unit",
+            "tags": [
+              "lang",
+              "unit"
+            ],
+            "status": "passed",
+            "durationMs": 427,
+            "attempts": 1,
+            "exitCode": 0,
+            "signal": null,
+            "timedOut": false,
+            "timeoutClass": null,
+            "skipReason": null,
+            "termination": null,
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\python3152-focused\\run-1793269572717-h5k2er\\lang_python_registry-relations.attempt-1.log"
+            ]
+          },
+          {
+            "id": "lang/python/utf8-chunk-ranges",
+            "path": "lang/python/utf8-chunk-ranges.test.js",
+            "lane": "unit",
+            "tags": [
+              "lang",
+              "unit"
+            ],
+            "status": "passed",
+            "durationMs": 435,
+            "attempts": 1,
+            "exitCode": 0,
+            "signal": null,
+            "timedOut": false,
+            "timeoutClass": null,
+            "skipReason": null,
+            "termination": null,
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\python3152-focused\\run-1793269572717-h5k2er\\lang_python_utf8-chunk-ranges.attempt-1.log"
+            ]
+          },
+          {
+            "id": "retrieval/pipeline/ann-lazy-import",
+            "path": "retrieval/pipeline/ann-lazy-import.test.js",
+            "lane": "integration",
+            "tags": [
+              "integration",
+              "retrieval"
+            ],
+            "status": "passed",
+            "durationMs": 11638,
+            "attempts": 1,
+            "exitCode": 0,
+            "signal": null,
+            "timedOut": false,
+            "timeoutClass": null,
+            "skipReason": null,
+            "termination": null,
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\python3152-focused\\run-1793269572717-h5k2er\\retrieval_pipeline_ann-lazy-import.attempt-1.log"
+            ]
+          },
+          {
+            "id": "tooling/install/lancedb-openai-runtime",
+            "path": "tooling/install/lancedb-openai-runtime.test.js",
+            "lane": "unit",
+            "tags": [
+              "tooling",
+              "unit"
+            ],
+            "status": "passed",
+            "durationMs": 337,
+            "attempts": 1,
+            "exitCode": 0,
+            "signal": null,
+            "timedOut": false,
+            "timeoutClass": null,
+            "skipReason": null,
+            "termination": null,
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\python3152-focused\\run-1793269572717-h5k2er\\tooling_install_lancedb-openai-runtime.attempt-1.log"
+            ]
+          },
+          {
+            "id": "tooling/install/lancedb-transformers-runtime",
+            "path": "tooling/install/lancedb-transformers-runtime.test.js",
+            "lane": "unit",
+            "tags": [
+              "tooling",
+              "unit"
+            ],
+            "status": "passed",
+            "durationMs": 292,
+            "attempts": 1,
+            "exitCode": 0,
+            "signal": null,
+            "timedOut": false,
+            "timeoutClass": null,
+            "skipReason": null,
+            "termination": null,
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\python3152-focused\\run-1793269572717-h5k2er\\tooling_install_lancedb-transformers-runtime.attempt-1.log"
+            ]
+          },
+          {
+            "id": "tooling/sublime/api-authentication",
+            "path": "tooling/sublime/api-authentication.test.js",
+            "lane": "unit",
+            "tags": [
+              "tooling",
+              "unit"
+            ],
+            "status": "passed",
+            "durationMs": 13205,
+            "attempts": 1,
+            "exitCode": 0,
+            "signal": null,
+            "timedOut": false,
+            "timeoutClass": null,
+            "skipReason": null,
+            "termination": null,
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\python3152-focused\\run-1793269572717-h5k2er\\tooling_sublime_api-authentication.attempt-1.log"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "path": ".tmp/tasks/ci-and-p1-20261028/runtime-close-repaired.json",
+      "sha256": "07bfe21420eba0a27e23ed784628f7d0c29b533195966248e03b5272f4822bc1",
+      "report": {
+        "summary": {
+          "total": 2,
+          "passed": 2,
+          "failed": 0,
+          "skipped": 0,
+          "durationMs": 1358
+        },
+        "logDir": "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\runtime-close-repaired\\run-1793269942614-ivkmpc",
+        "junit": null,
+        "tests": [
+          {
+            "id": "storage/semantic/retained-source-reader-lifetime",
+            "path": "storage/semantic/retained-source-reader-lifetime.test.js",
+            "lane": "storage",
+            "tags": [
+              "storage"
+            ],
+            "status": "passed",
+            "durationMs": 493,
+            "attempts": 1,
+            "exitCode": 0,
+            "signal": null,
+            "timedOut": false,
+            "timeoutClass": null,
+            "skipReason": null,
+            "termination": null,
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\runtime-close-repaired\\run-1793269942614-ivkmpc\\storage_semantic_retained-source-reader-lifetime.attempt-1.log"
+            ]
+          },
+          {
+            "id": "storage/semantic/runtime-query-close-ownership",
+            "path": "storage/semantic/runtime-query-close-ownership.test.js",
+            "lane": "storage",
+            "tags": [
+              "storage"
+            ],
+            "status": "passed",
+            "durationMs": 859,
+            "attempts": 1,
+            "exitCode": 0,
+            "signal": null,
+            "timedOut": false,
+            "timeoutClass": null,
+            "skipReason": null,
+            "termination": null,
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\runtime-close-repaired\\run-1793269942614-ivkmpc\\storage_semantic_runtime-query-close-ownership.attempt-1.log"
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "beforeControl": {
+    "path": ".tmp/tasks/ci-and-p1-20261028/runtime-close-before-owner.json",
+    "sha256": "96cacd398c8badcf678c1896557ecdc7e012981244c8461f6dcf6f84db3a3482",
+    "report": {
+      "summary": {
+        "total": 1,
+        "passed": 0,
+        "failed": 1,
+        "skipped": 0,
+        "durationMs": 898
+      },
+      "logDir": "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\runtime-close-before-owner\\run-1793269926249-jfqmpk",
+      "junit": null,
+      "tests": [
+        {
+          "id": "storage/semantic/runtime-query-close-ownership",
+          "path": "storage/semantic/runtime-query-close-ownership.test.js",
+          "lane": "storage",
+          "tags": [
+            "storage"
+          ],
+          "status": "failed",
+          "durationMs": 892,
+          "attempts": 1,
+          "exitCode": 1,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\runtime-close-before-owner\\run-1793269926249-jfqmpk\\storage_semantic_runtime-query-close-ownership.attempt-1.log",
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\runtime-close-before-owner\\run-1793269926249-jfqmpk\\storage_semantic_runtime-query-close-ownership.attempt-1.failure.json"
+          ]
+        }
+      ]
+    },
+    "failureLog": "id: storage/semantic/runtime-query-close-ownership\npath: storage/semantic/runtime-query-close-ownership.test.js\nattempt: 1\nstatus: failed\nexit: 1\nsignal: null\ntimedOut: false\ntimeoutClass: \nskipReason: \ntermination: \n\n--- stderr ---\nnode:internal/modules/run_main:111\r\n    triggerUncaughtException(\r\n    ^\r\n\r\nAssertionError [ERR_ASSERTION]: Expected \"actual\" to be reference-equal to \"expected\":\r\n+ actual - expected\r\n\r\n+ [AggregateError: injected evidence opening failure] {\r\n+   [cause]: [Error: injected evidence opening failure] {\r\n+     code: 'ERR_FIXTURE_OPEN'\r\n+   },\r\n- [Error: injected evidence opening failure] {\r\n    code: 'ERR_FIXTURE_OPEN'\r\n  }\r\n\r\n    at Object.<anonymous> (file:///C:/Users/sneak/Development/PairOfCleats/tests/storage/semantic/runtime-query-close-ownership.test.js:40:61)\r\n    at expectedException (node:assert:547:17)\r\n    at expectsError (node:assert:672:21)\r\n    at strict.rejects (node:assert:738:3)\r\n    at async file:///C:/Users/sneak/Development/PairOfCleats/tests/storage/semantic/runtime-query-close-ownership.test.js:39:5 {\r\n  generatedMessage: true,\r\n  code: 'ERR_ASSERTION',\r\n  actual: [AggregateError: injected evidence opening failure] {\r\n    code: 'ERR_FIXTURE_OPEN',\r\n    [cause]: [Error: injected evidence opening failure] {\r\n      code: 'ERR_FIXTURE_OPEN'\r\n    }\r\n  },\r\n  expected: [Error: injected evidence opening failure] {\r\n    code: 'ERR_FIXTURE_OPEN'\r\n  },\r\n  operator: 'strictEqual',\r\n  diff: 'simple'\r\n}\r\n\r\nNode.js v26.13.0\r\n"
+  },
+  "failedExtraction": {
+    "path": ".tmp/tasks/ci-and-p1-20261028/runtime-close-before.json",
+    "sha256": "753e5c73bf01dfd7cc1bd55b1f931c30b0cf32d4eaf4a8a65f0f8560dc7c4ee2",
+    "report": {
+      "summary": {
+        "total": 1,
+        "passed": 0,
+        "failed": 1,
+        "skipped": 0,
+        "durationMs": 760
+      },
+      "logDir": "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\runtime-close-before\\run-1793269906582-4tinxn",
+      "junit": null,
+      "tests": [
+        {
+          "id": "storage/semantic/runtime-query-close-ownership",
+          "path": "storage/semantic/runtime-query-close-ownership.test.js",
+          "lane": "storage",
+          "tags": [
+            "storage"
+          ],
+          "status": "failed",
+          "durationMs": 753,
+          "attempts": 1,
+          "exitCode": 1,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\runtime-close-before\\run-1793269906582-4tinxn\\storage_semantic_runtime-query-close-ownership.attempt-1.log",
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\runtime-close-before\\run-1793269906582-4tinxn\\storage_semantic_runtime-query-close-ownership.attempt-1.failure.json"
+          ]
+        }
+      ]
+    }
+  },
+  "originalHostedAuthority": {
+    "runId": 40855086270,
+    "head": "516e29edf216289b8b84a37e7a0d2d770c5fcedc",
+    "jobId": 123387191601,
+    "artifactId": 12889283060,
+    "archiveSha256": "104c68e6d01460b4ff7a844adca79e447d4b5e760d6c564c35538ea7e979e785",
+    "passed": 30,
+    "failed": 1,
+    "subsequentUnrun": 12,
+    "failure": "runtime-opened-byte-integrity expected direct cause; actual nested AggregateError retains original operation and cleanup errors"
+  },
+  "publicationGate": {
+    "status": "passed",
+    "checks": [
+      {
+        "log": ".tmp/tasks/ci-and-p1-20261028/python3152-gate-format.log",
+        "durationMs": 40452.3843,
+        "exitCode": 0,
+        "sha256": "7b6ecbaa588687ae9361de86fa1be71f8a1c8d6d560b8c05c3d4a36b41040e7a",
+        "command": "npm.cmd run format",
+        "name": "format"
+      },
+      {
+        "log": ".tmp/tasks/ci-and-p1-20261028/python3152-gate-config-budget.log",
+        "durationMs": 2270.7415,
+        "exitCode": 0,
+        "sha256": "f043edbfe9c124df7382a258c37af590664650e6900a3a6b7740327033f42188",
+        "command": "npm.cmd run config:budget",
+        "name": "config-budget"
+      },
+      {
+        "log": ".tmp/tasks/ci-and-p1-20261028/python3152-gate-env-check.log",
+        "durationMs": 1203.432,
+        "exitCode": 0,
+        "sha256": "fdb1f3a0cc01d0aa4df797ea540d73ba56380464f88cea3f49dfa50bce41dc91",
+        "command": "npm.cmd run env:check",
+        "name": "env-check"
+      },
+      {
+        "log": ".tmp/tasks/ci-and-p1-20261028/python3152-gate-generated-freshness.log",
+        "durationMs": 11705.7824,
+        "exitCode": 0,
+        "sha256": "486a1f76702c08378b565b632884d46fc5ffa16210f70a68304925fa5eb818f6",
+        "command": "node tools/docs/generated-surfaces.js --check-freshness",
+        "name": "generated-freshness"
+      },
+      {
+        "log": ".tmp/tasks/ci-and-p1-20261028/python3152-gate-command-surface.log",
+        "durationMs": 2653.8,
+        "exitCode": 0,
+        "sha256": "f16d35826c0a50a9d9a491bc668b12374018822b83947643d1446cb031bc8577",
+        "command": "node tools/ci/check-command-surface.js",
+        "name": "command-surface"
+      },
+      {
+        "log": ".tmp/tasks/ci-and-p1-20261028/python3152-gate-workflow-contract.log",
+        "durationMs": 220.8854,
+        "exitCode": 0,
+        "sha256": "185b68faaf1903b2526a655b3bf7c5363bb10d447dfdb9e32461d93af831d39f",
+        "command": "node tests/ci/workflow-contract.test.js",
+        "name": "workflow-contract"
+      },
+      {
+        "log": ".tmp/tasks/ci-and-p1-20261028/python3152-gate-gate.log",
+        "durationMs": 6817.7451,
+        "exitCode": 0,
+        "sha256": "24e21c57287977ea9894df8a103bdba6ee9771990c6ad6f4331b09388c21b7d6",
+        "command": "node tests/run.js --lane gate --timeout-ms 30000 --retries 0 --native-status-redo=false --report-file .tmp/tasks/ci-and-p1-20261028/python3152-gate.json --log-dir .tmp/tasks/ci-and-p1-20261028/python3152-gate-logs",
+        "name": "gate"
+      },
+      {
+        "log": ".tmp/tasks/ci-and-p1-20261028/python3152-gate-diff-check.log",
+        "durationMs": 86.2041,
+        "exitCode": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "command": "git diff --check",
+        "name": "diff-check"
+      }
+    ],
+    "gateReport": {
+      "junit": null,
+      "logDir": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\python3152-gate-logs\\run-1793270072291-g7bgyn",
+      "summary": {
+        "durationMs": 4523,
+        "failed": 0,
+        "passed": 40,
+        "skipped": 0,
+        "total": 40
+      },
+      "tests": [
+        {
+          "attempts": 1,
+          "durationMs": 83,
+          "exitCode": 0,
+          "id": "indexing/policy/hotpath-membership-guard",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\python3152-gate-logs\\run-1793270072291-g7bgyn\\indexing_policy_hotpath-membership-guard.attempt-1.log"
+          ],
+          "path": "indexing/policy/hotpath-membership-guard.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 106,
+          "exitCode": 0,
+          "id": "indexing/policy/module-cache-boundedness-contract",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\python3152-gate-logs\\run-1793270072291-g7bgyn\\indexing_policy_module-cache-boundedness-contract.attempt-1.log"
+          ],
+          "path": "indexing/policy/module-cache-boundedness-contract.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 89,
+          "exitCode": 0,
+          "id": "indexing/policy/generated-matrix",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\python3152-gate-logs\\run-1793270072291-g7bgyn\\indexing_policy_generated-matrix.attempt-1.log"
+          ],
+          "path": "indexing/policy/generated-matrix.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 93,
+          "exitCode": 0,
+          "id": "indexing/contracts/artifact-surface-version",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\python3152-gate-logs\\run-1793270072291-g7bgyn\\indexing_contracts_artifact-surface-version.attempt-1.log"
+          ],
+          "path": "indexing/contracts/artifact-surface-version.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 86,
+          "exitCode": 0,
+          "id": "indexing/contracts/n-minus-one-adapter",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\python3152-gate-logs\\run-1793270072291-g7bgyn\\indexing_contracts_n-minus-one-adapter.attempt-1.log"
+          ],
+          "path": "indexing/contracts/n-minus-one-adapter.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 106,
+          "exitCode": 0,
+          "id": "indexing/contracts/public-artifact-surface-doc",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\python3152-gate-logs\\run-1793270072291-g7bgyn\\indexing_contracts_public-artifact-surface-doc.attempt-1.log"
+          ],
+          "path": "indexing/contracts/public-artifact-surface-doc.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 226,
+          "exitCode": 0,
+          "id": "indexing/contracts/index-compatibility-key-generation",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\python3152-gate-logs\\run-1793270072291-g7bgyn\\indexing_contracts_index-compatibility-key-generation.attempt-1.log"
+          ],
+          "path": "indexing/contracts/index-compatibility-key-generation.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 92,
+          "exitCode": 0,
+          "id": "indexing/contracts/semver-policy-enforced",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\python3152-gate-logs\\run-1793270072291-g7bgyn\\indexing_contracts_semver-policy-enforced.attempt-1.log"
+          ],
+          "path": "indexing/contracts/semver-policy-enforced.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 110,
+          "exitCode": 0,
+          "id": "indexing/contracts/index-state-dense-sidecars-present",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\python3152-gate-logs\\run-1793270072291-g7bgyn\\indexing_contracts_index-state-dense-sidecars-present.attempt-1.log"
+          ],
+          "path": "indexing/contracts/index-state-dense-sidecars-present.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 203,
+          "exitCode": 0,
+          "id": "contracts/manifest-max-bytes-validation",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\python3152-gate-logs\\run-1793270072291-g7bgyn\\contracts_manifest-max-bytes-validation.attempt-1.log"
+          ],
+          "path": "contracts/manifest-max-bytes-validation.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 2414,
+          "exitCode": 0,
+          "id": "indexing/policy/repo-inventory",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\python3152-gate-logs\\run-1793270072291-g7bgyn\\indexing_policy_repo-inventory.attempt-1.log"
+          ],
+          "path": "indexing/policy/repo-inventory.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 328,
+          "exitCode": 0,
+          "id": "indexing/policy/shared-module-cycle-guard",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\python3152-gate-logs\\run-1793270072291-g7bgyn\\indexing_policy_shared-module-cycle-guard.attempt-1.log"
+          ],
+          "path": "indexing/policy/shared-module-cycle-guard.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 273,
+          "exitCode": 0,
+          "id": "indexing/contracts/loader-matrix-parity",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\python3152-gate-logs\\run-1793270072291-g7bgyn\\indexing_contracts_loader-matrix-parity.attempt-1.log"
+          ],
+          "path": "indexing/contracts/loader-matrix-parity.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 392,
+          "exitCode": 0,
+          "id": "indexing/policy/analysis-schema",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\python3152-gate-logs\\run-1793270072291-g7bgyn\\indexing_policy_analysis-schema.attempt-1.log"
+          ],
+          "path": "indexing/policy/analysis-schema.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 358,
+          "exitCode": 0,
+          "id": "indexing/contracts/snapshots",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\python3152-gate-logs\\run-1793270072291-g7bgyn\\indexing_contracts_snapshots.attempt-1.log"
+          ],
+          "path": "indexing/contracts/snapshots.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 355,
+          "exitCode": 0,
+          "id": "indexing/contracts/builds-current-repo-head-schema",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\python3152-gate-logs\\run-1793270072291-g7bgyn\\indexing_contracts_builds-current-repo-head-schema.attempt-1.log"
+          ],
+          "path": "indexing/contracts/builds-current-repo-head-schema.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 379,
+          "exitCode": 0,
+          "id": "indexing/contracts/call-sites-schema",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\python3152-gate-logs\\run-1793270072291-g7bgyn\\indexing_contracts_call-sites-schema.attempt-1.log"
+          ],
+          "path": "indexing/contracts/call-sites-schema.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 380,
+          "exitCode": 0,
+          "id": "indexing/contracts/diffs",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\python3152-gate-logs\\run-1793270072291-g7bgyn\\indexing_contracts_diffs.attempt-1.log"
+          ],
+          "path": "indexing/contracts/diffs.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 379,
+          "exitCode": 0,
+          "id": "indexing/contracts/additional-properties-policy",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\python3152-gate-logs\\run-1793270072291-g7bgyn\\indexing_contracts_additional-properties-policy.attempt-1.log"
+          ],
+          "path": "indexing/contracts/additional-properties-policy.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 606,
+          "exitCode": 0,
+          "id": "indexing/contracts/index-compatibility-key-enforced-on-load",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\python3152-gate-logs\\run-1793270072291-g7bgyn\\indexing_contracts_index-compatibility-key-enforced-on-load.attempt-1.log"
+          ],
+          "path": "indexing/contracts/index-compatibility-key-enforced-on-load.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 341,
+          "exitCode": 0,
+          "id": "indexing/contracts/schema-registry-single-source",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\python3152-gate-logs\\run-1793270072291-g7bgyn\\indexing_contracts_schema-registry-single-source.attempt-1.log"
+          ],
+          "path": "indexing/contracts/schema-registry-single-source.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 822,
+          "exitCode": 0,
+          "id": "tooling/api-contracts/caps",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\python3152-gate-logs\\run-1793270072291-g7bgyn\\tooling_api-contracts_caps.attempt-1.log"
+          ],
+          "path": "tooling/api-contracts/caps.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "tooling"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 981,
+          "exitCode": 0,
+          "id": "tooling/api-contracts/schema-validate",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\python3152-gate-logs\\run-1793270072291-g7bgyn\\tooling_api-contracts_schema-validate.attempt-1.log"
+          ],
+          "path": "tooling/api-contracts/schema-validate.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "tooling"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 1018,
+          "exitCode": 0,
+          "id": "tooling/api-contracts/fail-on-warn",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\python3152-gate-logs\\run-1793270072291-g7bgyn\\tooling_api-contracts_fail-on-warn.attempt-1.log"
+          ],
+          "path": "tooling/api-contracts/fail-on-warn.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "tooling"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 960,
+          "exitCode": 0,
+          "id": "tooling/api-contracts/optional-params",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\python3152-gate-logs\\run-1793270072291-g7bgyn\\tooling_api-contracts_optional-params.attempt-1.log"
+          ],
+          "path": "tooling/api-contracts/optional-params.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "tooling"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 841,
+          "exitCode": 0,
+          "id": "tooling/api-contracts/large-call-sites",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\python3152-gate-logs\\run-1793270072291-g7bgyn\\tooling_api-contracts_large-call-sites.attempt-1.log"
+          ],
+          "path": "tooling/api-contracts/large-call-sites.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "tooling"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 681,
+          "exitCode": 0,
+          "id": "indexing/contracts/embedding-identity-gating-on-load",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\python3152-gate-logs\\run-1793270072291-g7bgyn\\indexing_contracts_embedding-identity-gating-on-load.attempt-1.log"
+          ],
+          "path": "indexing/contracts/embedding-identity-gating-on-load.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 1197,
+          "exitCode": 0,
+          "id": "ci/capability-gate.smoke",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\python3152-gate-logs\\run-1793270072291-g7bgyn\\ci_capability-gate_smoke.attempt-1.log"
+          ],
+          "path": "ci/capability-gate.smoke.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 1531,
+          "exitCode": 0,
+          "id": "indexing/contracts/index-compatibility-key-federation-block",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\python3152-gate-logs\\run-1793270072291-g7bgyn\\indexing_contracts_index-compatibility-key-federation-block.attempt-1.log"
+          ],
+          "path": "indexing/contracts/index-compatibility-key-federation-block.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 101,
+          "exitCode": 0,
+          "id": "indexing/policy/stable-entrypoints",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\python3152-gate-logs\\run-1793270072291-g7bgyn\\indexing_policy_stable-entrypoints.attempt-1.log"
+          ],
+          "path": "indexing/policy/stable-entrypoints.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 1721,
+          "exitCode": 0,
+          "id": "indexing/policy/optional-deps",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\python3152-gate-logs\\run-1793270072291-g7bgyn\\indexing_policy_optional-deps.attempt-1.log"
+          ],
+          "path": "indexing/policy/optional-deps.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 1157,
+          "exitCode": 0,
+          "id": "indexing/policy/analysis-gating",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\python3152-gate-logs\\run-1793270072291-g7bgyn\\indexing_policy_analysis-gating.attempt-1.log"
+          ],
+          "path": "indexing/policy/analysis-gating.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 1420,
+          "exitCode": 0,
+          "id": "ci/tooling-doctor-gate.smoke",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\python3152-gate-logs\\run-1793270072291-g7bgyn\\ci_tooling-doctor-gate_smoke.attempt-1.log"
+          ],
+          "path": "ci/tooling-doctor-gate.smoke.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "tooling"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 822,
+          "exitCode": 0,
+          "id": "tooling/api-contracts/basic",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\python3152-gate-logs\\run-1793270072291-g7bgyn\\tooling_api-contracts_basic.attempt-1.log"
+          ],
+          "path": "tooling/api-contracts/basic.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "tooling"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 2854,
+          "exitCode": 0,
+          "id": "contracts/module-export-surface-compat",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\python3152-gate-logs\\run-1793270072291-g7bgyn\\contracts_module-export-surface-compat.attempt-1.log"
+          ],
+          "path": "contracts/module-export-surface-compat.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 1479,
+          "exitCode": 0,
+          "id": "indexing/contracts/semantic-foundations",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\python3152-gate-logs\\run-1793270072291-g7bgyn\\indexing_contracts_semantic-foundations.attempt-1.log"
+          ],
+          "path": "indexing/contracts/semantic-foundations.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 449,
+          "exitCode": 0,
+          "id": "indexing/contracts/semantic-handoff-contracts",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\python3152-gate-logs\\run-1793270072291-g7bgyn\\indexing_contracts_semantic-handoff-contracts.attempt-1.log"
+          ],
+          "path": "indexing/contracts/semantic-handoff-contracts.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 682,
+          "exitCode": 0,
+          "id": "indexing/contracts/runtime-evidence",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\python3152-gate-logs\\run-1793270072291-g7bgyn\\indexing_contracts_runtime-evidence.attempt-1.log"
+          ],
+          "path": "indexing/contracts/runtime-evidence.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 1654,
+          "exitCode": 0,
+          "id": "indexing/contracts/index-format-cutover",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\python3152-gate-logs\\run-1793270072291-g7bgyn\\indexing_contracts_index-format-cutover.attempt-1.log"
+          ],
+          "path": "indexing/contracts/index-format-cutover.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 1592,
+          "exitCode": 0,
+          "id": "ci/windows-authority-cohort",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\python3152-gate-logs\\run-1793270072291-g7bgyn\\ci_windows-authority-cohort.attempt-1.log"
+          ],
+          "path": "ci/windows-authority-cohort.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        }
+      ]
+    },
+    "gateReportSha256": "e699c690272c0d5e9c95d143cf263075920de35812bb2bc93b6c4efc2bc9b7b6"
+  },
+  "remaining": [
+    "Hosted final-source CI",
+    "Historical intermittent Stage1 indexing hangs remain unattributed",
+    "Windows snapshot helper cold-start qualification",
+    "P1 #1288 actual VSCode host acceptance",
+    "#1574 clean-artifacts qualification"
+  ],
+  "implementationCommit": "4b55d6d697f27745c2ba1ec6ae910bf04a024042",
+  "hostedNative": {
+    "head": "516e29edf216289b8b84a37e7a0d2d770c5fcedc",
+    "runId": 40855086270,
+    "jobId": 123387191755,
+    "artifactId": 12890490994,
+    "archiveSha256": "1cb6cd5763d714f83e459bc6191f488a030e80b9ffc1aaa684d592962f225cf9",
+    "passed": 33,
+    "timeouts": 1,
+    "failedTest": "tui/native-index-workflows/build-search",
+    "validationSearchSeconds": 23.1,
+    "snapshotCreateSeconds": 22.5,
+    "qualification": "No attribution or current-source acceptance claimed. Full failed build-search log retained below.",
+    "failureLog": "id: tui/native-index-workflows/build-search\npath: tui/native-index-workflows.test.js\nattempt: 1\nstatus: failed\nexit: 1\nsignal: null\ntimedOut: true\ntimeoutClass: timed_out_with_failure\nskipReason: \ntermination: {\"terminated\":true,\"forced\":true,\"fallbackAttempted\":false,\"fallbackTerminated\":0}\n\n--- stderr ---\n\n[init] load config (1ms)\n\n[init] auto policy (provided)\n\n[init] learned auto profile (1ms)\n\n[init] cache root (env): D:\\a\\PairOfCleats\\PairOfCleats\\.tmp\\dev\\tests\\cache\\ni-CUcxLq\\cache\n\n[init] repo cache root: D:\\a\\PairOfCleats\\PairOfCleats\\.tmp\\dev\\tests\\cache\\ni-CUcxLq\\cache\\repos\\selected-repository-3a377f76b6a9\n\n[init] platform preset: win32:ntfs (fs=ntfs, subprocessFanout=4, reason=win32-ntfs-startup-cost).\n\n[init] startup calibration (3ms)\n\n[init] startup calibration: io=2ms (bytes=8192).\n\n[init] runtime envelope (0ms)\n\n[scm] provider=none; SCM provenance unavailable.\n\n[init] repo provenance (0ms)\n\n[runtime] attempt 3d41c0c1-3d43-4aae-8b50-52d9b3ad03cd; receipt: D:\\a\\PairOfCleats\\PairOfCleats\\.tmp\\dev\\tests\\cache\\ni-CUcxLq\\cache\\repos\\selected-repository-3a377f76b6a9\\builds\\20261029T102421Z_1e02e435_noscm_263b974e\\build_state.json (durable).\n\n[init] build root: D:\\a\\PairOfCleats\\PairOfCleats\\.tmp\\dev\\tests\\cache\\ni-CUcxLq\\cache\\repos\\selected-repository-3a377f76b6a9\\builds\\20261029T102421Z_1e02e435_noscm_263b974e\n\n[init] current index root: D:\\a\\PairOfCleats\\PairOfCleats\\.tmp\\dev\\tests\\cache\\ni-CUcxLq\\cache\\repos\\selected-repository-3a377f76b6a9\n\n[scm] annotate disabled: provider=none.\n\n[scm] policy provider=none annotate=off timeoutCaps=guardrail-only benchRun=0 metaTimeoutMs=default annotateTimeoutMs=default annotateLadder=default\n\n[init] tree-sitter config (0ms)\n\nJS file caps default to tree-sitter maxBytes (786432).\n\n[init] embedding runtime (2ms)\n\n[init] ignore rules (3ms)\n\n[init] dictionaries (21ms)\n\n[init] dictionaries (21ms)\n\nWordlists disabled: no dictionary files found; identifier splitting will be limited.\n\nCode dictionaries enabled: 2 file(s), 16 words (typescript) [bundle=bench-2026.02].\n\nTwo-stage indexing: stage2 (enrichment) running.\n\nIndex profile: default.\n\nEmbeddings: deferred to stage3 (stage2).\n\nQueue concurrency: io=16, cpu=1.\n\nMemory policy: workerHeap=1024MB (effective=1024MB, min=1024MB, max=2048MB), workerCache=512MB, writeBuffer=358MB.\n\nSCM annotate metadata disabled via indexing.scm.annotate.enabled.\n\nRisk analysis disabled via indexing.riskAnalysis.\n\nWorker pool enabled (auto, maxThreads=4).\n\nWorker heap policy: target=1024MB (min=1024MB, max=2048MB).\n\nWorker pool auto threshold: maxFileBytes=2097152.\n\n[init] worker pools (10ms)\n\nBuild environment snapshot.\n\n[init] runtime ready (312ms)\n\n[init] code index dir: D:\\a\\PairOfCleats\\PairOfCleats\\.tmp\\dev\\tests\\cache\\ni-CUcxLq\\cache\\repos\\selected-repository-3a377f76b6a9\\builds\\20261029T102421Z_1e02e435_noscm_263b974e\\index-code\n\n\n📄  Scanning code ...\nStage 1/6 (16.7%)\n[           Code | Stage 1]\n\n→ Reusing shared discovery results.\n\n→ Found 1 files.\nStage 2/6 (33.3%)\n\nScanning for imports...\nImports 1/1 (100.0%)\nImports 1/1 (100.0%)\n\n→ Imports: modules=0, edges=0, files=0\n\nAuto-selected context window: 3 lines\nStage 3/6 (50.0%)\n\nProcessing and indexing files...\n\nIndexing Concurrency: Files: 2, Imports: 2, IO: 16, CPU: 1\n\n[stage1] admission parse=r0/p0/cap1/min1/max4 stage1.cpu=r0/p0/ready0/blocked0/wait0s stage1.io=r0/p0/ready0/blocked0/wait0s stage1.postings=r0/p0/ready0/blocked0/wait0s\n\n[tree-sitter:schedule] planning global batches...\n\n[tree-sitter:schedule] batch 1/1: native:javascript#pool1 (waves=1, lane=1/1, plannedCost=3, balance=count, timeout=45120ms)\n\n[tree-sitter:schedule] plan ready: grammars=1 entries=1 cache=0\n[watchdog] stage1 hang policy heartbeat=30000ms snapshot=30000ms softKick=360000ms abort=720000ms softKickMaxAttempts=2 orderedFlushTimeout=90000ms\nFiles 1/1 (100.0%)\nFiles 1/1 (100.0%)\n\n→ Imports: resolved=0, external=0, unresolved=0\n\n[imports] resolver budgets: fsProbe<=48, fallbackCandidates<=72, fallbackDepth<=20, adaptive=on (profile=normal, scale=1.500).\n\n[imports] fs-exists-index: enabled=yes, complete=yes, indexed=2, exactHits=0, negativeSkips=0, unknownFallbacks=0\n\n[imports] resolver pipeline: none\n\n[imports] resolver pipeline highlights: elapsed=none, budget=none, degraded=none\nStage 4/6 (66.7%)\n\nEmbeddings disabled (stage2); skipping dense vector build.\n\n   → Indexed 1 chunks, total tokens: 11\nStage 5/6 (83.3%)\nStage 6/6 (100.0%)\n\n[chunk_meta] writing JSON\nWriting index files (26 artifacts)...\n[perf] adaptive artifact write concurrency 3 -> 4 (backlog, pending=26, mem=0.56, gc=0.00, rss=0.02, writeQ={pending=0, oldest=0ms, p95=0ms})\nArtifacts 1/26 (3.8%)\nWriting index files 1/26 (3.8%) | file_meta.json\nArtifacts 2/26 (7.7%)\nArtifacts 3/26 (11.5%)\nArtifacts 4/26 (15.4%)\nArtifacts 5/26 (19.2%)\nArtifacts 6/26 (23.1%)\nArtifacts 7/26 (26.9%)\nArtifacts 8/26 (30.8%)\nArtifacts 9/26 (34.6%)\nArtifacts 10/26 (38.5%)\nArtifacts 11/26 (42.3%)\nArtifacts 12/26 (46.2%)\nArtifacts 13/26 (50.0%)\nArtifacts 14/26 (53.8%)\nArtifacts 15/26 (57.7%)\nArtifacts 16/26 (61.5%)\nArtifacts 17/26 (65.4%)\nArtifacts 18/26 (69.2%)\nArtifacts 19/26 (73.1%)\nArtifacts 20/26 (76.9%)\nArtifacts 21/26 (80.8%)\nArtifacts 22/26 (84.6%)\nArtifacts 23/26 (88.5%)\nArtifacts 24/26 (92.3%)\nArtifacts 25/26 (96.2%)\nArtifacts 26/26 (100.0%)\nWriting index files 26/26 (100.0%) | semantic-family\n\nWriting index files (28 artifacts)...\nArtifacts 27/28 (96.4%)\nArtifacts 28/28 (100.0%)\nWriting index files 28/28 (100.0%) | index_state.json\n\n\n📦  code : 1 chunks, 11 tokens, dims=0\n\n→ Wrote .filelists.json (samples only).\n\n→ Wrote pieces manifest (57 entries).\n\n[build] updated current.json\n\n[cleanup] runtime.resources.stop-admission start\n\n[cleanup] runtime.resources.stop-admission done (0ms)\n\n[cleanup] runtime.scheduler.shutdown start\n\n[cleanup] runtime.scheduler.shutdown done (1ms)\n\n[cleanup] runtime.worker-pools.destroy start\n\nWorker thread exited with code 1.\n\nWorker thread exited with code 1.\n\n[cleanup] runtime.worker-pools.destroy done (26ms)\n\n[cleanup] runtime.stage1-subprocesses.terminate start\n\n[cleanup] runtime.stage1-subprocesses.terminate done (1ms)\n\n[cleanup] runtime.embeddings.close start\n\n[cleanup] runtime.embeddings.close done (0ms)\n\n[cleanup] runtime.preflight-subprocesses.terminate start\n\n[cleanup] runtime.preflight-subprocesses.terminate done (0ms)\n\n[cleanup] runtime.resources.release start\n\n[cleanup] runtime.resources.release done (1ms)\n\n[cleanup] runtime.cache-writers.drain start\n\n[cleanup] runtime.cache-writers.drain done (0ms)\n\n[cleanup] runtime.semantic-replay.clear start\n\n[cleanup] runtime.semantic-replay.clear done (0ms)\n\n[cleanup] runtime.logger.close start\n\n[cleanup] runtime.logger.close done (0ms)\n\r\n"
+  }
+}

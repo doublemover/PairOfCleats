@@ -69,6 +69,14 @@ Contained source reads also retain extended-length path authority without new
 links. Hosted authority, snapshot-helper startup and the two historical Windows
 indexing hangs retain separate acceptance; final CI remains open.
 
+The [Python/cleanup follow-up](../archived/python-stable-ci-2026-10-29.md) pins
+Python 3.15.2 for every native CI bootstrap and verifies the exact selected
+interpreter with a real compile/link preflight. Thirteen focused Python, SDK and
+indexing checks and two cleanup/source checks pass locally. Portable cleanup
+coverage retains the exact original operation and independent close errors;
+physical-link controls remain hosted. Fresh-cache indexing success does not
+attribute the historical intermittent hangs or establish final CI acceptance.
+
 The [full Windows campaign](../archived/windows-full-validation-checkpoint-265-2026-10-28.md)
 completed all 6,098 required fixtures at `90d0e510a`: 5,819 passed and 279 failed,
 including 14 runner timeouts. There were no skips, omissions, duplicate IDs or
