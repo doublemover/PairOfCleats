@@ -2,6 +2,9 @@
   "date": "2026-10-29T14:57:16.121Z",
   "baseCommit": "4c535a148405d07e1c450c270251230031dcd5cc",
   "implementationCommits": [
+    "ed21c8a01d6dc18b05486512a55b8ef247c6c15c",
+    "44383dcc89dfee7a9806c420eba72231237f1867",
+    "6e90f48fba640afc9067740f441f4272a16e3f87",
     "cd6c3e9086c2b9ced36e9e57c4b033abe5374454",
     "d88c510ef09df5ae6879946052c5cbd8ad90b5cc",
     "7063da3970d08da4303c635577dfd70d3d198d51",
@@ -12647,5 +12650,2663 @@
     "Supported optional Tantivy native-package qualification",
     "Real-model and serial resource/performance evidence where required"
   ],
-  "excludedApplications": "No VS Code or Sublime host launches in this task."
+  "excludedApplications": "No VS Code or Sublime host launches in this task.",
+  "windowsCorrectnessBaseline": {
+    "candidate": "4eeb635048177ad8f8cb85abe2291b3f23898a11",
+    "startedAt": "2026-10-29T15:02:56.871Z",
+    "completedAt": "2026-10-29T15:23:15.775Z",
+    "node": "v26.13.0",
+    "platform": "win32",
+    "jobs": 1,
+    "threads": 1,
+    "timeoutMs": 30000,
+    "retries": 0,
+    "nativeStatusRedo": false,
+    "total": 658,
+    "passed": 637,
+    "failed": 21,
+    "timeouts": 1,
+    "nativeCrashes": 0,
+    "reports": [
+      {
+        "name": "correctness-01",
+        "counts": {
+          "passed": 24
+        },
+        "report": "correctness-01.json",
+        "sha256": "cfb2d4ddc338cf208c2472eaa277837b7147b9f9fdf682f75a1143c1765584ad",
+        "startedAt": "2026-10-29T15:02:56.918Z",
+        "completedAt": "2026-10-29T15:04:43.160Z"
+      },
+      {
+        "name": "correctness-02",
+        "counts": {
+          "passed": 24
+        },
+        "report": "correctness-02.json",
+        "sha256": "92ad4353e3f3d2af7f77072e0ba49ef432b8a69818f9849acd14efc627f09bdf",
+        "startedAt": "2026-10-29T15:04:43.281Z",
+        "completedAt": "2026-10-29T15:05:04.407Z"
+      },
+      {
+        "name": "correctness-03",
+        "counts": {
+          "passed": 24
+        },
+        "report": "correctness-03.json",
+        "sha256": "9574b458161993c0a1e361c119833fd1849e64f90629ea8d9a0d078873b69055",
+        "startedAt": "2026-10-29T15:05:04.496Z",
+        "completedAt": "2026-10-29T15:06:14.926Z"
+      },
+      {
+        "name": "correctness-04",
+        "counts": {
+          "passed": 24
+        },
+        "report": "correctness-04.json",
+        "sha256": "d808da85b29edff907948fa6fd1e398f143c7d32772a07d3e75d8a20aa96f38d",
+        "startedAt": "2026-10-29T15:06:15.010Z",
+        "completedAt": "2026-10-29T15:06:37.483Z"
+      },
+      {
+        "name": "correctness-05",
+        "counts": {
+          "passed": 24
+        },
+        "report": "correctness-05.json",
+        "sha256": "6b2b982ea6c43c7fcb611bfeadeb8ff86a5296a6528961f71051399309b4d71f",
+        "startedAt": "2026-10-29T15:06:37.589Z",
+        "completedAt": "2026-10-29T15:07:06.329Z"
+      },
+      {
+        "name": "correctness-06",
+        "counts": {
+          "passed": 24
+        },
+        "report": "correctness-06.json",
+        "sha256": "0c03c1f26759ca0052d2cd3ccefcd275ca0c64ffaeefe89ddcdf7a6d03b12f6a",
+        "startedAt": "2026-10-29T15:07:06.419Z",
+        "completedAt": "2026-10-29T15:07:28.234Z"
+      },
+      {
+        "name": "correctness-07",
+        "counts": {
+          "passed": 24
+        },
+        "report": "correctness-07.json",
+        "sha256": "e04a09b0a16635cfbd8f3535f82e410c79f548c118f9ed0369d646560ccd590f",
+        "startedAt": "2026-10-29T15:07:28.345Z",
+        "completedAt": "2026-10-29T15:07:54.173Z"
+      },
+      {
+        "name": "correctness-08",
+        "counts": {
+          "passed": 24
+        },
+        "report": "correctness-08.json",
+        "sha256": "38320c5964420c7d4aff7acc25973d0c49eb4226c46585ea3d12bbbd4d2ca395",
+        "startedAt": "2026-10-29T15:07:54.270Z",
+        "completedAt": "2026-10-29T15:08:07.970Z"
+      },
+      {
+        "name": "correctness-09",
+        "counts": {
+          "passed": 23,
+          "failed": 1
+        },
+        "report": "correctness-09.json",
+        "sha256": "6d32d724f7489e702ba25df2b4272c228b4a2810733c5377f3713f4f0df94e54",
+        "startedAt": "2026-10-29T15:08:08.069Z",
+        "completedAt": "2026-10-29T15:08:47.318Z"
+      },
+      {
+        "name": "correctness-10",
+        "counts": {
+          "passed": 24
+        },
+        "report": "correctness-10.json",
+        "sha256": "d21a38150ea00af4341d6c9253c5ce4c02392dbd0762d391ccf7a8ba1478b474",
+        "startedAt": "2026-10-29T15:08:47.415Z",
+        "completedAt": "2026-10-29T15:09:38.939Z"
+      },
+      {
+        "name": "correctness-11",
+        "counts": {
+          "passed": 23,
+          "failed": 1
+        },
+        "report": "correctness-11.json",
+        "sha256": "532b92673dd49e3a61d194833984f3a9d0f012e18df908ff8bbc20a9f36a4710",
+        "startedAt": "2026-10-29T15:09:39.085Z",
+        "completedAt": "2026-10-29T15:10:35.222Z"
+      },
+      {
+        "name": "correctness-12",
+        "counts": {
+          "passed": 24
+        },
+        "report": "correctness-12.json",
+        "sha256": "b94c0ac4bc3ab7bc4258e36afc7757a1e3d6552d0e62701b063d350e3a2c0b9d",
+        "startedAt": "2026-10-29T15:10:35.312Z",
+        "completedAt": "2026-10-29T15:11:38.163Z"
+      },
+      {
+        "name": "correctness-13",
+        "counts": {
+          "passed": 23,
+          "failed": 1
+        },
+        "report": "correctness-13.json",
+        "sha256": "bb84bd421285138607e2d7cc286dc07f2568f00c507a63d1abcaa5b563b2a895",
+        "startedAt": "2026-10-29T15:11:38.252Z",
+        "completedAt": "2026-10-29T15:12:06.487Z"
+      },
+      {
+        "name": "correctness-14",
+        "counts": {
+          "passed": 22,
+          "failed": 2
+        },
+        "report": "correctness-14.json",
+        "sha256": "5f40ea9b8e647f86427ad7fd7dfc00bcc6579cf7e7785e5c03af6f0b0b843531",
+        "startedAt": "2026-10-29T15:12:06.581Z",
+        "completedAt": "2026-10-29T15:13:14.690Z"
+      },
+      {
+        "name": "correctness-15",
+        "counts": {
+          "passed": 23,
+          "failed": 1
+        },
+        "report": "correctness-15.json",
+        "sha256": "337d582c7d0439ec644b0ab3604cff7f7771c9305c542b6c7daff45b272b91dd",
+        "startedAt": "2026-10-29T15:13:14.799Z",
+        "completedAt": "2026-10-29T15:14:21.512Z"
+      },
+      {
+        "name": "correctness-16",
+        "counts": {
+          "passed": 24
+        },
+        "report": "correctness-16.json",
+        "sha256": "06b7f94d4c0232845c5202a91c0c0046425e0afc91cf0808fa7527e812804055",
+        "startedAt": "2026-10-29T15:14:21.622Z",
+        "completedAt": "2026-10-29T15:14:40.879Z"
+      },
+      {
+        "name": "correctness-17",
+        "counts": {
+          "passed": 24
+        },
+        "report": "correctness-17.json",
+        "sha256": "c4288a99693038a3e9ca70bac320fa2f00840dfd71e2ae0b4232456b42fbc4ae",
+        "startedAt": "2026-10-29T15:14:40.976Z",
+        "completedAt": "2026-10-29T15:14:56.558Z"
+      },
+      {
+        "name": "correctness-18",
+        "counts": {
+          "passed": 23,
+          "failed": 1
+        },
+        "report": "correctness-18.json",
+        "sha256": "121af6de64587bead772c3e919f9dec0d7c3eaae81b1713feed9a0fd3a050c7e",
+        "startedAt": "2026-10-29T15:14:56.657Z",
+        "completedAt": "2026-10-29T15:16:00.029Z"
+      },
+      {
+        "name": "correctness-19",
+        "counts": {
+          "passed": 23,
+          "failed": 1
+        },
+        "report": "correctness-19.json",
+        "sha256": "0448a9bc3e267d2a95b4359994df71a6c809d946246c8952de31ef6aa946b5f7",
+        "startedAt": "2026-10-29T15:16:00.177Z",
+        "completedAt": "2026-10-29T15:16:37.321Z"
+      },
+      {
+        "name": "correctness-20",
+        "counts": {
+          "passed": 23,
+          "failed": 1
+        },
+        "report": "correctness-20.json",
+        "sha256": "18e2f6e1f94ff2fd607a4d3a1d5994c8e3b1b473b65df046d3a397b643dda318",
+        "startedAt": "2026-10-29T15:16:37.418Z",
+        "completedAt": "2026-10-29T15:17:01.467Z"
+      },
+      {
+        "name": "correctness-21",
+        "counts": {
+          "passed": 22,
+          "failed": 2
+        },
+        "report": "correctness-21.json",
+        "sha256": "a4ee3a47508e328dcccba63bb51f0cc639c71a5394e10d4c2d3d1e472e92dbfd",
+        "startedAt": "2026-10-29T15:17:01.559Z",
+        "completedAt": "2026-10-29T15:17:51.509Z"
+      },
+      {
+        "name": "correctness-22",
+        "counts": {
+          "passed": 21,
+          "failed": 3
+        },
+        "report": "correctness-22.json",
+        "sha256": "58a213174819dbec97a8fd599f758f93cda3814ac34812c1dc643dfda2e0cb82",
+        "startedAt": "2026-10-29T15:17:51.623Z",
+        "completedAt": "2026-10-29T15:19:32.569Z"
+      },
+      {
+        "name": "correctness-23",
+        "counts": {
+          "passed": 21,
+          "failed": 3
+        },
+        "report": "correctness-23.json",
+        "sha256": "8504d2dddc2cfe6df8cc1952f2d2a2d856941e668042074899b172aff9f5e882",
+        "startedAt": "2026-10-29T15:19:32.658Z",
+        "completedAt": "2026-10-29T15:20:34.502Z"
+      },
+      {
+        "name": "correctness-24",
+        "counts": {
+          "passed": 24
+        },
+        "report": "correctness-24.json",
+        "sha256": "45c461c8f9f333125e81fd1845c33355184624933760a1eb034e6f99ef905ab9",
+        "startedAt": "2026-10-29T15:20:34.607Z",
+        "completedAt": "2026-10-29T15:21:32.352Z"
+      },
+      {
+        "name": "correctness-25",
+        "counts": {
+          "passed": 22,
+          "failed": 2
+        },
+        "report": "correctness-25.json",
+        "sha256": "ca893f90c30469cfb267fe39c9f1f25bf06e78ba14026469869ecde6a78afac0",
+        "startedAt": "2026-10-29T15:21:32.456Z",
+        "completedAt": "2026-10-29T15:22:10.778Z"
+      },
+      {
+        "name": "correctness-26",
+        "counts": {
+          "passed": 24
+        },
+        "report": "correctness-26.json",
+        "sha256": "373126e249dc0d6f18c1e248d381906afdd245e8bc01bbaa83d953335b5f7648",
+        "startedAt": "2026-10-29T15:22:10.878Z",
+        "completedAt": "2026-10-29T15:22:47.500Z"
+      },
+      {
+        "name": "correctness-27",
+        "counts": {
+          "passed": 22,
+          "failed": 2
+        },
+        "report": "correctness-27.json",
+        "sha256": "ee0e287f8d52cd4d18b999db1946cd3f97c3008d1f915bcc68ebd57692b8866a",
+        "startedAt": "2026-10-29T15:22:47.597Z",
+        "completedAt": "2026-10-29T15:23:03.190Z"
+      },
+      {
+        "name": "correctness-28",
+        "counts": {
+          "passed": 10
+        },
+        "report": "correctness-28.json",
+        "sha256": "5790ec4a8a6263d277c365fc70f5b576ba06e4d1c1c38aa36c66bf5311203bc4",
+        "startedAt": "2026-10-29T15:23:03.303Z",
+        "completedAt": "2026-10-29T15:23:15.726Z"
+      }
+    ],
+    "failures": [
+      {
+        "id": "indexing/artifacts/publication-path-admission",
+        "status": "failed",
+        "attempts": 1,
+        "durationMs": 207,
+        "exitCode": 1,
+        "lane": "integration",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\correctness-09\\run-1793286489015-tp2voi\\indexing_artifacts_publication-path-admission.attempt-1.log",
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\correctness-09\\run-1793286489015-tp2voi\\indexing_artifacts_publication-path-admission.attempt-1.failure.json"
+        ],
+        "path": "indexing/artifacts/publication-path-admission.test.js",
+        "signal": null,
+        "skipReason": null,
+        "tags": [
+          "indexing",
+          "integration"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "id": "services/api/graph-evidence-pages",
+        "status": "failed",
+        "attempts": 1,
+        "durationMs": 5170,
+        "exitCode": 1,
+        "lane": "api",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\correctness-11\\run-1793286580339-3t4rag\\services_api_graph-evidence-pages.attempt-1.log",
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\correctness-11\\run-1793286580339-3t4rag\\services_api_graph-evidence-pages.attempt-1.failure.json"
+        ],
+        "path": "services/api/graph-evidence-pages.test.js",
+        "signal": null,
+        "skipReason": null,
+        "tags": [
+          "api",
+          "services"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "id": "retrieval/output/human-search-usability",
+        "status": "failed",
+        "attempts": 1,
+        "durationMs": 227,
+        "exitCode": 1,
+        "lane": "integration",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\correctness-13\\run-1793286699213-k3wyri\\retrieval_output_human-search-usability.attempt-1.log",
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\correctness-13\\run-1793286699213-k3wyri\\retrieval_output_human-search-usability.attempt-1.failure.json"
+        ],
+        "path": "retrieval/output/human-search-usability.test.js",
+        "signal": null,
+        "skipReason": null,
+        "tags": [
+          "integration",
+          "retrieval"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "id": "retrieval/filters/filter-index-artifact",
+        "status": "failed",
+        "attempts": 1,
+        "durationMs": 30276,
+        "exitCode": 1,
+        "lane": "integration",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\correctness-14\\run-1793286727557-2fvht8\\retrieval_filters_filter-index-artifact.attempt-1.log",
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\correctness-14\\run-1793286727557-2fvht8\\retrieval_filters_filter-index-artifact.attempt-1.failure.json"
+        ],
+        "path": "retrieval/filters/filter-index-artifact.test.js",
+        "signal": null,
+        "skipReason": null,
+        "tags": [
+          "integration",
+          "retrieval"
+        ],
+        "termination": {
+          "fallbackAttempted": false,
+          "fallbackTerminated": 0,
+          "forced": true,
+          "terminated": true
+        },
+        "timedOut": true,
+        "timeoutClass": "timed_out_with_failure"
+      },
+      {
+        "id": "tooling/lsp/semantic-tokens-and-inlay-hints",
+        "status": "failed",
+        "attempts": 1,
+        "durationMs": 220,
+        "exitCode": 1,
+        "lane": "unit",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\correctness-14\\run-1793286727557-2fvht8\\tooling_lsp_semantic-tokens-and-inlay-hints.attempt-1.log",
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\correctness-14\\run-1793286727557-2fvht8\\tooling_lsp_semantic-tokens-and-inlay-hints.attempt-1.failure.json"
+        ],
+        "path": "tooling/lsp/semantic-tokens-and-inlay-hints.test.js",
+        "signal": null,
+        "skipReason": null,
+        "tags": [
+          "tooling",
+          "unit"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "id": "indexing/semantic/native-deferred-production",
+        "status": "failed",
+        "attempts": 1,
+        "durationMs": 2556,
+        "exitCode": 1,
+        "lane": "integration",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\correctness-15\\run-1793286795894-vn7sz6\\indexing_semantic_native-deferred-production.attempt-1.log",
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\correctness-15\\run-1793286795894-vn7sz6\\indexing_semantic_native-deferred-production.attempt-1.failure.json"
+        ],
+        "path": "indexing/semantic/native-deferred-production.test.js",
+        "signal": null,
+        "skipReason": null,
+        "tags": [
+          "indexing",
+          "integration"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "id": "indexing/incremental/document-extraction-receipt",
+        "status": "failed",
+        "attempts": 1,
+        "durationMs": 1733,
+        "exitCode": 1,
+        "lane": "integration",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\correctness-18\\run-1793286897664-sn4b8h\\indexing_incremental_document-extraction-receipt.attempt-1.log",
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\correctness-18\\run-1793286897664-sn4b8h\\indexing_incremental_document-extraction-receipt.attempt-1.failure.json"
+        ],
+        "path": "indexing/incremental/document-extraction-receipt.test.js",
+        "signal": null,
+        "skipReason": null,
+        "tags": [
+          "indexing",
+          "integration"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "id": "storage/semantic/sqlite-hydration-byte-admission",
+        "status": "failed",
+        "attempts": 1,
+        "durationMs": 593,
+        "exitCode": 1,
+        "lane": "storage",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\correctness-19\\run-1793286961346-cz8sdh\\storage_semantic_sqlite-hydration-byte-admission.attempt-1.log",
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\correctness-19\\run-1793286961346-cz8sdh\\storage_semantic_sqlite-hydration-byte-admission.attempt-1.failure.json"
+        ],
+        "path": "storage/semantic/sqlite-hydration-byte-admission.test.js",
+        "signal": null,
+        "skipReason": null,
+        "tags": [
+          "sqlite",
+          "storage"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "id": "services/queue/confirmed-lease-expiry",
+        "status": "failed",
+        "attempts": 1,
+        "durationMs": 159,
+        "exitCode": 1,
+        "lane": "services",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\correctness-20\\run-1793286998439-izu9wq\\services_queue_confirmed-lease-expiry.attempt-1.log",
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\correctness-20\\run-1793286998439-izu9wq\\services_queue_confirmed-lease-expiry.attempt-1.failure.json"
+        ],
+        "path": "services/queue/confirmed-lease-expiry.test.js",
+        "signal": null,
+        "skipReason": null,
+        "tags": [
+          "services"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "id": "indexing/risk/rules/external-policy-admission",
+        "status": "failed",
+        "attempts": 1,
+        "durationMs": 436,
+        "exitCode": 1,
+        "lane": "integration",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\correctness-21\\run-1793287022535-r82lam\\indexing_risk_rules_external-policy-admission.attempt-1.log",
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\correctness-21\\run-1793287022535-r82lam\\indexing_risk_rules_external-policy-admission.attempt-1.failure.json"
+        ],
+        "path": "indexing/risk/rules/external-policy-admission.test.js",
+        "signal": null,
+        "skipReason": null,
+        "tags": [
+          "indexing",
+          "integration"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "id": "retrieval/pipeline/chunk-author-filter-cache-coherence",
+        "status": "failed",
+        "attempts": 1,
+        "durationMs": 546,
+        "exitCode": 1,
+        "lane": "integration",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\correctness-21\\run-1793287022535-r82lam\\retrieval_pipeline_chunk-author-filter-cache-coherence.attempt-1.log",
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\correctness-21\\run-1793287022535-r82lam\\retrieval_pipeline_chunk-author-filter-cache-coherence.attempt-1.failure.json"
+        ],
+        "path": "retrieval/pipeline/chunk-author-filter-cache-coherence.test.js",
+        "signal": null,
+        "skipReason": null,
+        "tags": [
+          "integration",
+          "retrieval"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "id": "services/mcp/legacy-output-backpressure",
+        "status": "failed",
+        "attempts": 1,
+        "durationMs": 155,
+        "exitCode": 1,
+        "lane": "mcp",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\correctness-22\\run-1793287072603-2nuy6q\\services_mcp_legacy-output-backpressure.attempt-1.log",
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\correctness-22\\run-1793287072603-2nuy6q\\services_mcp_legacy-output-backpressure.attempt-1.failure.json"
+        ],
+        "path": "services/mcp/legacy-output-backpressure.test.js",
+        "signal": null,
+        "skipReason": null,
+        "tags": [
+          "mcp",
+          "services"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "id": "storage/semantic/runtime-claims-deadline-ownership",
+        "status": "failed",
+        "attempts": 1,
+        "durationMs": 11435,
+        "exitCode": 1,
+        "lane": "storage",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\correctness-22\\run-1793287072603-2nuy6q\\storage_semantic_runtime-claims-deadline-ownership.attempt-1.log",
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\correctness-22\\run-1793287072603-2nuy6q\\storage_semantic_runtime-claims-deadline-ownership.attempt-1.failure.json"
+        ],
+        "path": "storage/semantic/runtime-claims-deadline-ownership.test.js",
+        "signal": null,
+        "skipReason": null,
+        "tags": [
+          "storage"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "id": "storage/semantic/runtime-claims-verification-budget",
+        "status": "failed",
+        "attempts": 1,
+        "durationMs": 10800,
+        "exitCode": 1,
+        "lane": "storage",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\correctness-22\\run-1793287072603-2nuy6q\\storage_semantic_runtime-claims-verification-budget.attempt-1.log",
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\correctness-22\\run-1793287072603-2nuy6q\\storage_semantic_runtime-claims-verification-budget.attempt-1.failure.json"
+        ],
+        "path": "storage/semantic/runtime-claims-verification-budget.test.js",
+        "signal": null,
+        "skipReason": null,
+        "tags": [
+          "storage"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "id": "indexing/semantic/runtime-query-pagination",
+        "status": "failed",
+        "attempts": 1,
+        "durationMs": 1556,
+        "exitCode": 1,
+        "lane": "integration",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\correctness-23\\run-1793287173571-oti3wt\\indexing_semantic_runtime-query-pagination.attempt-1.log",
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\correctness-23\\run-1793287173571-oti3wt\\indexing_semantic_runtime-query-pagination.attempt-1.failure.json"
+        ],
+        "path": "indexing/semantic/runtime-query-pagination.test.js",
+        "signal": null,
+        "skipReason": null,
+        "tags": [
+          "indexing",
+          "integration"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "id": "map/workspace/runtime-producer",
+        "status": "failed",
+        "attempts": 1,
+        "durationMs": 9073,
+        "exitCode": 1,
+        "lane": "integration",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\correctness-23\\run-1793287173571-oti3wt\\map_workspace_runtime-producer.attempt-1.log",
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\correctness-23\\run-1793287173571-oti3wt\\map_workspace_runtime-producer.attempt-1.failure.json"
+        ],
+        "path": "map/workspace/runtime-producer.test.js",
+        "signal": null,
+        "skipReason": null,
+        "tags": [
+          "integration"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "id": "storage/semantic/runtime-source-reference-authority",
+        "status": "failed",
+        "attempts": 1,
+        "durationMs": 7903,
+        "exitCode": 1,
+        "lane": "storage",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\correctness-23\\run-1793287173571-oti3wt\\storage_semantic_runtime-source-reference-authority.attempt-1.log",
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\correctness-23\\run-1793287173571-oti3wt\\storage_semantic_runtime-source-reference-authority.attempt-1.failure.json"
+        ],
+        "path": "storage/semantic/runtime-source-reference-authority.test.js",
+        "signal": null,
+        "skipReason": null,
+        "tags": [
+          "storage"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "id": "tooling/triage/context-pack",
+        "status": "failed",
+        "attempts": 1,
+        "durationMs": 18127,
+        "exitCode": 1,
+        "lane": "unit",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\correctness-25\\run-1793287293452-33klab\\tooling_triage_context-pack.attempt-1.log",
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\correctness-25\\run-1793287293452-33klab\\tooling_triage_context-pack.attempt-1.failure.json"
+        ],
+        "path": "tooling/triage/context-pack.test.js",
+        "signal": null,
+        "skipReason": null,
+        "tags": [
+          "tooling",
+          "unit"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "id": "tooling/triage/decision-snapshot-admission",
+        "status": "failed",
+        "attempts": 1,
+        "durationMs": 666,
+        "exitCode": 1,
+        "lane": "unit",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\correctness-25\\run-1793287293452-33klab\\tooling_triage_decision-snapshot-admission.attempt-1.log",
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\correctness-25\\run-1793287293452-33klab\\tooling_triage_decision-snapshot-admission.attempt-1.failure.json"
+        ],
+        "path": "tooling/triage/decision-snapshot-admission.test.js",
+        "signal": null,
+        "skipReason": null,
+        "tags": [
+          "tooling",
+          "unit"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "id": "indexing/workers/worker-pool-gc-pressure-telemetry",
+        "status": "failed",
+        "attempts": 1,
+        "durationMs": 1586,
+        "exitCode": 1,
+        "lane": "integration",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\correctness-27\\run-1793287368537-dt221o\\indexing_workers_worker-pool-gc-pressure-telemetry.attempt-1.log",
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\correctness-27\\run-1793287368537-dt221o\\indexing_workers_worker-pool-gc-pressure-telemetry.attempt-1.failure.json"
+        ],
+        "path": "indexing/workers/worker-pool-gc-pressure-telemetry.test.js",
+        "signal": null,
+        "skipReason": null,
+        "tags": [
+          "indexing",
+          "integration"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "id": "retrieval/output/source-preview-query-context",
+        "status": "failed",
+        "attempts": 1,
+        "durationMs": 132,
+        "exitCode": 1,
+        "lane": "integration",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\correctness-27\\run-1793287368537-dt221o\\retrieval_output_source-preview-query-context.attempt-1.log",
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\correctness-27\\run-1793287368537-dt221o\\retrieval_output_source-preview-query-context.attempt-1.failure.json"
+        ],
+        "path": "retrieval/output/source-preview-query-context.test.js",
+        "signal": null,
+        "skipReason": null,
+        "tags": [
+          "integration",
+          "retrieval"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      }
+    ],
+    "issueMapping": [
+      {
+        "id": "indexing/artifacts/publication-path-admission",
+        "issues": [
+          1118
+        ]
+      },
+      {
+        "id": "services/api/graph-evidence-pages",
+        "issues": [
+          1338,
+          1695
+        ]
+      },
+      {
+        "id": "retrieval/output/human-search-usability",
+        "issues": [
+          1362,
+          772
+        ]
+      },
+      {
+        "id": "retrieval/filters/filter-index-artifact",
+        "issues": [
+          1383
+        ]
+      },
+      {
+        "id": "tooling/lsp/semantic-tokens-and-inlay-hints",
+        "issues": [
+          1399
+        ]
+      },
+      {
+        "id": "indexing/semantic/native-deferred-production",
+        "issues": [
+          1459,
+          1623
+        ]
+      },
+      {
+        "id": "indexing/incremental/document-extraction-receipt",
+        "issues": [
+          1563,
+          1564,
+          1612
+        ]
+      },
+      {
+        "id": "storage/semantic/sqlite-hydration-byte-admission",
+        "issues": [
+          1580
+        ]
+      },
+      {
+        "id": "services/queue/confirmed-lease-expiry",
+        "issues": [
+          1586
+        ]
+      },
+      {
+        "id": "indexing/risk/rules/external-policy-admission",
+        "issues": [
+          1610,
+          1611
+        ]
+      },
+      {
+        "id": "retrieval/pipeline/chunk-author-filter-cache-coherence",
+        "issues": [
+          1600,
+          1605
+        ]
+      },
+      {
+        "id": "services/mcp/legacy-output-backpressure",
+        "issues": [
+          1614,
+          1620,
+          798
+        ]
+      },
+      {
+        "id": "storage/semantic/runtime-claims-deadline-ownership",
+        "issues": [
+          1616
+        ]
+      },
+      {
+        "id": "storage/semantic/runtime-claims-verification-budget",
+        "issues": [
+          1622
+        ]
+      },
+      {
+        "id": "indexing/semantic/runtime-query-pagination",
+        "issues": [
+          1640
+        ]
+      },
+      {
+        "id": "map/workspace/runtime-producer",
+        "issues": [
+          1640
+        ]
+      },
+      {
+        "id": "storage/semantic/runtime-source-reference-authority",
+        "issues": [
+          1639,
+          1640
+        ]
+      },
+      {
+        "id": "tooling/triage/context-pack",
+        "issues": [
+          1695
+        ]
+      },
+      {
+        "id": "tooling/triage/decision-snapshot-admission",
+        "issues": [
+          1698
+        ]
+      },
+      {
+        "id": "indexing/workers/worker-pool-gc-pressure-telemetry",
+        "issues": [
+          1016
+        ]
+      },
+      {
+        "id": "retrieval/output/source-preview-query-context",
+        "issues": [
+          772
+        ]
+      }
+    ]
+  },
+  "currentRepairBatch": {
+    "status": "43 focused controls passed; all eight publication checks passed",
+    "base": "4eeb635048177ad8f8cb85abe2291b3f23898a11",
+    "sources": [
+      {
+        "path": "src/index/build/file-processor/cached-bundle.js",
+        "sha256": "e9b5ecb23b0c36103a018278f0b3c5136529cd1d014d6eb9354edaf12361deab",
+        "gitBlob": "3ae33adbc967f207ebb9666d861e5e391940e696"
+      },
+      {
+        "path": "src/index/build/file-processor/pre-cpu-state.js",
+        "sha256": "07a639f1dd0fd56e4e6de0c4fe9c9a1b9c39b5f4531d91eba319ee62bebedc66",
+        "gitBlob": "2d86406ac3efe2e984b7dad89183fe626ddffe61"
+      },
+      {
+        "path": "src/index/build/workers/indexer-worker.js",
+        "sha256": "c8fd4a529efdced8b941de28378e721c3ff7e90312a1d4e89f61cf640d300648",
+        "gitBlob": "f45ec9f34d029dddc5214129306d9d2e42322baa"
+      },
+      {
+        "path": "src/index/build/workers/pool.js",
+        "sha256": "8b3704f33ba817b4ad24d41ec05b2a3d96659b5a72555e0153a594f1809535f4",
+        "gitBlob": "5aa2fca992f306ea0285a651db37f4af74460bb7"
+      },
+      {
+        "path": "src/index/build/workers/thread-pool.js",
+        "sha256": "edf39766faa7e61c08372e4f025c034869fc4f58be924c009d31a97562e080b7",
+        "gitBlob": "0cc9961c32c7d0bc668d1f022cb35436884d7f15"
+      },
+      {
+        "path": "src/index/segments.js",
+        "sha256": "9b8c55b9d882d26affc7f2c0bd67179bac8580d6b44be3f7eaba40ccbb199af7",
+        "gitBlob": "ed9e522f08b82212c28e1b55ab7e43584fdee67b"
+      },
+      {
+        "path": "src/index/semantic/analysis-versions.js",
+        "sha256": "b2b045fec3aed2ec9cefaeed819d3cf2e9097c1e705fbf398ebdf56fc9aa7879",
+        "gitBlob": "7daffe11e1c21d149758fbed954208d83e7e1aa4"
+      },
+      {
+        "path": "src/index/semantic/compiler-dependencies.js",
+        "sha256": "b37677022f2a3d2cd3b1a4a28a46348f73595e80b08a89be9532a6ebaeacd83c",
+        "gitBlob": "af0df4ff662c2628d9f5783a3bc86a78046fa51e"
+      },
+      {
+        "path": "src/index/semantic/runtime/query.js",
+        "sha256": "904ba5390c78d295437b0c2dd5d2cb68f02e5afb00c3c130a31570ca7d574767",
+        "gitBlob": "59a2b05e41e8c6304d49c27a8f9457c69439094b"
+      },
+      {
+        "path": "tests/ci-lite/ci-lite.manifest.json",
+        "sha256": "b49c3fb14739d27b107a2d46c26b0160769511925a07ebf0e70c838e5762eaa4",
+        "gitBlob": "991825278c3c4f9497e3a2bd6bb371b81e768c60"
+      },
+      {
+        "path": "tests/ci-lite/ci-lite.order.txt",
+        "sha256": "801994ff95c02b5dcdd558987eb9e12f1ebce291165335bbf7ba0e7e3e5571fe",
+        "gitBlob": "3ad488bd198ad296c4dbad9c08ec8e18cfdb0bb1"
+      },
+      {
+        "path": "tests/indexing/artifacts/publication-path-admission.test.js",
+        "sha256": "b1a1b811c4a11d85390b491b582713670a28e24356e645de6a02ff891d9c4507",
+        "gitBlob": "de188a0a31b15010abaf4d52789742fc18e2989f"
+      },
+      {
+        "path": "tests/indexing/file-processor/cached-text-source-replacement.test.js",
+        "sha256": "6cf44cf766741b30fe3e828b07729e82b73f409a29ca82410075824971ad54f5",
+        "gitBlob": "16f5fa3244d52979add0c94e41a2ad56538a75fa"
+      },
+      {
+        "path": "tests/indexing/incremental/document-extraction-receipt.test.js",
+        "sha256": "92f7997e4327d24e4c9170dfe87ca2a876ff6682c37ebd01702f248f1f2261f5",
+        "gitBlob": "ed92e830b50c05e82ad0c3da0cec605fe18aab4c"
+      },
+      {
+        "path": "tests/indexing/risk/rules/external-policy-admission.test.js",
+        "sha256": "0fb3ecc4e337eceb01af3e708f30a213128797240e4226d0c137700e7db69922",
+        "gitBlob": "ee2c94879cab7d7e2a019a6c6cbc394ab31dc41d"
+      },
+      {
+        "path": "tests/indexing/semantic/native-deferred-production.test.js",
+        "sha256": "f2aa247f330c020805523821b31ecdfa51f96152c63957309a81da488ba7efa5",
+        "gitBlob": "ab3440e967e8552dcbe916156a4dd009b8f7d001"
+      },
+      {
+        "path": "tests/indexing/semantic/runtime-query-pagination.test.js",
+        "sha256": "479f843e849e92b56a90d3fd635c3293a0375a09ca872b5946a22caf753e0028",
+        "gitBlob": "b5c09804b5cecf6dc21ccf3c30900466cf3f7045"
+      },
+      {
+        "path": "tests/indexing/type-inference/crossfile/boxed-type-filter-parity.test.js",
+        "sha256": "b6b8d64414e39cd064b02da302fc5cbb58f6762b82b232e57e61cb59e2f69ae3",
+        "gitBlob": "f6ffb9ee39993317f60f31817e47038c81493bd3"
+      },
+      {
+        "path": "tests/indexing/vfs/cdc-discovery-byte-admission.test.js",
+        "sha256": "b4e6ef21b6693aa3923096e5bf20fec4a0a4f39ad5372fc6d97a02000cdced28",
+        "gitBlob": "9f9817ccd89c8fd097b5b68e3a244665edbeedcf"
+      },
+      {
+        "path": "tests/indexing/workers/worker-fatal-ownership.test.js",
+        "sha256": "60bf781ad9bfaa5aaab1fe786aedcb810ff129cfe0e22c1a85cd83ae17b74ce1",
+        "gitBlob": "31ad2312c110f25e396805d447e4edd0db83fb9d"
+      },
+      {
+        "path": "tests/retrieval/filters/filter-index-artifact.test.js",
+        "sha256": "7c486d8f93094a82a03865a19601c423734d836755f1131147d9bf65db54b459",
+        "gitBlob": "df661e10b31ded8afe289970c86ea6c4d98c5c2e"
+      },
+      {
+        "path": "tests/retrieval/output/human-search-usability.test.js",
+        "sha256": "ba3b56e7f0862212d369e7142e3e123ab145481692586012d982836297285529",
+        "gitBlob": "43c13f05d04e6909795e2337da786a64e6cd516d"
+      },
+      {
+        "path": "tests/retrieval/output/source-preview-query-context.test.js",
+        "sha256": "aa55288138863aa433d98ad4fafcffffcab302ace79bf76f5436e2e8377b1861",
+        "gitBlob": "def0ae9068bdc95eb7e6fdf3eed78252c21c9d29"
+      },
+      {
+        "path": "tests/retrieval/pipeline/chunk-author-filter-cache-coherence.test.js",
+        "sha256": "4d754eb4fb0f549abeabdeb431728c5b90640808c9a875d1040e39a3766b76d8",
+        "gitBlob": "b0ea940a770b5d08a99cc40befb31733f633cd70"
+      },
+      {
+        "path": "tests/services/api/graph-evidence-pages.test.js",
+        "sha256": "a5f2c6017d21a811574981d6e96c8dfc96c9eacf24abe3f8de026133eb0ba88c",
+        "gitBlob": "0ddf8e0f11aae21c0b40ded69f83db4e89ba38d6"
+      },
+      {
+        "path": "tests/services/mcp/legacy-output-backpressure.test.js",
+        "sha256": "4d20a0ddf6ac3fd7e375f59e5f5b46250e733d91a8a41f998702eb58d6365aa4",
+        "gitBlob": "1952892f771160b17778791b5baae0e675e61831"
+      },
+      {
+        "path": "tests/storage/semantic/runtime-claims-deadline-ownership.test.js",
+        "sha256": "bdc00c27aad2d52a83497f49b0e4486ea094150b782b009b293d1c9f751cf60c",
+        "gitBlob": "530eac3feefeefe68823457ac86324a514f9eab9"
+      },
+      {
+        "path": "tests/storage/semantic/runtime-claims-verification-budget.test.js",
+        "sha256": "3700fdc68a58fbf6dd250dd1865104439becf6b2106295e8b48629f21b8a5c5f",
+        "gitBlob": "9a44fb7615a250d6bded52d903b4eb63dc14d906"
+      },
+      {
+        "path": "tests/storage/semantic/sqlite-hydration-byte-admission.test.js",
+        "sha256": "45a94a43fdd1cad7f5e64ee3eb19912b2cbfd56808b5665b3ca398d327e849a9",
+        "gitBlob": "7e064ccb122a1293f48e7640956f9fd25342d73b"
+      },
+      {
+        "path": "tests/tooling/lsp/semantic-tokens-and-inlay-hints.test.js",
+        "sha256": "2a25ee895d12745c688771f26eda7abec4ae4db458559b942f478621c26438f2",
+        "gitBlob": "21f5a74a020a1a0c553d37b7aa14d44534d271af"
+      },
+      {
+        "path": "tests/tooling/triage/context-pack.test.js",
+        "sha256": "0d9d18ff46b956ad8207ffc0e18135c2f08a7300723106f0e5d6745ab88bc839",
+        "gitBlob": "bce937f84b847c0bedeca50fe3e3aff29d8b8a56"
+      },
+      {
+        "path": "tests/tooling/triage/decision-snapshot-admission.test.js",
+        "sha256": "8c0d940dc8f4c9aaf1a94fc8dfa6c14e19f618ecc269618da4c7283e65647477",
+        "gitBlob": "7497521db7be3017b104d313dad1f2340e7fd831"
+      },
+      {
+        "path": "tests/tooling/typescript-library-alias-preflight.test.js",
+        "sha256": "54d21dfc2d1587d45ae70edddfe50f611833ba9cdc0647e42e873509644477fb",
+        "gitBlob": "90f1d97b86d0f3599afcedb9e617760e0fea136b"
+      },
+      {
+        "path": "tools/service/indexer-service/queue-worker.js",
+        "sha256": "223ae0466b61883c042d802839df8cbface817badc07f94aedbaac94d99fa46c",
+        "gitBlob": "781dbd6b4951207aa447424ca796902980105ead"
+      }
+    ],
+    "newRegressionBefore": [
+      {
+        "report": "new-regressions-before.json",
+        "sha256": "bb78dfda1d286929455353bb79cf5b4f863658addb506cb53a47a832ca69358f",
+        "note": "CDC fails at eligible multibyte discovery; initial cached-text setup lacked its explicit built-in JS parser selection."
+      },
+      {
+        "report": "cache-regression-before.json",
+        "sha256": "c3c80cfeee58b4fc20bab8604146153804b940c783a81fe54f0205a6c8c059ca",
+        "note": "Corrected fixture fails on actual CPU-emitted old symbol under the newly admitted source hash."
+      }
+    ],
+    "targetedControlCount": 38,
+    "observations": [
+      {
+        "path": ".tmp/tasks/p2-p3-closeout-20261029/repair-01.json",
+        "sha256": "639fd7174ca75535dfc9bd4b6393747c91e0beba8cdf52ec0283e5e4a010a681",
+        "summary": {
+          "durationMs": 113939,
+          "failed": 4,
+          "passed": 20,
+          "skipped": 0,
+          "total": 24
+        },
+        "tests": [
+          {
+            "attempts": 1,
+            "durationMs": 191,
+            "exitCode": 0,
+            "id": "indexing/artifacts/publication-path-admission",
+            "lane": "integration",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\repair-01\\run-1793288219397-1m49cp\\indexing_artifacts_publication-path-admission.attempt-1.log"
+            ],
+            "path": "indexing/artifacts/publication-path-admission.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "indexing",
+              "integration"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 1249,
+            "exitCode": 0,
+            "id": "indexing/file-processor/cached-text-source-replacement",
+            "lane": "integration",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\repair-01\\run-1793288219397-1m49cp\\indexing_file-processor_cached-text-source-replacement.attempt-1.log"
+            ],
+            "path": "indexing/file-processor/cached-text-source-replacement.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "indexing",
+              "integration"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 2718,
+            "exitCode": 0,
+            "id": "indexing/incremental/document-extraction-receipt",
+            "lane": "integration",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\repair-01\\run-1793288219397-1m49cp\\indexing_incremental_document-extraction-receipt.attempt-1.log"
+            ],
+            "path": "indexing/incremental/document-extraction-receipt.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "indexing",
+              "integration"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 421,
+            "exitCode": 0,
+            "id": "indexing/risk/rules/external-policy-admission",
+            "lane": "integration",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\repair-01\\run-1793288219397-1m49cp\\indexing_risk_rules_external-policy-admission.attempt-1.log"
+            ],
+            "path": "indexing/risk/rules/external-policy-admission.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "indexing",
+              "integration"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 141,
+            "exitCode": 0,
+            "id": "indexing/semantic/native-toolchain-platform",
+            "lane": "integration",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\repair-01\\run-1793288219397-1m49cp\\indexing_semantic_native-toolchain-platform.attempt-1.log"
+            ],
+            "path": "indexing/semantic/native-toolchain-platform.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "indexing",
+              "integration"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 1442,
+            "exitCode": 0,
+            "id": "indexing/semantic/runtime-query-pagination",
+            "lane": "integration",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\repair-01\\run-1793288219397-1m49cp\\indexing_semantic_runtime-query-pagination.attempt-1.log"
+            ],
+            "path": "indexing/semantic/runtime-query-pagination.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "indexing",
+              "integration"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 436,
+            "exitCode": 0,
+            "id": "indexing/vfs/cdc-discovery-byte-admission",
+            "lane": "integration",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\repair-01\\run-1793288219397-1m49cp\\indexing_vfs_cdc-discovery-byte-admission.attempt-1.log"
+            ],
+            "path": "indexing/vfs/cdc-discovery-byte-admission.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "indexing",
+              "integration"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 1561,
+            "exitCode": 1,
+            "id": "indexing/workers/worker-pool-gc-pressure-telemetry",
+            "lane": "integration",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\repair-01\\run-1793288219397-1m49cp\\indexing_workers_worker-pool-gc-pressure-telemetry.attempt-1.log",
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\repair-01\\run-1793288219397-1m49cp\\indexing_workers_worker-pool-gc-pressure-telemetry.attempt-1.failure.json"
+            ],
+            "path": "indexing/workers/worker-pool-gc-pressure-telemetry.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "failed",
+            "tags": [
+              "indexing",
+              "integration"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 18234,
+            "exitCode": 0,
+            "id": "map/workspace/runtime-producer",
+            "lane": "integration",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\repair-01\\run-1793288219397-1m49cp\\map_workspace_runtime-producer.attempt-1.log"
+            ],
+            "path": "map/workspace/runtime-producer.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "integration"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 9406,
+            "exitCode": 0,
+            "id": "retrieval/filters/filter-index-artifact",
+            "lane": "integration",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\repair-01\\run-1793288219397-1m49cp\\retrieval_filters_filter-index-artifact.attempt-1.log"
+            ],
+            "path": "retrieval/filters/filter-index-artifact.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "integration",
+              "retrieval"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 264,
+            "exitCode": 0,
+            "id": "retrieval/output/human-search-usability",
+            "lane": "integration",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\repair-01\\run-1793288219397-1m49cp\\retrieval_output_human-search-usability.attempt-1.log"
+            ],
+            "path": "retrieval/output/human-search-usability.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "integration",
+              "retrieval"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 150,
+            "exitCode": 0,
+            "id": "retrieval/output/source-preview-query-context",
+            "lane": "integration",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\repair-01\\run-1793288219397-1m49cp\\retrieval_output_source-preview-query-context.attempt-1.log"
+            ],
+            "path": "retrieval/output/source-preview-query-context.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "integration",
+              "retrieval"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 773,
+            "exitCode": 0,
+            "id": "retrieval/pipeline/chunk-author-filter-cache-coherence",
+            "lane": "integration",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\repair-01\\run-1793288219397-1m49cp\\retrieval_pipeline_chunk-author-filter-cache-coherence.attempt-1.log"
+            ],
+            "path": "retrieval/pipeline/chunk-author-filter-cache-coherence.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "integration",
+              "retrieval"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 5248,
+            "exitCode": 0,
+            "id": "services/api/graph-evidence-pages",
+            "lane": "api",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\repair-01\\run-1793288219397-1m49cp\\services_api_graph-evidence-pages.attempt-1.log"
+            ],
+            "path": "services/api/graph-evidence-pages.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "api",
+              "services"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 155,
+            "exitCode": 13,
+            "id": "services/mcp/legacy-output-backpressure",
+            "lane": "mcp",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\repair-01\\run-1793288219397-1m49cp\\services_mcp_legacy-output-backpressure.attempt-1.log",
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\repair-01\\run-1793288219397-1m49cp\\services_mcp_legacy-output-backpressure.attempt-1.failure.json"
+            ],
+            "path": "services/mcp/legacy-output-backpressure.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "failed",
+            "tags": [
+              "mcp",
+              "services"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 137,
+            "exitCode": 0,
+            "id": "services/queue/confirmed-lease-expiry",
+            "lane": "services",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\repair-01\\run-1793288219397-1m49cp\\services_queue_confirmed-lease-expiry.attempt-1.log"
+            ],
+            "path": "services/queue/confirmed-lease-expiry.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "services"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 12060,
+            "exitCode": 0,
+            "id": "storage/semantic/runtime-claims-deadline-ownership",
+            "lane": "storage",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\repair-01\\run-1793288219397-1m49cp\\storage_semantic_runtime-claims-deadline-ownership.attempt-1.log"
+            ],
+            "path": "storage/semantic/runtime-claims-deadline-ownership.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "storage"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 11355,
+            "exitCode": 0,
+            "id": "storage/semantic/runtime-claims-verification-budget",
+            "lane": "storage",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\repair-01\\run-1793288219397-1m49cp\\storage_semantic_runtime-claims-verification-budget.attempt-1.log"
+            ],
+            "path": "storage/semantic/runtime-claims-verification-budget.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "storage"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 22101,
+            "exitCode": 0,
+            "id": "storage/semantic/runtime-source-reference-authority",
+            "lane": "storage",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\repair-01\\run-1793288219397-1m49cp\\storage_semantic_runtime-source-reference-authority.attempt-1.log"
+            ],
+            "path": "storage/semantic/runtime-source-reference-authority.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "storage"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 589,
+            "exitCode": 1,
+            "id": "storage/semantic/sqlite-hydration-byte-admission",
+            "lane": "storage",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\repair-01\\run-1793288219397-1m49cp\\storage_semantic_sqlite-hydration-byte-admission.attempt-1.log",
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\repair-01\\run-1793288219397-1m49cp\\storage_semantic_sqlite-hydration-byte-admission.attempt-1.failure.json"
+            ],
+            "path": "storage/semantic/sqlite-hydration-byte-admission.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "failed",
+            "tags": [
+              "sqlite",
+              "storage"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 190,
+            "exitCode": 0,
+            "id": "tooling/lsp/semantic-tokens-and-inlay-hints",
+            "lane": "unit",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\repair-01\\run-1793288219397-1m49cp\\tooling_lsp_semantic-tokens-and-inlay-hints.attempt-1.log"
+            ],
+            "path": "tooling/lsp/semantic-tokens-and-inlay-hints.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "tooling",
+              "unit"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 23718,
+            "exitCode": 0,
+            "id": "tooling/triage/context-pack",
+            "lane": "unit",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\repair-01\\run-1793288219397-1m49cp\\tooling_triage_context-pack.attempt-1.log"
+            ],
+            "path": "tooling/triage/context-pack.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "tooling",
+              "unit"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 591,
+            "exitCode": 1,
+            "id": "tooling/triage/decision-snapshot-admission",
+            "lane": "unit",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\repair-01\\run-1793288219397-1m49cp\\tooling_triage_decision-snapshot-admission.attempt-1.log",
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\repair-01\\run-1793288219397-1m49cp\\tooling_triage_decision-snapshot-admission.attempt-1.failure.json"
+            ],
+            "path": "tooling/triage/decision-snapshot-admission.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "failed",
+            "tags": [
+              "tooling",
+              "unit"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 777,
+            "exitCode": 0,
+            "id": "tooling/typescript-library-alias-preflight",
+            "lane": "unit",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\repair-01\\run-1793288219397-1m49cp\\tooling_typescript-library-alias-preflight.attempt-1.log"
+            ],
+            "path": "tooling/typescript-library-alias-preflight.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "tooling",
+              "unit"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          }
+        ]
+      },
+      {
+        "path": ".tmp/tasks/p2-p3-closeout-20261029/repair-02.json",
+        "sha256": "96935cde09bab0bdd534717f3c4f89934e5d1e0d30f643426969fdc6f4421677",
+        "summary": {
+          "durationMs": 1758,
+          "failed": 1,
+          "passed": 13,
+          "skipped": 0,
+          "total": 14
+        },
+        "tests": [
+          {
+            "attempts": 1,
+            "durationMs": 396,
+            "exitCode": 1,
+            "id": "indexing/type-inference/crossfile/boxed-type-filter-parity",
+            "lane": "integration",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\repair-02\\run-1793288334237-njokup\\indexing_type-inference_crossfile_boxed-type-filter-parity.attempt-1.log",
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\repair-02\\run-1793288334237-njokup\\indexing_type-inference_crossfile_boxed-type-filter-parity.attempt-1.failure.json"
+            ],
+            "path": "indexing/type-inference/crossfile/boxed-type-filter-parity.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "failed",
+            "tags": [
+              "indexing",
+              "integration",
+              "tooling"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 71,
+            "exitCode": 0,
+            "id": "indexing/vfs/cdc-min-file-bytes",
+            "lane": "integration",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\repair-02\\run-1793288334237-njokup\\indexing_vfs_cdc-min-file-bytes.attempt-1.log"
+            ],
+            "path": "indexing/vfs/cdc-min-file-bytes.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "indexing",
+              "integration"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 80,
+            "exitCode": 0,
+            "id": "indexing/vfs/cdc-segmentation-contract",
+            "lane": "integration",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\repair-02\\run-1793288334237-njokup\\indexing_vfs_cdc-segmentation-contract.attempt-1.log"
+            ],
+            "path": "indexing/vfs/cdc-segmentation-contract.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "indexing",
+              "integration"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 82,
+            "exitCode": 0,
+            "id": "indexing/workers/worker-observation-bounds",
+            "lane": "integration",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\repair-02\\run-1793288334237-njokup\\indexing_workers_worker-observation-bounds.attempt-1.log"
+            ],
+            "path": "indexing/workers/worker-observation-bounds.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "indexing",
+              "integration"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 65,
+            "exitCode": 0,
+            "id": "map/scene-render-submission/captured-operation",
+            "lane": "integration",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\repair-02\\run-1793288334237-njokup\\map_scene-render-submission_captured-operation.attempt-1.log"
+            ],
+            "path": "map/scene-render-submission.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "integration"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 65,
+            "exitCode": 0,
+            "id": "map/scene-render-submission/controls-loop",
+            "lane": "integration",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\repair-02\\run-1793288334237-njokup\\map_scene-render-submission_controls-loop.attempt-1.log"
+            ],
+            "path": "map/scene-render-submission.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "integration"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 72,
+            "exitCode": 0,
+            "id": "map/scene-render-submission/generation-change",
+            "lane": "integration",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\repair-02\\run-1793288334237-njokup\\map_scene-render-submission_generation-change.attempt-1.log"
+            ],
+            "path": "map/scene-render-submission.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "integration"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 106,
+            "exitCode": 0,
+            "id": "map/scene-render-submission/native-failure",
+            "lane": "integration",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\repair-02\\run-1793288334237-njokup\\map_scene-render-submission_native-failure.attempt-1.log"
+            ],
+            "path": "map/scene-render-submission.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "integration"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 63,
+            "exitCode": 0,
+            "id": "map/scene-render-submission/noop-submission",
+            "lane": "integration",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\repair-02\\run-1793288334237-njokup\\map_scene-render-submission_noop-submission.attempt-1.log"
+            ],
+            "path": "map/scene-render-submission.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "integration"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 62,
+            "exitCode": 0,
+            "id": "map/scene-render-submission/observer-lifetime",
+            "lane": "integration",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\repair-02\\run-1793288334237-njokup\\map_scene-render-submission_observer-lifetime.attempt-1.log"
+            ],
+            "path": "map/scene-render-submission.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "integration"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 62,
+            "exitCode": 0,
+            "id": "map/scene-render-submission/retirement-during-render",
+            "lane": "integration",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\repair-02\\run-1793288334237-njokup\\map_scene-render-submission_retirement-during-render.attempt-1.log"
+            ],
+            "path": "map/scene-render-submission.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "integration"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 59,
+            "exitCode": 0,
+            "id": "map/workspace/qualification-phase-diagnostics",
+            "lane": "integration",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\repair-02\\run-1793288334237-njokup\\map_workspace_qualification-phase-diagnostics.attempt-1.log"
+            ],
+            "path": "map/workspace/qualification-phase-diagnostics.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "integration"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 73,
+            "exitCode": 0,
+            "id": "shared/cache/file-text-dual-representation-budget",
+            "lane": "unit",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\repair-02\\run-1793288334237-njokup\\shared_cache_file-text-dual-representation-budget.attempt-1.log"
+            ],
+            "path": "shared/cache/file-text-dual-representation-budget.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "unit"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 485,
+            "exitCode": 0,
+            "id": "tooling/typescript-root-preflight",
+            "lane": "unit",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\repair-02\\run-1793288334237-njokup\\tooling_typescript-root-preflight.attempt-1.log"
+            ],
+            "path": "tooling/typescript-root-preflight.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "tooling",
+              "unit"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          }
+        ]
+      },
+      {
+        "path": ".tmp/tasks/p2-p3-closeout-20261029/repair-second-focus.json",
+        "sha256": "0a83d11c9fcd2d85ad47d0624ff570a8aadc1d2f6b7c50fd3084ae18d135cc4e",
+        "summary": {
+          "durationMs": 4990,
+          "failed": 1,
+          "passed": 4,
+          "skipped": 0,
+          "total": 5
+        },
+        "tests": [
+          {
+            "attempts": 1,
+            "durationMs": 414,
+            "exitCode": 0,
+            "id": "indexing/type-inference/crossfile/boxed-type-filter-parity",
+            "lane": "integration",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\repair-second-focus\\run-1793288689316-olvldk\\indexing_type-inference_crossfile_boxed-type-filter-parity.attempt-1.log"
+            ],
+            "path": "indexing/type-inference/crossfile/boxed-type-filter-parity.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "indexing",
+              "integration",
+              "tooling"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 587,
+            "exitCode": 0,
+            "id": "indexing/workers/worker-pool-gc-pressure-telemetry",
+            "lane": "integration",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\repair-second-focus\\run-1793288689316-olvldk\\indexing_workers_worker-pool-gc-pressure-telemetry.attempt-1.log"
+            ],
+            "path": "indexing/workers/worker-pool-gc-pressure-telemetry.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "indexing",
+              "integration"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 168,
+            "exitCode": 1,
+            "id": "services/mcp/legacy-output-backpressure",
+            "lane": "mcp",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\repair-second-focus\\run-1793288689316-olvldk\\services_mcp_legacy-output-backpressure.attempt-1.log",
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\repair-second-focus\\run-1793288689316-olvldk\\services_mcp_legacy-output-backpressure.attempt-1.failure.json"
+            ],
+            "path": "services/mcp/legacy-output-backpressure.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "failed",
+            "tags": [
+              "mcp",
+              "services"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 614,
+            "exitCode": 0,
+            "id": "storage/semantic/sqlite-hydration-byte-admission",
+            "lane": "storage",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\repair-second-focus\\run-1793288689316-olvldk\\storage_semantic_sqlite-hydration-byte-admission.attempt-1.log"
+            ],
+            "path": "storage/semantic/sqlite-hydration-byte-admission.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "sqlite",
+              "storage"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 3198,
+            "exitCode": 0,
+            "id": "tooling/triage/decision-snapshot-admission",
+            "lane": "unit",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\repair-second-focus\\run-1793288689316-olvldk\\tooling_triage_decision-snapshot-admission.attempt-1.log"
+            ],
+            "path": "tooling/triage/decision-snapshot-admission.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "tooling",
+              "unit"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          }
+        ]
+      },
+      {
+        "path": ".tmp/tasks/p2-p3-closeout-20261029/mcp-ownership-final.json",
+        "sha256": "5e98c00af62758391588bb0a757ea708a3a336e8401a2f443252d9db55ec17a6",
+        "summary": {
+          "durationMs": 187,
+          "failed": 0,
+          "passed": 1,
+          "skipped": 0,
+          "total": 1
+        },
+        "tests": [
+          {
+            "attempts": 1,
+            "durationMs": 183,
+            "exitCode": 0,
+            "id": "services/mcp/legacy-output-backpressure",
+            "lane": "mcp",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\mcp-ownership-final\\run-1793289128771-q5yde6\\services_mcp_legacy-output-backpressure.attempt-1.log"
+            ],
+            "path": "services/mcp/legacy-output-backpressure.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "mcp",
+              "services"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          }
+        ]
+      },
+      {
+        "path": ".tmp/tasks/p2-p3-closeout-20261029/worker-lifecycle-final.json",
+        "sha256": "80462e7a61ef097608cea32ceaa34d6fc186411129cfc94605e107b2db0af5e2",
+        "summary": {
+          "durationMs": 3227,
+          "failed": 1,
+          "passed": 6,
+          "skipped": 0,
+          "total": 7
+        },
+        "tests": [
+          {
+            "attempts": 1,
+            "durationMs": 233,
+            "exitCode": 0,
+            "id": "indexing/workers/facade-fatal-no-fallback",
+            "lane": "integration",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\worker-lifecycle-final\\run-1793289169558-3ioux7\\indexing_workers_facade-fatal-no-fallback.attempt-1.log"
+            ],
+            "path": "indexing/workers/facade-fatal-no-fallback.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "indexing",
+              "integration"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 86,
+            "exitCode": 13,
+            "id": "indexing/workers/worker-fatal-ownership",
+            "lane": "integration",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\worker-lifecycle-final\\run-1793289169558-3ioux7\\indexing_workers_worker-fatal-ownership.attempt-1.log",
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\worker-lifecycle-final\\run-1793289169558-3ioux7\\indexing_workers_worker-fatal-ownership.attempt-1.failure.json"
+            ],
+            "path": "indexing/workers/worker-fatal-ownership.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "failed",
+            "tags": [
+              "indexing",
+              "integration"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 1926,
+            "exitCode": 0,
+            "id": "indexing/workers/worker-fatal-runtime",
+            "lane": "integration",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\worker-lifecycle-final\\run-1793289169558-3ioux7\\indexing_workers_worker-fatal-runtime.attempt-1.log"
+            ],
+            "path": "indexing/workers/worker-fatal-runtime.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "indexing",
+              "integration"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 88,
+            "exitCode": 0,
+            "id": "indexing/workers/worker-observation-bounds",
+            "lane": "integration",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\worker-lifecycle-final\\run-1793289169558-3ioux7\\indexing_workers_worker-observation-bounds.attempt-1.log"
+            ],
+            "path": "indexing/workers/worker-observation-bounds.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "indexing",
+              "integration"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 555,
+            "exitCode": 0,
+            "id": "indexing/workers/worker-pool-gc-pressure-telemetry",
+            "lane": "integration",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\worker-lifecycle-final\\run-1793289169558-3ioux7\\indexing_workers_worker-pool-gc-pressure-telemetry.attempt-1.log"
+            ],
+            "path": "indexing/workers/worker-pool-gc-pressure-telemetry.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "indexing",
+              "integration"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 208,
+            "exitCode": 0,
+            "id": "indexing/workers/worker-pool-throttle-shutdown",
+            "lane": "integration",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\worker-lifecycle-final\\run-1793289169558-3ioux7\\indexing_workers_worker-pool-throttle-shutdown.attempt-1.log"
+            ],
+            "path": "indexing/workers/worker-pool-throttle-shutdown.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "indexing",
+              "integration"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 120,
+            "exitCode": 0,
+            "id": "indexing/workers/worker-telemetry-retirement",
+            "lane": "integration",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\worker-lifecycle-final\\run-1793289169558-3ioux7\\indexing_workers_worker-telemetry-retirement.attempt-1.log"
+            ],
+            "path": "indexing/workers/worker-telemetry-retirement.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "indexing",
+              "integration"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          }
+        ]
+      },
+      {
+        "path": ".tmp/tasks/p2-p3-closeout-20261029/worker-channel-authority.json",
+        "sha256": "a533cb3d54edf121eb35180333e9b6a57fb28f6269cf840b1c7b4383d8d96ad4",
+        "summary": {
+          "durationMs": 89,
+          "failed": 0,
+          "passed": 1,
+          "skipped": 0,
+          "total": 1
+        },
+        "tests": [
+          {
+            "attempts": 1,
+            "durationMs": 85,
+            "exitCode": 0,
+            "id": "indexing/workers/worker-fatal-ownership",
+            "lane": "integration",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\worker-channel-authority\\run-1793289209388-7k8ivi\\indexing_workers_worker-fatal-ownership.attempt-1.log"
+            ],
+            "path": "indexing/workers/worker-fatal-ownership.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "indexing",
+              "integration"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          }
+        ]
+      },
+      {
+        "path": ".tmp/tasks/p2-p3-closeout-20261029/query-suffix-final.json",
+        "sha256": "8ba95317f03ee09bfb5324693b1529f95a53454ce95c20e1be83f35bc8873eb2",
+        "summary": {
+          "durationMs": 1909,
+          "failed": 0,
+          "passed": 1,
+          "skipped": 0,
+          "total": 1
+        },
+        "tests": [
+          {
+            "attempts": 1,
+            "durationMs": 1905,
+            "exitCode": 0,
+            "id": "indexing/semantic/runtime-query-pagination",
+            "lane": "integration",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\query-suffix-final\\run-1793289243626-sklqr8\\indexing_semantic_runtime-query-pagination.attempt-1.log"
+            ],
+            "path": "indexing/semantic/runtime-query-pagination.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "indexing",
+              "integration"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          }
+        ]
+      },
+      {
+        "path": ".tmp/tasks/p2-p3-closeout-20261029/repair-final-source.json",
+        "sha256": "43896171ddc998ac1211bbedbca458c0f394e2f3e359810ca726f92e58b9ae87",
+        "summary": {
+          "durationMs": 57833,
+          "failed": 0,
+          "passed": 10,
+          "skipped": 0,
+          "total": 10
+        },
+        "tests": [
+          {
+            "attempts": 1,
+            "durationMs": 1240,
+            "exitCode": 0,
+            "id": "indexing/file-processor/cached-text-source-replacement",
+            "lane": "integration",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\repair-final-source\\run-1793289333480-zcq4w2\\indexing_file-processor_cached-text-source-replacement.attempt-1.log"
+            ],
+            "path": "indexing/file-processor/cached-text-source-replacement.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "indexing",
+              "integration"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 2646,
+            "exitCode": 0,
+            "id": "indexing/incremental/document-extraction-receipt",
+            "lane": "integration",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\repair-final-source\\run-1793289333480-zcq4w2\\indexing_incremental_document-extraction-receipt.attempt-1.log"
+            ],
+            "path": "indexing/incremental/document-extraction-receipt.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "indexing",
+              "integration"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 1704,
+            "exitCode": 0,
+            "id": "indexing/semantic/runtime-query-pagination",
+            "lane": "integration",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\repair-final-source\\run-1793289333480-zcq4w2\\indexing_semantic_runtime-query-pagination.attempt-1.log"
+            ],
+            "path": "indexing/semantic/runtime-query-pagination.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "indexing",
+              "integration"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 437,
+            "exitCode": 0,
+            "id": "indexing/vfs/cdc-discovery-byte-admission",
+            "lane": "integration",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\repair-final-source\\run-1793289333480-zcq4w2\\indexing_vfs_cdc-discovery-byte-admission.attempt-1.log"
+            ],
+            "path": "indexing/vfs/cdc-discovery-byte-admission.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "indexing",
+              "integration"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 77,
+            "exitCode": 0,
+            "id": "indexing/workers/worker-fatal-ownership",
+            "lane": "integration",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\repair-final-source\\run-1793289333480-zcq4w2\\indexing_workers_worker-fatal-ownership.attempt-1.log"
+            ],
+            "path": "indexing/workers/worker-fatal-ownership.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "indexing",
+              "integration"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 546,
+            "exitCode": 0,
+            "id": "indexing/workers/worker-pool-gc-pressure-telemetry",
+            "lane": "integration",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\repair-final-source\\run-1793289333480-zcq4w2\\indexing_workers_worker-pool-gc-pressure-telemetry.attempt-1.log"
+            ],
+            "path": "indexing/workers/worker-pool-gc-pressure-telemetry.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "indexing",
+              "integration"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 18277,
+            "exitCode": 0,
+            "id": "map/workspace/runtime-producer",
+            "lane": "integration",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\repair-final-source\\run-1793289333480-zcq4w2\\map_workspace_runtime-producer.attempt-1.log"
+            ],
+            "path": "map/workspace/runtime-producer.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "integration"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 9361,
+            "exitCode": 0,
+            "id": "retrieval/filters/filter-index-artifact",
+            "lane": "integration",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\repair-final-source\\run-1793289333480-zcq4w2\\retrieval_filters_filter-index-artifact.attempt-1.log"
+            ],
+            "path": "retrieval/filters/filter-index-artifact.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "integration",
+              "retrieval"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 22715,
+            "exitCode": 0,
+            "id": "storage/semantic/runtime-source-reference-authority",
+            "lane": "storage",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\repair-final-source\\run-1793289333480-zcq4w2\\storage_semantic_runtime-source-reference-authority.attempt-1.log"
+            ],
+            "path": "storage/semantic/runtime-source-reference-authority.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "storage"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 818,
+            "exitCode": 0,
+            "id": "tooling/typescript-library-alias-preflight",
+            "lane": "unit",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\repair-final-source\\run-1793289333480-zcq4w2\\tooling_typescript-library-alias-preflight.attempt-1.log"
+            ],
+            "path": "tooling/typescript-library-alias-preflight.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "tooling",
+              "unit"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          }
+        ]
+      },
+      {
+        "path": ".tmp/tasks/p2-p3-closeout-20261029/mcp-cleanup-final.json",
+        "sha256": "db2a23bdfbf02c805937daa9e192ba0444c5085fcfe5ddad746638d85f6a9b9c",
+        "summary": {
+          "durationMs": 177,
+          "failed": 0,
+          "passed": 1,
+          "skipped": 0,
+          "total": 1
+        },
+        "tests": [
+          {
+            "attempts": 1,
+            "durationMs": 173,
+            "exitCode": 0,
+            "id": "services/mcp/legacy-output-backpressure",
+            "lane": "mcp",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\mcp-cleanup-final\\run-1793289535231-4tk5cx\\services_mcp_legacy-output-backpressure.attempt-1.log"
+            ],
+            "path": "services/mcp/legacy-output-backpressure.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "mcp",
+              "services"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          }
+        ]
+      }
+    ],
+    "latestControlCount": 43,
+    "latestPassed": 43,
+    "remainingBaselineFailures": [],
+    "platformReassignment": {
+      "id": "indexing/semantic/native-deferred-production",
+      "reason": "ELF/clangd positive requires Linux; Windows unsupported-platform and portable authority controls passed, not counted as Linux positive."
+    },
+    "notes": [
+      "Ten controls whose code paths include the final worker-channel repair were rechecked after that repair; all passed.",
+      "Four real new regression fixtures join ci-lite (1494 controls).",
+      "Original Linux ELF/compiler positive remains unexecuted on Windows; explicit unsupported-platform and portable authority controls passed."
+    ],
+    "sourceCommit": "ed21c8a01d6dc18b05486512a55b8ef247c6c15c",
+    "frontGate": {
+      "checks": [
+        {
+          "name": "format",
+          "command": "npm run format",
+          "exitCode": 0,
+          "durationMs": 40523,
+          "log": ".tmp/tasks/p2-p3-closeout-20261029/repair-publish-format.log",
+          "sha256": "7855b6012c61fbd43d32511e7db1fc8fda9a515fe4bdfaaaac5174988aa43790"
+        },
+        {
+          "name": "config-budget",
+          "command": "npm run config:budget",
+          "exitCode": 0,
+          "durationMs": 2110,
+          "log": ".tmp/tasks/p2-p3-closeout-20261029/repair-publish-config-budget.log",
+          "sha256": "5a73d6364cc10586d450f8083133e338669857da41c3873f6c1ff1435ba954a6"
+        },
+        {
+          "name": "env-check",
+          "command": "npm run env:check",
+          "exitCode": 0,
+          "durationMs": 1259,
+          "log": ".tmp/tasks/p2-p3-closeout-20261029/repair-publish-env-check.log",
+          "sha256": "b68a12b11da60d8f54903d11190dbc3da628d8c39a0d68ca7e02da8bd16c0008"
+        },
+        {
+          "name": "generated-freshness",
+          "command": "node tools/docs/generated-surfaces.js --check-freshness",
+          "exitCode": 0,
+          "durationMs": 11449,
+          "log": ".tmp/tasks/p2-p3-closeout-20261029/repair-publish-generated-freshness.log",
+          "sha256": "12d66e11ed9f3f1d4c7a42dcfb0e05f7ed20f817ce5419d2179e0906c6546665"
+        },
+        {
+          "name": "command-surface",
+          "command": "node tools/ci/check-command-surface.js",
+          "exitCode": 0,
+          "durationMs": 2592,
+          "log": ".tmp/tasks/p2-p3-closeout-20261029/repair-publish-command-surface.log",
+          "sha256": "718e1bec11ed61774c3b0ff66bf339fa48cf4b9b3517d2c2e4d2b8d49fb63417"
+        },
+        {
+          "name": "workflow-contract",
+          "command": "node tests/ci/workflow-contract.test.js",
+          "exitCode": 0,
+          "durationMs": 259,
+          "log": ".tmp/tasks/p2-p3-closeout-20261029/repair-publish-workflow-contract.log",
+          "sha256": "5c01890cb0b087b29897ddfc20e9527cfb7afb370eacd7871f3b649dd7fe1b58"
+        },
+        {
+          "name": "gate",
+          "command": "node tests/run.js --lane gate --jobs 1 --timeout-ms 30000 --retries 0 --native-status-redo=false --report-file C:/Users/sneak/Development/PairOfCleats/.tmp/tasks/p2-p3-closeout-20261029/repair-publish-gate.json --log-dir C:/Users/sneak/Development/PairOfCleats/.tmp/tasks/p2-p3-closeout-20261029/repair-publish-gate-logs",
+          "exitCode": 0,
+          "durationMs": 20800,
+          "log": ".tmp/tasks/p2-p3-closeout-20261029/repair-publish-gate.log",
+          "sha256": "445206081b5d7152daf774638de34a8b8263c9148c4a193f2e45a8a2adc392d5"
+        },
+        {
+          "name": "diff-check",
+          "command": "git diff --check",
+          "exitCode": 0,
+          "durationMs": 115,
+          "log": ".tmp/tasks/p2-p3-closeout-20261029/repair-publish-diff-check.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        }
+      ],
+      "status": "passed"
+    },
+    "hostedBaselineFollowup": {
+      "head": "4eeb635048177ad8f8cb85abe2291b3f23898a11",
+      "run": 40896662739,
+      "windows": {
+        "passed": 1473,
+        "timeout": "indexing/workers/worker-fatal-runtime",
+        "skipped": 3
+      },
+      "nativeWindows": {
+        "failed": "tui/native-index-workflows/validate-search",
+        "seedElapsedMs": 15621,
+        "uiReadyElapsedMs": 16227,
+        "artifactId": 12907799644,
+        "artifactSha256": "fe202a0cf4bf405c7b4a0a9c2e7e6e4d620380a59eba6067a8718ee25e35e3c6"
+      },
+      "note": "Original worker timeout printed its completion marker but did not exit. Current focused thread/process lifecycle case exits naturally in 1.93 s; hosted repair execution remains pending."
+    }
+  }
 }

@@ -58,7 +58,7 @@ await execution; lifecycle policy (#1267) and custom cleanup (#1574) remain.
 The [owner queue](archived/remaining-issue-batches-2026-10-26.json) orders
 implementation by severity and shared dependencies:
 
-1. [P2/P3 closeout](archived/p2-p3-closeout-2026-10-29.md): 318 targets remain after five qualified closures; six editor-dependent issues are excluded. P1 #1574 remains outside this request.
+1. [P2/P3 closeout](archived/p2-p3-closeout-2026-10-29.md): 318 targets remain; six editor issues are excluded. All 658 mapped correctness checks ran (637 pass/21 fail); focused repairs now pass. P1 #1574 remains outside this request.
 2. Worker/service ownership and provider installation (#631); [compilation context and report refresh](archived/throughput-materialization-implementation-2026-10-28.md) await qualification.
 3. Language/semantic/replay and retrieval/API evidence contracts; [comment source/demand ownership](archived/comment-pipeline-implementation-2026-10-27.md)
    has 38 authored JS/TS/Rust/import cases. [Frontmatter interiors](archived/frontmatter-content-implementation-2026-10-27.md)
