@@ -106,6 +106,7 @@ export async function validateIndexArtifacts(input = {}) {
   const orderingStrict = input.validateOrdering === true;
 
   const {
+    sparseEnabled,
     requiredArtifacts,
     strictOnlyRequiredArtifacts,
     optionalArtifacts,
@@ -243,6 +244,7 @@ export async function validateIndexArtifacts(input = {}) {
             modeReport,
             chunkMeta,
             postingsConfig,
+            sparseEnabled,
             resolvePresence,
             hasLegacyArtifact,
             readJsonArtifact

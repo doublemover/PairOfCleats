@@ -23,11 +23,12 @@ export const validateCorePostingsArtifacts = ({
   modeReport,
   chunkMeta,
   postingsConfig,
+  sparseEnabled = true,
   resolvePresence,
   hasLegacyArtifact,
   readJsonArtifact
 }) => {
-  if (postingsConfig.fielded && chunkMeta.length > 0) {
+  if (sparseEnabled && postingsConfig.fielded && chunkMeta.length > 0) {
     const missingFieldArtifacts = [];
     const isMissingFieldArtifact = (name) => {
       if (strict) {
@@ -52,12 +53,20 @@ export const validateCorePostingsArtifacts = ({
   let phraseNormalized = null;
   let chargramNormalized = null;
 
-  try {
-    const tokenIndex = loadTokenPostings(dir, { manifest, strict });
-    tokenNormalized = normalizeTokenPostings(tokenIndex);
-  } catch (err) {
-    addIssue(report, mode, `token_postings load failed (${err?.code || err?.message || err})`, 'Rebuild index artifacts for this mode.', 'issues', validationErrorMetadata(err, 'token_postings'));
-    modeReport.ok = false;
+  // Vector-only profiles intentionally omit sparse output. Still validate any
+  // declared/legacy token artifact; the profile cannot conceal corrupt data.
+  const tokenPresence = !sparseEnabled && strict ? resolvePresence('token_postings') : null;
+  const loadTokens = sparseEnabled || (strict
+    ? tokenPresence && (tokenPresence.error || tokenPresence.format !== 'missing')
+    : hasLegacyArtifact('token_postings'));
+  if (loadTokens) {
+    try {
+      const tokenIndex = loadTokenPostings(dir, { manifest, strict });
+      tokenNormalized = normalizeTokenPostings(tokenIndex);
+    } catch (err) {
+      addIssue(report, mode, `token_postings load failed (${err?.code || err?.message || err})`, 'Rebuild index artifacts for this mode.', 'issues', validationErrorMetadata(err, 'token_postings'));
+      modeReport.ok = false;
+    }
   }
   if (tokenNormalized) {
     validateSchema(
