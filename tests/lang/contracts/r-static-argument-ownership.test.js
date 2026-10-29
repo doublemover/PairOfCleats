@@ -4,6 +4,10 @@ import { collectRImports } from '../../../src/index/language-registry/import-col
 
 const cases = [
   ['library(dplyr)\nlibrary(dplyr, quietly=TRUE)\nrequire(dplyr, quietly=FALSE)', ['dplyr']],
+  ['require(dplyr, character.only = FALSE)', ['dplyr']],
+  ['require(dplyr, character.only = TRUE)', []],
+  ['library(\n# a real package argument\npackage="dplyr",\nquietly=TRUE, warn.conflicts=FALSE\n)', ['dplyr']],
+  ['requireNamespace("jsonlite", quietly=TRUE)', ['jsonlite']],
   ['library("dplyr", quietly=TRUE)\nlibrary(package="dplyr")\nsource("real.R",local=TRUE)\nprint("library(fake)")', ['dplyr', 'real.R']],
   ['source(file="R/helpers.R", local=TRUE)', ['R/helpers.R']],
   ['source(local=TRUE, file="R/helpers.R")', ['R/helpers.R']],
@@ -69,6 +73,10 @@ const diagnostics = [];
 assert.deepEqual(collectRImports('library("one")\nlibrary("two")', { ...options,
   collectorDiagnostics: diagnostics, collectorScanBudget: { maxMatches: 1 } }), ['one']);
 assert.ok(diagnostics.some(value => value.collectorId === 'imports:r' && value.reasons.includes('scan_matches')));
+const truncated = [];
+assert.deepEqual(collectRImports('library("truncated-package")', { ...options,
+  collectorDiagnostics: truncated, collectorScanBudget: { maxChars: 8 } }), []);
+assert.ok(truncated.some(value => value.reasons.includes('source_bytes')));
 let clock = 0;
 const timed = [];
 assert.deepEqual(collectRImports('library("one")\nlibrary("two")', { collectorNow: () => ++clock,
