@@ -714,7 +714,7 @@ async function buildDatabaseFromBundlesOwned({
     // then own the loader immediately so every later failure closes it.
     let bundleLoader = null, loaderError = null;
     try {
-      bundleLoader = createBundleLoader({ bundleThreads, workerPath, repoRoot, signal });
+      bundleLoader = createBundleLoader({ bundleThreads, workerPath, repoRoot, signal, threadLimits });
       const useBundleWorkers = bundleLoader.useWorkers;
       if (emitOutput && useBundleWorkers) {
         log(`[sqlite] Bundle parser workers: ${bundleLoader.maxThreads} (requested ${bundleThreads}).`);
@@ -726,6 +726,7 @@ async function buildDatabaseFromBundlesOwned({
       const decodeWindowBytes = Math.max(16 * 1024 * 1024, Math.min(256 * 1024 * 1024,
         Math.floor(memory.freeBytes / 8)));
       const pipelineMetrics = { byteAllowance: decodeWindowBytes, decodedProjectionFactor: 64,
+        admission: bundleLoader.admission,
         execution: useBundleWorkers ? 'workers' : 'ordered-inline', workerAdmissionReason: bundleLoader.workerAdmissionReason || null };
       if (batchStats) batchStats.bundlePipeline = pipelineMetrics;
       for await (const result of bundleLoader.iterateBundleShards(manifestEntries, {

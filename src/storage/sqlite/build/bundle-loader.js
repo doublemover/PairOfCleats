@@ -15,31 +15,38 @@ import { buildWorkerExecArgv, parseMaxOldSpaceSizeMb } from '../../../shared/wor
 import { measureBundleProjectionBytes } from './bundle-projection-size.js';
 import { orderedBundleShardWindow } from './bundle-pipeline.js';
 import { matchesSqliteBundleSource } from './bundle-source.js';
+import { resolveBundleProducerBudget } from './bundle-budget.js';
 const retainedFailedPools = new Set();
 let quarantine = null;
 const MiB = 1024 * 1024;
-const resolveWorkerResourceLimits = maxWorkers => {
-  const totalMemMb = Math.floor((readEffectiveMemory().totalBytes || 256 * MiB) / MiB);
+const resolveWorkerResourceLimits = (maxWorkers, configuredLimitBytes) => {
+  const totalMemMb = Math.floor((readEffectiveMemory({ configuredLimitBytes }).totalBytes || 256 * MiB) / MiB);
   const maxOldMb = parseMaxOldSpaceSizeMb(process.execArgv);
   const basisMb = Math.max(256, Math.min(2048, totalMemMb, maxOldMb || totalMemMb));
   return { maxOldGenerationSizeMb: Math.max(128, Math.min(process.platform === 'win32' ? 256 : 512,
     Math.floor(basisMb / (Math.max(1, maxWorkers) * 2)))), maxYoungGenerationSizeMb: 32 };
 };
 
-export const createBundleLoader = ({ bundleThreads, workerPath, repoRoot = process.cwd(), signal = null }) => {
+export const createBundleLoader = ({ bundleThreads, workerPath, repoRoot = process.cwd(), signal = null, threadLimits = null }) => {
   throwIfAborted(signal); if (quarantine) throw quarantine;
   const bundleTaskTimeoutMs = 30000;
   const requestedRaw = Number(bundleThreads);
   const requestedThreads = Number.isFinite(requestedRaw) && requestedRaw > 0
     ? Math.max(1, Math.min(32, Math.floor(requestedRaw))) : 1;
-  const resourceLimits = resolveWorkerResourceLimits(requestedThreads);
-  const memoryThreads = Math.max(1, Math.floor(readEffectiveMemory().freeBytes
+  // Direct legacy callers retain their explicit request, bounded by effective
+  // CPU. Production callers supply the canonical admitted envelope.
+  const budget = resolveBundleProducerBudget(threadLimits || { fileConcurrency: requestedThreads });
+  const admittedThreads = Math.min(requestedThreads, budget.limit);
+  const resourceLimits = resolveWorkerResourceLimits(admittedThreads, budget.configuredMemoryBytes);
+  const memory = readEffectiveMemory({ configuredLimitBytes: budget.configuredMemoryBytes });
+  const memoryThreads = Math.max(0, Math.floor(memory.freeBytes
     / (resourceLimits.maxOldGenerationSizeMb * MiB * 2)));
-  const maxThreads = Math.min(requestedThreads, memoryThreads);
+  const maxThreads = Math.max(1, Math.min(admittedThreads, memoryThreads));
   const heapContract = resolveWorkerHeapLaunchContract(resourceLimits);
-  const useWorkers = requestedThreads > 1 && Boolean(workerPath) && heapContract.supported;
+  const useWorkers = maxThreads > 1 && Boolean(workerPath) && heapContract.supported;
   const workerAdmissionReason = !heapContract.supported ? heapContract.reason
-    : maxThreads < requestedThreads ? 'effective-memory-cap' : null;
+    : memoryThreads < admittedThreads ? 'effective-memory-cap'
+      : admittedThreads < requestedThreads ? budget.limitingReason : null;
   const pool = useWorkers ? new Piscina({ filename: workerPath, minThreads: 0, maxThreads,
     execArgv: buildWorkerExecArgv(), taskTimeout: bundleTaskTimeoutMs, resourceLimits }) : null;
   let workerAvailable = Boolean(pool), closed = false, destroyPromise = null;
@@ -174,5 +181,7 @@ export const createBundleLoader = ({ bundleThreads, workerPath, repoRoot = proce
     }
     return { file, ok: true, bundleShards };
   };
-  return { loadBundle, iterateBundleShards, close, useWorkers, maxThreads, workerAdmissionReason };
+  return { loadBundle, iterateBundleShards, close, useWorkers, maxThreads, workerAdmissionReason,
+    admission: { requestedThreads, admittedThreads, memoryThreads, actualWorkerLimit: useWorkers ? maxThreads : 0,
+      executionConcurrency: useWorkers ? maxThreads : 1, budget, resourceLimits } };
 };

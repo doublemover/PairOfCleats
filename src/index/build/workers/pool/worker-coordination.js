@@ -98,33 +98,12 @@ export const createWorkerProcessCoordinator = (input = {}) => {
     workerCreateOrdinal = 0;
   };
 
-  const updateGcTelemetry = (workerId, durationMs = null) => {
-    const now = Date.now();
-    if ((now - lastGcSampleAt) < gcSampleIntervalMs) return null;
-    lastGcSampleAt = now;
-    const {
-      heapUtilization,
-      rssPressure,
-      pressureRatio
-    } = readProcessPressureSample();
-    gcSampleCount += 1;
-    gcGlobalPressure = pressureRatio;
-    gcGlobalHeapUtilization = heapUtilization;
-    gcGlobalRssPressure = rssPressure;
-    updatePressureState({
-      pressureRatio,
-      rssPressure,
-      gcPressure: heapUtilization,
-      reason: 'worker-task'
-    });
-    setStageGcPressure({ stage: normalizedStage, value: pressureRatio });
-    setWorkerGcPressure({ pool: poolLabel, worker: 'all', stage: normalizedStage, value: pressureRatio });
-    const pressureSample = { rssPressure, gcPressure: heapUtilization, pressureRatio };
-    if (!validWorkerId(workerId)) return pressureSample;
+  const recordTaskCompletion = (workerId, durationMs) => {
+    if (!validWorkerId(workerId)) return;
     const key = String(workerId);
     if (!gcByWorker.has(key) && gcByWorker.size >= WORKER_DIAGNOSTIC_LIMIT) {
       pruneInactiveDiagnostics();
-      if (gcByWorker.size >= WORKER_DIAGNOSTIC_LIMIT) return pressureSample;
+      if (gcByWorker.size >= WORKER_DIAGNOSTIC_LIMIT) return;
     }
     const previous = gcByWorker.get(key) || {
       worker: key,
@@ -144,9 +123,24 @@ export const createWorkerProcessCoordinator = (input = {}) => {
       ...previous,
       taskCompletions: previous.taskCompletions + 1,
       lastDurationMs: Number.isFinite(durationMs) ? Math.max(0, durationMs) : previous.lastDurationMs,
-      updatedAt: new Date(now).toISOString()
+      updatedAt: new Date().toISOString()
     };
     gcByWorker.set(key, next);
+  };
+
+  const updateGcTelemetry = () => {
+    const now = Date.now();
+    if ((now - lastGcSampleAt) < gcSampleIntervalMs) return null;
+    lastGcSampleAt = now;
+    const { heapUtilization, rssPressure, pressureRatio } = readProcessPressureSample();
+    gcSampleCount += 1;
+    gcGlobalPressure = pressureRatio;
+    gcGlobalHeapUtilization = heapUtilization;
+    gcGlobalRssPressure = rssPressure;
+    updatePressureState({ pressureRatio, rssPressure, gcPressure: heapUtilization, reason: 'worker-task' });
+    setStageGcPressure({ stage: normalizedStage, value: pressureRatio });
+    setWorkerGcPressure({ pool: poolLabel, worker: 'all', stage: normalizedStage, value: pressureRatio });
+    const pressureSample = { rssPressure, gcPressure: heapUtilization, pressureRatio };
     return pressureSample;
   };
 
@@ -180,6 +174,7 @@ export const createWorkerProcessCoordinator = (input = {}) => {
         runningByWorker.delete(message.threadId);
         completedTasks += 1;
         workerWallMs += Math.max(0, Number(message.durationMs) || 0);
+        recordTaskCompletion(message.threadId, Number(message.durationMs));
         withPooledPayloadMeta(workerTaskMetricPool, (labels) => {
           labels.pool = poolLabel;
           labels.task = message.task;
@@ -195,7 +190,7 @@ export const createWorkerProcessCoordinator = (input = {}) => {
             seconds: labels.seconds
           });
         });
-        const pressureSample = updateGcTelemetry(message.threadId, Number(message.durationMs));
+        const pressureSample = updateGcTelemetry();
         if (pressureSample) {
           void maybeReduceWorkersOnPressure(pressureSample).catch(() => {});
         }

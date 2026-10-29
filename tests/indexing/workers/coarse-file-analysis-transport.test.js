@@ -3,6 +3,8 @@ import path from 'node:path';
 import Piscina from 'piscina';
 import { fileURLToPath } from 'node:url';
 import { IndexerProcessPool, createProcessMemoryAccount } from '../../../src/index/build/workers/process-pool.js';
+import { IndexerThreadPool } from '../../../src/index/build/workers/thread-pool.js';
+import { awaitWithKeepalive } from '../../../src/shared/promise-keepalive.js';
 import { projectFileAnalysisInput, decodeFileAnalysisResult } from '../../../src/index/build/workers/file-analysis-contract.js';
 import { executeFileAnalysis } from '../../../src/index/build/workers/file-analysis-task.js';
 import { createTokenizationBuffers, createTokenizationContext, tokenizeChunkText } from '../../../src/index/build/tokenization.js';
@@ -25,9 +27,16 @@ const account = createProcessMemoryAccount(process.memoryUsage().rss + 512 * 102
 const pool = backend === 'process'
   ? new IndexerProcessPool({ maxThreads: 1, oldSpaceMb: 256, workerData: dictionaries,
     taskTimeout: 10000, budgetAccount: account })
-  : new Piscina({ filename: fileURLToPath(new URL('../../../src/index/build/workers/indexer-worker.js', import.meta.url)),
+  : new IndexerThreadPool(new Piscina({ filename: fileURLToPath(new URL('../../../src/index/build/workers/indexer-worker.js', import.meta.url)),
     minThreads: 1, maxThreads: 1, concurrentTasksPerWorker: 1, workerData: dictionaries,
-    resourceLimits: { maxOldGenerationSizeMb: 256 } });
+    atomics: 'async', resourceLimits: { maxOldGenerationSizeMb: 256 } }));
+let observedCompletion;
+const completion = new Promise(resolve => { observedCompletion = resolve; });
+const observations = [];
+pool.on('message', message => {
+  observations.push(message);
+  if (message.type === 'worker-task' && message.task === 'analyze' && message.status === 'ok') observedCompletion(message);
+});
 try {
   const receipt = await pool.run(payload, { name: 'analyzeFile' });
   const actual = decodeFileAnalysisResult(payload, receipt);
@@ -35,7 +44,12 @@ try {
   assert.deepEqual(actual.result, expected.result, `${backend} keeps full canonical file projections`);
   assert.equal(receipt.identity, payload.identity);
   assert.equal(receipt.outputBytes, receipt.body.byteLength);
+  const observed = await awaitWithKeepalive(completion);
+  assert.equal(observed.task, 'analyze'); assert.equal(observed.status, 'ok');
+  assert.ok(Number.isFinite(observed.durationMs));
+  assert.ok(observations.some(message => message.type === 'worker-task-start' && message.task === 'analyze'));
   if (backend === 'process') {
+    assert.equal(pool.stats().staleResults, 0, 'healthy startup observations are distinct from stale authoritative task results');
     assert.equal(pool.stats().completed, 1);
     assert.equal(pool.stats().ipcReservedBytes, 0);
     assert.ok(pool.stats().peakIpcReservedBytes >= 16 * 1024 * 1024,

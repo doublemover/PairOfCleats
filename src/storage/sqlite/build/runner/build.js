@@ -1,7 +1,7 @@
 import { probeSqlite } from './sqlite-probes.js';
 import { observeStorageResource } from '../../../../shared/storage/failure-observation.js';
 import fsSync from 'node:fs';
-import os from 'node:os';
+import { resolveBundleProducerBudget } from '../bundle-budget.js';
 import path from 'node:path';
 import { resolveSqliteIngestPlan } from '../index.js';
 import { resolveManifestBundleNames } from '../../../../shared/bundle-io-paths.js';
@@ -170,13 +170,8 @@ export const resolveBundleWorkerAutotune = ({
 }) => {
   const explicitBundleThreads = Number(envConfig?.bundleThreads);
   const concurrencyFloor = 1;
-  const cpuHint = Number.isFinite(Number(threadLimits?.fileConcurrency))
-    ? Math.max(1, Math.floor(Number(threadLimits.fileConcurrency)))
-    : 1;
-  const hostCpu = typeof os.availableParallelism === 'function'
-    ? os.availableParallelism()
-    : (Array.isArray(os.cpus()) ? os.cpus().length : 1);
-  const upperBound = Math.max(1, Math.min(16, Math.max(cpuHint, hostCpu)));
+  const budget = resolveBundleProducerBudget(threadLimits);
+  const upperBound = budget.limit;
   const bundleCount = manifestFiles && typeof manifestFiles === 'object'
     ? Object.keys(manifestFiles).length
     : 0;
@@ -184,6 +179,8 @@ export const resolveBundleWorkerAutotune = ({
     return {
       threads: Math.max(concurrencyFloor, Math.min(upperBound, Math.floor(explicitBundleThreads))),
       reason: 'explicit-env',
+      requestedThreads: Math.floor(explicitBundleThreads), recommendedThreads: null,
+      budget,
       bundleCount,
       avgBundleBytes: estimateBundleAverageBytes(bundleDir, manifestFiles)
     };
@@ -206,7 +203,7 @@ export const resolveBundleWorkerAutotune = ({
   const priorMode = profile?.modes && typeof profile.modes === 'object'
     ? profile.modes[mode]
     : null;
-  const priorThreads = Number(priorMode?.threads);
+  const priorThreads = priorMode?.resourceIdentity === budget.resourceIdentity ? Number(priorMode.threads) : NaN;
   // Rapid-convergence guard: move by at most one worker per run.
   if (Number.isFinite(priorThreads) && priorThreads > 0) {
     const clampedPrior = Math.max(concurrencyFloor, Math.min(upperBound, Math.floor(priorThreads)));
@@ -216,6 +213,7 @@ export const resolveBundleWorkerAutotune = ({
   return {
     threads: Math.max(concurrencyFloor, Math.min(upperBound, desired)),
     reason: 'autotune',
+    requestedThreads: null, recommendedThreads: desired, budget,
     bundleCount,
     avgBundleBytes
   };

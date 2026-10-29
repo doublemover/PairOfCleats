@@ -2,8 +2,8 @@ import { withGeneratedCacheMetadata } from '../../../shared/generated-artifact-c
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { atomicWriteJson } from '../../../shared/io/atomic-write.js';
+import { SCHEDULER_AUTOTUNE_PROFILE_VERSION } from './scheduler-autotune-policy.js';
 
-const SCHEDULER_AUTOTUNE_PROFILE_VERSION = 2;
 const PROFILE_FILE_NAME = 'scheduler-autotune.json';
 
 /**

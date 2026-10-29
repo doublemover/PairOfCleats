@@ -8,10 +8,16 @@ import { throwIfAborted } from './abort.js';
 import { addStorageFailureContext } from './storage/operation-error.js';
 import { readExactAt } from './io/read-exact.js';
 import { atomicWriteJson } from './io/atomic-write.js';
-import { syncParentDirectory } from './io/persistence-helpers.js';
+import { syncParentDirectory, WINDOWS_PATH_BUDGET } from './io/persistence-helpers.js';
 import { withFileLock } from './locks/file-lock.js';
 import { fingerprintOnnxFile, planOnnxArtifactClosure } from './onnx-artifact-closure.js';
 import { ONNX_INSTALLATION_RECEIPT, ONNX_INSTALLATION_VERSION, onnxSelectionPath, resolveInstalledOnnxPath } from './onnx-installation.js';
+
+// ORT can load a namespaced graph but its relative external-data validator
+// canonicalizes back to an ordinary Windows path. Keep those selected paths
+// within the existing native path budget before publishing availability.
+const overlongExternalPath = (root, plan) => process.platform === 'win32' && plan.files.some(row => row.path !== plan.graph)
+  ? plan.files.find(row => path.join(root, ...row.path.split('/')).length > WINDOWS_PATH_BUDGET) : null;
 
 const copyAsset = async (row, stage, signal) => {
   throwIfAborted(signal);
@@ -67,7 +73,9 @@ export const installOnnxArtifactClosure = async ({ sourceGraph, targetGraph, hoo
     try {
       const selected = resolveInstalledOnnxPath(targetGraph) || targetGraph;
       const current = await planOnnxArtifactClosure(selected, graphName, { signal });
-      if (current.digest === plan.digest) return { graphPath: selected, digest: plan.digest, unchanged: true };
+      if (current.digest === plan.digest && !overlongExternalPath(path.dirname(selected), current)) {
+        return { graphPath: selected, digest: plan.digest, unchanged: true };
+      }
     } catch (error) {
       const observe = observeEmbeddingOwnership(error);
       if (['EACCES', 'EPERM', 'ERR_UNSAFE_FILE_PATH', 'ABORT_ERR'].includes(error?.code) || observe && !observe()) throw error;
@@ -75,8 +83,17 @@ export const installOnnxArtifactClosure = async ({ sourceGraph, targetGraph, hoo
       // publishing a new installation, without modifying the damaged bytes.
     }
     const stage = path.join(assets, `.staging-${randomUUID()}`);
-    const generation = `${plan.digest}-${randomUUID()}`;
+    // The opaque directory token owns an immutable generation; full content
+    // identity is independently verified in both selector and closure receipt.
+    // Repeating the digest here costs native path space without adding proof.
+    const generation = randomUUID().replaceAll('-', '');
     const final = path.join(assets, generation);
+    const overlong = overlongExternalPath(final, plan);
+    if (overlong) throw Object.assign(new Error('Selected ONNX target exceeds the Windows native path budget for declared external data; choose a shallower target.'), {
+      code: 'ERR_ONNX_NATIVE_PATH_LIMIT', modelTarget: targetGraph, nativePathMember: overlong.path,
+      nativePathMemberKind: overlong.path === plan.graph ? 'graph' : 'external-data',
+      nativePathLimit: WINDOWS_PATH_BUDGET
+    });
     await fs.mkdir(stage);
     let stageOwned = true;
     let failure, failed = false;

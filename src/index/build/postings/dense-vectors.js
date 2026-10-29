@@ -5,11 +5,13 @@ import { maybeYield } from './constants.js';
 import { isAbortError, throwIfAborted } from '../../../shared/abort.js';
 import { isQueueRecoveryUnsafe } from '../../../shared/concurrency/queue-recovery.js';
 import { assertQuantizedEmbeddingRow, resolveEmbeddingQuantizationSpec } from '../../../shared/embedding-quantization-spec.js';
+import { recordQuantization } from './quantization-evidence.js';
 
 /** Preserve each channel's absence independently of fixed-width disk padding. */
 export const buildDenseVectors = async ({
   chunks, embeddingsEnabled = true, useStubEmbeddings, modelId, log,
-  workerPool, quantizePool, requestYield, buildStage = null, quantization = {}, abortSignal = null
+  workerPool, quantizePool, requestYield, buildStage = null, quantization = {}, abortSignal = null,
+  quantizationObservations = null
 }) => {
   throwIfAborted(abortSignal);
   const spec = resolveEmbeddingQuantizationSpec(quantization);
@@ -74,7 +76,10 @@ export const buildDenseVectors = async ({
     for (let index = 0; index < selected.length; index++) {
       const vector = selected[index];
       if (!vector.length) output[index] = new Uint8Array(0);
-      else if (isByteVector(vector)) output[index] = vector;
+      else if (isByteVector(vector)) {
+        output[index] = vector;
+        recordQuantization(quantizationObservations, 'prequantized', 1);
+      }
       else pending.push({ index, vector: Float32Array.from(vector) });
     }
     const batchSize = Math.max(1, Math.floor(Number(worker?.config?.quantizeBatchSize) || 128));
@@ -83,6 +88,7 @@ export const buildDenseVectors = async ({
       const batch = pending.slice(offset, offset + batchSize);
       let quantized = null;
       if (worker) {
+        const route = worker.getExecutionBackend?.() === 'process' ? 'process-pool' : 'worker-pool';
         try {
           const candidate = await worker.runQuantize({ vectors: batch.map(row => row.vector),
             quantization: spec, minVal: spec.minVal, maxVal: spec.maxVal, levels: spec.levels }, { signal: abortSignal });
@@ -92,13 +98,19 @@ export const buildDenseVectors = async ({
             assertQuantizedEmbeddingRow(candidate[index], { spec, dims: batch[index].vector.length, allowEmpty: false });
           }
           quantized = candidate;
+          recordQuantization(quantizationObservations, route, batch.length);
         } catch (error) {
+          recordQuantization(quantizationObservations, route, batch.length,
+            isAbortError(error) || abortSignal?.aborted ? 'cancelled' : 'failed');
           if (isAbortError(error) || isQueueRecoveryUnsafe(error)) throw error;
           throwIfAborted(abortSignal);
           if (!warnedWorker) { warnedWorker = true; log?.('Quantize worker unavailable; falling back to inline quantization.'); }
         }
       }
-      if (quantized === null) quantized = batch.map(row => quantizeVec(row.vector, spec.minVal, spec.maxVal, spec.levels));
+      if (quantized === null) {
+        quantized = batch.map(row => quantizeVec(row.vector, spec.minVal, spec.maxVal, spec.levels));
+        recordQuantization(quantizationObservations, 'inline', batch.length, 'completed', Boolean(worker));
+      }
       batch.forEach((row, index) => { output[row.index] = quantized[index]; });
       await maybeYield(requestYield);
     }

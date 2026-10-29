@@ -7,6 +7,7 @@ import { getEmbeddingAdapter, disposeEmbeddingAdapterCaches } from '../../../src
 import { createOnnxEmbedder } from '../../../src/shared/onnx-embeddings.js';
 import { ONNX_INSTALLATION_RECEIPT, onnxSelectionPath } from '../../../src/shared/onnx-installation.js';
 import { prepareIsolatedTestCacheDir } from '../../helpers/test-cache.js';
+import { toNativeFilePath } from '../../../src/shared/file-paths.js';
 
 const { dir } = await prepareIsolatedTestCacheDir('onnx-selected-installation-pinning');
 const target = path.join(dir, 'selected.onnx'), modelId = 'fixture/tokenizer', loads = [], adapters = [];
@@ -61,7 +62,8 @@ try {
     const work = kind === 'cached-public-adapter' ? adapter.embed(['selected request']) : adapter.getEmbeddings(['selected request']);
     await reading; await fs.writeFile(onnxSelectionPath(target), JSON.stringify(next.selection)); release();
     assert.equal((await work).length, 1);
-    assert.equal(loads.at(-1).modelPath, old.graph, `${kind} must initialize its verified installation even after selector replacement`);
+    assert.equal(loads.at(-1).modelPath, toNativeFilePath(old.graph), `${kind} must initialize its verified installation even after selector replacement`);
+    assert.notEqual(loads.at(-1).modelPath, toNativeFilePath(next.graph), 'native spelling cannot reselect the newer installation');
     assert.equal(await fs.readFile(old.graph, 'utf8'), 'old inert graph');
     fs.open = originalOpen; await adapter.dispose(); await disposeEmbeddingAdapterCaches();
     assert.equal(loads.at(-1).releases, 1);

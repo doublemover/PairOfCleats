@@ -1,5 +1,6 @@
 import path from 'node:path';
 import { observedTokenizationExecution } from '../file-processor/tokenization-evidence.js';
+import { observedQuantizationExecution } from '../postings/quantization-evidence.js';
 import { readRuntimeReceipt } from '../../../shared/runtime-envelope/read-receipt.js';
 import { initBuildState } from '../build-state.js';
 import { persistRuntimeAttempt } from '../build-state/runtime.js';
@@ -87,8 +88,8 @@ export const collectRuntimeResourceEvidence = (runtime) => ({
     observedAt: new Date().toISOString(),
     tokenizationExecution: observedTokenizationExecution(runtime.tokenizationObservations),
     tokenizationObservations: runtime.tokenizationObservations || null,
-    quantizationExecution: (runtime.quantizePool?.stats?.().busy?.completedTasks || 0) > 0
-      ? (runtime.quantizePool.getExecutionBackend?.() === 'process' ? 'process-pool' : 'worker-pool') : 'not-yet-observed',
+    quantizationExecution: observedQuantizationExecution(runtime.quantizationObservations),
+    quantizationObservations: runtime.quantizationObservations || null,
     embeddingInferenceExecution: 'separate-provider-owner',
     launchDecisions: runtime.workerPools?.runtimeEvidence || {},
     tokenize: poolEvidence(runtime.workerPool), quantize: poolEvidence(runtime.quantizePool)

@@ -16,15 +16,18 @@ for (const intent of [{ stage: '' }, { stage: 'stage5' }, { mode: 'cod' }, { qua
   assert.throws(() => validateBuildIntent(intent));
 }
 for (const [raw, expected] of [
-  [[], false], [['--stub-embeddings'], true], [['--stub-embeddings=true'], true],
+  [[], false], [['--stub-embeddings'], true], [['--stub-embeddings=true'], true], [['--stub-embeddings', 'true'], true],
   [['--stub-embeddings', 'false'], false], [['--stub-embeddings=false'], false], [['--no-stub-embeddings'], false]
+]) for (const [ordering, expectedOrdering] of [
+  [[], false], [['--validate-ordering'], true], [['--validate-ordering=true'], true], [['--validate-ordering', 'true'], true],
+  [['--validate-ordering', 'false'], false], [['--validate-ordering=false'], false], [['--no-validate-ordering'], false]
 ]) {
-  const rawArgv = [...raw, '--validate-ordering', '--cache-rebuild', '--scheduler=false', '--scm-provider', 'none'];
+  const rawArgv = [...raw, ...ordering, '--cache-rebuild', '--scheduler=false', '--scm-provider', 'none'];
   const { argv } = parseBuildArgs(rawArgv);
   const handed = buildStage2Args({ root: process.cwd(), argv, rawArgv });
   const child = parseBuildArgs(handed).argv;
   assert.equal(child['stub-embeddings'], expected);
-  assert.equal(child['validate-ordering'], true);
+  assert.equal(child['validate-ordering'], expectedOrdering);
   assert.equal(child.scheduler, false);
   assert.equal(child['scm-provider'], 'none');
   assert.equal(child['cache-rebuild'], false);

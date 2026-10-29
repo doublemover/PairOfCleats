@@ -1,4 +1,15 @@
 import path from 'node:path';
+import { WINDOWS_PATH_BUDGET } from './windows-path-policy.js';
+
+/** Native modules may still use Windows MAX_PATH APIs. Convert only the
+ * invocation spelling; callers retain their selected path for identity/leases.
+ * Keep ordinary short paths: some native relative-data resolvers cannot join
+ * a namespaced base. Node handles long UNC/already-namespaced paths without
+ * another prefix. This spelling grants no filesystem or artifact authority. */
+export const toNativeFilePath = (filePath, platform = process.platform) => (
+  platform === 'win32' && typeof filePath === 'string' && filePath.length > WINDOWS_PATH_BUDGET
+    && path.win32.isAbsolute(filePath) ? path.win32.toNamespacedPath(filePath) : filePath
+);
 
 export function fileExt(filePath) {
   return path.extname(filePath).toLowerCase();

@@ -8,6 +8,7 @@ import {
   normalizeTokenRetention
 } from '../../state.js';
 import { quantizeVecUint8 } from '../../../embedding.js';
+import { createQuantizationEvidence } from '../../postings/quantization-evidence.js';
 import { isVectorLike } from '../../../../shared/embedding-utils.js';
 import { INDEX_PROFILE_VECTOR_ONLY } from '../../../../contracts/index-profile.js';
 import { assertQuantizedEmbeddingRow, resolveEmbeddingQuantizationSpec } from '../../../../shared/embedding-quantization-spec.js';
@@ -279,6 +280,7 @@ export const buildIndexPostings = async ({ runtime, state, incrementalState = nu
     log: sharedLog,
     workerPool: runtime.workerPool,
     quantizePool: runtime.quantizePool,
+    quantizationObservations: runtime.quantizationObservations ||= createQuantizationEvidence(),
     quantization: runtime.embeddingQuantization || runtime.userConfig?.indexing?.embeddings?.quantization,
     abortSignal: runtime.abortSignal,
     embeddingsEnabled: runtime.embeddingEnabled,

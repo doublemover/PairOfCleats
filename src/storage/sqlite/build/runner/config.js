@@ -7,7 +7,7 @@ import { SQLITE_ZERO_STATE_SCHEMA_VERSION, resolveSqliteZeroStateSourceProof,
   sqliteZeroStateChecksum } from '../../zero-state.js';
 
 const SQLITE_ZERO_STATE_MANIFEST_FILE = 'sqlite-zero-state.json';
-const SQLITE_BUNDLE_WORKER_PROFILE_SCHEMA_VERSION = '1.0.0';
+const SQLITE_BUNDLE_WORKER_PROFILE_SCHEMA_VERSION = '2.0.0';
 const SQLITE_BUNDLE_WORKER_PROFILE_FILE = 'bundle-worker-autotune.json';
 
 export const BUNDLE_LOADER_WORKER_PATH = fileURLToPath(new URL('../bundle-loader-worker.js', import.meta.url));
@@ -28,7 +28,8 @@ export const loadSqliteBundleWorkerProfile = async (repoCacheRoot) => {
   }
   try {
     const raw = JSON.parse(await fs.readFile(profilePath, 'utf8'));
-    const modes = raw?.modes && typeof raw.modes === 'object' ? raw.modes : {};
+    const modes = raw?.schemaVersion === SQLITE_BUNDLE_WORKER_PROFILE_SCHEMA_VERSION
+      && raw?.modes && typeof raw.modes === 'object' ? raw.modes : {};
     return {
       profilePath,
       profile: {

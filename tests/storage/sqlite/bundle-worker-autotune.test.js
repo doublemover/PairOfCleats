@@ -81,7 +81,8 @@ const converged = resolveBundleWorkerAutotune({
   bundleDir,
   threadLimits: { fileConcurrency: 16 },
   envConfig: {},
-  profile: { modes: { code: { threads: 10 } } }
+  profile: { modes: { code: { threads: 10, resourceIdentity: resolveBundleWorkerAutotune({ mode: 'code',
+    manifestFiles: lowCountManifest, bundleDir, threadLimits: { fileConcurrency: 16 }, envConfig: {} }).budget.resourceIdentity } } }
 });
 assert.equal(
   converged.threads,

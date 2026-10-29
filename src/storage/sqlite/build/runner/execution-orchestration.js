@@ -311,6 +311,9 @@ const executeSqliteModeBuildsOwned = async ({
       };
       sqliteStats.bundleWorkerAutotune = {
         mode,
+        requestedThreads: bundleWorkerAutotune.requestedThreads,
+        recommendedThreads: bundleWorkerAutotune.recommendedThreads,
+        budget: bundleWorkerAutotune.budget,
         threads: bundleWorkerAutotune.threads,
         reason: bundleWorkerAutotune.reason,
         bundleCount: bundleWorkerAutotune.bundleCount,
@@ -688,6 +691,7 @@ const executeSqliteModeBuildsOwned = async ({
       }
       if (sqliteStats?.bundleWorkerAutotune && bundleWorkerProfile?.modes) {
         bundleWorkerProfile.modes[mode] = {
+          resourceIdentity: bundleWorkerAutotune.budget.resourceIdentity,
           threads: sqliteStats.bundleWorkerAutotune.threads,
           reason: sqliteStats.bundleWorkerAutotune.reason,
           bundleCount: sqliteStats.bundleWorkerAutotune.bundleCount,

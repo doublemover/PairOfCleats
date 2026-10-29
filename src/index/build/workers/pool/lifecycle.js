@@ -80,12 +80,12 @@ export const createWorkerPoolLifecycle = (input = {}) => {
   let lastPressureDownscaleAtMs = 0;
   let lastPressureUpscaleAtMs = 0;
 
-  const settleIdleShutdownWaiters = (error = null) => {
+  const settleIdleShutdownWaiters = (error = null, failed = error != null) => {
     if (!idleShutdownWaiters.length) return;
     const waiters = idleShutdownWaiters;
     idleShutdownWaiters = [];
     for (const waiter of waiters) {
-      if (error) waiter.reject(error);
+      if (failed) waiter.reject(error);
       else waiter.resolve();
     }
   };
@@ -102,7 +102,7 @@ export const createWorkerPoolLifecycle = (input = {}) => {
     if (!pool) return;
     const currentPool = pool;
     shutdownPromise = (async () => {
-      let shutdownError = null;
+      let shutdownError, shutdownFailed = false;
       try {
         const cleanupResult = await runBuildCleanupWithTimeout({
           label: `worker-pool.${poolLabel}.destroy`,
@@ -122,13 +122,15 @@ export const createWorkerPoolLifecycle = (input = {}) => {
         }
         if (pool === currentPool) pool = null;
       } catch (err) {
-        const detail = summarizeError(err);
+        let detail;
+        try { detail = summarizeError(err); } catch { /* diagnostics cannot replace original cleanup */ }
         log(`Worker pool shutdown failed: ${detail || 'unknown error'}`);
         shutdownError = err;
+        shutdownFailed = true;
       } finally {
         shutdownPromise = null;
       }
-      if (shutdownError) throw shutdownError;
+      if (shutdownFailed) throw shutdownError;
     })();
     await shutdownPromise;
   };
@@ -322,7 +324,7 @@ export const createWorkerPoolLifecycle = (input = {}) => {
         await shutdownPool();
         settleIdleShutdownWaiters();
       } catch (error) {
-        settleIdleShutdownWaiters(error);
+        settleIdleShutdownWaiters(error, true);
         throw error;
       }
     }
@@ -389,7 +391,7 @@ export const createWorkerPoolLifecycle = (input = {}) => {
           await shutdownPool();
           settleIdleShutdownWaiters();
         } catch (error) {
-          settleIdleShutdownWaiters(error);
+          settleIdleShutdownWaiters(error, true);
           throw error;
         } finally {
           destroying = false;

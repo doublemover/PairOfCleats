@@ -30,19 +30,7 @@ import { loadPiecesManifest } from '../../../../shared/artifact-io/manifest.js';
 import { loadJsonObjectArtifact } from '../../../../shared/artifact-io/loaders/core.js';
 import { addStorageFailureContext } from '../../../../shared/storage/operation-error.js';
 import { withSqliteStorageOperation, getSqliteStorageOperation } from '../storage-operation.js';
-
-const resolveThreadLimits = (envelope) => ({
-  cpuCount: envelope.concurrency.cpuCount,
-  maxConcurrencyCap: envelope.concurrency.maxConcurrencyCap,
-  threads: envelope.concurrency.threads.value,
-  fileConcurrency: envelope.concurrency.fileConcurrency.value,
-  importConcurrency: envelope.concurrency.importConcurrency.value,
-  ioConcurrency: envelope.concurrency.ioConcurrency.value,
-  cpuConcurrency: envelope.concurrency.cpuConcurrency.value,
-  procConcurrency: envelope.queues?.proc?.concurrency ?? null,
-  source: envelope.concurrency.threads.source,
-  sourceDetail: envelope.concurrency.threads.detail
-});
+import { projectSqliteThreadLimits as resolveThreadLimits } from '../bundle-budget.js';
 
 const loadModeIndexPieces = async (modeList, modeIndexDirs) => {
   const indexPieces = {};

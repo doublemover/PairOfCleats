@@ -9,6 +9,7 @@ import { resolveEmbeddingDenseContract, validateEmbeddingDenseContract, resolveO
 import { snapshotEmbeddingMetadata, snapshotEmbeddingRequestArguments } from './embedding-selection-snapshot.js';
 import { captureEmbeddingFailureDiagnostics } from './embedding-failure-diagnostics.js';
 import path from 'node:path';
+import { toNativeFilePath } from './file-paths.js';
 import {
   DEFAULT_EMBEDDING_TRUNCATION,
   normalizeEmbeddingVectorInPlace
@@ -253,13 +254,13 @@ export function createOnnxEmbedder({ rootDir, modelId, modelsDir, onnxConfig, di
         const { InferenceSession, Tensor } = await import('onnxruntime-node');
         let effectiveSessionOptions = sessionOptions;
         try {
-          session = await InferenceSession.create(resolvedModelPath, sessionOptions);
+          session = await InferenceSession.create(toNativeFilePath(resolvedModelPath), sessionOptions);
         } catch (err) {
           if (!captureEmbeddingFailureDiagnostics(err).released()) throw err;
           if (!lowMemory && !qualificationSlot) {
             const fallbackOptions = buildSessionOptions(normalized, { lowMemory: true });
             effectiveSessionOptions = fallbackOptions;
-            session = await InferenceSession.create(resolvedModelPath, fallbackOptions);
+            session = await InferenceSession.create(toNativeFilePath(resolvedModelPath), fallbackOptions);
           } else {
             throw err;
           }

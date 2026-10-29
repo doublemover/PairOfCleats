@@ -1,6 +1,8 @@
 import fsSync from 'node:fs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { WINDOWS_PATH_BUDGET } from '../windows-path-policy.js';
+export { WINDOWS_PATH_BUDGET } from '../windows-path-policy.js';
 import { throwIfAborted } from '../abort.js';
 import { createContainedFileResource, getContainedFileSession } from '../contained-file-resource.js';
 import { observeStorageResource } from '../storage/failure-observation.js';
@@ -9,7 +11,6 @@ import { syncParentDirectory, syncParentDirectorySync, assertDirectoryIdentity }
 import { persistenceFileIdentity, assertPersistenceFileIdentity } from './file-identity.js';
 export { syncParentDirectory, syncParentDirectorySync } from './directory-sync.js';
 
-export const WINDOWS_PATH_BUDGET = 240;
 export const MIN_COMPACT_TOKEN_CHARS = 12;
 export const REPLACE_TEMP_WAIT_ATTEMPTS = 20;
 export const REPLACE_TEMP_WAIT_BASE_DELAY_MS = 25;
