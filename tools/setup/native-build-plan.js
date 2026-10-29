@@ -7,7 +7,7 @@ import { createHash } from 'node:crypto';
 // sources, with read-only node-addon-api settings and no actions/copies/rules.
 // A changed version, lifecycle hook, graph or helper selects serial npm instead.
 const ADAPTERS = Object.freeze({
-  'tree-sitter': ['0.25.1', '1abd3a059cdb61ef7b289c74795ab1ead55a0ad4e9ca45529c8a4bd91f66245b', true],
+  'tree-sitter': ['0.25.1', '8bf6fa4714a888c9a82a568cb7dd5d07af3b16a025fe99e35e17555302864f22', true],
   'tree-sitter-javascript': ['0.25.0', '2539a994c9db570ee29805282e35452ff20ba72188d8caf99c502229b33dfca6'],
   'tree-sitter-typescript': ['0.23.2', '5451214724030d5150581c5af614d2d37c10379d9801c1170035f9777058b9e1'],
   'tree-sitter-python': ['0.25.0', 'e1aba9f4d6fcfa13948e7c8002164e87710b3f1c18635803b7c92840ba00dc4a'],

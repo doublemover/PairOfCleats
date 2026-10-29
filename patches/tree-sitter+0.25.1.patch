@@ -2,21 +2,25 @@ diff --git a/node_modules/tree-sitter/binding.gyp b/node_modules/tree-sitter/bin
 index 786d17d81..8c64b6d75 100644
 --- a/node_modules/tree-sitter/binding.gyp
 +++ b/node_modules/tree-sitter/binding.gyp
-@@ -23,6 +23,8 @@
+@@ -23,6 +23,13 @@
        ],
        "defines": [
          "NAPI_VERSION=<(napi_build_version)",
 +        # Worker termination cannot deliver a JS exception to its closing environment.
 +        "NODE_API_SWALLOW_UNTHROWABLE_EXCEPTIONS",
        ],
++      "target_conditions": [
++        ["OS=='mac'", {
++          "xcode_settings": { "MACOSX_DEPLOYMENT_TARGET": "13.5" },
++        }],
++      ],
        "conditions": [
          ["OS=='mac'", {
-@@ -29,7 +31,7 @@
+@@ -29,7 +36,6 @@
            "xcode_settings": {
              "GCC_SYMBOLS_PRIVATE_EXTERN": "YES", # -fvisibility=hidden
              "CLANG_CXX_LANGUAGE_STANDARD": "<(cxxstd)",
 -            "MACOSX_DEPLOYMENT_TARGET": "10.9",
-+            "MACOSX_DEPLOYMENT_TARGET": "13.5",
            },
          }],
          ["OS=='win'", {
