@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-29T15:57:38.103Z",
+  "generatedAt": "2026-10-29T16:54:54.364Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
@@ -10276,6 +10276,7 @@
       "tests/storage/semantic/runtime-import-publication.test.js",
       "tests/storage/semantic/runtime-opened-byte-integrity.test.js",
       "tests/storage/semantic/runtime-query-close-ownership.test.js",
+      "tests/storage/semantic/runtime-query-index-hash-close.test.js",
       "tests/storage/semantic/runtime-query-integrity.test.js",
       "tests/storage/semantic/runtime-source-reference-authority.test.js",
       "tests/storage/semantic/runtime-source-reference-foreign-generation.test.js",

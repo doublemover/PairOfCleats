@@ -19,7 +19,7 @@ function Read-PocConsoleMode {
 }
 $beforeInput = Read-PocConsoleMode -10
 $beforeOutput = Read-PocConsoleMode -11
-$seedName = if ($Mode -eq 'validate-search') { 'seed-complete-build.json' }
+$seedName = if ($Mode -in @('validate-published', 'search-published')) { 'seed-complete-build.json' }
   elseif ($Mode -in @('build-search', 'workspace')) { 'seed-partial-build.json' }
   else { $null }
 if ($seedName) {

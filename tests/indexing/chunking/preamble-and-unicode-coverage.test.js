@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { smartChunk } from '../../../src/index/chunking/dispatch.js';
 import { chunkMarkdown } from '../../../src/index/chunking/formats/markdown.js';
 import { chunkIniToml } from '../../../src/index/chunking/formats/ini-toml.js';
 import { chunkYaml } from '../../../src/index/chunking/formats/yaml.js';
@@ -48,3 +49,34 @@ for (const unicode of ['😀', 'é'.repeat(20), 'a😀b𐐀c']) {
   assert.ok(segments.every(segment => Buffer.byteLength(unicode.slice(segment.start, segment.end), 'utf8') <= 4));
 }
 console.log('preamble and Unicode chunk coverage test passed');
+
+// Exact declarations prevent a whole-file fallback from satisfying coverage.
+for (const [ext, input, names, starts, kind] of [
+  ['.md', 'Intro\n# First\nbody\n## Second\ntail\n', ['preamble', 'First', 'Second'], [0, 6, 19], 'Section'],
+  ['.ini', 'root=1\n[one]\na=2\n[two]\nb=3\n', ['preamble', 'one', 'two'], [0, 7, 17], 'ConfigSection']
+]) {
+  const chunks = smartChunk({ text: input, ext, mode: ext === '.md' ? 'prose' : 'code',
+    context: { treeSitter: { enabled: false } } });
+  assert.deepEqual(chunks.map(row => row.name), names);
+  assert.deepEqual(chunks.map(row => row.start), starts);
+  assert.ok(chunks.every(row => row.kind === kind));
+  assert.equal(chunks[0].meta.preamble, true);
+  assert.ok(chunks.slice(1).every(row => !row.meta.preamble)); complete(input, chunks);
+}
+for (const [input, chunker, name] of [
+  ['# First\nbody\n', chunkMarkdown, 'First'],
+  ['[one]\na=2\n', value => chunkIniToml(value, 'ini'), 'one']
+]) {
+  const chunks = chunker(input); assert.equal(chunks.length, 1);
+  assert.equal(chunks[0].name, name); assert.equal(chunks[0].start, 0);
+  assert.ok(!chunks[0].meta.preamble); complete(input, chunks);
+}
+assert.equal(chunkMarkdown(''), null);
+assert.equal(chunkMarkdown('prefix only'), null, 'heading-free Markdown deliberately delegates to ordinary prose fallback');
+for (const input of ['', 'root=1\n']) {
+  const chunks = chunkIniToml(input, 'ini');
+  assert.equal(chunks.length, 1); assert.equal(chunks[0].name, 'root');
+  assert.equal(chunks[0].start, 0); assert.equal(chunks[0].end, input.length);
+}
+const prefixOnly = 'prefix only';
+complete(prefixOnly, smartChunk({ text: prefixOnly, ext: '.md', mode: 'prose', context: { treeSitter: { enabled: false } } }));

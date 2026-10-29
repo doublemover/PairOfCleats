@@ -1494,3 +1494,8 @@ indexing/vfs/cdc-discovery-byte-admission
 indexing/file-processor/cached-text-source-replacement
 tooling/typescript-library-alias-preflight
 indexing/type-inference/crossfile/boxed-type-filter-parity
+
+tooling/reports/compare-models-partial-ranks/different-source
+tooling/reports/compare-models-partial-ranks/renumbered
+tooling/reports/compare-models-partial-ranks/missing-source
+storage/semantic/runtime-query-index-hash-close

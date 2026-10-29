@@ -16,7 +16,7 @@ import { createPointerSnapshot, listSnapshots } from '../../src/index/snapshots/
 import { freezeSnapshot } from '../../src/index/snapshots/freeze.js';
 
 const mode = process.env.PAIROFCLEATS_TEST_ID?.split('tui/native-index-workflows/')[1];
-assert.ok(['build-search', 'validate-search', 'watch-cancel', 'build-cancel', 'preview-cancel', 'workspace', 'snapshot',
+assert.ok(['build-search', 'validate-published', 'search-published', 'watch-cancel', 'build-cancel', 'preview-cancel', 'workspace', 'snapshot',
   'snapshot-create', 'snapshot-list-populated', 'snapshot-show', 'snapshot-freeze', 'snapshot-remove', 'snapshot-prune', 'snapshot-gc',
   'report', 'stats', 'stats-conflict', 'missing-model', 'invalid-provider', 'stale'].includes(mode));
 // Keep this native workflow's complete seed within LanceDB's qualified Windows
@@ -84,8 +84,9 @@ const cli = async (args, name) => {
   await fs.writeFile(path.join(dir, `${name}.json`), JSON.stringify(result, null, 2));
   assert.equal(result.exitCode, 0, result.stderr); return result;
 };
-const needsCompleteSeed = mode.startsWith('snapshot-') || ['validate-search', 'report', 'stats'].includes(mode);
-const deferredSeed = mode === 'validate-search'
+const publishedReadMode = ['validate-published', 'search-published'].includes(mode);
+const needsCompleteSeed = mode.startsWith('snapshot-') || ['validate-published', 'search-published', 'report', 'stats'].includes(mode);
+const deferredSeed = publishedReadMode
   ? { stage: null, name: 'seed-complete-build' }
   : process.platform === 'win32' && ['build-search', 'workspace'].includes(mode)
     ? { stage: 'stage2', name: 'seed-partial-build' } : null;
@@ -95,7 +96,7 @@ const seedBuild = async (stage, name) => {
   const options = { modes: ['code'], ...(stage ? { stage } : {}), threads: 1, stubEmbeddings: true, progress: 'off', log: () => {} };
   const started = Date.now(), result = await buildIndex(repo, options);
   assert.ok(['index-published', 'stage-completed'].includes(result.outcome.status), JSON.stringify(result.outcome));
-  if (mode === 'validate-search') {
+  if (publishedReadMode) {
     const indexDir = getIndexDir(repo, 'code', loadUserConfig(repo, { env }));
     const state = JSON.parse(await fs.readFile(path.join(indexDir, 'index_state.json'), 'utf8'));
     assert.equal(state.embeddings.backends.lancedb.enabled, true);
@@ -109,7 +110,7 @@ const seedBuild = async (stage, name) => {
 if (['build-search', 'workspace'].includes(mode) && !deferredSeed) {
   await seedBuild('stage2', 'seed-partial-build');
 }
-if (needsCompleteSeed && mode !== 'validate-search') {
+if (needsCompleteSeed && !publishedReadMode) {
   await seedBuild(null, 'seed-complete-build');
 }
 // Setup calls the same canonical owners as the snapshot CLI. The operations
@@ -242,7 +243,7 @@ try {
         const after = await last('native-workflow-');
         // The native child inherits this cwd. Exercise real relative-path
         // resolution, retaining spaces, without typing the checkout prefix.
-        if (['build-search', 'validate-search'].includes(mode)) {
+        if (['build-search', 'validate-published', 'search-published'].includes(mode)) {
           assert.ok(screen().includes(repo), 'the actual native scope form must show its selected repository');
           terminal.write('\r');
         } else {
@@ -253,17 +254,22 @@ try {
         assert.ok(catalog.commands.some(command => command.id === 'index.build' && !command.unsupportedReason));
         assert.equal(new Set(catalog.commands.map(command => command.id)).size, catalog.commands.length);
         assert.equal((await events()).some(row => row.event === 'job:start' && row.jobId?.startsWith('workflow-')), false);
-        if (mode === 'validate-search') {
+        if (publishedReadMode) {
           const status = await currentStatus(); assert.equal(status.publications[0].ready, true);
-          await backToCatalog(); const validation = await run('index.validate', { mode: 'code' });
-          const validated = await finish(validation.launch.jobId); assert.equal(validated.status, 'done', JSON.stringify(validated)); assert.equal(validated.result.ok, true);
-          await rendered('Process ended; inspect publication evidence separately'); await backToCatalog(); await closeCatalog();
-          terminal.write('R'); await rendered('Ready; Enter runs a canonical search');
-          const searchAfter = await last('native-search-');
-          terminal.write('nativeWorkflowAnswer\t\x15code\t\x15memory\t\x155\t\t\t\x15{"ann":false}\r');
-          const search = await settled('native-search-', 'query', searchAfter);
-          assert.ok(search.hits.some(hit => hit.file === 'answer.js'), JSON.stringify(search));
-          await rendered('answer.js'); terminal.write('\x1b'); await rendered('Tab pane'); terminal.write('q');
+          await backToCatalog();
+          if (mode === 'validate-published') {
+            const validation = await run('index.validate', { mode: 'code' });
+            const validated = await finish(validation.launch.jobId); assert.equal(validated.status, 'done', JSON.stringify(validated)); assert.equal(validated.result.ok, true);
+            await rendered('Process ended; inspect publication evidence separately'); await backToCatalog(); await closeCatalog();
+            terminal.write('q');
+          } else {
+            await closeCatalog(); terminal.write('R'); await rendered('Ready; Enter runs a canonical search');
+            const searchAfter = await last('native-search-');
+            terminal.write('nativeWorkflowAnswer\t\x15code\t\x15memory\t\x155\t\t\t\x15{"ann":false}\r');
+            const search = await settled('native-search-', 'query', searchAfter);
+            assert.ok(search.hits.some(hit => hit.file === 'answer.js'), JSON.stringify(search));
+            await rendered('answer.js'); terminal.write('\x1b'); await rendered('Tab pane'); terminal.write('q');
+          }
         } else if (mode === 'stats-conflict') {
           const command = await choose('index.stats');
           await edit(command, 'index-dir', path.join(dir, 'not-a-selected-generation'));
@@ -387,8 +393,9 @@ try {
   const recorded = await lines('pids.jsonl');
   const owned = [...new Set(recorded.flatMap(row => ['native', 'proxy', 'supervisor', 'job'].map(key => row[key]).filter(Number.isInteger)))];
   assert.deepEqual(owned.filter(isProcessAlive), []);
-  assert.ok(recorded.some(row => row.request?.op === 'workflow:run' && row.request.method === 'preview'));
-  if (['build-search', 'validate-search'].includes(mode)) {
+  if (mode !== 'search-published') assert.ok(recorded.some(row => row.request?.op === 'workflow:run' && row.request.method === 'preview'));
+  else assert.ok(recorded.some(row => row.request?.op === 'search:run' && row.request.method === 'query'));
+  if (['build-search', 'validate-published', 'search-published'].includes(mode)) {
     const selected = recorded.find(row => row.request?.op === 'workflow:run' && row.request.method === 'select');
     assert.equal(selected.request.params.kind, 'repo'); assert.equal(selected.request.params.target, repo);
   }

@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 1336,
+    "hero": 1340,
     "matrix": 108,
     "meta": 49,
     "soak": 1,
@@ -8977,6 +8977,30 @@
     {
       "id": "indexing/type-inference/crossfile/boxed-type-filter-parity",
       "order": 1494,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/reports/compare-models-partial-ranks/different-source",
+      "order": 1495,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/reports/compare-models-partial-ranks/renumbered",
+      "order": 1496,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/reports/compare-models-partial-ranks/missing-source",
+      "order": 1497,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/semantic/runtime-query-index-hash-close",
+      "order": 1498,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

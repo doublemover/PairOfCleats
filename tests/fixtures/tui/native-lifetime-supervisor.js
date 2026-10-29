@@ -3,6 +3,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import readline from 'node:readline';
+import { Socket } from 'node:net';
+import { createRequire } from 'node:module';
 import { spawn } from 'node:child_process';
 import { getTuiEnvConfig } from '../../../src/shared/env/tui.js';
 
@@ -32,8 +34,15 @@ readline.createInterface({ input: supervisor.stdout }).on('line', line => {
       record({ transport: 'event-eof-while-supervisor-alive' });
       outputClosed = true;
       process.stdout.end(() => {
-        try { fs.closeSync(1); }
-        catch (error) { if (error.code !== 'EBADF') throw error; }
+        if (!(process.stdout instanceof Socket)) throw new Error('Event EOF fixture requires the actual supervisor pipe.');
+        // Node replaces stdio _destroy with a no-op. Retire the original pipe
+        // through its real Socket owner while the supervisor stays alive.
+        process.stdout._destroy = Socket.prototype._destroy;
+        process.stdout.destroy();
+        if (process.platform === 'win32') createRequire(import.meta.url)(
+          path.join(fixtureRoot, 'stdout-close/build/Release/stdout_close.node')).closeOriginalStdout();
+        else fs.closeSync(1);
+        record({ transport: 'original-event-pipe-destroyed' });
       });
     }, 300);
   }

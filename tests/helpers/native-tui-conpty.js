@@ -16,6 +16,10 @@ export const verifyNativeTuiConpty = async (mode, { binaryPath = null } = {}) =>
   await fs.access(binary);
   const binarySha256 = createHash('sha256').update(await fs.readFile(binary)).digest('hex');
   const { dir } = await prepareIsolatedTestCacheDir(`native-conpty-${mode}`, { root, clean: true });
+  if (mode === 'event-transport-error') {
+    const { prepareWindowsStdoutCloser } = await import('./windows-stdout-close.js');
+    await prepareWindowsStdoutCloser({ root, dir });
+  }
   const pidFile = path.join(dir, 'pids.jsonl');
   await fs.writeFile(path.join(dir, 'fixture-mode.json'), JSON.stringify(mode));
   const readPids = async () => {
