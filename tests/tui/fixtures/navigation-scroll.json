@@ -5,6 +5,13 @@
   "run_id": "fixture-navigation",
   "variants": [
     {
+      "id": "desktop-color",
+      "width": 120,
+      "height": 40,
+      "color": true,
+      "unicode": true
+    },
+    {
       "id": "medium-color",
       "width": 100,
       "height": 24,
