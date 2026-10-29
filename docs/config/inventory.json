@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-28T19:40:46.266Z",
+  "generatedAt": "2026-10-29T01:20:59.118Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
@@ -3342,6 +3342,7 @@
         "tests/indexing/artifacts/artifact-size-guardrails.test.js",
         "tests/indexing/artifacts/manifest/report-artifacts-driven.test.js",
         "tests/indexing/artifacts/packed-artifact-fastpath.test.js",
+        "tests/indexing/build/service-embedding-queue-ownership.test.js",
         "tests/indexing/embeddings/build/args-parsing.test.js",
         "tests/indexing/embeddings/build/runtime-defaults.test.js",
         "tests/indexing/embeddings/validate.test.js",
@@ -4146,6 +4147,7 @@
       "files": [
         "src/shared/env/runtime.js",
         "tests/retrieval/cache/query-cache-engine-ownership.test.js",
+        "tests/retrieval/federation/query-policy-cache-identity.test.js",
         "tools/config/inventory.js"
       ]
     },
@@ -4594,6 +4596,7 @@
         "tests/indexing/artifacts/artifact-size-guardrails.test.js",
         "tests/indexing/artifacts/chunk-meta-trim-strict.test.js",
         "tests/indexing/artifacts/packed-artifact-fastpath.test.js",
+        "tests/indexing/build/service-embedding-queue-ownership.test.js",
         "tests/indexing/contracts/golden-surface-suite.test.js",
         "tests/indexing/embeddings/intent-boundary-parity.test.js",
         "tests/indexing/embeddings/sqlite-dense-isolate.test.js",

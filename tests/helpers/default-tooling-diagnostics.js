@@ -3,10 +3,10 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 
 // These sample-repository integrations exercise normal provider selection.
-// Optional command absence and project-loader trust rejections are expected;
+// Absent optional compilation context/commands and project-loader trust rejections are expected;
 // crashes, timeouts, protocol failures and any other degraded check are not.
 const EXPECTED_WARNINGS = new Map([
-  ['clangd', new Set(['clangd_command_unavailable'])],
+  ['clangd', new Set(['clangd_command_unavailable', 'clangd_compilation_context', 'clangd_compile_context_request_plan'])],
   ['pyright', new Set()],
   ['sourcekit', new Set(['sourcekit_command_unavailable', 'sourcekit_workspace_trust_required'])],
   ['rust-analyzer', new Set(['rust_workspace_trust_required', 'lsp_command_unavailable'])]
@@ -26,6 +26,20 @@ export const assertDefaultToolingDiagnostics = async ({ repoCacheRoot, startedAt
     assert.equal(record.preflight?.timedOut, false);
     assert.ok(['ready', 'blocked'].includes(record.preflight.state));
     const warnings = record.checks.filter(check => check.status === 'warn');
+    if (record.providerId === 'clangd') {
+      const contexts = record.checks.filter(check => check.name === 'clangd_compilation_context');
+      assert.equal(contexts.length, 1, 'the sample retains its actual compilation-context observation');
+      const context = contexts[0];
+      // This published surface intentionally projects name/status/message.
+      // The two C/C++ sample sources have no database, and their virtual paths
+      // cannot borrow exact physical compilation authority.
+      assert.equal(context.status, 'warn');
+      assert.equal(context.message, 'clangd compilation database=missing; exact=0/2, ambiguous=0, unknown=2.',
+        'invalid selection and mixed/exact compilation claims remain unexpected');
+      for (const plan of record.checks.filter(check => check.name === 'clangd_compile_context_request_plan')) {
+        assert.equal(plan.message, 'clangd planned 0 exact and 2 weak-context documents.');
+      }
+    }
     assert.ok(!record.checks.some(check => check.status === 'error'), JSON.stringify(record));
     for (const check of warnings) {
       assert.ok(EXPECTED_WARNINGS.get(record.providerId).has(check.name), JSON.stringify(check));
@@ -64,7 +78,13 @@ export const assertDefaultToolingDiagnostics = async ({ repoCacheRoot, startedAt
     assert.equal(summaries.length, degraded.length ? 1 : 0);
     if (degraded.length) {
       assert.ok(summaries[0].startsWith(`[tooling] warning: reduced enrichment for ${degraded.length} provider(s)`));
-      for (const value of [...degraded, ...reasons]) assert.ok(summaries[0].includes(value), value);
+      // The operator line retains the existing three-item presentation bound;
+      // the full asserted cause inventory remains in the saved diagnostic file.
+      for (const values of [degraded, [...reasons]]) {
+        const sorted = [...values].sort();
+        for (const value of sorted.slice(0, 3)) assert.ok(summaries[0].includes(value), value);
+        if (sorted.length > 3) assert.ok(summaries[0].includes(`+${sorted.length - 3} more`));
+      }
     }
   }
   return report;

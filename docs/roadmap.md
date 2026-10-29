@@ -35,6 +35,9 @@ or errors and audit reports zero vulnerabilities. Affected checks pass 76/77;
 queued vector-only readiness remains failing. Debugger error retention and
 profile-aware optional inputs are repaired. Next full Windows pass: checkpoint
 305, twenty commits after `7b05a3dbd`, with explicit inventory/exclusion coverage.
+The [next eight repairs](archived/windows-contract-repair-checkpoint-305-2026-10-28.md)
+pass 40 affected and six warning/consumer checks: Clangd defaults/dispatch,
+returned aggregate flow, single-owner service queues and truthful warning totals.
 
 [Five dependency retirements](archived/dependency-ownership-implementation-2026-10-27.md)
 removed 110 lock records. Locked bootstrap passed without warnings/errors:
@@ -85,15 +88,9 @@ repairs and current qualification continue.
 Gate B1-B7 technical, compatibility, matrix, conformance,
 observability, quality, and security-risk controls need
 reconciled acceptance under the [rollout policy](specs/usr-core-rollout-release-migration.md).
-Historical [459-case observations](archived/windows-historical-rechecks-2026-10-24.md),
-[360 implementation attempts](archived/windows-360-failure-repair-attempts-2026-10-24.json),
-[360-case re-checks](archived/windows-360-recheck-2026-10-24.json) and
-[targeted follow-ups](archived/windows-targeted-rechecks-2026-10-24.json) retain
-their original source identities; the current baseline supersedes their active counts.
-The
-[next repair receipt](archived/windows-failure-repairs-2026-10-24.md) records
-the earlier cache/setup, import/lease, runtime, coverage/probe and service repairs
-with their individual checks; these are historical, not final-tree acceptance.
+Historical [459-case observations](archived/windows-historical-rechecks-2026-10-24.md)
+and [subsequent repair receipts](archived/windows-failure-repairs-2026-10-24.md)
+retain their source identities; checkpoint 265 supersedes their active counts.
 The earlier CDB-attributed
 Node-API finalizer lifetime repair retains its fail-before, ten-process and
 exposing-fixture evidence; no crash workaround or Node downgrade is used.

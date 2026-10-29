@@ -31,6 +31,13 @@ qualify original launch-error retention, not a new native crash attribution.
 Profile-aware sparse omissions preserve present/corrupt and required-dense
 negatives. Next full Windows candidate acceptance is scheduled at checkpoint 305.
 
+The [checkpoint-305 repair batch](../archived/windows-contract-repair-checkpoint-305-2026-10-28.md)
+adds 40 passing affected checks and six passing warning/consumer controls, with
+exact parent-source/working-source identities. It repairs Clangd defaults and
+fixture dispatch, aggregate return ownership, duplicate service admission and
+contributing-provider warning totals; all eight publication checks pass.
+Its full frozen-candidate Windows campaign remains to execute separately.
+
 Current Clangd acquisition and managed-file lifetime source is **unvalidated**
 at `773e6893e`; [20 authored checks and remaining qualification](../archived/clangd-acquisition-implementation-2026-10-27.md)
 separate inert archive/format fixtures from actual Windows installation,

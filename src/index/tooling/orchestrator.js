@@ -670,7 +670,8 @@ const summarizeDegradedProviders = ({ providerDiagnostics, sourcesByChunkUid, ob
       || fidelityState === 'blocked'
       || fidelityState === 'quarantined';
     if (!degradedByContract && !failingChecks.length) continue;
-    if (!degradedByContract && contributedChunks > 0) continue;
+    // Useful contributions do not settle a separate eligible warning/error.
+    // Planner-only misses remain excluded by degradedEligible above.
     const warningCount = failingChecks.filter((check) => check?.status === 'warn').length;
     const errorCount = failingChecks.filter((check) => check?.status === 'error').length;
     const reasonCodes = Array.from(new Set([

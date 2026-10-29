@@ -406,6 +406,14 @@ const runDegradedWarningCases = async () => {
     async run() { return { byChunkUid: { 'warning-chunk': { payload: { returnType: 'number' } } },
       diagnostics: { checks: [], fidelity: { state: 'healthy' } } }; }
   });
+  registerToolingProvider({
+    id: 'contributing-warning-fixture', version: '1.0.0', kinds: ['types'],
+    capabilities: { supportsVirtualDocuments: true, supportsSegmentRouting: true },
+    getConfigHash: () => 'contributing-warning-fixture-v1',
+    async run() { return { byChunkUid: { 'warning-chunk': { payload: { returnType: 'number' } } },
+      diagnostics: { checks: [{ name: 'partial_context', status: 'warn', message: 'Compilation context is partial.' }],
+        fidelity: { state: 'healthy' } } }; }
+  });
   const caseRoot = path.join(tempRoot, 'degraded-warnings');
   const source = 'function answer() { return 42; }\n';
   await fs.mkdir(path.join(caseRoot, 'src'), { recursive: true });
@@ -416,18 +424,19 @@ const runDegradedWarningCases = async () => {
   const logs = [];
   const stats = await runToolingPass({ rootDir: caseRoot, buildRoot: caseRoot, chunks,
     entryByUid: new Map(), log: line => logs.push(String(line)),
-    toolingConfig: { enabledTools: [...ids, 'healthy-warning-fixture'], cache: { enabled: false } },
+    toolingConfig: { enabledTools: [...ids, 'healthy-warning-fixture', 'contributing-warning-fixture'], cache: { enabled: false } },
     toolingTimeoutMs: 1000, toolingRetries: 0, toolingBreaker: 1, toolingLogDir: null,
     fileTextByFile: new Map([['src/sample.js', source]]) });
   assert.equal(chunks[0].docmeta.returnType, 'number', 'healthy enrichment must still contribute');
-  assert.equal(stats.toolingDegradedProviders, 4);
+  assert.equal(stats.toolingDegradedProviders, 5, 'useful contributions cannot erase an eligible context warning');
+  assert.equal(stats.toolingDegradedWarnings, 1);
   assert.equal(stats.toolingDegradedErrors, 48, 'presentation cannot erase underlying diagnostics');
   assert.equal(logs.filter(line => line.includes('[tooling] warning: reduced enrichment')).length, 1);
   assert.equal(logs.some(line => line.includes('error missing_optional_tool')), false);
   assert.equal(logs.some(line => line.includes('degraded mode active (fail-open)')), false);
   const diagnosticFile = path.join(__resolveDefaultToolingCacheDirForTests({ rootDir: caseRoot, buildRoot: caseRoot }), 'diagnostics', 'tooling.json');
   const snapshot = JSON.parse(await fs.readFile(diagnosticFile, 'utf8'));
-  assert.equal(snapshot.reportedProviderCount, 5);
+  assert.equal(snapshot.reportedProviderCount, 6);
   assert.equal(snapshot.truncated, false);
   const records = snapshot.providers;
   for (const id of ids) {
