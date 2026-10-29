@@ -198,4 +198,12 @@ exports are intentionally rejected; this does not establish unrestricted large-i
 The tiny actual-service workflows qualify selection/focus, source identity, downloads,
 stale/cancelled views, bounded Worker deadlines, responsive control layout and software
 WebGL fallback. Large graph label density, screen-reader order, CPU-pressure behavior,
-hardware FPS/GPU performance and native Windows browser execution require separate receipts.
+hardware FPS/GPU performance require separate receipts. The October 29 Windows
+workspace and Three.js runs pass with software-renderer receipts in the
+[P2/P3 qualification archive](../archived/p2-p3-closeout-2026-10-29.md).
+
+Independently bounded negative renderer scenarios use the same command and explicit
+browser assets with --scenario three-module-404, three-shader-failure, and
+three-render-noop, each in its own output directory. They must reject 3D readiness
+while retaining real source navigation; exact injected diagnostics remain phase-owned.
+They complement the positive three scenario and do not qualify hardware performance.

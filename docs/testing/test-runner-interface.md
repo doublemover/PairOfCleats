@@ -107,14 +107,14 @@ their own boundaries (218 cases total). There is no aggregate
 - `--exclude-tag <tag>` (repeatable or comma-separated)
   - Exclude tests carrying one of these tags.
 
-- `--match <pattern>` (repeatable or comma-separated)
+- `--match <pattern>` (repeatable)
   - Include tests whose id/path matches the pattern.
   - Pattern forms:
     - Substring (case-insensitive): `sqlite`
     - Regex literal: `/sqlite-(incremental|cache)/`
   - Invalid or unsafe regex literals exit with code 2.
 
-- `--exclude <pattern>` (repeatable or comma-separated)
+- `--exclude <pattern>` (repeatable)
   - Exclude tests matching the pattern.
 
 - `--list`
