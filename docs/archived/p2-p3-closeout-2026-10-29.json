@@ -25,12 +25,16 @@
     "initialTargets": 323,
     "closed": [
       985,
+      993,
       1058,
       1059,
+      1586,
+      1614,
+      1640,
       1661,
       1728
     ],
-    "remainingTargets": 318
+    "remainingTargets": 314
   },
   "issues": [
     {
@@ -15308,5 +15312,1653 @@
       },
       "note": "Original worker timeout printed its completion marker but did not exit. Current focused thread/process lifecycle case exits naturally in 1.93 s; hosted repair execution remains pending."
     }
+  },
+  "serialQualificationBaseline": {
+    "candidate": "9f6399e9dc60f8d1c427fc145629b480eff62ccf",
+    "startedAt": "2026-10-29T16:01:12.189Z",
+    "completedAt": "2026-10-29T16:03:25.959Z",
+    "total": 82,
+    "passed": 75,
+    "failed": 7,
+    "retries": 0,
+    "jobs": 1,
+    "threads": 1,
+    "timeoutMs": 30000,
+    "nativeStatusRedo": false,
+    "cohorts": [
+      {
+        "name": "serial-01",
+        "startedAt": "2026-10-29T16:01:12.239Z",
+        "completedAt": "2026-10-29T16:02:18.785Z",
+        "code": 1,
+        "signal": null,
+        "candidateAfter": "9f6399e9dc60f8d1c427fc145629b480eff62ccf",
+        "report": "serial-01.json",
+        "counts": {
+          "passed": 7,
+          "failed": 1
+        },
+        "problems": [
+          {
+            "id": "tui/native-event-transport-lifetime",
+            "status": "failed",
+            "attempts": 1,
+            "durationMs": 19671,
+            "exitCode": 1,
+            "lane": "integration",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\serial-01\\run-1793289672972-z47mk0\\tui_native-event-transport-lifetime.attempt-1.log",
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\serial-01\\run-1793289672972-z47mk0\\tui_native-event-transport-lifetime.attempt-1.failure.json"
+            ],
+            "path": "tui/native-event-transport-lifetime.test.js",
+            "signal": null,
+            "skipReason": null,
+            "tags": [
+              "integration"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          }
+        ]
+      },
+      {
+        "name": "serial-02",
+        "startedAt": "2026-10-29T16:02:18.873Z",
+        "completedAt": "2026-10-29T16:02:22.125Z",
+        "code": 0,
+        "signal": null,
+        "candidateAfter": "9f6399e9dc60f8d1c427fc145629b480eff62ccf",
+        "report": "serial-02.json",
+        "counts": {
+          "passed": 8
+        },
+        "problems": []
+      },
+      {
+        "name": "serial-03",
+        "startedAt": "2026-10-29T16:02:22.216Z",
+        "completedAt": "2026-10-29T16:02:33.453Z",
+        "code": 1,
+        "signal": null,
+        "candidateAfter": "9f6399e9dc60f8d1c427fc145629b480eff62ccf",
+        "report": "serial-03.json",
+        "counts": {
+          "failed": 1,
+          "passed": 7
+        },
+        "problems": [
+          {
+            "id": "perf/bench/language-query-capabilities",
+            "status": "failed",
+            "attempts": 1,
+            "durationMs": 231,
+            "exitCode": 1,
+            "lane": "perf",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\serial-03\\run-1793289742949-0q36ii\\perf_bench_language-query-capabilities.attempt-1.log",
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\serial-03\\run-1793289742949-0q36ii\\perf_bench_language-query-capabilities.attempt-1.failure.json"
+            ],
+            "path": "perf/bench/language-query-capabilities.test.js",
+            "signal": null,
+            "skipReason": null,
+            "tags": [
+              "bench",
+              "perf"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          }
+        ]
+      },
+      {
+        "name": "serial-04",
+        "startedAt": "2026-10-29T16:02:33.552Z",
+        "completedAt": "2026-10-29T16:02:59.547Z",
+        "code": 1,
+        "signal": null,
+        "candidateAfter": "9f6399e9dc60f8d1c427fc145629b480eff62ccf",
+        "report": "serial-04.json",
+        "counts": {
+          "passed": 5,
+          "failed": 3
+        },
+        "problems": [
+          {
+            "id": "perf/bench/query-resource-plan/memory-four",
+            "status": "failed",
+            "attempts": 1,
+            "durationMs": 4266,
+            "exitCode": 1,
+            "lane": "perf",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\serial-04\\run-1793289754300-cjqqh2\\perf_bench_query-resource-plan_memory-four.attempt-1.log",
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\serial-04\\run-1793289754300-cjqqh2\\perf_bench_query-resource-plan_memory-four.attempt-1.failure.json"
+            ],
+            "path": "perf/bench/query-resource-plan.test.js",
+            "signal": null,
+            "skipReason": null,
+            "tags": [
+              "bench",
+              "perf"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "id": "perf/bench/run",
+            "status": "failed",
+            "attempts": 1,
+            "durationMs": 18816,
+            "exitCode": 1,
+            "lane": "perf",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\serial-04\\run-1793289754300-cjqqh2\\perf_bench_run.attempt-1.log",
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\serial-04\\run-1793289754300-cjqqh2\\perf_bench_run.attempt-1.failure.json"
+            ],
+            "path": "perf/bench/run.test.js",
+            "signal": null,
+            "skipReason": null,
+            "tags": [
+              "bench",
+              "perf"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "id": "perf/tooling/bench/ab-sweep-contract",
+            "status": "failed",
+            "attempts": 1,
+            "durationMs": 767,
+            "exitCode": 1,
+            "lane": "perf",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\serial-04\\run-1793289754300-cjqqh2\\perf_tooling_bench_ab-sweep-contract.attempt-1.log",
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\serial-04\\run-1793289754300-cjqqh2\\perf_tooling_bench_ab-sweep-contract.attempt-1.failure.json"
+            ],
+            "path": "perf/tooling/bench/ab-sweep-contract.test.js",
+            "signal": null,
+            "skipReason": null,
+            "tags": [
+              "perf",
+              "tooling"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          }
+        ]
+      },
+      {
+        "name": "serial-05",
+        "startedAt": "2026-10-29T16:02:59.637Z",
+        "completedAt": "2026-10-29T16:03:02.533Z",
+        "code": 1,
+        "signal": null,
+        "candidateAfter": "9f6399e9dc60f8d1c427fc145629b480eff62ccf",
+        "report": "serial-05.json",
+        "counts": {
+          "passed": 6,
+          "failed": 2
+        },
+        "problems": [
+          {
+            "id": "perf/bench/language-sqlite-zero-mode-status",
+            "status": "failed",
+            "attempts": 1,
+            "durationMs": 193,
+            "exitCode": 1,
+            "lane": "perf",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\serial-05\\run-1793289780400-pr7efe\\perf_bench_language-sqlite-zero-mode-status.attempt-1.log",
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\serial-05\\run-1793289780400-pr7efe\\perf_bench_language-sqlite-zero-mode-status.attempt-1.failure.json"
+            ],
+            "path": "perf/bench/language-sqlite-zero-mode-status.test.js",
+            "signal": null,
+            "skipReason": null,
+            "tags": [
+              "bench",
+              "perf",
+              "sqlite"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "id": "tui/frame-capture-harness",
+            "status": "failed",
+            "attempts": 1,
+            "durationMs": 185,
+            "exitCode": 1,
+            "lane": "integration",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\serial-05\\run-1793289780400-pr7efe\\tui_frame-capture-harness.attempt-1.log",
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\serial-05\\run-1793289780400-pr7efe\\tui_frame-capture-harness.attempt-1.failure.json"
+            ],
+            "path": "tui/frame-capture-harness.test.js",
+            "signal": null,
+            "skipReason": null,
+            "tags": [
+              "integration"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          }
+        ]
+      },
+      {
+        "name": "serial-06",
+        "startedAt": "2026-10-29T16:03:02.638Z",
+        "completedAt": "2026-10-29T16:03:13.241Z",
+        "code": 0,
+        "signal": null,
+        "candidateAfter": "9f6399e9dc60f8d1c427fc145629b480eff62ccf",
+        "report": "serial-06.json",
+        "counts": {
+          "passed": 8
+        },
+        "problems": []
+      },
+      {
+        "name": "serial-07",
+        "startedAt": "2026-10-29T16:03:13.331Z",
+        "completedAt": "2026-10-29T16:03:15.763Z",
+        "code": 0,
+        "signal": null,
+        "candidateAfter": "9f6399e9dc60f8d1c427fc145629b480eff62ccf",
+        "report": "serial-07.json",
+        "counts": {
+          "passed": 8
+        },
+        "problems": []
+      },
+      {
+        "name": "serial-08",
+        "startedAt": "2026-10-29T16:03:15.859Z",
+        "completedAt": "2026-10-29T16:03:18.532Z",
+        "code": 0,
+        "signal": null,
+        "candidateAfter": "9f6399e9dc60f8d1c427fc145629b480eff62ccf",
+        "report": "serial-08.json",
+        "counts": {
+          "passed": 8
+        },
+        "problems": []
+      },
+      {
+        "name": "serial-09",
+        "startedAt": "2026-10-29T16:03:18.640Z",
+        "completedAt": "2026-10-29T16:03:21.543Z",
+        "code": 0,
+        "signal": null,
+        "candidateAfter": "9f6399e9dc60f8d1c427fc145629b480eff62ccf",
+        "report": "serial-09.json",
+        "counts": {
+          "passed": 8
+        },
+        "problems": []
+      },
+      {
+        "name": "serial-10",
+        "startedAt": "2026-10-29T16:03:21.658Z",
+        "completedAt": "2026-10-29T16:03:24.570Z",
+        "code": 0,
+        "signal": null,
+        "candidateAfter": "9f6399e9dc60f8d1c427fc145629b480eff62ccf",
+        "report": "serial-10.json",
+        "counts": {
+          "passed": 8
+        },
+        "problems": []
+      },
+      {
+        "name": "serial-11",
+        "startedAt": "2026-10-29T16:03:24.667Z",
+        "completedAt": "2026-10-29T16:03:25.913Z",
+        "code": 0,
+        "signal": null,
+        "candidateAfter": "9f6399e9dc60f8d1c427fc145629b480eff62ccf",
+        "report": "serial-11.json",
+        "counts": {
+          "passed": 2
+        },
+        "problems": []
+      }
+    ],
+    "excluded": [
+      {
+        "id": "smoke/tantivy",
+        "status": "blocked",
+        "reason": "Supported optional package/adapter is not installed; no positive native claim."
+      }
+    ]
+  },
+  "qualifiedCloseoutsAfterRepair": [
+    {
+      "number": 993,
+      "note": "Unicode discovery byte thresholds, below-threshold semantics and semantic versions qualified.",
+      "head": "9f6399e9dc60f8d1c427fc145629b480eff62ccf",
+      "state": "closed",
+      "state_reason": "completed",
+      "readback": true
+    },
+    {
+      "number": 1586,
+      "note": "Independent confirmed lease expiry, late-renewal fencing and cleanup/accounting qualified.",
+      "head": "9f6399e9dc60f8d1c427fc145629b480eff62ccf",
+      "state": "closed",
+      "state_reason": "completed",
+      "readback": true
+    },
+    {
+      "number": 1614,
+      "note": "Typed request admission/cancellation/progress and framed response identities qualified.",
+      "head": "9f6399e9dc60f8d1c427fc145629b480eff62ccf",
+      "state": "closed",
+      "state_reason": "completed",
+      "readback": true
+    },
+    {
+      "number": 1640,
+      "note": "Selector-local runtime coverage and bounded row/reference pagination qualified.",
+      "head": "9f6399e9dc60f8d1c427fc145629b480eff62ccf",
+      "state": "closed",
+      "state_reason": "completed",
+      "readback": true
+    }
+  ],
+  "serialRepairBatch": {
+    "status": "focused checks and complete front gate passed",
+    "base": "9f6399e9dc60f8d1c427fc145629b480eff62ccf",
+    "observations": [
+      {
+        "path": ".tmp/tasks/p2-p3-closeout-20261029/serial-repair-01.json",
+        "sha256": "9b849bced85d584b66d4f8226989524c8b736da5210cc3219f26ea2df204f2b3",
+        "summary": {
+          "durationMs": 77371,
+          "failed": 1,
+          "passed": 7,
+          "skipped": 0,
+          "total": 8
+        },
+        "tests": [
+          {
+            "attempts": 1,
+            "durationMs": 262,
+            "exitCode": 0,
+            "id": "perf/bench/language-query-capabilities",
+            "lane": "perf",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\serial-repair-01\\run-1793290418059-f8z2ut\\perf_bench_language-query-capabilities.attempt-1.log"
+            ],
+            "path": "perf/bench/language-query-capabilities.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "bench",
+              "perf"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 418,
+            "exitCode": 0,
+            "id": "perf/bench/language-sqlite-zero-mode-status",
+            "lane": "perf",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\serial-repair-01\\run-1793290418059-f8z2ut\\perf_bench_language-sqlite-zero-mode-status.attempt-1.log"
+            ],
+            "path": "perf/bench/language-sqlite-zero-mode-status.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "bench",
+              "perf",
+              "sqlite"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 712,
+            "exitCode": 0,
+            "id": "perf/bench/query-resource-plan/memory-four",
+            "lane": "perf",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\serial-repair-01\\run-1793290418059-f8z2ut\\perf_bench_query-resource-plan_memory-four.attempt-1.log"
+            ],
+            "path": "perf/bench/query-resource-plan.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "bench",
+              "perf"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 17550,
+            "exitCode": 0,
+            "id": "perf/bench/run",
+            "lane": "perf",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\serial-repair-01\\run-1793290418059-f8z2ut\\perf_bench_run.attempt-1.log"
+            ],
+            "path": "perf/bench/run.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "bench",
+              "perf"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 7997,
+            "exitCode": 0,
+            "id": "perf/tooling/bench/ab-sweep-contract",
+            "lane": "perf",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\serial-repair-01\\run-1793290418059-f8z2ut\\perf_tooling_bench_ab-sweep-contract.attempt-1.log"
+            ],
+            "path": "perf/tooling/bench/ab-sweep-contract.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "perf",
+              "tooling"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 8683,
+            "exitCode": 0,
+            "id": "tui/frame-capture-harness",
+            "lane": "integration",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\serial-repair-01\\run-1793290418059-f8z2ut\\tui_frame-capture-harness.attempt-1.log"
+            ],
+            "path": "tui/frame-capture-harness.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "integration"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 19708,
+            "exitCode": 1,
+            "id": "tui/native-event-transport-lifetime",
+            "lane": "integration",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\serial-repair-01\\run-1793290418059-f8z2ut\\tui_native-event-transport-lifetime.attempt-1.log",
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\serial-repair-01\\run-1793290418059-f8z2ut\\tui_native-event-transport-lifetime.attempt-1.failure.json"
+            ],
+            "path": "tui/native-event-transport-lifetime.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "failed",
+            "tags": [
+              "integration"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 22027,
+            "exitCode": 0,
+            "id": "tui/native-index-workflows/validate-published",
+            "lane": "integration",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\serial-repair-01\\run-1793290418059-f8z2ut\\tui_native-index-workflows_validate-published.attempt-1.log"
+            ],
+            "path": "tui/native-index-workflows.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "integration"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          }
+        ]
+      },
+      {
+        "path": ".tmp/tasks/p2-p3-closeout-20261029/serial-repair-02.json",
+        "sha256": "3b7074a0fd0aa1803e2c71e13a1dbdb11410e03df6dc6ea21b0318706aa1f08b",
+        "summary": {
+          "durationMs": 46543,
+          "failed": 0,
+          "passed": 8,
+          "skipped": 0,
+          "total": 8
+        },
+        "tests": [
+          {
+            "attempts": 1,
+            "durationMs": 1333,
+            "exitCode": 0,
+            "id": "indexing/file-processor/cached-text-source-replacement",
+            "lane": "integration",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\serial-repair-02\\run-1793290496318-w45opk\\indexing_file-processor_cached-text-source-replacement.attempt-1.log"
+            ],
+            "path": "indexing/file-processor/cached-text-source-replacement.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "indexing",
+              "integration"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 387,
+            "exitCode": 0,
+            "id": "storage/sqlite/zero-state-proof-admission",
+            "lane": "storage",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\serial-repair-02\\run-1793290496318-w45opk\\storage_sqlite_zero-state-proof-admission.attempt-1.log"
+            ],
+            "path": "storage/sqlite/zero-state-proof-admission.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "sqlite",
+              "storage"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 3785,
+            "exitCode": 0,
+            "id": "tooling/reports/compare-models-partial-ranks/different-source",
+            "lane": "unit",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\serial-repair-02\\run-1793290496318-w45opk\\tooling_reports_compare-models-partial-ranks_different-source.attempt-1.log"
+            ],
+            "path": "tooling/reports/compare-models-partial-ranks.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "tooling",
+              "unit"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 3836,
+            "exitCode": 0,
+            "id": "tooling/reports/compare-models-partial-ranks/missing-source",
+            "lane": "unit",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\serial-repair-02\\run-1793290496318-w45opk\\tooling_reports_compare-models-partial-ranks_missing-source.attempt-1.log"
+            ],
+            "path": "tooling/reports/compare-models-partial-ranks.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "tooling",
+              "unit"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 3803,
+            "exitCode": 0,
+            "id": "tooling/reports/compare-models-partial-ranks/one-common",
+            "lane": "unit",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\serial-repair-02\\run-1793290496318-w45opk\\tooling_reports_compare-models-partial-ranks_one-common.attempt-1.log"
+            ],
+            "path": "tooling/reports/compare-models-partial-ranks.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "tooling",
+              "unit"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 6585,
+            "exitCode": 0,
+            "id": "tooling/reports/compare-models-partial-ranks/opposite-orders",
+            "lane": "unit",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\serial-repair-02\\run-1793290496318-w45opk\\tooling_reports_compare-models-partial-ranks_opposite-orders.attempt-1.log"
+            ],
+            "path": "tooling/reports/compare-models-partial-ranks.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "tooling",
+              "unit"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 3897,
+            "exitCode": 0,
+            "id": "tooling/reports/compare-models-partial-ranks/renumbered",
+            "lane": "unit",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\serial-repair-02\\run-1793290496318-w45opk\\tooling_reports_compare-models-partial-ranks_renumbered.attempt-1.log"
+            ],
+            "path": "tooling/reports/compare-models-partial-ranks.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "tooling",
+              "unit"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 22909,
+            "exitCode": 0,
+            "id": "tui/native-index-workflows/search-published",
+            "lane": "integration",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\serial-repair-02\\run-1793290496318-w45opk\\tui_native-index-workflows_search-published.attempt-1.log"
+            ],
+            "path": "tui/native-index-workflows.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "integration"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          }
+        ]
+      },
+      {
+        "path": ".tmp/tasks/p2-p3-closeout-20261029/native-original-stdout-close.json",
+        "sha256": "8d30964a66e0fc304b14be3e3662f077ae5d881a39983f6e250db4d04acc0a3f",
+        "summary": {
+          "durationMs": 8833,
+          "failed": 0,
+          "passed": 1,
+          "skipped": 0,
+          "total": 1
+        },
+        "tests": [
+          {
+            "attempts": 1,
+            "durationMs": 8829,
+            "exitCode": 0,
+            "id": "tui/native-event-transport-lifetime",
+            "lane": "integration",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\native-original-stdout-close\\run-1793290953380-l0qkvb\\tui_native-event-transport-lifetime.attempt-1.log"
+            ],
+            "path": "tui/native-event-transport-lifetime.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "integration"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          }
+        ]
+      },
+      {
+        "path": ".tmp/tasks/p2-p3-closeout-20261029/direct-proof-final.json",
+        "sha256": "65db1b00c1c83592fd2522d7ee6590078b394a69ba9895fe8c76b7eee8eb05bb",
+        "summary": {
+          "durationMs": 736,
+          "failed": 1,
+          "passed": 3,
+          "skipped": 0,
+          "total": 4
+        },
+        "tests": [
+          {
+            "attempts": 1,
+            "durationMs": 189,
+            "exitCode": 0,
+            "id": "indexing/chunking/preamble-and-unicode-coverage",
+            "lane": "integration",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\direct-proof-final\\run-1793291062243-zy8kun\\indexing_chunking_preamble-and-unicode-coverage.attempt-1.log"
+            ],
+            "path": "indexing/chunking/preamble-and-unicode-coverage.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "indexing",
+              "integration"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 254,
+            "exitCode": 0,
+            "id": "indexing/contracts/defaults-policy-and-phrase-gaps",
+            "lane": "gate",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\direct-proof-final\\run-1793291062243-zy8kun\\indexing_contracts_defaults-policy-and-phrase-gaps.attempt-1.log"
+            ],
+            "path": "indexing/contracts/defaults-policy-and-phrase-gaps.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "gate",
+              "indexing"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 67,
+            "exitCode": 0,
+            "id": "indexing/planning/calibrated-file-cost",
+            "lane": "integration",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\direct-proof-final\\run-1793291062243-zy8kun\\indexing_planning_calibrated-file-cost.attempt-1.log"
+            ],
+            "path": "indexing/planning/calibrated-file-cost.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "indexing",
+              "integration"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          },
+          {
+            "attempts": 1,
+            "durationMs": 216,
+            "exitCode": 1,
+            "id": "lang/contracts/yaml-syntax-node-boundaries",
+            "lane": "unit",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\direct-proof-final\\run-1793291062243-zy8kun\\lang_contracts_yaml-syntax-node-boundaries.attempt-1.log",
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\direct-proof-final\\run-1793291062243-zy8kun\\lang_contracts_yaml-syntax-node-boundaries.attempt-1.failure.json"
+            ],
+            "path": "lang/contracts/yaml-syntax-node-boundaries.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "failed",
+            "tags": [
+              "lang",
+              "unit"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          }
+        ]
+      },
+      {
+        "path": ".tmp/tasks/p2-p3-closeout-20261029/yaml-global-proof-final.json",
+        "sha256": "9aaa288471728c4f6d11dffe2d7e90308a9ecbdca7f713893ea8ec842017686a",
+        "summary": {
+          "durationMs": 438,
+          "failed": 0,
+          "passed": 1,
+          "skipped": 0,
+          "total": 1
+        },
+        "tests": [
+          {
+            "attempts": 1,
+            "durationMs": 435,
+            "exitCode": 0,
+            "id": "lang/contracts/yaml-syntax-node-boundaries",
+            "lane": "unit",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\yaml-global-proof-final\\run-1793291088633-ujtpe6\\lang_contracts_yaml-syntax-node-boundaries.attempt-1.log"
+            ],
+            "path": "lang/contracts/yaml-syntax-node-boundaries.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "lang",
+              "unit"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          }
+        ]
+      },
+      {
+        "path": ".tmp/tasks/p2-p3-closeout-20261029/runtime-hash-close-before.json",
+        "sha256": "d296f35a6776f55268cf52598898d483ae2ba9830e6452e829ad559ff956aee4",
+        "summary": {
+          "durationMs": 831,
+          "failed": 0,
+          "passed": 1,
+          "skipped": 0,
+          "total": 1
+        },
+        "tests": [
+          {
+            "attempts": 1,
+            "durationMs": 827,
+            "exitCode": 0,
+            "id": "storage/semantic/runtime-query-index-hash-close",
+            "lane": "storage",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\runtime-hash-close-before\\run-1793291342820-nvtpci\\storage_semantic_runtime-query-index-hash-close.attempt-1.log"
+            ],
+            "path": "storage/semantic/runtime-query-index-hash-close.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "storage"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          }
+        ]
+      },
+      {
+        "path": ".tmp/tasks/p2-p3-closeout-20261029/runtime-rename-cause-before.json",
+        "sha256": "e3ebf6b135e2430144bb5d0f1de978443a2f0625b6cad8bd4b1683fbaa72e29e",
+        "summary": {
+          "durationMs": 856,
+          "failed": 1,
+          "passed": 0,
+          "skipped": 0,
+          "total": 1
+        },
+        "tests": [
+          {
+            "attempts": 1,
+            "durationMs": 848,
+            "exitCode": 1,
+            "id": "storage/semantic/runtime-import-publication",
+            "lane": "storage",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\runtime-rename-cause-before\\run-1793291393692-ez35tk\\storage_semantic_runtime-import-publication.attempt-1.log",
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\runtime-rename-cause-before\\run-1793291393692-ez35tk\\storage_semantic_runtime-import-publication.attempt-1.failure.json"
+            ],
+            "path": "storage/semantic/runtime-import-publication.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "failed",
+            "tags": [
+              "storage"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          }
+        ]
+      },
+      {
+        "path": ".tmp/tasks/p2-p3-closeout-20261029/runtime-rename-cause-after.json",
+        "sha256": "0213ce493132b2c01b26903601ca9e398a40ef9af48cc661aa49b0a70ab1040a",
+        "summary": {
+          "durationMs": 1165,
+          "failed": 0,
+          "passed": 1,
+          "skipped": 0,
+          "total": 1
+        },
+        "tests": [
+          {
+            "attempts": 1,
+            "durationMs": 1161,
+            "exitCode": 0,
+            "id": "storage/semantic/runtime-import-publication",
+            "lane": "storage",
+            "logs": [
+              "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\p2-p3-closeout-20261029\\runtime-rename-cause-after\\run-1793291407708-9hiq2e\\storage_semantic_runtime-import-publication.attempt-1.log"
+            ],
+            "path": "storage/semantic/runtime-import-publication.test.js",
+            "signal": null,
+            "skipReason": null,
+            "status": "passed",
+            "tags": [
+              "storage"
+            ],
+            "termination": null,
+            "timedOut": false,
+            "timeoutClass": null
+          }
+        ]
+      },
+      {
+        "path": ".tmp/tasks/p2-p3-closeout-20261029/serial-final-controls.json",
+        "sha256": "3047312bbc8a6c85678856a1d4bb2fe7048ca6091ff52b8b3118db66e8ccc83c",
+        "summary": {
+          "durationMs": 86,
+          "failed": 0,
+          "passed": 1,
+          "skipped": 0,
+          "total": 1
+        },
+        "tests": [
+          {
+            "id": "map/workspace/qualification-phase-diagnostics",
+            "status": "passed",
+            "durationMs": 82
+          }
+        ]
+      },
+      {
+        "path": ".tmp/tasks/p2-p3-closeout-20261029/query-resource-plan-final.json",
+        "sha256": "c9c74ceb15ed0f8ec9875c1afa4853291734ba8e2ed9f97affd5956773a67980",
+        "summary": {
+          "durationMs": 3985,
+          "failed": 0,
+          "passed": 6,
+          "skipped": 0,
+          "total": 6
+        },
+        "tests": [
+          {
+            "id": "perf/bench/query-resource-plan/aliases-one",
+            "status": "passed",
+            "durationMs": 671
+          },
+          {
+            "id": "perf/bench/query-resource-plan/all-four",
+            "status": "passed",
+            "durationMs": 666
+          },
+          {
+            "id": "perf/bench/query-resource-plan/default-four",
+            "status": "passed",
+            "durationMs": 664
+          },
+          {
+            "id": "perf/bench/query-resource-plan/default-one",
+            "status": "passed",
+            "durationMs": 652
+          },
+          {
+            "id": "perf/bench/query-resource-plan/fts-four",
+            "status": "passed",
+            "durationMs": 662
+          },
+          {
+            "id": "perf/bench/query-resource-plan/memory-four",
+            "status": "passed",
+            "durationMs": 662
+          }
+        ]
+      }
+    ],
+    "notes": [
+      "All seven original serial failures have passing focused rechecks; 16 distinct controls in those cohorts now pass.",
+      "Native validate-search is replaced by validate-published and search-published with fresh real complete seeds, exact backend readiness, keyboard/supervisor operations, source hit, natural exit, original descendants and terminal restoration. Operations are independently read-only; no mutation ordering dependency is lost. Limits remain 18 s native /26 s capture /30 s fixture.",
+      "Node 26.13.0 libuv deliberately ignores fs.close(0..2) on Windows; a fixed no-argument test addon closes only original CRT stdout after the original Socket retires. Its build exited 0 with no compiler warnings/errors. No machine settings or native dependencies changed.",
+      "Actual browser attempt 1 encountered a masked noncollision Windows rename denial; its original cause remains unattributed. A controlled regression fails before and passes after preserving the original EPERM; the hash descriptor lifetime probe passes without production hash changes.",
+      "Browser attempts retain favicon failure, exactly bounded rejected-body cancellation, stale-panel workflow mismatch and current qualification outcomes. No expected-negative rule admits unrelated failures."
+    ],
+    "browserQualification": [
+      {
+        "path": ".tmp/tasks/p2-p3-closeout-20261029/browser-three-05/browser-qualification.json",
+        "sha256": "bdec5dbccd3133ed9e89896762715bd2e4f792fb975962d31b10429e4a4a80de",
+        "status": "passed",
+        "scenario": "three",
+        "totalWithCleanupMs": 25983.6924,
+        "tests": [
+          "independent actual Three.js server/submitted scene frame/keyboard source-member selection",
+          "injected WebGL unavailability preserves real source hierarchy and inspector"
+        ],
+        "renderer": {
+          "vendor": "Google Inc. (Google)",
+          "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+          "version": "WebGL 2.0 (OpenGL ES 3.0 Chromium)",
+          "contextLost": false,
+          "width": 1440,
+          "height": 1000
+        },
+        "phases": [
+          {
+            "name": "three-setup",
+            "status": "passed",
+            "expectedObserved": 0,
+            "expected": [],
+            "events": []
+          },
+          {
+            "name": "three-startup",
+            "status": "passed",
+            "expectedObserved": 1,
+            "expected": [
+              {
+                "type": "requestfailed",
+                "url": "http://127.0.0.1:57891/map-snapshot",
+                "method": "POST",
+                "requestKind": "files",
+                "message": "net::ERR_ABORTED",
+                "maxCount": 1
+              }
+            ],
+            "events": [
+              {
+                "timestamp": "2026-10-29T16:52:38.578Z",
+                "pageUrl": "http://127.0.0.1:57891/map.iso.html",
+                "phase": "three-startup",
+                "origin": "http://127.0.0.1:57891",
+                "severity": "error",
+                "type": "requestfailed",
+                "url": "http://127.0.0.1:57891/map-snapshot",
+                "resourceType": "fetch",
+                "requestId": 1,
+                "method": "POST",
+                "requestKind": "files",
+                "message": "net::ERR_ABORTED",
+                "expected": true
+              }
+            ]
+          },
+          {
+            "name": "three-desktop",
+            "status": "passed",
+            "expectedObserved": 0,
+            "expected": [],
+            "events": []
+          },
+          {
+            "name": "three-narrow",
+            "status": "passed",
+            "expectedObserved": 0,
+            "expected": [],
+            "events": []
+          },
+          {
+            "name": "three-injected-no-webgl",
+            "status": "passed",
+            "expectedObserved": 2,
+            "expected": [
+              {
+                "type": "console",
+                "url": "http://127.0.0.1:57891/three/three.core.js",
+                "message": "THREE.WebGLRenderer: THREE.WebGLRenderer: Error creating WebGL context.",
+                "maxCount": 1
+              },
+              {
+                "type": "requestfailed",
+                "url": "http://127.0.0.1:57891/map-snapshot",
+                "method": "POST",
+                "requestKind": "files",
+                "message": "net::ERR_ABORTED",
+                "maxCount": 1
+              }
+            ],
+            "events": [
+              {
+                "timestamp": "2026-10-29T16:52:45.025Z",
+                "pageUrl": "http://127.0.0.1:57891/map.iso.html",
+                "phase": "three-injected-no-webgl",
+                "origin": "http://127.0.0.1:57891",
+                "severity": "error",
+                "type": "requestfailed",
+                "url": "http://127.0.0.1:57891/map-snapshot",
+                "resourceType": "fetch",
+                "requestId": 1,
+                "method": "POST",
+                "requestKind": "files",
+                "message": "net::ERR_ABORTED",
+                "expected": true
+              },
+              {
+                "timestamp": "2026-10-29T16:52:45.095Z",
+                "pageUrl": "http://127.0.0.1:57891/map.iso.html",
+                "phase": "three-injected-no-webgl",
+                "origin": "http://127.0.0.1:57891",
+                "severity": "error",
+                "type": "console",
+                "url": "http://127.0.0.1:57891/three/three.core.js",
+                "message": "THREE.WebGLRenderer: THREE.WebGLRenderer: Error creating WebGL context.",
+                "expected": true
+              }
+            ]
+          }
+        ],
+        "renderedFrames": [
+          {
+            "sequence": 1,
+            "scene": "55ff47a5-c450-4806-beb8-d3c9d173ff65",
+            "geometryRevision": 1,
+            "frameBefore": 15,
+            "frame": 16,
+            "calls": 7,
+            "triangles": 150,
+            "groups": [
+              "f36d5aba-755c-4d2b-b106-f66f22acbd89",
+              "191aead0-2182-4058-9b48-317d471d7d15",
+              "b3f344fb-55de-460f-babf-77fa97643e91"
+            ],
+            "sampledColors": 6,
+            "width": 1440,
+            "height": 1000,
+            "dpr": 1,
+            "viewport": {
+              "width": 1440,
+              "height": 1000
+            },
+            "modelSha256": "a8821448df3a4eefd2983aad3787094e94c5c027472afa580db90335610f35f7",
+            "requestedRenderer": "ANGLE SwiftShader",
+            "fidelity": "software-rendered submitted frame and sampled known-scene pixel variation; hardware/FPS not measured"
+          },
+          {
+            "sequence": 2,
+            "scene": "55ff47a5-c450-4806-beb8-d3c9d173ff65",
+            "geometryRevision": 1,
+            "frameBefore": 29,
+            "frame": 30,
+            "calls": 7,
+            "triangles": 150,
+            "groups": [
+              "f36d5aba-755c-4d2b-b106-f66f22acbd89",
+              "191aead0-2182-4058-9b48-317d471d7d15",
+              "b3f344fb-55de-460f-babf-77fa97643e91"
+            ],
+            "sampledColors": 6,
+            "width": 1440,
+            "height": 1000,
+            "dpr": 1,
+            "viewport": {
+              "width": 1440,
+              "height": 1000
+            },
+            "modelSha256": "a8821448df3a4eefd2983aad3787094e94c5c027472afa580db90335610f35f7",
+            "requestedRenderer": "ANGLE SwiftShader",
+            "fidelity": "software-rendered submitted frame and sampled known-scene pixel variation; hardware/FPS not measured"
+          },
+          {
+            "sequence": 3,
+            "scene": "55ff47a5-c450-4806-beb8-d3c9d173ff65",
+            "geometryRevision": 1,
+            "frameBefore": 37,
+            "frame": 38,
+            "calls": 7,
+            "triangles": 150,
+            "groups": [
+              "f36d5aba-755c-4d2b-b106-f66f22acbd89",
+              "191aead0-2182-4058-9b48-317d471d7d15",
+              "b3f344fb-55de-460f-babf-77fa97643e91"
+            ],
+            "sampledColors": 4,
+            "width": 390,
+            "height": 844,
+            "dpr": 1,
+            "viewport": {
+              "width": 390,
+              "height": 844
+            },
+            "modelSha256": "a8821448df3a4eefd2983aad3787094e94c5c027472afa580db90335610f35f7",
+            "requestedRenderer": "ANGLE SwiftShader",
+            "fidelity": "software-rendered submitted frame and sampled known-scene pixel variation; hardware/FPS not measured"
+          }
+        ],
+        "qualification": "actual browser/service/Worker; saved synthetic capture; renderer receipt distinguishes software from hardware",
+        "hardwareQualification": "not claimed by this headless run"
+      },
+      {
+        "path": ".tmp/tasks/p2-p3-closeout-20261029/browser-workspace-01/browser-qualification.json",
+        "sha256": "4757a6366f072bfde9f470e03374e4cf5eb330afe2e0560621fefdccbfbdb28d",
+        "status": "passed",
+        "scenario": "workspace",
+        "totalWithCleanupMs": 21669.544,
+        "tests": [
+          "catalog → actual artifact → exact semantic detail → real Worker/SVG selection and keyboard focus",
+          "download preserves the complete admitted service envelope",
+          "canonical find → exact envelope generation/ref → hydrated operands; canonical detail remains hydratable",
+          "real service/browser strict compiler-role fact and exact scalar occurrence provenance",
+          "ranked search preserves service order and scores",
+          "stale generation error retains the prior ranked view",
+          "cancel suppresses a delayed real-service reply and retains prior view",
+          "saved family → observed exact SSR source coordinate → separate immutable inferred claim",
+          "real Worker watchdog terminates an injected stall and retains prior SVG",
+          "desktop/mobile portrait/mobile landscape rendered layout receipts"
+        ],
+        "renderer": null,
+        "phases": [
+          {
+            "name": "workspace",
+            "status": "passed",
+            "expectedObserved": 0,
+            "expected": [],
+            "events": []
+          },
+          {
+            "name": "workspace-negative-detail-5",
+            "status": "passed",
+            "expectedObserved": 3,
+            "expected": [
+              {
+                "type": "http",
+                "url": "http://127.0.0.1:60001/analysis/semantic-detail",
+                "statuses": [
+                  409
+                ],
+                "maxCount": 1
+              },
+              {
+                "type": "requestfailed",
+                "url": "http://127.0.0.1:60001/analysis/semantic-detail",
+                "message": "net::ERR_ABORTED",
+                "maxCount": 1
+              },
+              {
+                "type": "console",
+                "url": "http://127.0.0.1:60001/analysis/semantic-detail",
+                "messagePattern": "^Failed to load resource: the server responded with a status of (400|404|409|422)\\b",
+                "maxCount": 1
+              }
+            ],
+            "events": [
+              {
+                "timestamp": "2026-10-29T16:53:19.299Z",
+                "pageUrl": "http://127.0.0.1:60001/map/workspace",
+                "phase": "workspace-negative-detail-5",
+                "origin": "http://127.0.0.1:60001",
+                "severity": "error",
+                "type": "http",
+                "url": "http://127.0.0.1:60001/analysis/semantic-detail",
+                "status": 409,
+                "resourceType": "fetch",
+                "message": "HTTP 409",
+                "expected": true
+              },
+              {
+                "timestamp": "2026-10-29T16:53:19.299Z",
+                "pageUrl": "http://127.0.0.1:60001/map/workspace",
+                "phase": "workspace-negative-detail-5",
+                "origin": "http://127.0.0.1:60001",
+                "severity": "error",
+                "type": "console",
+                "url": "http://127.0.0.1:60001/analysis/semantic-detail",
+                "message": "Failed to load resource: the server responded with a status of 409 (Conflict)",
+                "expected": true
+              },
+              {
+                "timestamp": "2026-10-29T16:53:19.300Z",
+                "pageUrl": "http://127.0.0.1:60001/map/workspace",
+                "phase": "workspace-negative-detail-5",
+                "origin": "http://127.0.0.1:60001",
+                "severity": "error",
+                "type": "requestfailed",
+                "url": "http://127.0.0.1:60001/analysis/semantic-detail",
+                "resourceType": "fetch",
+                "requestId": 1,
+                "method": "POST",
+                "requestKind": null,
+                "message": "net::ERR_ABORTED",
+                "expected": true
+              }
+            ]
+          },
+          {
+            "name": "workspace-after-negative-6",
+            "status": "passed",
+            "expectedObserved": 0,
+            "expected": [],
+            "events": []
+          },
+          {
+            "name": "workspace-cancel-search",
+            "status": "passed",
+            "expectedObserved": 1,
+            "expected": [
+              {
+                "type": "requestfailed",
+                "url": "http://127.0.0.1:60001/search",
+                "message": "net::ERR_ABORTED",
+                "maxCount": 1
+              }
+            ],
+            "events": [
+              {
+                "timestamp": "2026-10-29T16:53:19.559Z",
+                "pageUrl": "http://127.0.0.1:60001/map/workspace",
+                "phase": "workspace-cancel-search",
+                "origin": "http://127.0.0.1:60001",
+                "severity": "error",
+                "type": "requestfailed",
+                "url": "http://127.0.0.1:60001/search",
+                "resourceType": "fetch",
+                "requestId": 2,
+                "method": "POST",
+                "requestKind": null,
+                "message": "net::ERR_ABORTED",
+                "expected": true
+              }
+            ]
+          },
+          {
+            "name": "workspace-runtime-and-layout",
+            "status": "passed",
+            "expectedObserved": 0,
+            "expected": [],
+            "events": []
+          }
+        ],
+        "renderedFrames": [],
+        "qualification": "actual browser/service/Worker; saved synthetic capture; renderer receipt distinguishes software from hardware",
+        "hardwareQualification": "not claimed by this headless run"
+      }
+    ],
+    "frontGate": {
+      "checks": [
+        {
+          "name": "format",
+          "command": "npm run format",
+          "exitCode": 0,
+          "durationMs": 40326,
+          "log": ".tmp/tasks/p2-p3-closeout-20261029/serial-publish-format.log",
+          "sha256": "7855b6012c61fbd43d32511e7db1fc8fda9a515fe4bdfaaaac5174988aa43790"
+        },
+        {
+          "name": "config-budget",
+          "command": "npm run config:budget",
+          "exitCode": 0,
+          "durationMs": 2194,
+          "log": ".tmp/tasks/p2-p3-closeout-20261029/serial-publish-config-budget.log",
+          "sha256": "5a73d6364cc10586d450f8083133e338669857da41c3873f6c1ff1435ba954a6"
+        },
+        {
+          "name": "env-check",
+          "command": "npm run env:check",
+          "exitCode": 0,
+          "durationMs": 1265,
+          "log": ".tmp/tasks/p2-p3-closeout-20261029/serial-publish-env-check.log",
+          "sha256": "b68a12b11da60d8f54903d11190dbc3da628d8c39a0d68ca7e02da8bd16c0008"
+        },
+        {
+          "name": "generated-freshness",
+          "command": "node tools/docs/generated-surfaces.js --check-freshness",
+          "exitCode": 0,
+          "durationMs": 11581,
+          "log": ".tmp/tasks/p2-p3-closeout-20261029/serial-publish-generated-freshness.log",
+          "sha256": "12d66e11ed9f3f1d4c7a42dcfb0e05f7ed20f817ce5419d2179e0906c6546665"
+        },
+        {
+          "name": "command-surface",
+          "command": "node tools/ci/check-command-surface.js",
+          "exitCode": 0,
+          "durationMs": 2662,
+          "log": ".tmp/tasks/p2-p3-closeout-20261029/serial-publish-command-surface.log",
+          "sha256": "718e1bec11ed61774c3b0ff66bf339fa48cf4b9b3517d2c2e4d2b8d49fb63417"
+        },
+        {
+          "name": "workflow-contract",
+          "command": "node tests/ci/workflow-contract.test.js",
+          "exitCode": 0,
+          "durationMs": 229,
+          "log": ".tmp/tasks/p2-p3-closeout-20261029/serial-publish-workflow-contract.log",
+          "sha256": "5c01890cb0b087b29897ddfc20e9527cfb7afb370eacd7871f3b649dd7fe1b58"
+        },
+        {
+          "name": "gate",
+          "command": "node tests/run.js --lane gate --jobs 1 --timeout-ms 30000 --retries 0 --native-status-redo=false --report-file C:/Users/sneak/Development/PairOfCleats/.tmp/tasks/p2-p3-closeout-20261029/serial-publish-gate.json --log-dir C:/Users/sneak/Development/PairOfCleats/.tmp/tasks/p2-p3-closeout-20261029/serial-publish-gate-logs",
+          "exitCode": 0,
+          "durationMs": 20888,
+          "log": ".tmp/tasks/p2-p3-closeout-20261029/serial-publish-gate.log",
+          "sha256": "1f6147ab94fffb536abfb7fcba21abe21473d06fcdb267e89e2a912b3f549366"
+        },
+        {
+          "name": "diff-check",
+          "command": "git diff --check",
+          "exitCode": 0,
+          "durationMs": 114,
+          "log": ".tmp/tasks/p2-p3-closeout-20261029/serial-publish-diff-check.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        }
+      ],
+      "status": "passed",
+      "path": ".tmp/tasks/p2-p3-closeout-20261029/serial-publish-front-gate.json",
+      "sha256": "1b23addd645539e40f4e69b000e530e3bed6649a9fdfab56fbb0256a77c17d75"
+    },
+    "windowsViewport": {
+      "path": ".tmp/tasks/p2-p3-closeout-20261029/windows-rust-viewport.json",
+      "sha256": "c0290896d92beba0326309e0d064fab6f64f632fd45f0a2219f3464b0dbe4b2e",
+      "exitCode": 0,
+      "durationMs": 645,
+      "passed": 25,
+      "failed": 0,
+      "ignored": 0,
+      "toolchain": "1.99.1",
+      "target": "x86_64-pc-windows-msvc"
+    },
+    "sourceCommit": "9725d070673f89166c6595d2909e036b072e5ea2",
+    "sources": [
+      {
+        "path": "crates/pairofcleats-tui/Cargo.lock",
+        "gitBlobSha256": "78f5425acd9fc7d3dda9131f8c79b726aaa9143ed15345a643c2ce617418335c"
+      },
+      {
+        "path": "crates/pairofcleats-tui/Cargo.toml",
+        "gitBlobSha256": "5f5fd4f0bbe9b94bd700869486dbd3c9aebac1c7e85f6d5795b6366aaa3034b6"
+      },
+      {
+        "path": "crates/pairofcleats-tui/src/main.rs",
+        "gitBlobSha256": "b7df33ce8ee60c6516f942f6d6a2a0f1086ee19fdf626e7865eaf538014a9a16"
+      },
+      {
+        "path": "crates/pairofcleats-tui/src/viewport_tests.rs",
+        "gitBlobSha256": "76c207c8365feb0a2bdde7eef19604ea08ba68a5a6f0c2d0f4957b149e69b72a"
+      },
+      {
+        "path": "docs/config/inventory.json",
+        "gitBlobSha256": "61fc21edbcdb7b46e5493c303b9282d4ecc05b1f3277656b40976c044f8bba2a"
+      },
+      {
+        "path": "docs/config/inventory.md",
+        "gitBlobSha256": "0d59dcd478144f0cd4e0bcd3e76ab023542d1e588b8fcafa31863d0dc7d8cb22"
+      },
+      {
+        "path": "docs/guides/reladraw-workspace.md",
+        "gitBlobSha256": "2d35191ec4d98529d214cb37af3a96ef377bc0c3ace274f2684b99b7c56b1d57"
+      },
+      {
+        "path": "src/index/semantic/runtime/import.js",
+        "gitBlobSha256": "686468a51bb2dbd5f1b3a401fab963a7ecdbdf3bad9a2d747a9ab04e18ed79b1"
+      },
+      {
+        "path": "src/map/html-writer.js",
+        "gitBlobSha256": "501cc31945351a902ef4b9de7216dd36b683a4c167068410a58eea783f14fa2b"
+      },
+      {
+        "path": "src/map/isometric-viewer.js",
+        "gitBlobSha256": "6112f8f9988c32936ab9198508d0c062f84491ad7b3eda91a5abbb2fd29bb4a2"
+      },
+      {
+        "path": "src/map/workspace/index.html",
+        "gitBlobSha256": "06c09744f3e7e597db5f3cc5498191f5b5c3ac7cf0cb282d032e22054bd5cf9b"
+      },
+      {
+        "path": "tests/ci-lite/ci-lite.manifest.json",
+        "gitBlobSha256": "706d124c0f689243deed2b7026207682d8c8cd4949200666d314cc2293f80c26"
+      },
+      {
+        "path": "tests/ci-lite/ci-lite.order.txt",
+        "gitBlobSha256": "cdb7a4dfe4c5d34c3d49c78c54ca66bf755e97294ab79f4cf0979d7b8a6ed5ba"
+      },
+      {
+        "path": "tests/fixtures/tui/native-lifetime-conpty.ps1",
+        "gitBlobSha256": "f506fe71edbc7c499f7bc41604a80b82902fa779ff5dc121bf3376afbbffefed"
+      },
+      {
+        "path": "tests/fixtures/tui/native-lifetime-supervisor.js",
+        "gitBlobSha256": "958e0e6004f83788d1b3cd8fd3db741856b62a71e29837ac040dcdbfeafea876"
+      },
+      {
+        "path": "tests/fixtures/windows/stdout-close/binding.gyp",
+        "gitBlobSha256": "bd471fab3ac0a56fb0a2d659cdba804c5e18e81de0ed4cc6ab19d24fa8331360"
+      },
+      {
+        "path": "tests/fixtures/windows/stdout-close/stdout-close.c",
+        "gitBlobSha256": "6c6e27b3c60bcde2fef292975e0fd5f4d0482b2fdf19210631980de88a5a67be"
+      },
+      {
+        "path": "tests/helpers/native-tui-conpty.js",
+        "gitBlobSha256": "bf2b379615532a295d27e196039a349579d6119be54681631fa2082b43aafe4e"
+      },
+      {
+        "path": "tests/helpers/windows-stdout-close.js",
+        "gitBlobSha256": "fbba7ae9612f8fc312c3f3a0144165b033ee94ce3b0683077c0398730a9481f7"
+      },
+      {
+        "path": "tests/indexing/chunking/preamble-and-unicode-coverage.test.js",
+        "gitBlobSha256": "5f023eb28246a03dd5a6d7d9a61654097c1a63b62f0a38eec782fd0243af26e7"
+      },
+      {
+        "path": "tests/indexing/contracts/defaults-policy-and-phrase-gaps.test.js",
+        "gitBlobSha256": "db0b952fa813e42db253e001de9ae7dc4c69f2f557c0c8573ef1aee0cf0fee4b"
+      },
+      {
+        "path": "tests/indexing/file-processor/cached-text-source-replacement.test.js",
+        "gitBlobSha256": "d173a2cd2bbe2ad799d406314cfaf474eeea73641e4efdbf5a67acbf7018eb91"
+      },
+      {
+        "path": "tests/indexing/planning/calibrated-file-cost.test.js",
+        "gitBlobSha256": "1c08db0890e4f1060335b4f10caec4269a6929c78c8c0b41869696894088e2fd"
+      },
+      {
+        "path": "tests/lang/contracts/yaml-syntax-node-boundaries.test.js",
+        "gitBlobSha256": "dff17039c4b832ccfa2678d1f12e65ef9035a390a26b38364dc416dd49f02db2"
+      },
+      {
+        "path": "tests/map/workspace/browser-qualification.js",
+        "gitBlobSha256": "c9d24e631c5326c772ebd74f9621a9b11ddbaeae20540677d95b062b23f839f3"
+      },
+      {
+        "path": "tests/map/workspace/qualification-diagnostics.js",
+        "gitBlobSha256": "9567fbcafa6c3595ecc2a4d53658b130e1a58f9ca79b48a1c70dfac123db1563"
+      },
+      {
+        "path": "tests/map/workspace/qualification-phase-diagnostics.test.js",
+        "gitBlobSha256": "21e8417126b6ce7c3cb540175b626642fe3caf7d971274d5bfcd5c253d6c0018"
+      },
+      {
+        "path": "tests/perf/bench/language-query-capabilities.test.js",
+        "gitBlobSha256": "0681a6969cfda719d41276ae94afd3be45e63dbaf847e87037c68428734f99e9"
+      },
+      {
+        "path": "tests/perf/bench/language-sqlite-zero-mode-status.test.js",
+        "gitBlobSha256": "78a723de15c793cb2028c2bed658397580fde2b7b213227466561f0bc298f97d"
+      },
+      {
+        "path": "tests/perf/bench/query-resource-plan.test.js",
+        "gitBlobSha256": "8cbfd61a27822045983d53e713c71179cfde971515cc3a47c102f83bf6d23e33"
+      },
+      {
+        "path": "tests/perf/bench/run.test.js",
+        "gitBlobSha256": "a660e61c991f9f8d74cf204b15ff8be5282787567535be96adddd6410cd7b305"
+      },
+      {
+        "path": "tests/perf/tooling/bench/ab-sweep-contract.test.js",
+        "gitBlobSha256": "e2767e2a73e075fb8b44abf6e112379630d8977e5b4c377e90b2f1912ee55e0d"
+      },
+      {
+        "path": "tests/storage/semantic/runtime-import-publication.test.js",
+        "gitBlobSha256": "e28385625ea82b553a9a000506d3f8a612aae7907487f723412c5b054f32c29a"
+      },
+      {
+        "path": "tests/storage/semantic/runtime-query-index-hash-close.test.js",
+        "gitBlobSha256": "8941f2aafac986dc92107298b45b15a7353d86ee0e5328ffaf4c0e956ea0317a"
+      },
+      {
+        "path": "tests/tooling/reports/compare-models-partial-ranks.test.js",
+        "gitBlobSha256": "a013448d3b41b6964d199a388960c0a0b27e9d1fbd6163601ec360d3c6016836"
+      },
+      {
+        "path": "tests/tooling/reports/compare-models-partial-ranks.test.js.cases.json",
+        "gitBlobSha256": "12f33d02e45b71b1ff33cf6ffb96a7e57f4681d4b48e2a42efa0b5f6f5bd6bd8"
+      },
+      {
+        "path": "tests/tui/native-index-workflows.test.js",
+        "gitBlobSha256": "2b83bd793382ce5f046df28ebbb05a4105bca03c21fd1d3aa33048508c9e3e93"
+      },
+      {
+        "path": "tests/tui/native-index-workflows.test.js.cases.json",
+        "gitBlobSha256": "5c957932563d0feb9eea733f6a8d1eb0c5e3f53e13adf3589bed30d04c26fd18"
+      },
+      {
+        "path": "tools/bench/language/sqlite-mode-status.js",
+        "gitBlobSha256": "0de0a0755909db2e944b8f452fb92efd769e84fd40d8b135bfc64b2fc30aa5f5"
+      }
+    ]
   }
 }

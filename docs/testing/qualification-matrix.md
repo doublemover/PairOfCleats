@@ -546,3 +546,11 @@ remain separately required; no prior green receipt qualifies these changes.
 | SQLite writer physical ownership (#1574 partial) | Actual initialization, artifact/bundle/incremental failures, original close and concurrent finalization, constructor dispatch, WAL/staging/rollback | 17 final affected cases and full front gate/40 gate pass at acd8a79d9; eight historical-owner controls fail. Exact frozen work/native causes survive; no automatic unknown-close retry. Complete writer session/temporary-namespace adoption remains. [Receipt](../archived/sqlite-writer-owners-2026-10-27.md). |
 
 P2/P3 October 29: the [closeout receipt](../archived/p2-p3-closeout-2026-10-29.md) records the exact 658-control Windows correctness baseline (637 passed, 21 failed), original failures and focused repairs. Source-bound passing rechecks do not replace serial native/browser/performance qualification. Six requested editor-host exclusions remain open.
+
+The October 29 serial follow-up passes all seven original failures through focused
+rechecks, plus real Windows event EOF and independent validate/search terminal
+lifetimes. Actual browser workspace/API/Worker (21.67 s) and Three.js scene/source
+navigation/fallback (25.98 s) pass within unchanged 30-second bounds. Software
+renderer receipts establish submitted geometry and raster variation; hardware
+performance and module/shader/render-noop negative qualification remain pending.
+See the same closeout receipt for raw-report hashes, source bindings and exclusions.
