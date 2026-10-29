@@ -1,15 +1,18 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
+import nativeFs from 'node:fs';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { createSemanticServingFixture } from '../../helpers/semantic-serving-fixture.js';
 import { openPublishedSemanticStore } from '../../../src/semantic/published-store.js';
 import { checksumString } from '../../../src/shared/hash.js';
 import { getContainedFileSession } from '../../../src/shared/contained-file-resource.js';
+import { errorGraphSome } from '../../helpers/error-graph.js';
 
 // Real schema-valid family/query/operation metadata and actual contained owners.
 const fixture = await createSemanticServingFixture();
 const originalOpen = fs.open;
+const originalLstat = nativeFs.lstatSync, originalStat = nativeFs.statSync;
 const open = signal => openPublishedSemanticStore({ indexDir: fixture.indexDir, repoRoot: fixture.root,
   generation: fixture.generation, requireQueryIndex: true, signal });
 const files = [...fixture.originals.keys()].map(name => path.resolve(fixture.indexDir, name + '.json'));
@@ -146,6 +149,37 @@ try {
       finally { fs.open = originalOpen; await fixture.restore(); }
       assert.ok(states.every(state => state.handle.fd === -1));
     }
+    // Exercise link and pathname-rebinding observations at the real contained
+    // owner. Ordinary real files/descriptors remain in use; these deterministic
+    // metadata probes create no physical link and require no OS privilege.
+    for (const mode of ['link-before-open', 'link-after-read', 'identity-after-read']) {
+      let changed = mode === 'link-before-open';
+      nativeFs.lstatSync = function (target, ...args) {
+        const stat = originalLstat.call(this, target, ...args);
+        return changed && mode.startsWith('link-') && path.resolve(String(target)) === filename
+          ? Object.create(stat, { isSymbolicLink: { value: () => true } }) : stat;
+      };
+      nativeFs.statSync = function (target, ...args) {
+        const stat = originalStat.call(this, target, ...args);
+        return changed && mode === 'identity-after-read' && path.resolve(String(target)) === filename
+          ? Object.create(stat, { ino: { value: stat.ino + (typeof stat.ino === 'bigint' ? 1n : 1) } }) : stat;
+      };
+      const states = install({ read: async (state, native, ...args) => {
+        const value = await native(...args);
+        if (state.filename === filename) changed = true;
+        return value;
+      } });
+      try {
+        await assert.rejects(open(), error => error.code === 'ERR_SEMANTIC_INTEGRITY'
+          && errorGraphSome(error, value => value?.code === 'ERR_UNSAFE_FILE_PATH'));
+        const selected = states.filter(state => state.filename === filename);
+        assert.equal(selected.length, mode === 'link-before-open' ? 0 : 1);
+        if (selected.length) assert.ok(selected[0].reads > 0);
+        assert.ok(states.every(state => state.handle.fd === -1 && state.closes === 1));
+      } finally { nativeFs.lstatSync = originalLstat; nativeFs.statSync = originalStat; fs.open = originalOpen; }
+      assert.equal((await open()).store.generation.baseBuildId, fixture.generation.baseBuildId,
+        'a rejected observation never contaminates the next healthy request');
+    }
   }
   {
     const controller = new AbortController(); controller.abort();
@@ -201,6 +235,7 @@ try {
   }
 } finally {
   fs.open = originalOpen;
+  nativeFs.lstatSync = originalLstat; nativeFs.statSync = originalStat;
   for (const close of dispose.values()) await close();
   await fixture.cleanup();
 }

@@ -31,6 +31,14 @@ export function sha1(str) {
 }
 
 const changedFile = () => Object.assign(new Error('File changed during its admitted hash read.'), { code: 'ERR_FILE_CHANGED' });
+const EXACT_IDENTITY_FIELDS = Object.freeze(['dev', 'ino', 'size', 'mtimeNs', 'ctimeNs']);
+const captureExactFileIdentity = async descriptor => {
+  const stat = await descriptor.stat({ bigint: true });
+  const regular = stat.isFile();
+  const identity = Object.fromEntries(EXACT_IDENTITY_FIELDS.map(key => [key, stat[key]]));
+  if (!regular || EXACT_IDENTITY_FIELDS.some(key => typeof identity[key] !== 'bigint')) throw changedFile();
+  return Object.freeze(identity);
+};
 const withFileHasher = async (filePath, createHasher, { containedRoot = null, signal = null } = {}, includeObservation = false) => {
   throwIfAborted(signal);
   const compute = async descriptor => {
@@ -40,9 +48,8 @@ const withFileHasher = async (filePath, createHasher, { containedRoot = null, si
     if (!before.isFile() || !Number.isSafeInteger(before.size) || before.size < 0) {
       throw new Error('File hash requires a bounded regular file extent.');
     }
-    const exactBefore = includeObservation ? await descriptor.stat({ bigint: true }) : null;
-    if (exactBefore && (!exactBefore.isFile() || ['dev', 'ino', 'size', 'mtimeNs', 'ctimeNs'].some(key => typeof exactBefore[key] !== 'bigint')
-      || exactBefore.size !== BigInt(before.size))) throw changedFile();
+    const exactBefore = includeObservation ? await captureExactFileIdentity(descriptor) : null;
+    if (exactBefore && exactBefore.size !== BigInt(before.size)) throw changedFile();
     const buffer = Buffer.allocUnsafe(Math.min(65536, before.size));
     let position = 0;
     while (position < before.size) {
@@ -58,9 +65,8 @@ const withFileHasher = async (filePath, createHasher, { containedRoot = null, si
     throwIfAborted(signal);
     const after = await descriptor.stat();
     if (!after.isFile() || ['dev', 'ino', 'size', 'mtimeMs', 'ctimeMs'].some(key => before[key] !== after[key])) throw changedFile();
-    const exactAfter = includeObservation ? await descriptor.stat({ bigint: true }) : null;
-    if (exactAfter && (!exactAfter.isFile() || ['dev', 'ino', 'size', 'mtimeNs', 'ctimeNs'].some(key => typeof exactAfter[key] !== 'bigint'
-      || exactBefore[key] !== exactAfter[key]))) throw changedFile();
+    const exactAfter = includeObservation ? await captureExactFileIdentity(descriptor) : null;
+    if (exactAfter && EXACT_IDENTITY_FIELDS.some(key => exactBefore[key] !== exactAfter[key])) throw changedFile();
     descriptor.verify?.();
     throwIfAborted(signal);
     return includeObservation ? Object.freeze({ value, bytes: after.size,
@@ -95,6 +101,37 @@ export function sha256File(filePath, options = {}) {
  * are captured together and returned only after the original file closes. */
 export async function sha256FileObservation(filePath, options = {}) {
   return Object.freeze({ algo: 'sha256', ...await digestFile(filePath, 'sha256', options, true) });
+}
+
+/** Compute the finite integrity digests over one original descriptor and byte
+ * stream. Its exact extent/identity and all digests settle together after close.
+ * A second pathname read cannot qualify a different snapshot's checksum. */
+export async function hashFileObservation(filePath, { algorithms = ['sha256'], ...options } = {}) {
+  if (!Array.isArray(algorithms) || !algorithms.length
+    || algorithms.some(value => !['sha256', 'sha1', 'xxh64'].includes(value))) {
+    throw new TypeError('File integrity requires supported digest algorithms.');
+  }
+  throwIfAborted(options.signal);
+  const selected = [...new Set(algorithms)];
+  const backend = selected.includes('xxh64') ? await getBackend() : null;
+  throwIfAborted(options.signal);
+  const result = await withFileHasher(filePath, () => {
+    const hashes = selected.map(algorithm => {
+      const hasher = algorithm === 'xxh64' ? backend.createHasher() : crypto.createHash(algorithm);
+      const update = hasher.update, digest = hasher.digest;
+      return { algorithm, update: bytes => update.call(hasher, bytes),
+        digest: () => digest.call(hasher, ...(algorithm === 'xxh64' ? [] : ['hex'])) };
+    });
+    return {
+      update: bytes => { for (const hash of hashes) hash.update(bytes); },
+      digest: async () => {
+        const values = {};
+        for (const hash of hashes) values[hash.algorithm] = await hash.digest();
+        return Object.freeze(values);
+      }
+    };
+  }, options, true);
+  return result;
 }
 
 export async function checksumString(input) {
