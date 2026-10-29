@@ -16,6 +16,8 @@ import { inspectStorageAccess } from '../../../../src/shared/storage/access.js';
 import { writeSqliteArtifactManifest } from '../../../helpers/artifact-io-fixture.js';
 import { prepareIsolatedTestCacheDir } from '../../../helpers/test-cache.js';
 import { applyTestEnv } from '../../../helpers/test-env.js';
+import { writeIncrementalBundleSnapshot } from '../../../../src/index/build/incremental/bundle-snapshot.js';
+import { sqliteBundleIdentity } from '../../../../src/storage/sqlite/bundle-identity.js';
 
 const caseId = process.env.PAIROFCLEATS_TEST_ID?.split('storage-session-dispatch/')[1];
 const configured = caseId?.startsWith('configured-');
@@ -34,15 +36,17 @@ if (configured) userConfig.sqlite = { codeDbPath: outPath };
 await fsp.mkdir(indexDir, { recursive: true }); await fsp.mkdir(path.dirname(outPath), { recursive: true });
 await writeSqliteArtifactManifest(indexDir, []);
 const chunk = { id: 0, file: 'sample.js', start: 0, end: 1, tokens: [] };
-await fsp.writeFile(path.join(indexDir, 'bundle.json'), JSON.stringify({ artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION, chunks: [chunk] }));
+const selectedEntry = { hash: 'current', mtimeMs: 123, size: 10 };
+const snapshot = await writeIncrementalBundleSnapshot({ repoRoot, bundleDir: indexDir, relKey: 'sample.js',
+  entry: selectedEntry, bundles: [{ file: 'sample.js', ...selectedEntry, chunks: selected === 'incremental' ? [] : [chunk] }] });
 const manifest = { artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION, files: { 'sample.js': {
-  bundles: ['bundle.json'], hash: 'current', mtimeMs: 123, size: 10 } } };
+  ...selectedEntry, ...snapshot } } };
 if (selected === 'incremental') {
   const seed = new Database(outPath);
   try {
     seed.exec(CREATE_TABLES_BASE_SQL); writeSqliteIndexFormat(seed); seed.pragma(`user_version = ${SCHEMA_VERSION}`);
-    seed.prepare('INSERT INTO file_manifest (mode, file, hash, mtimeMs, size, chunk_count) VALUES (?, ?, ?, ?, ?, ?)')
-      .run('code', 'sample.js', 'current', 123, 10, 0);
+    seed.prepare('INSERT INTO file_manifest (mode, file, hash, mtimeMs, size, chunk_count, bundle_hash) VALUES (?, ?, ?, ?, ?, ?, ?)')
+      .run('code', 'sample.js', 'current', 123, 10, 0, sqliteBundleIdentity(manifest.files['sample.js']));
   } finally { seed.close(); }
 }
 const coordinationRoot = path.join(home, 'state', 'storage-access');

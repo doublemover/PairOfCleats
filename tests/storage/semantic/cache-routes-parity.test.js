@@ -75,7 +75,9 @@ try {
     chunks = before.prepare('SELECT * FROM chunks ORDER BY id').all();
     before.prepare('INSERT INTO semantic_discovery VALUES (?, ?, ?, ?)').run('legacy-orphan', 0, 'literalValue', 'old-key');
   } finally { before.close(); }
-  const changed = await fixture.createFile({ file: 'input.js', analysisReason: 'new-analysis-policy' });
+  const changed = await fixture.createFile({ file: 'input.js', analysisReason: 'new-analysis-policy', reuseSource: true });
+  assert.deepEqual(changed.entry.bundleInventory, files[0].entry.bundleInventory,
+    'semantic-only input preserves the exact ordinary bundle bytes, including source mtime');
   fixture.manifest.semanticGeneration = { baseBuildId: 'semantic-only', semanticRevision: 0 };
   const updated = await incrementalUpdateDatabase(options);
   assert.equal(updated.used, true);

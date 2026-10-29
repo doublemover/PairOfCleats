@@ -8,9 +8,13 @@ import Database from 'better-sqlite3';
 import { incrementalUpdateDatabase } from '../../../../src/storage/sqlite/build/incremental-update.js';
 import { CREATE_TABLES_BASE_SQL, SCHEMA_VERSION } from '../../../../src/storage/sqlite/schema.js';
 import { prepareIsolatedTestCacheDir } from '../../../helpers/test-cache.js';
+import { writeIncrementalBundleSnapshot } from '../../../../src/index/build/incremental/bundle-snapshot.js';
+import { sqliteBundleIdentity } from '../../../../src/storage/sqlite/bundle-identity.js';
 
 const { dir: tempRoot } = await prepareIsolatedTestCacheDir('sqlite-incremental-handle-lifecycle');
-const manifestEntry = { bundles: ['unused.json'], hash: 'current', mtimeMs: 123, size: 10 };
+const selectedEntry = { hash: 'current', mtimeMs: 123, size: 10 };
+const manifestEntry = { ...selectedEntry, ...await writeIncrementalBundleSnapshot({ bundleDir: tempRoot,
+  relKey: 'sample.js', entry: selectedEntry, bundles: [{ file: 'sample.js', ...selectedEntry, chunks: [] }] }) };
 const contains = (value, expected) => value === expected || Boolean(value && typeof value === 'object'
   && (contains(value.cause, expected) || value instanceof AggregateError && value.errors.some(error => contains(error, expected))));
 
@@ -24,8 +28,8 @@ const runCase = async ({ name, failureAt = null, baselineHash = null, schemaVers
     writer.pragma(`user_version = ${schemaVersion}`);
     writeSqliteIndexFormat(writer);
     writer.prepare(
-      'INSERT INTO file_manifest (mode, file, hash, mtimeMs, size, chunk_count) VALUES (?, ?, ?, ?, ?, ?)'
-    ).run('code', 'sample.js', baselineHash, 123, 10, 0);
+      'INSERT INTO file_manifest (mode, file, hash, mtimeMs, size, chunk_count, bundle_hash) VALUES (?, ?, ?, ?, ?, ?, ?)'
+    ).run('code', 'sample.js', baselineHash, 123, 10, 0, sqliteBundleIdentity(manifestEntry));
     if (missingTable) writer.exec('DROP TABLE dense_vectors');
   } finally {
     writer.close();
@@ -63,7 +67,7 @@ const runCase = async ({ name, failureAt = null, baselineHash = null, schemaVers
     };
     db.prepare = (sql, ...args) => {
       if (sql === "SELECT name FROM sqlite_master WHERE type='table'") inject('schema');
-      if (sql.startsWith('SELECT file, hash, mtimeMs, size FROM file_manifest')) inject('planner');
+      if (sql.startsWith('SELECT file, hash, mtimeMs, size, bundle_hash FROM file_manifest')) inject('planner');
       const statement = prepare(sql, ...args);
       if (sql.startsWith('UPDATE file_manifest SET hash')) {
         const run = statement.run.bind(statement);

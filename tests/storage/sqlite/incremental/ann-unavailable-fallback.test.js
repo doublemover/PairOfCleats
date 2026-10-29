@@ -9,22 +9,29 @@ import { writeSqliteIndexFormat } from '../../../../src/storage/sqlite/index-for
 import { ARTIFACT_SURFACE_VERSION } from '../../../../src/contracts/versioning.js';
 import { writeIncrementalBundleSnapshot } from '../../../../src/index/build/incremental/bundle-snapshot.js';
 import { incrementalUpdateDatabase } from '../../../../src/storage/sqlite/build/incremental-update.js';
+import { sqliteBundleIdentity } from '../../../../src/storage/sqlite/bundle-identity.js';
 
 const root = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-incremental-ann-fallback-'));
 const outPath = path.join(root, 'index.db');
+const baseline = {};
+for (const file of ['a.js', 'keep1.js', 'keep2.js', 'keep3.js']) {
+  const entry = { hash: 'old', size: 5, mtimeMs: 1 };
+  baseline[file] = { ...entry, ...await writeIncrementalBundleSnapshot({ bundleDir: root, relKey: file, entry,
+    bundles: [{ file, ...entry, chunks: [] }] }) };
+}
 const db = new Database(outPath);
 db.exec(CREATE_TABLES_BASE_SQL); db.pragma(`user_version=${SCHEMA_VERSION}`); writeSqliteIndexFormat(db);
 db.exec('CREATE TABLE dense_vectors_ann(rowid INTEGER PRIMARY KEY,embedding BLOB)');
 db.prepare('INSERT INTO dense_vectors_ann VALUES(?,?)').run(1, Buffer.from([99]));
-const insert = db.prepare('INSERT INTO file_manifest(mode,file,hash,mtimeMs,size,chunk_count) VALUES(?,?,?,?,?,?)');
-for (const name of ['a.js', 'keep1.js', 'keep2.js', 'keep3.js']) insert.run('code', name, 'old', 1, 5, 0);
+const insert = db.prepare('INSERT INTO file_manifest(mode,file,hash,mtimeMs,size,chunk_count,bundle_hash) VALUES(?,?,?,?,?,?,?)');
+for (const [file, entry] of Object.entries(baseline)) insert.run('code', file, entry.hash, entry.mtimeMs,
+  entry.size, 0, sqliteBundleIdentity(entry));
 db.close();
 try {
   const entry = { hash: 'new', size: 5, mtimeMs: 2 };
   const snapshot = await writeIncrementalBundleSnapshot({ bundleDir: root, relKey: 'a.js', entry,
     bundles: [{ file: 'a.js', hash: 'new', size: 5, chunks: [{ file: 'a.js', start: 0, end: 1, tokens: ['token'], embedding: [0.1, 0.2] }] }] });
-  const files = { 'a.js': { ...entry, ...snapshot } };
-  for (const name of ['keep1.js', 'keep2.js', 'keep3.js']) files[name] = { hash: 'old', size: 5, mtimeMs: 1, ...snapshot };
+  const files = { ...baseline, 'a.js': { ...entry, ...snapshot } };
   const run = available => incrementalUpdateDatabase({ Database, outPath, mode: 'code',
     incrementalData: { bundleDir: root, manifest: { artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION, files } },
     modelConfig: {}, vectorConfig: { enabled: true, extension: { table: 'dense_vectors_ann', column: 'embedding' },

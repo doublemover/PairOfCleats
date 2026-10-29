@@ -32,11 +32,14 @@ export const createSemanticCacheFixture = async () => {
   const createFile = async ({ file = 'input.js', text = 'f(1);', zeroChunks = false,
     nodeCount = 1, extraRows = [], analysisReason = null, analysisRows = [],
     producerHash = 'a'.repeat(64), chunks: suppliedChunks = null, fileHash = null,
-    lexiconFilterStats = null, bundleFormat = 'json', vfsManifestRows = null } = {}) => {
+    lexiconFilterStats = null, bundleFormat = 'json', vfsManifestRows = null, reuseSource = false } = {}) => {
     const bytes = Buffer.from(text);
     const source = createSemanticSourceSnapshot({ bytes, repositoryNamespace: repoRoot, path: file, language: 'javascript' }).manifest;
     await fs.mkdir(path.dirname(path.join(repoRoot, file)), { recursive: true });
-    await fs.writeFile(path.join(repoRoot, file), bytes);
+    const sourcePath = path.join(repoRoot, file);
+    if (reuseSource) {
+      if (!(await fs.readFile(sourcePath)).equals(bytes)) throw new Error('Reused semantic fixture source bytes must remain identical.');
+    } else await fs.writeFile(sourcePath, bytes);
     const partitionId = createSyntaxPartitionId({ sourceUnitId: source.sourceUnitId,
       parser: { family: 'fixture', version: '1', options: {} }, extractor: { schemaVersion: 1, version: '1' },
       structuralPolicy: { structure: 'complete' } });
