@@ -87,9 +87,25 @@ export function applyCachedResultToArtifacts({
   artifacts,
   cachedResult
 }) {
+  const sameSource = typeof artifacts.fileHash === 'string'
+    && artifacts.fileHashAlgo === 'sha1'
+    && artifacts.fileHash === cachedResult?.fileHash
+    && Buffer.isBuffer(artifacts.fileBuffer) && Buffer.isBuffer(cachedResult?.buffer)
+    && artifacts.fileBuffer.equals(cachedResult.buffer);
+  if (!sameSource) {
+    // Text and encoding describe one admitted byte snapshot. A newer hash or
+    // missing byte admission cannot inherit decoded facts from a stat-only hit.
+    artifacts.text = null;
+    artifacts.fileEncoding = null;
+    artifacts.fileEncodingFallback = null;
+    artifacts.fileEncodingFallbackClass = null;
+    artifacts.fileEncodingFallbackRisk = null;
+    artifacts.fileEncodingConfidence = null;
+    artifacts.documentExtraction = null;
+  }
   artifacts.cachedBundle = cachedResult?.cachedBundle;
   artifacts.fileHash = cachedResult?.fileHash;
-  if (artifacts.fileHash) artifacts.fileHashAlgo = 'sha1';
+  artifacts.fileHashAlgo = artifacts.fileHash ? 'sha1' : null;
   artifacts.fileBuffer = cachedResult?.buffer;
   const cachedBundle = artifacts.cachedBundle;
   if (!cachedBundle || typeof cachedBundle !== 'object') return;

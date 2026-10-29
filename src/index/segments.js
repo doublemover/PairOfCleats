@@ -153,13 +153,15 @@ export function discoverSegments({
         : segments;
     }
   }
-  if (config.cdc?.enabled && text.length >= (config.cdc.minFileBytes || 0)) {
+  if (config.cdc?.enabled) {
     const cdcSegments = buildCdcSegments({
       text,
       languageId,
       options: config.cdc
     });
-    if (cdcSegments.length) {
+    // The CDC owner applies normalized UTF-8 byte admission. Its direct-call
+    // bypass receipt must not replace discovery's ordinary below-threshold base.
+    if (cdcSegments.length && !cdcSegments[0].meta?.cdc?.bypassedByMinFileBytes) {
       return extraSegments && extraSegments.length
         ? finalizeSegments([...cdcSegments, ...extraSegments], relPath)
         : finalizeSegments(cdcSegments, relPath);

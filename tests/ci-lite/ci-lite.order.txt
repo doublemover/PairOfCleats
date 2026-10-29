@@ -1490,3 +1490,7 @@ tooling/index/clean-artifacts-multi-repository/saved-evidence
 tooling/index/clean-artifacts-multi-repository/custom-sqlite
 tooling/index/clean-artifacts-multi-repository/custom-lmdb
 tooling/index/clean-artifacts-multi-repository/selected-repository
+indexing/vfs/cdc-discovery-byte-admission
+indexing/file-processor/cached-text-source-replacement
+tooling/typescript-library-alias-preflight
+indexing/type-inference/crossfile/boxed-type-filter-parity

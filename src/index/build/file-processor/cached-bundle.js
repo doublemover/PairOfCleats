@@ -158,7 +158,9 @@ export function reuseCachedBundle({
     encodingConfidence: resolvedEncodingConfidence
   } : null;
   const fileRelations = cachedBundle.fileRelations || null;
-  if (!fileRelations && !cachedEntry?.completionKey) return { result: null, skip: null };
+  // Admitted PDF/DOCX receipts carry their complete extracted content/provenance;
+  // those producers do not emit a source-code relation graph.
+  if (!document && !fileRelations && !cachedEntry?.completionKey) return { result: null, skip: null };
   const vfsManifestRows = Array.isArray(cachedBundle.vfsManifestRows)
     ? cachedBundle.vfsManifestRows
     : null;

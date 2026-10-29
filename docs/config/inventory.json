@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-29T14:53:34.957Z",
+  "generatedAt": "2026-10-29T15:57:38.103Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
@@ -10240,6 +10240,7 @@
       "tests/indexing/tree-sitter/chunk-cache-reuse.test.js",
       "tests/indexing/tree-sitter/memory-plateau.test.js",
       "tests/indexing/tree-sitter/native-artifact-resource-lifetime.test.js",
+      "tests/indexing/vfs/cdc-discovery-byte-admission.test.js",
       "tests/lang/contracts/dockerfile-ast-boundaries.test.js",
       "tests/lang/contracts/html-registry-metadata.test.js",
       "tests/lang/contracts/jinja-django-lexical-boundaries.test.js",
@@ -10284,6 +10285,7 @@
       "tests/tooling/reports/map-graph-capability-consumer.test.js",
       "tests/tooling/reports/map-operational-render.test.js",
       "tests/tooling/signature-parse/signature-contract-matrix.test.js",
+      "tests/tooling/typescript-library-alias-preflight.test.js",
       "tests/tooling/typescript-root-preflight.test.js",
       "tests/tooling/typescript-symbolic-frontend.test.js",
       "tools/analysis/delta-risk.js",

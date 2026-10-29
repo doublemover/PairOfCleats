@@ -57,6 +57,12 @@ for (const format of ['json', 'msgpack']) {
   const first = make(), coldPdf = await process(first, 'stable.pdf'), coldDocx = await process(first, 'changing.docx');
   assert.ok(coldPdf?.manifestEntry); assert.ok(coldDocx?.manifestEntry);
   assert.equal(coldPdf.cached, false); assert.equal(coldPdf.fileInfo.extraction.fidelity.state, 'coverage_gap');
+  const priorPdf = await readCachedBundle({ repoRoot: root, enabled: true, absPath: pdfPath, relKey: 'stable.pdf',
+    fileStat: await fs.stat(pdfPath), manifest: incremental.manifest, bundleDir: incremental.bundleDir, bundleFormat: format });
+  assert.ok(priorPdf.cachedBundle, 'the actual immutable document bundle remains readable before replay');
+  assert.ok(admitDocumentExtractionReceipt({ receipt: priorPdf.cachedBundle.documentExtraction,
+    sourceHash: priorPdf.fileHash, sourceSize: (await fs.stat(pdfPath)).size,
+    admission: coldPdf.fileInfo.extraction.admission }), 'cold extraction provenance admits its own immutable replay');
   await fs.writeFile(docxPath, buildMinimalDocxBuffer(['Changed document paragraph with different bytes']));
   const restart = make(), replayed = await process(restart, 'stable.pdf'), changed = await process(restart, 'changing.docx');
   assert.equal(replayed.cached, true, 'unchanged document actually takes the early bundle-return path');

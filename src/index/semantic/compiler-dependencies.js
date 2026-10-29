@@ -209,7 +209,12 @@ export const collectCompilerDependencyInventory = async ({ repoRoot, toolingConf
         for (const item of scan.modules) if (item.resolution.resolvedModule) queue.push(item.resolution.resolvedModule.resolvedFileName);
         for (const item of scan.types) if (item.resolution.resolvedTypeReferenceDirective) queue.push(item.resolution.resolvedTypeReferenceDirective.resolvedFileName);
         for (const item of scan.referencedFiles) queue.push(path.resolve(path.dirname(origins.get(key(file)) || file), item.fileName));
-        for (const item of scan.libReferenceDirectives) addLib('lib.' + item.fileName.toLowerCase() + '.d.ts');
+        for (const item of scan.libReferenceDirectives) {
+          const name = item.fileName.toLowerCase();
+          // The installed compiler owns aliases such as esnext.float16 ->
+          // lib.es2025.float16.d.ts. Literal filenames miss the actual closure.
+          addLib(ts.libMap?.get(name) || 'lib.' + name + '.d.ts');
+        }
       }
     }
     groups.push({ configPath, options: JSON.parse(JSON.stringify(options)), rootNames, projectReferences: parsed?.projectReferences ? JSON.parse(JSON.stringify(parsed.projectReferences)) : null });
