@@ -8,16 +8,16 @@ Canonical for: initiative status, execution order, and remaining work
 ## Current GitHub repair program
 
 The [closeout review](archived/github-issue-closeout-2026-10-26.md) and later
-qualified checks closed 296 reports; three earlier GitHub closures are also reconciled. The
+qualified checks closed325 reports; three earlier GitHub closures are also reconciled. The
 [current reconciliation](archived/p2-p3-closeout-2026-10-29.md)
-leaves **471 open**: 233 qualification-pending,
+leaves **442 open**:204 qualification-pending,
 149 partial and 89 unresolved entries.
 
 The [assessment](archived/github-issue-closeout-2026-10-26.json) maps sources,
 tests and closure witnesses; [earlier receipts](archived/solo-issue-repairs-2026-10-25.md)
 retain historical evidence. Parent and two persistent agents work on Windows; hosted checks retain
 their source identities. Consumer candidate `27c2a65af` adds273 passing affected/gate cases and29
-qualified issue proofs; #1362’s backend fault matrix is complete. #1350 retains its semantic-drain
+individually verified closures; #1362’s backend fault matrix is complete. #1350 retains its semantic-drain
 timeout; #1384 retains its excluded editor component.
 
 Completed source-bound checks are indexed in the
@@ -49,7 +49,7 @@ await execution; lifecycle policy (#1267) and custom cleanup (#1574) remain.
 The [owner queue](archived/remaining-issue-batches-2026-10-26.json) orders
 implementation by severity and shared dependencies:
 
-1. [P2/P3 closeout](archived/p2-p3-closeout-2026-10-29.md): 112 targets remain; six editor issues are excluded. All 658 mapped correctness checks ran (637 pass/21 fail); focused repairs now pass. P1 #1574 remains outside this request.
+1. [P2/P3 closeout](archived/p2-p3-closeout-2026-10-29.md): 83 targets remain; six editor issues are excluded. All 658 mapped correctness checks ran (637 pass/21 fail); focused repairs now pass. P1 #1574 remains outside this request.
 2. Worker/service ownership and provider installation (#631); [compilation context and report refresh](archived/throughput-materialization-implementation-2026-10-28.md) await qualification.
 3. Language/semantic/replay and retrieval/API evidence contracts; [comment source/demand ownership](archived/comment-pipeline-implementation-2026-10-27.md)
    has 38 authored JS/TS/Rust/import cases. [Frontmatter interiors](archived/frontmatter-content-implementation-2026-10-27.md)
