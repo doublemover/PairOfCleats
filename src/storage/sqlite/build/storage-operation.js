@@ -29,30 +29,39 @@ export const isSqliteDiagnosticSettled = (error, native) => {
  * Native/child errors keep their original observers; only their actual owners
  * can settle them before explicit metadata-only reconciliation is permitted.
  */
-export const withSqliteStorageOperation = async (context, targets, action) => {
-  if (typeof action !== 'function') throw new TypeError('SQLite storage requires its operation callback.');
-  const inherited = getSqliteStorageOperation();
-  if (!context) {
-    return inherited ? inherited.use(() => { inherited.admitTargets(targets); return action(inherited); }) : action(null);
-  }
-  if (typeof context.repoRoot !== 'string' || !path.isAbsolute(context.repoRoot)
-    || !context.userConfig || typeof context.userConfig !== 'object' || Array.isArray(context.userConfig)
-    || context.env !== undefined && (!context.env || typeof context.env !== 'object' || Array.isArray(context.env))) {
-    throw new TypeError('SQLite storage requires its explicit repository, effective configuration and launch environment.');
-  }
-  const configured = context.userConfig.cache?.root || null;
-  if (configured !== null && (typeof configured !== 'string' || !path.isAbsolute(configured))) {
-    throw new TypeError('SQLite storage requires an absolute effective cache root.');
-  }
-  const env = { ...(context.env || process.env) };
-  const repoRoot = context.repoRoot;
-  const userConfig = context.userConfig;
-  const repoCacheRoot = resolveRepoCacheRootPath(repoRoot, userConfig, { getCacheRoot: () => getCacheRoot({ env }) });
-  const home = getApplicationHome({ env });
-  const configurationKey = configuredNativeStorageConfigurationKey('sqlite', userConfig);
-  if (inherited?.matches(repoCacheRoot, home, configurationKey)) {
-    return inherited.use(() => { inherited.admitTargets(targets); return action(inherited); });
-  }
+export const withSqliteStorageOperation = (context, targets, action) => {
+  try {
+    if (typeof action !== 'function') throw new TypeError('SQLite storage requires its operation callback.');
+    const inherited = getSqliteStorageOperation();
+    if (!context) {
+      return inherited ? inherited.use(() => { inherited.admitTargets(targets); return action(inherited); }) : Promise.resolve(action(null));
+    }
+    if (typeof context.repoRoot !== 'string' || !path.isAbsolute(context.repoRoot)
+      || !context.userConfig || typeof context.userConfig !== 'object' || Array.isArray(context.userConfig)
+      || context.env !== undefined && (!context.env || typeof context.env !== 'object' || Array.isArray(context.env))) {
+      throw new TypeError('SQLite storage requires its explicit repository, effective configuration and launch environment.');
+    }
+    const configured = context.userConfig.cache?.root || null;
+    if (configured !== null && (typeof configured !== 'string' || !path.isAbsolute(configured))) {
+      throw new TypeError('SQLite storage requires an absolute effective cache root.');
+    }
+    const env = { ...(context.env || process.env) };
+    const repoRoot = context.repoRoot;
+    const userConfig = context.userConfig;
+    const repoCacheRoot = resolveRepoCacheRootPath(repoRoot, userConfig, { getCacheRoot: () => getCacheRoot({ env }) });
+    const home = getApplicationHome({ env });
+    const configurationKey = configuredNativeStorageConfigurationKey('sqlite', userConfig);
+    if (inherited?.matches(repoCacheRoot, home, configurationKey)) {
+      return inherited.use(() => { inherited.admitTargets(targets); return action(inherited); });
+    }
+    return runSqliteStorageOperation({ targets, action, env, repoRoot, userConfig, repoCacheRoot, home, configurationKey });
+  } catch (error) { return Promise.reject(error); }
+};
+
+// Preserve the exact accepted-child promise at the public entry point. An async
+// forwarding wrapper would create a second, unobserved rejection for ignored
+// children even though their original operation owner already retains failure.
+const runSqliteStorageOperation = async ({ targets, action, env, repoRoot, userConfig, repoCacheRoot, home, configurationKey }) => {
   const tmpRoot = resolveCacheTempRoot({ env });
   if (tmpRoot === path.parse(tmpRoot).root) throw new Error('A volume root is not SQLite temporary storage authority.');
   const admission = acquireRepoStorageSession(repoCacheRoot, { repoRoot, userConfig, env }, { scope: 'sqlite-build-operation' });

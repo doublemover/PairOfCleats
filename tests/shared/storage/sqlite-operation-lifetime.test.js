@@ -43,6 +43,8 @@ fs.rmSync = (file, ...args) => {
 };
 try {
   if (selected === 'admission') {
+    await assert.rejects(withSqliteStorageOperation(context, [target], null), TypeError);
+    await assert.rejects(withSqliteStorageOperation({ ...context, repoRoot: 'relative' }, [target], () => {}), TypeError);
     for (const category of [cache, tmp]) {
       const held = await withExclusiveStorageAccess(category, async () => {
         await assert.rejects(withSqliteStorageOperation(context, [target], () => assert.fail('blocked operation cannot begin')),
@@ -83,10 +85,12 @@ try {
     assert.equal(db.open, false); assert.equal(await operation, 'drained'); await protection(false);
   } else if (selected === 'ignored-child-failure') {
     const primary = Object.freeze(new Error('accepted child failed before parent returned'));
-    await assert.rejects(withSqliteStorageOperation(context, [target], () => {
-      void withSqliteStorageOperation(null, [target], async () => { throw primary; });
-    }), error => error === primary);
-    await protection(false);
+    for (const childContext of [null, context]) {
+      await assert.rejects(withSqliteStorageOperation(context, [target], () => {
+        void withSqliteStorageOperation(childContext, [target], async () => { throw primary; });
+      }), error => error === primary);
+      await protection(false);
+    }
   } else if (selected === 'original-observer') {
     let originalSettled = false, reported = () => originalSettled, failure;
     const primary = Object.freeze(Object.defineProperties(new Error('original independent writer remains pending'), {
