@@ -8,7 +8,7 @@ const digest = value => typeof value === 'string' && /^[a-f0-9]{64}$/u.test(valu
 const same = (a, b) => canonicalSemanticJson(a) === canonicalSemanticJson(b);
 
 export const ASTRO_MAPPED_PROVIDER_DECLARATION = Object.freeze({ schemaVersion: 1,
-  providerId: 'astro-generated-observations', adapterVersion: '2', execution: 'report',
+  providerId: 'astro-generated-observations', adapterVersion: '3', execution: 'report',
   languages: [{ id: 'astro', dialect: null }],
   facts: [{ family: 'references', evidence: 'source-qualified' }, { family: 'diagnostics', evidence: 'provider-observation' }],
   consumers: [{ id: 'navigation', families: ['references'], partialPolicy: 'qualified', fallback: 'parser' },
@@ -60,7 +60,7 @@ export const prepareAstroMappedEvidence = ({ document, observations, producingRe
     if (seen.has(key)) seen.get(key).producerObservations++;
     else { reference.ownershipKey = key; seen.set(key, reference); references.push(reference); }
   }
-  const report = { schemaVersion: 1, kind: 'source-linked-evidence', producerId: 'astro-generated-observations', adapterVersion: '2',
+  const report = { schemaVersion: 1, kind: 'source-linked-evidence', producerId: 'astro-generated-observations', adapterVersion: '3',
     method: 'astro/generated-service-observations', evidenceKind: 'astro-generated-references', generation: document.generation,
     runtime: { family: receipt.tool.family, version: receipt.tool.version, profileHash: receipt.serviceProfileHash,
       qualification: 'captured-observations-and-application-compiler-unqualified', compilerVersion: document.runtime.version },

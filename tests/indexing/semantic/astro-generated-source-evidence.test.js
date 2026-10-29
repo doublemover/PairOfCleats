@@ -30,8 +30,8 @@ try {
   const item = f.sources.get('Page.astro');
   const document = createAstroGeneratedDocument({ item, generation: f.generation, configHash: 'a'.repeat(64), dependencyHash: 'b'.repeat(64) });
   assert.equal(document.languageId, 'typescriptreact');
-  assert.equal(document.runtime.version, '2.13.1');
-  assert.equal(document.adapterVersion, '2');
+  assert.equal(document.runtime.version, '4.0.0');
+  assert.equal(document.adapterVersion, '3');
   const strippedBoundary = document.code.indexOf('\r\n');
   assert.ok(strippedBoundary >= 0);
   assert.deepEqual(mapAstroGeneratedRange(document, [strippedBoundary, strippedBoundary + 2]),

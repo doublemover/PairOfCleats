@@ -22,7 +22,7 @@ try {
   const options = { documents: f.sources, schemaPaths: ['schema.graphql'], documentPaths: ['query.graphql'],
     generation: f.generation, configHash: 'a'.repeat(64), dependencyHash: 'b'.repeat(64), maxMs: 1000 };
   const report = collectGraphqlLinkedEvidence(options);
-  assert.equal(report.runtime.version, '16.12.0');
+  assert.equal(report.runtime.version, '17.0.2');
   assert.equal(report.coverage.schemaConstructed, true);
   assert.equal(report.coverage.remoteIntrospection, false);
   assert.equal(report.coverage.runtimeCallFlow, false);

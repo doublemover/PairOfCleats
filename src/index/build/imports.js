@@ -1,7 +1,9 @@
 import { observeStorageResource } from '../../shared/storage/failure-observation.js';
 import { attachImportExtraction, canReuseImportExtraction, createImportExtraction, getImportExtraction, importExtractionRuntimeVersions, projectImportExtraction } from '../../shared/import-extraction.js';
 import path from 'node:path';
-import { init as initEsModuleLexer, parse as parseEsModuleLexer } from 'es-module-lexer';
+// The v3 minimal entry preserves the flat specifier/offset records this bounded
+// literal-import collector owns; the full entry now returns different unions.
+import { init as initEsModuleLexer, parse as parseEsModuleLexer } from 'es-module-lexer/minimal';
 import {
   collectLanguageImportEntries,
   collectLanguageImports

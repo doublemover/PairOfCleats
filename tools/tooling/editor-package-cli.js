@@ -135,7 +135,7 @@ const PACKAGE_DESCRIPTORS = {
     manifestToolchain: () => ({
       node: process.versions.node,
       npmRequired: true,
-      packager: '@vscode/vsce@4.0.0',
+      packager: '@vscode/vsce@4.1.0',
       archive: 'vsix(zip)'
     }),
     validateSource: validateVsCodeSource

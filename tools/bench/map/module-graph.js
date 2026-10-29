@@ -1,6 +1,6 @@
 import fs from 'node:fs/promises';
 import { createHash } from 'node:crypto';
-import { init, parse } from 'es-module-lexer';
+import { init, parse } from 'es-module-lexer/minimal';
 import { resolveMapViewerAsset } from '../../analysis/map-viewer-assets.js';
 const digest = bytes => createHash('sha256').update(bytes).digest('hex');
 
@@ -21,7 +21,7 @@ const readBoundedResponse = async (response, maximum) => {
 
 /** Listener/asset smoke only. This does not claim rendered frames or FPS. */
 export const verifyMapViewerModuleGraph = async ({ url, toolRoot, fetchImpl = fetch }) => {
-  await init;
+  await init();
   const origin = new URL(url).origin;
   const signal = AbortSignal.timeout(5000);
   const htmlResponse = await fetchImpl(url, { signal });

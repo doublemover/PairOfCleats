@@ -5,14 +5,14 @@ import { throwIfAborted } from '../../shared/abort.js';
 import { finalizeSourceLinkedReport } from './source-linked-report.js';
 
 const require = createRequire(import.meta.url);
-const SUPPORTED_GRAPHQL_VERSION = '16.12.0';
+const SUPPORTED_GRAPHQL_VERSION = '17.0.2';
 const fail = message => Object.assign(new Error(message), { code: 'ERR_GRAPHQL_LINKED_EVIDENCE' });
 const digest = value => typeof value === 'string' && /^[a-f0-9]{64}$/u.test(value);
 const safePath = value => typeof value === 'string' && value && !value.includes('\\') && !value.includes(':')
   && !value.startsWith('/') && value.split('/').every(part => part && part !== '.' && part !== '..');
 
 export const GRAPHQL_LINKED_PROVIDER_DECLARATION = Object.freeze({ schemaVersion: 1,
-  providerId: 'graphql-local-schema', adapterVersion: '2', execution: 'trusted-inprocess',
+  providerId: 'graphql-local-schema', adapterVersion: '3', execution: 'trusted-inprocess',
   languages: [{ id: 'graphql', dialect: null }],
   facts: [{ family: 'references', evidence: 'source-qualified' }, { family: 'diagnostics', evidence: 'provider-observation' }],
   consumers: [{ id: 'navigation', families: ['references'], partialPolicy: 'qualified', fallback: 'parser' },
@@ -158,7 +158,7 @@ export const collectGraphqlLinkedEvidence = ({ documents, schemaPaths, documentP
     // loading is not yet bound to an observed module closure, so all evidence
     // remains qualified and never becomes complete compiler binding coverage.
   }
-  const report = { schemaVersion: 1, kind: 'source-linked-evidence', producerId: 'graphql-local-schema', adapterVersion: '2',
+  const report = { schemaVersion: 1, kind: 'source-linked-evidence', producerId: 'graphql-local-schema', adapterVersion: '3',
     method: 'graphql/local-schema', evidenceKind: 'graphql-schema-references', generation: JSON.parse(canonicalSemanticJson(generation)),
     runtime: { family: 'graphql-js', version: graphql.version, profileHash, qualification: 'application-library-unqualified' },
     project: { configHash, dependencyHash }, results: [...results.values()],

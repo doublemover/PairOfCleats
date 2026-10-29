@@ -4,19 +4,19 @@ import { downloadOfficialGitHubRelease } from './official-release-download.js';
 import { runOperationalChildWithStorage } from './operational-storage.js';
 import { resolveNoProvisionToolingEnvironment } from '../../src/shared/toolchain-env.js';
 
-// Official 0.40.4 release asset metadata, resolved on 2026-10-23:
-// https://api.github.com/repos/ast-grep/ast-grep/releases/tags/0.40.4
+// Official 0.51.0 release asset metadata, resolved on 2026-10-29:
+// https://api.github.com/repos/ast-grep/ast-grep/releases/tags/0.51.0
 // The release workflow packages both executable names at the archive root.
-// https://github.com/ast-grep/ast-grep/blob/0.40.4/.github/workflows/release.yml
-export const AST_GREP_VERSION = '0.40.4';
+// https://github.com/ast-grep/ast-grep/blob/0.51.0/.github/workflows/release.yml
+export const AST_GREP_VERSION = '0.51.0';
 const ASSETS = Object.freeze({
-  'win32-x64': ['x86_64-pc-windows-msvc', 6871227, '165f38caa9269882563a4037f76d6bf793fa8856ccd2502488666aa4899946e9'],
-  'win32-arm64': ['aarch64-pc-windows-msvc', 6584416, '35e99cb1ce93381d2aaeb43aca95789f6ec554e0eb130b4def20f398348221e9'],
-  'win32-ia32': ['i686-pc-windows-msvc', 6507058, 'cd01dfe74f35cbc04f375080f60fd76d2f06e01468d00f16bf29c8d421051908'],
-  'darwin-x64': ['x86_64-apple-darwin', 7399955, '098325df798666c226cb4b8b7a36fde9d395b272163d1a8a678f6f981e3f30c4'],
-  'darwin-arm64': ['aarch64-apple-darwin', 7364563, '727551fdca243d8982e57ab233769cfcf5946786e1f5609598f0ec8714af3afa'],
-  'linux-x64': ['x86_64-unknown-linux-gnu', 7521357, '5f598ef443e0d3f62ee086f4ea01d4448c993876f13a134982f43a6df74eaaf3'],
-  'linux-arm64': ['aarch64-unknown-linux-gnu', 7242479, '585addd6d5f50ab84c33540b4e00ee4860bd5c19c14deeb7bfa253fbea3c02ac']
+  'win32-x64': ['x86_64-pc-windows-msvc', 16249102, '1a5b7824c5925ac34257f806488e54860817cefd855fd308d13df7550d068908'],
+  'win32-arm64': ['aarch64-pc-windows-msvc', 15496895, 'fb6a4c3c6ed350d7e64eae81961bdf6b3f201c6e7c31ace8caccf8ceddff1cac'],
+  'win32-ia32': ['i686-pc-windows-msvc', 15410100, '20ee5bdbe55ec63180a808076a5095ee531f938d61c7b6466368605b61525e0e'],
+  'darwin-x64': ['x86_64-apple-darwin', 8689176, '8438fe549da59da28518c45bdaab5b851aabafe8fb4f8dc05c261a7649b4eca6'],
+  'darwin-arm64': ['aarch64-apple-darwin', 8626879, 'e18e13c27ed6c4b3ec4de00745b0755dee9dc26c035e226f4dd5d147dca99cc8'],
+  'linux-x64': ['x86_64-unknown-linux-gnu', 8857052, 'a7eead5552d3a8daad70f5d50d935da44bd0c138e946b5b0a96b1d38169fa639'],
+  'linux-arm64': ['aarch64-unknown-linux-gnu', 8511534, '73af0ebe5958acee012754a5b2826a186580ef83333092408a7a01096fc30b8b']
 });
 
 export const identifyAstGrepVersion = output => /^ast-grep (\d+\.\d+\.\d+)\s*$/u.exec(String(output || '').trim())?.[1] || null;

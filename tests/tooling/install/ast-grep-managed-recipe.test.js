@@ -14,14 +14,14 @@ import { installPinnedManagedTool, validatePinnedInstallDescriptor } from '../..
 import { detectToolOwned } from '../../../tools/tooling/owned-detect.js';
 import { resolveBinary } from '../../../src/experimental/structural/binaries.js';
 
-assert.equal(identifyAstGrepVersion('ast-grep 0.40.4\n'), '0.40.4');
-for (const output of ['sg from util-linux 2.41.0', '0.40.4', 'ast-grep 0.40.4\nextra output']) assert.equal(identifyAstGrepVersion(output), null);
+assert.equal(identifyAstGrepVersion('ast-grep 0.51.0\n'), '0.51.0');
+for (const output of ['sg from util-linux 2.41.0', '0.51.0', 'ast-grep 0.51.0\nextra output']) assert.equal(identifyAstGrepVersion(output), null);
 for (const [platform, arches] of [['win32', ['x64', 'arm64', 'ia32']], ['darwin', ['x64', 'arm64']], ['linux', ['x64', 'arm64']]]) {
   for (const arch of arches) {
     const recipe = resolveAstGrepManagedRecipe({ platform, arch, libc: 'glibc' });
     const descriptor = validatePinnedInstallDescriptor(recipe.managedDescriptor, { ...recipe, platform, arch });
-    assert.equal(descriptor.version, '0.40.4');
-    assert.match(descriptor.archive.url, /\/0\.40\.4\/app-[a-z0-9_-]+\.zip$/);
+    assert.equal(descriptor.version, '0.51.0');
+    assert.match(descriptor.archive.url, /\/0\.51\.0\/app-[a-z0-9_-]+\.zip$/);
     assert.ok(descriptor.storageEstimate.writes[0].requiredBytes > descriptor.archive.bytes + 1024 * 1024 * 1024);
   }
 }
@@ -36,14 +36,14 @@ try {
   await fs.mkdir(repo);
   const trustedFixtureCommand = process.platform === 'win32' ? 'trusted-ast-grep-fixture.cmd' : 'trusted-ast-grep-fixture';
   const input = 'console.log("pairofcleats-managed-probe")';
-  const fixtureBody = `if(process.argv.includes('--version')) console.log('ast-grep 0.40.4');
+  const fixtureBody = `if(process.argv.includes('--version')) console.log('ast-grep 0.51.0');
 else { let input=''; for await(const chunk of process.stdin) input+=chunk; console.log(JSON.stringify([{text:input}])); }\n`;
   const archive = Buffer.from('explicit trusted fixture archive, never a vendor binary');
   const recipe = resolveAstGrepManagedRecipe({ platform: process.platform, arch: process.arch, libc: 'glibc' });
   assert.ok(recipe, 'fixture platform must have a declared native archive');
   const descriptor = { ...recipe.managedDescriptor, recipeId: 'trusted-fixture-archive', command: trustedFixtureCommand,
     requiredFiles: [trustedFixtureCommand, 'fixture.mjs'], executables: [trustedFixtureCommand],
-    archive: { url: 'https://fixture.example.test/ast-grep-0.40.4.zip', type: 'zip', bytes: archive.length,
+    archive: { url: 'https://fixture.example.test/ast-grep-0.51.0.zip', type: 'zip', bytes: archive.length,
       sha256: createHash('sha256').update(archive).digest('hex') },
     storageEstimate: { complete: true, writes: [{ destination: 'artifacts', requiredBytes: 1024 * 1024 }] } };
   let downloads = 0;
@@ -73,7 +73,7 @@ else { let input=''; for await(const chunk of process.stdin) input+=chunk; conso
     const observed = await detectToolOwned(tool);
     assert.equal(observed.found, true);
     assert.equal(observed.path, first.command);
-    assert.equal(observed.probe.identity.version, '0.40.4');
+    assert.equal(observed.probe.identity.version, '0.51.0');
     const consumer = resolveBinary('ast-grep', { repoRoot: repo });
     assert.equal(consumer.command, first.command, 'structural consumer resolves the managed executable without PATH edits');
     assert.equal(consumer.requiresOwnedExecution, true);
@@ -92,7 +92,7 @@ else { let input=''; for await(const chunk of process.stdin) input+=chunk; conso
     assert.equal(rejected.ok, false);
     assert.equal(calls, 1, 'a wrong pinned version never reaches capability execution');
     const malformed = await verifyManagedAstGrep({ command: first.command, root: first.root, toolingRoot, descriptor, resourceId: 'fixture-match' }, { probe: async (_command, args, options) => {
-      if (args[0] === '--version') return { ok: true, stdout: 'ast-grep 0.40.4' };
+      if (args[0] === '--version') return { ok: true, stdout: 'ast-grep 0.51.0' };
       assert.equal(options.input, input);
       return { ok: true, stdout: '[]' };
     } });

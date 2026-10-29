@@ -7,17 +7,17 @@ import { applyPatches } from '../../../tools/setup/apply-patches.js';
 import { prepareIsolatedTestCacheDir } from '../../helpers/test-cache.js';
 
 const { dir } = await prepareIsolatedTestCacheDir('tree-sitter-patch-roundtrip');
-const name = 'tree-sitter+0.25.0.patch';
+const name = 'tree-sitter+0.25.1.patch';
 const blobs = {
-  'src/binding.cc': '0ccee9b8c5fa3fd9f1db42c33407a19a9cba1a8e',
-  'binding.gyp': 'bb40aa7e8d41644ba690761e9064fc1d0f2dcd6b',
-  'src/tree.cc': '32241baff0722023a97de9488cb153ce4356e94d',
-  'src/language.h': '9aacb813814926e664d036482d28022464499bba',
-  'src/parser.h': '4b480ba18ec83504cc644e88c22ec4dfe5cf29f3',
-  'src/query.h': 'a5d0431b25d1de20bb3f686da8e722c9c255e17f',
-  'src/tree.h': 'e086de77d58460f6db7b6f68c822357ffc8d2605',
-  'src/tree_cursor.h': '8c6d63427a95648344c1090fdfdfb18d56a9c905',
-  'vendor/tree-sitter/lib/src/query.c': '61991c2dac00c745e3680127f5ba83c177ac7bd9'
+  "binding.gyp": "786d17d814e04b6574edc70e8bd0299893c99e01",
+  "src/tree.cc": "32241baff0722023a97de9488cb153ce4356e94d",
+  "src/language.h": "9aacb813814926e664d036482d28022464499bba",
+  "src/parser.h": "4b480ba18ec83504cc644e88c22ec4dfe5cf29f3",
+  "src/query.h": "a5d0431b25d1de20bb3f686da8e722c9c255e17f",
+  "src/tree.h": "e086de77d58460f6db7b6f68c822357ffc8d2605",
+  "src/tree_cursor.h": "8c6d63427a95648344c1090fdfdfb18d56a9c905",
+  "vendor/tree-sitter/lib/src/query.c": "6c514887e0b3784d915ee982613f42157ee13458",
+  "src/binding.cc": "0ccee9b8c5fa3fd9f1db42c33407a19a9cba1a8e"
 };
 const patch = (await fs.readFile(path.join('patches', name), 'utf8')).replaceAll('\r\n', '\n');
 assert.equal(patch.match(/^diff --git /gm)?.length, Object.keys(blobs).length);

@@ -24,7 +24,7 @@ for (const field of ['dependencies', 'optionalDependencies', 'devDependencies', 
 assert.ok(manifest.dependencies['@huggingface/transformers'], 'use the maintained Transformers.js package');
 assert.equal(manifest.dependencies['@xenova/transformers'], undefined, 'do not restore the vulnerable v2 runtime');
 assert.equal(manifest.dependencies.mammoth, '1.13.0', 'the reviewed Mammoth CLI patch requires an exact package version');
-assert.equal(manifest.overrides?.mammoth?.argparse, '2.0.1', 'remove the unpatched sprintf chain through the reviewed argparse migration');
+assert.equal(manifest.overrides?.mammoth?.argparse, '3.0.4', 'remove the unpatched sprintf chain through the reviewed argparse migration');
 
 const minimumNode = semver.minVersion(manifest.engines.node);
 assert.ok(minimumNode && semver.gte(minimumNode, '24.15.0'), 'patched native dependencies require Node 24.15+');

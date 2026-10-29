@@ -130,7 +130,7 @@ export const createAstroGeneratedDocument = ({ item, generation, configHash, dep
   const check = () => { throwIfAborted(signal); if (performance.now() - started >= maxMs) throw fail('Astro transform/map time budget exhausted.'); };
   check();
   const version = require('@astrojs/compiler/package.json').version;
-  if (version !== '2.13.1') throw fail('Astro compiler version differs from this explicit adapter profile.');
+  if (version !== '4.0.0') throw fail('Astro compiler version differs from this explicit adapter profile.');
   const generated = require('@astrojs/compiler/sync').convertToTSX(item.text, {
     filename: item.source.path, normalizedFilename: item.source.path, sourcemap: 'external', includeScripts: true, includeStyles: false
   });
@@ -143,7 +143,7 @@ export const createAstroGeneratedDocument = ({ item, generation, configHash, dep
     qualified = qualifyAstroGeneratedMap({ code: generated.code, map: generated.map,
       originalText: item.text, filename: item.source.path, check });
   } finally { compilerMaps.delete(generated.map); }
-  const body = { schemaVersion: 1, kind: 'astro-generated-tooling-document', adapterVersion: '2',
+  const body = { schemaVersion: 1, kind: 'astro-generated-tooling-document', adapterVersion: '3',
     runtime: { family: '@astrojs/compiler', version, qualification: 'application-library-unqualified' },
     source: { path: item.source.path, sourceUnitId: item.source.sourceUnitId, sourceHash: item.source.byteHash,
       syntaxPartitionId: item.syntax?.partitionId, syntaxHash: item.syntax?.canonicalHash },

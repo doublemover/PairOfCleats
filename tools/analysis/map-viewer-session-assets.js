@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { init, parse } from 'es-module-lexer';
+import { init, parse } from 'es-module-lexer/minimal';
 import { resolveMapViewerAsset } from './map-viewer-assets.js';
 import { contentTypeForMapIsoPath } from './map-iso-static.js';
 import { readMapViewerAsset, assertOptionalMapAssetFailure } from './map-viewer-asset-read.js';
@@ -9,7 +9,7 @@ const digest = bytes => createHash('sha256').update(bytes).digest('hex');
 
 /** Retain one bounded immutable local module closure for this listener. */
 export const pinMapViewerAssets = async (toolRoot, threeUrl = '/three/three.module.js', { signal = null, fsImpl } = {}) => {
-  await init;
+  await init();
   const origin = 'http://127.0.0.1';
   const three = new URL(threeUrl, origin);
   if (three.origin !== origin || !resolveMapViewerAsset(toolRoot, three.pathname)) throw new Error('Preview --three-url must resolve to a supported local asset route.');

@@ -19,3 +19,16 @@ index 273b5957b4992f4625a799a98454b9a65e144b7a..4800d8f617df3aea6cc69c90a6e26819
        // Arguments have to be manually quoted
        exec = `"${exec}"`
        args = args.map(a => `"${a}"`)
+diff --git a/node_modules/node-gyp/lib/create-config-gypi.js b/node_modules/node-gyp/lib/create-config-gypi.js
+index d471da516..01ff17c78 100644
+--- a/node_modules/node-gyp/lib/create-config-gypi.js
++++ b/node_modules/node-gyp/lib/create-config-gypi.js
+@@ -104,4 +104,8 @@ async function getCurrentConfigGypi ({ gyp, nodeDir, vsInfo, python }) {
+     // addons built with the default MSVC toolchain, which rejects those flags
+     variables.enable_lto = 'false'
+     variables.enable_thin_lto = 'false'
++    // Node executable PGO profiles are not profiles for independently built addons.
++    // MSVC cannot consume Node's clang-only -fprofile-use linker/compiler flags.
++    variables.enable_pgo_use = 'false'
++    variables.enable_pgo_generate = 'false'
+   }

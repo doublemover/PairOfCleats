@@ -32,7 +32,7 @@ try {
       return held;
     },
     spawn: async (_command, args, options) => {
-      options.onSpawn(); return { exitCode: 0, stdout: args.includes('--version') ? 'ast-grep 0.40.4' : '[]' };
+      options.onSpawn(); return { exitCode: 0, stdout: args.includes('--version') ? 'ast-grep 0.51.0' : '[]' };
     }
   };
   const inspect = () => inspectStorageAccess(toolingRoot, { coordinationRoot });
@@ -98,7 +98,7 @@ try {
     ...dependencies, spawn: async (actual, args, options) => {
       assert.equal(actual, command); options.onSpawn();
       if (!args.includes('--version')) { spawnedRules++; await fs.writeFile(command, 'different bytes during a successful inert rule'); }
-      return { exitCode: 0, stdout: args.includes('--version') ? 'ast-grep 0.40.4' : '[]' };
+      return { exitCode: 0, stdout: args.includes('--version') ? 'ast-grep 0.51.0' : '[]' };
     }
   }), { code: 'ERR_STRUCTURAL_EXECUTABLE_CHANGED' });
   assert.equal(spawnedRules, 1);
@@ -111,7 +111,7 @@ try {
       scope = value; rulePromise = value.run(['scan']);
     }, { ...dependencies, spawn: async (_command, args, options) => {
       options.onSpawn(); if (!args.includes('--version')) await permitted;
-      return { exitCode: 0, stdout: args.includes('--version') ? 'ast-grep 0.40.4' : '[]' };
+      return { exitCode: 0, stdout: args.includes('--version') ? 'ast-grep 0.51.0' : '[]' };
     } });
   } catch (error) { failure = error; }
   assert.equal(failure.code, 'ERR_STRUCTURAL_PENDING');

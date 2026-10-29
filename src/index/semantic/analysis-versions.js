@@ -10,12 +10,12 @@ import { JAVASCRIPT_RELATIONS_VERSION } from '../../lang/javascript/version.js';
  */
 export const SEMANTIC_ANALYSIS_VERSIONS = Object.freeze({
   moduleExports: MODULE_EXPORTS_VERSION, sqlRelations: SQL_RELATION_PRODUCER_VERSION, javascriptRelations: JAVASCRIPT_RELATIONS_VERSION, flowMetadata: FLOW_METADATA_VERSION, sourceOutline: SOURCE_OUTLINE_VERSION,
-  lexicalAnalyzer: '5', importResolution: '23', pieceAssembly: '4',
-  recordsProducer: '11', ignoreRules: '4', documentExtraction: '5', discoverySelection: '5',
+  lexicalAnalyzer: '5', importResolution: '24', pieceAssembly: '4',
+  recordsProducer: '11', ignoreRules: '4', documentExtraction: '6', discoverySelection: '5',
   repoMapProducer: '2', graphRelations: '3',
-  sourceChunking: '41', typeNormalization: '15', vfsRouting: '7', complexityAnalysis: '2', lintProjection: '3',
+  sourceChunking: '42', typeNormalization: '15', vfsRouting: '7', complexityAnalysis: '3', lintProjection: '3',
   riskPropagation: '7', callSiteIdentity: '3',
-  compilerBindings: '28', lspBindings: '65', cfgFlow: '32', callFlow: '51',
+  compilerBindings: '29', lspBindings: '66', cfgFlow: '32', callFlow: '51',
   valueSlice: '10', storageFlow: '2', workerFlow: '11', boundaryFlow: '12', wasmStructure: '1', wasmFlow: '7', nativeFlow: '3'
 });
 // Static WASM validation is supplied by this runtime, so derived replay must

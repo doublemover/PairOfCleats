@@ -1,26 +1,16 @@
 diff --git a/node_modules/tree-sitter/binding.gyp b/node_modules/tree-sitter/binding.gyp
-index bb40aa7e8..fe414afd1 100644
+index 786d17d81..8c64b6d75 100644
 --- a/node_modules/tree-sitter/binding.gyp
 +++ b/node_modules/tree-sitter/binding.gyp
-@@ -25,5 +25,7 @@
+@@ -23,6 +23,8 @@
+       ],
+       "defines": [
          "NAPI_VERSION=<(napi_build_version)",
 +        # Worker termination cannot deliver a JS exception to its closing environment.
 +        "NODE_API_SWALLOW_UNTHROWABLE_EXCEPTIONS",
        ],
-       "cflags_cc": [
--        "-std=c++17"
-+        "-std=c++20"
-       ],
-@@ -33,3 +35,3 @@
-             "GCC_SYMBOLS_PRIVATE_EXTERN": "YES", # -fvisibility=hidden
--            "CLANG_CXX_LANGUAGE_STANDARD": "c++17",
-+            "CLANG_CXX_LANGUAGE_STANDARD": "c++20",
-             "MACOSX_DEPLOYMENT_TARGET": "10.9",
-@@ -41,3 +43,3 @@
-               "AdditionalOptions": [
--                "/std:c++17",
-+                "/std:c++20",
-               ],
+       "conditions": [
+         ["OS=='mac'", {
 diff --git a/node_modules/tree-sitter/src/tree.cc b/node_modules/tree-sitter/src/tree.cc
 index 32241baff..391edb9b6 100644
 --- a/node_modules/tree-sitter/src/tree.cc
@@ -89,10 +79,10 @@ index 8c6d63427..5a5fad4e2 100644
 +
  namespace node_tree_sitter {
 diff --git a/node_modules/tree-sitter/vendor/tree-sitter/lib/src/query.c b/node_modules/tree-sitter/vendor/tree-sitter/lib/src/query.c
-index 61991c2da..f894a6483 100644
+index 6c514887e..a41440ef6 100644
 --- a/node_modules/tree-sitter/vendor/tree-sitter/lib/src/query.c
 +++ b/node_modules/tree-sitter/vendor/tree-sitter/lib/src/query.c
-@@ -3559,3 +3559,3 @@
+@@ -3554,3 +3554,3 @@
        next_step->depth != PATTERN_DONE_MARKER &&
 -      state->start_depth + next_step->depth > self->depth
 +      (uint32_t)state->start_depth + next_step->depth > self->depth

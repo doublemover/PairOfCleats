@@ -26,7 +26,7 @@ const dependencies = {
     assert.equal(pinned, true, 'identity probes and rule children must both hold exact installation');
     assert.equal(options.timeoutMs, attempts++ === 0 ? 5000 : undefined, 'rules have no implicit five second deadline');
     options.onSpawn();
-    return { exitCode: 0, stdout: args.includes('--version') ? 'ast-grep 0.40.4' : '[]', stderr: '' };
+    return { exitCode: 0, stdout: args.includes('--version') ? 'ast-grep 0.51.0' : '[]', stderr: '' };
   }
 };
 await withStructuralBinary('ast-grep', { repoRoot: process.cwd() }, async scope => {
@@ -46,7 +46,7 @@ const primary = Object.assign(new Error('fixture child did not close'), {
 await assert.rejects(withStructuralBinary('ast-grep', { repoRoot: process.cwd() }, async scope => scope.run(['scan']), {
   ...dependencies, spawn: async (_command, args, options) => {
     options.onSpawn();
-    if (args.includes('--version')) return { exitCode: 0, stdout: 'ast-grep 0.40.4' };
+    if (args.includes('--version')) return { exitCode: 0, stdout: 'ast-grep 0.51.0' };
     throw primary;
   }
 }), error => error === primary);
@@ -61,7 +61,7 @@ const cancelled = new AbortController();
 await assert.rejects(withStructuralBinary('ast-grep', { repoRoot: process.cwd(), signal: cancelled.signal }, async scope => {
   cancelled.abort(new Error('fixture cancelled before rule spawn'));
   return scope.run(['scan']);
-}, { ...dependencies, spawn: async (_command, _args, options) => { options.onSpawn(); return { exitCode: 0, stdout: 'ast-grep 0.40.4' }; } }), /fixture cancelled/);
+}, { ...dependencies, spawn: async (_command, _args, options) => { options.onSpawn(); return { exitCode: 0, stdout: 'ast-grep 0.51.0' }; } }), /fixture cancelled/);
 assert.equal(pinned, false, 'prelaunch cancellation releases a settled identity probe');
 
 await assert.rejects(runStructuralSearch({ repoRoot: process.cwd(), packsToRun: [{ engine: 'semgrep', rules: ['inert'] }] },
