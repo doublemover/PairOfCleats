@@ -65,6 +65,16 @@ const assertNodePinned = ({ workflowText, label }) => {
     console.error(`${label} node_modules cache keys must match Node ${pinnedNodeVersion}.`);
     process.exit(1);
   }
+  for (const [jobName, job] of Object.entries(parse(workflowText).jobs || {})) {
+    for (const step of job.steps || []) {
+      if (step.id !== 'node-modules-cache') continue;
+      const paths = String(step.with?.path || '').split(/\r?\n/u).map(value => value.trim());
+      assert.ok(paths.includes('node_modules') && paths.includes('.cache/native-build/headers'),
+        `${label} ${jobName}: cached native build projects must retain their selected import-library inputs`);
+      assert.ok(String(step.with?.key).includes('-headers-v1-'),
+        `${label} ${jobName}: incomplete historical dependency caches require a distinct key`);
+    }
+  }
 };
 
 const assertHiddenArtifactUploadsConfigured = ({ workflowText, label }) => {
