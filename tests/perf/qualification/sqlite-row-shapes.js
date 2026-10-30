@@ -6,7 +6,7 @@ import { runQualificationCapsule } from '../../../tools/bench/qualification-caps
 import { atomicWriteJson } from '../../../src/shared/io/atomic-write.js';
 import { createSqliteBenchWorkspace } from '../../../tools/bench/sqlite/shared.js';
 import { sqliteTrialArmOrder } from '../../../tools/bench/sqlite/campaign.js';
-import { SQLITE_ROW_QUALIFICATION_SHAPES } from '../../../tools/bench/sqlite/qualification-plan.js';
+import { selectSqliteRowQualification } from '../../../tools/bench/sqlite/qualification-plan.js';
 import { captureSweepSource } from '../../../tools/bench/ab-sweep-source.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 import { admitSqliteBenchmarkPhaseDiagnostics } from '../../../tools/bench/sqlite/phase-diagnostics.js';
@@ -15,6 +15,7 @@ import { admitSqliteBenchmarkPhaseDiagnostics } from '../../../tools/bench/sqlit
 // separately bounded30s capsule. No aggregate-duration or speedup PASS is emitted.
 await requireBootstrap(); applyTestEnv();
 if (!process.argv[2]) throw new Error('Explicit receipt directory is required.');
+const selection = selectSqliteRowQualification(process.argv[3] || 'all');
 const output = path.resolve(process.argv[2]); await fs.mkdir(output, { recursive: false });
 const source = captureSweepSource(process.cwd());
 assert.equal(source.state, 'clean-revision', 'Qualification requires a committed, clean source identity.');
@@ -41,32 +42,31 @@ const run = async request => {
   observations.push(capsule); console.log(JSON.stringify({ capsule: observations.length, ...request, capsuleMs: result.durationMs }));
   return report;
 };
-for (const shape of SQLITE_ROW_QUALIFICATION_SHAPES) {
+for (const shape of selection.shapes) {
   const prepared = await run({ command: 'prepare', shape }); captures.set(shape, prepared);
   if (!seeds.has(prepared.initialManifestSha256)) {
     await run({ command: 'seed', shape, capture: prepared.descriptor }); seeds.add(prepared.initialManifestSha256);
   }
 }
-assert.equal(captures.get('large-low').initialManifestSha256, captures.get('large-high').initialManifestSha256);
-for (let trial = 1; trial <= 6; trial++) {
-  for (const shape of trial % 2 ? SQLITE_ROW_QUALIFICATION_SHAPES : [...SQLITE_ROW_QUALIFICATION_SHAPES].reverse()) {
-    for (const operation of shape === 'large-high' ? ['update'] : ['build', 'update']) {
-      const arms = [];
-      for (const label of sqliteTrialArmOrder('compare', trial - 1)) arms.push(await run({ command: 'arm', shape, operation, trial, label,
-        capture: captures.get(shape).descriptor }));
-      const baseline = arms.find(row => row.label === 'baseline'), current = arms.find(row => row.label === 'current');
-      assert.equal(baseline.status, 'completed'); assert.equal(current.status, 'completed');
-      assert.equal(baseline.samples.length, current.samples.length);
-      for (let round = 0; round < baseline.samples.length; round++) {
-        assert.deepEqual(baseline.samples[round].observation, current.samples[round].observation);
-        assert.equal(baseline.samples[round].manifestSha256, current.samples[round].manifestSha256);
-      }
-    }
+if (captures.has('large-low')) assert.equal(captures.get('large-low').initialManifestSha256, captures.get('large-high').initialManifestSha256);
+for (const { shape, operation, trial } of selection.pairs) {
+  const arms = [];
+  for (const label of sqliteTrialArmOrder('compare', trial - 1)) arms.push(await run({ command: 'arm', shape, operation, trial, label,
+    capture: captures.get(shape).descriptor }));
+  const baseline = arms.find(row => row.label === 'baseline'), current = arms.find(row => row.label === 'current');
+  assert.equal(baseline.status, 'completed'); assert.equal(current.status, 'completed');
+  assert.equal(baseline.samples.length, current.samples.length);
+  for (let round = 0; round < baseline.samples.length; round++) {
+    assert.deepEqual(baseline.samples[round].observation, current.samples[round].observation);
+    assert.equal(baseline.samples[round].manifestSha256, current.samples[round].manifestSha256);
   }
 }
+assert.equal(observations.length, selection.shapes.length + seeds.size + 2 * selection.pairs.length);
 assert.deepEqual(captureSweepSource(process.cwd()), source);
 const generatedWork = await workspace.workOwner.reclaim();
 await atomicWriteJson(path.join(output, 'final.json'), { historicalAuthorWorkspace: true, source,
+  selection,
   qualification: 'actual repeated native work/content observations;OS-cache-uncontrolled;no latency-gain claim',
-  trialsPerShapeAndArm: 6, roundsPerUpdateArm: 3, largeHighBuildCoverage: 'identical admitted initial manifest to large-low',
+  trialsPerShapeAndArm: 6, roundsPerUpdateArm: 3,
+  largeHighBuildCoverage: captures.has('large-low') ? 'identical admitted initial manifest to large-low' : 'outside-selected-cohort',
   generatedWork, observations }, { createOnly: true });
