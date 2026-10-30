@@ -5,9 +5,9 @@ import { extractSignature } from '../../../src/lang/tree-sitter/chunking.js';
 
 let nextId = 0;
 const counts = { children: 0, parents: 0, fields: 0, extents: 0 };
-const node = ({ type = 'wrapper', start = 0, end = 1, children = [], name = null, parent = null, declared = null } = {}) => {
+const node = ({ type = 'wrapper', start = 0, end = 1, children = [], name = null, parent = null, declared = null, id = nextId++ } = {}) => {
   let enclosing = parent;
-  const result = { id: nextId++, type, startIndex: start, endIndex: end,
+  const result = { ...(id === null ? {} : { id }), type, startIndex: start, endIndex: end,
     get parent() { counts.parents++; return enclosing; },
     get namedChildCount() { counts.extents++; return declared ?? children.length; },
     get childCount() { counts.extents++; return declared ?? children.length; },
@@ -57,6 +57,42 @@ reset();
   fails(() => names.name(node({ declared: 129 })), 'nameSearchMaxNodes');
   assert.equal(counts.children, 0, 'local name admission precedes every child wrapper');
   assert.equal(work.snapshot().frontier, 0, 'failed name scope returns all frontier reservations');
+}
+{
+  // Native APIs may return distinct JS wrappers for one semantic node. The
+  // owner key includes its native ID/type/span, rather than wrapper identity.
+  reset(); const text = 'alpha beta';
+  const first = node({ type: 'function', start: 0, end: 5, id: 900,
+    name: node({ type: 'identifier', start: 0, end: 5 }) });
+  const second = node({ type: 'function', start: 0, end: 5, id: 900,
+    name: node({ type: 'identifier', start: 0, end: 5 }) });
+  assert.notEqual(first, second);
+  const work = createNativeProjectionWork(budget()), names = createNativeProjectionNames({ text, config: config(), work });
+  assert.equal(names.name(first), 'alpha'); const after = { ...counts };
+  assert.equal(names.name(second), 'alpha'); assert.deepEqual(counts, after);
+  assert.equal(work.snapshot().nameCacheHits, 1);
+  const distinctSpan = node({ type: 'function', start: 6, end: 10, id: 900,
+    name: node({ type: 'identifier', start: 6, end: 10 }) });
+  assert.equal(names.name(distinctSpan), 'beta', 'native ID alone cannot alias a different semantic extent');
+  assert.equal(work.snapshot().frontier, 0);
+}
+{
+  // Missing name fields fall through to actual identifier/BFS discovery. A
+  // missing native ID uses the owner's type/span key; distinct spans cannot
+  // alias, while equivalent wrappers reuse precisely the same result.
+  reset(); const text = 'alpha beta';
+  const fallback = (start, end) => node({ type: 'function', start, end, id: null,
+    children: [node({ type: 'identifier', start, end, id: null })] });
+  const work = createNativeProjectionWork(budget()), names = createNativeProjectionNames({ text, config: config(), work });
+  assert.equal(names.name(fallback(0, 5)), 'alpha'); const after = { ...counts };
+  assert.equal(names.name(fallback(0, 5)), 'alpha'); assert.deepEqual(counts, after);
+  assert.equal(names.name(fallback(6, 10)), 'beta');
+  assert.equal(counts.children, 2); assert.equal(counts.fields, 2);
+  assert.equal(work.snapshot().nameCacheHits, 1); assert.equal(work.snapshot().frontier, 0);
+  const interrupted = createNativeProjectionWork(budget({ maxAstNodes: 1 }));
+  const limited = createNativeProjectionNames({ text, config: config(), work: interrupted });
+  fails(() => limited.name(fallback(0, 5)), 'maxAstNodes');
+  assert.equal(interrupted.snapshot().frontier, 0, 'fallback exhaustion is a failure, never a cached empty name');
 }
 {
   reset(); const leaf = node({ type: 'identifier' }), middle = node({ children: [leaf] }), root = node({ children: [middle] });
