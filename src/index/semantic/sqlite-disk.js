@@ -26,7 +26,7 @@ export const semanticSqliteTransaction = ({ db, filename, diskAccount }) => fn =
       return fn();
     }).immediate();
   } catch (error) {
-    if (error.code === 'SQLITE_FULL') throw Object.assign(new Error('Semantic control transaction exceeds disk allowance.'), { code: 'ERR_SEMANTIC_DISK_LIMIT', cause: error });
+    if (error?.code === 'SQLITE_FULL') throw Object.assign(new Error('Semantic control transaction exceeds disk allowance.'), { code: 'ERR_SEMANTIC_DISK_LIMIT', cause: error });
     throw error;
   } finally {
     if (allowance) {

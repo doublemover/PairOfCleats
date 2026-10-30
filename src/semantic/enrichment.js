@@ -17,7 +17,7 @@ import { reconcilePublishedSemanticBindingWork, openRepositorySemanticControl } 
 import { createSemanticEnrichmentGrant } from '../index/semantic/enrichment-context.js';
 import { captureEnrichmentAuthority } from './enrichment-authority.js';
 import { addStorageFailureContext } from '../shared/storage/operation-error.js';
-import { observeStorageResource } from '../shared/storage/failure-observation.js';
+import { describeStorageFailure, observeStorageResource } from '../shared/storage/failure-observation.js';
 import { createEnrichmentWorkScopes, recordCompilerReuseScopes, recordPublishedWorkScopes, trimEnrichmentWorkScopes } from './enrichment-scopes.js';
 import { isWithinRoot, toRealPathSync } from '../workspace/identity.js';
 import { createEnrichmentBudget, enrichmentError, enrichmentSame, openEnrichmentInventory,
@@ -41,7 +41,7 @@ const readJournal = async filename => {
   try {
     if ((await fs.stat(filename)).size > 1024 * 1024) throw enrichmentError('Enrichment recovery journal exceeds its allowance.');
     return assertSemanticEnrichment('journal', JSON.parse(await fs.readFile(filename, 'utf8')));
-  } catch (error) { if (error.code === 'ENOENT') return null; throw error; }
+  } catch (error) { if (error?.code === 'ENOENT') return null; throw error; }
 };
 
 /** Shared plan-only default; enqueue mutates only the dedicated control store; drain uses normal whole-generation publication. */
@@ -271,7 +271,6 @@ export const runSemanticEnrichmentService = async ({ request, userConfig, signal
     primaryFailurePresent = true;
     primaryFailure = error;
     if (journal) {
-      journal.failure = error.code || error.message;
       journal.status = 'failed';
       try {
         const committed = await readEnrichmentCurrent({ repoRoot, userConfig });
@@ -282,6 +281,12 @@ export const runSemanticEnrichmentService = async ({ request, userConfig, signal
       }
       try {
         observeStorageResource(primaryFailure, { phase: 'semantic-drain-terminal-journal' }).requireSettled();
+        const failure = describeStorageFailure(primaryFailure, { phase: 'semantic-drain-terminal-journal',
+          defaultCode: '', defaultMessage: 'Semantic enrichment failed.' });
+        const message = failure.code || failure.message || 'Semantic enrichment failed.';
+        let end = Math.min(message.length, 4096);
+        if (end < message.length && /[\uD800-\uDBFF]/u.test(message[end - 1]) && /[\uDC00-\uDFFF]/u.test(message[end])) end--;
+        journal.failure = message.slice(0, end);
         await writeJournal({ terminal: true });
       } catch (cleanup) { primaryFailure = addStorageFailureContext(primaryFailure, {}, cleanup, { secondaryPresent: true }); }
     }
@@ -289,17 +294,21 @@ export const runSemanticEnrichmentService = async ({ request, userConfig, signal
   } finally {
     if (renewal) clearInterval(renewal); if (deadline) clearTimeout(deadline);
     signal?.removeEventListener('abort', abort);
-    let cleanupFailure = null;
+    let cleanupFailure, cleanupFailed = false;
+    const retainCleanup = error => {
+      cleanupFailure = cleanupFailed ? addStorageFailureContext(cleanupFailure, {}, error, { secondaryPresent: true }) : error;
+      cleanupFailed = true;
+    };
     for (const [taskId, lease] of leases) {
       try {
         const row = control.getTask(taskId);
         if (row?.state === 'leased' && row.leaseOwner === owner && row.leaseUntil > Date.now()) {
           control.release({ taskId, owner, attempt: lease.attempt, reason: 'manual_drain_not_acknowledged', transient: true });
         }
-      } catch (error) { if (error.code !== 'ERR_SEMANTIC_LEASE_LOST') cleanupFailure ||= error; }
+      } catch (error) { if (error?.code !== 'ERR_SEMANTIC_LEASE_LOST') retainCleanup(error); }
     }
-    try { control.close(); } catch (error) { cleanupFailure ||= error; }
-    if (cleanupFailure) throw primaryFailurePresent
+    try { control.close(); } catch (error) { retainCleanup(error); }
+    if (cleanupFailed) throw primaryFailurePresent
       ? addStorageFailureContext(primaryFailure, {}, cleanupFailure, { secondaryPresent: true }) : cleanupFailure;
   }
 };
