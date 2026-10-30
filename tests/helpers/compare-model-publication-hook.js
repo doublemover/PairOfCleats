@@ -75,6 +75,7 @@ if(path.basename(process.argv[1]||'')==='compare-models.js') {
     if(result.status===0&&plan.generationEvidence) {
       const actual=JSON.parse(String(result.stdout));
       fs.appendFileSync(owned(plan.generationEvidence),JSON.stringify({model,number,
+        cache:actual.retrieval.cache,
         generations:Object.fromEntries(Object.entries(actual.retrieval.freshness.byMode).map(([mode,value])=>[mode,
           {generationKey:value.generationKey,buildId:value.buildId,activeBuildRoot:value.activeBuildRoot}]))})+'\n');
     }

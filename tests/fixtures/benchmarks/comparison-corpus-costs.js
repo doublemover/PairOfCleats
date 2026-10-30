@@ -98,8 +98,29 @@ export const runScenario = async ({ destination, shape }) => {
         assert.equal(retained.digest, sha256(JSON.stringify(canonical)));
       }
       assert.equal(execution.observations, queryCount); assert.equal(execution.omittedReceipts, 0);
-      assert.equal(execution.receipts.length, expectedCount);
-      perModel.push({ model, distinctGenerations: expectedCount, registry, execution, originalChunkDescriptors: physical,
+      // Corpus admission interns immutable generations. Execution admission
+      // also preserves observed cache policy/state, so a cold miss and later
+      // disk-cache hits legitimately retain different execution receipts.
+      const executionClasses = new Map(), seenGenerations = new Set();
+      for (const observation of generations.filter(row => row.model === model)) {
+        const generation = observation.generations.code, { hit, strategy, memoryHotPath } = observation.cache;
+        const cache = { hit, strategy, memoryHotPath };
+        assert.equal(hit, seenGenerations.has(generation.generationKey), 'fresh owner has one cold query per actual generation');
+        assert.equal(strategy, 'disk-first'); assert.equal(memoryHotPath, false);
+        seenGenerations.add(generation.generationKey);
+        const ref = report.results[observation.number - 1].runs[model].admission.execution;
+        assert(Number.isSafeInteger(ref) && ref >= 0);
+        const retained = execution.receipts[ref]; assert(retained);
+        assert.deepEqual(retained.receipt.cache, cache);
+        for (const field of ['buildId', 'generationKey', 'activeBuildRoot']) assert.equal(retained.receipt.generations.code[field], generation[field]);
+        const key = JSON.stringify([generation.generationKey, hit, strategy, memoryHotPath]);
+        if (!executionClasses.has(key)) executionClasses.set(key, { generation, cache, ref, queryNumbers: [] });
+        const group = executionClasses.get(key); assert.equal(group.ref, ref); group.queryNumbers.push(observation.number);
+      }
+      assert.equal(seenGenerations.size, expectedCount);
+      assert.equal(execution.receipts.length, executionClasses.size, 'exactly the independently observed generation/cache classes are interned');
+      for (const group of executionClasses.values()) assert.equal(execution.receipts[group.ref].observations, group.queryNumbers.length);
+      perModel.push({ model, distinctGenerations: expectedCount, registry, execution, executionClasses: [...executionClasses.values()], originalChunkDescriptors: physical,
         originalChunkReadBytes: physical.reduce((sum, row) => sum + row.bytes, 0),
         queryWallMs: report.results.map(row => row.runs[model].wallMs) });
     }
