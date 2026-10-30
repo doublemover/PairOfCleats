@@ -99,7 +99,10 @@ export const rebuildSqliteFilterFacts = async (db, mode, { signal = null } = {})
   db.prepare('DELETE FROM chunk_filter_facts_meta WHERE mode=?').run(mode);
   db.prepare('DELETE FROM chunk_filter_facts WHERE mode=?').run(mode);
   let rows = 0;
-  const select = db.prepare(`SELECT id,chunk_id,mode,file,ext,kind,metaV2_json FROM chunks
+  // The (mode,file,id) index cannot supply global id order. Letting its mode
+  // prefix win here repeatedly sorts the remaining mode for every128 rows.
+  // NOT INDEXED retains the INTEGER PRIMARY KEY range seek and exact predicate.
+  const select = db.prepare(`SELECT id,chunk_id,mode,file,ext,kind,metaV2_json FROM chunks NOT INDEXED
     WHERE mode=? AND id>? ORDER BY id LIMIT 128`);
   let lastId = -1;
   while (true) {

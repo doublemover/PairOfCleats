@@ -7,6 +7,12 @@ Full artifact/bundle builders and compaction rebuild normalized facts in bounded
 chunk insert/update/delete triggers revoke seals before a later mutation can be
 mistaken for a complete index. A legacy database missing facts remains readable.
 
+Reconstruction explicitly follows the integer primary-key range for its global
+ID cursor. The file-oriented `(mode,file,id)` index cannot supply that ordering;
+using its mode prefix would repeatedly sort the remaining mode for each page.
+Mode filtering, facts, seal checks, batch size and cancellation remain unchanged.
+This access-path repair changes no schema, producer identity or stored meaning.
+
 Cold filter enumeration can count and page language, extension, kind and literal
 file predicates without decoding every chunk's metadata. Normalization shares
 the canonical filter owners, including JavaScript Unicode lowercasing and path
