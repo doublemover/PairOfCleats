@@ -39,6 +39,8 @@ export const TEST_COVERAGE_ARTIFACT_SCHEMA = {
     runId: { type: 'string' },
     pathPolicy: { type: 'string', const: 'repo-relative-posix' },
     kind: { type: 'string', const: 'v8-range-summary' },
+    sourceIdentityVersion: { type: 'integer', const: 1 },
+    sourcePlatform: { type: 'string', minLength: 1 },
     summary: {
       type: 'object',
       additionalProperties: false,

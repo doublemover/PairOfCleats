@@ -18,7 +18,8 @@ try {
   git(['add', '.']); git(['commit', '-m', 'change']); const headRef = git(['rev-parse', 'HEAD']);
   const observed = { path: 'src/retrieval/covered.js', coveredRanges: 10, totalRanges: 10 };
   const make = entries => buildCoveragePolicyReport({ root, baseRef, headRef,
-    coverageArtifact: { entries, exclusions: [{ path: 'src/retrieval/excluded.js', reason: 'fixture-declared-exclusion' }] } });
+    coverageArtifact: { sourceIdentityVersion: 1, sourcePlatform: process.platform,
+      entries, exclusions: [{ path: 'src/retrieval/excluded.js', reason: 'fixture-declared-exclusion' }] } });
   const partial = make([observed]);
   assert.equal(partial.changedFiles.summary.coverageFraction, 1);
   assert.equal(partial.changedFiles.measurement.status, 'partial');

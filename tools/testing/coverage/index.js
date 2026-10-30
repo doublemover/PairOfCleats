@@ -1,27 +1,10 @@
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
-import { normalizePathForRepo } from '../../../src/shared/path-normalize.js';
 import { toPosix } from '../../../src/shared/file-paths.js';
 import { writeJsonFileResolved } from '../../../src/shared/json-file.js';
-
-const normalizeCoveragePath = (urlOrPath, root) => {
-  if (!urlOrPath) return null;
-  const raw = String(urlOrPath);
-  if (raw.startsWith('node:')) return null;
-  if (raw.startsWith('internal/')) return null;
-  if (raw.startsWith('file://')) {
-    try {
-      const filePath = fileURLToPath(raw);
-      return normalizePathForRepo(filePath, root, { stripDot: true });
-    } catch {
-      return null;
-    }
-  }
-  return normalizePathForRepo(raw, root, { stripDot: true });
-};
+import { normalizeCoverageSourcePath, assertCoverageSourceIdentity, COVERAGE_SOURCE_IDENTITY_VERSION } from './source-identity.js';
 
 const toRounded = (value) => {
   const numeric = Number(value);
@@ -83,7 +66,7 @@ export const collectV8CoverageEntries = async ({ root, coverageDir }) => {
     if (!payload) continue;
     const rows = Array.isArray(payload?.result) ? payload.result : [];
     for (const row of rows) {
-      const normalizedPath = normalizeCoveragePath(row?.url, root);
+      const normalizedPath = normalizeCoverageSourcePath(row?.url, root);
       if (!normalizedPath) continue;
       const existing = byPath.get(normalizedPath) || new Map();
       for (const range of iterFunctionRanges(row?.functions)) {
@@ -102,7 +85,7 @@ export const collectV8CoverageEntries = async ({ root, coverageDir }) => {
         if (covered === true) coveredRanges += 1;
       }
       return {
-        path: toPosix(entryPath),
+        path: entryPath,
         coveredRanges: toRounded(coveredRanges),
         totalRanges: toRounded(totalRanges)
       };
@@ -123,9 +106,10 @@ export const collectV8CoverageEntries = async ({ root, coverageDir }) => {
 export const mergeCoverageEntries = (coverageArtifacts) => {
   const byPath = new Map();
   for (const artifact of Array.isArray(coverageArtifacts) ? coverageArtifacts : []) {
+    assertCoverageSourceIdentity(artifact);
     const entries = Array.isArray(artifact?.entries) ? artifact.entries : [];
     for (const entry of entries) {
-      const key = toPosix(entry?.path || '');
+      const key = typeof entry?.path === 'string' ? entry.path : '';
       if (!key) continue;
       const existing = byPath.get(key) || { coveredRanges: 0, totalRanges: 0 };
       const totalRanges = Math.max(0, Number(entry?.totalRanges || 0));
@@ -223,6 +207,8 @@ export const buildCoverageArtifact = ({ runId, entries }) => {
     generatedAt: new Date().toISOString(),
     runId,
     pathPolicy: 'repo-relative-posix',
+    sourceIdentityVersion: COVERAGE_SOURCE_IDENTITY_VERSION,
+    sourcePlatform: process.platform,
     kind: 'v8-range-summary',
     summary,
     entries: sortedEntries

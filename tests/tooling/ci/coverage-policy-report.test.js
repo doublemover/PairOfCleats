@@ -40,6 +40,7 @@ try {
     runId: 'run-ci',
     pathPolicy: 'repo-relative-posix',
     kind: 'v8-range-summary',
+    sourceIdentityVersion: 1, sourcePlatform: process.platform,
     summary: {
       files: 2,
       coveredRanges: 16,

@@ -5,8 +5,9 @@ import picomatch from 'picomatch';
 import { toPosix } from '../../../src/shared/file-paths.js';
 import { writeJsonFileResolved } from '../../../src/shared/json-file.js';
 import { writeTextIfChanged } from '../../shared/generated-report.js';
+import { assertCoverageSourceIdentity } from './source-identity.js';
 
-const POLICY_VERSION = '2.0.0';
+const POLICY_VERSION = '2.1.0';
 
 export const CRITICAL_TEST_COVERAGE_SURFACES = Object.freeze([
   {
@@ -111,7 +112,7 @@ const summarizeCoverageEntries = (entries) => {
 
 const normalizeCoverageEntries = (entries) => (Array.isArray(entries) ? entries : [])
   .map((entry) => ({
-    path: process.platform === 'win32' ? toPosix(String(entry?.path || '')) : String(entry?.path || ''),
+    path: String(entry?.path || ''),
     coveredRanges: Number(entry?.coveredRanges || 0),
     totalRanges: Number(entry?.totalRanges || 0)
   }))
@@ -291,6 +292,7 @@ export const buildCoveragePolicyReport = ({
   headRef = '',
   env = process.env
 }) => {
+  assertCoverageSourceIdentity(coverageArtifact);
   const entries = normalizeCoverageEntries(coverageArtifact?.entries);
   const changed = resolveChangedFilesFromGit({ root, baseRef, headRef, env });
   let deletedPaths = [];
@@ -342,6 +344,8 @@ export const buildCoveragePolicyReport = ({
   };
 };
 
+const renderSourceLabel = value => JSON.stringify(String(value)).replaceAll('`', '\\u0060');
+
 const formatPercent = (value) => (
   value == null ? 'n/a' : `${(Number(value) * 100).toFixed(1)}%`
 );
@@ -378,12 +382,12 @@ export const renderCoveragePolicyMarkdown = (report) => {
   );
   for (const entry of report.changedFiles.files.slice(0, 10)) {
     lines.push(
-      `- \`${entry.path}\`: ${formatPercent(entry.coverageFraction)} `
+      `- \`${renderSourceLabel(entry.path)}\`: ${formatPercent(entry.coverageFraction)} `
       + `(${entry.coveredRanges}/${entry.totalRanges})`
     );
   }
   for (const row of report.changedFiles.inventory.filter(row => row.status !== 'observed')) {
-    lines.push(`- ${JSON.stringify(row.path)}: ${row.status} (${row.reason || 'unknown'}; ranges unknown)`);
+    lines.push(`- ${renderSourceLabel(row.path)}: ${row.status} (${row.reason || 'unknown'}; ranges unknown)`);
   }
   if (!report.changedFiles.files.length) {
     lines.push('- (no changed-file coverage rows)');
@@ -398,9 +402,9 @@ export const renderCoveragePolicyMarkdown = (report) => {
       + `(${surface.summary.coveredRanges}/${surface.summary.totalRanges} ranges across ${surface.summary.files} files)`
     );
     lines.push(`  - changed measurement: ${surface.measurement.status}; ${surface.measurement.measuredFiles}/${surface.measurement.eligibleFiles} eligible paths observed`);
-    for (const row of surface.changedInventory.filter(row => row.status !== 'observed')) lines.push(`  - ${JSON.stringify(row.path)}: ${row.status}; ranges unknown`);
+    for (const row of surface.changedInventory.filter(row => row.status !== 'observed')) lines.push(`  - ${renderSourceLabel(row.path)}: ${row.status}; ranges unknown`);
     for (const entry of surface.topUncoveredFiles.slice(0, 3)) {
-      lines.push(`  - \`${entry.path}\`: ${formatPercent(entry.coverageFraction)}`);
+      lines.push(`  - \`${renderSourceLabel(entry.path)}\`: ${formatPercent(entry.coverageFraction)}`);
     }
   }
   lines.push('');
