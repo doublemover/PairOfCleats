@@ -26,7 +26,7 @@ applyTestEnv({ cacheRoot: path.join(temp, 'cache'), embeddings: 'stub', testConf
   workerPool: { enabled: false }, semantic: { enabled: true, profile: 'rich', enrichment: { bindings: 'deferred', localFlow: 'deferred', crossFileFlow: 'deferred' } },
   embeddings: { enabled: false }, typeInference: false, typeInferenceCrossFile: false, riskAnalysis: false, treeSitter: { enabled: false }
 } }) });
-let workError;
+let workError, workFailed = false;
 try {
   const initialStart = performance.now();
   await buildIndex(repoRoot, { mode: 'code', stage: 'stage2', threads: 1, incremental: false, 'stub-embeddings': true, 'scm-provider': 'none' });
@@ -67,15 +67,16 @@ try {
   await fs.writeFile(path.join(repoRoot, 'tsconfig.json'), JSON.stringify({ compilerOptions: { types: [], strict: true } }));
   await assert.rejects(runSemanticEnrichmentService({ request: { ...request, generation: fresh.generation } }), { code: 'ERR_SEMANTIC_DEPENDENCY_UNSEALED' });
   console.log('source-pinned local/cross flow drain and changed compiler authority contract passed');
-} catch (error) { workError = error; }
+} catch (error) { workError = error; workFailed = true; }
 finally {
   diagnostics.finish();
   try {
-    if (workError) observeStorageResource(workError, { phase: 'phase-drain-fixture-cleanup' }).requireSettled();
+    if (workFailed) observeStorageResource(workError, { phase: 'phase-drain-fixture-cleanup' }).requireSettled();
     assert.ok(path.relative(process.cwd(), temp).startsWith('.tmp' + path.sep));
     await fs.rm(temp, { recursive: true, force: true });
   } catch (cleanupError) {
-    workError = workError ? addStorageFailureContext(workError, {}, cleanupError, { secondaryPresent: true }) : cleanupError;
+    workError = workFailed ? addStorageFailureContext(workError, {}, cleanupError, { secondaryPresent: true }) : cleanupError;
+    workFailed = true;
   }
 }
-if (workError) throw workError;
+if (workFailed) throw workError;

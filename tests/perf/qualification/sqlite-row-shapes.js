@@ -16,7 +16,9 @@ import { admitSqliteBenchmarkPhaseDiagnostics } from '../../../tools/bench/sqlit
 await requireBootstrap(); applyTestEnv();
 if (!process.argv[2]) throw new Error('Explicit receipt directory is required.');
 const output = path.resolve(process.argv[2]); await fs.mkdir(output, { recursive: false });
-const workspace = await createSqliteBenchWorkspace({ name: 'sqlite-row-shapes' }), source = captureSweepSource(process.cwd());
+const source = captureSweepSource(process.cwd());
+assert.equal(source.state, 'clean-revision', 'Qualification requires a committed, clean source identity.');
+const workspace = await createSqliteBenchWorkspace({ name: 'sqlite-row-shapes' });
 const observations = [], captures = new Map(), seeds = new Set();
 const run = async request => {
   const result = await runQualificationCapsule({ args: ['tests/fixtures/benchmarks/sqlite-row-shape-worker.js',
