@@ -27,7 +27,7 @@ export const bakeoffGenerationObservation = async (repoCacheRoot, { requestedMod
   const pointer = JSON.parse(readVerifiedContainedFileSync(repoCacheRoot, currentPath, { maxBytes: 512 * 1024 }).buffer.toString('utf8'));
   const roots = pointer.buildRootsByMode ?? pointer.buildRoots;
   if (!roots || typeof roots !== 'object' || Array.isArray(roots) || !Object.keys(roots).length) return { identity: null, coverage: missing() };
-  const modes = {}, coverage = {};
+  const modes = {}, coverage = {}, selections = {};
   for (const mode of Object.keys(roots).sort()) {
     if (!['code', 'prose', 'extracted-prose', 'records'].includes(mode)) throw new Error('Unknown bakeoff generation mode.');
     const buildRoot = resolveArtifactPath(repoCacheRoot, roots[mode]);
@@ -37,7 +37,9 @@ export const bakeoffGenerationObservation = async (repoCacheRoot, { requestedMod
     try {
       const stateRead = readVerifiedContainedFileSync(repoCacheRoot, state, { maxBytes: 8 * 1024 * 1024 });
       stateHash = stateRead.hash;
-      coverage[mode] = projectEmbeddingSamplingObservation(JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(stateRead.buffer)), mode);
+      const statePayload = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(stateRead.buffer));
+      coverage[mode] = projectEmbeddingSamplingObservation(statePayload, mode);
+      selections[mode] = { activeBuildRoot: buildRoot, buildId: statePayload.buildId || pointer.buildId || null };
     } catch (error) {
       observeStorageResource(error, { phase: 'bakeoff-sampling-observation' }).requireSettled();
       stateHash ||= await sha256File(state, { containedRoot: repoCacheRoot });
@@ -46,8 +48,23 @@ export const bakeoffGenerationObservation = async (repoCacheRoot, { requestedMod
     modes[mode] = { manifest: await sha256File(manifest, { containedRoot: repoCacheRoot }), state: stateHash };
   }
   for (const mode of requestedModes) coverage[mode] ||= { observation: 'unknown', reason: 'selected-generation-mode-unavailable' };
-  return { identity: hash(stableStringify({ schema: 'bakeoff-generation.v2', pointer, modes })),
+  return { identity: hash(stableStringify({ schema: 'bakeoff-generation.v2', pointer, modes })), selections,
     coverage: { observation: Object.values(coverage).every(value => value.observation === 'observed') ? 'observed' : 'partial-or-unknown', modes: coverage } };
 };
 
 export const bakeoffGenerationIdentity = async repoCacheRoot => (await bakeoffGenerationObservation(repoCacheRoot)).identity;
+
+/** A later current pointer can only confirm the generation actually evaluated;
+ * it can never supply a different generation identity to those scores. */
+export const matchEvaluatedBakeoffGeneration = (report, observation) => {
+  if (!observation.identity || report?.executionEvidence?.status !== 'qualified'
+    || report.executionEvidence.consistency !== 'stable' || !report.executionEvidence.receipts?.length
+    || report.executionEvidence.omittedReceipts > 0) return null;
+  const key = root => process.platform === 'win32' ? path.resolve(root).toLowerCase() : path.resolve(root);
+  for (const row of report.executionEvidence.receipts || []) for (const mode of row.receipt.modes) {
+    const evaluated = row.receipt.generations?.[mode], current = observation.selections?.[mode];
+    if (!evaluated?.activeBuildRoot || !current?.activeBuildRoot || !current.buildId
+      || evaluated.buildId !== current.buildId || key(evaluated.activeBuildRoot) !== key(current.activeBuildRoot)) return null;
+  }
+  return observation.identity;
+};

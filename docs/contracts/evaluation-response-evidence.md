@@ -55,3 +55,10 @@ evidence without inventing judgments or a failure penalty.
 Additional direct judgment/cohort/matcher/metric, actual render-budget and report-entry controls
 are authored and **UNVALIDATED**. No tests, syntax/lint/format, bootstrap, search,
 native/child/model execution or quality/performance qualification was run.
+
+Live report version 3 preserves separate silver/gold judgment coverage. Eligible,
+observed and unjudged case/cohort denominators accompany every metric family.
+The aggregate weights judged cohorts within each case, then judged cases equally;
+unjudged cases do not dilute quality with zeros. A measured miss remains numeric
+zero. Entirely unjudged metrics, including gold-only silver summaries, remain
+null. Shipped mixed-cohort labels explicitly identify prose or extracted prose.

@@ -13,7 +13,7 @@
   {
     "query": "guide",
     "mode": "prose",
-    "relevant": [{ "file": "docs/guide.md", "name": "Guide" }],
-    "gold": [{ "file": "docs/guide.md", "name": "Guide" }]
+    "relevant": [{ "file": "docs/guide.md", "name": "Guide", "mode": "prose" }],
+    "gold": [{ "file": "docs/guide.md", "name": "Guide", "mode": "prose" }]
   }
 ]

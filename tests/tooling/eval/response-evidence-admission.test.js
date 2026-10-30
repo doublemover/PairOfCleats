@@ -44,6 +44,9 @@ const stubs = {
 };
 const hooks = registerHooks({
   resolve(specifier, context, next) {
+    if (context.parentURL?.endsWith('/tools/eval/search-plan.js') && specifier === '../shared/dict-utils.js') {
+      return { url: new URL('../../fixtures/benchmarks/evaluation-policy.js', import.meta.url).href, shortCircuit: true };
+    }
     if (context.parentURL?.split('?')[0] === runner && Object.hasOwn(stubs, specifier)) return {
       url: `eval-response-fixture:${encodeURIComponent(specifier)}`, shortCircuit: true
     };

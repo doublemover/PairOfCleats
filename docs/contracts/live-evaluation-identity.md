@@ -52,3 +52,16 @@ Consistency compares this system identity and selected generation, rather than
 mistaking different selected queries for policy drift. Missing system identity
 cannot qualify strict historical comparison. The receipt/system/registry hash
 domains advance together; old registries are not silently reinterpreted.
+
+The evaluator captures its query policy through the core invocation, parser,
+normalization and private effective-plan owners before its first search. Each
+actual request consumes the captured capability. `evaluationSearchPlan` is a
+serializable receipt, never an execution capability. The internal `tools/eval/plan.js`
+preflight runs in the same model child environment without searching. Bakeoff
+input/resume identity version 3 requires the selected dataset and this effective
+query-policy receipt to match the completed evaluator's observed execution.
+Indexed generation equality alone cannot authorize reuse after a query-only
+ranking-policy change. Later current-generation observation may confirm the
+evaluated per-mode roots/build IDs; it cannot stamp later generation B onto
+scores actually evaluated against A. Legacy or unknown captures cannot authorize
+strict reuse.

@@ -2,11 +2,13 @@
 import { guardBootstrapEntry } from '../../../src/shared/bootstrap-readiness.js';
 await guardBootstrapEntry(import.meta.url);
 import crypto from 'node:crypto';
-import { evaluationFileIdentity, bakeoffGenerationIdentity, bakeoffGenerationObservation } from './evaluation-identity.js';
+import { evaluationFileIdentity, bakeoffGenerationIdentity, bakeoffGenerationObservation, matchEvaluatedBakeoffGeneration } from './evaluation-identity.js';
+import { assertEvaluationSearchPlan } from '../../eval/search-plan.js';
 import { withBakeoffCheckpoint } from './bakeoff-checkpoint.js';
 import { createBakeoffExecutionPolicy } from './bakeoff-execution-policy.js';
 import { runBakeoffBuildChild, runBakeoffJsonChild, runBakeoffPhase, persistBakeoffFailure, bakeoffPhaseFailureReceipt, BAKEOFF_PHASE_STATE_VERSION } from './bakeoff-phase.js';
 import { addStorageFailureContext } from '../../../src/shared/storage/operation-error.js';
+import { observeStorageResource } from '../../../src/shared/storage/failure-observation.js';
 import { throwIfAborted } from '../../../src/shared/abort.js';
 import { setTimeout as delay } from 'node:timers/promises';
 import { assertCompatibleEvaluationDepthPlans } from '../../eval/depth-plan.js';
@@ -453,18 +455,20 @@ if (runCompare && models.length > 1 && configCacheRoot && !buildIndex) {
 }
 
 const evaluationInputIdentity = {
-  schema: 'bakeoff-evaluation.v2', repository: { root: toRealPathSync(root), repoId },
+  schema: 'bakeoff-evaluation.v3', repository: { root: toRealPathSync(root), repoId },
   dataset: runEval ? evaluationFileIdentity(datasetPath, { canonicalJson: true }) : null,
   queries: runCompare && queriesPath ? evaluationFileIdentity(queriesPath) : null,
   policies: Object.fromEntries([...(runEval ? [evalScript,
     path.join(toolRoot, 'tools', 'eval', 'metrics.js'), path.join(toolRoot, 'tools', 'eval', 'match.js'),
     path.join(toolRoot, 'tools', 'eval', 'cohorts.js'), path.join(toolRoot, 'tools', 'eval', 'depth-plan.js'),
+    path.join(toolRoot, 'tools', 'eval', 'summary.js'), path.join(toolRoot, 'tools', 'eval', 'search-plan.js'),
     path.join(toolRoot, 'tools', 'shared', 'retrieval-execution-evidence.js'),
     path.join(toolRoot, 'tools', 'shared', 'retrieval-result-admission.js'),
     path.join(toolRoot, 'tools', 'shared', 'retrieval-cohort-admission.js'),
     path.join(toolRoot, 'src', 'retrieval', 'score-observation.js'), path.join(toolRoot, 'src', 'retrieval', 'hit-comparison.js')] : []), ...(runCompare ? [compareScript] : [])].map(file => [path.relative(toolRoot, file), evaluationFileIdentity(file)]))
 };
 const currentModelGeneration = modelId => bakeoffGenerationIdentity(path.join(resolveVersionedCacheRoot(modelCacheRoot(modelId)), 'repos', repoId));
+const admittedEvaluationPlans = new Map();
 const phaseStates = new Map();
 const outputSettings = {
   models,
@@ -626,6 +630,13 @@ const loadResumedModelReports = async () => {
       || entry.resumeIdentity?.input !== stableStringify(evaluationInputIdentity)) {
       excluded.push({ modelId, reason: 'generation-or-evaluation-input-unqualified' }); continue;
     }
+    if (runEval) {
+      try { assertQualifiedEvaluationComparison(entry.eval); assertEvaluationSearchPlan(entry.eval, admittedEvaluationPlans.get(modelId)); }
+      catch (error) {
+        observeStorageResource(error, { phase: 'bakeoff-resume-evaluation-admission' }).requireSettled();
+        excluded.push({ modelId, reason: 'effective-evaluation-query-plan-changed-or-unknown' }); continue;
+      }
+    }
     resumed.push(entry);
   }
   resumeObservation = { ...resumeObservation, state: excluded.length ? 'compatible-partial' : 'compatible',
@@ -652,6 +663,15 @@ const campaignAbort = new AbortController();
 const interruptCampaign = () => campaignAbort.abort();
 process.on('SIGINT', interruptCampaign); process.on('SIGTERM', interruptCampaign);
 const runCampaign = async () => {
+  // Resolve in each exact child environment before any model work or reuse.
+  if (runEval) for (const modelId of models) {
+    const args = [path.join(toolRoot, 'tools', 'eval', 'plan.js'), '--repo', root, '--dataset', datasetPath,
+      '--backend', backend, '--top', String(topN)];
+    if (annOverride === true) args.push('--ann');
+    if (annOverride === false) args.push('--no-ann');
+    if (limit > 0) args.push('--limit', String(limit));
+    admittedEvaluationPlans.set(modelId, await runJsonNode(args, toModelEnv(modelId), `evaluation plan (${modelId})`, { signal: campaignAbort.signal }));
+  }
   modelReports.push(...await loadResumedModelReports());
   resumedModels = modelReports.length;
   for (const report of modelReports) completedModelIds.add(report.modelId);
@@ -766,24 +786,30 @@ const runCampaign = async () => {
           const report = await runJsonNode(evalArgs, env, `eval (${modelId})`, phase);
           assertCompatibleEvaluationDepthPlans(report?.evaluationPlan, report?.summary?.evaluationPlan);
           assertQualifiedEvaluationComparison(report);
+          assertEvaluationSearchPlan(report, admittedEvaluationPlans.get(modelId));
           for (const prior of modelReports) if (prior.eval) {
             assertCompatibleEvaluationDepthPlans(prior.eval.evaluationPlan, report.evaluationPlan);
             assertQualifiedEvaluationComparison(prior.eval, report);
           }
           return report;
         });
-        evalSummary = { ...evalReport.summary, evaluationInput: evalReport.evaluationInput, executionEvidence: evalReport.executionEvidence };
+        evalSummary = { ...evalReport.summary, evaluationInput: evalReport.evaluationInput,
+          evaluationSearchPlan: evalReport.evaluationSearchPlan, executionEvidence: evalReport.executionEvidence };
       }
 
       const cacheBytes = await directorySizeBytes(env.PAIROFCLEATS_CACHE_ROOT);
       const observedGeneration = await bakeoffGenerationObservation(path.join(resolveVersionedCacheRoot(modelCacheRoot(modelId)), 'repos', repoId),
         { requestedModes: modelExecutionPlans.get(modelId).execution.modes });
+      const evaluatedGeneration = runEval ? matchEvaluatedBakeoffGeneration(evalSummary, observedGeneration) : observedGeneration.identity;
       modelReports.push({
         modelId,
         executionPolicy: modelExecutionPlans.get(modelId).receipt,
         requestedEmbeddingExecutionPlan: modelExecutionPlans.get(modelId).execution,
-        observedSampling: observedGeneration.coverage,
-        resumeIdentity: { generation: observedGeneration.identity, input: stableStringify(evaluationInputIdentity) },
+        observedSampling: evaluatedGeneration ? observedGeneration.coverage : { observation: 'unknown', reason: 'evaluated-generation-not-current' },
+        currentAfterRun: { scope: 'current-after-run-not-evaluation-authority', identity: observedGeneration.identity },
+        resumeIdentity: { schemaVersion: 3, generation: evaluatedGeneration, input: stableStringify(evaluationInputIdentity),
+          evaluatedInput: evalSummary?.evaluationInput?.key || null, queryPolicy: evalSummary?.evaluationSearchPlan?.key || null,
+          reason: evaluatedGeneration ? null : 'evaluated-generation-or-required-identity-unavailable' },
         cacheRoot: env.PAIROFCLEATS_CACHE_ROOT,
         inputFormatting: resolveEmbeddingInputFormatting(modelId),
         build: {

@@ -16,6 +16,8 @@ import { evaluateDatasetTaskSpans } from './task-spans.js';
 import { runEvaluationResourceScope } from './resource-scope.js';
 import { captureEvaluationDatasetCases } from './dataset-admission.js';
 import { createEvaluationDepthPlan, evaluationDepthCoverage } from './depth-plan.js';
+import { buildEvaluationSummary } from './summary.js';
+import { captureEvaluationSearchPlan } from './search-plan.js';
 import { captureLiveEvaluationInput, createRetrievalEvidenceRegistry } from '../shared/retrieval-execution-evidence.js';
 
 const argv = createCli({
@@ -63,18 +65,9 @@ const loadDataset = () => {
 
 const isMatch = (hit, expected) => matchExpected(hit, expected, matchMode);
 
-const runSearch = async (query, mode) => {
-  const args = ['--json', '--repo', repoRoot, '-n', String(topN)];
-  if (mode) args.push('--mode', mode);
-  if (backend && backend !== 'auto') args.push('--backend', backend);
-  if (annFlag === true) args.push('--ann');
-  if (annFlag === false) args.push('--no-ann');
-
+const runSearch = async (request) => {
   const payload = await coreSearch(repoRoot, {
-    args,
-    query,
-    emitOutput: false,
-    exitOnError: false,
+    ...request,
     indexCache: evalCaches.indexCache,
     sqliteCache: evalCaches.sqliteCache
   });
@@ -96,12 +89,13 @@ const output = await runEvaluationResourceScope({ sqliteCache: evalCaches.sqlite
   const capturedCases = captureEvaluationDatasetCases(cases).map(admitted => ({ ...admitted,
     selection: resolveEvaluationCohorts(admitted.mode, [...admitted.silver, ...admitted.gold]) }));
   const { cases: admittedCases, identity: evaluationInput } = captureLiveEvaluationInput(capturedCases, evaluationPlan, limit);
+  const searchPlan = await captureEvaluationSearchPlan({ repoRoot, cases: admittedCases, evaluationInput, topN, backend, annFlag });
   const evidence = createRetrievalEvidenceRegistry();
   const results = [];
   const queryTask = display.task('Queries', { total: cases.length, stage: 'queries' });
   let processedCases = 0;
   for (const { entry, query, silver, gold, selection, caseId } of admittedCases) {
-    const payload = await runSearch(query, selection.requestMode);
+    const payload = await runSearch(searchPlan.request(caseId));
     const execution = evidence.observe(payload, selection.modes);
     const cohorts = selection.modes.map(cohortMode => {
       const hits = selectEvaluationCohort(payload, cohortMode);
@@ -134,40 +128,17 @@ const output = await runEvaluationResourceScope({ sqliteCache: evalCaches.sqlite
     queryTask.set(processedCases, cases.length);
   }
 
-  const aggregate = (field) => {
-    const judged = results.filter(entry => entry.metrics);
-    if (!judged.length) return null;
-    const sum = judged.reduce((acc, entry) => acc + entry.metrics[field], 0);
-    return sum / judged.length;
-  };
-
-  const aggregateMap = (key) => {
-    const totals = {};
-    const judged = results.filter(entry => entry.metrics);
-    if (!judged.length) return totals;
-    for (const k of ks) {
-      const sum = judged.reduce((acc, entry) => acc + entry.metrics[key][k], 0);
-      totals[k] = sum / judged.length;
-    }
-    return totals;
-  };
-
-  const summary = {
-    evaluationPlan,
-    cases: results.length,
-    recallAtK: aggregateMap('recallAtK'),
-    ndcgAtK: aggregateMap('ndcgAtK'),
-    mrr: aggregate('mrr')
-  };
+  const summary = buildEvaluationSummary(results, evaluationPlan);
 
   const report = {
-    schemaVersion: 2,
+    schemaVersion: 3,
     kind: 'live-judged-evaluation',
     generatedAt: new Date().toISOString(),
     repo: repoRoot,
     dataset: datasetPath,
     matchMode,
     evaluationInput,
+    evaluationSearchPlan: searchPlan.receipt,
     executionEvidence: evidence.snapshot(),
     limit,
     backend,
