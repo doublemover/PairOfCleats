@@ -106,6 +106,7 @@ try {
   for (const file of ['tests/embeddings/actual-export-qualification.js', 'tests/embeddings/run-actual-export-qualification.js',
     'tests/embeddings/helpers/minilm-upstream-reference.js', 'tools/bench/qualification-capsule.js',
     'src/shared/embedding-output-admission.js', 'src/shared/embedding-utils.js', 'src/shared/embedding-artifact-lease.js',
+    'src/shared/embedding-adapter.js', 'src/shared/embedding-deferred-adapter.js', 'src/shared/embedding-selection-snapshot.js',
     'src/shared/embedding-transformers-resources.js', 'src/shared/embedding-provider-adapters.js', 'src/shared/embedding-model-profile.js',
     'src/shared/embedding-cache-lifetime.js', 'src/shared/embedding-failure-diagnostics.js',
     'src/shared/embedding-model-loading.js', 'src/shared/embedding-input-format.js', 'src/retrieval/embedding.js',
