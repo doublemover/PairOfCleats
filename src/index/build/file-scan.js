@@ -5,12 +5,51 @@ import * as istextorbinary from 'istextorbinary';
 import { CSS_EXTS, HTML_EXTS, JS_EXTS } from '../constants.js';
 import { normalizePositiveNumber } from '../../shared/limits.js';
 import { MINIFIED_NAME_REGEX } from './watch/shared.js';
-import { runBuildCleanupWithTimeout } from './cleanup-timeout.js';
-import { openContainedFile } from '../../shared/contained-file.js';
+import { runBuildCleanupWithTimeout, isOwnedBuildCleanupTimeout } from './cleanup-timeout.js';
+import { openContainedFile, verifyContainedFileHandle } from '../../shared/contained-file.js';
+import { createContainedFileResource } from '../../shared/contained-file-resource.js';
 import { readExactAt } from '../../shared/io/read-exact.js';
+import { throwIfAborted } from '../../shared/abort.js';
 
 const MINIFIED_SAMPLE_EXTS = new Set([...JS_EXTS, ...CSS_EXTS, ...HTML_EXTS]);
 export const FILE_TYPE_PROBE_MAX_BYTES = 8192;
+
+/** Keep the original close deadline while the ordinary contained-resource owner
+ * retains exact read/close failures and its original handle recovery capability.
+ * The facade borrows captured native methods; it never reopens a pathname.
+ */
+const ownSampleHandle = handle => {
+  const deadlineOwner = {};
+  let closing = null, confirmed = false;
+  return createContainedFileResource({ sync: false, handle: {
+    fd: handle.fd,
+    get read() { const method = handle.read; return (...args) => method.call(handle, ...args); },
+    get stat() { const method = handle.stat; return (...args) => method.call(handle, ...args); },
+    get close() {
+      const method = handle.close;
+      return async () => {
+        if (confirmed) return;
+        if (!closing) {
+          closing = Promise.resolve().then(() => method.call(handle)).then(value => {
+            if (value !== undefined) throw new Error('Original source sample close did not confirm its standard void result.');
+            confirmed = true;
+          });
+          closing.finally(() => { closing = null; }).catch(() => {});
+        }
+        const originalClose = closing;
+        try {
+          await runBuildCleanupWithTimeout({ label: 'file-scan.read-file-sample.close',
+            cleanup: () => originalClose, swallowTimeout: false, deadlineOwner });
+        } catch (error) {
+          if (isOwnedBuildCleanupTimeout(error, deadlineOwner)) {
+            Object.defineProperty(error, 'cacheOwnershipReleased', { value: () => confirmed });
+          }
+          throw error;
+        }
+      };
+    }
+  } });
+};
 const KNOWN_TEXT_EXTS = new Set([
   '.c',
   '.cc',
@@ -91,12 +130,33 @@ export const isMinifiedName = (baseName) => {
  * @param {number} sampleSizeBytes
  * @returns {Promise<Buffer|null>}
  */
-export const readFileSample = async (absPath, sampleSizeBytes, repoRoot = null) => {
+export const readFileSample = async (absPath, sampleSizeBytes, repoRoot = null, { signal = null } = {}) => {
+  throwIfAborted(signal);
   if (!sampleSizeBytes) return null;
-  const handle = repoRoot ? await openContainedFile(repoRoot, absPath) : await fs.open(absPath, 'r');
+  if (repoRoot) {
+    const owner = ownSampleHandle(await openContainedFile(repoRoot, absPath));
+    const result = await owner.run(async descriptor => {
+      throwIfAborted(signal);
+      const before = await descriptor.stat();
+      if (!Number.isSafeInteger(before.size) || before.size < 0) throw new RangeError('Invalid source sample extent.');
+      const buffer = Buffer.alloc(sampleSizeBytes);
+      const { bytesRead } = await readExactAt(descriptor, buffer, 0, buffer.length, 0, { signal });
+      const after = await descriptor.stat();
+      verifyContainedFileHandle(descriptor.fd, repoRoot, absPath);
+      throwIfAborted(signal);
+      if (bytesRead !== Math.min(before.size, buffer.length)
+        || ['dev', 'ino', 'size', 'mtimeMs', 'ctimeMs'].some(key => before[key] !== after[key])) {
+        throw Object.assign(new Error('Source changed during its bounded prefix read.'), { code: 'ERR_FILE_CHANGED' });
+      }
+      return bytesRead > 0 ? buffer.subarray(0, bytesRead) : null;
+    });
+    throwIfAborted(signal);
+    return result;
+  }
+  const handle = await fs.open(absPath, 'r');
   try {
     const buffer = Buffer.alloc(sampleSizeBytes);
-    const { bytesRead } = await readExactAt(handle, buffer, 0, buffer.length, 0);
+    const { bytesRead } = await readExactAt(handle, buffer, 0, buffer.length, 0, { signal });
     return bytesRead > 0 ? buffer.subarray(0, bytesRead) : null;
   } finally {
     await runBuildCleanupWithTimeout({

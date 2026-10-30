@@ -191,7 +191,7 @@ export async function preprocessFiles({
         if (observation?.sample && (bytes <= observation.sample.length || observation.bytes <= observation.sample.length)) {
           buffer = observation.sample.subarray(0, Math.min(bytes, observation.sample.length));
         } else {
-          buffer = await readFileSample(filename, bytes, root);
+          buffer = await readFileSample(filename, bytes, root, { signal: effectiveAbortSignal });
         }
         latestSamplePrefix = captureRecordSamplePrefix(buffer, bytes);
         if (buffer) samplePrefixes.set(buffer, latestSamplePrefix);
