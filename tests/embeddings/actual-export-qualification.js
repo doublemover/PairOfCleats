@@ -16,6 +16,7 @@ import { loadDenseJudgedCorpus } from './helpers/dense-judged-corpus.js';
 import { runDenseJudgedCohort } from './helpers/dense-judged-cohort.js';
 import { captureSweepSource } from '../../tools/bench/ab-sweep-source.js';
 import { captureEmbeddingProviderRuntime } from './helpers/provider-runtime-provenance.js';
+import { runE5TruncationCohort } from './helpers/e5-truncation-cohort.js';
 
 /** Explicit offline/native capsule, intentionally outside ordinary test discovery.
  * Missing export/tokenizer/corpus/reference is a prerequisite failure, never a
@@ -46,8 +47,9 @@ if (denseRecipe) {
 }
 if (options.cohort) {
   assert.ok(denseRecipe, 'Judged cohorts require an explicit M3 or instruct-E5 recipe.');
-  assert.ok(['judged-documents', 'judged-queries'].includes(options.cohort));
-  assert.ok(options.route === 'upstream-reference' || options.route === (options.cohort === 'judged-documents' ? 'batch' : 'query'));
+  assert.ok(['judged-documents', 'judged-queries', 'truncation-documents', 'truncation-queries'].includes(options.cohort));
+  if (options.cohort.startsWith('truncation-')) assert.equal(manifest.modelId, 'intfloat/multilingual-e5-large-instruct');
+  assert.ok(options.route === 'upstream-reference' || options.route === (options.cohort.endsWith('-documents') ? 'batch' : 'query'));
   assert.equal(options.reference, undefined); assert.equal(options.observation, undefined);
 }
 if (miniLm) {
@@ -116,7 +118,7 @@ try {
   const { acquireEmbeddingArtifactLease } = await import('../../src/shared/embedding-artifact-lease.js');
   const { getEmbeddingAdapter, disposeEmbeddingAdapterCaches } = await import('../../src/shared/embedding-adapter.js');
   const { getQueryEmbedding } = await import('../../src/retrieval/embedding.js');
-  const createEmbedder = denseRecipe && options.cohort === 'judged-documents'
+  const createEmbedder = denseRecipe && options.cohort?.endsWith('-documents')
     ? (await import('../../src/index/embedding.js')).createEmbedder : null;
   const { admitEmbeddingVector } = await import('../../src/shared/embedding-output-admission.js');
   const { resolveEmbeddingModelProfile } = await import('../../src/shared/embedding-model-profile.js');
@@ -139,6 +141,7 @@ try {
   for (const file of ['tests/embeddings/actual-export-qualification.js', 'tests/embeddings/run-actual-export-qualification.js',
     'tests/embeddings/helpers/minilm-upstream-reference.js', 'tests/embeddings/helpers/qualification-phase.js', 'tools/bench/qualification-capsule.js',
     'tests/embeddings/helpers/provider-runtime-provenance.js',
+    ...(options.cohort?.startsWith('truncation-') ? ['tests/embeddings/helpers/e5-truncation-cohort.js'] : []),
     ...(denseRecipe ? ['tests/embeddings/helpers/dense-upstream-reference.js', 'tests/embeddings/helpers/dense-judged-corpus.js',
       'tests/embeddings/helpers/dense-judged-cohort.js', 'tools/history/eg2-qualify-quality.js',
       'src/shared/embedding-acquisition-plan.js', 'src/shared/embedding-acquisition-receipt.js',
@@ -208,7 +211,8 @@ try {
     else receipt.legacyReferenceRuntimeLimit = 'Historical MiniLM reference omitted provider-resolved native provenance;root package equality alone does not establish that missing evidence.';
     assert.deepEqual(numericalReference.corpus, receipt.corpus);
     for (const source of receipt.sourceOwners.filter(row => row.path.includes('/minilm-upstream-reference.js')
-      || row.path.includes('/dense-upstream-reference.js') || row.path.includes('/dense-judged-') || row.path.startsWith('node_modules/'))) {
+      || row.path.includes('/dense-upstream-reference.js') || row.path.includes('/dense-judged-')
+      || row.path.includes('/e5-truncation-cohort.js') || row.path.startsWith('node_modules/'))) {
       assert.equal(numericalReference.sourceOwners.find(row => row.path === source.path)?.sha256, source.sha256);
     }
     receipt.numericalReference = { path: selected, sha256: snapshot.hash, sourceOwners: numericalReference.sourceOwners, comparisons: [] };
@@ -226,12 +230,12 @@ try {
       await phase('upstream-raw-components-load', () => createDenseUpstreamReference({ transformers, manifest, signal: controller.signal }),
         value => { rawReference = value; });
       receipt.referenceRecipe = rawReference.recipe;
-    } else adapter = options.cohort === 'judged-documents'
+    } else adapter = options.cohort.endsWith('-documents')
       ? createEmbedder({ rootDir: root, provider: manifest.provider, modelId: manifest.modelId, dims: manifest.dimensions,
         modelsDir: manifest.modelsDir, normalize: true, modelArtifact: lease.artifact, useStubEmbeddings: false })
       : getEmbeddingAdapter({ rootDir: root, provider: manifest.provider, modelId: manifest.modelId,
         dims: manifest.dimensions, modelsDir: manifest.modelsDir, useStub: false, normalize: true, modelArtifact: lease.artifact });
-    await runDenseJudgedCohort({ corpus: judgedCorpus, recipe: denseRecipe, options, phase, receipt, numericalReference,
+    await (options.cohort.startsWith('truncation-') ? runE5TruncationCohort : runDenseJudgedCohort)({ corpus: judgedCorpus, recipe: denseRecipe, options, phase, receipt, numericalReference,
       rawReference, adapter, getQueryEmbedding, formatEmbeddingInput, root, manifest, modelArtifact: lease.artifact, signal: controller.signal });
   } else if (options.route === 'upstream-reference') {
     await phase('upstream-raw-components-load', () => (miniLm ? createMiniLmUpstreamReference : createDenseUpstreamReference)({ transformers, manifest, signal: controller.signal }),

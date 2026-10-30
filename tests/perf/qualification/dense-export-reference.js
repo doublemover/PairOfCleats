@@ -43,8 +43,8 @@ const run = async (name, route, cohort = null, reference = null, observation = n
 let judgments = null;
 if (selection === 'routes') {
   await run('raw-routes', 'upstream-reference');
-  for (const route of ['single', 'batch', 'query', 'resources']) {
-    await run('product-' + route, route, null, 'raw-routes', route === 'resources' ? 'upstream-comparison' : null);
+  for (const route of ['single', 'batch', 'query']) {
+    await run('product-' + route, route, null, 'raw-routes');
   }
 } else {
   const pairs = {};
@@ -64,4 +64,5 @@ await atomicWriteJson(path.join(output, 'final.json'), { schemaVersion: 1, histo
   scope: 'Serial original model lifetimes,each30seconds,zero retries;exact matching reference batches;quality separate from latency/token/output/allocation/memory observations.',
   limits: ['Tiny authored closed-world relevance set;no representative retrieval gain.', 'Shared ONNX/runtime reference;no independent PyTorch conversion proof.',
     'Prepared EG2 remains unsupported here.', 'Warm adapter/token-estimate observations do not qualify end-to-end query-result cache performance.',
+    'Finite16-document campaigns do not qualify32-row output-admission costs;use original MiniLM/EG2 resources owner with32–64 supplied texts.',
     'Upstream comparison is not same-source old/current validation performance;that acceptance remains separate.'] }, { createOnly: true });
