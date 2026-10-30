@@ -8,6 +8,7 @@ import { loadUserConfig, getRepoCacheRoot, resolveRepoRoot, toRealPathSync } fro
 import { readCurrentBuildGeneration } from './indexing/build-pointer.js';
 import { incCacheEviction, setCacheSize } from './metrics/core.js';
 import { createRepoCacheRetirementLedger, closeRepoCacheEntry } from './repo-cache-retirement.js';
+import { observeStorageResource } from './storage/failure-observation.js';
 
 export { closeRepoCacheEntry } from './repo-cache-retirement.js';
 
@@ -94,7 +95,8 @@ const hasRepoArtifacts = (repoPath) => {
       } catch {}
     }
     return false;
-  } catch {
+  } catch (error) {
+    observeStorageResource(error, { phase: 'repo-cache-artifact-probe' }).requireSettled();
     return false;
   }
 };
@@ -248,6 +250,7 @@ export const createRepoCacheManager = ({
     refreshRepoCaches,
     clearRepoCaches,
     closeRepoCaches,
+    awaitRepoRetirement: repoPath => retirements.awaitRetirement(repoPath ? resolveRepoKey(repoPath) : undefined),
     getRetirementReceipt: retirements.getReceipt,
     repoCacheConfig,
     indexCacheConfig,
