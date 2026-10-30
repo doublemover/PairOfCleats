@@ -71,11 +71,28 @@ try {
   const phases = [];
   for (const mode of ['file-admission', 'memory-warm', 'persistent-memo-warm']) {
     clear();
-    if (mode !== 'file-admission') for (const source of corpus) assert.deepEqual(build(source), expected.get(source.sourceHash));
     const samples = [];
     for (const source of corpus) {
+      let priming = null;
       if (mode === 'file-admission') clear();
-      else if (mode === 'persistent-memo-warm') treeSitterState.chunkCache.clear();
+      else {
+        // All32 large products need not remain resident under the unchanged
+        // byte budget. Qualify the declared warm tier for each actual sample,
+        // while preserving the complete corpus and reporting untimed setup.
+        const at = performance.now(), visits = treeSitterState.metrics.projectionVisits || 0;
+        const before = { memoryHits: treeSitterState.metrics.chunkCacheHits || 0,
+          persistedHits: treeSitterState.metrics.chunkCachePersistentHits || 0 };
+        assert.deepEqual(build(source), expected.get(source.sourceHash));
+        const key = cache.resolveChunkCacheKey(request(source).options, 'javascript');
+        const tier = mode === 'memory-warm' ? treeSitterState.chunkCache : treeSitterState.persistentChunkCacheMemo;
+        assert.ok(tier.has(key), 'the exact measured input must reside in its declared warm tier');
+        assert.equal(treeSitterState.metrics.projectionVisits || 0, visits, 'priming reuses a valid existing cache product');
+        priming = { wallMs: performance.now() - at,
+          memoryHits: (treeSitterState.metrics.chunkCacheHits || 0) - before.memoryHits,
+          persistedHits: (treeSitterState.metrics.chunkCachePersistentHits || 0) - before.persistedHits,
+          scope: 'untimed per-input admission and exact parity;full32-source corpus;original byte limits' };
+        if (mode === 'persistent-memo-warm') treeSitterState.chunkCache.clear();
+      }
       const memoryHits = treeSitterState.metrics.chunkCacheHits || 0;
       const persistedHits = treeSitterState.metrics.chunkCachePersistentHits || 0;
       const visits = treeSitterState.metrics.projectionVisits || 0;
@@ -86,7 +103,7 @@ try {
       assert.equal(treeSitterState.metrics.projectionVisits || 0, visits, 'the original hit bypasses native projection');
       if (mode === 'memory-warm') assert.equal(treeSitterState.metrics.chunkCacheHits, memoryHits + 1);
       else assert.equal(treeSitterState.metrics.chunkCachePersistentHits, persistedHits + 1);
-      samples.push({ sourceHash: source.sourceHash, wallMs, cpu: used, semanticSha256: hash(JSON.stringify(rows)) });
+      samples.push({ sourceHash: source.sourceHash, wallMs, cpu: used, priming, semanticSha256: hash(JSON.stringify(rows)) });
     }
     phases.push({ mode, samples, latency: summarizeCacheSamples(samples.map(row => row.wallMs)),
       scope: '32 clean actual native entrypoint calls;clears/priming/assertions/hashes excluded;OS file cache uncontrolled' });
