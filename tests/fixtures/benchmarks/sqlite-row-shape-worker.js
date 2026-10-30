@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import fs from 'node:fs/promises';
+import { writeSync } from 'node:fs';
 import { requireBootstrap } from '../../../src/shared/bootstrap-readiness.js';
 import { readVerifiedContainedFile } from '../../../src/shared/contained-file.js';
 import { atomicWriteJson } from '../../../src/shared/io/atomic-write.js';
@@ -12,6 +13,7 @@ import { sqliteTrialArmOrder } from '../../../tools/bench/sqlite/campaign.js';
 import { sqliteRowQualificationPlan, assertSqliteRowQualificationWork } from '../../../tools/bench/sqlite/qualification-plan.js';
 import { resolveDevelopmentArtifactPath } from '../../../tools/shared/dev-artifacts.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
+import { createSqliteBenchmarkPhaseObserver } from '../../../tools/bench/sqlite/phase-observer.js';
 
 await requireBootstrap(); applyTestEnv();
 const request = JSON.parse(process.argv[2]), root = path.resolve(request.root);
@@ -35,14 +37,16 @@ if (request.command === 'prepare') {
     expectedBytes: descriptor.bytes, expectedHash: descriptor.sha256 });
   const input = JSON.parse(read.buffer); assert.equal(input.schemaVersion, 1); assert.equal(input.shape, request.shape);
   assert.equal(input.bundleDir, bundleDir); assert.deepEqual(input.plan, plan); assertSqliteRowQualificationWork(input.workload, request.shape);
-  const { default: Database } = await import('better-sqlite3');
+  const { default: NativeDatabase } = await import('better-sqlite3');
+  const phaseObserver = createSqliteBenchmarkPhaseObserver({ emit: record => writeSync(2, JSON.stringify(record) + '\n') });
+  const Database = phaseObserver.wrapDatabase(NativeDatabase);
   const seedPath = path.join(marker.workRoot, `seed-${input.workload.initial.manifestSha256}.db`);
   if (request.command === 'seed') {
     await assert.rejects(fs.stat(seedPath), { code: 'ENOENT' });
     const result = await runSqliteBenchmarkArm({ Database, operation: 'build', label: 'current', trial: 1, order: ['current'],
-      bundleDir, workload: input.workload, outPath: seedPath,
+      bundleDir, workload: input.workload, outPath: seedPath, phaseObserver,
       onProgress: progress => atomicWriteJson(path.join(root, `seed-${request.shape}-checkpoint.json`), progress) });
-    console.log(JSON.stringify({ command: 'seed', seedPath, result }));
+    console.log(JSON.stringify({ command: 'seed', seedPath, result, phaseDiagnostics: phaseObserver.snapshot() }));
   } else {
     assert.equal(request.command, 'arm'); assert.ok(['build', 'update'].includes(request.operation));
     assert.ok(Number.isSafeInteger(request.trial) && request.trial >= 1 && request.trial <= 6);
@@ -53,7 +57,7 @@ if (request.command === 'prepare') {
     try {
       const result = await runSqliteBenchmarkArm({ Database, operation: request.operation, label: request.label,
         trial: request.trial, order: sqliteTrialArmOrder('compare', request.trial - 1), bundleDir, workload: input.workload,
-        outPath: path.join(workspace.workRoot, 'arm.db'), seedPath: request.operation === 'update' ? seedPath : null,
+        outPath: path.join(workspace.workRoot, 'arm.db'), seedPath: request.operation === 'update' ? seedPath : null, phaseObserver,
         onProgress: progress => atomicWriteJson(path.join(workspace.tempRoot, 'checkpoint.json'), { ...report, ...progress }) });
       assert.equal(result.samples.length, request.operation === 'build' ? 1 : 3);
       for (const sample of result.samples) {
@@ -76,6 +80,6 @@ if (request.command === 'prepare') {
       catch (publication) { throw addStorageFailureContext(primary, {}, publication, { secondaryPresent: true }); }
       throw primary;
     }
-    console.log(JSON.stringify({ ...report, receiptRoot: workspace.tempRoot }));
+    console.log(JSON.stringify({ ...report, receiptRoot: workspace.tempRoot, phaseDiagnostics: phaseObserver.snapshot() }));
   }
 }

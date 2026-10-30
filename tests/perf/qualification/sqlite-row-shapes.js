@@ -9,6 +9,7 @@ import { sqliteTrialArmOrder } from '../../../tools/bench/sqlite/campaign.js';
 import { SQLITE_ROW_QUALIFICATION_SHAPES } from '../../../tools/bench/sqlite/qualification-plan.js';
 import { captureSweepSource } from '../../../tools/bench/ab-sweep-source.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
+import { admitSqliteBenchmarkPhaseDiagnostics } from '../../../tools/bench/sqlite/phase-diagnostics.js';
 
 // Explicit serial campaign, outside discovery. Each preparation/seed/arm is a
 // separately bounded30s capsule. No aggregate-duration or speedup PASS is emitted.
@@ -21,8 +22,19 @@ const run = async request => {
   const result = await runQualificationCapsule({ args: ['tests/fixtures/benchmarks/sqlite-row-shape-worker.js',
     JSON.stringify({ ...request, root: workspace.tempRoot, runIdentity: workspace.workOwner.runIdentity })],
   receiptPath: path.join(output, `invocation-${observations.length + 1}.json`), maxOutputBytes: 4 * 1024 * 1024 });
-  assert.equal(result.stderr, ''); assert.equal(result.outputCapture.stdout.truncated, false);
-  const report = JSON.parse(result.stdout), capsule = { request, capsuleMs: result.durationMs, report };
+  const report = JSON.parse(result.stdout), capsule = { request, capsuleMs: result.durationMs, report,
+    diagnostics: { state: 'unvalidated', rawStderr: result.stderr } };
+  try {
+    assert.equal(result.outputCapture.stdout.truncated, false);
+    assert.equal(result.outputCapture.stdout.encodingLoss, false);
+    assert.equal(result.outputCapture.stderr.truncated, false);
+    assert.equal(result.outputCapture.stderr.encodingLoss, false);
+    capsule.diagnostics = { ...admitSqliteBenchmarkPhaseDiagnostics({ stderr: result.stderr, report, request }), rawStderr: result.stderr };
+  } catch (error) {
+    capsule.diagnostics.state = 'failed'; capsule.diagnostics.error = { name: error.name, message: error.message };
+    await atomicWriteJson(path.join(output, `capsule-${observations.length + 1}.json`), { historicalAuthorWorkspace: true, source, ...capsule }, { createOnly: true });
+    throw error;
+  }
   await atomicWriteJson(path.join(output, `capsule-${observations.length + 1}.json`), { historicalAuthorWorkspace: true, source, ...capsule }, { createOnly: true });
   observations.push(capsule); console.log(JSON.stringify({ capsule: observations.length, ...request, capsuleMs: result.durationMs }));
   return report;

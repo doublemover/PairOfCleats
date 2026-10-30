@@ -48,30 +48,32 @@ const probeRuntime = (Database, filename) => withNative(Database, filename, db =
  * arm. Function-only seed/trial coordinates serve explicit qualification; the
  * public benchmark continues to build its own initial database per arm. */
 export const runSqliteBenchmarkArm = async ({ Database, operation, label, trial, order, sqliteMode = 'code',
-  bundleDir, outPath, workload, seedPath = null, inputCache = createSqliteBenchInputCache(), onProgress = async () => {} }) => {
+  bundleDir, outPath, workload, seedPath = null, inputCache = createSqliteBenchInputCache(), onProgress = async () => {}, phaseObserver = null }) => {
   if (!['build', 'update'].includes(operation) || !['baseline', 'current'].includes(label)
     || !Number.isSafeInteger(trial) || trial < 1 || trial > 12) throw new TypeError('Invalid private SQLite arm coordinate.');
   const samples = [], setups = [];
   let activeAttempt = null;
+  const phase = (name, work) => phaseObserver ? phaseObserver.run(name, work) : work();
   const publish = () => onProgress({ samples, setups, activeAttempt });
-  const initial = await prepareSqliteBenchValidation({ bundleDir, manifest: workload.initial.manifest, cache: inputCache });
+  const initial = await phase('source-admission', () => prepareSqliteBenchValidation({ bundleDir, manifest: workload.initial.manifest, cache: inputCache }));
   const baseOptions = { Database, outPath, mode: sqliteMode, ...common, inputBytes: initial.bundleBytes,
+    ...(phaseObserver ? { emitOutput: true, logger: { log: message => phaseObserver.progress(message), warn: message => console.warn(message) } } : {}),
     batchSize: { inputBytes: initial.bundleBytes, repoBytes: initial.bundleBytes, rowCount: initial.rows, fileCount: initial.files },
     incrementalData: { manifest: workload.initial.manifest, bundleDir } };
   if (operation === 'update') {
     activeAttempt = { trial, label, phase: seedPath ? 'initial-native-backup' : 'initial-build', dbPath: outPath,
       manifestSha256: workload.initial.manifestSha256, expectedRows: workload.initial.rows };
     await publish(); const setupAt = performance.now();
-    if (seedPath) await copySqliteBenchSeed(Database, seedPath, outPath);
+    if (seedPath) await phase('initial-native-backup', () => copySqliteBenchSeed(Database, seedPath, outPath));
     else {
-      const built = await buildDatabaseFromBundles({ ...baseOptions, buildPragmas: true, optimize: true });
+      const built = await phase('initial-build', () => buildDatabaseFromBundles({ ...baseOptions, buildPragmas: true, optimize: true }));
       assert.equal(built.count, workload.initial.rows);
     }
     const buildMs = performance.now() - setupAt;
     activeAttempt.phase = 'initial-validation'; activeAttempt.buildMs = buildMs; await publish();
     const validateAt = performance.now();
-    const observation = await validateSqliteBenchDatabase({ Database, dbPath: outPath, bundleDir,
-      manifest: workload.initial.manifest, mode: sqliteMode, expectedRows: workload.initial.rows, admission: initial });
+    const observation = await phase('initial-validation', () => validateSqliteBenchDatabase({ Database, dbPath: outPath, bundleDir,
+      manifest: workload.initial.manifest, mode: sqliteMode, expectedRows: workload.initial.rows, admission: initial }));
     setups.push({ trial, label, buildMs, validationMs: performance.now() - validateAt,
       preparation: seedPath ? 'independent-native-backup-of-closed-validated-seed' : 'fresh-native-build', observation });
     activeAttempt = null; await publish();
@@ -91,9 +93,9 @@ export const runSqliteBenchmarkArm = async ({ Database, operation, label, trial,
       manifestSha256: step.manifestSha256, expectedRows: step.rows, stats,
       expectedMutations: operation === 'update' ? { changedFiles: step.changedFiles, deletedFiles: step.deletedFiles, insertedChunks: step.insertedChunks } : null };
     await publish(); const began = performance.now();
-    if (operation === 'build') value = await buildDatabaseFromBundles({ ...baseOptions, buildPragmas: label === 'current', optimize: label === 'current', stats });
-    else value = await incrementalUpdateDatabase({ ...baseOptions, incrementalData: { manifest: step.manifest, bundleDir },
-      inputBytes: adaptive.plan.repoBytes, batchSize: adaptive.config, buildPragmas: label === 'current', stats });
+    if (operation === 'build') value = await phase('bundle-build', () => buildDatabaseFromBundles({ ...baseOptions, buildPragmas: label === 'current', optimize: label === 'current', stats }));
+    else value = await phase('incremental-update', () => incrementalUpdateDatabase({ ...baseOptions, incrementalData: { manifest: step.manifest, bundleDir },
+      inputBytes: adaptive.plan.repoBytes, batchSize: adaptive.config, buildPragmas: label === 'current', stats }));
     const durationMs = performance.now() - began;
     activeAttempt.operationMs = durationMs; activeAttempt.phase = 'validation';
     if (operation === 'build') assert.equal(value.count, step.rows);
@@ -102,8 +104,8 @@ export const runSqliteBenchmarkArm = async ({ Database, operation, label, trial,
       assert.equal(value.changedFiles, step.changedFiles); assert.equal(value.deletedFiles, step.deletedFiles); assert.equal(value.insertedChunks, step.insertedChunks);
     }
     requireSqliteDb(outPath); await publish(); const validationAt = performance.now();
-    const observation = await validateSqliteBenchDatabase({ Database, dbPath: outPath, bundleDir,
-      manifest: step.manifest, mode: sqliteMode, expectedRows: step.rows, admission });
+    const observation = await phase('database-validation', () => validateSqliteBenchDatabase({ Database, dbPath: outPath, bundleDir,
+      manifest: step.manifest, mode: sqliteMode, expectedRows: step.rows, admission }));
     assert.equal(stats.tables?.chunks?.rows, operation === 'build' ? step.rows : step.insertedChunks,
       'realized native writes must equal independently requested work');
     samples.push({ trial, order, label, round, dbPath: outPath, durationMs, validationMs: performance.now() - validationAt,

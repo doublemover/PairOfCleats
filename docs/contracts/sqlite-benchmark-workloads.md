@@ -81,3 +81,28 @@ is conserved independently. The high-change shape remains below the production
 to 30 seconds including validation and cleanup. Its multi-capsule campaign is
 not a single 30-second aggregate or a sustained throughput result. Authored
 helpers and unexecuted plans do not qualify representative performance.
+
+The private row-shape worker emits at most 256 synchronous structured phase
+records on stderr, reserving the last record for an explicit truncation marker.
+Coarse progress is limited to 24 records across the entire child, with separately
+reported coalesced counts, so three update rounds cannot crowd out close/end
+records. The parent accepts only the exact bounded JSON-line protocol and
+reconciles its counters and phase pairs with the child's report. Unknown text,
+warnings, malformed/truncated records, failed phases and unfinished phases
+reject a claimed success. Raw stderr and diagnostic admission failures remain
+in the capsule evidence; stderr is never silently discarded.
+The original native methods still perform every operation. Records distinguish
+source admission, bundle build/insertion, chunk indexes, filter reconstruction
+and sealing, commit, optimization, WAL checkpoints, native close and independent
+validation. A start without an end identifies unfinished work; neither a phase
+record nor forced process termination proves graceful resource settlement.
+The original row shapes, 30-second bounds and transaction policy are unchanged.
+
+Bundle validation checks native postings in one correspondence stream rather
+than repeating a mode-wide join for every file. Each admitted document retains
+a compact source-token bitset: unknown/duplicate/extra/missing postings and exact
+term-frequency mismatches reject. The original canonical digest transcript is
+preserved, and no result escapes before all native rows match the independently
+admitted source. Native iterator and database close failures retain their
+original owners and independent operational evidence. No index is added to the
+measured database, and validation remains outside operation timing.
