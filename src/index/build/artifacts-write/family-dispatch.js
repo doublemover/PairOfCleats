@@ -15,8 +15,18 @@ const cleanupPathExists = async (targetPath) => {
   try {
     await fs.access(targetPath);
     return true;
-  } catch {
-    return false;
+  } catch (error) {
+    const observation = observeStorageResource(error, { phase: 'artifact-cleanup-observe' });
+    observation.requireSettled();
+    let code;
+    try { code = observation.primary.code; }
+    catch (inspection) {
+      throw addStorageFailureContext(observation.retain(), { phase: 'artifact-cleanup-observe', targetPath },
+        inspection, { secondaryPresent: true });
+    }
+    observation.requireSettled();
+    if (code === 'ENOENT') return false;
+    throw addStorageFailureContext(error, { phase: 'artifact-cleanup-observe', targetPath });
   }
 };
 
@@ -77,7 +87,7 @@ export const prepareArtifactCleanup = async ({
     cleanupActions.push(action);
     return action;
   };
-  const syncCleanupState = (summary = null) => {
+  const syncCleanupState = (summary = summaryFor()) => {
     if (!indexState || typeof indexState !== 'object') return;
     if (!indexState.extensions || typeof indexState.extensions !== 'object') {
       indexState.extensions = {};
@@ -128,7 +138,14 @@ export const prepareArtifactCleanup = async ({
   };
   const removeArtifact = async (targetPath, options = {}) => {
     const { recursive = true, policy = 'legacy', immediate = false } = options;
-    const exists = await cleanupPathExists(targetPath);
+    let exists;
+    try { exists = await cleanupPathExists(targetPath); }
+    catch (error) {
+      const action = recordCleanupAction({ targetPath, recursive, policy, phase: 'observation' });
+      outcomes.set(action, { ok: false, error });
+      syncCleanupState();
+      throw error;
+    }
     if (!exists) return { ok: true, staged: false, targetPath };
     if (immediate) {
       const action = recordCleanupAction({ targetPath, recursive, policy, phase: 'immediate' });
