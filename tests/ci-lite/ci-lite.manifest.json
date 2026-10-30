@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 1705,
+    "hero": 1710,
     "matrix": 109,
     "meta": 52,
     "soak": 1,
@@ -11215,6 +11215,36 @@
     {
       "id": "indexing/semantic/drain-ownership-cancellation-consumers/revoked-supplied",
       "order": 1867,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/concurrency/async-abort-owner-reasons",
+      "order": 1868,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/runtime/worker-retry-evidence-ownership/shared-cache",
+      "order": 1869,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/runtime/worker-retry-evidence-ownership/shared-teardown",
+      "order": 1870,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/runtime/worker-retry-evidence-ownership/split-cache",
+      "order": 1871,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/runtime/worker-retry-evidence-ownership/split-teardown",
+      "order": 1872,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

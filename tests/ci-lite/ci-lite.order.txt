@@ -1868,3 +1868,8 @@ indexing/semantic/drain-ownership-cancellation-consumers/mid-abort
 indexing/semantic/drain-ownership-cancellation-consumers/pre-abort
 indexing/semantic/drain-ownership-cancellation-consumers/revoked-loaded
 indexing/semantic/drain-ownership-cancellation-consumers/revoked-supplied
+shared/concurrency/async-abort-owner-reasons
+indexing/runtime/worker-retry-evidence-ownership/shared-cache
+indexing/runtime/worker-retry-evidence-ownership/shared-teardown
+indexing/runtime/worker-retry-evidence-ownership/split-cache
+indexing/runtime/worker-retry-evidence-ownership/split-teardown
