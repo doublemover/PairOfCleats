@@ -9,9 +9,9 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 1713,
+    "hero": 1778,
     "matrix": 109,
-    "meta": 52,
+    "meta": 53,
     "soak": 1,
     "heavy-runtime": 0
   },
@@ -11265,6 +11265,402 @@
       "order": 1875,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "embeddings/feature-extraction-component-admission",
+      "order": 1876,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "embeddings/qualification-phase-resource-adoption",
+      "order": 1877,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/embeddings/adapter-callable-invocation/adapter-methods",
+      "order": 1878,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/embeddings/adapter-callable-invocation/pipeline-absent",
+      "order": 1879,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/embeddings/adapter-callable-invocation/pipeline-inert",
+      "order": 1880,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/embeddings/adapter-callable-invocation/pipeline-poisoned",
+      "order": 1881,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/semantic/validated-family-frontier-order/bad-target",
+      "order": 1882,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/semantic/validated-family-frontier-order/frontier-order",
+      "order": 1883,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/semantic/validated-family-frontier-order/late-completion",
+      "order": 1884,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/semantic/validated-index-fusion/abort-drain",
+      "order": 1885,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/semantic/validated-index-fusion/late-count",
+      "order": 1886,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/semantic/validated-index-fusion/late-hash",
+      "order": 1887,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/semantic/validated-index-fusion/late-reference",
+      "order": 1888,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/semantic/validated-index-fusion/late-source",
+      "order": 1889,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/semantic/validated-index-fusion/observer-drain",
+      "order": 1890,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/semantic/validated-index-fusion/parity",
+      "order": 1891,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "lang/contracts/native-lexical-scope-consumers/groovy",
+      "order": 1892,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "lang/contracts/native-lexical-scope-consumers/php",
+      "order": 1893,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "lang/contracts/native-lexical-scope-consumers/r",
+      "order": 1894,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "lang/contracts/native-lexical-scope-consumers/ruby",
+      "order": 1895,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "lang/contracts/native-lexical-scope-consumers/scala",
+      "order": 1896,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "map/remote-alias-detail-consumers",
+      "order": 1897,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/bench/sqlite-published-manifest-identity",
+      "order": 1898,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/tooling/bench/sqlite-phase-diagnostic-admission",
+      "order": 1899,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/tooling/bench/sqlite-phase-observer",
+      "order": 1900,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/tooling/bench/sqlite-validator-single-pass-parity",
+      "order": 1901,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "retrieval/filters/filter-cache-original-resource-consumers/sqlite-no-fallback",
+      "order": 1902,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/semantic/query-index-intake/append-drain",
+      "order": 1903,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/semantic/query-index-intake/pending-close",
+      "order": 1904,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/semantic/query-index-intake/row-allowance",
+      "order": 1905,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/sqlite/build/bundle-multi-row-parity",
+      "order": 1906,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/sqlite/filter-facts-rebuild-work-bound",
+      "order": 1907,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/api-mcp/repository-probe-original-config-owner/api-child-aborted",
+      "order": 1908,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/api-mcp/repository-probe-original-config-owner/api-child-false",
+      "order": 1909,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/api-mcp/repository-probe-original-config-owner/api-child-null",
+      "order": 1910,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/api-mcp/repository-probe-original-config-owner/api-child-undefined",
+      "order": 1911,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/api-mcp/repository-probe-original-config-owner/api-child-zero",
+      "order": 1912,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/api-mcp/repository-probe-original-config-owner/api-root-aborted",
+      "order": 1913,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/api-mcp/repository-probe-original-config-owner/api-root-false",
+      "order": 1914,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/api-mcp/repository-probe-original-config-owner/api-root-null",
+      "order": 1915,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/api-mcp/repository-probe-original-config-owner/api-root-undefined",
+      "order": 1916,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/api-mcp/repository-probe-original-config-owner/api-root-zero",
+      "order": 1917,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/api-mcp/repository-probe-original-config-owner/mcp-child-aborted",
+      "order": 1918,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/api-mcp/repository-probe-original-config-owner/mcp-child-false",
+      "order": 1919,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/api-mcp/repository-probe-original-config-owner/mcp-child-null",
+      "order": 1920,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/api-mcp/repository-probe-original-config-owner/mcp-child-undefined",
+      "order": 1921,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/api-mcp/repository-probe-original-config-owner/mcp-child-zero",
+      "order": 1922,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/api-mcp/repository-probe-original-config-owner/mcp-root-aborted",
+      "order": 1923,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/api-mcp/repository-probe-original-config-owner/mcp-root-false",
+      "order": 1924,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/api-mcp/repository-probe-original-config-owner/mcp-root-null",
+      "order": 1925,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/api-mcp/repository-probe-original-config-owner/mcp-root-undefined",
+      "order": 1926,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/api-mcp/repository-probe-original-config-owner/mcp-root-zero",
+      "order": 1927,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/api-mcp/repository-probe-original-config-owner/shared-child-aborted",
+      "order": 1928,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/api-mcp/repository-probe-original-config-owner/shared-child-false",
+      "order": 1929,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/api-mcp/repository-probe-original-config-owner/shared-child-null",
+      "order": 1930,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/api-mcp/repository-probe-original-config-owner/shared-child-undefined",
+      "order": 1931,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/api-mcp/repository-probe-original-config-owner/shared-child-zero",
+      "order": 1932,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/api-mcp/repository-probe-original-config-owner/shared-root-aborted",
+      "order": 1933,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/api-mcp/repository-probe-original-config-owner/shared-root-false",
+      "order": 1934,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/api-mcp/repository-probe-original-config-owner/shared-root-null",
+      "order": 1935,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/api-mcp/repository-probe-original-config-owner/shared-root-undefined",
+      "order": 1936,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/api-mcp/repository-probe-original-config-owner/shared-root-zero",
+      "order": 1937,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/api-mcp/repository-probe-settled-controls/api",
+      "order": 1938,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/api-mcp/repository-probe-settled-controls/mcp",
+      "order": 1939,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/api-mcp/repository-probe-settled-controls/shared",
+      "order": 1940,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/ci/jj-provisioning-admission",
+      "order": 1941,
+      "suiteCategory": "meta",
+      "suiteCategoryReason": "meta-cohort-prefix"
     }
   ]
 }
