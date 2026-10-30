@@ -1,7 +1,7 @@
 import { iterateColumnarRows } from '../columnar-rows.js';
 import { readJsonFile } from '../json.js';
 import { createLoaderError } from './shared.js';
-import path from 'node:path';
+import { admitJsonArrayPayload } from '../payload-admission.js';
 import { throwIfAborted } from '../../abort.js';
 import {
   iterateBinaryColumnarRows,
@@ -29,11 +29,9 @@ export const streamArrayArtifactRowsFromSources = async function* (
     throwIfAborted(signal);
     for (const sourcePath of sources.paths) {
       throwIfAborted(signal);
-      const payload = readJsonFile(sourcePath, { maxBytes, containedRoot: sources.containedRoot });
+      const payload = admitJsonArrayPayload(readJsonFile(sourcePath, { maxBytes, containedRoot: sources.containedRoot }),
+        { artifact: baseName, sourcePath });
       throwIfAborted(signal);
-      if (!Array.isArray(payload)) {
-        throw createLoaderError('ERR_ARTIFACT_INVALID', `Invalid JSON array payload for ${baseName}`);
-      }
       for (const row of payload) {
         throwIfAborted(signal);
         yield row;
@@ -43,13 +41,15 @@ export const streamArrayArtifactRowsFromSources = async function* (
     return;
   }
   if (sources.format === 'columnar') {
-    for (const sourcePath of sources.paths) {
+    for (const [index, sourcePath] of sources.paths.entries()) {
+      throwIfAborted(signal);
       const payload = readJsonFile(sourcePath, { maxBytes, containedRoot: sources.containedRoot });
-      const rows = iterateColumnarRows(payload);
+      const rows = iterateColumnarRows(payload, { artifact: baseName, sourcePath,
+        expectedCount: sources.sourceParts?.[index]?.expectedCount });
       if (!rows) {
         throw createLoaderError('ERR_ARTIFACT_INVALID', `Invalid columnar payload for ${baseName}`);
       }
-      for (const row of rows) yield row;
+      for (const row of rows) { throwIfAborted(signal); yield row; }
     }
     return;
   }
@@ -74,10 +74,7 @@ export const streamArrayArtifactRowsFromSources = async function* (
     onBackpressure,
     onResume,
     signal,
-    expectedCounts: strict ? sources.paths.map(filename => {
-      const relative = path.relative(dir, filename).split(path.sep).join('/');
-      return manifest?.pieces?.find(piece => piece.name === baseName && piece.path === relative)?.count ?? null;
-    }) : null
+    expectedCounts: sources.sourceParts?.map(part => part.expectedCount)
   })) {
     yield row;
   }

@@ -12,6 +12,8 @@ import { normalizeMetaV2ForRead } from '../../../index/metadata/meta-v2.js';
 import { formatHash64 } from '../../token-id.js';
 import { inflateColumnarRows } from '../columnar-rows.js';
 import { createLoaderError } from './shared.js';
+import { admitJsonArrayPayload } from '../payload-admission.js';
+import { resolveCanonicalSourceParts } from './core-source-resolution.js';
 import path from 'node:path';
 import { existsOrBak } from '../fs.js';
 
@@ -63,8 +65,9 @@ const loadChunkMetaColdRows = async function* ({
     if (sources.paths.length > 1) {
       throw createLoaderError('ERR_MANIFEST_SOURCE_AMBIGUOUS', 'Ambiguous JSON sources for chunk_meta_cold');
     }
-    const rows = readJsonFile(sources.paths[0], { maxBytes, containedRoot: sources.containedRoot });
-    if (Array.isArray(rows)) yield* rows;
+    const rows = admitJsonArrayPayload(readJsonFile(sources.paths[0], { maxBytes, containedRoot: sources.containedRoot }),
+      { artifact: 'chunk_meta_cold', sourcePath: sources.paths[0] });
+    yield* rows;
     return;
   }
   if (sources.format === 'columnar') {
@@ -75,7 +78,9 @@ const loadChunkMetaColdRows = async function* ({
       );
     }
     const payload = readJsonFile(sources.paths[0], { maxBytes, containedRoot: sources.containedRoot });
-    const inflated = inflateColumnarRows(payload);
+    const [part] = resolveCanonicalSourceParts({ dir, manifest, name: 'chunk_meta_cold', canonicalPaths: sources.paths, strict });
+    const inflated = inflateColumnarRows(payload, { artifact: 'chunk_meta_cold', sourcePath: part.sourcePath,
+      expectedCount: part.expectedCount });
     if (!inflated) {
       throw createLoaderError('ERR_ARTIFACT_INVALID', 'Invalid columnar chunk_meta_cold payload');
     }
@@ -255,10 +260,8 @@ export const loadChunkMetaRows = async function* (
     if (sources.paths.length > 1) {
       throw createLoaderError('ERR_MANIFEST_SOURCE_AMBIGUOUS', 'Ambiguous JSON sources for chunk_meta');
     }
-    const rows = readJsonFile(sources.paths[0], { maxBytes, containedRoot: sources.containedRoot });
-    if (!Array.isArray(rows)) {
-      throw createLoaderError('ERR_ARTIFACT_INVALID', 'Invalid json chunk_meta payload');
-    }
+    const rows = admitJsonArrayPayload(readJsonFile(sources.paths[0], { maxBytes, containedRoot: sources.containedRoot }),
+      { artifact: 'chunk_meta', sourcePath: sources.paths[0] });
     for (const row of rows) {
       yield transform(row);
     }
@@ -269,7 +272,10 @@ export const loadChunkMetaRows = async function* (
       throw createLoaderError('ERR_MANIFEST_SOURCE_AMBIGUOUS', 'Ambiguous columnar sources for chunk_meta');
     }
     const payload = readJsonFile(sources.paths[0], { maxBytes, containedRoot: sources.containedRoot });
-    const inflated = inflateColumnarRows(payload);
+    const [part] = resolveCanonicalSourceParts({ dir, manifest: resolvedManifest, name: 'chunk_meta',
+      canonicalPaths: sources.paths, strict });
+    const inflated = inflateColumnarRows(payload, { artifact: 'chunk_meta', sourcePath: part.sourcePath,
+      expectedCount: part.expectedCount });
     if (!inflated) {
       throw createLoaderError('ERR_ARTIFACT_INVALID', 'Invalid columnar chunk_meta payload');
     }

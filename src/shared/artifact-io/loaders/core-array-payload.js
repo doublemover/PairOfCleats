@@ -1,5 +1,6 @@
 import { readJsonFile, readJsonLinesArray, readJsonLinesArraySync, readJsonLinesIterator } from '../json.js';
 import { inflateColumnarRows } from '../columnar-rows.js';
+import { admitJsonArrayPayload } from '../payload-admission.js';
 import { createLoaderError, ensureOffsetsValid } from './shared.js';
 import { createRequire } from 'node:module';
 import {
@@ -22,10 +23,8 @@ const appendRows = (target, rows) => {
 const loadJsonArraySources = (sources, { baseName, maxBytes }) => {
   const out = [];
   for (const sourcePath of sources.paths) {
-    const payload = readJsonFile(sourcePath, { maxBytes, containedRoot: sources.containedRoot });
-    if (!Array.isArray(payload)) {
-      throw createLoaderError('ERR_ARTIFACT_INVALID', `Invalid json payload for ${baseName}`);
-    }
+    const payload = admitJsonArrayPayload(readJsonFile(sourcePath, { maxBytes, containedRoot: sources.containedRoot }),
+      { artifact: baseName, sourcePath });
     appendRows(out, payload);
   }
   return out;
@@ -33,9 +32,10 @@ const loadJsonArraySources = (sources, { baseName, maxBytes }) => {
 
 const loadColumnarSources = (sources, { baseName, maxBytes }) => {
   const out = [];
-  for (const sourcePath of sources.paths) {
+  for (const [index, sourcePath] of sources.paths.entries()) {
     const payload = readJsonFile(sourcePath, { maxBytes, containedRoot: sources.containedRoot });
-    const inflated = inflateColumnarRows(payload);
+    const inflated = inflateColumnarRows(payload, { artifact: baseName, sourcePath,
+      expectedCount: sources.sourceParts?.[index]?.expectedCount });
     if (!inflated) {
       throw createLoaderError('ERR_ARTIFACT_INVALID', `Invalid columnar payload for ${baseName}`);
     }
