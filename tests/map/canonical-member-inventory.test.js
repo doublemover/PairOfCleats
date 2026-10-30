@@ -36,16 +36,22 @@ try {
   const placeholderProjection = buildMapMembers({
     fileMeta: [{ file: 'fallback.js' }, { file: 'real.js' }], fileRelations: [],
     chunkMeta: [{ file: 'fallback.js', name: 'file', kind: 'File', chunkUid: 'fallback-original' },
+      { file: 'fallback.js', name: '(module)', kind: 'SourceEvaluation', chunkUid: 'source-evaluation-original' },
+      { file: 'fallback.js', name: '(module)', kind: 'Module', chunkUid: 'module-evaluation-original' },
+      { file: 'real.js', name: 'NamedModule', kind: 'Module', chunkUid: 'real-named-module' },
       { file: 'real.js', name: 'File', kind: 'ClassDeclaration', chunkUid: 'real-file-class' }],
     repoMap: [{ file: 'fallback.js', name: 'file', kind: 'File', chunkUid: 'fallback-original' },
+      { file: 'fallback.js', name: '(module)', kind: 'SourceEvaluation', chunkUid: 'source-evaluation-original' },
+      { file: 'legacy.js', name: '(module)', kind: 'Module' },
+      { file: 'real.js', name: 'NamedModule', kind: 'Module', chunkUid: 'real-named-module' },
       { file: 'legacy.js', name: 'file', kind: 'File' }],
     intern: value => value, strict: true, warnings: placeholderWarnings
   });
   assert.deepEqual([...placeholderProjection.membersByFile.keys()].sort(), ['fallback.js', 'legacy.js', 'real.js']);
   assert.deepEqual(placeholderProjection.membersByFile.get('fallback.js'), []);
   assert.deepEqual(placeholderProjection.membersByFile.get('legacy.js'), []);
-  assert.equal(placeholderProjection.membersByFile.get('real.js')[0].name, 'File');
-  assert.equal(placeholderProjection.membersByFile.get('real.js')[0].kind, 'ClassDeclaration');
+  assert.deepEqual(placeholderProjection.membersByFile.get('real.js').map(row => [row.name, row.kind]),
+    [['NamedModule', 'Module'], ['File', 'ClassDeclaration']]);
   assert.deepEqual(placeholderWarnings, [], 'file inventory placeholders do not invent unresolved semantic member evidence');
   await write('repo_map', repoMap);
   await write('chunk_meta', chunks);

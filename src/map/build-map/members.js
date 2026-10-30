@@ -14,6 +14,8 @@ export const mapFilePath = (value) => {
 };
 
 const identityText = value => value === 0 || value ? String(value) : null;
+const isInventoryOnly = (kind, name) => kind === 'File'
+  || (name === '(module)' && (kind === 'Module' || kind === 'SourceEvaluation'));
 const originOf = entry => entry?.virtualPath || entry?.segment?.virtualPath || null;
 const compatible = (member, entry) => (
   (!Number.isFinite(entry.startLine) || member.range.startLine === entry.startLine)
@@ -47,10 +49,11 @@ export const buildMapMembers = ({ repoMap, chunkMeta, fileMeta, fileRelations, i
     const file = admitFile(meta.file || chunk?.file);
     const name = intern(meta.name || chunk?.name || null);
     if (!file || !name) continue;
-    // File fallback chunks retain inventory authority, not semantic membership.
-    // A real class/function named File keeps its own declaration kind.
+    // File/module evaluation chunks retain inventory and call-source authority
+    // without inventing a displayed declaration. Real named modules and a
+    // class/function named File keep their own declaration kinds.
     const kind = intern(meta.kind || chunk.kind || null);
-    if (kind === 'File') continue;
+    if (isInventoryOnly(kind, name)) continue;
     const chunkUid = identityText(meta.chunkUid || chunk.chunkUid);
     if (!chunkUid) {
       const message = `chunkUid missing for ${file}::${name}`;
@@ -97,7 +100,7 @@ export const buildMapMembers = ({ repoMap, chunkMeta, fileMeta, fileRelations, i
     const file = admitFile(entry?.file);
     const name = intern(entry?.name || null);
     if (!file || !name) continue;
-    if (entry.kind === 'File') continue;
+    if (isInventoryOnly(entry.kind, name)) continue;
     const uid = identityText(entry.chunkUid), symbolId = identityText(entry.symbolId);
     const uidId = uid && memberByChunkUid.get(uid);
     const symbolMember = symbolId && memberById.get(symbolId);
