@@ -18,7 +18,7 @@ export default [
   {
     ignores: [
       '**/node_modules/**',
-      '**/index-*/**',
+      'index-*/**',
       '**/index-sqlite/**',
       'benchmarks/repos/**',
       'benchmarks/cache/**',
