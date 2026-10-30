@@ -6,6 +6,7 @@ import { createRepoCacheManager as createApiCacheManager } from '../../../tools/
 import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
 import { prepareIsolatedTestCacheDir } from '../../helpers/test-cache.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
+import { initGitRepo } from '../../helpers/git-fixture.js';
 
 const { dir } = await prepareIsolatedTestCacheDir('repo-cache-async-shutdown');
 applyTestEnv({ cacheRoot: path.join(dir, 'cache') });
@@ -23,6 +24,9 @@ const catchFailure = action => { let thrown = false, failure;
   assert.equal(thrown, true); return failure; };
 const root = path.join(dir, 'repo'); await fs.mkdir(root); await fs.writeFile(path.join(root, 'package.json'), '{}');
 const other = path.join(dir, 'other'); await fs.mkdir(other); await fs.writeFile(path.join(other, 'package.json'), '{}');
+// Distinct real repository roots are needed for actual LRU eviction. A package
+// file alone does not override the enclosing checkout's Git authority.
+initGitRepo(root); initGitRepo(other);
 const unhandled = [], onUnhandled = error => unhandled.push(error), managers = [], gates = [];
 process.on('unhandledRejection', onUnhandled);
 const metrics = [];
@@ -100,19 +104,21 @@ try {
   {
     const hook = deferred(); gates.push(hook);
     const sentinel = Object.freeze(new Error('original implicit-eviction async rejection'));
+    let originalEntry;
     const calls = [], manager = createRepoCacheManager({ defaultRepo: root, repoCache: { maxEntries: 1,
-      shutdown(entry) { calls.push(entry.repoRoot); return entry.repoRoot === root ? hook.promise : undefined; }
-    } }); managers.push(manager); manager.getRepoCaches(root); manager.getRepoCaches(other);
+      shutdown(entry) { calls.push(entry); return entry === originalEntry ? hook.promise : undefined; }
+    } }); managers.push(manager); originalEntry = manager.getRepoCaches(root); const otherEntry = manager.getRepoCaches(other);
+    assert.notEqual(originalEntry, otherEntry, 'the fixture actually evicts one repository owner for another');
     hook.reject(sentinel); await new Promise(resolve => setImmediate(resolve));
     const failure = catchFailure(() => manager.closeRepoCaches()); assert.ok(contains(failure, sentinel));
-    assert.deepEqual(calls, [root, other], 'independent shutdown proceeds after an implicit original rejection');
+    assert.deepEqual(calls, [originalEntry, otherEntry], 'independent original shutdown owners survive canonical path spellings');
     assert.equal(manager.closeRepoCaches().status, 'settled');
   }
   {
     const hooks = [], manager = createRepoCacheManager({ defaultRepo: root, repoCache: { maxEntries: 1,
       shutdown(entry) { const gate = deferred(); gates.push(gate); hooks.push({ gate, root: entry.repoRoot }); return gate.promise; } } });
-    managers.push(manager); manager.getRepoCaches(root); manager.getRepoCaches(other);
-    assert.deepEqual(hooks.map(hook => hook.root), [root]);
+    managers.push(manager); const originalEntry = manager.getRepoCaches(root); manager.getRepoCaches(other);
+    assert.deepEqual(hooks.map(hook => hook.root), [originalEntry.repoRoot]);
     assert.equal(manager.getRetirementReceipt().pendingShutdownHooks, 1, 'actual LRU eviction retains the original hook');
     assert.equal(manager.closeRepoCaches().pendingShutdownHooks, 2, 'independent terminal disposal still starts its hook');
     hooks[0].gate.resolve(); hooks[1].gate.resolve();
