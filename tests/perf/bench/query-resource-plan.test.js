@@ -35,6 +35,7 @@ try {
   const bench = new URL('./run.test.js', import.meta.url).href;
   const runtime = new URL('./query-runtime.js', import.meta.url).href;
   const execution = new URL('./query-execution.js', import.meta.url).href;
+  const artifactReport = new URL('../../../tools/bench/language/artifact-report.js', import.meta.url).href;
   const queue = pathToFileURL(path.join(process.cwd(), 'node_modules', 'p-queue', 'dist', 'index.js')).href;
   // Invoke the actual benchmark entry/reducers with explicitly named inert
   // artifact/search adapters. Resource planning and stage execution remain real.
@@ -44,7 +45,9 @@ try {
       export const getRuntimeConfig=()=>({maxOldSpaceMb:1024});
       export const resolveRuntimeEnv=(config,env)=>({...env});
       export const resolveSqlitePaths=()=>({codePath:'fixture-code.db',prosePath:'fixture-prose.db'});`,
-    '../../../tools/bench/language/artifact-report.js': 'export const collectBenchmarkArtifactReport=()=>({report:{repo:{root:'+JSON.stringify(dir)+'},throughput:{},corruption:{ok:true,issues:[]}},receipt:{state:"explicit-query-plan-fixture"}});',
+    '../../../tools/bench/language/artifact-report.js': `export {qualifyBenchmarkArtifactGeneration,benchmarkArtifactFailureReceipt} from ${JSON.stringify(artifactReport)};
+      export const collectBenchmarkArtifactReport=()=>({report:{repo:{root:${JSON.stringify(dir)}},throughput:{},corruption:{ok:true,issues:[]}},
+        receipt:{state:'explicit-query-plan-fixture'}});`,
     '../../../src/shared/artifact-io/chunk-meta-presence.js': 'export const hasChunkMetaArtifactsSync=()=>true;',
     '../../../tools/bench/language/sqlite-mode-status.js': 'export const resolveBenchSqliteModeStatus=()=>({dbExists:true,zeroState:false});',
     'node:child_process': "export const spawnSync=()=>({status:0,stdout:'{}'});",
@@ -59,7 +62,7 @@ try {
         return {run(args,meta){return queues[meta.backend==='memory'?'memory':'sqlite'].add(async()=>{
           const id=++pid;config.onEvent({type:'process-start',pid:id});config.onEvent({type:'run-start',pid:id,meta});
           await new Promise(resolve=>setImmediate(resolve));config.onEvent({type:'run-complete',pid:id,meta});config.onEvent({type:'process-close',pid:id});
-          return {code:[{chunkUid:'fixture:hit',score:1}],prose:[],stats:{elapsedMs:1,memory:{rss:1024}}};
+          return {code:[{chunkUid:'fixture:hit',score:1}],prose:[],extractedProse:[],stats:{elapsedMs:1,memory:{rss:1024}}};
         });},async close(){await Promise.all(Object.values(queues).map(queue=>queue.onIdle()));}};
       }});`
   };
@@ -70,14 +73,19 @@ try {
       return {url:'query-plan-caller-fixture:'+encodeURIComponent(specifier),shortCircuit:true};return next(specifier,context);},
       load(url,context,next){if(url.startsWith('query-plan-caller-fixture:'))return {format:'module',shortCircuit:true,
         source:sources[decodeURIComponent(url.slice('query-plan-caller-fixture:'.length))]};return next(url,context);}});
-    await import(bench);fs.writeFileSync(${JSON.stringify(trace)},JSON.stringify({plans:globalThis.queryPlanCalls,pools:globalThis.queryPoolCalls}));`);
+    try{await import(bench);}finally{fs.writeFileSync(${JSON.stringify(trace)},JSON.stringify({plans:globalThis.queryPlanCalls,pools:globalThis.queryPoolCalls}));}`);
   const args = [probe, '--repo', dir, '--queries', queries, '--query-concurrency', String(concurrency),
     '--limit', '2', '--no-ann', '--stub-embeddings', '--quiet', '--json'];
   if (backend) args.push('--backend', backend);
   const result = runNode(args, `actual aggregate query plan ${selected}`, process.cwd(), applyTestEnv({ syncProcess: false }),
     { stdio: 'pipe', allowFailure: true, timeoutMs: 10000 });
-  assert.equal(result.status, 0, result.stderr); assert.equal(result.stderr, '');
+  assert.equal(result.status, 1, result.stderr);
+  assert.match(result.stderr, /ERR_BENCH_ARTIFACT_GENERATION|Benchmark artifacts cannot join measured generation/u);
   const receipt = JSON.parse(await fs.readFile(trace, 'utf8')), report = JSON.parse(result.stdout), summary = report.summary;
+  assert.equal(report.status, 'failed-required-artifact-phase');
+  assert.equal(report.artifactReportAdmission.generationJoin.state, 'unavailable');
+  assert.equal(report.artifactReportAdmission.generationJoin.reason, 'measured-generation-coverage-incomplete');
+  assert.equal(report.artifacts, null, 'inert query payloads cannot certify an actual artifact generation');
   assert.deepEqual(receipt.plans, [expected], 'the actual caller must admit all pools in exactly one resource plan');
   assert.equal(summary.queryWorkerPlan.concurrencyScope, 'global');
   assert.ok(summary.queryConcurrency <= concurrency);

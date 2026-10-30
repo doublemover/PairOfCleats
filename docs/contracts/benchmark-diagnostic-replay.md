@@ -1,6 +1,6 @@
 # Benchmark diagnostic occurrence replay
 
-Diagnostic stream version 3 adds an execution UUID to every process invocation
+Diagnostic stream version 4 retains the execution UUID introduced by version 3 on every process invocation
 and its summary. Every event retains its existing diagnostic fingerprint and
 positive process-local occurrence counter. Mirrored files receive the same
 payload. `costSemantics: "occurrence-delta"` declares the numeric fields as costs
@@ -25,7 +25,7 @@ within the legacy repository-presence totals used by parity.
 
 `eventCount` and `uniqueEventCount` keep their presence interpretation.
 `occurrenceCount` and `repeatedFingerprintOccurrenceCount` expose repeated work.
-Version 3 `duplicateEventCount` counts transport copies; a second legitimate
+`duplicateEventCount` counts transport copies; a second legitimate
 occurrence is no longer called a duplicate. `mirrorDuplicateCount` identifies
 copies found across files. Conflicting content for one qualified occurrence
 marks the replay incomplete and cannot add another cost.
@@ -36,6 +36,12 @@ unknown. True zero is observed. `cost` holds the observed sum, or null when no
 observation exists. `costCoverage` retains observed/unknown counts and completeness
 for each field. `costScope` explicitly identifies summed observed occurrence
 deltas, which may overlap and do not measure wall duration.
+
+Version 4 applies this numeric admission at the original structured diagnostic
+classifier, before the process and replay owners observe the fields. Version 3
+could coerce absent costs into zero there. Its fingerprint presence remains
+readable, but its cost semantics are now unqualified/incomplete rather than
+silently inheriting the corrected producer's authority.
 
 Historical version 1/2 and unversioned rows remain readable. Their known projected
 fields, timestamp, label and occurrence support exact-copy matching, but cannot

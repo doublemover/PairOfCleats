@@ -18,7 +18,14 @@ repository and capture extent. Stderr diagnostics remain visible as a bounded
 change report policy. Complete command output does not establish indexed-work,
 artifact generation, backend, workload or performance qualification.
 
-The benchmark stops before publishing its result on failed report admission.
-Original corruption checks remain, and display cleanup failures compose with
-the report failure. The twelve new child/capture/actual-CLI controls are
-authored and unexecuted.
+Failed required artifact admission retains the already measured query summaries
+and emits a `failed-required-artifact-phase` result before propagating the original
+failure. Corruption remains a required failure. Display cleanup failures compose
+with the original failure. Failure excerpts are bounded and redacted without
+invoking opaque diagnostic getters.
+
+The artifact snapshot joins measured per-mode build roots and build IDs. A later
+publication cannot supply artifact authority to earlier queries. A mismatched
+snapshot remains explicitly `currentAfterRun`; `artifacts` is null and the run
+fails while preserving its query samples. This association supplies no relevance
+judgments or performance qualification.

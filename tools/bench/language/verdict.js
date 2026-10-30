@@ -457,7 +457,8 @@ export const evaluateBenchVerdict = ({ tasks, policy, methodology = null }) => {
       waiverIds: [],
       message: loadError
     });
-    incrementCount(resultClassCounts, 'infra_failed');
+    // Policy admission is a run-level finding, not an extra repository task.
+    // It still participates in the aggregate failure and clean-gate decision.
     incrementCount(failureClassCounts, 'waiver_policy_load_failed');
   }
 

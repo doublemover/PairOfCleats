@@ -27,7 +27,9 @@ import { resolveAdaptiveQueryWorkerCount } from './query-runtime.js';
 import { executeBenchQueryPlan } from './query-execution.js';
 import { createBenchProcessTreeSampler } from '../../../tools/bench/language/process-tree-memory.js';
 import { createBenchQueryOutcomeCollector } from '../../../tools/bench/language/query-outcomes.js';
-import { collectBenchmarkArtifactReport } from '../../../tools/bench/language/artifact-report.js';
+import { collectBenchmarkArtifactReport, qualifyBenchmarkArtifactGeneration, benchmarkArtifactFailureReceipt } from '../../../tools/bench/language/artifact-report.js';
+import { createRetrievalEvidenceRegistry } from '../../../tools/shared/retrieval-execution-evidence.js';
+import { captureBenchmarkQueryResults } from '../../../tools/bench/language/query-results.js';
 import { addStorageFailureContext } from '../../../src/shared/storage/operation-error.js';
 
 const root = process.cwd();
@@ -469,6 +471,7 @@ const runQueries = async (requestedConcurrency) => {
   const memoryRss = {};
   const hitCounts = {};
   const resultCounts = {};
+  const resultCountsByMode = {};
   const missTaxonomyByBackend = {};
   const missTaxonomyLowHitByBackend = {};
   const tallyMissTaxonomy = (target, labels = []) => {
@@ -488,6 +491,7 @@ const runQueries = async (requestedConcurrency) => {
     memoryRss[backend] = [];
     hitCounts[backend] = 0;
     resultCounts[backend] = [];
+    resultCountsByMode[backend] = {};
     missTaxonomyByBackend[backend] = new Map();
     missTaxonomyLowHitByBackend[backend] = new Map();
   }
@@ -537,6 +541,7 @@ const runQueries = async (requestedConcurrency) => {
   const queryWorkerEnv = buildQueryWorkerEnv();
   const executionPlan = await resolveAdaptiveQueryWorkerCount({ requestedConcurrency, backends, runtimeRoot, userConfig });
   const queryOutcomes = createBenchQueryOutcomeCollector({ workloadKey: queryPlan.key, concurrency: executionPlan.effectiveConcurrency });
+  const queryGenerations = Object.fromEntries(backends.map(backend => [backend, createRetrievalEvidenceRegistry()]));
   logBench(`[bench] Global query plan requested=${requestedConcurrency} planned=${executionPlan.effectiveConcurrency} ` +
     `stages=${executionPlan.stages.length} reason=${executionPlan.reason} ` +
     `estimatedPeak=${formatGb(executionPlan.estimatedPeakConcurrentBytes / (1024 * 1024))} ` +
@@ -583,20 +588,24 @@ const runQueries = async (requestedConcurrency) => {
       );
     }
     const payload = await runSearch(workerPool, task.query, task.backend);
+    const observedResults = captureBenchmarkQueryResults(payload,
+      queryBackendDecision.coverage.selectedSearchModeByBackend[task.backend]);
+    queryGenerations[task.backend].observe(payload, observedResults.modes);
     queryCapabilities.observe(task.backend, payload);
-    for (const mode of queryBackendDecision.coverage.selectedPrimaryModesByBackend[task.backend] || []) {
+    for (const mode of observedResults.modes) {
       queryOutcomes.observe({ backend: task.backend, mode, payload });
+      const row = resultCountsByMode[task.backend][mode] ||= { searches: 0, hits: 0, nonempty: 0 };
+      row.searches++; row.hits += observedResults.countsByMode[mode];
+      if (observedResults.countsByMode[mode] > 0) row.nonempty++;
     }
     queryProgress.count += 1;
     logQueryProgress();
-    const elapsedMs = Number(payload.stats?.elapsedMs);
-    if (!Number.isFinite(elapsedMs)) {
+    const elapsedMs = payload.stats?.elapsedMs;
+    if (typeof elapsedMs !== 'number' || !Number.isFinite(elapsedMs) || elapsedMs < 0) {
       fatalExit(`[bench] Missing timing stats for backend=${task.backend} query="${task.query}"`);
     }
     latency[task.backend].push(elapsedMs);
-    const codeHits = Array.isArray(payload.code) ? payload.code.length : 0;
-    const proseHits = Array.isArray(payload.prose) ? payload.prose.length : 0;
-    const totalHits = codeHits + proseHits;
+    const totalHits = observedResults.totalHits;
     const taxonomyLabels = Array.isArray(payload?.stats?.intent?.missTaxonomy?.labels)
       ? payload.stats.intent.missTaxonomy.labels
       : [];
@@ -634,6 +643,7 @@ const runQueries = async (requestedConcurrency) => {
       executedSearchesByBackend: Object.fromEntries(backends.map((backend) => [backend, latency[backend].length])) },
     queryCapabilities: queryCapabilities.snapshot(),
     queryOutcomeEvidence: queryOutcomes.snapshot(),
+    queryExecutionEvidence: Object.fromEntries(backends.map(backend => [backend, queryGenerations[backend].snapshot()])),
     queryConcurrency: executionPlan.effectiveConcurrency,
     queryConcurrencyRequested: requestedConcurrency,
     queryConcurrencyAutoReason: executionPlan.reason,
@@ -647,6 +657,7 @@ const runQueries = async (requestedConcurrency) => {
     latencyMs: latencyStats,
     hitRate,
     resultCountAvg,
+    resultCountsByMode,
     missTaxonomy: {
       byBackend: Object.fromEntries(backends.map((backend) => [
         backend,
@@ -669,13 +680,20 @@ for (const concurrency of queryConcurrencyList) {
   runs.push(await runQueries(concurrency));
 }
 
-let artifactReport, artifactReportAdmission;
+let artifactReport, artifactReportAdmission, artifactCollectionError = null, currentAfterRun = null;
 try {
   ({ report: artifactReport, receipt: artifactReportAdmission } = collectBenchmarkArtifactReport({ repoRoot: runtimeRoot, env: baseEnv }));
+  const generationJoin = qualifyBenchmarkArtifactGeneration(artifactReport,
+    runs.flatMap(run => Object.values(run.summary?.queryExecutionEvidence || {})));
+  artifactReportAdmission = { ...artifactReportAdmission, generationJoin };
+  if (generationJoin.state !== 'qualified') {
+    currentAfterRun = { scope: 'current-after-run-only;not-measured-attempt-authority', artifacts: artifactReport };
+    artifactReport = null;
+    artifactCollectionError = Object.assign(new Error(`Benchmark artifacts cannot join measured generation: ${generationJoin.reason}`), { code: 'ERR_BENCH_ARTIFACT_GENERATION' });
+  }
 } catch (error) {
-  try { closeDisplay(); }
-  catch (cleanup) { throw addStorageFailureContext(error, {}, cleanup, { secondaryPresent: true }); }
-  throw error;
+  artifactReportAdmission = benchmarkArtifactFailureReceipt(error);
+  artifactCollectionError = error;
 }
 const corruption = artifactReport?.corruption || null;
 const shouldCheckArtifactCorruption = !testingDefaultsEnabled || needsSqlite;
@@ -683,7 +701,10 @@ if (shouldCheckArtifactCorruption && corruption && corruption.ok === false) {
   const issues = Array.isArray(corruption.issues) && corruption.issues.length
     ? corruption.issues.join('; ')
     : 'unknown issues';
-  fatalExit(`[bench] Artifact corruption check failed: ${issues}`);
+  artifactCollectionError = Object.assign(new Error(`[bench] Artifact corruption check failed: ${issues}`), { code: 'ERR_BENCH_ARTIFACT_CORRUPTION' });
+  currentAfterRun = { scope: 'unqualified-current-after-run;not-measured-attempt-authority', artifacts: artifactReport };
+  artifactReportAdmission = { ...artifactReportAdmission, state: 'failed-required-phase', reason: 'artifact-corruption' };
+  artifactReport = null;
 }
 
 const summaries = runs.map((run) => run.summary).filter(Boolean);
@@ -708,17 +729,18 @@ const summary = summaries[0]
   : null;
 
 const output = {
+  status: artifactCollectionError ? 'failed-required-artifact-phase' : 'completed',
   queryPlan,
   generatedAt: new Date().toISOString(),
   repo: { root: repoArg || root },
   summary,
   runs: summaries,
   artifactReportAdmission,
+  currentAfterRun,
   artifacts: artifactReport
 };
 
 if (argv.json) {
-  closeDisplay();
   console.log(JSON.stringify(output, null, 2));
 } else {
   for (const runSummary of summaries) {
@@ -804,4 +826,9 @@ if (argv['write-report']) {
   await fs.writeFile(outPath, JSON.stringify(output, null, 2));
   if (!argv.json) logBench(`[bench] Report written (${path.basename(outPath)}).`);
 }
-closeDisplay();
+try { closeDisplay(); }
+catch (cleanup) {
+  if (artifactCollectionError) throw addStorageFailureContext(artifactCollectionError, {}, cleanup, { secondaryPresent: true });
+  throw cleanup;
+}
+if (artifactCollectionError) throw artifactCollectionError;

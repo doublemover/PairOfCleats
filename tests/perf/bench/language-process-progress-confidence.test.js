@@ -6,6 +6,7 @@ import path from 'node:path';
 
 import { ensureTestingEnv } from '../../helpers/test-env.js';
 import { createProcessRunner } from '../../../tools/bench/language/process.js';
+import { buildReportOutput } from '../../../tools/bench/language/report.js';
 import { BENCH_PROGRESS_CONFIDENCE_SCHEMA_VERSION } from '../../../tools/bench/language/logging.js';
 
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
@@ -88,6 +89,26 @@ assert.equal(last.coverage.state, 'observed');
 assert.equal(last.observation.state, 'observed');
 assert.equal(last.observation.view, 'last-observed-snapshot');
 
+const replayConfidence = async (name, sourcePath) => {
+  const resultsRoot = path.join(tempRoot, `replay-${name}`);
+  const logs = path.join(resultsRoot, 'logs', 'bench-language');
+  await fsPromises.mkdir(logs, { recursive: true });
+  // Copy the producer's bytes without reconstructing its confidence fields.
+  for (const scope of ['all', 'repo-a']) await fsPromises.copyFile(sourcePath,
+    path.join(logs, `run-confidence-${scope}.progress-confidence.jsonl`));
+  const report = await buildReportOutput({ configPath: path.join(resultsRoot, 'repos.json'), cacheRoot: resultsRoot,
+    resultsRoot, results: [], config: {}, runSuffix: 'confidence' });
+  assert.equal(report.diagnostics.streamRead.metrics.fileOpens, 2);
+  return report.diagnostics.progressConfidence;
+};
+const positiveReplay = await replayConfidence('observed', confidencePath);
+const observedScores = lines.map(JSON.parse).filter(row => typeof row.score === 'number' && Number.isFinite(row.score)).map(row => row.score);
+assert.ok(observedScores.length > 0);
+assert.equal(positiveReplay.scoreCoverage.observed, observedScores.length);
+assert.ok(Math.abs(positiveReplay.avgScore - observedScores.reduce((a, b) => a + b, 0) / observedScores.length) < 1e-12);
+assert.equal(positiveReplay.rawEventCount, lines.length * 2);
+assert.equal(positiveReplay.duplicateEventCount, lines.length);
+
 for (const [name, source] of [
   ['silent', ''], ['ordinary', "console.log('ordinary output');"],
   ['null-fields', "for (let i = 0; i < 2; i++) console.log(JSON.stringify({ proto: 'poc.progress@2', event: 'log', ts: new Date().toISOString(), message: 'ordinary output', queueAgeMs: null, inFlight: null }));"],
@@ -109,6 +130,12 @@ for (const [name, source] of [
   const rows = (await fsPromises.readFile(caseLog.replace(/\.log$/u, '.progress-confidence.jsonl'), 'utf8')).trim().split(/\r?\n/u).map(JSON.parse);
   assert.ok(rows.length >= 1);
   assert.ok(rows.every(row => row.score === null && row.bucket === 'unknown'), name);
+  const replay = await replayConfidence(name, caseLog.replace(/\.log$/u, '.progress-confidence.jsonl'));
+  assert.equal(replay.avgScore, null, name);
+  assert.equal(replay.minScore, null, name);
+  assert.equal(replay.scoreCoverage.observed, 0, name);
+  assert.equal(replay.scoreCoverage.unknown, rows.length, name);
+  assert.equal(replay.rawEventCount, rows.length * 2, name);
 }
 
 await fsPromises.rm(tempRoot, { recursive: true, force: true });

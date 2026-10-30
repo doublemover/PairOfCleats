@@ -5,6 +5,7 @@ import { spawnSubprocessSync } from '../../../src/shared/subprocess/runner.js';
 import { collectBenchmarkArtifactReport, readBenchmarkArtifactReport } from '../../../tools/bench/language/artifact-report.js';
 import { observeStorageResource } from '../../../src/shared/storage/failure-observation.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
+import { getRepoRoot } from '../../../src/shared/repo-paths.js';
 
 // UNVALIDATED: actual hidden child/capture owner and actual artifact CLI. A
 // complete command receipt does not qualify indexed work or performance.
@@ -17,7 +18,7 @@ applyTestEnv({ cacheRoot: path.join(root, 'cache'), extraEnv: { PAIROFCLEATS_HOM
 try {
   if (selected === 'actual-report') {
     const actual = collectBenchmarkArtifactReport({ repoRoot: root, env: process.env });
-    assert.equal(actual.report.repo.root, root);
+    assert.equal(actual.report.repo.root, getRepoRoot(root));
     assert.equal(actual.receipt.state, 'complete-command-output');
     assert.equal(actual.receipt.stdout.truncated, false);
     assert.equal(actual.receipt.scope, 'artifact-report-command');

@@ -6,6 +6,7 @@ import path from 'node:path';
 
 import { ensureTestingEnv } from '../../helpers/test-env.js';
 import { createProcessRunner } from '../../../tools/bench/language/process.js';
+import { buildReportOutput } from '../../../tools/bench/language/report.js';
 import {
   BENCH_DIAGNOSTIC_EVENT_TYPES,
   BENCH_DIAGNOSTIC_STREAM_SCHEMA_VERSION
@@ -207,6 +208,34 @@ for (const prefix of unexpectedInteractivePrefixes) {
   );
 }
 
+// Exercise the real process -> mirrored JSONL -> report handoff. The two
+// occurrences share a fingerprint but independently report ten milliseconds.
+const replayRoot = path.join(tempRoot, 'producer-replay');
+const replayLogs = path.join(replayRoot, 'logs', 'bench-language');
+await fsPromises.mkdir(replayLogs, { recursive: true });
+const replayPaths = ['repo-a', 'all'].map(scope => path.join(replayLogs, `run-produced-${scope}.log`));
+const replayRunner = createProcessRunner({ appendLog: () => {}, writeLog: () => {}, writeLogSync: () => {},
+  logHistory: [], logPath: replayPaths[0], getLogPaths: () => replayPaths, onProgressEvent: () => {} });
+const costScript = `const emit = () => console.log(JSON.stringify({proto:'poc.progress@2', event:'log',
+  ts:new Date().toISOString(), message:'same provider failure', stage:'provider', taskId:'provider',
+  benchDiagnostic:{eventType:'provider_request_failed', message:'same provider failure',
+    providerId:'fixture-provider', timeCostMs:10, requestedCount:2}})); emit(); emit();`;
+const produced = await replayRunner.runProcess('repo-a', process.execPath, ['-e', costScript], { continueOnError: true });
+assert.equal(produced.ok, true);
+const projected = await buildReportOutput({ configPath: path.join(replayRoot, 'repos.json'),
+  cacheRoot: replayRoot, resultsRoot: replayRoot, results: [], config: {}, runSuffix: 'produced' });
+assert.equal(projected.diagnostics.streamRead.metrics.fileOpens, 4, 'diagnostics and confidence mirrors are consumed');
+const replayed = projected.diagnostics.stream;
+assert.equal(replayed.eventCount, 1);
+assert.equal(replayed.occurrenceCount, 2);
+assert.equal(replayed.rawEventCount, 4);
+assert.equal(replayed.mirrorDuplicateCount, 2);
+assert.equal(replayed.cost.timeCostMs, 20);
+assert.equal(replayed.cost.requestedCount, 4);
+assert.equal(replayed.cost.reusedCount, null);
+assert.equal(replayed.identityCoverage.state, 'qualified');
+assert.equal(projected.diagnostics.progressConfidence.avgScore, null, 'diagnostic output alone supplies no heartbeat intervals');
+assert.ok(projected.diagnostics.progressConfidence.scoreCoverage.unknown > 0);
 await fsPromises.rm(tempRoot, { recursive: true, force: true });
 
-console.log('bench language process diagnostics stream test passed');
+console.log('bench language process diagnostics stream and report consumer test passed');

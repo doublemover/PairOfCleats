@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import { projectDiagnosticEnvironment } from '../../../src/shared/diagnostic-environment.js';
 import { log, logError } from '../../../src/shared/progress-runtime.js';
+import { observedDiagnosticCost } from './diagnostic-replay.js';
 import {
   normalizeReuseSource,
   normalizeReuseSurface,
@@ -335,11 +336,11 @@ const buildDiagnosticSignal = ({
     reuseSurface: normalizeReuseSurface(reuseSurface),
     reuseSource: normalizeReuseSource(reuseSource),
     qualityImpact: String(qualityImpact || '').trim().toLowerCase() || null,
-    timeCostMs: toNonNegativeCount(timeCostMs),
-    requestedCount: toNonNegativeCount(requestedCount),
-    reusedCount: toNonNegativeCount(reusedCount),
-    fetchedCount: toNonNegativeCount(fetchedCount),
-    chunkCount: toNonNegativeCount(chunkCount),
+    timeCostMs: observedDiagnosticCost(timeCostMs),
+    requestedCount: observedDiagnosticCost(requestedCount, { integer: true }),
+    reusedCount: observedDiagnosticCost(reusedCount, { integer: true }),
+    fetchedCount: observedDiagnosticCost(fetchedCount, { integer: true }),
+    chunkCount: observedDiagnosticCost(chunkCount, { integer: true }),
     timeoutKind: String(timeoutKind || '').trim() || null,
     phase: String(phase || '').trim() || null,
     resourceClass: String(resourceClass || '').trim() || null,
