@@ -1,6 +1,6 @@
 # Lane Evidence
 
-Generated: 2026-10-30T08:18:26.835Z
+Generated: 2026-10-30T09:13:22.010Z
 
 ## How To Use
 
@@ -13,7 +13,7 @@ Generated: 2026-10-30T08:18:26.835Z
 ## Lane Summary
 
 - `gate`: 41 tests, 0 with timings, 0 ms known duration, p50=n/a ms, p95=n/a ms, target 15s
-- `ci-lite`: 1941 tests, 49 with timings, 27090 ms known duration, p50=190 ms, p95=2140 ms, target 15s
+- `ci-lite`: 1946 tests, 49 with timings, 27090 ms known duration, p50=190 ms, p95=2140 ms, target 15s
 - `ci`: 228 tests, 22 with timings, 101770 ms known duration, p50=5020 ms, p95=5030 ms, target 60s
 - `ci-long`: 23 tests, 3 with timings, 15060 ms known duration, p50=5020 ms, p95=5030 ms, target 180s
 - `usr-full-conformance`: 11 tests, 0 with timings, 0 ms known duration, p50=n/a ms, p95=n/a ms, target 60s
@@ -34,7 +34,7 @@ Generated: 2026-10-30T08:18:26.835Z
 - `indexing/imports`: 36 tests, 5550 ms known duration
 - `cli/general`: 9 tests, 5410 ms known duration
 - `indexing/runtime`: 23 tests, 5040 ms known duration
-- `lang/contracts`: 70 tests, 5030 ms known duration
+- `lang/contracts`: 72 tests, 5030 ms known duration
 - `indexing/language-fixture`: 1 tests, 5030 ms known duration
 - `retrieval/filters`: 21 tests, 5020 ms known duration
 - `retrieval/ann`: 19 tests, 5020 ms known duration

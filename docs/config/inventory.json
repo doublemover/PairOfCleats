@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-30T08:42:25.054Z",
+  "generatedAt": "2026-10-30T09:13:23.975Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
@@ -4777,6 +4777,7 @@
         "tests/lang/contracts/native-lexical-scope-consumers.test.js",
         "tests/lang/contracts/native-perl-package-ownership-consumers.test.js",
         "tests/lang/contracts/native-projection-bounded-consumers.test.js",
+        "tests/lang/contracts/specialized-native-projection-admission.test.js",
         "tests/lang/javascript/jsdoc-comment-ownership.test.js",
         "tests/map/member-join-work-consumer.test.js",
         "tests/map/scene-render-submission.test.js",
@@ -4875,6 +4876,7 @@
         "tests/tooling/ci/lsp-runtime-qualification.test.js",
         "tests/tooling/eval/coverage-and-default-datasets.test.js",
         "tests/tooling/fixtures/fixture-eval.test.js",
+        "tests/tooling/index-stats/additional-family-producers.test.js",
         "tests/tooling/index-stats/option-admission.test.js",
         "tests/tooling/index/clean-artifacts-multi-repository.test.js",
         "tests/tooling/index/recovery-cli-authority.test.js",
@@ -5366,6 +5368,7 @@
         "tests/tooling/doctor/dedicated-provider-handshake-fixtures.test.js",
         "tests/tooling/doctor/generic-preset-matrix.test.js",
         "tests/tooling/doctor/zls-zig-compatibility.test.js",
+        "tests/tooling/index-stats/additional-family-producers.test.js",
         "tests/tooling/index-stats/all-manifest-byte-accounting.test.js",
         "tests/tooling/index-stats/option-admission.test.js",
         "tests/tooling/index-stats/symbol-family-logical-counts.test.js",
@@ -6758,6 +6761,13 @@
       },
       {
         "file": "tests/fixtures/benchmarks/tree-sitter-cache-isolate.js",
+        "flags": [
+          "treeSitter",
+          "treeSitterCacheKey"
+        ]
+      },
+      {
+        "file": "tests/fixtures/benchmarks/tree-sitter-cache-warm-compat.js",
         "flags": [
           "treeSitter",
           "treeSitterCacheKey"
@@ -8978,11 +8988,12 @@
       },
       {
         "flag": "treeSitter",
-        "count": 30,
+        "count": 31,
         "files": [
           "src/lang/javascript/chunks.js",
           "src/lang/typescript/chunks.js",
           "tests/fixtures/benchmarks/tree-sitter-cache-isolate.js",
+          "tests/fixtures/benchmarks/tree-sitter-cache-warm-compat.js",
           "tests/indexing/tree-sitter/adaptive-budget.test.js",
           "tests/indexing/tree-sitter/chunks.test.js",
           "tests/indexing/tree-sitter/csharp-groovy-coverage.test.js",
@@ -9828,6 +9839,15 @@
         ]
       },
       {
+        "flag": "treeSitterCacheKey",
+        "count": 3,
+        "files": [
+          "tests/fixtures/benchmarks/tree-sitter-cache-isolate.js",
+          "tests/fixtures/benchmarks/tree-sitter-cache-warm-compat.js",
+          "tests/indexing/tree-sitter/persistent-cache-admission.test.js"
+        ]
+      },
+      {
         "flag": "type",
         "count": 3,
         "files": [
@@ -10365,14 +10385,6 @@
         ]
       },
       {
-        "flag": "treeSitterCacheKey",
-        "count": 2,
-        "files": [
-          "tests/fixtures/benchmarks/tree-sitter-cache-isolate.js",
-          "tests/indexing/tree-sitter/persistent-cache-admission.test.js"
-        ]
-      },
-      {
         "flag": "trial-root",
         "count": 2,
         "files": [
@@ -10518,6 +10530,7 @@
       "tests/lang/contracts/native-rust-java-scope-acceptance.test.js",
       "tests/lang/contracts/proto-reflection-lexical-boundaries.test.js",
       "tests/lang/contracts/rust-attached-documentation.test.js",
+      "tests/lang/contracts/specialized-native-projection-admission.test.js",
       "tests/lang/contracts/template-and-build-import-identities.test.js",
       "tests/lang/contracts/toml-semantic-lexical-boundaries.test.js",
       "tests/lang/contracts/yaml-syntax-node-boundaries.test.js",

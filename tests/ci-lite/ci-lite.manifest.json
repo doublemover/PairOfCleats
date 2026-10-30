@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 1778,
+    "hero": 1783,
     "matrix": 109,
     "meta": 53,
     "soak": 1,
@@ -11661,6 +11661,36 @@
       "order": 1941,
       "suiteCategory": "meta",
       "suiteCategoryReason": "meta-cohort-prefix"
+    },
+    {
+      "id": "lang/contracts/specialized-native-projection-admission/css",
+      "order": 1942,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "lang/contracts/specialized-native-projection-admission/lua",
+      "order": 1943,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/index-stats/additional-family-producers/json",
+      "order": 1944,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/index-stats/additional-family-producers/sharded",
+      "order": 1945,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/index-stats/additional-family-producers/columnar",
+      "order": 1946,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
     }
   ]
 }

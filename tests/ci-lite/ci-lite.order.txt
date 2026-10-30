@@ -1942,3 +1942,8 @@ tooling/api-mcp/repository-probe-settled-controls/api
 tooling/api-mcp/repository-probe-settled-controls/mcp
 tooling/api-mcp/repository-probe-settled-controls/shared
 tooling/ci/jj-provisioning-admission
+lang/contracts/specialized-native-projection-admission/css
+lang/contracts/specialized-native-projection-admission/lua
+tooling/index-stats/additional-family-producers/json
+tooling/index-stats/additional-family-producers/sharded
+tooling/index-stats/additional-family-producers/columnar
