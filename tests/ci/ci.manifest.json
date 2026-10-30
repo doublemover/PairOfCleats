@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 200,
+    "hero": 206,
     "matrix": 27,
     "meta": 4,
     "soak": 0,
@@ -1401,6 +1401,42 @@
       "order": 231,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "lang/contracts/scala-call-attribution-acceptance",
+      "order": 232,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "lang/contracts/canonical-call-checkpoint-identity/exact",
+      "order": 233,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "lang/contracts/canonical-call-checkpoint-identity/source",
+      "order": 234,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "lang/contracts/canonical-call-checkpoint-identity/parser",
+      "order": 235,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "lang/contracts/canonical-call-checkpoint-identity/policy",
+      "order": 236,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "lang/contracts/canonical-call-checkpoint-identity/generation",
+      "order": 237,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
     }
   ]
 }

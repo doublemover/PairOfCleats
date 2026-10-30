@@ -230,3 +230,9 @@ cli/search/missing-value-flags-4/workspace
 indexing/semantic/phase-drain-compiler-revocation
 tooling/install/native-onnx-parity
 tooling/install/native-onnx-lifecycle
+lang/contracts/scala-call-attribution-acceptance
+lang/contracts/canonical-call-checkpoint-identity/exact
+lang/contracts/canonical-call-checkpoint-identity/source
+lang/contracts/canonical-call-checkpoint-identity/parser
+lang/contracts/canonical-call-checkpoint-identity/policy
+lang/contracts/canonical-call-checkpoint-identity/generation

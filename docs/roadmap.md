@@ -7,9 +7,9 @@ Canonical for: initiative status, execution order, and remaining work
 
 ## Current GitHub repair program
 
-The [current reconciliation](archived/windows-p2-p3-closure-delta-2026-10-30.md) records **791 reports: 416 closed /375 open**. Forty-four further closures have individual GitHub readbacks; prior ledgers retain their dated counts.
+The [current reconciliation](archived/windows-p2-p3-closure-followup-2026-10-30.md) records **791 reports: 419 closed /372 open**. Forty-seven further closures have individual GitHub readbacks; prior ledgers retain their dated counts.
 
-P2/P3 has **328 qualified closures /12 remaining targets /six editor exclusions** from346 reports. The parent and two persistent Sol6.1 High agents share the Windows checkout. Frontload shared-owner repairs, then run affected controls.
+P2/P3 has **331 qualified closures /nine remaining targets /six editor exclusions** from346 reports. The parent and two persistent Sol6.1 High agents share the Windows checkout. Frontload shared-owner repairs, then run affected controls.
 
 The [native parity repair](archived/windows-onnx-runtime-parity-2026-10-30.md) attributes the mixed ORT crash to API31 requested from the loaded1.30 DLL. Both consumers share exact1.30.0: ten fresh minimized cases, both public MiniLM orders and13 focused controls pass; setup verifies both orders. The [native/drain closeout](archived/windows-native-phase-closeout-2026-10-30.md) records the Perl counterfactual, nine historical traversal comparisons, three complete drain passes and compiler revocation. The [LSP/native window](archived/windows-lsp-native-qualification-2026-10-30.md) retains45 focused passes and18 projection capsules. Earlier source-bound receipts remain in the matrix below. Real models and full SQLite costs remain.
 

@@ -1,0 +1,397 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-10-30",
+  "source": "0276a5d33e96e0b41b33a8db77688af0eedb90a3",
+  "historicalAuthorWorkspace": true,
+  "scope": "Three completed Windows P2 reports;fresh source-binding checks supplement exact earlier source-bound receipts,not a full-suite qualification.",
+  "counts": {
+    "programReports": 791,
+    "closed": 419,
+    "open": 372,
+    "p2p3Reports": 346,
+    "p2p3Qualified": 331,
+    "remainingTargets": 9,
+    "wholeEditorExclusions": 6
+  },
+  "closed": [
+    {
+      "number": 1350,
+      "url": "https://github.com/doublemover/PairOfCleats/issues/1350",
+      "title": "[P2] Report unconfirmed LSP disposal instead of returning a successful pool drain",
+      "state": "closed",
+      "stateReason": "completed",
+      "closedAt": "2026-10-30T13:21:51Z",
+      "closeout": "<!-- poc-issue-closeout:start -->\n### Completed — 2026-10-30\n\nLSP pool drain now reports unconfirmed disposal, retains pending ownership and the same-key replacement barrier, and preserves original termination evidence and primary failures through independent logging/observer callbacks.\n\nAt published source `0276a5d33e96e0b41b33a8db77688af0eedb90a3`, all four original lifetime cases pass: delayed-close302ms, graceful-timeout-force8,199ms, kill-timeout294ms and real-server-exit296ms. The complete mapped phase drain passes three fresh cases in29,568/28,941/29,088ms, with compiler revocation separately passing12,863ms. The healthy fixture retains the normal whole-generation two-phase build, exact reuse/coverage/lineage and complete initial/fresh compiler-authority equality; the original strict-config negative lives in an independently bounded fixture with the same sealed compiler inputs. No larger deadline, retry or skipped assertion is used.\n\nWindows x64, Node26.13.0/ABI147, one job,30-second fixture limits, zero retries and native-status redo disabled. Both original failed receipts and the partition/equivalence explanation remain in the [durable native/drain closeout](https://github.com/doublemover/PairOfCleats/blob/0276a5d33e96e0b41b33a8db77688af0eedb90a3/docs/archived/windows-native-phase-closeout-2026-10-30.md). Fresh source-binding rechecks: `.tmp/tasks/q-1030/closure-source-rechecks.json` and `.testLogs/run-1793366180571-kjxw2h/` are historical author-workspace evidence; exact outcomes are recorded above. Linux native-deferred execution and historical SQLite crashes retain their separate coverage owners.\n<!-- poc-issue-closeout:end -->"
+    },
+    {
+      "number": 1623,
+      "url": "https://github.com/doublemover/PairOfCleats/issues/1623",
+      "title": "[P2] Bind semantic drain publication to its admitted cache and configuration authority",
+      "state": "closed",
+      "stateReason": "completed",
+      "closedAt": "2026-10-30T13:21:53Z",
+      "closeout": "<!-- poc-issue-closeout:start -->\n### Completed — 2026-10-30\n\nSemantic drain now captures its admitted repository/cache/configuration authority and revalidates the actual normal builder before mutation and publication/recovery. Changed loaded or supplied A→B authority rejects without creating B, moving A's pointer or releasing ownership before actual settlement. Healthy A→A and allowed thread changes remain covered.\n\nThe original `indexing/semantic/drain-publication-authority` passes in13,475ms at published source `0276a5d33e96e0b41b33a8db77688af0eedb90a3`. Complete healthy two-phase publication additionally passes three fresh cases in29,568/28,941/29,088ms; actual compiler-config revocation passes12,863ms. Full raw compiler inventories and actual `{inventory,repoRoot,toolingConfig}` verifier inputs compare equal across valid generations. Earlier five revoked/aborted/lost-lease and fifteen real falsey/hostile builder/cleanup cases retain their source-bound receipts; the changed original A→B owner was freshly rechecked.\n\nWindows x64, Node26.13.0/ABI147, one job,30-second fixture limits, zero retries and native-status redo disabled. Both original failed receipts and the partition/equivalence explanation remain in the [durable native/drain closeout](https://github.com/doublemover/PairOfCleats/blob/0276a5d33e96e0b41b33a8db77688af0eedb90a3/docs/archived/windows-native-phase-closeout-2026-10-30.md). Fresh source-binding rechecks: `.tmp/tasks/q-1030/closure-source-rechecks.json` and `.testLogs/run-1793366180571-kjxw2h/` are historical author-workspace evidence; exact outcomes are recorded above. Linux native-deferred execution and historical SQLite crashes retain their separate coverage owners.\n<!-- poc-issue-closeout:end -->"
+    },
+    {
+      "number": 1468,
+      "url": "https://github.com/doublemover/PairOfCleats/issues/1468",
+      "title": "[P2] Distinguish native lexical scopes from type ownership before classifying functions as methods",
+      "state": "closed",
+      "stateReason": "completed",
+      "closedAt": "2026-10-30T13:25:47Z",
+      "closeout": "<!-- poc-issue-closeout:start -->\n### Completed — 2026-10-30\n\nLexical container identity and semantic type membership are separate. Package/module/namespace free functions retain full lexical owner chains and FunctionDeclaration roles; genuine immediate type members remain methods. The Perl package repair does not broaden relation consumers to accept every method. Canonical producer identities invalidate old role/name projections (current Tree-sitter chunks18/sourceChunking54).\n\nThe exact issue-pinned `24230d796` shared owner positively reproduces braced/nested Perl MethodDeclaration misclassification and lost calls/exports; the repaired owner restores them. Both original/current capsules pass in1,530/1,477ms at clean `b55c76ac4d07833925530a84b223bae41458df57`, preserving all six exact native source envelopes, raw/filtered/per-chunk occurrences, canonical UID transitions, tokens/lines, enriched flow, metadata and bundle replay. The unbraced package remains an unchanged healthy control.\n\nTen native scope/ownership checks freshly pass with the current rebuilt Windows binaries at published implementation `0276a5d33e96e0b41b33a8db77688af0eedb90a3`: Rust/Java/native-Python/CPython and C/Objective-C/C++ acceptance, all Ruby/PHP/Scala/Groovy/R lexical consumer cases, and braced/nested/unbraced Perl consumers. No failures, timeouts or skips; one job,30-second bounds, zero retries and native-status redo disabled. The original wrong-visible-terminator fixture receipt remains preserved; the correction witnesses the actual hidden native LF span instead of trimming output.\n\n[Durable counterfactual/native receipt](https://github.com/doublemover/PairOfCleats/blob/0276a5d33e96e0b41b33a8db77688af0eedb90a3/docs/archived/windows-native-phase-closeout-2026-10-30.md). Fresh native-binary follow-up: `.tmp/tasks/q-1030/native-scope-current-binaries.json` and `.testLogs/run-1793366580554-oxl6iq/` are historical author-workspace receipts; the recorded scope is those ten passing cases, not a full-suite or non-Windows claim.\n<!-- poc-issue-closeout:end -->"
+    }
+  ],
+  "observations": {
+    "lifetimeAndAuthority": {
+      "junit": null,
+      "logDir": "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793366180571-kjxw2h",
+      "summary": {
+        "durationMs": 22575,
+        "failed": 0,
+        "passed": 5,
+        "skipped": 0,
+        "total": 5
+      },
+      "tests": [
+        {
+          "attempts": 1,
+          "durationMs": 13475,
+          "exitCode": 0,
+          "id": "indexing/semantic/drain-publication-authority",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793366180571-kjxw2h\\indexing_semantic_drain-publication-authority.attempt-1.log"
+          ],
+          "path": "indexing/semantic/drain-publication-authority.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 302,
+          "exitCode": 0,
+          "id": "tooling/lsp/drain-lifetime-matrix/delayed-close",
+          "lane": "unit",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793366180571-kjxw2h\\tooling_lsp_drain-lifetime-matrix_delayed-close.attempt-1.log"
+          ],
+          "path": "tooling/lsp/drain-lifetime-matrix.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "tooling",
+            "unit"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 8199,
+          "exitCode": 0,
+          "id": "tooling/lsp/drain-lifetime-matrix/graceful-timeout-force",
+          "lane": "unit",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793366180571-kjxw2h\\tooling_lsp_drain-lifetime-matrix_graceful-timeout-force.attempt-1.log"
+          ],
+          "path": "tooling/lsp/drain-lifetime-matrix.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "tooling",
+            "unit"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 294,
+          "exitCode": 0,
+          "id": "tooling/lsp/drain-lifetime-matrix/kill-timeout",
+          "lane": "unit",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793366180571-kjxw2h\\tooling_lsp_drain-lifetime-matrix_kill-timeout.attempt-1.log"
+          ],
+          "path": "tooling/lsp/drain-lifetime-matrix.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "tooling",
+            "unit"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 296,
+          "exitCode": 0,
+          "id": "tooling/lsp/drain-lifetime-matrix/real-server-exit",
+          "lane": "unit",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793366180571-kjxw2h\\tooling_lsp_drain-lifetime-matrix_real-server-exit.attempt-1.log"
+          ],
+          "path": "tooling/lsp/drain-lifetime-matrix.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "tooling",
+            "unit"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        }
+      ]
+    },
+    "nativeScopes": {
+      "junit": null,
+      "logDir": "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793366580554-oxl6iq",
+      "summary": {
+        "durationMs": 12714,
+        "failed": 0,
+        "passed": 10,
+        "skipped": 0,
+        "total": 10
+      },
+      "tests": [
+        {
+          "attempts": 1,
+          "durationMs": 1009,
+          "exitCode": 0,
+          "id": "lang/contracts/native-c-objc-cpp-declaration-acceptance",
+          "lane": "unit",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793366580554-oxl6iq\\lang_contracts_native-c-objc-cpp-declaration-acceptance.attempt-1.log"
+          ],
+          "path": "lang/contracts/native-c-objc-cpp-declaration-acceptance.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "lang",
+            "unit"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 1354,
+          "exitCode": 0,
+          "id": "lang/contracts/native-lexical-scope-consumers/groovy",
+          "lane": "unit",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793366580554-oxl6iq\\lang_contracts_native-lexical-scope-consumers_groovy.attempt-1.log"
+          ],
+          "path": "lang/contracts/native-lexical-scope-consumers.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "lang",
+            "unit"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 1434,
+          "exitCode": 0,
+          "id": "lang/contracts/native-lexical-scope-consumers/php",
+          "lane": "unit",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793366580554-oxl6iq\\lang_contracts_native-lexical-scope-consumers_php.attempt-1.log"
+          ],
+          "path": "lang/contracts/native-lexical-scope-consumers.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "lang",
+            "unit"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 1391,
+          "exitCode": 0,
+          "id": "lang/contracts/native-lexical-scope-consumers/r",
+          "lane": "unit",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793366580554-oxl6iq\\lang_contracts_native-lexical-scope-consumers_r.attempt-1.log"
+          ],
+          "path": "lang/contracts/native-lexical-scope-consumers.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "lang",
+            "unit"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 1457,
+          "exitCode": 0,
+          "id": "lang/contracts/native-lexical-scope-consumers/ruby",
+          "lane": "unit",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793366580554-oxl6iq\\lang_contracts_native-lexical-scope-consumers_ruby.attempt-1.log"
+          ],
+          "path": "lang/contracts/native-lexical-scope-consumers.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "lang",
+            "unit"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 1350,
+          "exitCode": 0,
+          "id": "lang/contracts/native-lexical-scope-consumers/scala",
+          "lane": "unit",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793366580554-oxl6iq\\lang_contracts_native-lexical-scope-consumers_scala.attempt-1.log"
+          ],
+          "path": "lang/contracts/native-lexical-scope-consumers.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "lang",
+            "unit"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 1110,
+          "exitCode": 0,
+          "id": "lang/contracts/native-perl-package-ownership-consumers/braced",
+          "lane": "unit",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793366580554-oxl6iq\\lang_contracts_native-perl-package-ownership-consumers_braced.attempt-1.log"
+          ],
+          "path": "lang/contracts/native-perl-package-ownership-consumers.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "lang",
+            "unit"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 1096,
+          "exitCode": 0,
+          "id": "lang/contracts/native-perl-package-ownership-consumers/nested",
+          "lane": "unit",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793366580554-oxl6iq\\lang_contracts_native-perl-package-ownership-consumers_nested.attempt-1.log"
+          ],
+          "path": "lang/contracts/native-perl-package-ownership-consumers.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "lang",
+            "unit"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 1047,
+          "exitCode": 0,
+          "id": "lang/contracts/native-perl-package-ownership-consumers/unbraced",
+          "lane": "unit",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793366580554-oxl6iq\\lang_contracts_native-perl-package-ownership-consumers_unbraced.attempt-1.log"
+          ],
+          "path": "lang/contracts/native-perl-package-ownership-consumers.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "lang",
+            "unit"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 1452,
+          "exitCode": 0,
+          "id": "lang/contracts/native-rust-java-scope-acceptance",
+          "lane": "unit",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793366580554-oxl6iq\\lang_contracts_native-rust-java-scope-acceptance.attempt-1.log"
+          ],
+          "path": "lang/contracts/native-rust-java-scope-acceptance.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "lang",
+            "unit"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        }
+      ]
+    }
+  },
+  "originalFixturesAndRuntimeSourceCompatible": true,
+  "knownSeparateWork": [
+    "#1384/#1413:requested editor portions only",
+    "#1627:compatible optional native Tantivy lifecycle",
+    "#1767:POSIX physical names;Windows qualification retained",
+    "#1484:additional functional and separate-arm memory controls source-ready,unvalidated",
+    "#1541/#1542/#1544:pinned actual models and admission costs",
+    "#1733:full original SQLite build/update campaign"
+  ]
+}
