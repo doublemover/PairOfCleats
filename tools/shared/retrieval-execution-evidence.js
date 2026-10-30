@@ -40,7 +40,7 @@ export const captureRetrievalExecutionEvidence = (payload, modes) => {
     const source = own(byMode, modeField(mode));
     const signature = own(source, 'signature');
     const generation = { buildId: text(own(source, 'buildId')), artifactSurfaceVersion: text(own(source, 'artifactSurfaceVersion')),
-      generationKey: text(own(source, 'generationKey')), activeBuildRoot: text(own(source, 'activeBuildRoot'), 2048),
+      generationKey: text(own(source, 'generationKey'),4096), activeBuildRoot: text(own(source, 'activeBuildRoot'), 2048),
       profileId: text(own(source, 'profileId')), signatureHash: signature == null ? null
         : semanticHash('retrieval-mode-signature.v1', signature, { maxBytes: 8192 }) };
     generations[mode] = generation;

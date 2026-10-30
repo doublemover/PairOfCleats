@@ -26,10 +26,17 @@ if(path.basename(process.argv[1]||'')==='compare-models.js') {
     if(active&&plan.pointer){atomicWriteJsonSync(owned(plan.pointerPath),plan.pointer,{durable:true});
       witness({event:'published-before-real-search',model,number,pointer:plan.pointer});}
     const result=original.call(this,command,args,options);
-    if(active&&(plan.omitGeneration||plan.changeGeneration)&&result.status===0) {
+    if(result.status===0&&plan.generationEvidence) {
+      const actual=JSON.parse(String(result.stdout));
+      fs.appendFileSync(owned(plan.generationEvidence),JSON.stringify({model,number,
+        generations:Object.fromEntries(Object.entries(actual.retrieval.freshness.byMode).map(([mode,value])=>[mode,
+          {generationKey:value.generationKey,buildId:value.buildId,activeBuildRoot:value.activeBuildRoot}]))})+'\n');
+    }
+    if(active&&(plan.omitGeneration||plan.changeGeneration||plan.oversizeGeneration)&&result.status===0) {
       const payload=JSON.parse(String(result.stdout));
       if(plan.omitGeneration)delete payload.retrieval.freshness.byMode[plan.omitGeneration].activeBuildRoot;
       if(plan.changeGeneration)payload.retrieval.freshness.byMode[plan.changeGeneration].buildId='changed-response-generation';
+      if(plan.oversizeGeneration)payload.retrieval.freshness.byMode[plan.oversizeGeneration].generationKey='x'.repeat(4097);
       const text=JSON.stringify(payload),bytes=Buffer.isBuffer(result.stdout)?Buffer.from(text):text;
       result.stdout=bytes;if(result.output)result.output[1]=bytes;
       witness({event:'actual-response-generation-fault-by-named-boundary-adapter',model,number});
