@@ -23,6 +23,8 @@ try {
   for (const change of [
     // Exact old persisted v1 proof could certify a swallowed LanceDB failure.
     entry => { entry.meta.executionOutcomes.code.schemaVersion = 1; },
+    // v2 could replace a healthy empty FTS execution with a different backend.
+    entry => { entry.meta.executionOutcomes.code.schemaVersion = 2; },
     entry => { delete entry.meta.executionOutcomes; },
     entry => { entry.meta.executionOutcomes = {}; },
     entry => { entry.meta.executionOutcomes.code = createRetrievalExecutionOutcome({ mode: 'code', annRequested: true }); },

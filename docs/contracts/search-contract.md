@@ -20,6 +20,13 @@ Search uses a blended ranking model:
 When both sparse and dense are enabled, results are blended using RRF or a
 weighted sum depending on config (`search.rrf`, `search.scoreBlend`).
 
+A successfully completed selected SQLite FTS query retains its result, including
+zero matches, without dispatching BM25. Unavailable tables, provider failures and
+truncated FTS work retain their existing fallback and partial-execution rules.
+Retrieval execution receipts use version 3; cached versions 1 and 2 are rejected
+before reuse or timestamp refresh so older fallback results cannot gain current
+execution authority.
+
 ## Filters and precedence
 
 Filters are applied before ranking. Supported filters include:

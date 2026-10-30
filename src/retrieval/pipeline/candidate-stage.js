@@ -176,14 +176,18 @@ export const runCandidateStage = ({
     sqliteFtsExecution = ftsResult.execution;
     sqliteFtsMatchesQueryAst = ftsResult.matchesQueryAst;
     bmHits = ftsResult.hits;
-    sqliteFtsUsed = bmHits.length > 0;
+    // A completed selected FTS query owns its empty result too. Falling through
+    // would replace the admitted native predicate with another scoring route.
+    // Keep genuine provider failures and truncated work eligible for fallback.
+    sqliteFtsUsed = bmHits.length > 0 || (!sqliteFtsDiagnostics.some(entry => entry?.code === FTS_UNAVAILABLE_CODE)
+      && sqliteFtsOverfetch?.truncated !== true);
     if (sqliteFtsUsed) {
       sparseType = ftsResult.type;
       candidates = buildCandidatesFromHits(bmHits);
     }
   }
 
-  if (!bmHits.length && !wantsTantivy && !sparseDeniedByProfile) {
+  if (!bmHits.length && !sqliteFtsUsed && !wantsTantivy && !sparseDeniedByProfile) {
     if (sparseMissingTables.length) {
       emitSparseUnavailable(sqliteFtsDiagnostics, 'missing_required_tables', mode, {
         provider: bm25Provider.id || 'js-bm25',

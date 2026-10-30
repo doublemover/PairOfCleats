@@ -80,9 +80,11 @@ try {
   assert.equal(healthyFts.executionOutcomes.code.cacheable, true);
   assert.equal((await runSearchSession(fts)).cache.hit, true); assert.equal(ftsCalls, 2);
   const empty = { ...fts, query: 'missing', embeddingQueryText: 'missing', queryTokens: ['missing'],
+    getTokenIndexForQuery: () => { throw new Error('Healthy empty FTS must retain its selected backend.'); },
     rankSqliteFts: () => { ftsCalls += 1; return []; } };
   const emptyResult = await runSearchSession(empty);
   assert.deepEqual(emptyResult.codeHits, []); assert.equal(emptyResult.executionOutcomes.code.cacheable, true);
+  assert.equal(emptyResult.executionOutcomes.code.effective.sparse, 'fts');
   const emptyCalls = ftsCalls;
   assert.equal((await runSearchSession(empty)).cache.hit, true); assert.equal(ftsCalls, emptyCalls);
   const cancelled = AbortSignal.abort();
