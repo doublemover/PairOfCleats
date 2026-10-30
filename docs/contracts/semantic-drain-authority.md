@@ -40,11 +40,20 @@ build-affecting configuration fields.
 The existing lease/journal/control owners settle failed drains. Independent
 cleanup failures survive alongside the original failure. A stale operation cannot
 publish elsewhere and then depend on recovery from its old root to notice.
+After cancellation, terminal journal cleanup uses its already admitted path and
+disk account without the cancelled request signal. This permits only the final
+failure record, not new builder or publication work. Unknown resource failures
+block that write, and terminal journal failures remain in the original error graph.
 
 The authored WASM production fixture uses normal source indexing and real builder
 entry/runtime barriers. It covers live A-to-B switches with loaded and supplied
 configuration, early injected-owner mismatch, unchanged A pointers, no B creation,
 failed-journal/lease settlement and healthy A-to-A publication with a permitted
-cache-retention change. Existing source/dependency mutation, cancellation,
-lost-lease, native and compiler controls remain. Functional execution is deferred;
-this implementation does not establish final-head Windows qualification.
+thread-budget change. Additional fresh WASM consumer cases exercise actual
+semantic-policy revocation through loaded/supplied configuration, pre-abort,
+mid-builder cancellation and release of the actual admitted control-store lease.
+They require unchanged current-generation bytes/partitions, no completed output,
+same-owner terminal journal and settled lease. Pre-abort must create no journal
+or consume a lease attempt. Existing source/dependency mutation, native and
+compiler controls remain. Newly authored consumer checks await execution; source
+changes do not establish final-head Windows qualification.

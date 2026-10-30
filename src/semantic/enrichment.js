@@ -17,6 +17,7 @@ import { reconcilePublishedSemanticBindingWork, openRepositorySemanticControl } 
 import { createSemanticEnrichmentGrant } from '../index/semantic/enrichment-context.js';
 import { captureEnrichmentAuthority } from './enrichment-authority.js';
 import { addStorageFailureContext } from '../shared/storage/operation-error.js';
+import { observeStorageResource } from '../shared/storage/failure-observation.js';
 import { createEnrichmentWorkScopes, recordCompilerReuseScopes, recordPublishedWorkScopes, trimEnrichmentWorkScopes } from './enrichment-scopes.js';
 import { isWithinRoot, toRealPathSync } from '../workspace/identity.js';
 import { createEnrichmentBudget, enrichmentError, enrichmentSame, openEnrichmentInventory,
@@ -131,7 +132,12 @@ export const runSemanticEnrichmentService = async ({ request, userConfig, signal
   signal?.addEventListener('abort', abort, { once: true });
   if (signal?.aborted) abort();
   let deadline = null;
-  const writeJournal = async () => { assertSemanticEnrichment('journal', journal); await writeSemanticJson({ filename: journalPath, value: journal, diskAccount, signal }); };
+  const writeJournal = async ({ terminal = false } = {}) => {
+    assertSemanticEnrichment('journal', journal);
+    // Persist only terminal cleanup on the already admitted journal/account
+    // after cancellation. This never grants fresh builder or publication work.
+    await writeSemanticJson({ filename: journalPath, value: journal, diskAccount, signal: terminal ? null : signal });
+  };
   const recover = async candidate => {
     if (!candidate?.newBuildRoot || !candidate.lineage.length) return false;
     authority.verify();
@@ -270,10 +276,16 @@ export const runSemanticEnrichmentService = async ({ request, userConfig, signal
       try {
         const committed = await readEnrichmentCurrent({ repoRoot, userConfig });
         if (journal.newBuildRoot && committed.buildRoot === toRealPathSync(journal.newBuildRoot)) journal.status = 'published';
-      } catch {}
-      try { await writeJournal(); } catch {}
+      } catch (inspection) {
+        try { observeStorageResource(inspection, { phase: 'semantic-drain-terminal-pointer' }).requireSettled(); }
+        catch (pending) { primaryFailure = addStorageFailureContext(primaryFailure, {}, pending, { secondaryPresent: true }); }
+      }
+      try {
+        observeStorageResource(primaryFailure, { phase: 'semantic-drain-terminal-journal' }).requireSettled();
+        await writeJournal({ terminal: true });
+      } catch (cleanup) { primaryFailure = addStorageFailureContext(primaryFailure, {}, cleanup, { secondaryPresent: true }); }
     }
-    throw error;
+    throw primaryFailure;
   } finally {
     if (renewal) clearInterval(renewal); if (deadline) clearTimeout(deadline);
     signal?.removeEventListener('abort', abort);
