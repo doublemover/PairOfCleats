@@ -1861,3 +1861,10 @@ shared/hash/stat-work-bound-consumer/native-exact-work
 shared/hash/stat-work-bound-consumer/native-timestamp-race
 shared/hash/stat-work-bound-consumer/native-unsafe-extent
 tooling/reports/compare-models-observed-corpus/oversize-generation
+indexing/semantic/derived-index-owner-composition/failure-drain
+indexing/semantic/derived-index-owner-composition/parity
+indexing/semantic/drain-ownership-cancellation-consumers/lost-lease
+indexing/semantic/drain-ownership-cancellation-consumers/mid-abort
+indexing/semantic/drain-ownership-cancellation-consumers/pre-abort
+indexing/semantic/drain-ownership-cancellation-consumers/revoked-loaded
+indexing/semantic/drain-ownership-cancellation-consumers/revoked-supplied

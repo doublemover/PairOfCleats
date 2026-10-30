@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 1698,
+    "hero": 1705,
     "matrix": 109,
     "meta": 52,
     "soak": 1,
@@ -11173,6 +11173,48 @@
     {
       "id": "tooling/reports/compare-models-observed-corpus/oversize-generation",
       "order": 1860,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/semantic/derived-index-owner-composition/failure-drain",
+      "order": 1861,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/semantic/derived-index-owner-composition/parity",
+      "order": 1862,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/semantic/drain-ownership-cancellation-consumers/lost-lease",
+      "order": 1863,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/semantic/drain-ownership-cancellation-consumers/mid-abort",
+      "order": 1864,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/semantic/drain-ownership-cancellation-consumers/pre-abort",
+      "order": 1865,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/semantic/drain-ownership-cancellation-consumers/revoked-loaded",
+      "order": 1866,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/semantic/drain-ownership-cancellation-consumers/revoked-supplied",
+      "order": 1867,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }
