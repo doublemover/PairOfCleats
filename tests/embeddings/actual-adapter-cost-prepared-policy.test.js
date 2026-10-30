@@ -22,7 +22,11 @@ try {
     if (entry.includes('/fixtures/')) args.push('--arm', 'current');
     const result = await spawnSubprocess(process.execPath, args, { timeoutMs: 10000, maxOutputBytes: 32768,
       outputMode: 'string', captureStdout: true, captureStderr: true, rejectOnNonZeroExit: false, killTree: true });
-    assert.equal(result.exitCode, 1); assert.equal(result.timedOut, false); assert.equal(result.stdout, '');
+    // This owner fulfills only on the original child's close; its timeout
+    // rejects even with rejectOnNonZeroExit:false and is not a result flag.
+    assert.equal(result.exitCode, 1); assert.equal(result.signal, null);
+    assert.ok(Number.isFinite(result.durationMs) && result.durationMs >= 0 && result.durationMs < 10000);
+    assert.equal(result.stdout, '');
     assert.match(result.stderr, /Direct ONNX has no public prepare\/embedPrepared capability/);
     assert.doesNotMatch(result.stderr, /BOOTSTRAP REQUIRED|ERR_MODULE_NOT_FOUND|ONNX model path not found/);
     if (entry.includes('/fixtures/')) assert.deepEqual(await fs.readdir(output), [], 'Denied route owns no runtime root or model work.');

@@ -4,6 +4,7 @@ import { DIRECT_MINILM_ARTIFACTS, assertDirectMiniLmManifest, assertDirectMiniLm
   directMiniLmSessionOptions, scalarDirectMiniLmReference } from './helpers/direct-minilm-reference.js';
 import { compareMiniLmReferenceVectors } from './helpers/minilm-upstream-reference.js';
 import { applyTestEnv } from '../helpers/test-env.js';
+import { observeEmbeddingOwnership } from '../../src/shared/embedding-cache-lifetime.js';
 
 applyTestEnv();
 // Finite metadata, independent arithmetic and controlled original component
@@ -43,11 +44,14 @@ for (const values of [[1n, 2n, 0n, 1n, 1n, 0n], [0n, 0n, 0n, 1n, 1n, 0n]]) {
 const maskedNonfinite = { ...hidden, data: new Float32Array(hidden.data) }; maskedNonfinite.data[768] = Infinity;
 assert.throws(() => scalarDirectMiniLmReference({ hidden: maskedNonfinite, mask, count: 2 }));
 const components = ({ controller = null, abortAt = null, malformed = false, cleanupFailure = null, runGate = null, runEntered = null } = {}) => {
-  const closed = [], calls = []; let firstCleanup = true;
+  const closed = [], calls = [], disposeAttempts = [], disposedTensors = new Set(); let firstCleanup = true;
   class Tensor {
     constructor(type, data, dims) { this.type = type; this.data = data; this.dims = dims; }
     dispose() {
+      assert.equal(disposedTensors.has(this), false, 'confirmed tensor disposal cannot be replayed');
+      disposeAttempts.push(this);
       if (cleanupFailure && firstCleanup) { firstCleanup = false; throw cleanupFailure; }
+      disposedTensors.add(this);
       closed.push(this.type); if (this.data instanceof Float32Array) this.data.fill(NaN);
     }
   }
@@ -71,7 +75,7 @@ const components = ({ controller = null, abortAt = null, malformed = false, clea
   const runtime = { Tensor, InferenceSession: { async create(file, options) {
     calls.push(['session', file, options]); if (abortAt === 'session') controller.abort(); return session;
   } } };
-  return { transformers, runtime, session, tokenizer, closed, calls };
+  return { transformers, runtime, session, tokenizer, closed, calls, disposeAttempts, disposedTensors };
 };
 const create = (control, signal) => createDirectMiniLmReference({ ...control, manifest,
   selectedGraph: manifest.onnxConfig.modelPath, signal });
@@ -102,19 +106,50 @@ const invalid = components({ malformed: true }), invalidReference = await create
 await assert.rejects(invalidReference.embed(['first', '第二段']), { code: 'ERR_ASSERTION' }); await invalidReference.close();
 assert.ok(invalid.closed.includes('float32')); assert.deepEqual(invalid.closed.slice(-2), ['session', 'tokenizer']);
 const originalCleanupFailure = Object.assign(new Error('original raw feed cleanup'), { code: 'RAW_FEED_CLOSE' });
+const inspectCauses = value => {
+  const causes = new Set(), visit = error => {
+    if (!error || causes.has(error)) return; causes.add(error); assert.ok(causes.size < 24);
+    visit(error.cause); for (const member of error.errors || []) visit(member);
+  };
+  visit(value); return causes;
+};
+const reconcileFailedCleanup = async (active, component, operationFailure) => {
+  const operationReleased = observeEmbeddingOwnership(operationFailure); assert.equal(operationReleased(), false);
+  assert.equal(component.disposeAttempts.length, 4); assert.equal(component.disposedTensors.size, 3);
+  let firstCloseFailure;
+  // The first session-owner release reports its already failed tensor scope.
+  // It does not authorize replay of any disposer, or release native parents.
+  await assert.rejects(active.close(), error => {
+    firstCloseFailure = error; assert.equal(error.code, 'RAW_FEED_CLOSE');
+    assert.ok(inspectCauses(error).has(originalCleanupFailure)); return true;
+  });
+  const closeReleased = observeEmbeddingOwnership(firstCloseFailure); assert.equal(closeReleased(), false);
+  assert.equal(component.disposeAttempts.length, 4);
+  assert.equal(component.closed.includes('session'), false); assert.equal(component.closed.includes('tokenizer'), false);
+  // Explicitly retry the same original owner. Only the unconfirmed failed
+  // output disposal may retry; all confirmed physical releases stay once.
+  await active.close();
+  assert.equal(operationReleased(), true); assert.equal(closeReleased(), true);
+  assert.equal(component.disposeAttempts.length, 5); assert.equal(component.disposedTensors.size, 4);
+  const attempts = new Map(); for (const tensor of component.disposeAttempts) attempts.set(tensor, (attempts.get(tensor) || 0) + 1);
+  assert.deepEqual([...attempts.values()].sort(), [1, 1, 1, 2]);
+  assert.deepEqual(component.closed.slice(-2), ['session', 'tokenizer']);
+  await active.close(); assert.equal(component.disposeAttempts.length, 5);
+  assert.equal(component.closed.filter(name => name === 'session').length, 1);
+  assert.equal(component.closed.filter(name => name === 'tokenizer').length, 1);
+};
 const failedCleanup = components({ cleanupFailure: originalCleanupFailure }), cleanupReference = await create(failedCleanup);
-await assert.rejects(cleanupReference.embed(['first', '第二段']), { code: 'RAW_FEED_CLOSE' });
-await cleanupReference.close(); assert.deepEqual(failedCleanup.closed.slice(-2), ['session', 'tokenizer']);
+let cleanupOperationFailure;
+await assert.rejects(cleanupReference.embed(['first', '第二段']), error => {
+  cleanupOperationFailure = error; assert.equal(error.code, 'RAW_FEED_CLOSE'); return true;
+});
+await reconcileFailedCleanup(cleanupReference, failedCleanup, cleanupOperationFailure);
 const bothFailures = components({ malformed: true, cleanupFailure: originalCleanupFailure }), joinedReference = await create(bothFailures);
 let joined;
 try { await joinedReference.embed(['first', '第二段']); } catch (error) { joined = error; }
 assert.equal(joined?.code, 'ERR_ASSERTION');
-const causes = new Set(), inspect = error => {
-  if (!error || causes.has(error)) return; causes.add(error); assert.ok(causes.size < 24);
-  inspect(error.cause); for (const member of error.errors || []) inspect(member);
-};
-inspect(joined); assert.ok(causes.has(originalCleanupFailure), 'original validation and exact independent cleanup failure remain attached');
-await joinedReference.close(); assert.deepEqual(bothFailures.closed.slice(-2), ['session', 'tokenizer']);
+assert.ok(inspectCauses(joined).has(originalCleanupFailure), 'original validation and exact independent cleanup failure remain attached');
+await reconcileFailedCleanup(joinedReference, bothFailures, joined);
 let enterRun, releaseRun;
 const entered = new Promise(resolve => { enterRun = resolve; }), admittedRun = new Promise(resolve => { releaseRun = resolve; });
 const pendingControl = components({ runGate: admittedRun, runEntered: enterRun }), pendingReference = await create(pendingControl);
