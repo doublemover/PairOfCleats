@@ -1,3 +1,7 @@
+import { readQuotedLiteralEnd } from '../../shared/quoted-literal.js';
+import { PYTHON_IDENTIFIER_PROFILE, pythonIdentifier, pythonModuleName } from './identifiers.js';
+import { buildLineIndex, splitPythonPhysicalLines } from './normalize.js';
+import { attachImportExtraction, createImportExtraction } from '../../shared/import-extraction.js';
 import {
   addCollectorImportEntry,
   createCollectorImportEntryStore,
@@ -13,93 +17,32 @@ const normalizeSpecifier = (value, { allowRelative = false } = {}) => {
   const trimmed = String(value).trim();
   if (!trimmed) return '';
   const withoutComma = trimmed.replace(/,+$/g, '');
-  const modulePart = withoutComma.split(/\s+as\s+/i)[0]?.trim() || '';
+  const modulePart = withoutComma.split(/\s+as\s+/u)[0]?.trim() || '';
   if (!modulePart) return '';
-  if (allowRelative && /^\.+[A-Za-z0-9_\.]*$/.test(modulePart)) return modulePart;
-  if (/^[A-Za-z_][A-Za-z0-9_\.]*$/.test(modulePart)) return modulePart;
-  return '';
+  return pythonModuleName(modulePart, { allowRelative })?.semantic || '';
 };
 
 const normalizeUsage = (value) => {
   if (!value) return '';
   const trimmed = String(value).trim().replace(/,+$/g, '');
-  return /^[A-Za-z_][A-Za-z0-9_]*$/.test(trimmed) ? trimmed : '';
+  return pythonIdentifier(trimmed)?.semantic || '';
 };
 
 const replaceWithSpacePreservingNewlines = (value) => value.replace(/[^\r\n]/g, ' ');
 
 const stripPythonStringsAndComments = (text) => {
   const source = String(text || '');
-  const length = source.length;
-  let index = 0;
-  let output = '';
-  let state = 'code';
-  let quoteChar = null;
-
-  const startsWithTripleQuote = (offset, quote) => (
-    source[offset] === quote && source[offset + 1] === quote && source[offset + 2] === quote
-  );
-
-  while (index < length) {
-    const char = source[index];
-    if (state === 'code') {
-      if (char === '#') {
-        let end = index;
-        while (end < length && source[end] !== '\n' && source[end] !== '\r') {
-          end += 1;
-        }
-        output += replaceWithSpacePreservingNewlines(source.slice(index, end));
-        index = end;
-        continue;
-      }
-      if (char === '\'' || char === '"') {
-        quoteChar = char;
-        if (startsWithTripleQuote(index, char)) {
-          state = char === '\'' ? 'triple-single' : 'triple-double';
-          output += '   ';
-          index += 3;
-          continue;
-        }
-        state = char === '\'' ? 'single' : 'double';
-        output += ' ';
-        index += 1;
-        continue;
-      }
-      output += char;
-      index += 1;
-      continue;
-    }
-
-    if (state === 'single' || state === 'double') {
-      if (char === '\\') {
-        const nextIndex = Math.min(length, index + 2);
-        output += replaceWithSpacePreservingNewlines(source.slice(index, nextIndex));
-        index = nextIndex;
-        continue;
-      }
-      output += (char === '\r' || char === '\n') ? char : ' ';
-      if (char === quoteChar) {
-        state = 'code';
-        quoteChar = null;
-      }
-      index += 1;
-      continue;
-    }
-
-    if (state === 'triple-single' || state === 'triple-double') {
-      if (startsWithTripleQuote(index, quoteChar)) {
-        output += '   ';
-        index += 3;
-        state = 'code';
-        quoteChar = null;
-        continue;
-      }
-      output += (char === '\r' || char === '\n') ? char : ' ';
-      index += 1;
-      continue;
-    }
+  let index = 0, output = '';
+  while (index < source.length) {
+    if (source[index] === '#') {
+      let end = index;
+      while (end < source.length && !/[\r\n]/u.test(source[end])) end++;
+      output += replaceWithSpacePreservingNewlines(source.slice(index, end)); index = end;
+    } else if (source[index] === "'" || source[index] === '"') {
+      const literal = readQuotedLiteralEnd(source, index);
+      output += replaceWithSpacePreservingNewlines(source.slice(index, literal.end)); index = literal.end;
+    } else output += source[index++];
   }
-
   return output;
 };
 
@@ -112,6 +55,25 @@ const countParenDelta = (statement) => {
   return depth;
 };
 
+// Only a compound-header role can introduce an inline suite. Sanitized strings
+// preserve source coordinates; brackets and lambda colons remain expressions.
+const inlineSuite = statement => {
+  if (!/^(?:(?:async\s+)?(?:def|for|with)\b|class\b|if\b|elif\b|else\b|try\b|except\b|finally\b|while\b|case\b)/u.test(statement)) return statement;
+  let depth = 0, lambdas = 0;
+  for (const match of statement.matchAll(/[A-Za-z_][A-Za-z0-9_]*|[()[\]{}:]/gu)) {
+    const token = match[0];
+    if (['(','[','{'].includes(token)) depth++;
+    else if ([')',']','}'].includes(token)) depth--;
+    else if (token === 'lambda' && depth === 0) lambdas++;
+    else if (token === ':' && depth === 0) {
+      if (lambdas) { lambdas--; continue; }
+      return statement.slice(match.index+1).trimStart();
+    }
+    if (depth < 0) return '';
+  }
+  return '';
+};
+
 const collectPythonImportState = (text) => {
   const source = String(text || '');
   if (!source.includes('import')) {
@@ -121,26 +83,34 @@ const collectPythonImportState = (text) => {
   const sanitized = stripPythonStringsAndComments(source);
   const importStore = createCollectorImportEntryStore();
   const usages = new Set();
+  const occurrences = [];
   const statements = [];
-  const lines = sanitized.split(/\r?\n/);
+  const lines = splitPythonPhysicalLines(sanitized);
+  const lineOffsets = buildLineIndex(sanitized);
   let current = '';
+  let currentStart = 0, currentEnd = 0;
   let parenDepth = 0;
 
   const pushStatement = (value) => {
     const normalized = String(value || '').trim();
-    if (normalized) statements.push(normalized);
+    if (normalized) statements.push({ text: normalized, start: currentStart, end: currentEnd });
   };
 
-  for (const rawLine of lines) {
-    const segments = String(rawLine || '')
-      .split(';')
-      .map((segment) => segment.trim())
-      .filter(Boolean);
+  for (const [lineNumber, rawLine] of lines.entries()) {
+    let segmentOffset = 0;
+    const segments = rawLine.split(';').map(value => {
+      const start = lineOffsets[lineNumber] + segmentOffset + value.length-value.trimStart().length;
+      segmentOffset += value.length+1;
+      return { value: value.trim(), start, end: lineOffsets[lineNumber]+segmentOffset-1 };
+    }).filter(segment => segment.value);
     if (!segments.length) {
       if (!parenDepth) { pushStatement(current); current = ''; }
       continue;
     }
-    for (const segment of segments) {
+    for (const item of segments) {
+      const segment = item.value;
+      if (!current) currentStart = item.start;
+      currentEnd = item.end;
       const continued = segment.endsWith('\\');
       const normalizedSegment = continued ? segment.slice(0, -1).trimEnd() : segment;
       current = current ? `${current} ${normalizedSegment}` : normalizedSegment;
@@ -155,7 +125,12 @@ const collectPythonImportState = (text) => {
     pushStatement(current);
   }
 
-  for (const statement of statements) {
+  for (const envelope of statements) {
+    const statement = inlineSuite(envelope.text);
+    const remember = (role, raw, semantic) => {
+      if (semantic) occurrences.push({ role, raw: raw.trim(), semantic,
+        source: { start: envelope.start, end: envelope.end, encoding: 'utf16le-js-string', range: 'logical-statement-envelope' } });
+    };
     let match = statement.match(/^import\s+(.+)$/);
     if (match) {
       const parts = match[1]
@@ -163,19 +138,23 @@ const collectPythonImportState = (text) => {
         .map((part) => part.trim())
         .filter(Boolean);
       for (const part of parts) {
-        const [moduleNameRaw, aliasRaw] = part.split(/\s+as\s+/i);
+        const [moduleNameRaw, aliasRaw] = part.split(/\s+as\s+/u);
         const moduleName = normalizeSpecifier(moduleNameRaw);
         const alias = normalizeUsage(aliasRaw);
         if (moduleName) addCollectorImportEntry(importStore, moduleName);
         if (alias) usages.add(alias);
+        remember('module', moduleNameRaw, moduleName);
+        if (alias) remember('alias', aliasRaw, alias);
       }
       continue;
     }
 
-    match = statement.match(/^from\s+(\.+[A-Za-z0-9_\.]*|[A-Za-z_][A-Za-z0-9_\.]*)\s+import\s+(.+)$/);
+    match = statement.match(/^from\s+(\S+)\s+import\s+(.+)$/u);
     if (!match) continue;
     const moduleName = normalizeSpecifier(match[1], { allowRelative: true });
+    if (!moduleName) continue;
     if (moduleName) addCollectorImportEntry(importStore, moduleName);
+    remember('module', match[1], moduleName);
     const names = match[2]
       .replace(/^\(/, '')
       .replace(/\)$/, '')
@@ -183,16 +162,20 @@ const collectPythonImportState = (text) => {
       .map((part) => part.trim())
       .filter(Boolean);
     for (const namePart of names) {
-      const [nameRaw, aliasRaw] = namePart.split(/\s+as\s+/i);
+      const [nameRaw, aliasRaw] = namePart.split(/\s+as\s+/u);
       const name = normalizeUsage(nameRaw);
       const alias = normalizeUsage(aliasRaw);
       if (name && name !== '*') usages.add(name);
       if (alias) usages.add(alias);
+      if (name) remember('member', nameRaw, name);
+      if (alias) remember('alias', aliasRaw, alias);
     }
   }
 
+  const importEntries = finalizeCollectorImportEntries(importStore);
+  Object.defineProperty(importEntries, 'occurrences', { value: occurrences });
   return {
-    importEntries: finalizeCollectorImportEntries(importStore),
+    importEntries,
     usages: Array.from(usages).sort(compareCaseAware)
   };
 };
@@ -204,7 +187,11 @@ const collectPythonImportState = (text) => {
  * @returns {Array<{specifier:string,collectorHint?:object}>}
  */
 export function collectPythonImportEntries(text) {
-  return collectPythonImportState(text).importEntries;
+  const entries = collectPythonImportState(text).importEntries;
+  if (!PYTHON_IDENTIFIER_PROFILE.available) attachImportExtraction(entries, createImportExtraction({ entries,
+    text: String(text || ''), producerId: 'python', scope: 'legacy-import-array:python', state: 'unavailable',
+    reasons: ['legacy_array_producer', 'python_identifier_unicode_profile_unavailable'] }));
+  return entries;
 }
 
 /**

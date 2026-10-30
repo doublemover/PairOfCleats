@@ -4,7 +4,7 @@ export const readStaticShellWord = (source, start = 0) => {
   while (/\s/u.test(source[index] || '') && index < source.length) index++;
   for (; index < source.length; index++) {
     const char = source[index];
-    if (!quote && (/[\s;&|<>]/u.test(char) || char === '#')) break;
+    if (!quote && (/[\s;&|<>]/u.test(char) || char === '#' && !started)) break;
     started = true;
     if (char === "'" && quote !== '"') { quote = quote === "'" ? null : "'"; continue; }
     if (char === '"' && quote !== "'") { quote = quote === '"' ? null : '"'; continue; }
@@ -16,6 +16,7 @@ export const readStaticShellWord = (source, start = 0) => {
       else { value += next; index++; continue; }
     }
     if (quote !== "'" && (char === '$' || char === '`')) dynamic = true;
+    if (!quote && ['?', '*', '['].includes(char)) dynamic = true;
     value += char;
   }
   return started && !quote && !dynamic ? { value, end:index } : null;

@@ -5,15 +5,15 @@ import { DEFAULT_IMPORT_EXTS } from './constants.js';
 
 export const sortStrings = (a, b) => (a < b ? -1 : (a > b ? 1 : 0));
 
-export const stripSpecifier = (spec) => {
+export const stripSpecifier = (spec, { fileLiteral = false } = {}) => {
   if (typeof spec !== 'string') return '';
   const input = spec.trim();
-  const raw = input.startsWith('#') ? input.split('?')[0] : input.split(/[?#]/)[0];
+  const raw = fileLiteral ? input : input.startsWith('#') ? input.split('?')[0] : input.split(/[?#]/)[0];
   return raw.trim();
 };
 
-export const normalizeImportSpecifier = (spec) => {
-  const stripped = stripSpecifier(spec);
+export const normalizeImportSpecifier = (spec, policy) => {
+  const stripped = stripSpecifier(spec,policy);
   if (!stripped) return '';
   if (stripped.startsWith('//./') || stripped.startsWith('//../')) {
     return stripped.slice(2);

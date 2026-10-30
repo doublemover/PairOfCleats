@@ -70,6 +70,89 @@ function stripLuaComments(text) {
 
 const LUA_CALL_PATTERN = /\b([A-Za-z_][A-Za-z0-9_.:]*)\s*\(/g;
 
+const maskLuaNonCode = text => {
+  const pieces = []; let index = 0;
+  const longOpening = /\[(=*)\[/y;
+  const blank = value => value.replace(/[^\r\n]/g, ' ');
+  while (index < text.length) {
+    const start = index, comment = text.startsWith('--', index);
+    const bracketStart = index + (comment ? 2 : 0);
+    longOpening.lastIndex = bracketStart;
+    const long = text[bracketStart] === '[' ? longOpening.exec(text) : null;
+    if (long) {
+      const close = ']' + long[1] + ']';
+      const stop = text.indexOf(close, bracketStart + long[0].length);
+      index = stop < 0 ? text.length : stop + close.length;
+    } else if (comment) {
+      while (index < text.length && !/[\r\n]/u.test(text[index])) index++;
+    } else if (text[index] === '"' || text[index] === "'") {
+      const quote = text[index++];
+      while (index < text.length) {
+        if (text[index] === '\\') { index = Math.min(text.length, index + 2); continue; }
+        if (text[index++] === quote) break;
+      }
+    } else { pieces.push(text[index++]); continue; }
+    pieces.push(blank(text.slice(start, index)));
+  }
+  return pieces.join('');
+};
+
+const buildLuaLexicalChunks = text => {
+  const code = maskLuaNonCode(text), lineIndex = buildLineIndex(text), lines = text.split('\n');
+  const tokens = [...code.matchAll(/[A-Za-z_][A-Za-z0-9_]*|[^\s]/gu)]
+    .map(match => ({ value: match[0], start: match.index, end: match.index + match[0].length }));
+  const stack = [], chunks = [], callableRanges = []; let unowned = 0;
+  const finish = token => {
+    const block = stack.pop();
+    if (block?.type !== 'function') return;
+    callableRanges.push({ start: block.start, end: token.end });
+    if (!block.name) { unowned++; return; }
+    chunks.push({ start: block.start, end: token.end, name: block.name,
+      kind: block.name.includes('.') ? 'MethodDeclaration' : 'FunctionDeclaration',
+      meta: { startLine: offsetToLine(lineIndex, block.start), endLine: offsetToLine(lineIndex, token.end-1),
+        signature: text.slice(block.start, block.bodyStart).replace(/\s+/gu, ' ').trim(),
+        params: parseLuaParams(text.slice(block.start, block.bodyStart)),
+        docstring: extractDocComment(lines, offsetToLine(lineIndex, block.start)-1, LUA_DOC_OPTIONS),
+        definitionStart: block.definitionStart, definitionEnd: token.end,
+        bodyStart: block.bodyStart, bodyEnd: token.start, headerRangeSource: 'lua-lexical-parameter-boundary' } });
+  };
+  for (let index = 0; index < tokens.length; index++) {
+    const token = tokens[index], word = token.value;
+    if (word === 'function') {
+      let open = index+1;
+      while (open < tokens.length && tokens[open].value !== '(' && /^[A-Za-z_][A-Za-z0-9_]*$|^[.:]$/u.test(tokens[open].value)) open++;
+      const named = code.slice(token.end, tokens[open]?.start).trim();
+      const lineStart = Math.max(code.lastIndexOf('\n',token.start),code.lastIndexOf(';',token.start))+1;
+      const assignment = !named ? code.slice(lineStart, token.start).match(/(?:\blocal\s+)?([A-Za-z_][A-Za-z0-9_.:]*)\s*=\s*$/u) : null;
+      let name = named && /^[A-Za-z_][A-Za-z0-9_.:]*$/u.test(named) ? named : assignment?.[1];
+      let start = token.start;
+      if (named && tokens[index-1]?.value === 'local') start = tokens[index-1].start;
+      else if (!named && assignment) {
+        start = token.start-assignment[0].length;
+        // Multiple-assignment identity is ambiguous, even when its last name is simple.
+        if (code.slice(0,start).trimEnd().endsWith(',')) name = null;
+      }
+      let close = open+1;
+      while (close < tokens.length && tokens[close].value !== ')') close++;
+      if (tokens[open]?.value !== '(' || !tokens[close]) { unowned++; break; }
+      stack.push({ type: 'function', start, definitionStart: token.start,
+        name: normalizeLuaName(name), bodyStart: tokens[close].end });
+      index = close;
+    } else if (word === 'if' || word === 'repeat') stack.push({ type: word });
+    else if (word === 'for' || word === 'while') stack.push({ type: word, awaitingDo: true });
+    else if (word === 'do') {
+      if (stack.at(-1)?.awaitingDo) stack.at(-1).awaitingDo = false;
+      else stack.push({ type: 'do' });
+    } else if (word === 'end' || word === 'until') finish(token);
+  }
+  for (const chunk of chunks) {
+    chunk.meta.lexicalExcludedCallableRanges = callableRanges.filter(range => range.start >= chunk.meta.bodyStart && range.end <= chunk.meta.bodyEnd);
+    chunk.meta.luaDeclarationCoverage = { state: 'partial', reason: 'lexical-supported-declaration-roles', unownedFunctions: unowned,
+      incompleteBlocks: stack.length };
+  }
+  return normalizeDeclarationList(chunks);
+};
+
 function collectLuaCallsAndUsages(text) {
   return collectDottedCallsAndUsages(text, {
     callKeywords: LUA_CALL_KEYWORDS,
@@ -298,89 +381,8 @@ export function collectLuaImports(text) {
  */
 export function buildLuaChunks(text, options = {}) {
   const treeSitterChunks = buildLuaTreeSitterChunks(text, options);
-  if (Array.isArray(treeSitterChunks) && treeSitterChunks.length) {
-    return treeSitterChunks;
-  }
-  const lineIndex = buildLineIndex(text);
-  const lines = text.split('\n');
-  const decls = [];
-  const blockStack = [];
-
-  for (let i = 0; i < lines.length; i++) {
-    const rawLine = lines[i];
-    const trimmed = rawLine.trim();
-    if (!trimmed) continue;
-    const codeLine = trimmed.replace(/--.*$/, '').trim();
-    if (!codeLine) continue;
-
-    if (codeLine === 'end') {
-      const block = blockStack.pop();
-      if (!block || !block.isDecl) continue;
-      const end = lineIndex[i] + rawLine.length;
-      decls.push({
-        start: block.start,
-        end,
-        name: block.name,
-        kind: block.kind,
-        meta: {
-          startLine: block.startLine,
-          endLine: offsetToLine(lineIndex, end),
-          signature: block.signature,
-          params: block.params,
-          docstring: block.docstring
-        }
-      });
-      continue;
-    }
-
-    if (/^until\b/.test(codeLine)) {
-      const block = blockStack.pop();
-      if (block && block.isDecl) {
-        const end = lineIndex[i] + rawLine.length;
-        decls.push({
-          start: block.start,
-          end,
-          name: block.name,
-          kind: block.kind,
-          meta: {
-            startLine: block.startLine,
-            endLine: offsetToLine(lineIndex, end),
-            signature: block.signature,
-            params: block.params,
-            docstring: block.docstring
-          }
-        });
-      }
-      continue;
-    }
-
-    const fnName = parseLuaFunctionName(codeLine);
-    if (fnName) {
-      const start = lineIndex[i] + rawLine.indexOf(trimmed);
-      const signature = codeLine;
-      const params = parseLuaParams(signature);
-      const docstring = extractDocComment(lines, i, LUA_DOC_OPTIONS);
-      const normalized = normalizeLuaName(fnName);
-      const kind = normalized && normalized.includes('.') ? 'MethodDeclaration' : 'FunctionDeclaration';
-      blockStack.push({
-        isDecl: true,
-        name: normalized || fnName,
-        kind,
-        start,
-        startLine: i + 1,
-        signature,
-        params,
-        docstring
-      });
-      continue;
-    }
-
-    if (/^(if|for|while|repeat|do)\b/.test(codeLine)) {
-      blockStack.push({ isDecl: false });
-    }
-  }
-
-  return normalizeDeclarationList(decls);
+  if (Array.isArray(treeSitterChunks) && treeSitterChunks.length) return treeSitterChunks;
+  return buildLuaLexicalChunks(text);
 }
 
 /**
@@ -401,13 +403,13 @@ export function buildLuaRelations(text, luaChunks) {
     for (const chunk of luaChunks) {
       if (!chunk || !chunk.name || chunk.start == null || chunk.end == null) continue;
       if (!['MethodDeclaration', 'FunctionDeclaration'].includes(chunk.kind)) continue;
-      const newline = text.indexOf('\n',chunk.start);
-      let slice = newline >= 0 && newline < chunk.end ? text.slice(newline+1,chunk.end) : '';
-      // Exclude nested declaration slices from their containing fallback owner.
-      const nested = luaChunks.filter(other=>other !== chunk && other.start > chunk.start && other.end <= chunk.end).sort((a,b)=>b.start-a.start);
-      for (const other of nested) {
-        const offset = other.start - (newline+1);
-        slice = slice.slice(0,offset) + ' '.repeat(Math.max(0,other.end-other.start)) + slice.slice(offset + other.end-other.start);
+      const bodyStart = chunk.meta?.bodyStart;
+      if (!Number.isSafeInteger(bodyStart) || bodyStart < chunk.start || bodyStart > chunk.end) continue;
+      let slice = maskLuaNonCode(text.slice(bodyStart, chunk.meta.bodyEnd ?? chunk.end));
+      // Nested callable ranges retain their original owner, even when anonymous.
+      for (const range of [...(chunk.meta.lexicalExcludedCallableRanges || [])].sort((a,b) => b.start-a.start)) {
+        const offset = range.start-bodyStart, length = range.end-range.start;
+        slice = slice.slice(0,offset) + ' '.repeat(length) + slice.slice(offset+length);
       }
       const { calls: chunkCalls, usages: chunkUsages } = collectLuaCallsAndUsages(slice);
       for (const callee of chunkCalls) calls.push([chunk.name, callee]);
@@ -418,7 +420,9 @@ export function buildLuaRelations(text, luaChunks) {
     imports,
     exports: Array.from(exports),
     calls,
-    usages: Array.from(usages)
+    usages: Array.from(usages),
+    callCoverage: 'partial',
+    callCoverageReasons: ['lua-lexical-supported-declaration-roles']
   };
 }
 

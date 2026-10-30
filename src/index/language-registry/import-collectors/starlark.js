@@ -1,3 +1,4 @@
+import { readQuotedLiteralEnd } from '../../../shared/quoted-literal.js';
 import {
   addCollectorImportEntry,
   collectorImportEntriesToSpecifiers,
@@ -43,80 +44,16 @@ const readFirstQuotedArgument = (args) => {
   return first?.length === 1 && first[0].kind === 'string' ? first[0].value : '';
 };
 
-const createStarlarkScanState = () => ({
-  inComment: false,
-  inSingle: false,
-  inDouble: false,
-  inTripleSingle: false,
-  inTripleDouble: false,
-  escaped: false
-});
-
+const createStarlarkScanState = () => ({ inComment: false });
 const advanceIgnoredStarlarkSpan = (source, index, state) => {
   const char = source[index];
   if (state.inComment) {
-    if (char === '\n') state.inComment = false;
+    if (char === '\n' || char === '\r') state.inComment = false;
     return index + 1;
   }
-  if (state.inTripleSingle) {
-    if (source.startsWith("'''", index)) {
-      state.inTripleSingle = false;
-      return index + 3;
-    }
-    return index + 1;
-  }
-  if (state.inTripleDouble) {
-    if (source.startsWith('"""', index)) {
-      state.inTripleDouble = false;
-      return index + 3;
-    }
-    return index + 1;
-  }
-  if (state.inSingle) {
-    if (state.escaped) {
-      state.escaped = false;
-      return index + 1;
-    }
-    if (char === '\\') {
-      state.escaped = true;
-      return index + 1;
-    }
-    if (char === "'") state.inSingle = false;
-    return index + 1;
-  }
-  if (state.inDouble) {
-    if (state.escaped) {
-      state.escaped = false;
-      return index + 1;
-    }
-    if (char === '\\') {
-      state.escaped = true;
-      return index + 1;
-    }
-    if (char === '"') state.inDouble = false;
-    return index + 1;
-  }
-  if (char === '#') {
-    state.inComment = true;
-    return index + 1;
-  }
-  if (source.startsWith("'''", index)) {
-    state.inTripleSingle = true;
-    return index + 3;
-  }
-  if (source.startsWith('"""', index)) {
-    state.inTripleDouble = true;
-    return index + 3;
-  }
-  if (char === "'") {
-    state.inSingle = true;
-    return index + 1;
-  }
-  if (char === '"') {
-    state.inDouble = true;
-    return index + 1;
-  }
-  return index;
+  if (char === '#') { state.inComment = true; return index + 1; }
+  const literal = readQuotedLiteralEnd(source, index);
+  return literal ? literal.end : index;
 };
 
 const parseBalancedCallBody = (source, openIndex) => {

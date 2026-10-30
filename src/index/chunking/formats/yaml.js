@@ -21,12 +21,13 @@ export const createYamlChunker = ({ parseStructure = parseYamlStructure, now = (
   const source = String(text || '');
   const relPosix = relPath ? toPosix(relPath) : '';
   const workflow = relPosix.includes('.github/workflows/');
+  let treeChunks = null;
   if (!workflow) {
-    const treeChunks = buildConfigTreeSitterChunks({ text: source, context, languageId: 'yaml', ext: '.yaml', format: 'yaml' });
-    if (treeChunks) return treeChunks;
     if (resolveYamlChunkMode(source, context) !== 'top-level') {
-      return [{ start: 0, end: source.length, name: 'root', kind: 'ConfigSection', meta: { format: 'yaml' } }];
+      return [{ start: 0, end: source.length, name: 'root', kind: 'ConfigSection', meta: { format: 'yaml',
+        ...(context?.treeSitter?.configChunking ? {nativeRouteReason:'yaml-root-mode-precedence'} : {}) } }];
     }
+    treeChunks = buildConfigTreeSitterChunks({ text: source, context, languageId: 'yaml', ext: '.yaml', format: 'yaml' });
   }
   parseStructure.initialize?.();
   const started = Number(now());
@@ -36,6 +37,7 @@ export const createYamlChunker = ({ parseStructure = parseYamlStructure, now = (
   const structure = parseStructure(source, { maxMs: ownerLimitMs });
   const outputMetrics = { ...structure.metrics, ownerLimitMs };
   const meta = { format: workflow ? 'github-actions' : 'yaml', parser: structure.parser,
+    ...(!workflow&&context?.treeSitter?.configChunking&&!treeChunks?{nativeRouteReason:'native-structure-unavailable-or-unselected'}:{}),
     parserCoverage: structure.coverage, parserFallbackReason: structure.reason, parseMetrics: outputMetrics,
     rangeSource: structure.rangeSource, unresolvedAliases: structure.unresolvedAliases, unresolvedTags: structure.unresolvedTags,
     parserWarningCodes: structure.warningCodes };
@@ -80,6 +82,19 @@ export const createYamlChunker = ({ parseStructure = parseYamlStructure, now = (
   }
   if (expired()) return unavailable();
   Object.freeze(outputMetrics);
+  if (treeChunks) {
+    // Canonical YAML syntax owns document/separator extents independently of
+    // backend. Native pairs remain separately attributed, never widened across
+    // another document merely because it has no selected mapping pair.
+    for (const chunk of chunks) {
+      const body = chunk.meta.documentRange;
+      chunk.meta = { ...chunk.meta, nativeParser:'tree-sitter',
+        nativeSections:treeChunks.filter(row=>row.start >= body.start && row.end <= body.end
+          && row.start >= chunk.start && row.start < chunk.end).map(row=>({start:row.start,end:row.end,
+          name:row.name,kind:row.kind,meta:row.meta})),
+        documentEnvelopeSource:'yaml-syntax-nodes' };
+    }
+  }
   return preserveChunkPreamble(source, chunks, { kind: 'ConfigSection', format: meta.format });
 };
 

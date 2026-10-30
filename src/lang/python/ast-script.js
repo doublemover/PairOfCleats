@@ -218,7 +218,9 @@ def declaration_prefixes(source):
     pending = None
     logical_start = True
     try:
-        for token in tokenize.generate_tokens(io.StringIO(source).readline):
+        # Universal physical lines match ast.parse's rows. Token columns refer
+        # to unchanged line content; JS maps those rows to original delimiters.
+        for token in tokenize.generate_tokens(io.StringIO(source, newline=None).readline):
             if token.type in (tokenize.INDENT, tokenize.DEDENT, tokenize.NL, tokenize.COMMENT, tokenize.ENDMARKER):
                 continue
             if token.type == tokenize.NEWLINE:

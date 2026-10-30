@@ -70,7 +70,7 @@ import { createTsConfigLoader, resolveTsPaths } from './tsconfig-resolution.js';
 
 const ABSOLUTE_SYSTEM_PATH_PREFIX_RX = /^\/(?:etc|usr|opt|var|bin|sbin|lib|lib64|dev|proc|sys|run|tmp|home|root)(?:\/|$)/i;
 const SCHEME_RELATIVE_URL_RX = /^\/\/[A-Za-z0-9.-]+\.[A-Za-z]{2,}(?:[/:]|$)/i;
-const IMPORT_RESOLVER_VERSION = 'import-resolution-engine-v8';
+const IMPORT_RESOLVER_VERSION = 'import-resolution-engine-v9';
 
 const normalizeAliasRuleText = (value) => (
   typeof value === 'string'
@@ -706,7 +706,7 @@ export function resolveImportLinks({
       });
       const spec = stageTracker.withStage(
         IMPORT_RESOLVER_STAGES.NORMALIZE,
-        () => hasBazelLabel ? rawSpec : normalizeImportSpecifier(rawSpec)
+        () => hasBazelLabel ? rawSpec : normalizeImportSpecifier(rawSpec, { fileLiteral: importerInfo.isShell === true })
       );
       if (!spec) {
         stageTracker.markMiss(IMPORT_RESOLVER_STAGES.NORMALIZE);

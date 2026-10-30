@@ -1,10 +1,11 @@
 import { findDescendantByType } from './ast.js';
+import { resolveGoDeclaredType } from './go-type-role.js';
 import { includeCDeclaration, resolveCDeclarationRange, resolveCName, resolveCppName, resolveSwiftKind, resolveSwiftName, resolveKotlinKind,
   includeDartDeclaration, resolveDartName, resolveDartKind, resolveDartRange, resolveGoRange, resolveObjCName } from './declaration-roles.js';
 import { phpGrammarMetadata, rubyGrammarMetadata, resolveRubyQualifiedName, resolveScalaName, resolveRName, resolveRRange } from './declaration-metadata.js';
 import { resolveRustDeclaration } from './rust-prefix.js';
 // v4 binds declaration names, lexical scopes and attached source ranges to grammar roles.
-export const TREE_SITTER_CHUNK_VERSION = '15';
+export const TREE_SITTER_CHUNK_VERSION = '17';
 
 const LANGUAGE_GRAMMAR_KEYS = {
   javascript: 'native:javascript',
@@ -452,7 +453,7 @@ const LANG_CONFIG = {
     docComments: { linePrefixes: ['//'], blockStarts: ['/**'] },
     resolveKind: (node, kind) => {
       if (node.type !== 'type_spec') return kind;
-      const declaredType = node.childForFieldName('type');
+      const declaredType = resolveGoDeclaredType(node);
       if (declaredType?.type === 'struct_type') return 'StructDeclaration';
       if (declaredType?.type === 'interface_type') return 'InterfaceDeclaration';
       return kind;
