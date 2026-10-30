@@ -17,6 +17,8 @@ import { runDenseJudgedCohort } from './helpers/dense-judged-cohort.js';
 import { captureSweepSource } from '../../tools/bench/ab-sweep-source.js';
 import { captureEmbeddingProviderRuntime } from './helpers/provider-runtime-provenance.js';
 import { runE5TruncationCohort } from './helpers/e5-truncation-cohort.js';
+import { DIRECT_MINILM_REFERENCE_RECIPE, assertDirectMiniLmManifest, assertDirectMiniLmRoute, createDirectMiniLmReference,
+  readDirectMiniLmInstallation, directMiniLmSessionOptions } from './helpers/direct-minilm-reference.js';
 
 /** Explicit offline/native capsule, intentionally outside ordinary test discovery.
  * Missing export/tokenizer/corpus/reference is a prerequisite failure, never a
@@ -37,8 +39,9 @@ const { buffer: manifestBytes } = await readVerifiedContainedFile(path.dirname(m
   { maxBytes: 1024 * 1024, hashAlgorithm: 'sha256' });
 const manifest = JSON.parse(manifestBytes);
 const miniLm = manifest.modelId === MINILM_REFERENCE_RECIPE.modelId;
+const directMiniLm = miniLm && manifest.provider === 'onnx';
 const denseRecipe = resolveDenseReferenceRecipe(manifest.modelId);
-const referenceRecipe = miniLm ? MINILM_REFERENCE_RECIPE : denseRecipe;
+const referenceRecipe = directMiniLm ? DIRECT_MINILM_REFERENCE_RECIPE : miniLm ? MINILM_REFERENCE_RECIPE : denseRecipe;
 const compareReferenceVectors = miniLm ? compareMiniLmReferenceVectors : compareDenseReferenceVectors;
 const measureReferenceVectors = miniLm ? measureMiniLmVectorDifference : measureDenseReferenceVectors;
 if (denseRecipe) {
@@ -53,7 +56,8 @@ if (options.cohort) {
   assert.equal(options.reference, undefined); assert.equal(options.observation, undefined);
 }
 if (miniLm) {
-  assertMiniLmReferenceManifest(manifest);
+  if (directMiniLm) { assertDirectMiniLmManifest(manifest); assertDirectMiniLmRoute(options.route); }
+  else assertMiniLmReferenceManifest(manifest);
   assert.notEqual(options.route, 'prepared', 'MiniLM has no supported prepared profile; this qualification does not substitute for EG2.');
   if (options.route !== 'upstream-reference') assert.ok(options['numerical-reference'], 'MiniLM consumer qualification requires its independent raw-model receipt.');
 }
@@ -126,6 +130,9 @@ try {
   disposeCaches = disposeEmbeddingAdapterCaches;
   const transformers = await import('@huggingface/transformers');
   transformers.env.allowRemoteModels = false; transformers.env.allowLocalModels = true;
+  // Both independent/direct product receipts require this exact root addon's
+  // loaded witness, rather than comparing a pre-import snapshot with a session.
+  if (directMiniLm) await phase('load-original-root-onnx-runtime', () => import('onnxruntime-node'));
   for (const [name, file] of Object.entries({ transformers: '@huggingface/transformers', onnxruntimeNode: 'onnxruntime-node' })) {
     const metadata = JSON.parse(await fs.readFile(path.join(process.cwd(), 'node_modules', file, 'package.json'), 'utf8'));
     receipt.runtime[name] = metadata.version;
@@ -140,6 +147,7 @@ try {
     { name: receipt.providerRuntime.name, version: receipt.providerRuntime.version }, 'Freeze the provider-resolved native package, not merely the root installation.');
   for (const file of ['tests/embeddings/actual-export-qualification.js', 'tests/embeddings/run-actual-export-qualification.js',
     'tests/embeddings/helpers/minilm-upstream-reference.js', 'tests/embeddings/helpers/qualification-phase.js', 'tools/bench/qualification-capsule.js',
+    ...(directMiniLm ? ['tests/embeddings/helpers/direct-minilm-reference.js'] : []),
     'tests/embeddings/helpers/provider-runtime-provenance.js',
     ...(options.cohort?.startsWith('truncation-') ? ['tests/embeddings/helpers/e5-truncation-cohort.js'] : []),
     ...(denseRecipe ? ['tests/embeddings/helpers/dense-upstream-reference.js', 'tests/embeddings/helpers/dense-judged-corpus.js',
@@ -174,6 +182,14 @@ try {
   assert.equal(lease.artifact.status, 'verified', 'An immutable-revision name without exact local bytes is insufficient.');
   const byPath = rows => [...rows].sort((a, b) => a.path.localeCompare(b.path));
   assert.deepEqual(byPath(lease.artifact.inventory), byPath(manifest.artifacts)); receipt.modelArtifact = lease.artifact;
+  if (directMiniLm) {
+    receipt.source = captureSweepSource(process.cwd()); assert.equal(receipt.source.state, 'clean-revision');
+    receipt.installation = await phase('verify-canonical-direct-installation', () => readDirectMiniLmInstallation({
+      manifest, selectedGraph: lease.selectedModelPath, signal: controller.signal }));
+    receipt.supportedRoutePolicy = { provider: 'onnx', modelId: manifest.modelId, supported: ['single', 'batch', 'query', 'resources'],
+      prepared: 'unsupported public API;EG2 Xenova owns actual supported prepared qualification',
+      exportRevision: manifest.exportRevision ?? null, selection: 'Exact opened graph/tokenizer hashes;generic acquisition does not assert immutable upstream revision.' };
+  }
   let numericalReference = null;
   let judgedCorpus = null;
   if (denseRecipe) {
@@ -210,9 +226,10 @@ try {
       'Raw and product consumers must resolve and load the exact same native addon/package bytes.');
     else receipt.legacyReferenceRuntimeLimit = 'Historical MiniLM reference omitted provider-resolved native provenance;root package equality alone does not establish that missing evidence.';
     assert.deepEqual(numericalReference.corpus, receipt.corpus);
+    if (directMiniLm) { assert.deepEqual(numericalReference.source, receipt.source); assert.deepEqual(numericalReference.installation, receipt.installation); }
     for (const source of receipt.sourceOwners.filter(row => row.path.includes('/minilm-upstream-reference.js')
       || row.path.includes('/dense-upstream-reference.js') || row.path.includes('/dense-judged-')
-      || row.path.includes('/e5-truncation-cohort.js') || row.path.startsWith('node_modules/'))) {
+      || row.path.includes('/e5-truncation-cohort.js') || row.path.includes('/direct-minilm-reference.js') || row.path.startsWith('node_modules/'))) {
       assert.equal(numericalReference.sourceOwners.find(row => row.path === source.path)?.sha256, source.sha256);
     }
     receipt.numericalReference = { path: selected, sha256: snapshot.hash, sourceOwners: numericalReference.sourceOwners, comparisons: [] };
@@ -220,7 +237,8 @@ try {
   globalThis.Float32Array = new Proxy(originalFloat, { construct(target, args, constructor) {
     const value = Reflect.construct(target, args, constructor), stack = new Error().stack || '';
     const owner = stack.includes('embedding-output-admission.js') ? 'shared-output-admission'
-      : stack.includes('normalizeEmbeddingGemma2Output') ? 'explicit-eg2-projection' : null;
+      : stack.includes('normalizeEmbeddingGemma2Output') ? 'explicit-eg2-projection'
+        : directMiniLm && stack.includes('onnx-embeddings/output.js') ? 'explicit-onnx-host-pooling' : null;
     if (owner) allocations.push({ owner, bytes: value.byteLength, elapsedMs: performance.now() - started });
     return value;
   } });
@@ -238,7 +256,8 @@ try {
     await (options.cohort.startsWith('truncation-') ? runE5TruncationCohort : runDenseJudgedCohort)({ corpus: judgedCorpus, recipe: denseRecipe, options, phase, receipt, numericalReference,
       rawReference, adapter, getQueryEmbedding, formatEmbeddingInput, root, manifest, modelArtifact: lease.artifact, signal: controller.signal });
   } else if (options.route === 'upstream-reference') {
-    await phase('upstream-raw-components-load', () => (miniLm ? createMiniLmUpstreamReference : createDenseUpstreamReference)({ transformers, manifest, signal: controller.signal }),
+    const factory = directMiniLm ? createDirectMiniLmReference : miniLm ? createMiniLmUpstreamReference : createDenseUpstreamReference;
+    await phase('upstream-raw-components-load', () => factory({ transformers, manifest, selectedGraph: lease.selectedModelPath, signal: controller.signal }),
       value => { rawReference = value; });
     receipt.referenceRecipe = rawReference.recipe;
     const baseline = await phase('cold-upstream-two-row-batch', () => rawReference.embed(manifest.texts.slice(0, 2)));
@@ -276,8 +295,8 @@ try {
         measureReferenceVectors(row.vectors, [receipt.vectors[index]], manifest.tolerance)),
       twoVersusLargeBatch: measureReferenceVectors(receipt.largeBatch[0].vectors.slice(0, 2), receipt.vectors, manifest.tolerance) };
     for (const run of receipt.largeBatch.slice(1)) compareReferenceVectors(run.vectors, receipt.largeBatch[0].vectors, manifest.tolerance);
-    receipt.execution = { provider: 'upstream-raw-AutoTokenizer-AutoModel', stub: false, dtype: referenceRecipe.dtype, device: 'cpu',
-      requestedSessionOptions: { intraOpNumThreads: 1, interOpNumThreads: 1 },
+    receipt.execution = { provider: directMiniLm ? 'raw-AutoTokenizer-root-InferenceSession' : 'upstream-raw-AutoTokenizer-AutoModel', stub: false, dtype: referenceRecipe.dtype, device: 'cpu',
+      requestedSessionOptions: directMiniLm ? directMiniLmSessionOptions() : { intraOpNumThreads: 1, interOpNumThreads: 1 },
       nativeInternalThreadCounts: 'not observed; upstream option handoff is distinct from native internal measurement' };
   } else {
     adapter = getEmbeddingAdapter({ rootDir: root, provider: manifest.provider, modelId: manifest.modelId,
@@ -288,6 +307,10 @@ try {
     assert.equal(baseline.length, 2);
     for (const vector of baseline) admitEmbeddingVector(vector, { dimensions: manifest.dimensions });
     assert.equal(adapter.executionInfo().stub, false); assert.equal(adapter.executionInfo().provider, manifest.provider);
+    if (directMiniLm) {
+      assert.equal(adapter.executionInfo().fallback, null);
+      assert.deepEqual(adapter.executionInfo().effectiveSessionOptions, directMiniLmSessionOptions(), 'Original accepted construction options must match the raw reference.');
+    }
     if (numericalReference) receipt.numericalReference.comparisons.push({ phase: 'cold-two-row-batch',
       ...compareReferenceVectors(baseline, numericalReference.vectors, manifest.tolerance) });
     if (options.route === 'single') {
@@ -303,8 +326,8 @@ try {
       assertEqualVectors(await phase('warm-prepared-single', () => adapter.embedPrepared([prepared[0]], { signal: controller.signal })), [baseline[0]]);
     } else if (options.route === 'query') {
       const formatting = resolveEmbeddingInputFormatting(manifest.modelId);
-      if (miniLm) receipt.queryExecutionPolicy = { publicConsumerSessionOptions: 'upstream defaults; no sessionOptions argument on getQueryEmbedding',
-        rawReferenceRequested: { intraOpNumThreads: 1, interOpNumThreads: 1 },
+      if (miniLm) receipt.queryExecutionPolicy = { publicConsumerSessionOptions: directMiniLm ? manifest.onnxConfig : 'upstream defaults; no sessionOptions argument on getQueryEmbedding',
+        rawReferenceRequested: directMiniLm ? directMiniLmSessionOptions() : { intraOpNumThreads: 1, interOpNumThreads: 1 },
         scope: 'numerical comparison only; no matched-thread query resource-cost claim' };
       for (const text of input) {
         const formatted = formatEmbeddingInput(text, { modelId: manifest.modelId, kind: 'query', formatting });
@@ -364,7 +387,7 @@ try {
       binding: { ...receipt.providerRuntime.binding, moduleCacheLoaded: true } }, 'Native package/addon bytes changed during direct provider loading.');
     receipt.providerRuntime = loadedRuntime;
   }
-  if (denseRecipe) assert.deepEqual(captureSweepSource(process.cwd()), receipt.source, 'Source changed during qualification.');
+  if (denseRecipe || directMiniLm) assert.deepEqual(captureSweepSource(process.cwd()), receipt.source, 'Source changed during qualification.');
   if (options.reference) {
     const selected = path.resolve(options.reference);
     const snapshot = await readVerifiedContainedFile(path.dirname(selected), selected,
