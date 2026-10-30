@@ -2,7 +2,7 @@ import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
 import { atomicWriteJson } from '../../src/shared/io/atomic-write.js';
-import { resolveQueueLeasePolicy } from './lease-policy.js';
+import { resolveQueueLeasePolicy, confirmedQueueLeaseExpiry, hasConfirmedQueueLeaseAuthority } from './lease-policy.js';
 import { buildQueueJobIdempotencyKey, groupQueueJobsByIdempotency, normalizeQueueEmbeddingPayloadVersion,
   createRunningQueueDuplicateLookup, queueJobsShareIdempotency, resolveQueueIdempotencySource } from './queue-idempotency.js';
 import {
@@ -562,7 +562,7 @@ const suppressClaimSideDuplicates = (queue, claimedJob, nowIso, admittedJobs = n
 };
 
 const isLeaseExpired = (job, nowMs, queueName = null) => {
-  const leaseExpiresAt = Date.parse(job?.lease?.expiresAt || '');
+  const leaseExpiresAt = confirmedQueueLeaseExpiry(job?.lease);
   if (!Number.isNaN(leaseExpiresAt)) {
     return leaseExpiresAt <= nowMs;
   }
@@ -1353,11 +1353,18 @@ export async function completeJob(dirPath, jobId, status, result, queueName = nu
       throw createQueueError('QUEUE_INVALID_STATUS', `Unsupported queue status "${status}".`);
     }
     const previousStatus = assertAllowedTransition(job, nextStatus);
-    assertLeaseOwnership(job, {
+    const lease = assertLeaseOwnership(job, {
       ownerId: options.ownerId,
       expectedLeaseVersion: options.expectedLeaseVersion
     });
-    const nowIso = new Date().toISOString();
+    // The terminal transition is admitted while holding the original exclusive
+    // queue lock, after all lock/load waits. No await separates this authority
+    // check and the state transition; its timestamp is the fenced commit point.
+    const admittedAt = Date.now();
+    if (!hasConfirmedQueueLeaseAuthority(lease, admittedAt)) {
+      throw createQueueError('QUEUE_LEASE_EXPIRED', `Job ${job.id} has no unexpired confirmed completion authority.`);
+    }
+    const nowIso = new Date(admittedAt).toISOString();
     job.status = nextStatus;
     job.result = result || null;
     if (Number.isFinite(result?.attempts)) {

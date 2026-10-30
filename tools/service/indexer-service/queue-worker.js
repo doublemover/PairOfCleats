@@ -365,6 +365,10 @@ export const createQueueWorker = ({
       }
     }
     if (retirement) throw retirement.error;
+    claimControl.cleanupSettled = true;
+    // Lifecycle close stops timers before joining pending renewal/telemetry.
+    // Only the existing confirmed clock owner can authorize ordinary closeout.
+    claimControl.checkLeaseAuthority?.();
     if (claimControl.leaseLost) {
       console.error(`[indexer] job ${job.id} completion skipped after lease loss: ${claimControl.leaseLost.message}`);
       metrics.failed += 1;
@@ -387,7 +391,9 @@ export const createQueueWorker = ({
         err?.code === 'QUEUE_LEASE_MISMATCH'
         || err?.code === 'QUEUE_LEASE_VERSION_MISMATCH'
         || err?.code === 'QUEUE_INVALID_TRANSITION'
+        || err?.code === 'QUEUE_LEASE_EXPIRED'
       ) {
+        if (err.code === 'QUEUE_LEASE_EXPIRED') { claimControl.checkLeaseAuthority?.(); metrics.failed += 1; }
         console.error(`[indexer] job ${job.id} completion skipped: ${err.message}`);
         return true;
       }

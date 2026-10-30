@@ -1,4 +1,5 @@
 import { performance } from 'node:perf_hooks';
+import { confirmedQueueLeaseExpiry, queueLeaseExpiryIsCurrent } from '../lease-policy.js';
 
 const FENCE_ERRORS = new Set(['QUEUE_LEASE_MISMATCH', 'QUEUE_LEASE_VERSION_MISMATCH', 'QUEUE_INVALID_TRANSITION']);
 const failure = (code, message) => Object.assign(new Error(message), { code });
@@ -8,7 +9,7 @@ const failure = (code, message) => Object.assign(new Error(message), { code });
 export const startClaimRenewal = ({ job, ownerId, leasePolicy, jobLifecycle, claimControl,
   loadReplayState, touchHeartbeat, now = () => performance.now() }) => {
   const version = job.lease?.version;
-  const initialExpiry = Date.parse(job.lease?.expiresAt || '');
+  const initialExpiry = confirmedQueueLeaseExpiry(job.lease);
   const leaseMs = Number.isFinite(leasePolicy?.leaseMs) && leasePolicy.leaseMs > 0
     ? leasePolicy.leaseMs : Math.max(1000, initialExpiry - Date.now());
   const safetyMarginMs = Math.min(250, Math.max(1, Math.floor(leaseMs * 0.05)));
@@ -43,7 +44,8 @@ export const startClaimRenewal = ({ job, ownerId, leasePolicy, jobLifecycle, cla
   };
   const checkAuthority = () => {
     if (claimControl.leaseLost) return false;
-    if (!Number.isFinite(deadlineAt) || now() >= deadlineAt || Date.now() >= confirmedExpiryMs - safetyMarginMs) {
+    if (!Number.isFinite(deadlineAt) || now() >= deadlineAt
+      || !queueLeaseExpiryIsCurrent(confirmedExpiryMs, Date.now(), safetyMarginMs)) {
       return lose(failure('QUEUE_LEASE_EXPIRED', `Job ${job.id} exceeded its last confirmed lease authority.`));
     }
     return true;
@@ -66,7 +68,7 @@ export const startClaimRenewal = ({ job, ownerId, leasePolicy, jobLifecycle, cla
     if (Number.isSafeInteger(observed?.lease?.version) && observed.lease.version !== version) {
       throw failure('QUEUE_LEASE_VERSION_MISMATCH', `Job ${job.id} renewal belongs to another claim version.`);
     }
-    const expiresAt = Date.parse(observed?.lease?.expiresAt || '');
+    const expiresAt = confirmedQueueLeaseExpiry(observed?.lease);
     if (observed?.id !== job.id || observed?.status !== 'running' || observed?.lease?.owner !== ownerId
       || observed?.lease?.version !== version || !Number.isFinite(expiresAt)) {
       throw failure('QUEUE_LEASE_UNCONFIRMED', `Job ${job.id} renewal did not return a persisted claim receipt.`);

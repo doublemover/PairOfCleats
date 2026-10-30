@@ -16,6 +16,14 @@ const LEASE_POLICY_BY_WORKLOAD = Object.freeze({
   })
 });
 
+/** Persisted lease authority, shared by renewal and the locked terminal owner.
+ * Equality is expired. A receipt's arrival cannot manufacture a new allowance. */
+export const confirmedQueueLeaseExpiry = lease => Date.parse(lease?.expiresAt || '');
+export const queueLeaseExpiryIsCurrent = (expiry, nowMs, marginMs = 0) =>
+  Number.isFinite(expiry) && Number.isFinite(nowMs) && nowMs < expiry - marginMs;
+export const hasConfirmedQueueLeaseAuthority = (lease, nowMs, marginMs = 0) =>
+  queueLeaseExpiryIsCurrent(confirmedQueueLeaseExpiry(lease), nowMs, marginMs);
+
 const normalizeQueueName = (value) => {
   const raw = typeof value === 'string' ? value.trim().toLowerCase() : '';
   return raw || 'index';
