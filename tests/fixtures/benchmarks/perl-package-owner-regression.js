@@ -94,16 +94,24 @@ try {
         assert.equal(closingBrace.startIndex, lexicalEnd - 1); assert.equal(closingBrace.endIndex, lexicalEnd);
         // Installed Perl grammar.js:573–579 includes optional semi_colon in a
         // block. scanner.c:1013–1026 skips LF before the next }/EOF and marks
-        // its automatic terminator there. Preserve that complete native range.
-        const terminator = body.children.find(child => child.type === 'semi_colon' && child.startIndex >= lexicalEnd);
+        // its hidden automatic terminator there. The installed binding exposes
+        // no child for it: witness the exact native body/brace/LF span instead
+        // of inventing an AST token or trimming the complete native envelope.
+        const visibleTail = body.children.filter(child => child.startIndex >= lexicalEnd)
+          .map(child => ({ type: child.type, start: child.startIndex, end: child.endIndex }));
+        assert.deepEqual(visibleTail, []);
+        assert.equal(body.children.at(-1).type, '}');
+        assert.equal(body.children.at(-1).endIndex, lexicalEnd);
+        const trailingNativeSpan = { start: closingBrace.endIndex, end: body.endIndex,
+          text: source.slice(closingBrace.endIndex, body.endIndex), visibleChildren: visibleTail };
         if (snippet.endsWith('\n')) {
-          assert.equal(source.slice(lexicalEnd, end), '\n'); assert.ok(terminator);
-          assert.equal(terminator.startIndex, end); assert.equal(terminator.endIndex, end);
+          assert.equal(trailingNativeSpan.text, '\n'); assert.equal(trailingNativeSpan.start, end - 1);
+          assert.equal(trailingNativeSpan.end, end);
           assert.ok(end === source.length || source[end] === '}');
-        } else { assert.equal(lexicalEnd, end); assert.equal(terminator, undefined); }
+        } else { assert.equal(lexicalEnd, end); assert.equal(trailingNativeSpan.text, ''); }
         return { name, nodeType: node.type, start, end, bodyStart: body.startIndex, bodyEnd: body.endIndex,
           closingBraceStart: closingBrace.startIndex, closingBraceEnd: closingBrace.endIndex,
-          automaticTerminator: terminator ? { type: terminator.type, start: terminator.startIndex, end: terminator.endIndex } : null,
+          trailingNativeSpan,
           envelope: snippet, sourceSliceHash: digest(source.slice(start, end)) };
       });
     }

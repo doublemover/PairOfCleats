@@ -30,7 +30,12 @@ const transitions = [];
 for (const [index, before] of original.cases.entries()) {
   const after = current.cases[index];
   for (const field of ['source', 'sourceHash', 'fileHash', 'sourceBytes', 'affected']) assert.deepEqual(after[field], before[field]);
-  assert.deepEqual(after.nativeEnvelopes, before.nativeEnvelopes, 'both roles preserve the exact authored native envelopes and automatic terminators');
+  assert.deepEqual(after.nativeEnvelopes, before.nativeEnvelopes, 'both roles preserve the exact native bodies, visible braces and hidden-terminator trailing spans');
+  const expectedSpans = {
+    braced: [[15, 39, ''], [40, 65, '\n']], nested: [[15, 64, '\n'], [27, 51, '']], unbraced: [[14, 38, ''], [39, 64, '\n']]
+  }[before.form];
+  assert.deepEqual(before.nativeEnvelopes.map(row => [row.start, row.end, row.trailingNativeSpan.text]), expectedSpans);
+  assert.ok(before.nativeEnvelopes.every(row => row.trailingNativeSpan.visibleChildren.length === 0));
   assert.equal(before.identities.length, after.identities.length);
   for (const [rowIndex, oldRow] of before.identities.entries()) {
     const newRow = after.identities[rowIndex];
