@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
+import { checksumString } from '../../src/shared/hash.js';
 import { getIndexDir, getToolingConfig, loadUserConfig } from '../../src/shared/dict-utils.js';
 import { compilerInventoryHash, COMPILER_DEPENDENCY_KEY } from '../../src/index/semantic/compiler-dependencies.js';
 import { semanticHash } from '../../src/index/semantic/identity.js';
@@ -11,6 +12,8 @@ import { applyTestEnv } from './test-env.js';
 import { createFastIndexingTestConfig } from './fast-indexing-config.js';
 import { prepareIsolatedTestCacheDir } from './test-cache.js';
 import { installPublicationBoundaryDiagnostics } from './publication-boundary-diagnostics.js';
+import { buildVfsVirtualPath } from '../../src/index/tooling/vfs/virtual-path.js';
+import { createTypeScriptRootNames } from '../../src/index/tooling/typescript/roots.js';
 
 export const PHASE_COMPILER_CONFIG = JSON.stringify({ compilerOptions: { types: [], lib: ['ES5'], target: 'ES2022' }, include: ['*.ts'] });
 export const PHASE_COMPILER_REVOKED_CONFIG = JSON.stringify({ compilerOptions: { types: [], strict: true } });
@@ -82,14 +85,38 @@ export const readPhaseCompilerWitness = async ({ repoRoot, indexDir, generation 
   assert.deepEqual(compilerInventory.virtualInputs.map(row => pathKey(path.resolve(repoRoot, row.containerPath))).sort(),
     ['input.ts', 'input.vue'].map(filename => pathKey(path.join(repoRoot, filename))).sort());
   assert.ok(compilerInventory.virtualInputs.every(row => row.mappingQuality === 'exact'));
+  // VFS documents are authoritative for whole-file roots too: the original
+  // compiler roots owner replaces physical input.ts with its .poc-vfs alias.
+  // Expected identities come from authored source/range and the UID domain,
+  // never from the returned virtualPath or the observed closure path list.
+  const plainPath = '.poc-vfs/input.ts', segmentStart = 44, segmentEnd = 112;
+  const script = 'export function wrap(x:number) { return x+1; } const result=wrap(4);';
+  assert.equal(sources['input.vue'].slice(segmentStart, segmentEnd), script);
+  const segmentHash = await checksumString('seg\0embedded\0typescript\0' + script);
+  assert.equal(segmentHash.algo, 'xxh64'); assert.match(segmentHash.value, /^[a-f0-9]{16}$/);
+  const segmentUid = 'segu:v1:' + segmentHash.value;
+  const embeddedPath = `.poc-vfs/input.vue#seg:${segmentUid}#at:44-112.ts`;
+  assert.equal(buildVfsVirtualPath({ containerPath: 'input.ts' }), plainPath);
+  assert.equal(buildVfsVirtualPath({ containerPath: 'input.vue', segmentUid, effectiveExt: '.ts', segmentStart, segmentEnd }), embeddedPath);
+  const plain = compilerInventory.virtualInputs.find(row => row.containerPath === 'input.ts');
+  const embedded = compilerInventory.virtualInputs.find(row => row.containerPath === 'input.vue');
+  assert.ok(plain && embedded); assert.equal(plain.virtualPath, plainPath); assert.equal(plain.segmentUid, null);
+  assert.equal(embedded.virtualPath, embeddedPath); assert.equal(embedded.segmentUid, segmentUid);
+  assert.equal(plain.textHash, createHash('sha256').update(sources['input.ts']).digest('hex'));
+  assert.equal(embedded.textHash, createHash('sha256').update(script).digest('hex'));
+  const expectedRoots = [plainPath, embeddedPath].map(filename => path.resolve(repoRoot, filename));
+  assert.deepEqual(createTypeScriptRootNames({ configRootNames: [path.join(repoRoot, 'input.ts')], virtualRootNames: expectedRoots,
+    sourcePaths: new Map([[expectedRoots[0], path.join(repoRoot, 'input.ts')]]) }), expectedRoots);
+  assert.deepEqual(compilerInventory.groups[0].rootNames.map(pathKey).sort(), expectedRoots.map(pathKey).sort());
+  assert.equal(pathKey(compilerInventory.groups[0].configPath), pathKey(path.join(repoRoot, 'tsconfig.json')));
   const configurations = new Set(compilerInventory.groups.map(row => pathKey(row.configPath)));
   const programFiles = compilerInventory.closure.files.filter(row => !configurations.has(pathKey(row.path)));
-  const embedded = compilerInventory.virtualInputs.find(row => pathKey(path.resolve(repoRoot, row.containerPath)) === pathKey(path.join(repoRoot, 'input.vue')));
-  assert.deepEqual(programFiles.map(row => pathKey(row.path)).sort(), [path.join(repoRoot, 'input.ts'), path.resolve(repoRoot, embedded.virtualPath),
+  assert.deepEqual(programFiles.map(row => pathKey(row.path)).sort(), [...expectedRoots,
     ...['lib.es5.d.ts', 'lib.decorators.d.ts', 'lib.decorators.legacy.d.ts'].map(filename => path.join(path.dirname(compilerInventory.compilerFile), filename))].map(pathKey).sort(),
   'Both fixtures retain the same five actual compiler sources and installed standard libraries.');
   assert.equal(compilerInventory.closure.totalFiles, 6);
   const configObservation = compilerInventory.observations.find(row => row.method === 'readFile' && pathKey(row.args[0]) === pathKey(path.join(repoRoot, 'tsconfig.json')));
+  assert.ok(configObservation, 'The exact authored compiler configuration must be a sealed read observation.');
   assert.equal(configObservation.result, createHash('sha256').update(PHASE_COMPILER_CONFIG).digest('hex'));
   const verifierInput = { inventory: compilerInventory, repoRoot, toolingConfig: getToolingConfig(repoRoot, userConfig) };
   return { inventory, verifierInput, programSourceCount: programFiles.length, authorityHash: compilerInventoryHash(compilerInventory),

@@ -1,6 +1,12 @@
 # Semantic phase drain and compiler revocation capsules — 2026-10-30
 
-Source preparation only: the partition and new equality assertions have not run.
+Current correction is source-ready, without a passing runtime qualification.
+At `4a6dbb672`, both partition fixtures failed before the drain because the
+source-ready witness incorrectly expected physical `repo/input.ts` in the
+compiler closure. Their historical author-workspace logs are under
+`.testLogs/run-1793364712232-7s7964/`; the actual root was canonical
+`repo/.poc-vfs/input.ts`. The corrected independent VFS expectations and complete
+initial/fresh equality assertions still require runtime rechecks.
 The author-workspace `.testLogs/consumer-wave-next-20261030/phase-default-final-1*`
 receipts are historical, unavailable in a clean checkout, and remain failed
 deadline evidence. That invocation completed its assertions and naturally exited
@@ -33,6 +39,17 @@ and all three compiler phases deferred. No eager phase, reduced source corpus,
 synthetic grant, dependency override, retry or larger test deadline is introduced.
 Each observed compiler closure must contain the same five program sources plus
 the tsconfig member; its config read hash must match the authored original bytes.
+The two program roots are canonical VFS identities, including the whole-file
+`.poc-vfs/input.ts` alias, rather than two physical source paths. The fixture
+independently derives the Vue segment identity from the authored script text,
+`embedded`/`typescript` UID domain and exact UTF16 range44–112, then checks its
+full VFS path and text hash. It calls the original VFS path and TypeScript root
+alias owners against these expected identities, and requires the actual sealed
+roots and closure to contain exactly those two VFS documents plus the three
+named installed libraries. The physical plain-TS container remains `input.ts`.
+This corrects the original source-ready fixture's mistaken physical-root
+expectation; it does not change or normalize away any field in the raw compiler
+inventory or the initial/fresh verifier-input equality assertions.
 
 The authority equivalence proof is explicit in the healthy fixture:
 
