@@ -44,6 +44,7 @@ const runSubprocess = async ({ mode, rootDir, docs, docBytes, content }) => {
   let observed;
   try { observed = JSON.parse(result.stdout); }
   catch (error) { throw addStorageFailureContext(error, { workerResult: result, mode }); }
+  if (observed.pid !== result.pid) throw Object.assign(new Error('VFS sample lacks its original child process identity.'), { result });
   return { ...observed, childWallMs: result.durationMs };
 };
 const summarize = samples => {
@@ -58,53 +59,95 @@ const summarize = samples => {
       { stats: summarizeDurations(samples.map(value => value.phases[key])), rawSamplesMs: samples.map(value => value.phases[key]) }])), samples };
 };
 
-export const runVfsColdStartBench = async input => {
+export const createVfsColdStartSeries = async (input, { runChild = runSubprocess } = {}) => {
   const { docs, docBytes, samples, content } = admitVfsColdStartWork(input);
   const repoRoot = fileURLToPath(new URL('../../../', import.meta.url));
   const tempBase = resolveDevelopmentArtifactPath(repoRoot, 'bench-cache', 'vfs-cold');
   ensureToolingCacheDir(tempBase);
   const taskRoot = await fs.mkdtemp(path.join(tempBase, 'run-')), owner = randomUUID();
-  let primary, failed = false, result;
-  try {
-    await writeMarker(taskRoot, { owner, docs, docBytes, content });
-    const observations = { cold: [], warm: [], hot: [] }, order = [];
-    let workloadIdentity = null, outputIdentity = null;
-    for (let index = 0; index < samples; index++) {
-      const sampleId = index + 1;
-      const rootDir = path.join(taskRoot, `sample-${sampleId}`);
-      await writeMarker(rootDir, { owner, docs, docBytes, content, sample: sampleId });
-      const modes = ['cold', ...((sampleId - 1) % 2 ? ['hot', 'warm'] : ['warm', 'hot'])];
-      for (const mode of modes) {
-        const sample = await runSubprocess({ mode, rootDir, docs, docBytes, content });
+  try { await writeMarker(taskRoot, { owner, docs, docBytes, content }); }
+  catch (error) { throw addStorageFailureContext(error, { fixtureRoot: taskRoot, phase: 'vfs-benchmark-fixture-marker' }); }
+  const observations = { cold: [], warm: [], hot: [] }, order = [];
+  const steps = Array.from({ length: samples }, (_, index) => ['cold', ...(index % 2 ? ['hot', 'warm'] : ['warm', 'hot'])]
+    .map(mode => ({ sample: index + 1, mode }))).flat();
+  let primary, failed = false, active = false, closed = false, cleanupAttempted = false;
+  let workloadIdentity = null, outputIdentity = null;
+  const pending = () => Object.assign(new Error('The original VFS scenario child is still outstanding.'), {
+    code: 'ERR_VFS_BENCH_PENDING', cacheOwnershipPending: true, cacheOwnershipReleased: () => !active
+  });
+  const cleanup = async () => {
+    if (closed) return;
+    if (active) throw pending();
+    if (failed) observeStorageResource(primary, { phase: 'vfs-benchmark-before-fixture-cleanup' }).requireSettled();
+    cleanupAttempted = true;
+    if (path.dirname(taskRoot) !== tempBase || readMarker(taskRoot).owner !== owner) throw new Error('VFS fixture cleanup ownership is unconfirmed.');
+    assertToolingCachePath(taskRoot); await fs.rm(taskRoot, { recursive: true, force: true });
+    closed = true;
+  };
+  return Object.freeze({
+    fixtureRoot: taskRoot,
+    get done() { return order.length === steps.length; },
+    snapshot() {
+      return structuredClone({ schemaVersion: 1, kind: 'vfs-cache-series-progress', state: closed ? 'closed' : failed ? 'failed' : 'in-progress',
+        docs, docBytes, samples, content, fixtureRoot: taskRoot, expectedOrder: steps, order, observations });
+    },
+    async runNext() {
+      if (closed) throw new Error('VFS benchmark series is already closed.');
+      if (failed) throw primary;
+      if (active) throw pending();
+      const step = steps[order.length];
+      if (!step) throw new RangeError('VFS benchmark series has no remaining scenario.');
+      const { sample: sampleId, mode } = step, rootDir = path.join(taskRoot, `sample-${sampleId}`);
+      active = true;
+      try {
+        if (mode === 'cold') await writeMarker(rootDir, { owner, docs, docBytes, content, sample: sampleId });
+        const sample = await runChild({ mode, rootDir, docs, docBytes, content });
         if (sample.mode !== mode || sample.counts?.documents !== docs || sample.consumerParity?.state !== 'byte-identical'
           || !['qualified-phase', 'unqualified-phase'].includes(sample.state)) throw new Error('VFS child sample has inconsistent phase or content evidence.');
         const workload = stableStringify(sample.workload), output = sample.consumerParity.sha256;
         if (workloadIdentity !== null && workloadIdentity !== workload || outputIdentity !== null && outputIdentity !== output) {
           throw new Error('VFS benchmark samples changed their input or consumer content.');
         }
-        workloadIdentity = workload; outputIdentity = output; observations[mode].push(sample);
+        workloadIdentity = workload; outputIdentity = output; observations[mode].push(structuredClone(sample));
         order.push({ sample: sampleId, mode });
+        return structuredClone({ step, observation: sample });
+      } catch (error) { failed = true; primary = error; throw error; }
+      finally { active = false; }
+    },
+    async complete() {
+      if (failed) throw primary;
+      if (active) throw pending();
+      if (closed || order.length !== steps.length) throw Object.assign(new Error('VFS benchmark series is incomplete or already closed.'), { code: 'ERR_VFS_BENCH_INCOMPLETE' });
+      const result = { schemaVersion: 2, kind: 'vfs-cache-phase-benchmark', generatedAt: new Date().toISOString(), docs, docBytes, samples,
+        state: Object.values(observations).every(values => values.every(value => value.state === 'qualified-phase')) ? 'qualified-phases' : 'unqualified-phases',
+        fixtureRoot: taskRoot, fixturePolicy: 'fresh-exclusively-owned-root-per-cold-repetition', fixtureCleanup: 'pending',
+        processPolicy: 'fresh-serial-node-child-per-scenario-sample', osCachePolicy: 'uncontrolled-filesystem-cache',
+        orderPolicy: 'cold-prime-each-fixture;alternate-warm-hot-order', order,
+        runtime: { node: process.version, abi: process.versions.modules, platform: process.platform, arch: process.arch },
+        workload: observations.cold[0].workload, cold: summarize(observations.cold), warm: summarize(observations.warm), hot: summarize(observations.hot) };
+      try { await cleanup(); }
+      catch (error) { throw Object.assign(error, { fixtureRoot: taskRoot }); }
+      result.fixtureCleanup = 'completed'; return structuredClone(result);
+    },
+    async abort(error) {
+      if (!failed) { failed = true; primary = error; }
+      else if (error !== primary) primary = addStorageFailureContext(primary, {}, error, { secondaryPresent: true });
+      if (cleanupAttempted) throw error;
+      try { await cleanup(); }
+      catch (secondary) {
+        throw addStorageFailureContext(primary, { fixtureRoot: taskRoot, phase: 'vfs-benchmark-fixture-cleanup' }, secondary, { secondaryPresent: true });
       }
+      throw primary;
     }
-    result = { schemaVersion: 2, kind: 'vfs-cache-phase-benchmark', generatedAt: new Date().toISOString(), docs, docBytes, samples,
-      state: Object.values(observations).every(values => values.every(value => value.state === 'qualified-phase')) ? 'qualified-phases' : 'unqualified-phases',
-      fixtureRoot: taskRoot, fixturePolicy: 'fresh-exclusively-owned-root-per-cold-repetition', fixtureCleanup: 'pending',
-      processPolicy: 'fresh-serial-node-child-per-scenario-sample', osCachePolicy: 'uncontrolled-filesystem-cache',
-      orderPolicy: 'cold-prime-each-fixture;alternate-warm-hot-order', order,
-      runtime: { node: process.version, abi: process.versions.modules, platform: process.platform, arch: process.arch },
-      workload: observations.cold[0].workload, cold: summarize(observations.cold), warm: summarize(observations.warm), hot: summarize(observations.hot) };
-  } catch (error) { failed = true; primary = error; }
+  });
+};
+
+export const runVfsColdStartBench = async input => {
+  const series = await createVfsColdStartSeries(input);
   try {
-    if (failed) observeStorageResource(primary, { phase: 'vfs-benchmark-before-fixture-cleanup' }).requireSettled();
-    if (path.dirname(taskRoot) !== tempBase || readMarker(taskRoot).owner !== owner) throw new Error('VFS fixture cleanup ownership is unconfirmed.');
-    assertToolingCachePath(taskRoot); await fs.rm(taskRoot, { recursive: true, force: true });
-    if (result) result.fixtureCleanup = 'completed';
-  } catch (error) {
-    if (failed) throw addStorageFailureContext(primary, { fixtureRoot: taskRoot, phase: 'vfs-benchmark-fixture-cleanup' }, error, { secondaryPresent: true });
-    throw Object.assign(error, { fixtureRoot: taskRoot });
-  }
-  if (failed) throw primary;
-  return result;
+    while (!series.done) await series.runNext();
+    return await series.complete();
+  } catch (error) { return series.abort(error); }
 };
 
 export const runVfsColdStartBenchCli = async (rawArgs = process.argv.slice(2)) => {

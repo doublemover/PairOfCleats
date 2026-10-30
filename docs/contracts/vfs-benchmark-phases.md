@@ -62,3 +62,18 @@ end-to-end latency or an application gain. The original full UTF-8 aggregate's
 30-second failures remain historical evidence. The smaller ASCII control retains
 the unchanged complete three-repetition orchestration; production default and
 full-benchmark execution remain unchanged.
+
+`createVfsColdStartSeries` is the same private-root lifecycle consumed by the
+ordinary benchmark. It admits one actual child at a time, retaining the original
+nine-step sequence cold/warm/hot, cold/hot/warm, cold/warm/hot across three roots.
+The explicit `tests/perf/qualification/vfs-series.js` helper records each original
+child in a separate 30-second capsule while retaining those roots and ordering.
+It never resets a root between phases or primes a replacement hot fixture. The
+whole campaign wall time is reported separately and cannot be labeled an
+aggregate 30-second pass. Pending children retain cleanup ownership.
+
+`vfs-restart-misses.js` separately records three actual restart repetitions for
+budget compaction and controlled ordinary-file regeneration. A half-sized cache
+budget must compact loaded rows; replaced files must regenerate the corresponding
+documents. Both states remain unqualified warm phases even when all independent
+consumer bytes match. These controls do not replace the full nine-step campaign.
