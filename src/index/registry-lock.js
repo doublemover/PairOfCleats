@@ -77,18 +77,28 @@ export async function acquireRegistryLock({
   return handle;
 }
 
-/** Only live capabilities minted by this owner may bypass reacquisition. */
-export const assertBorrowedRegistryLock = async (handle, repoCacheRoot, domain) => {
+/** Synchronous handoff fence. A caller must not retire its borrowed capability
+ * while accepted work is running; borrowing does not acquire a second lease.
+ */
+export const assertRegistryLockActive = (handle, repoCacheRoot, domain) => {
   const lease = registryLeases.get(handle);
   const expectedPath = path.resolve(resolveRegistryLockPath(repoCacheRoot, domain));
-  if (!lease?.active || handle.signalCleaned || lease.root !== path.resolve(repoCacheRoot)
+  if (!lease || handle.signalCleaned || lease.root !== path.resolve(repoCacheRoot)
     || lease.domain !== resolveDomainName(domain) || lease.lockPath !== expectedPath
-    || handle.payload?.lockId !== lease.lockId) {
+    || handle.payload?.lockId !== lease.lockId || !lease.active) {
     throw Object.assign(new Error('Borrowed registry lock is not an active capability for this registry.'), {
       code: 'ERR_REGISTRY_LOCK_OWNERSHIP'
     });
   }
+};
+
+/** Only live capabilities minted by this owner may bypass reacquisition. */
+export const assertBorrowedRegistryLock = async (handle, repoCacheRoot, domain) => {
+  assertRegistryLockActive(handle, repoCacheRoot, domain);
+  const lease = registryLeases.get(handle);
+  const expectedPath = path.resolve(resolveRegistryLockPath(repoCacheRoot, domain));
   const current = await readLockInfo(expectedPath);
+  assertRegistryLockActive(handle, repoCacheRoot, domain);
   if (!current?.lockId || current.lockId !== lease.lockId) {
     lease.active = false;
     throw Object.assign(new Error('Borrowed registry lock no longer owns its on-disk lease.'), {

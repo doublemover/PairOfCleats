@@ -10,6 +10,7 @@ import { isManifestPathSafe } from './validate/paths.js';
 import {
   acquireRegistryLock,
   assertBorrowedRegistryLock,
+  assertRegistryLockActive,
   attachRegistryLockSignalCleanup
 } from './registry-lock.js';
 
@@ -121,6 +122,7 @@ export const withRegistryLock = async ({
   const lockInput = isRegistryObject(options?.lock) ? options.lock : null;
   if (lockInput) {
     await assertBorrowedRegistryLock(lockInput, repoCacheRoot, domain);
+    assertRegistryLockActive(lockInput, repoCacheRoot, domain);
     return worker(lockInput);
   }
   const lock = await acquireRegistryLock({
