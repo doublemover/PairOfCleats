@@ -18,6 +18,7 @@ import { createSemanticEnrichmentGrant } from '../index/semantic/enrichment-cont
 import { captureEnrichmentAuthority } from './enrichment-authority.js';
 import { addStorageFailureContext } from '../shared/storage/operation-error.js';
 import { describeStorageFailure, observeStorageResource } from '../shared/storage/failure-observation.js';
+import { readErrorDataProperty } from '../shared/error-data.js';
 import { createEnrichmentWorkScopes, recordCompilerReuseScopes, recordPublishedWorkScopes, trimEnrichmentWorkScopes } from './enrichment-scopes.js';
 import { isWithinRoot, toRealPathSync } from '../workspace/identity.js';
 import { createEnrichmentBudget, enrichmentError, enrichmentSame, openEnrichmentInventory,
@@ -41,7 +42,7 @@ const readJournal = async filename => {
   try {
     if ((await fs.stat(filename)).size > 1024 * 1024) throw enrichmentError('Enrichment recovery journal exceeds its allowance.');
     return assertSemanticEnrichment('journal', JSON.parse(await fs.readFile(filename, 'utf8')));
-  } catch (error) { if (error?.code === 'ENOENT') return null; throw error; }
+  } catch (error) { if (readErrorDataProperty(error, 'code') === 'ENOENT') return null; throw error; }
 };
 
 /** Shared plan-only default; enqueue mutates only the dedicated control store; drain uses normal whole-generation publication. */
@@ -281,7 +282,11 @@ export const runSemanticEnrichmentService = async ({ request, userConfig, signal
       }
       try {
         observeStorageResource(primaryFailure, { phase: 'semantic-drain-terminal-journal' }).requireSettled();
-        const failure = describeStorageFailure(primaryFailure, { phase: 'semantic-drain-terminal-journal',
+        const snapshot = typeof primaryFailure === 'string' ? { message: primaryFailure }
+          : primaryFailure !== null && ['object', 'function'].includes(typeof primaryFailure)
+            ? { code: readErrorDataProperty(primaryFailure, 'code'), message: readErrorDataProperty(primaryFailure, 'message') }
+            : { message: String(primaryFailure) };
+        const failure = describeStorageFailure(snapshot, { phase: 'semantic-drain-terminal-journal',
           defaultCode: '', defaultMessage: 'Semantic enrichment failed.' });
         const message = failure.code || failure.message || 'Semantic enrichment failed.';
         let end = Math.min(message.length, 4096);
@@ -305,7 +310,7 @@ export const runSemanticEnrichmentService = async ({ request, userConfig, signal
         if (row?.state === 'leased' && row.leaseOwner === owner && row.leaseUntil > Date.now()) {
           control.release({ taskId, owner, attempt: lease.attempt, reason: 'manual_drain_not_acknowledged', transient: true });
         }
-      } catch (error) { if (error?.code !== 'ERR_SEMANTIC_LEASE_LOST') retainCleanup(error); }
+      } catch (error) { if (readErrorDataProperty(error, 'code') !== 'ERR_SEMANTIC_LEASE_LOST') retainCleanup(error); }
     }
     try { control.close(); } catch (error) { retainCleanup(error); }
     if (cleanupFailed) throw primaryFailurePresent

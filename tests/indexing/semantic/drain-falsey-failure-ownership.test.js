@@ -17,6 +17,12 @@ import { wasmModule } from '../../helpers/wasm-fixture.js';
 const selected = process.env.PAIROFCLEATS_TEST_ID?.split('indexing/semantic/drain-falsey-failure-ownership/')[1];
 const values = new Map([['null', null], ['undefined', undefined], ['false', false], ['zero', 0], ['empty', ''], ['nan', NaN]]);
 values.set('unicode', Object.freeze(new Error('x'.repeat(4095) + '😀')));
+let diagnosticInspections = 0;
+const forbiddenInspection = () => { diagnosticInspections++; throw new Error('Failure classification invoked diagnostic code.'); };
+values.set('hostile', Object.freeze(Object.defineProperties(Object.create(null), {
+  code: { get: forbiddenInspection }, message: { get: forbiddenInspection },
+  [Symbol.toPrimitive]: { value: forbiddenInspection }
+})));
 const [boundary, label] = (selected || '').split('-');
 assert.ok(['builder', 'release'].includes(boundary) && values.has(label));
 const original = values.get(label);
@@ -81,7 +87,7 @@ try {
     const journal = JSON.parse(await fs.readFile(path.join(cacheRoot, 'semantic-frontier/drains', plan.requestId + '.json'), 'utf8'));
     assert.equal(journal.status, 'failed');
     assert.equal(journal.failure, boundary === 'builder'
-      ? label === 'unicode' ? 'x'.repeat(4095) : String(original) || 'Semantic enrichment failed.'
+      ? label === 'unicode' ? 'x'.repeat(4095) : label === 'hostile' ? 'Semantic enrichment failed.' : String(original) || 'Semantic enrichment failed.'
       : 'ERR_ORIGINAL_BUILDER');
     if (label === 'unicode') assert.ok(original.message.endsWith('😀'), 'the full frozen original remains available beyond the bounded journal field');
     assert.deepEqual(journal.taskIds, [taskId]); assert.deepEqual(journal.sourceGeneration, initial.manifest.generation);
@@ -95,6 +101,7 @@ try {
       } else { assert.notEqual(row.state, 'leased'); assert.equal(row.leaseOwner, null); }
     } finally { control.close(); }
     assert.ok(!(await fs.readdir(path.join(cacheRoot, 'semantic-frontier'))).some(name => name.startsWith('.client-')));
+    assert.equal(diagnosticInspections, 0, 'Classification and journal projection never execute code/message getters or error coercion.');
     console.log(JSON.stringify({ selected, originalFailurePreserved: true, dispatches, nativeHandles: nativeHandles.length,
       failedReleaseTransactions: releaseCalls.length, pointer: 'unchanged', journal: 'same-original-request-failed' }));
   });

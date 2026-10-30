@@ -1,7 +1,8 @@
 import fs from 'node:fs';
+import { readErrorDataProperty } from '../../shared/error-data.js';
 
 const size = filename => {
-  try { return fs.statSync(filename).size; } catch (error) { if (error.code === 'ENOENT') return 0; throw error; }
+  try { return fs.statSync(filename).size; } catch (error) { if (readErrorDataProperty(error, 'code') === 'ENOENT') return 0; throw error; }
 };
 
 /** Admit main-file growth and the worst rollback journal before page writes. Disabling
@@ -26,7 +27,7 @@ export const semanticSqliteTransaction = ({ db, filename, diskAccount }) => fn =
       return fn();
     }).immediate();
   } catch (error) {
-    if (error?.code === 'SQLITE_FULL') throw Object.assign(new Error('Semantic control transaction exceeds disk allowance.'), { code: 'ERR_SEMANTIC_DISK_LIMIT', cause: error });
+    if (readErrorDataProperty(error, 'code') === 'SQLITE_FULL') throw Object.assign(new Error('Semantic control transaction exceeds disk allowance.'), { code: 'ERR_SEMANTIC_DISK_LIMIT', cause: error });
     throw error;
   } finally {
     if (allowance) {
