@@ -24,6 +24,7 @@ import {
 } from '../shared/dict-utils.js';
 import { getVectorExtensionConfig, resolveVectorExtensionPath } from '../sqlite/vector-extension.js';
 import { createRepoCacheManager } from '../../src/shared/repo-cache-config.js';
+import { observeStorageResource } from '../../src/shared/storage/failure-observation.js';
 
 const repoCacheManager = createRepoCacheManager({
   defaultRepo: process.cwd(),
@@ -100,7 +101,8 @@ const hasRepoArtifacts = (repoPath) => {
     const buildsRoot = path.join(repoCacheRoot, 'builds');
     if (fs.existsSync(path.join(buildsRoot, 'current.json'))) return true;
     return INDEX_MODES.some((mode) => fs.existsSync(path.join(repoCacheRoot, `index-${mode}`)));
-  } catch {
+  } catch (error) {
+    observeStorageResource(error, { phase: 'mcp-repository-artifact-probe' }).requireSettled();
     return false;
   }
 };

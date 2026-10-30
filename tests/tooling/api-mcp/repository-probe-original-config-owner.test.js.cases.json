@@ -1,0 +1,5 @@
+{
+  "schemaVersion": 1,
+  "cases": ["shared-child-read", "shared-root-read", "api-child-read", "api-root-read", "mcp-child-read", "mcp-root-read",
+    "shared-child-close", "shared-root-close", "api-child-close", "api-root-close", "mcp-child-close", "mcp-root-close"]
+}
