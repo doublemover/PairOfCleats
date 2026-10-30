@@ -42,6 +42,7 @@ try {
   const { createRuntimeWorkerPools } = await import('../../../src/index/build/runtime/workers.js');
   const { teardownRuntime } = await import('../../../src/integrations/core/build-index/runtime.js');
   await withTemporaryEnv({ PAIROFCLEATS_HOME: path.join(dir, 'home') }, async () => {
+    const coordinationRoot = path.join(dir, 'home', 'state', 'storage-access');
     const values = [null, false, 0, '', Object.freeze(new Error('original frozen rejection')), new Error('original worker rejection')];
     for (let index = 0; index < values.length; index++) {
       primary = values[index]; entered = deferred(); finish = deferred();
@@ -68,15 +69,15 @@ try {
       fail = true;
       const cleanup = () => selected.endsWith('teardown') ? teardownRuntime(runtime)
         : drainCacheWriters(runtime, { shutdown: true, timeoutMs: 1000 });
-      let error;
+      let error, firstCleanup, fixtureFailure, fixtureFailed = false;
       try {
-        const first = cleanup(); const failure = reject(() => first);
+        firstCleanup = cleanup(); const failure = reject(() => firstCleanup);
         await entered.promise;
         const concurrent = runtime.workerPools.destroy(); concurrent.catch(() => {});
         assert.equal(runtime.workerPools.isSettled(), false);
         assert.equal(runtime.workerPool.pool, original);
         assert.equal(attempts.get(target), 1);
-        assert.equal((await inspectStorageAccess(cache)).protected, true);
+        assert.equal((await inspectStorageAccess(cache, { coordinationRoot })).protected, true);
         finish.resolve(); error = await failure; await concurrent.catch(() => {});
         assert.equal(contains(error, primary), true, 'falsey/frozen original values survive actual factory/aggregate/public consumer composition');
         if (index === 0) assert.equal(contains(error, loggerError), true);
@@ -97,10 +98,22 @@ try {
         for (const sibling of siblings) assert.equal(sibling.isSettled(), true);
         if (selected.endsWith('cache')) await releaseCacheWriterOwnership({ lease, operationError: error,
           release() { releases++; return releaseBuildRuntimeStorage(runtime); } });
-        assert.equal((await inspectStorageAccess(cache)).protected, false);
+        assert.equal((await inspectStorageAccess(cache, { coordinationRoot })).protected, false);
         const count = attempts.get(target); await runtime.workerPools.destroy(); assert.equal(attempts.get(target), count);
+        console.log(JSON.stringify({ selected, rejectionCase: index, destroyAttempts: count, loggerAttempts,
+          loggerConfirmed, originalReleased: error.cacheOwnershipReleased(), poolsSettled: runtime.workerPools.isSettled() }));
+      } catch (failure) {
+        fixtureFailed = true; fixtureFailure = failure; throw failure;
       } finally {
-        fail = false; loggerFail = false; finish.resolve(); await runtime.workerPools.destroy(); releaseBuildRuntimeStorage(runtime);
+        fail = false; loggerFail = false; finish.resolve();
+        // Join the already accepted first negative control before retrying its
+        // retained original owner. Never let fixture cleanup mask an assertion.
+        await firstCleanup?.catch(() => {});
+        try { await runtime.workerPools.destroy(); releaseBuildRuntimeStorage(runtime); }
+        catch (failure) {
+          if (fixtureFailed) throw new AggregateError([fixtureFailure, failure], 'Consumer assertion and original cleanup both failed.', { cause: fixtureFailure });
+          throw failure;
+        }
       }
     }
   });

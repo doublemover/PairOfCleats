@@ -9,7 +9,7 @@ import { applyTestEnv } from '../../helpers/test-env.js';
 const selected = process.env.PAIROFCLEATS_TEST_ID?.split('indexing/stage1/process-files-live-abort-owner/')[1];
 assert.ok(['complete', 'mid-stage-abort'].includes(selected));
 const { dir } = await prepareIsolatedTestCacheDir(`stage1-live-listener-${selected}`);
-const repo = path.join(dir, 'repo'); await fs.mkdir(repo); await fs.writeFile(path.join(repo, 'input.txt'), 'alpha beta gamma\n');
+const repo = path.join(dir, 'repo'); await fs.mkdir(repo); await fs.writeFile(path.join(repo, 'input.md'), '# Actual prose input\nalpha beta gamma\n');
 applyTestEnv({ cacheRoot: path.join(dir, 'cache'), embeddings: 'off', testConfig: { threads: 1 } });
 const controller = new AbortController(), cause = new Error('exact mid-stage external abort');
 let nonempty = 0, fileUpdates = 0, rejected = false;
