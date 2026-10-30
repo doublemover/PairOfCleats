@@ -28,7 +28,8 @@ export const loadEmbeddingModelComponents = async (mod, {
     ...(plan.revision ? { revision: plan.revision } : {})
   };
   if (!modelProfile) {
-    return { plan, pipeline: await mod.pipeline('feature-extraction', modelId, { dtype: plan.dtype, ...options }) };
+    return { plan, pipeline: await mod.pipeline('feature-extraction', modelId, { dtype: plan.dtype, ...options,
+      ...(Object.keys(sessionOptions).length ? { session_options: sessionOptions } : {}) }) };
   }
   const { AutoConfig, AutoTokenizer, AutoModel } = mod;
   if (!mod.EmbeddingGemma2Model || !AutoConfig || !AutoTokenizer || !AutoModel

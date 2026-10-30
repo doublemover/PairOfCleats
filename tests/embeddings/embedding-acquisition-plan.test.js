@@ -16,6 +16,14 @@ try {
   let generic;
   await loadEmbeddingModelComponents({ pipeline: async (...args) => { generic = args; return {}; } }, { modelId: 'fixture/generic' });
   assert.deepEqual(generic, ['feature-extraction', 'fixture/generic', { dtype: 'q8' }]);
+  const sessionOptions = { intraOpNumThreads: 1, interOpNumThreads: 1, enableCpuMemArena: false };
+  const genericLoad = loadEmbeddingModelComponents({ pipeline: async (...args) => { generic = args; return {}; } },
+    { modelId: 'fixture/generic', modelsDir: root, localFilesOnly: true, sessionOptions });
+  sessionOptions.intraOpNumThreads = 8;
+  await genericLoad;
+  assert.deepEqual(generic, ['feature-extraction', 'fixture/generic', { dtype: 'q8', cache_dir: root,
+    local_files_only: true, session_options: { intraOpNumThreads: 1, interOpNumThreads: 1, enableCpuMemArena: false } }],
+  'generic pipelines must receive the captured native session policy, independently of caller mutation');
   for (const options of [{}, { dtype: 'q4' }, { dtype: 'q8' }, { revision: 'a'.repeat(40) }]) {
     const profile = resolveEmbeddingModelProfile(modelId, options);
     assert.equal(profile.runtime, EMBEDDING_GEMMA2_RUNTIME);
