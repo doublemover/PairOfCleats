@@ -20,13 +20,17 @@ for (const key of ['manifest', 'cohort', 'out']) assert.ok(options[key], 'Requir
 const allowed = ['cold', 'warm', 'cold-copies', 'warm-copies', 'cold-allocations', 'warm-allocations', 'cold-memory', 'warm-memory'];
 assert.ok(allowed.includes(options.cohort), 'Select exactly one bounded cold/warm observation cohort.');
 const route = options.route || 'batch'; assert.ok(['batch', 'prepared'].includes(route));
+const manifestPath = path.resolve(options.manifest), manifestBytes = await fs.readFile(manifestPath);
+const manifestHash = createHash('sha256').update(manifestBytes).digest('hex');
+const manifest = JSON.parse(manifestBytes);
+if (manifest.provider === 'onnx') {
+  const { assertDirectMiniLmRoute } = await import('../../embeddings/helpers/direct-minilm-reference.js');
+  assertDirectMiniLmRoute(route);
+}
 const output = path.resolve(options.out); await fs.mkdir(output);
 const source = captureSweepSource(process.cwd()); assert.equal(source.state, 'clean-revision');
 const observations = [], comparisons = [];
 const cohorts = [options.cohort];
-const manifestPath = path.resolve(options.manifest), manifestBytes = await fs.readFile(manifestPath);
-const manifestHash = createHash('sha256').update(manifestBytes).digest('hex');
-const manifest = JSON.parse(manifestBytes);
 const compareVectors = (before, after, tolerance) => {
   assert.equal(before.length, after.length); let maximumAbsoluteError = 0;
   for (const [row, vector] of before.entries()) {
@@ -59,9 +63,22 @@ for (const cohort of cohorts) {
       assert.equal(receipt.corpus.rows.length, manifest.texts.length); assert.ok(receipt.corpus.rows.length >= 32);
       assert.equal(receipt.outputBytes, manifest.texts.length * manifest.dimensions * 4);
       assert.equal(receipt.execution.stub, false); assert.equal(receipt.modelArtifact.status, 'verified');
+      assert.equal(receipt.provider, manifest.provider); assert.equal(receipt.execution.provider, manifest.provider);
+      if (manifest.provider === 'onnx') {
+        assert.equal(receipt.providerRuntime.version, '1.31.1'); assert.equal(receipt.providerRuntime.binding.moduleCacheLoaded, true);
+        assert.equal(receipt.execution.fallback, null); assert.equal(receipt.execution.measurements.retainedTensorScopes, 0);
+      }
       if (cohort === 'cold') assert.equal(receipt.samples.length, 1);
       if (cohort === 'warm') assert.equal(receipt.samples.length, 3);
-      if (cohort.endsWith('-copies')) assert.ok(receipt.copies);
+      if (cohort.endsWith('-copies')) {
+        assert.equal(receipt.copies.provider, manifest.provider);
+        if (manifest.provider === 'onnx') {
+          assert.equal(receipt.copies.events.length, manifest.texts.length);
+          assert.equal(receipt.copies.disposals.length, 4); assert.equal(receipt.copies.originalProducerDelta.runs, 1);
+          assert.equal(receipt.copies.originalProducerDelta.tensorResourcesSettled, 4);
+          assert.ok(receipt.copies.disposals.every(row => row.locationAfterOriginal === 'none'));
+        }
+      }
       if (cohort.endsWith('-memory')) assert.ok(receipt.observedPeak.heapUsed > 0);
       if (cohort.endsWith('-allocations')) {
         assert.equal(receipt.allocations.iterations, cohort.startsWith('cold-') ? 1 : 2);
@@ -75,7 +92,8 @@ for (const cohort of cohorts) {
       console.log(JSON.stringify({ cohort, repetition, arm, capsuleMs: result.durationMs }));
     }
     const original = pair.original, current = pair.current;
-    for (const key of ['manifest', 'runtime', 'host', 'providerRuntime', 'modelArtifact', 'corpus', 'profile', 'tolerance', 'route', 'numericalReference', 'outputBytes']) {
+    for (const key of ['manifest', 'runtime', 'host', 'provider', 'providerRuntime', 'modelArtifact', 'installation', 'source', 'frozenOwners',
+      'corpus', 'profile', 'tolerance', 'route', 'numericalReference', 'outputBytes', 'tokenRowCachePolicy']) {
       assert.deepEqual(current[key], original[key], 'Owner-only comparison must retain exact identity: ' + key);
     }
     assert.deepEqual(current.sourceOwners.map(row => [row.path, row.checkoutSha256]), original.sourceOwners.map(row => [row.path, row.checkoutSha256]));
@@ -94,7 +112,10 @@ for (const cohort of cohorts) {
 }
 assert.equal(createHash('sha256').update(await fs.readFile(manifestPath)).digest('hex'), manifestHash);
 await atomicWriteJson(path.join(output, 'final.json'), { schemaVersion: 1, issue: 1544, status: 'passed',
-  historicalAuthorWorkspace: true, source, manifest: { path: manifestPath, sha256: manifestHash }, route,
+  historicalAuthorWorkspace: true, source, manifest: { path: manifestPath, sha256: manifestHash }, route, provider: manifest.provider,
+  decoderScope: manifest.provider === 'onnx'
+    ? 'Current direct ONNX decoding/admission held constant across the two exact original/current adapter-owner overlays. Actual current32-row decode/copy/allocation/runtime costs observed; historical direct-admission overhead is not isolated.'
+    : 'Only the two declared provider-adapters/utils owners replaced; all other current model/lifetime/native owners held constant.',
   observations, comparisons, totalChildDeadlineMs: 30000,
   scope: 'Three fresh serial repetitions per selected cohort and arm; clean inference clocks separate from original copy/disposal work and V8/memory observations.',
   limits: 'Exactly two original owner modules over current dependencies; fresh process is not controlled cold storage. Explicit observations, no required speedup threshold, historical whole-tree gain, retained-memory leak, native unload or full model-family qualification inferred.' }, { createOnly: true });
