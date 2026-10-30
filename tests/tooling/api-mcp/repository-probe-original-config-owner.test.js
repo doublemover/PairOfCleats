@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { createOwnershipObservation } from '../../helpers/ownership-observation.js';
 import fs from 'node:fs';
 import fsp from 'node:fs/promises';
 import path from 'node:path';
@@ -12,20 +13,25 @@ import { errorGraphIncludes } from '../../helpers/error-graph.js';
 import { prepareIsolatedTestCacheDir } from '../../helpers/test-cache.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 
-const selected = process.env.PAIROFCLEATS_TEST_ID?.split('/').at(-1), [surface, location, mode] = selected?.split('-') || [];
-assert.ok(['shared', 'api', 'mcp'].includes(surface) && ['child', 'root'].includes(location) && ['read', 'close'].includes(mode));
+const selected = process.env.PAIROFCLEATS_TEST_ID?.split('/').at(-1), [surface, location, variant] = selected?.split('-') || [];
+assert.ok(['shared', 'api', 'mcp'].includes(surface) && ['child', 'root'].includes(location) && ['read', 'close', 'null', 'false', 'zero', 'undefined', 'aborted'].includes(variant));
+const mode = variant === 'close' ? 'close' : 'read';
 const { dir } = await prepareIsolatedTestCacheDir(`repository-probe-${selected}`);
 const repo = path.join(dir, 'repo'), child = path.join(repo, 'nested'), cache = path.join(dir, 'cache');
 applyTestEnv({ cacheRoot: cache, extraEnv: { PAIROFCLEATS_TRUSTED_CONFIG: null } });
 const originalOpen = fs.openSync, originalRead = fs.readSync, originalStat = fs.fstatSync, originalClose = fs.closeSync;
 const opened = new Set(); let active = false, opens = 0, reads = 0, closes = 0, rootOpens = 0, childOpens = 0, primaryFailure, asynchronous;
-const primary = Object.freeze(new Error('original config descriptor operation failed'));
+const sourceFailure = Object.freeze(new Error('original config descriptor operation failed'));
+const falsey = { null: null, false: false, zero: 0, undefined };
+const primary = Object.hasOwn(falsey, variant) ? falsey[variant] : variant === 'aborted'
+  ? Object.freeze(Object.assign(new Error('source failure retained through cancellation'), { name: 'AbortError', cause: sourceFailure })) : sourceFailure;
 const closeFailure = Object.freeze(new Error('original config descriptor close remains unknown'));
 const target = path.join(location === 'child' ? child : repo, '.pairofcleats.json');
 // Repository selection returns the canonical comparison spelling on Windows.
 // This equivalence applies to actual native paths, never artifact labels.
 const nativePathKey = value => process.platform === 'win32' ? path.resolve(value).toLowerCase() : path.resolve(value);
-let manager, failure, dependencyFailure;
+let manager, failure, dependencyFailure, dependencySettled = false;
+const observation = createOwnershipObservation(() => ({ opens, reads, closes, rootOpens, childOpens, liveTrackedDescriptors: opened.size + (asynchronous && !dependencySettled ? 1 : 0) }));
 const graph = error => {
   const queue = [error], seen = new Set(), values = [];
   while (queue.length) {
@@ -67,18 +73,20 @@ try {
     const fd = originalOpen(filename, ...args);
     if (active && typeof filename === 'string' && nativePathKey(filename) === nativePathKey(path.join(repo, '.pairofcleats.json'))) rootOpens++;
     if (active && typeof filename === 'string' && nativePathKey(filename) === nativePathKey(path.join(child, '.pairofcleats.json'))) childOpens++;
-    if (active && typeof filename === 'string' && nativePathKey(filename) === nativePathKey(target)) { opens++; opened.add(fd); }
+    if (active && typeof filename === 'string' && nativePathKey(filename) === nativePathKey(target)) { opens++; opened.add(fd); observation.mark('original-config-admitted'); }
     return fd;
   };
   fs.fstatSync = (fd, ...args) => { if (active && mode === 'close' && opened.has(fd)) throw primaryFailure; return originalStat(fd, ...args); };
   fs.readSync = (fd, ...args) => { if (active && opened.has(fd)) { reads++; throw primaryFailure; } return originalRead(fd, ...args); };
   fs.closeSync = fd => {
-    if (opened.has(fd)) { closes++; if (active && mode === 'close') throw closeFailure; opened.delete(fd); }
+    if (opened.has(fd)) { closes++; observation.mark('original-config-close-attempt'); if (active && mode === 'close') throw closeFailure; opened.delete(fd); }
     return originalClose(fd);
   };
   active = true;
-  assert.throws(() => resolve(child), error => { failure = error; return true; });
-  assert.ok(errorGraphIncludes(failure, primary)); assert.ok(errorGraphIncludes(failure, closeFailure));
+  assert.throws(() => resolve(child), error => { failure = error; observation.mark('public-probe-failure'); return true; });
+  assert.ok(errorGraphIncludes(failure, primary));
+  if (variant === 'aborted') assert.ok(errorGraphIncludes(failure, sourceFailure));
+  assert.ok(errorGraphIncludes(failure, closeFailure));
   assert.equal(opens, 1, 'failed admission is not replaced by a second config read');
   if (surface === 'mcp') {
     if (location === 'root') assert.equal(childOpens, 0, 'pending ancestor observation prevents the child probe');
@@ -86,13 +94,15 @@ try {
   } else if (location === 'child') assert.equal(rootOpens, 0, 'pending child observation prevents the next root probe/cache construction');
   const sessions = [...new Set(graph(failure).map(getContainedFileSession).filter(Boolean))];
   assert.ok(sessions.length); assert.equal(failure.cacheOwnershipReleased(), false);
+  observation.mark('pending-config-sessions-observed', { pendingSessions: sessions.filter(session => !session.isSettled()).length });
   const beforeReads = reads;
   active = false;
   if (mode === 'read') {
     assert.equal(closes, 0, 'dependent original resource prevents even the first config descriptor close');
-    await asynchronous.release();
+    observation.mark('original-dependency-recovery-requested'); await asynchronous.release(); dependencySettled = true;
     for (const session of sessions) if (!session.isSettled()) session.releaseAfterCloseSync();
     assert.equal(closes, 1); assert.equal(failure.cacheOwnershipReleased(), true);
+    observation.mark('original-config-recovery-completed', { pendingSessions: sessions.filter(session => !session.isSettled()).length });
     assert.equal(reads, beforeReads, 'recovery closes the original owners without replaying selection or reads');
   } else {
     assert.equal(closes, 1);
@@ -103,7 +113,11 @@ try {
 } finally {
   active = false; await asynchronous?.release().catch(() => {});
   fs.openSync = originalOpen; fs.readSync = originalRead; fs.fstatSync = originalStat; fs.closeSync = originalClose;
-  for (const fd of opened) { try { originalClose(fd); } catch {} }
+  for (const fd of opened) {
+    try { originalClose(fd); opened.delete(fd); observation.mark('independent-test-owner-close-confirmed'); } catch {}
+  }
   manager?.closeRepoCaches(); await fsp.rm(dir, { recursive: true, force: true });
 }
+observation.mark('fixture-cleanup-completed');
+await observation.publish({ selected, tracking: 'target config descriptor plus explicitly held original async dependency;Git/schema/other file IO excluded', scope: 'actual repository config descriptor failures, retained sessions and close-only recovery; unresolved synchronous close is never retried by fd number' });
 console.log('Actual shared/API cache and MCP repository selection preserve original config prerequisites before fallback.');

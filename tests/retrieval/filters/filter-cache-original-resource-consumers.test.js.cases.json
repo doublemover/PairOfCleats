@@ -1,5 +1,16 @@
 {
   "schemaVersion": 1,
-  "cases": ["key-admission", "key-read", "key-close", "payload-admission", "payload-read", "payload-close", "persist-key", "sqlite-fallback",
-    "cancelled-key-read", "cancelled-payload-read"]
+  "cases": [
+    "key-admission",
+    "key-read",
+    "key-close",
+    "payload-admission",
+    "payload-read",
+    "payload-close",
+    "persist-key",
+    "sqlite-fallback",
+    "cancelled-key-read",
+    "cancelled-payload-read",
+    "sqlite-no-fallback"
+  ]
 }

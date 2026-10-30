@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { createOwnershipObservation } from '../../../helpers/ownership-observation.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
@@ -23,6 +24,8 @@ const descriptors = new Map(), entries = [], expectedReaders = siblings ? 4 : 1;
 let readCalls = 0, closeCalls = 0, publicationSettled = false, allowClose = false;
 const closeFailure = Object.freeze(new Error('original checksum close rejected before native closure'));
 let outcome, work, contender;
+const observation = createOwnershipObservation(() => ({ admittedDescriptors: descriptors.size,
+  liveTrackedDescriptors: [...descriptors.values()].filter(value => !value.closed).length, readCalls, closeCalls, publicationSettled }));
 const graph = failure => {
   const queue = [failure], seen = new Set(), values = [];
   while (queue.length) {
@@ -50,25 +53,25 @@ try {
     const filename = path.resolve(target);
     if (filename === lockPath || !entries.some(entry => path.join(dir, entry.path) === filename)) return handle;
     const read = handle.read.bind(handle), close = handle.close.bind(handle);
-    const finished = gate(); descriptors.set(filename, { handle, close, closed: false, finished });
+    const finished = gate(); descriptors.set(filename, { handle, close, closed: false, finished }); observation.mark('descriptor-admitted');
     handle.read = async (...args) => {
-      readCalls++;
+      readCalls++; observation.mark('original-read-started');
       if (scenario === 'read' || scenario === 'siblings') {
         if (readCalls === expectedReaders) started.resolve();
         await release.promise;
       }
-      return read(...args);
+      try { return await read(...args); } finally { observation.mark('original-read-settled'); }
     };
     handle.close = async () => {
       try {
-        closeCalls++;
+        closeCalls++; observation.mark('original-close-started');
         if (scenario === 'close' || failedClose) {
           if (closeCalls === expectedReaders) started.resolve();
           await release.promise;
         }
         if (failedClose && !allowClose) throw closeFailure;
-        await close(); descriptors.get(filename).closed = true;
-      } finally { finished.resolve(); }
+        await close(); descriptors.get(filename).closed = true; observation.mark('original-close-confirmed');
+      } finally { observation.mark('original-close-callback-settled'); finished.resolve(); }
     };
     return handle;
   };
@@ -76,8 +79,8 @@ try {
   work = writePiecesManifest({ outDir: dir, mode: 'code', pieceEntries: entries,
     indexState: { buildId: 'original' }, abortSignal: controller.signal,
     ...(borrowed ? { indexStatePublication: session } : {}) });
-  const observed = work.then(value => { publicationSettled = true; return { ok: true, value }; },
-    error => { publicationSettled = true; return { ok: false, error }; });
+  const observed = work.then(value => { publicationSettled = true; observation.mark('public-completion'); return { ok: true, value }; },
+    error => { publicationSettled = true; observation.mark('public-cancellation-completion'); return { ok: false, error }; });
   if (scenario === 'preabort') {
     outcome = await observed; assert.equal(outcome.ok, false); assert.ok(errorGraphIncludes(outcome.error, cancellation));
     assert.equal(descriptors.size, 0);
@@ -89,17 +92,17 @@ try {
     assert.deepEqual(manifest.pieces.map(piece => piece.path), entries.map(piece => piece.path).sort());
     assert.equal(manifest.pieces.find(piece => piece.path === entries[0].path).checksum, entries[0].checksum);
   } else {
-    await started.promise; controller.abort(cancellation);
+    await started.promise; observation.mark('abort-requested'); controller.abort(cancellation);
     await new Promise(resolve => setImmediate(resolve));
     assert.equal(publicationSettled, false, 'public cancellation must wait for original checksum readers/closers');
     await assert.rejects(fs.access(manifestPath), { code: 'ENOENT' });
     assert.equal((await fs.stat(lockPath)).isFile(), true);
     let entered = false;
     if (!failedClose) {
-      contender = withIndexStatePublicationLock(dir, () => { entered = true; });
+      contender = withIndexStatePublicationLock(dir, () => { entered = true; observation.mark('cooperating-publication-entered-original-lock-retired'); });
       await new Promise(resolve => setImmediate(resolve)); assert.equal(entered, false);
     }
-    release.resolve(); outcome = await observed;
+    observation.mark('imposed-phase-gate-released'); release.resolve(); outcome = await observed;
     assert.equal(outcome.ok, false); assert.ok(errorGraphIncludes(outcome.error, cancellation));
     if (siblings) assert.equal(descriptors.size, 4, 'cancelled fifth piece is never admitted');
     if (failedClose) {
@@ -107,6 +110,7 @@ try {
       const values = graph(outcome.error), children = [...new Set(values.map(getContainedFileSession).filter(Boolean))];
       const publication = values.find(value => value.fileLockPublicationSession)?.fileLockPublicationSession;
       assert.equal(children.length, expectedReaders); assert.ok(publication);
+      observation.mark('pending-original-sessions-observed', { pendingSessions: children.filter(child => !child.isSettled()).length, publicationPending: isFileLockPublicationPending(lockPath) });
       assert.equal(children.every(child => !child.isSettled()), true);
       assert.equal(isFileLockPublicationPending(lockPath), true);
       // Pending original ownership rejects acquisition before fs.open. Observe
@@ -115,12 +119,12 @@ try {
       assert.equal(await acquireFileLock({ lockPath, waitMs: 0, onBusy: value => { refusal = value; } }), null);
       assert.equal(refusal.reason, 'publication-pending');
       assert.equal((await fs.stat(lockPath)).isFile(), true);
-      contender = withIndexStatePublicationLock(dir, () => { entered = true; });
+      contender = withIndexStatePublicationLock(dir, () => { entered = true; observation.mark('cooperating-publication-entered-original-lock-retired'); });
       await new Promise(resolve => setImmediate(resolve));
       assert.equal(entered, false, 'a cooperating publication remains physically fenced');
       allowClose = true;
       for (const child of children) await child.releaseAfterClose();
-      await publication.releaseAfterClose();
+      await publication.releaseAfterClose(); observation.mark('pending-original-publication-recovered');
       assert.equal(children.every(child => child.isSettled()), true); assert.equal(isFileLockPublicationPending(lockPath), false);
     }
     await contender; assert.equal(entered, true);
@@ -141,4 +145,7 @@ try {
   for (const descriptor of descriptors.values()) if (!descriptor.closed) await descriptor.close().catch(() => {});
   await fs.rm(dir, { recursive: true, force: true });
 }
+observation.mark('fixture-cleanup-completed');
+await observation.publish({ selected, tracking: 'admitted original checksum descriptors only;publication lock and unrelated file IO excluded', scope: 'original descriptor and publication-owner phase timestamps; imposed gates are controlled holds, not native delay or clean cancellation latency',
+  gateTiming: 'abort-to-gate-release is intentionally held; gate-release-to-settlement measures observed drain; cooperating-entry bounds original lock retirement' });
 console.log('Manifest checksum cancellation retains original reader settlement, publication fences and sealed sorted results.');

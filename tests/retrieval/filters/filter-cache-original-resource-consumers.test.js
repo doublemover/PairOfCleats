@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { createOwnershipObservation } from '../../helpers/ownership-observation.js';
 import fs from 'node:fs';
 import fsp from 'node:fs/promises';
 import path from 'node:path';
@@ -14,7 +15,7 @@ import { prepareIsolatedTestCacheDir } from '../../helpers/test-cache.js';
 
 const selected = process.env.PAIROFCLEATS_TEST_ID?.split('/').at(-1);
 assert.ok(['key-admission', 'key-read', 'key-close', 'payload-admission', 'payload-read', 'payload-close', 'persist-key', 'sqlite-fallback',
-  'cancelled-key-read', 'cancelled-payload-read'].includes(selected));
+  'cancelled-key-read', 'cancelled-payload-read', 'sqlite-no-fallback'].includes(selected));
 const { dir } = await prepareIsolatedTestCacheDir(`filter-original-resource-${selected}`);
 const enumeration = { generation: 'original-generation', request: 'original-request', modifiedAfter: 0,
   offsets: { code: 0 }, filters: {}, cacheDir: dir };
@@ -34,6 +35,7 @@ const graph = error => {
   return result;
 };
 let db;
+const observation = createOwnershipObservation(() => ({ opens, closes, reads, liveTrackedDescriptors: descriptors.size }));
 try {
   assert.equal(await persistFilterMatches({ cacheDir: dir, identity, rowCount: 2, ids,
     metadata: [{ id: 0, file: 'one.js' }, { id: 1, file: 'two.js' }] }), true);
@@ -45,16 +47,16 @@ try {
   fsp.open = async (filename, ...options) => {
     const handle = await originalOpen(filename, ...options);
     if (path.resolve(filename) !== target || !fault) return handle;
-    opens++; descriptors.add(handle); const close = handle.close.bind(handle), read = handle.read.bind(handle);
+    opens++; descriptors.add(handle); observation.mark('original-descriptor-admitted'); const close = handle.close.bind(handle), read = handle.read.bind(handle);
     handle.read = async (...args) => {
-      reads++;
+      reads++; observation.mark('original-read-started');
       if (phase === 'read') {
-        if (selected.startsWith('cancelled-')) controller.abort(cancellation);
+        if (selected.startsWith('cancelled-')) { observation.mark('abort-requested'); controller.abort(cancellation); }
         throw primary;
       }
       return read(...args);
     };
-    handle.close = async () => { closes++; if (!allowClose) throw secondary; await close(); descriptors.delete(handle); };
+    handle.close = async () => { closes++; observation.mark('original-close-started'); if (!allowClose) throw secondary; await close(); descriptors.delete(handle); observation.mark('original-close-confirmed'); };
     return handle;
   };
   fs.fstatSync = (fd, ...options) => {
@@ -66,7 +68,7 @@ try {
     throwIfAborted: () => controller.signal.throwIfAborted() };
   let work;
   if (selected === 'persist-key') work = persistFilterMatches({ cacheDir: dir, identity, rowCount: 2, ids });
-  else if (selected === 'sqlite-fallback') {
+  else if (selected === 'sqlite-fallback' || selected === 'sqlite-no-fallback') {
     db = new Database(':memory:'); db.exec('CREATE TABLE chunks(id INTEGER PRIMARY KEY,mode TEXT NOT NULL)');
     const put = createSqliteFilterFactWriter(db);
     for (let id = 0; id < 2; id++) { db.prepare('INSERT INTO chunks VALUES (?,?)').run(id, 'code'); put({ id, mode: 'code', file: `${id}.js` }); }
@@ -78,17 +80,17 @@ try {
       loadIndexFromSqlite: () => ({ chunkMeta: new Array(2), loadFilterFactPage: async () => {
         factReads++; return readSqliteFilterFactPage({ db, mode: 'code', rowCount: 2, limit: 1 });
       } }) });
-    work = loader.loadModeIndex({ mode: 'code', run: true, dir, backend: 'sqlite', allowSqliteFallback: true });
+    work = loader.loadModeIndex({ mode: 'code', run: true, dir, backend: 'sqlite', allowSqliteFallback: selected === 'sqlite-fallback' });
     work = work.finally(() => { assert.equal(factReads, 0); assert.equal(fallbackReads, 0); });
   } else work = readFilterMatchPage(request);
-  await assert.rejects(work, error => { failure = error; return true; });
+  await assert.rejects(work, error => { failure = error; observation.mark('public-failure'); return true; });
   assert.ok(errorGraphIncludes(failure, secondary), 'ordinary cache miss/fallback cannot erase an unconfirmed original close');
   if (phase === 'admission' || phase === 'read') assert.ok(errorGraphIncludes(failure, primary));
   if (selected.startsWith('cancelled-')) assert.ok(errorGraphIncludes(failure, cancellation));
   const values = graph(failure), session = values.map(getContainedFileSession).find(Boolean);
-  assert.ok(session); assert.equal(session.isSettled(), false); assert.equal(opens, 1); assert.equal(closes, 1);
+  assert.ok(session); assert.equal(session.isSettled(), false); observation.mark('pending-original-session-observed', { pendingSessions: 1 }); assert.equal(opens, 1); assert.equal(closes, 1);
   const readCount = reads; allowClose = true; fault = false;
-  await session.releaseAfterClose(); assert.equal(session.isSettled(), true); assert.equal(closes, 2); assert.equal(reads, readCount);
+  observation.mark('original-recovery-requested'); await session.releaseAfterClose(); observation.mark('original-session-settled', { pendingSessions: 0 }); assert.equal(session.isSettled(), true); assert.equal(closes, 2); assert.equal(reads, readCount);
   for (const value of values) await value.fileLockPublicationSession?.releaseAfterClose();
   assert.deepEqual(await fsp.readFile(key), originalKey); assert.deepEqual(await fsp.readFile(payload), originalPayload);
   const healthyRequest = { ...request, throwIfAborted: undefined };
@@ -108,4 +110,6 @@ try {
   for (const handle of descriptors) await handle.close().catch(() => {});
   await fsp.rm(dir, { recursive: true, force: true });
 }
+observation.mark('fixture-cleanup-completed');
+await observation.publish({ selected, tracking: 'injected target key-or-payload descriptors only;native database and unrelated file IO excluded', scope: 'actual key/payload failure and original close-only recovery; no injected delay or production fallback after pending ownership' });
 console.log('Filter cache key/payload/persistence and SQLite fallback preserve the actual original descriptor owner.');
