@@ -55,6 +55,16 @@ export async function getQueryEmbedding({
     if (profile && dims != null && Number(dims) !== profile.dimensions) {
       throw new Error('EmbeddingGemma 2 query dimensions do not match the persisted model profile. Rebuild the index.');
     }
+    // Persisted formatting may be stale. Reject it before acquiring any adapter
+    // lease; otherwise a formatter failure would precede its disposal scope.
+    const resolvedInputFormatting = inputFormatting && typeof inputFormatting === 'object'
+      ? inputFormatting
+      : resolveEmbeddingInputFormatting(modelId);
+    const formattedText = formatEmbeddingInput(text, {
+      modelId,
+      kind: 'query',
+      formatting: resolvedInputFormatting
+    });
     const adapter = getEmbeddingAdapter({
       rootDir,
       useStub: resolvedUseStub,
@@ -67,14 +77,6 @@ export async function getQueryEmbedding({
       modelProfile: profile,
       modelArtifact,
       retainInCache: true
-    });
-    const resolvedInputFormatting = inputFormatting && typeof inputFormatting === 'object'
-      ? inputFormatting
-      : resolveEmbeddingInputFormatting(modelId);
-    const formattedText = formatEmbeddingInput(text, {
-      modelId,
-      kind: 'query',
-      formatting: resolvedInputFormatting
     });
     let primaryError, primaryCaught = false;
     try {
