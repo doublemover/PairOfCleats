@@ -3,10 +3,12 @@ import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { stableStringify } from '../../shared/stable-json.js';
 import { hashFileObservation } from '../../shared/hash.js';
-import { resolveArtifactPath, assertArtifactFilePath } from '../../shared/artifact-io/contained-path.js';
+import { resolveArtifactPath, resolveArtifactIdentityPath, assertArtifactFilePath } from '../../shared/artifact-io/contained-path.js';
 import { readVerifiedContainedFile } from '../../shared/contained-file.js';
 import { runWithSettledConcurrency } from '../../shared/concurrency/run-with-queue.js';
 import { throwIfAborted } from '../../shared/abort.js';
+import { observeStorageResource } from '../../shared/storage/failure-observation.js';
+import { addStorageFailureContext } from '../../shared/storage/operation-error.js';
 
 const MAX_MANIFEST_BYTES = 16 * 1024 * 1024;
 const changed = () => Object.assign(new Error('[artifact-publication] generation integrity changed; fresh qualification is required.'),
@@ -25,26 +27,57 @@ export const observePublicationIntegrity = async ({ outDir, manifestPath, signal
   const content = createHash('sha256');
   const observeMember = async relative => {
     throwIfAborted(signal);
-    const selected = resolveArtifactPath(outDir, relative);
-    const stat = await fs.lstat(selected);
-    if (stat.isDirectory()) {
-      return { path: relative, type: 'directory' };
-    } else if (stat.isFile()) {
-      const piece = declared.get(relative);
-      let algorithm = 'sha256', expectedHash = null;
-      if (piece?.checksum != null) {
-        const match = /^(sha256|sha1|xxh64):([a-f0-9]+)$/i.exec(piece.checksum);
-        const lengths = { sha256: 64, sha1: 40, xxh64: 16 };
-        algorithm = match?.[1]?.toLowerCase();
-        if (!algorithm || match[2].length !== lengths[algorithm]) throw changed();
-        expectedHash = match[2].toLowerCase();
+    const piece = declared.get(relative);
+    let algorithm = 'sha256', expectedHash = null;
+    if (piece?.checksum != null) {
+      const match = /^(sha256|sha1|xxh64):([a-f0-9]+)$/i.exec(piece.checksum);
+      const lengths = { sha256: 64, sha1: 40, xxh64: 16 };
+      algorithm = match?.[1]?.toLowerCase();
+      if (!algorithm || match[2].length !== lengths[algorithm]) {
+        // Directories historically carry no file checksum. Preserve that
+        // dispatch, but reject malformed file checksums before payload I/O.
+        if ((await fs.lstat(resolveArtifactPath(outDir, relative))).isDirectory()) return { path: relative, type: 'directory' };
+        throw changed();
       }
-      const observed = await hashFileObservation(selected, { containedRoot: outDir, signal,
+      expectedHash = match[2].toLowerCase();
+    }
+    // The original hash descriptor already admits every path component,
+    // verifies its regular-file identity and observes exact pre/post metadata.
+    // A preliminary path walk and lstat repeat that work for every normal file.
+    const selected = resolveArtifactIdentityPath(outDir, relative);
+    let observed;
+    try {
+      observed = await hashFileObservation(selected, { containedRoot: outDir, signal, nativeMetadata: true,
         algorithms: algorithm === 'sha256' ? ['sha256'] : ['sha256', algorithm] });
-      if (piece?.bytes != null && piece.bytes !== observed.bytes) throw changed();
-      if (expectedHash !== null && observed.value[algorithm].toLowerCase() !== expectedHash) throw changed();
-      return { path: relative, type: 'file', hash: observed.value.sha256 };
-    } else throw changed();
+    } catch (error) {
+      const original = observeStorageResource(error, { phase: 'publication-member-hash' });
+      original.requireSettled();
+      try { throwIfAborted(signal); }
+      catch (cancellation) { throw addStorageFailureContext(error, {}, cancellation, { secondaryPresent: true }); }
+      let code;
+      try { code = original.primary.code; } catch (inspection) { throw original.retain(inspection, { inspectionPresent: true }); }
+      if (code === 'EISDIR') {
+        let directory;
+        try { directory = (await fs.lstat(resolveArtifactPath(outDir, relative))).isDirectory(); }
+        catch (classificationError) { throw addStorageFailureContext(error, {}, classificationError, { secondaryPresent: true }); }
+        if (directory) return { path: relative, type: 'directory' };
+        throw error;
+      }
+      if (code === 'ERR_UNSAFE_FILE_PATH') {
+        // Keep the artifact boundary's path diagnostic for a currently unsafe
+        // path. A refused or failed-close hash never becomes directory fallback.
+        try { resolveArtifactPath(outDir, relative); } catch (pathError) {
+          observeStorageResource(pathError, { phase: 'publication-member-path' }).requireSettled();
+          if (pathError?.code === 'ERR_ARTIFACT_PATH') throw Object.assign(
+            new AggregateError([pathError], pathError.message, { cause: error }), { code: pathError.code });
+          throw addStorageFailureContext(error, {}, pathError, { secondaryPresent: true });
+        }
+      }
+      throw error;
+    }
+    if (piece?.bytes != null && piece.bytes !== observed.bytes) throw changed();
+    if (expectedHash !== null && observed.value[algorithm].toLowerCase() !== expectedHash) throw changed();
+    return { path: relative, type: 'file', hash: observed.value.sha256 };
   };
   const commitMember = async observed => {
     throwIfAborted(signal);

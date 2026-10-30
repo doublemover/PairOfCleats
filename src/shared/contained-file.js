@@ -126,6 +126,9 @@ export const withContainedFile = async (root, target, action, options = {}) => {
   if (typeof action !== 'function') throw new TypeError('Contained file requires its read callback.');
   const { owner, verification, identity } = await acquireContainedFile(root, target, options);
   const descriptor = Object.freeze({ ...owner.operations,
+    // Keep fresh original-fd metadata under the same scoped failure/close
+    // owner, without an additional asynchronous FileHandle dispatch.
+    statNative: statOptions => owner.inspect(fd => verification.fstat.call(fs, fd, statOptions)),
     verify: () => owner.inspect(fd => verifyHandle(fd, root, target, identity, verification)) });
   return owner.run(() => action(descriptor, Object.freeze({ isSettled: owner.isSettled })));
 };

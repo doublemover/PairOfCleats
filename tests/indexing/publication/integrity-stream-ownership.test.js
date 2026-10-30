@@ -11,7 +11,7 @@ import { errorGraphIncludes } from '../../helpers/error-graph.js';
 const selected = process.env.PAIROFCLEATS_TEST_ID?.split('integrity-stream-ownership/')[1];
 assert.ok(['equivalent', 'mixed-snapshot', 'failure-drain'].includes(selected));
 const { dir } = await prepareIsolatedTestCacheDir(`publication-integrity-stream-${selected}`);
-const manifestPath = path.join(dir, 'manifest.json'), originalOpen = fs.open;
+const manifestPath = path.join(dir, 'manifest.json'), originalOpen = fs.open, originalLstat = fs.lstat;
 const sha = bytes => createHash('sha256').update(bytes).digest('hex');
 const payloads = new Map(Array.from({ length: 8 }, (_, i) => [`part-${i}.bin`, Buffer.from(`authored-${i}`)]));
 const pieces = [];
@@ -24,9 +24,13 @@ for (const [name, bytes] of payloads) {
 }
 const manifest = { pieces };
 await fs.writeFile(manifestPath, JSON.stringify(manifest));
-const opens = new Map(); let active = 0, peak = 0;
+const opens = new Map(); let active = 0, peak = 0, preliminaryFileStats = 0;
 let afterClose = null, beforeRead = null;
 const handles = new Map();
+fs.lstat = async function (target, ...args) {
+  if (payloads.has(path.relative(dir, String(target)))) preliminaryFileStats++;
+  return originalLstat.call(this, target, ...args);
+};
 fs.open = async function (target, ...args) {
   const handle = await originalOpen.call(this, target, ...args);
   const relative = path.relative(dir, String(target));
@@ -56,6 +60,7 @@ try {
     assert.ok(peak > 1 && peak <= 4, 'actual readers overlap only within the four-reader window');
     assert.equal(active, 0);
     assert.deepEqual([...opens.values()], Array(8).fill(1), 'all registered algorithms share each single payload read');
+    assert.equal(preliminaryFileStats, 0, 'regular members are classified by their actual contained hash descriptor');
     for (const [name, bytes] of payloads) {
       const observation = await hashFileObservation(path.join(dir, name), { containedRoot: dir,
         algorithms: ['sha256', 'sha1', 'xxh64', 'sha256'] });
@@ -77,6 +82,17 @@ try {
       { path: 'part-0.bin', type: 'file', hash: sha(payloads.get('part-0.bin')) }];
     assert.equal(nested.contentHash, sha(expected.map(row => stableStringify(row) + '\n').join('')),
       'directory and file transcript order is unchanged');
+    for (const checksum of ['directory-has-no-file-checksum', 'sha256:' + '0'.repeat(64)]) {
+      directoryManifest.pieces[0].checksum = checksum;
+      await fs.writeFile(manifestPath, JSON.stringify(directoryManifest));
+      const observed = await observePublicationIntegrity({ outDir: dir, manifestPath });
+      assert.equal(observed.contentHash, nested.contentHash, 'directory dispatch retains its original checksum policy');
+      assert.equal(observed.manifestHash, sha(stableStringify(directoryManifest)));
+    }
+    const beforeInvalid = [...opens];
+    await fs.writeFile(manifestPath, JSON.stringify({ pieces: [{ ...pieces[0], checksum: 'sha256:bad' }] }));
+    await assert.rejects(observePublicationIntegrity({ outDir: dir, manifestPath }), { code: 'ERR_ARTIFACT_PUBLICATION_INTEGRITY' });
+    assert.deepEqual([...opens], beforeInvalid, 'invalid regular-file checksums are rejected before payload reads');
   } else if (selected === 'mixed-snapshot') {
     const name = 'part-0.bin', a = Buffer.from('AAAA'), b = Buffer.from('BBBB');
     await fs.writeFile(path.join(dir, name), a);
@@ -115,7 +131,7 @@ try {
     assert.ok((await observePublicationIntegrity({ outDir: dir, manifestPath })).contentHash);
   }
 } finally {
-  fs.open = originalOpen;
+  fs.open = originalOpen; fs.lstat = originalLstat;
   for (const close of handles.values()) await close();
   await fs.rm(dir, { recursive: true, force: true });
 }

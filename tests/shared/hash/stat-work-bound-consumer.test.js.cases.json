@@ -1,1 +1,1 @@
-{"schemaVersion":1,"cases":["exact-work","unsafe-extent","timestamp-race"]}
+{"schemaVersion":1,"cases":["exact-work","unsafe-extent","timestamp-race","native-exact-work","native-unsafe-extent","native-timestamp-race"]}

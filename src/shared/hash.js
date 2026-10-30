@@ -35,8 +35,10 @@ const EXACT_IDENTITY_FIELDS = Object.freeze(['dev', 'ino', 'size', 'mtimeNs', 'c
 const NUMERIC_IDENTITY_FIELDS = Object.freeze(['dev', 'ino', 'size', 'mtimeMs', 'ctimeMs']);
 const MAX_SAFE_HASH_BYTES = BigInt(Number.MAX_SAFE_INTEGER);
 const nanosecondsToMilliseconds = value => Number(value / 1000000n) + Number(value % 1000000n) / 1000000;
-const captureFileState = async (descriptor, exact) => {
-  const stat = await descriptor.stat(exact ? { bigint: true } : undefined);
+const captureFileState = async (descriptor, exact, nativeMetadata) => {
+  const stat = await (nativeMetadata && descriptor.statNative
+    ? descriptor.statNative(exact ? { bigint: true } : undefined)
+    : descriptor.stat(exact ? { bigint: true } : undefined));
   const regular = stat.isFile();
   if (!exact) {
     const identity = Object.freeze(Object.fromEntries(NUMERIC_IDENTITY_FIELDS.map(key => [key, stat[key]])));
@@ -54,12 +56,12 @@ const captureFileState = async (descriptor, exact) => {
     identity: Object.freeze({ dev: Number(identity.dev), ino: Number(identity.ino), size: bytes,
       mtimeMs: nanosecondsToMilliseconds(identity.mtimeNs), ctimeMs: nanosecondsToMilliseconds(identity.ctimeNs) }) });
 };
-const withFileHasher = async (filePath, createHasher, { containedRoot = null, signal = null } = {}, includeObservation = false) => {
+const withFileHasher = async (filePath, createHasher, { containedRoot = null, signal = null, nativeMetadata = false } = {}, includeObservation = false) => {
   throwIfAborted(signal);
   const compute = async descriptor => {
     const hasher = createHasher(), update = hasher.update, digest = hasher.digest;
     if (typeof update !== 'function' || typeof digest !== 'function') throw new TypeError('File hash requires its original incremental operations.');
-    const before = await captureFileState(descriptor, includeObservation);
+    const before = await captureFileState(descriptor, includeObservation, nativeMetadata);
     if (!before.regular || !Number.isSafeInteger(before.bytes) || before.bytes < 0) {
       throw new Error('File hash requires a bounded regular file extent.');
     }
@@ -76,7 +78,7 @@ const withFileHasher = async (filePath, createHasher, { containedRoot = null, si
     throwIfAborted(signal);
     const value = await digest.call(hasher);
     throwIfAborted(signal);
-    const after = await captureFileState(descriptor, includeObservation);
+    const after = await captureFileState(descriptor, includeObservation, nativeMetadata);
     if (!after.regular || (includeObservation
       ? EXACT_IDENTITY_FIELDS.some(key => before.exactIdentity[key] !== after.exactIdentity[key])
       : NUMERIC_IDENTITY_FIELDS.some(key => before.identity[key] !== after.identity[key]))) throw changedFile();
