@@ -6,13 +6,14 @@ import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
 import { CROSS_FILE_FIDELITY_VERSION, resolveCrossFileFidelity } from '../../../src/index/cross-file-fidelity.js';
 import { buildPostings } from '../../../src/index/build/postings.js';
 import { writeIndexArtifacts } from '../../../src/index/build/artifacts.js';
+import { computeCompatibilityKey } from '../../../src/integrations/core/build-index/compatibility.js';
 import { promoteBuild } from '../../../src/index/build/promotion.js';
 import { prepareChunkIds } from '../../../src/index/build/file-processor/process-chunks/ids.js';
 import { buildChunkPayload } from '../../../src/index/build/file-processor/assemble.js';
 import { buildTokenSequence } from '../../../src/index/build/tokenization.js';
 import { buildLineIndex, offsetToLine } from '../../../src/shared/lines.js';
 import { getBuildsRoot, getIndexDir, loadUserConfig } from '../../../src/shared/dict-utils.js';
-import { loadPiecesManifest, loadGraphRelations } from '../../../src/shared/artifact-io.js';
+import { loadPiecesManifest, loadGraphRelations, readCompatibilityKey } from '../../../src/shared/artifact-io.js';
 import { validateArchitectureReport } from '../../../src/contracts/validators/analysis.js';
 import { spawnSubprocess } from '../../../src/shared/subprocess/runner.js';
 import { createLoggerScope } from '../../../src/shared/progress-runtime.js';
@@ -85,6 +86,11 @@ try {
     phrasePost: new Map(), triPost: new Map(), postingsConfig: {}, embeddingsEnabled: false, modelId: 'stub', useStubEmbeddings: true, log() {} });
   const config = loadUserConfig(repo), buildId = 'architecture-' + selected, buildRoot = path.join(getBuildsRoot(repo, config), buildId);
   const outDir = path.join(buildRoot, 'index-code'); await fs.mkdir(outDir, { recursive: true });
+  const compatibilityRuntime = { dictConfig: {}, dictSignature: null, postingsConfig: {}, commentsConfig: {},
+    segmentsConfig: {}, languageOptions: {}, embeddingEnabled: false, embeddingService: false };
+  computeCompatibilityKey({ runtime: compatibilityRuntime, modes: ['code'], sharedDiscovery: { code: { entries: files } } });
+  const compatibilityKey = compatibilityRuntime.compatibilityKey;
+  assert.match(compatibilityKey, /^[a-f0-9]{40}$/);
   const state = { chunks, scannedFilesTimes: [], scannedFiles: files.map(file => file.file), skippedFiles: [],
     totalTokens: docLengths.reduce((sum, value) => sum + value, 0), docLengths, fileRelations: new Map(), fileInfoByPath,
     fileDetailsByPath: new Map(), chunkUidToFile: new Map(chunks.map(chunk => [chunk.chunkUid, chunk.file])),
@@ -93,13 +99,16 @@ try {
   await logger.run(() => writeIndexArtifacts({ root: repo, outDir, buildRoot, mode: 'code', state, postings, postingsConfig: {},
     modelId: 'stub', useStubEmbeddings: true, dictSummary: null, timing: { start: Date.now() }, incrementalEnabled: false,
     fileCounts: { candidates: 2 }, perfProfile: null, userConfig: { indexing: { scm: { provider: 'none' } } },
-    indexState: { artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION, buildId, mode: 'code', stage: 'stage2', counts: { files: 2, chunks: 2 },
+    indexState: { artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION, compatibilityKey,
+      tokenizationKey: compatibilityRuntime.tokenizationKeys.code, buildId, mode: 'code', stage: 'stage2', counts: { files: 2, chunks: 2 },
       generatedAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
     graphRelations: { version: 2, callGraph: { nodeCount: 0, edgeCount: 0, nodes: [] },
       usageGraph: { nodeCount: 0, edgeCount: 0, nodes: [] }, importGraph: graph }, stageCheckpoints: null }));
-  await logger.run(() => promoteBuild({ repoRoot: repo, userConfig: config, buildId, buildRoot, stage: 'stage2', modes: ['code'] }));
+  await logger.run(() => promoteBuild({ repoRoot: repo, userConfig: config, buildId, buildRoot, compatibilityKey, stage: 'stage2', modes: ['code'] }));
   assert.equal(path.relative(getIndexDir(repo, 'code', config), outDir), '');
   const manifest = loadPiecesManifest(outDir, { strict: true }); assert.equal(manifest.artifactSurfaceVersion, ARTIFACT_SURFACE_VERSION);
+  assert.equal(manifest.compatibilityKey, compatibilityKey);
+  assert.equal(readCompatibilityKey(outDir, { strict: true }).key, compatibilityKey);
   const published = await loadGraphRelations(outDir, { manifest, strict: true });
   assert.equal(published.importGraph.edgeCount, noEdge ? 0 : 1);
   const rulesPath = path.join(dir, 'rules.json');
@@ -115,6 +124,7 @@ try {
     assert.deepEqual(report.summary, { detectedViolations: spec.detected, retainedViolations: spec.retained, omittedViolations: spec.omitted,
       edgesExamined: selected === 'zero-work' || noEdge ? 0 : 1, complete: spec.complete });
     assert.equal(report.violations.length, spec.retained);
+    assert.equal(report.provenance.indexCompatKey, compatibilityKey);
     assert.equal(report.rules[0].summary.violations, spec.detected);
     assert.deepEqual(report.provenance.capsUsed.architecture, { maxViolations: spec.maxViolations ?? null, maxEdgesExamined: spec.maxEdgesExamined ?? null });
     if (spec.retained) {
@@ -134,7 +144,7 @@ try {
     assert.deepEqual(normalReport.violations, report.violations, 'successful transport retains the original partial/detected report');
   }
   console.log(JSON.stringify({ selected, sourceHashes: files.map(file => ({ file: file.file, sha256: hash(file.text) })),
-    artifactSurfaceVersion: manifest.artifactSurfaceVersion, canonicalUids: chunks.map(chunk => chunk.chunkUid),
+    artifactSurfaceVersion: manifest.artifactSurfaceVersion, compatibilityKey, canonicalUids: chunks.map(chunk => chunk.chunkUid),
     manifestSha256: hash(await fs.readFile(path.join(outDir, 'pieces/manifest.json'))), cliExit: enforced.exitCode,
     summary: report.summary, caps: report.provenance.capsUsed.architecture,
     scope: 'actual artifact writer/promotion/strict graph readers/CLI;independently enumerated two-file graph;not full-index/provider or editor qualification' }));
