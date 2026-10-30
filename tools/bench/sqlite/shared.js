@@ -78,7 +78,11 @@ export const publishSqliteBenchSource = async ({ bundleDir, file, chunks, mtimeM
     size: Buffer.byteLength(source), mtimeMs, dependencySignatures: {} };
   const snapshot = await writeIncrementalBundleSnapshot({ bundleDir, relKey: file, entry,
     bundles: [{ file, hash: entry.hash, size: entry.size, dependencySignatures: entry.dependencySignatures, chunks }], format: 'json' });
-  return { ...entry, ...snapshot };
+  // Snapshot publication returns xxh64 for a new write and its admitted
+  // canonical SHA256 identity for an existing immutable shard. Benchmark
+  // cohorts use that same supported canonical identity in both cases, so
+  // prior fixture publication cannot change an otherwise identical manifest.
+  return { ...entry, ...snapshot, bundleChecksum: 'sha256:' + snapshot.bundleInventory[0].hash };
 };
 
 export const createSqliteBenchBundleFixture = async ({
