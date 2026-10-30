@@ -5,7 +5,7 @@ import { createHash } from 'node:crypto';
 import { writePiecesManifest } from '../../../../src/index/build/artifacts/checksums.js';
 import { captureInitialIndexStatePublication } from '../../../../src/index/build/artifacts/index-state-publication.js';
 import { withIndexStatePublicationLock } from '../../../../src/shared/index-state-publication.js';
-import { isFileLockPublicationPending } from '../../../../src/shared/locks/file-lock.js';
+import { acquireFileLock, isFileLockPublicationPending } from '../../../../src/shared/locks/file-lock.js';
 import { getContainedFileSession } from '../../../../src/shared/contained-file-resource.js';
 import { errorGraphIncludes } from '../../../helpers/error-graph.js';
 import { prepareIsolatedTestCacheDir } from '../../../helpers/test-cache.js';
@@ -15,12 +15,12 @@ const borrowed = selected?.startsWith('borrowed-'), scenario = selected?.replace
 assert.ok(['read', 'close', 'close-failure', 'siblings', 'siblings-close-failure', 'preabort', 'sealed'].includes(scenario));
 const gate = () => { let resolve; const promise = new Promise(done => { resolve = done; }); return { promise, resolve }; };
 const { dir } = await prepareIsolatedTestCacheDir(`manifest-checksum-${selected}`);
-const originalOpen = fs.open, release = gate(), started = gate(), busy = gate();
+const originalOpen = fs.open, release = gate(), started = gate();
 const controller = new AbortController(), cancellation = Object.freeze(Object.assign(new Error('original request cancelled'), { name: 'AbortError' }));
 const lockPath = path.join(dir, '.index_state.write.lock'), manifestPath = path.join(dir, 'pieces/manifest.json');
 const siblings = scenario.startsWith('siblings'), failedClose = scenario.endsWith('close-failure');
 const descriptors = new Map(), entries = [], expectedReaders = siblings ? 4 : 1;
-let readCalls = 0, closeCalls = 0, publicationSettled = false, allowClose = false, busyObservation = false;
+let readCalls = 0, closeCalls = 0, publicationSettled = false, allowClose = false;
 const closeFailure = Object.freeze(new Error('original checksum close rejected before native closure'));
 let outcome, work, contender;
 const graph = failure => {
@@ -46,12 +46,7 @@ try {
     entries.push({ name: 'index_state', path: 'index_state.json', format: 'json', checksum: entries[0].checksum });
   }
   fs.open = async (target, ...options) => {
-    let handle;
-    try { handle = await originalOpen(target, ...options); }
-    catch (error) {
-      if (path.resolve(target) === lockPath && error.code === 'EEXIST' && busyObservation) busy.resolve();
-      throw error;
-    }
+    const handle = await originalOpen(target, ...options);
     const filename = path.resolve(target);
     if (filename === lockPath || !entries.some(entry => path.join(dir, entry.path) === filename)) return handle;
     const read = handle.read.bind(handle), close = handle.close.bind(handle);
@@ -114,8 +109,15 @@ try {
       assert.equal(children.length, expectedReaders); assert.ok(publication);
       assert.equal(children.every(child => !child.isSettled()), true);
       assert.equal(isFileLockPublicationPending(lockPath), true);
-      busyObservation = true; contender = withIndexStatePublicationLock(dir, () => { entered = true; });
-      await busy.promise; assert.equal(entered, false, 'a cooperating publication remains physically fenced');
+      // Pending original ownership rejects acquisition before fs.open. Observe
+      // that real admission owner instead of waiting for a forbidden open.
+      let refusal;
+      assert.equal(await acquireFileLock({ lockPath, waitMs: 0, onBusy: value => { refusal = value; } }), null);
+      assert.equal(refusal.reason, 'publication-pending');
+      assert.equal((await fs.stat(lockPath)).isFile(), true);
+      contender = withIndexStatePublicationLock(dir, () => { entered = true; });
+      await new Promise(resolve => setImmediate(resolve));
+      assert.equal(entered, false, 'a cooperating publication remains physically fenced');
       allowClose = true;
       for (const child of children) await child.releaseAfterClose();
       await publication.releaseAfterClose();
