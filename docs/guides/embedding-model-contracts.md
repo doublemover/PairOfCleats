@@ -112,3 +112,4 @@ selected component list, the downloader uses that graph for relocation even if
 an unused fp32 sibling is already cached. `--onnx-path` selects relocation itself;
 profile exports needing multiple graphs and EmbeddingGemma 2's qualified text
 runtime cannot be advertised as generic single-graph ONNX installations.
+See [actual export qualification](../benchmarks/embedding-export-qualification.md) for the separate native routes, judged corpus, E5 persisted consumers and original/current admission-cost campaigns.

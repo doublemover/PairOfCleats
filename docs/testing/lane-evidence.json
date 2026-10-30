@@ -1,17 +1,17 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-10-30T11:22:03.576Z",
+  "generatedAt": "2026-10-30T11:43:29.306Z",
   "summary": {
     "lanes": 5,
-    "tests": 2290,
+    "tests": 2292,
     "exactDuplicates": 0,
     "hotspotKinds": 10,
-    "families": 417,
+    "families": 419,
     "topSlowest": 10,
     "timingCoverage": {
       "freshArtifactTests": 0,
       "historicalFallbackTests": 74,
-      "missingTests": 2216
+      "missingTests": 2218
     }
   },
   "lanes": [
@@ -35,7 +35,7 @@
       "targetMaxDurationSeconds": 15,
       "orderFile": "tests/ci-lite/ci-lite.order.txt",
       "timingArtifactPath": ".testLogs/ci-lite-testRunTimes.txt",
-      "totalTests": 1987,
+      "totalTests": 1989,
       "knownDurationTests": 49,
       "knownDurationMs": 27090,
       "p50DurationMs": 190,
@@ -43,7 +43,7 @@
       "resolvedTimingArtifactPaths": [],
       "timingSources": {
         "historical-test-times": 49,
-        "missing": 1938
+        "missing": 1940
       }
     },
     {
@@ -1147,7 +1147,19 @@
       "unknownDurationCount": 1
     },
     {
+      "key": "embeddings/actual-adapter-cost-prepared-policy",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
       "key": "embeddings/dense-upstream-reference-controls",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "embeddings/direct-minilm-reference-controls",
       "count": 1,
       "knownDurationMs": 0,
       "unknownDurationCount": 1

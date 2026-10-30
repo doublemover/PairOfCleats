@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 1822,
+    "hero": 1824,
     "matrix": 109,
     "meta": 55,
     "soak": 1,
@@ -11935,6 +11935,18 @@
     {
       "id": "tooling/lsp/diagnostic-resource-isolation/observer-async",
       "order": 1987,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "embeddings/direct-minilm-reference-controls",
+      "order": 1988,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "embeddings/actual-adapter-cost-prepared-policy",
+      "order": 1989,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

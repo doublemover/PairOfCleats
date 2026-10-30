@@ -1988,3 +1988,5 @@ tooling/lsp/diagnostic-resource-isolation/reader-error-sync
 tooling/lsp/diagnostic-resource-isolation/reader-error-async
 tooling/lsp/diagnostic-resource-isolation/observer-sync
 tooling/lsp/diagnostic-resource-isolation/observer-async
+embeddings/direct-minilm-reference-controls
+embeddings/actual-adapter-cost-prepared-policy
