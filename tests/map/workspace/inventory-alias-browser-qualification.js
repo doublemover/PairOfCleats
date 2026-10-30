@@ -63,7 +63,8 @@ try {
   assert.equal(counts.members, expected.nodes.reduce((sum, file) => sum + file.members.length, 0));
   assert.equal(counts.edges, expected.edges.length);
   receipt.observations = { files: [], aliases: [], navigation: [], available: counts,
-    inventoryOwner: 'actual hierarchy pages and pinned manifest', panels: 'actual Explore/Inspect toolbar controls' };
+    inventoryOwner: 'actual hierarchy pages and pinned manifest', panels: 'actual Explore/Inspect toolbar controls',
+    aliasOwner: 'pinned lazy member detail opened through the visible source-fields inspector; compact selection rows omit rich dataflow' };
   const selectionValue = label => page.locator('#selection-body .sel-row')
     .filter({ has: page.locator('.sel-label', { hasText: new RegExp(`^${label}$`) }) }).locator('.sel-value');
   const waitForFile = file => page.waitForFunction(async expectedFile => {
@@ -78,6 +79,46 @@ try {
     return state.selectedInfo?.type === 'member' && state.selectedInfo.id === id && state.selectedInfo.file === file
       && rows.some(row => row.querySelector('.sel-label')?.textContent === 'Id' && row.querySelector('.sel-value')?.textContent === String(id));
   }, { id: member.id, file: member.file });
+  let detailEvidence = null;
+  const inspectAliases = async member => {
+    const labels = member.dataflow?.aliases || [];
+    assert.equal(labels.length, 5, 'All five aliases from the real producer/export fixture reach the actual inspector.');
+    // The server's resolve/members protocol intentionally carries identity-only
+    // rows. Its full member remains in the generation-bound lazy detail owner.
+    // Observe the response initiated by this real disclosure, without issuing
+    // another request or putting rich fields into the resident source index.
+    const pending = detailEvidence ? null : context.waitForEvent('response', { predicate: response => {
+      if (new URL(response.url()).pathname !== '/map-snapshot' || response.request().method() !== 'POST') return false;
+      try { const query = response.request().postDataJSON(); return query.kind === 'detail' && query.entity?.type === 'member'; }
+      catch { return false; }
+    }, timeout: 5000 });
+    pending?.catch(() => {});
+    const sourceFields = page.locator('#selection-body > details')
+      .filter({ has: page.locator('summary', { hasText: /^Source fields · load on demand$/ }) });
+    await sourceFields.locator(':scope > summary').click();
+    const dataflow = sourceFields.locator(':scope > div > .evidence > details')
+      .filter({ has: page.locator('summary', { hasText: /^dataflow: / }) });
+    await dataflow.locator(':scope > summary').click();
+    const aliases = dataflow.locator(':scope > .evidence > details')
+      .filter({ has: page.locator('summary', { hasText: /^aliases: / }) });
+    assert.equal(await aliases.locator(':scope > summary').textContent(), 'aliases: 5 items');
+    await aliases.locator(':scope > summary').click();
+    await aliases.locator(':scope > .evidence').waitFor({ state: 'visible' });
+    assert.deepEqual(await aliases.locator(':scope > .evidence > details > summary').allTextContents(),
+      labels.map((label, index) => `${index}: ${label}`));
+    if (pending) {
+      const response = await pending, query = response.request().postDataJSON(), raw = await response.text(), value = JSON.parse(raw);
+      assert.equal(response.ok(), true);
+      assert.equal(query.snapshot, receipt.source.sha256, 'the UI detail request must select the exact supplied map bytes');
+      for (const key of ['protocol', 'snapshot', 'request', 'revision', 'kind']) assert.equal(value[key], query[key]);
+      assert.deepEqual(value.detail, member, 'the real UI-triggered detail must preserve the complete saved member');
+      detailEvidence = value;
+      receipt.observations.detail = { snapshot: value.snapshot, sha256: createHash('sha256').update(raw).digest('hex'),
+        id: value.detail.id, aliases: labels.length, trigger: 'visible source fields → dataflow → aliases disclosures' };
+    }
+    assert.equal(detailEvidence.detail.id, member.id);
+    return detailEvidence.detail;
+  };
   for (const node of expected.nodes) {
     await search.fill(node.path);
     // The prior all-files page already contains this file. Wait for the actual
@@ -110,17 +151,13 @@ try {
       await openPanel('Inspect');
       const actual = await page.evaluate(async id => (await import('/isomap/state.js')).state.sourceIndex.member(id).member, member.id);
       assert.equal(actual.id, member.id);
-      const labels = member.dataflow?.aliases || []; assert.deepEqual(actual.dataflow?.aliases || [], labels);
-      assert.equal(labels.length, 5, 'All five aliases from the real producer/export fixture reach the actual inspector.');
-      assert.deepEqual(await selectionValue('Aliases').locator('.sel-pill').allTextContents(), labels);
-      const contribution = await page.evaluate(async id => {
-        const { state } = await import('/isomap/state.js');
+      const labels = member.dataflow?.aliases || [], detail = await inspectAliases(member);
+      const contribution = await page.evaluate(async value => {
         const { scoreMember } = await import('/isomap/layout-utils.js');
         const { scoringDefaults } = await import('/isomap/defaults.js');
-        const value = state.sourceIndex.member(id).member;
         const baseline = scoreMember({ ...value, dataflow: { ...value.dataflow, aliases: [] } }, scoringDefaults);
         return { actual: scoreMember(value, scoringDefaults) - baseline, expected: value.dataflow.aliases.length * scoringDefaults.dataflow };
-      }, member.id);
+      }, detail);
       assert.ok(Math.abs(contribution.actual - contribution.expected) < 1e-9);
       receipt.observations.aliases.push({ id: member.id, labels, contribution: contribution.actual });
       // These toolbar controls replay the actual source navigation history;
@@ -130,7 +167,7 @@ try {
       assert.equal(await selectionValue('Members').textContent(), String(node.members.length));
       await toolbar.getByRole('button', { name: 'Next selection', exact: true }).click();
       await waitForMember(member);
-      assert.deepEqual(await selectionValue('Aliases').locator('.sel-pill').allTextContents(), labels);
+      await inspectAliases(member);
       receipt.observations.navigation.push({ file: node.path, member: member.id, back: 'file', forward: 'member', aliases: labels.length });
       await openPanel('Explore');
     }
@@ -144,7 +181,7 @@ try {
   await namedMember.focus(); await namedMember.press('Enter');
   await waitForMember(aliasMember);
   await openPanel('Inspect');
-  assert.deepEqual(await selectionValue('Aliases').locator('.sel-pill').allTextContents(), aliasMember.dataflow.aliases);
+  await inspectAliases(aliasMember);
   receipt.observations.memberNameSearch = { id: aliasMember.id, action: 'actual source-name search and keyboard Enter', aliases: 5 };
   assert.deepEqual(errors, []);
   receipt.screenshot = path.join(out, 'inventory-alias-inspector.png');
