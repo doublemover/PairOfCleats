@@ -1,6 +1,6 @@
 # Platform and performance qualification
 
-Audited: 2026-10-29. Source contracts and workflow definitions describe required
+Audited: 2026-10-30. Source contracts and workflow definitions describe required
 behavior; a configured job is not evidence that the current candidate passed it.
 Current execution evidence and unresolved failures belong to the
 [deep test audit](../archived/deep-test-audit-2026-10-18.md) and the
@@ -15,7 +15,14 @@ passes without warnings or errors (37 required packages, 33 routes, seven patche
 [current reconciliation](../archived/p2-p3-closeout-2026-10-29.md) includes later
 new/reopened intake and leaves 56 P2/P3 targets plus six exclusions.
 
-The original four API deadlines and semantic phase-drain timeout remain failures.
+The [repair wave](../archived/windows-consumer-repair-wave-2026-10-30.md) at
+`7e9866a8720880eeebad85a5b9bf44e4d62cb71a` passes33 final affected controls.
+The Rust owner files pass156 tests with their exact hashes retained. Latest
+recorded observations are311 passing/three failing across314 distinct IDs and
+multiple source revisions. Two original JS API deadlines and semantic drain
+still fail; both TS API cases pass. An earlier five-case pass did not repeat and
+does not close the current deadline blockers. Authored cache/resource and
+independent MiniLM capsules await actual execution.
 The canonical Three rendered lifecycle and complete UTF-8 VFS sequence remain
 unqualified; bounded replacement phase measurements retain their explicit inputs
 and execution boundaries. Optional native Tantivy, real models and broad resource

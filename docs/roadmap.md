@@ -1,7 +1,7 @@
 # PairOfCleats Roadmap
 
 Status: P2/P3 closeout; Windows repairs and focused qualification
-Last audited: 2026-10-29
+Last audited: 2026-10-30
 Last reconciled: 2026-10-29
 Canonical for: initiative status, execution order, and remaining work
 
@@ -11,7 +11,7 @@ The [current reconciliation](archived/p2-p3-closeout-2026-10-29.md) covers **791
 
 P2/P3 now has **284 qualified closures /56 remaining targets /six editor exclusions** from 346 intake reports. The parent and two persistent Sol 6.1 High agents share the Windows checkout. Frontload shared-owner repairs, then run affected controls.
 
-The [consumer/measurement receipt](archived/windows-consumer-measurement-closeout-2026-10-29.md) binds source `5368f9642`: 478 distinct passing Node cases, 152 Rust tests and all eight publish checks, including 41 gate cases. Fresh native verification passes without warnings. Four API deadlines, semantic drain, the complete UTF-8 VFS sequence, canonical Three lifecycle, real models and optional/native performance acceptance remain open. Subsequent source changes await their own qualification.
+The [repair wave](archived/windows-consumer-repair-wave-2026-10-30.md) binds source `7e9866a87`: 33 final affected passes; 156 Rust tests pass with exact owner hashes. Latest recorded observations are 311 passing /three failing across314 IDs. Two JS API deadlines and semantic drain still fail; both TS API cases pass. Serial native-cache/SQLite/VFS/map/browser and model capsules await execution. Fresh native verification passes without warnings (37 packages/33 routes/seven patches). [Earlier qualification](archived/windows-consumer-measurement-closeout-2026-10-29.md) retains478 Node passes and the full publish gate at `5368f9642`.
 
 Completed source-bound checks are indexed in the
 [qualification archive](archived/native-runtime-qualification-index-2026-10-27.md)
