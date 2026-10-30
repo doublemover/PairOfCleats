@@ -1,5 +1,5 @@
 import { PYTHON_XID_START, PYTHON_XID_CONTINUE } from './identifier-tables.js';
-// CPython's exact source identifier predicates, including join-control rejection.
+// CPython's exact source identifier predicates, including its join-control policy.
 export const PYTHON_IDENTIFIER_PROFILE = Object.freeze({ python: '3.15', unicode: '17.0',
   method: 'cpython-isidentifier-ranges', available: process.versions.unicode === '17.0' });
 const contains = (ranges, value) => {
