@@ -1,0 +1,7 @@
+{
+  "schemaVersion": 1,
+  "cases": ["ordinary-read", "borrowed-read", "ordinary-close", "borrowed-close",
+    "ordinary-close-failure", "borrowed-close-failure", "ordinary-siblings", "borrowed-siblings",
+    "ordinary-siblings-close-failure", "borrowed-siblings-close-failure",
+    "ordinary-preabort", "borrowed-preabort", "ordinary-sealed", "borrowed-sealed"]
+}

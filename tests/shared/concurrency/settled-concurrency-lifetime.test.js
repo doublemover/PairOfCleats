@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { runWithSettledConcurrency } from '../../../src/shared/concurrency/run-with-queue.js';
+import { errorGraphIncludes } from '../../helpers/error-graph.js';
 const gate = () => { let resolve; const promise = new Promise(done => { resolve = done; }); return { promise, resolve }; };
 const release = gate(), bothStarted = gate(), controller = new AbortController();
 const cancellation = Object.assign(new Error('controlled original cancellation'), { name: 'AbortError', code: 'ABORT_ERR' });
@@ -15,7 +16,8 @@ try {
   await new Promise(resolve => setImmediate(resolve));
   assert.equal(settled, false, 'abort cannot outlive the two retained original operations');
   release.resolve();
-  await assert.rejects(running, error => error === cancellation, 'shared cancellation retains the exact original reason');
+  await assert.rejects(running, error => error.name === 'AbortError' && error.code === 'ABORT_ERR'
+    && errorGraphIncludes(error, cancellation), 'the cancellation observed before settlement retains its exact original reason');
   assert.equal(started, 2, 'the third original operation is never admitted');
 } finally { release.resolve(); await running.catch(() => {}); }
 for (const failure of [null, undefined, false, 0, '']) {
@@ -24,6 +26,17 @@ for (const failure of [null, undefined, false, 0, '']) {
   assert.equal(calls, 1, 'falsey failures stop admission and preserve their exact value without retries');
 }
 console.log('Bounded concurrency drains actual work on cancellation and preserves every original failure.');
+
+for (const secondary of [null, false, 0, '', Object.freeze(new Error('late original close failure'))]) {
+  const controller = new AbortController(), release = gate(), entered = gate();
+  const cancellation = Object.freeze(Object.assign(new Error('cancelled before original close settlement'), { name: 'AbortError' }));
+  const running = runWithSettledConcurrency([0, 1], 1, async () => {
+    entered.resolve(); await release.promise; throw secondary;
+  }, { signal: controller.signal });
+  await entered.promise; controller.abort(cancellation); release.resolve();
+  await assert.rejects(running, error => error.name === 'AbortError' && error.code === 'ABORT_ERR'
+    && errorGraphIncludes(error, cancellation) && errorGraphIncludes(error, secondary));
+}
 
 const first = Object.freeze(Object.defineProperty(new Error('original first failure'), 'code', {
   get() { assert.equal(this, first, 'diagnostic getters retain their original receiver'); return 'EIO'; }

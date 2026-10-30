@@ -452,15 +452,24 @@ export async function runWithConcurrency(items, limit, worker, options = {}) {
 export async function runWithSettledConcurrency(items, limit, worker, { signal = null, collectResults = false } = {}) {
   throwIfAborted(signal);
   const failures = [], observedFailures = new Set();
-  const results = await runWithConcurrency(items, limit, async (item, context) => {
-    if (failures.length) return;
-    try { throwIfAborted(signal); return await worker(item, { ...context, signal }); }
-    catch (error) {
-      if (!objectLike(error) || !observedFailures.has(error)) {
-        failures.push(error); if (objectLike(error)) observedFailures.add(error);
-      }
+  const remember = error => {
+    if (!objectLike(error) || !observedFailures.has(error)) {
+      failures.push(error); if (objectLike(error)) observedFailures.add(error);
     }
-  }, { collectResults, retries: 0 });
+  };
+  // Observe cancellation when it happens, but do not race the original worker.
+  // A later failed close remains secondary to the already observed cancellation.
+  const onAbort = () => { try { throwIfAborted(signal); } catch (error) { remember(error); } };
+  signal?.addEventListener('abort', onAbort, { once: true });
+  let results;
+  try {
+    if (signal?.aborted) onAbort();
+    results = await runWithConcurrency(items, limit, async (item, context) => {
+      if (failures.length) return;
+      try { throwIfAborted(signal); return await worker(item, { ...context, signal }); }
+      catch (error) { remember(error); }
+    }, { collectResults, retries: 0 });
+  } finally { signal?.removeEventListener('abort', onAbort); }
   if (failures.length === 1) throw failures[0];
   if (failures.length) {
     let failure = failures[0];

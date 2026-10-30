@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { log } from '../../../shared/progress-runtime.js';
-import { runWithConcurrency } from '../../../shared/concurrency/run-with-queue.js';
+import { runWithSettledConcurrency } from '../../../shared/concurrency/run-with-queue.js';
 import { coerceAbortSignal, throwIfAborted } from '../../../shared/abort.js';
 import { checksumFileObservation } from '../../../shared/hash.js';
 import { writeJsonObjectFile } from '../../../shared/json-stream/json-writers.js';
@@ -28,7 +28,7 @@ const writePiecesManifestLocked = async ({
   const piecesDir = path.join(outDir, 'pieces');
   await fs.mkdir(piecesDir, { recursive: true });
   const manifestPath = path.join(piecesDir, 'manifest.json');
-  const normalizedEntries = await runWithConcurrency(
+  const normalizedEntries = await runWithSettledConcurrency(
     sortedEntries,
     Math.min(4, sortedEntries.length),
     async (entry) => {
@@ -84,8 +84,7 @@ const writePiecesManifestLocked = async ({
     },
     {
       signal: effectiveAbortSignal,
-      requireSignal: true,
-      signalLabel: 'build.stage2.pieces-manifest.runWithConcurrency'
+      collectResults: true
     }
   );
   await writeJsonObjectFile(manifestPath, {
