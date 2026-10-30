@@ -22,6 +22,9 @@ const PIPELINE_CACHE_TTL_MS = 10 * 60 * 1000;
 const PIPELINE_CACHE_MAX_ENTRIES = 16;
 const ADAPTER_CACHE_TTL_MS = 15 * 60 * 1000;
 const ADAPTER_CACHE_MAX_ENTRIES = 64;
+// Transformers Callable instances retain [[Call]] while replacing the function
+// prototype. Invoke the captured callable without consulting its .apply field.
+const invokeCallable = Reflect.apply;
 
 let transformersModuleLoader = () => import('@huggingface/transformers');
 let transformersModulePromise = null;
@@ -52,7 +55,7 @@ const acquirePipeline = async (entry) => {
   const run = (fn, args) => {
     if (disposed || reference.released) return Promise.reject(new Error('Embedding pipeline lease is disposed.'));
     const selected = snapshotEmbeddingRequestArguments(args);
-    const work = Promise.resolve().then(() => fn.apply(pipeline, selected));
+    const work = Promise.resolve().then(() => invokeCallable(fn, pipeline, selected));
     operations.add(work);
     work.then(() => operations.delete(work), error => {
       operations.delete(work); pipelineLifetime.recordFailure(entry, error);
@@ -77,7 +80,7 @@ const acquirePipeline = async (entry) => {
       if (typeof value !== 'function') return value;
       // executionInfo is a synchronous observation; task methods own async work.
       if (key === 'executionInfo') return (...args) => {
-        try { return value.apply(target, args); }
+        try { return invokeCallable(value, target, args); }
         catch (error) { pipelineLifetime.recordFailure(entry, error); throw error; }
       };
       if (!methods.has(key)) methods.set(key, (...args) => run(value, args));
@@ -146,7 +149,7 @@ const leaseAdapter = (entry) => {
       }
       if (typeof value !== 'function') return value;
       if (!LEASE_OPERATIONS.has(key)) return (...args) => {
-        try { return value.apply(target, args); }
+        try { return invokeCallable(value, target, args); }
         catch (error) {
           adapterLifetime.recordFailure(entry, error);
           if (entry.cacheOwned) retireAdapterEntry(entry).catch(() => {});
@@ -156,7 +159,7 @@ const leaseAdapter = (entry) => {
       if (!methods.has(key)) methods.set(key, (...args) => {
         if (disposed || reference.released) return Promise.reject(new Error('Embedding adapter lease is disposed.'));
         const selected = snapshotEmbeddingRequestArguments(args);
-        return track(Promise.resolve().then(() => value.apply(target, selected)));
+        return track(Promise.resolve().then(() => invokeCallable(value, target, selected)));
       });
       return methods.get(key);
     }
