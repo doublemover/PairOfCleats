@@ -53,7 +53,8 @@ try {
     const facts = admitManagedReferenceFacts(file.relations.managedReferenceFacts, test.language, { text: test.text });
     assert.ok(facts, test.file + ': the source-admitted fact envelope survives the actual Core pipeline');
     assert.equal(facts.source.textHash, createHash('sha256').update(test.text, 'utf16le').digest('hex'));
-    assert.deepEqual(file.relations.calls, []); assert.equal(callSites.some(site => site.file === test.file), false);
+    assert.equal(Object.hasOwn(file.relations, 'calls'), false, 'canonical file_relations owns imports/exports/usages, not invocation rows');
+    assert.equal(callSites.some(site => site.file === test.file), false);
     assert.ok(owned.every(chunk => !chunk.codeRelations?.calls?.length));
     for (const [kind, value, owner] of test.witnesses) {
       const match = entry => entry.kind === kind && entry.value === value && (entry.owner?.name ?? null) === owner;
