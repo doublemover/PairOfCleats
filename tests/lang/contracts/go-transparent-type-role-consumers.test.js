@@ -36,5 +36,5 @@ for(const declarations of [
     }
   } finally {tree.delete?.();}
 }
-assert.equal(TREE_SITTER_CHUNK_VERSION,'17');
+assert.equal(TREE_SITTER_CHUNK_VERSION,'18');
 console.log('Actual Go query/traversal roles unwrap only transparent types and preserve grouped/alias/source/UID ownership.');

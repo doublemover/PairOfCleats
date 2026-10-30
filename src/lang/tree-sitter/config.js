@@ -5,7 +5,7 @@ import { includeCDeclaration, resolveCDeclarationRange, resolveCName, resolveCpp
 import { phpGrammarMetadata, rubyGrammarMetadata, resolveRubyQualifiedName, resolveScalaName, resolveRName, resolveRRange } from './declaration-metadata.js';
 import { resolveRustDeclaration } from './rust-prefix.js';
 // v4 binds declaration names, lexical scopes and attached source ranges to grammar roles.
-export const TREE_SITTER_CHUNK_VERSION = '17';
+export const TREE_SITTER_CHUNK_VERSION = '18';
 
 const LANGUAGE_GRAMMAR_KEYS = {
   javascript: 'native:javascript',
@@ -695,6 +695,7 @@ const LANG_CONFIG = {
   },
   php: {
     resolveMetadata: phpGrammarMetadata,
+    siblingScope: { parentType: 'program', type: 'namespace_definition', bodyField: 'body' },
     typeNodes: new Set([
       'namespace_definition',
       'class_declaration',

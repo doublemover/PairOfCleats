@@ -21,7 +21,7 @@ const forward = error => {
  * Memoized names and persistent parent links prevent per-chunk ancestor rescans.
  */
 export const createNativeProjectionNames = ({ text, config, work }) => {
-  const names = new Map(), contexts = new Map();
+  const names = new Map(), contexts = new Map(), siblingScopes = new Map();
   const key = node => `${node.type}:${node.startIndex}:${node.endIndex}:${node.id ?? ''}`;
   const findName = node => {
     const types = config?.nameTypes?.size ? config.nameTypes : COMMON_NAME_NODE_TYPES;
@@ -68,6 +68,36 @@ export const createNativeProjectionNames = ({ text, config, work }) => {
     if (!result) result = nameSource(findName(node), text);
     names.set(identity, result); return result;
   });
+  // PHP's unbraced namespace is a preceding program sibling, not an AST
+  // ancestor. Index that grammar-owned state once per program so declarations
+  // retain namespace ownership without repeated backward sibling scans.
+  const siblingScope = current => {
+    const policy = config.siblingScope;
+    if (!policy) return undefined;
+    const parent = current.parent;
+    if (parent?.type !== policy.parentType) return undefined;
+    const identity = key(parent);
+    if (!siblingScopes.has(identity)) {
+      const before = new Map();
+      let active = null;
+      const count = getNamedChildCount(parent);
+      for (let index = 0; index < count; index++) {
+        const child = getNamedChild(parent, index);
+        if (!child) continue;
+        if (child.type === policy.type) {
+          // A namespace declaration cannot itself inherit the previous name;
+          // braced namespaces own only their body and end sibling ownership.
+          before.set(key(child), null);
+          const resolved = name(child);
+          active = !child.childForFieldName(policy.bodyField) && resolved
+            ? { scope: { node: child, name: resolved, kind: config.kindMap[child.type], member: false }, parent: null }
+            : null;
+        } else before.set(key(child), active);
+      }
+      siblingScopes.set(identity, before);
+    }
+    return siblingScopes.get(identity).get(key(current));
+  };
   const chain = value => {
     let node = work.view(value); const pending = [];
     try {
@@ -76,6 +106,8 @@ export const createNativeProjectionNames = ({ text, config, work }) => {
       let context = node ? contexts.get(key(node)) : null;
       while (pending.length) {
         const current = pending.pop(); work.release(1);
+        const preceding = siblingScope(current);
+        if (preceding !== undefined) context = preceding;
         if ((config.typeNodes.has(current.type) || config.memberNodes.has(current.type)) && (!config.includeNode || config.includeNode(current))) {
           const resolved = name(current);
           if (resolved) {
@@ -89,9 +121,12 @@ export const createNativeProjectionNames = ({ text, config, work }) => {
       return context;
     } finally { if (pending.length) work.release(pending.length); }
   };
-  const scopes = node => {
+  const scopes = value => {
+    const node = work.view(value), preceding = siblingScope(node);
     const result = [];
-    for (let context = chain(work.view(node).parent); context; context = context.parent) { work.spend('scopeLinks'); result.push(context.scope); }
+    for (let context = preceding === undefined ? chain(node.parent) : preceding; context; context = context.parent) {
+      work.spend('scopeLinks'); result.push(context.scope);
+    }
     return result;
   };
   return Object.freeze({ name, scopes });
