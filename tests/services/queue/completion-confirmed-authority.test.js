@@ -51,7 +51,8 @@ try {
       assert.ok(phases.includes('close-hooks'));
       if (scenario !== 'fast') {
         assert.equal(settled, false, `${scenario}: the original drain remains held`);
-        assert.equal(clock.timers.size, 0, 'expiry during ordinary closeout is not an active-timer test');
+        assert.ok([...clock.timers.values()].every(timer => timer.interval === null && timer.at > Date.parse(claim.lease.expiresAt)),
+          'renewal/expiry timers are stopped; only the independent original lifecycle drain deadline may remain');
         assert.equal(signal.aborted, false, 'producer returned before confirmed authority expired');
         await clock.advance(1000); phases.push('expiry-crossed');
         if (scenario === 'rollback') Date.now = () => clock.now() - 1000;
