@@ -1,6 +1,6 @@
 import path from 'node:path';
 import { isEmbeddingModelRepositoryId, resolveEmbeddingArtifactRoot } from './embedding-artifact-identity.js';
-import { createTransformersResourceScope } from './embedding-transformers-resources.js';
+import { bindTransformersResourceProducer, createTransformersResourceScope } from './embedding-transformers-resources.js';
 import { preserveEmbeddingCleanupFailure } from './embedding-cache-lifetime.js';
 import { resolveEmbeddingAcquisitionPlan } from './embedding-acquisition-plan.js';
 import { snapshotEmbeddingMetadata } from './embedding-selection-snapshot.js';
@@ -12,6 +12,44 @@ export { resolveEmbeddingAcquisitionPlan } from './embedding-acquisition-plan.js
 export const resolveEmbeddingAcquisitionRoot = (modelId, modelsDir, profile = null) => {
   const root = resolveEmbeddingArtifactRoot(modelId, modelsDir);
   return root && profile?.revision && isEmbeddingModelRepositoryId(modelId) ? path.join(root, profile.revision) : root;
+};
+
+const loadTextFeatureExtractionPipeline = async (mod, modelId, options) => {
+  const { AutoTokenizer, AutoModel, FeatureExtractionPipeline } = mod;
+  const componentApis = [AutoTokenizer?.from_pretrained, AutoModel?.from_pretrained, FeatureExtractionPipeline];
+  // Factory-only injected modules retain their existing test seam. A versioned
+  // runtime or partial component surface must never hide a missing export.
+  if (mod.env?.version == null && AutoTokenizer == null && AutoModel == null && FeatureExtractionPipeline == null) {
+    return { pipeline: await mod.pipeline('feature-extraction', modelId, options) };
+  }
+  if (!componentApis.every(value => typeof value === 'function')) {
+    throw new Error('Text embeddings require AutoTokenizer, AutoModel and FeatureExtractionPipeline.');
+  }
+  // Transformers.js 4.3.2 factory file discovery drops cache_dir and
+  // local_files_only before deciding whether to load a tokenizer. Construct
+  // the required text components directly with the same selected model policy.
+  const resourceOwner = createTransformersResourceScope('embedding feature-extraction components', { drainFailuresBeforeResources: true });
+  try {
+    const tokenizer = resourceOwner.adopt(await AutoTokenizer.from_pretrained(modelId, options), 'embedding tokenizer');
+    if (typeof tokenizer !== 'function') throw new TypeError('Embedding tokenizer must be callable.');
+    const model = resourceOwner.adopt(await AutoModel.from_pretrained(modelId, options), 'embedding text model');
+    if (typeof model !== 'function') throw new TypeError('Embedding text model must be callable.');
+    const pipeline = new FeatureExtractionPipeline({ task: 'feature-extraction', tokenizer, model });
+    if (typeof pipeline !== 'function') throw new TypeError('Embedding feature-extraction pipeline must be callable.');
+    // Upstream Pipeline.dispose only calls model.dispose. Capture both original
+    // components through the shared owner, including partial startup failures.
+    let disposeRequested = false;
+    pipeline.dispose = () => {
+      const retry = disposeRequested; disposeRequested = true;
+      return resourceOwner.close({ retry });
+    };
+    bindTransformersResourceProducer(pipeline, resourceOwner);
+    return { pipeline, resourceOwner };
+  } catch (error) {
+    resourceOwner.retainFailure(error);
+    try { await resourceOwner.close(); } catch (cleanup) { throw preserveEmbeddingCleanupFailure(error, cleanup); }
+    throw error;
+  }
 };
 
 /** Load only the qualified text components; callers own returned resources. */
@@ -28,7 +66,7 @@ export const loadEmbeddingModelComponents = async (mod, {
     ...(plan.revision ? { revision: plan.revision } : {})
   };
   if (!modelProfile) {
-    return { plan, pipeline: await mod.pipeline('feature-extraction', modelId, { dtype: plan.dtype, ...options,
+    return { plan, ...await loadTextFeatureExtractionPipeline(mod, modelId, { dtype: plan.dtype, ...options,
       ...(Object.keys(sessionOptions).length ? { session_options: sessionOptions } : {}) }) };
   }
   const { AutoConfig, AutoTokenizer, AutoModel } = mod;

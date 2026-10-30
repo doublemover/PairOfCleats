@@ -96,11 +96,17 @@ const fakeModule = {
     calls.loads.push({ id, options });
     return async ({ input_ids }) => tensor(input_ids.dims[0]);
   } },
-  pipeline: async (task, id, options) => {
-    calls.generic += 1;
-    assert.deepEqual(options, { dtype: 'q8' }, 'existing model precision must remain unchanged');
-    return async () => [[0.25, 0.5]];
-  }
+  FeatureExtractionPipeline: class {
+    constructor({ task, tokenizer, model }) {
+      calls.generic += 1;
+      assert.equal(task, 'feature-extraction');
+      assert.equal(typeof tokenizer, 'function');
+      assert.equal(typeof model, 'function');
+      assert.deepEqual(calls.loads.at(-1).options, { dtype: 'q8' }, 'existing model precision must remain unchanged');
+      return async () => [[0.25, 0.5]];
+    }
+  },
+  pipeline: () => assert.fail('versioned runtime must explicitly admit its text components')
 };
 __setTransformersModuleLoaderForTests(async () => fakeModule);
 try {

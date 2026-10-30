@@ -9,6 +9,7 @@ import { preserveEmbeddingCleanupFailure } from '../../src/shared/embedding-cach
 import { captureEmbeddingFailureDiagnostics, projectEmbeddingFailureDiagnostics } from '../../src/shared/embedding-failure-diagnostics.js';
 import { MINILM_REFERENCE_RECIPE, assertMiniLmReferenceManifest, createMiniLmUpstreamReference,
   compareMiniLmReferenceVectors, measureMiniLmVectorDifference } from './helpers/minilm-upstream-reference.js';
+import { runQualificationPhase } from './helpers/qualification-phase.js';
 
 /** Explicit offline/native capsule, intentionally outside ordinary test discovery.
  * Missing export/tokenizer/corpus/reference is a prerequisite failure, never a
@@ -60,6 +61,11 @@ const receipt = { schemaVersion: 1, status: 'failed', route: options.route, obse
   corpus: { sha256: createHash('sha256').update(JSON.stringify(manifest.texts)).digest('hex'),
     rows: manifest.texts.map((text, index) => ({ index, bytes: Buffer.byteLength(text), sha256: createHash('sha256').update(text).digest('hex') })) },
   qualification: 'actual offline export/tokenizer/provider routes; supplied bounded corpus, no general performance gain claim',
+  acceptance: { modelFamily: miniLm ? 'MiniLM q8' : 'manifest-selected export',
+    numerical: miniLm ? 'independent raw-model reference required with matching input batch shapes' : 'provider self-consistency only; no independent reference recipe implemented',
+    judgedRetrieval: 'not measured', prepared: options.route === 'prepared' ? 'qualified EG2 profile required' : 'not exercised by this capsule',
+    performance: options.observation === 'candidate' ? 'paired frozen-source comparison required; no gain inferred from completion'
+      : 'bounded observation only; no before/after production validation-cost claim' },
   phases, allocations, memorySamples: samples, vectors: [] };
 let adapter, lease, disposeCaches, rawReference, failure, hasFailure = false, sampleTimer, deadlineWrite;
 const diagnostic = error => { const captured = captureEmbeddingFailureDiagnostics(error), projected = {};
@@ -68,11 +74,8 @@ const diagnostic = error => { const captured = captureEmbeddingFailureDiagnostic
     inspectionFailures: captured.inspectionErrors.length, ownershipPending: !captured.released() }; };
 const rememberFailure = error => { failure = hasFailure ? preserveEmbeddingCleanupFailure(failure, error) : error; hasFailure = true; };
 const observe = phase => { samples.push({ phase, elapsedMs: performance.now() - started, ...process.memoryUsage() }); };
-const phase = async (name, operation) => {
-  controller.signal.throwIfAborted(); const began = performance.now(); observe(name + ':before');
-  const value = await operation(); observe(name + ':after');
-  phases.push({ name, elapsedMs: performance.now() - began }); controller.signal.throwIfAborted(); return value;
-};
+const phase = (name, operation, adopt = null) => runQualificationPhase({ name, operation, adopt,
+  signal: controller.signal, observe, phases });
 const deadline = setTimeout(() => {
   controller.abort(new Error('Actual embedding capsule crossed its unchanged 30-second total bound.'));
   deadlineWrite = fs.appendFile(path.join(out, 'phases.jsonl'), JSON.stringify({ phase: 'deadline', elapsedMs: performance.now() - started,
@@ -104,12 +107,13 @@ try {
   }
   assert.deepEqual(receipt.runtime, manifest.runtime, 'Freeze actual runtime/binding versions before qualification.');
   for (const file of ['tests/embeddings/actual-export-qualification.js', 'tests/embeddings/run-actual-export-qualification.js',
-    'tests/embeddings/helpers/minilm-upstream-reference.js', 'tools/bench/qualification-capsule.js',
+    'tests/embeddings/helpers/minilm-upstream-reference.js', 'tests/embeddings/helpers/qualification-phase.js', 'tools/bench/qualification-capsule.js',
     'src/shared/embedding-output-admission.js', 'src/shared/embedding-utils.js', 'src/shared/embedding-artifact-lease.js',
     'src/shared/embedding-adapter.js', 'src/shared/embedding-deferred-adapter.js', 'src/shared/embedding-selection-snapshot.js',
     'src/shared/embedding-transformers-resources.js', 'src/shared/embedding-provider-adapters.js', 'src/shared/embedding-model-profile.js',
     'src/shared/embedding-cache-lifetime.js', 'src/shared/embedding-failure-diagnostics.js',
     'src/shared/embedding-model-loading.js', 'src/shared/embedding-input-format.js', 'src/retrieval/embedding.js',
+    'node_modules/@huggingface/transformers/dist/transformers.node.mjs',
     'node_modules/@huggingface/transformers/src/env.js', 'node_modules/@huggingface/transformers/src/pipelines/feature-extraction.js',
     'node_modules/@huggingface/transformers/src/models/auto/modeling_auto.js',
     'node_modules/@huggingface/transformers/src/models/auto/tokenization_auto.js',
@@ -122,9 +126,9 @@ try {
   const profile = resolveEmbeddingModelProfile(manifest.modelId, manifest.modelProfile);
   if (options.route === 'prepared') assert.equal(profile?.family, 'embeddinggemma2',
     'Prepared inference is supported only for the actual qualified EG2 profile; other exports are explicitly unsupported.');
-  lease = await phase('verify-exact-model-closure', () => acquireEmbeddingArtifactLease({ provider: manifest.provider,
+  await phase('verify-exact-model-closure', () => acquireEmbeddingArtifactLease({ provider: manifest.provider,
     modelId: manifest.modelId, modelsDir: manifest.modelsDir, rootDir: root,
-    modelProfile: profile, onnx: manifest.onnxConfig }, { signal: controller.signal }));
+    modelProfile: profile, onnx: manifest.onnxConfig }, { signal: controller.signal }), value => { lease = value; });
   assert.equal(lease.artifact.status, 'verified', 'An immutable-revision name without exact local bytes is insufficient.');
   const byPath = rows => [...rows].sort((a, b) => a.path.localeCompare(b.path));
   assert.deepEqual(byPath(lease.artifact.inventory), byPath(manifest.artifacts)); receipt.modelArtifact = lease.artifact;
@@ -163,7 +167,8 @@ try {
   } });
   sampleTimer = setInterval(() => observe('sample'), 5); sampleTimer.unref();
   if (options.route === 'upstream-reference') {
-    rawReference = await phase('upstream-raw-components-load', () => createMiniLmUpstreamReference({ transformers, manifest, signal: controller.signal }));
+    await phase('upstream-raw-components-load', () => createMiniLmUpstreamReference({ transformers, manifest, signal: controller.signal }),
+      value => { rawReference = value; });
     receipt.referenceRecipe = rawReference.recipe;
     const baseline = await phase('cold-upstream-two-row-batch', () => rawReference.embed(manifest.texts.slice(0, 2)));
     assert.ok(baseline.tokenization.tokenCounts.some(count => count < baseline.rawOutput.dimensions[1]), 'The authored corpus must exercise actual padding masks.');
@@ -181,7 +186,9 @@ try {
     for (let run = 0; run < 3; run++) {
       const began = performance.now(), cpuStart = process.cpuUsage();
       const result = await phase('upstream-large-batch-' + run, () => rawReference.embed(manifest.texts));
-      receipt.largeBatch.push({ run, elapsedMs: performance.now() - began, cpu: process.cpuUsage(cpuStart), outputBytes: result.outputBytes,
+      const elapsedMs = performance.now() - began;
+      receipt.largeBatch.push({ run, temperature: 'warm', rows: manifest.texts.length, elapsedMs,
+        rowsPerSecond: manifest.texts.length * 1000 / elapsedMs, cpu: process.cpuUsage(cpuStart), outputBytes: result.outputBytes,
         tokenization: result.tokenization, rawOutput: result.rawOutput, vectors: result.vectors.map(vector => [...vector]) });
     }
     receipt.crossBatchObservations = { acceptance: 'descriptive export behavior; strict product/reference comparisons use matching batches',
@@ -249,7 +256,8 @@ try {
         }
         assert.ok(allocated.reduce((sum, row) => sum + row.bytes, 0) <= expectedBytes,
           'Admission/projection may make only the necessary single owned Float32 output copy.');
-        runs.push({ run, elapsedMs, cpu: runCpu, comparisonElapsedMs: performance.now() - comparisonStarted,
+        runs.push({ run, temperature: 'warm', rows: manifest.texts.length, elapsedMs,
+          rowsPerSecond: manifest.texts.length * 1000 / elapsedMs, cpu: runCpu, comparisonElapsedMs: performance.now() - comparisonStarted,
           outputBytes: expectedBytes, copies: allocated, vectors: vectors.map(vector => [...vector]) });
       }
       for (const run of runs.slice(1)) assertEqualVectors(run.vectors, runs[0].vectors);
