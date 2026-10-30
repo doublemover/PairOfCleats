@@ -32,29 +32,42 @@ export function sha1(str) {
 
 const changedFile = () => Object.assign(new Error('File changed during its admitted hash read.'), { code: 'ERR_FILE_CHANGED' });
 const EXACT_IDENTITY_FIELDS = Object.freeze(['dev', 'ino', 'size', 'mtimeNs', 'ctimeNs']);
-const captureExactFileIdentity = async descriptor => {
-  const stat = await descriptor.stat({ bigint: true });
+const NUMERIC_IDENTITY_FIELDS = Object.freeze(['dev', 'ino', 'size', 'mtimeMs', 'ctimeMs']);
+const MAX_SAFE_HASH_BYTES = BigInt(Number.MAX_SAFE_INTEGER);
+const nanosecondsToMilliseconds = value => Number(value / 1000000n) + Number(value % 1000000n) / 1000000;
+const captureFileState = async (descriptor, exact) => {
+  const stat = await descriptor.stat(exact ? { bigint: true } : undefined);
   const regular = stat.isFile();
-  const identity = Object.fromEntries(EXACT_IDENTITY_FIELDS.map(key => [key, stat[key]]));
-  if (!regular || EXACT_IDENTITY_FIELDS.some(key => typeof identity[key] !== 'bigint')) throw changedFile();
-  return Object.freeze(identity);
+  if (!exact) {
+    const identity = Object.freeze(Object.fromEntries(NUMERIC_IDENTITY_FIELDS.map(key => [key, stat[key]])));
+    return Object.freeze({ regular, bytes: identity.size, identity, exactIdentity: null });
+  }
+  // One fresh bigint observation supplies both exact admission and the legacy
+  // diagnostic number fields. Re-reading the same descriptor for rounded
+  // numbers adds I/O without strengthening any content/identity check.
+  const identity = Object.freeze(Object.fromEntries(EXACT_IDENTITY_FIELDS.map(key => [key, stat[key]])));
+  if (EXACT_IDENTITY_FIELDS.some(key => typeof identity[key] !== 'bigint')
+    || identity.size < 0n || identity.size > MAX_SAFE_HASH_BYTES) throw changedFile();
+  const bytes = Number(identity.size);
+  if (BigInt(bytes) !== identity.size) throw changedFile();
+  return Object.freeze({ regular, bytes, exactIdentity: identity,
+    identity: Object.freeze({ dev: Number(identity.dev), ino: Number(identity.ino), size: bytes,
+      mtimeMs: nanosecondsToMilliseconds(identity.mtimeNs), ctimeMs: nanosecondsToMilliseconds(identity.ctimeNs) }) });
 };
 const withFileHasher = async (filePath, createHasher, { containedRoot = null, signal = null } = {}, includeObservation = false) => {
   throwIfAborted(signal);
   const compute = async descriptor => {
     const hasher = createHasher(), update = hasher.update, digest = hasher.digest;
     if (typeof update !== 'function' || typeof digest !== 'function') throw new TypeError('File hash requires its original incremental operations.');
-    const before = await descriptor.stat();
-    if (!before.isFile() || !Number.isSafeInteger(before.size) || before.size < 0) {
+    const before = await captureFileState(descriptor, includeObservation);
+    if (!before.regular || !Number.isSafeInteger(before.bytes) || before.bytes < 0) {
       throw new Error('File hash requires a bounded regular file extent.');
     }
-    const exactBefore = includeObservation ? await captureExactFileIdentity(descriptor) : null;
-    if (exactBefore && exactBefore.size !== BigInt(before.size)) throw changedFile();
-    const buffer = Buffer.allocUnsafe(Math.min(65536, before.size));
+    const buffer = Buffer.allocUnsafe(Math.min(65536, before.bytes));
     let position = 0;
-    while (position < before.size) {
+    while (position < before.bytes) {
       throwIfAborted(signal);
-      const allowance = Math.min(buffer.length, before.size - position);
+      const allowance = Math.min(buffer.length, before.bytes - position);
       const { bytesRead } = await descriptor.read(buffer, 0, allowance, position);
       if (!Number.isSafeInteger(bytesRead) || bytesRead <= 0 || bytesRead > allowance) throw changedFile();
       update.call(hasher, buffer.subarray(0, bytesRead));
@@ -63,15 +76,15 @@ const withFileHasher = async (filePath, createHasher, { containedRoot = null, si
     throwIfAborted(signal);
     const value = await digest.call(hasher);
     throwIfAborted(signal);
-    const after = await descriptor.stat();
-    if (!after.isFile() || ['dev', 'ino', 'size', 'mtimeMs', 'ctimeMs'].some(key => before[key] !== after[key])) throw changedFile();
-    const exactAfter = includeObservation ? await captureExactFileIdentity(descriptor) : null;
-    if (exactAfter && EXACT_IDENTITY_FIELDS.some(key => exactBefore[key] !== exactAfter[key])) throw changedFile();
+    const after = await captureFileState(descriptor, includeObservation);
+    if (!after.regular || (includeObservation
+      ? EXACT_IDENTITY_FIELDS.some(key => before.exactIdentity[key] !== after.exactIdentity[key])
+      : NUMERIC_IDENTITY_FIELDS.some(key => before.identity[key] !== after.identity[key]))) throw changedFile();
     descriptor.verify?.();
     throwIfAborted(signal);
-    return includeObservation ? Object.freeze({ value, bytes: after.size,
-      fileIdentity: Object.freeze({ dev: exactAfter.dev.toString(), ino: exactAfter.ino.toString() }),
-      identity: Object.freeze(Object.fromEntries(['dev', 'ino', 'size', 'mtimeMs', 'ctimeMs'].map(key => [key, after[key]]))) }) : value;
+    return includeObservation ? Object.freeze({ value, bytes: after.bytes,
+      fileIdentity: Object.freeze({ dev: after.exactIdentity.dev.toString(), ino: after.exactIdentity.ino.toString() }),
+      identity: after.identity }) : value;
   };
   if (containedRoot) return withContainedFile(containedRoot, filePath, compute);
   const open = fs.open, handle = await open.call(fs, filePath, 'r');

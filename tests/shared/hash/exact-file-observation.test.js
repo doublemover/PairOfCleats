@@ -7,7 +7,7 @@ import { getContainedFileSession } from '../../../src/shared/contained-file-reso
 import { errorGraphIncludes, errorGraphSome } from '../../helpers/error-graph.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 
-// UNVALIDATED: original real FileHandle and hash owner, exact native identities,
+// Original real FileHandle and hash owner, exact native identities,
 // bounded reads, actual asynchronous digest completion and explicit recovery.
 applyTestEnv();
 const selected = process.env.PAIROFCLEATS_TEST_ID?.split('/').at(-1);

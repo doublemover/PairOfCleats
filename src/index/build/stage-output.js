@@ -1,6 +1,7 @@
 import { inventoryStageDirectory, isStageDirectoryFamily } from './stage-directory.js';
 import { runWithSettledConcurrency } from '../../shared/concurrency/run-with-queue.js';
 import fs from 'node:fs/promises';
+import nativeFs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { ARTIFACT_SURFACE_VERSION } from '../../contracts/versioning.js';
@@ -89,13 +90,13 @@ export const inventoryStageOutputForCopy = options => inventoryStageOutputUsing(
  * durable atomic writer. The target is an owned generation, never a hardlink.
  */
 const copyStageMemberUsing = async ({ sourceRoot, targetRoot, part, signal, assertOwned, createOnly = true }, writeChunks,
-  resolveTarget = resolveArtifactPath) => {
+  resolveTarget = resolveArtifactPath, sourceStat = null) => {
   throwIfAborted(signal); assertOwned();
   // The contained reader admits the source at open, and the atomic writer
   // creates target parents before its existing lease/path commit recheck.
   const source = resolveArtifactIdentityPath(sourceRoot, part.path), target = resolveTarget(targetRoot, part.path, { allowMissing: true });
   await withContainedFile(sourceRoot, source, async descriptor => {
-    const before = await descriptor.stat({ bigint: true });
+    const before = sourceStat ? sourceStat(descriptor) : await descriptor.stat({ bigint: true });
     if (!before.isFile() || !Number.isSafeInteger(part.bytes) || part.bytes < 0
       || before.size !== BigInt(part.bytes)) throw stageFailure('Sealed mode member changed size.');
     await writeChunks(target, async write => {
@@ -131,6 +132,12 @@ export const copyStageMembers = async ({ inventory, ...options }) => {
   return runWithSettledConcurrency(inventory, 4, part => copyStageMember({ ...options, part }), { signal: options.signal });
 };
 
+const captureCopyMetadata = () => {
+  const receiver = nativeFs, fstat = nativeFs.fstatSync, stat = nativeFs.statSync, lstat = nativeFs.lstatSync;
+  if ([fstat, stat, lstat].some(method => typeof method !== 'function')) throw new TypeError('Original native copy metadata operations are required.');
+  return Object.freeze({ receiver, fstat, stat, lstat });
+};
+
 /** Only a freshly allocated, unpublished snapshot may use this writer. Its
  * completion descriptor is the publication boundary. Members are exclusive
  * ordinary copies, synced and closed before directory sync and validation.
@@ -157,17 +164,20 @@ export const copyUnpublishedStageMembers = async ({ inventory, sourceRoot, targe
     assertDirectoryIdentity(entry.identity);
   }
   const writeChunks = async (target, produce, options) => {
+    // Capture original native methods before borrowing the newly opened target.
+    // Every observation below remains fresh; no path/identity result is reused.
+    const metadata = captureCopyMetadata();
     throwIfAborted(signal); assertOwned();
     assertArtifactFilePath(targetRoot, target, { allowMissing: true });
     const parent = parents.get(path.dirname(target));
-    assertDirectoryIdentity(await fs.stat(path.dirname(target), { bigint: true }), parent.identity);
+    assertDirectoryIdentity(metadata.stat.call(metadata.receiver, path.dirname(target), { bigint: true }), parent.identity);
     const handle = await fs.open(target, 'wx');
     const owner = createContainedFileResource({ handle, sync: false, additionalMethods: ['write', 'sync'] });
     await owner.run(async descriptor => {
-      const initial = persistenceFileIdentity(await descriptor.stat({ bigint: true }));
+      const initial = persistenceFileIdentity(metadata.fstat.call(metadata.receiver, descriptor.fd, { bigint: true }));
       if (initial.size !== '0') throw stageFailure('Unpublished stage member was not exclusively created empty.');
       assertArtifactFilePath(targetRoot, target);
-      assertPersistenceFileIdentity(await fs.lstat(target, { bigint: true }), initial);
+      assertPersistenceFileIdentity(metadata.lstat.call(metadata.receiver, target, { bigint: true }), initial);
       let written = 0;
       const write = async bytes => {
         let offset = 0;
@@ -184,18 +194,20 @@ export const copyUnpublishedStageMembers = async ({ inventory, sourceRoot, targe
       await produce(write);
       await descriptor.sync();
       await options.beforeCommit();
-      const sealed = persistenceFileIdentity(await descriptor.stat({ bigint: true }));
+      const sealed = persistenceFileIdentity(metadata.fstat.call(metadata.receiver, descriptor.fd, { bigint: true }));
       if (sealed.size !== String(written)
         || ['dev', 'ino', 'mode', 'birthtime'].some(key => initial[key] !== sealed[key])) {
         throw stageFailure('Unpublished stage member changed its original file identity.');
       }
-      assertPersistenceFileIdentity(await fs.lstat(target, { bigint: true }), sealed);
-      assertDirectoryIdentity(await fs.stat(path.dirname(target), { bigint: true }), parent.identity);
+      assertPersistenceFileIdentity(metadata.lstat.call(metadata.receiver, target, { bigint: true }), sealed);
+      assertDirectoryIdentity(metadata.stat.call(metadata.receiver, path.dirname(target), { bigint: true }), parent.identity);
     });
   };
-  await runWithSettledConcurrency(inventory, 4, part => copyStageMemberUsing({
-    sourceRoot, targetRoot, part, signal, assertOwned, createOnly: true
-  }, writeChunks, resolveArtifactIdentityPath), { signal });
+  await runWithSettledConcurrency(inventory, 4, part => {
+    const metadata = captureCopyMetadata();
+    return copyStageMemberUsing({ sourceRoot, targetRoot, part, signal, assertOwned, createOnly: true }, writeChunks,
+      resolveArtifactIdentityPath, descriptor => metadata.fstat.call(metadata.receiver, descriptor.fd, { bigint: true }));
+  }, { signal });
   await runWithSettledConcurrency([...parents.values()], 4,
     async entry => { assertOwned(); await syncParentDirectory(entry.target, { expectedParent: entry.identity }); }, { signal });
 };
