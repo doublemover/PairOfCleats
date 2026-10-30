@@ -22,7 +22,10 @@ const repo = path.join(dir, 'repo'); await fs.mkdir(repo); initGitRepo(repo);
 for (const [file, bytes] of Object.entries(qualifiedTargetSources(language, operation))) await fs.writeFile(path.join(repo, file), bytes);
 // The fixture is a closed source project. Parent checkout ambient @types and
 // browser libraries are not inputs to these ECMAScript callable assertions.
-await fs.writeFile(path.join(repo, 'tsconfig.json'), JSON.stringify({ compilerOptions: { types: [], lib: ['es2022'] } }));
+// The actual JS/TS ambient-scope comparator qualifies these exact source bytes,
+// local symbols/signatures and target joins under ES5 and ES2022, and retains
+// a modern-builtin discriminator. Keep the real minimal standard library.
+await fs.writeFile(path.join(repo, 'tsconfig.json'), JSON.stringify({ compilerOptions: { types: [], lib: ['es5'] } }));
 // Exact API joins need completed compiler bindings. Default manual/deferred
 // enrichment deliberately leaves same-name targets ambiguous.
 // Keep the actual semantic compiler bindings; legacy cross-file type

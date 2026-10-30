@@ -75,7 +75,7 @@ try {
     }
     if (selected === 'imports') {
       assert.deepEqual(observe(await execute(['--changed', leaf], 'downstream', 2)), observe(downstream));
-      const suggested = await runSuggestTestsCli(['--repo', repo, '--changed', leaf, '--json']);
+      const suggested = await runSuggestTestsCli(['--repo', repo, '--changed', leaf, '--max', '10', '--json']);
       assert.equal(suggested.suggestions[0].testPath, user);
     }
   }
