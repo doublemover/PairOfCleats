@@ -16,6 +16,8 @@ const url = new URL(options.url);
 assert.ok(['http:', 'https:'].includes(url.protocol));
 await requireBootstrap();
 const sourcePath = path.resolve(options.map), bytes = await fs.readFile(sourcePath), expected = JSON.parse(bytes);
+assert.equal(expected.nodes.length, 5, 'The inventory companion requires all five actual exported files.');
+assert.equal(expected.nodes.reduce((sum, file) => sum + file.members.length, 0), 1);
 assert.ok(expected.nodes.some(file => file.members?.length === 0), 'Supply the actual exported inventory fixture.');
 assert.ok(expected.nodes.some(file => file.members?.some(member => member.dataflow?.aliases?.length > 3)),
   'Supply the actual producer/export fixture with more than three canonical or legacy aliases.');
@@ -38,9 +40,18 @@ try {
   await page.goto(url.href, { waitUntil: 'domcontentloaded', timeout: 5000 });
   await page.waitForFunction(async () => {
     const { state } = await import('/isomap/state.js');
-    return Boolean(state.sourceIndex && state.refreshStackNavigation);
+    return Boolean(state.sourceIndex && state.remoteSource && state.graphWorkerReady && state.refreshStackNavigation && state.viewerShell);
   }, null, { timeout: 5000 });
   const search = page.locator('#stack-search'), tree = page.locator('#stack-tree');
+  const toolbar = page.locator('#stack-bar'), inspector = page.locator('#hud');
+  const openPanel = async name => {
+    const trigger = toolbar.getByRole('button', { name, exact: true });
+    assert.equal(await trigger.getAttribute('aria-expanded'), 'false', `Open ${name} through its actual toolbar action.`);
+    await trigger.click();
+    assert.equal(await trigger.getAttribute('aria-expanded'), 'true');
+    await (name === 'Explore' ? search : inspector).waitFor({ state: 'visible' });
+  };
+  await openPanel('Explore');
   // Manifest counts and the actual paginated hierarchy own full inventory.
   // The resident sourceIndex intentionally retains only a bounded working set.
   await search.fill(''); await search.dispatchEvent('input');
@@ -50,32 +61,57 @@ try {
   const counts = await page.evaluate(async () => (await import('/isomap/state.js')).state.sourceIndex.counts);
   assert.equal(counts.files, expected.nodes.length);
   assert.equal(counts.members, expected.nodes.reduce((sum, file) => sum + file.members.length, 0));
-  receipt.observations = { files: [], aliases: [], available: counts, inventoryOwner: 'actual hierarchy pages and pinned manifest' };
-  const selectionValue = label => page.locator('#selection-body .sel-row').filter({ has: page.locator('.sel-label', { hasText: label }) }).locator('.sel-value');
+  assert.equal(counts.edges, expected.edges.length);
+  receipt.observations = { files: [], aliases: [], navigation: [], available: counts,
+    inventoryOwner: 'actual hierarchy pages and pinned manifest', panels: 'actual Explore/Inspect toolbar controls' };
+  const selectionValue = label => page.locator('#selection-body .sel-row')
+    .filter({ has: page.locator('.sel-label', { hasText: new RegExp(`^${label}$`) }) }).locator('.sel-value');
+  const waitForFile = file => page.waitForFunction(async expectedFile => {
+    const { state } = await import('/isomap/state.js');
+    const rows = [...document.querySelectorAll('#selection-body .sel-row')];
+    return state.selectedInfo?.type === 'file' && state.selectedInfo.file === expectedFile
+      && rows.some(row => row.querySelector('.sel-label')?.textContent === 'Path' && row.querySelector('.sel-value')?.textContent === expectedFile);
+  }, file);
+  const waitForMember = member => page.waitForFunction(async ({ id, file }) => {
+    const { state } = await import('/isomap/state.js');
+    const rows = [...document.querySelectorAll('#selection-body .sel-row')];
+    return state.selectedInfo?.type === 'member' && state.selectedInfo.id === id && state.selectedInfo.file === file
+      && rows.some(row => row.querySelector('.sel-label')?.textContent === 'Id' && row.querySelector('.sel-value')?.textContent === String(id));
+  }, { id: member.id, file: member.file });
   for (const node of expected.nodes) {
     await search.fill(node.path);
-    const group = tree.locator(':scope > details').filter({ has: page.locator('summary', { hasText: node.path + ' · ' }) });
-    await group.waitFor();
-    await group.getByRole('button', { name: 'Inspect / focus stack', exact: true }).click();
+    // The prior all-files page already contains this file. Wait for the actual
+    // filtered page before opening its group, so a late search replacement
+    // cannot discard the just-opened summary/member request.
     await page.waitForFunction(file => {
-      const rows = [...document.querySelectorAll('#selection-body .sel-row')];
-      return rows.some(row => row.querySelector('.sel-label')?.textContent === 'Path' && row.querySelector('.sel-value')?.textContent === file);
+      const groups = [...document.querySelectorAll('#stack-tree > details')];
+      return groups.length === 1 && groups[0].querySelector('summary')?.textContent.startsWith(file + ' · ');
     }, node.path);
-    assert.equal(await selectionValue('Members').textContent(), String(node.members.length));
-    await group.locator('summary').click();
+    const group = tree.locator(':scope > details').filter({ has: page.locator('summary', { hasText: node.path + ' · ' }) });
+    await group.waitFor({ state: 'visible' });
+    // Remote hierarchy groups start collapsed. Opening their real summary
+    // both exposes the focus action and asks the original source for members.
+    assert.equal(await group.getAttribute('open'), null);
+    await group.locator(':scope > summary').click();
     await page.waitForFunction(({ file, count }) => [...document.querySelectorAll('#stack-tree > details')]
       .find(row => row.querySelector('summary')?.textContent.startsWith(file + ' · '))?.textContent.includes(`of ${count} available members.`),
     { file: node.path, count: node.members.length });
     const memberButtons = group.locator('section button');
     assert.equal(await memberButtons.count(), node.members.length);
+    await group.getByRole('button', { name: 'Inspect / focus stack', exact: true }).click();
+    await waitForFile(node.path);
+    await openPanel('Inspect');
+    assert.equal(await selectionValue('Members').textContent(), String(node.members.length));
     receipt.observations.files.push({ path: node.path, members: node.members.length, hierarchy: true });
+    await openPanel('Explore');
     for (const member of node.members) {
       await memberButtons.filter({ hasText: member.name + ' · ' }).click();
-      await page.waitForFunction(async id => Boolean((await import('/isomap/state.js')).state.sourceIndex.member(id)), member.id);
+      await waitForMember(member);
+      await openPanel('Inspect');
       const actual = await page.evaluate(async id => (await import('/isomap/state.js')).state.sourceIndex.member(id).member, member.id);
       assert.equal(actual.id, member.id);
       const labels = member.dataflow?.aliases || []; assert.deepEqual(actual.dataflow?.aliases || [], labels);
-      if (!labels.length) continue;
+      assert.equal(labels.length, 5, 'All five aliases from the real producer/export fixture reach the actual inspector.');
       assert.deepEqual(await selectionValue('Aliases').locator('.sel-pill').allTextContents(), labels);
       const contribution = await page.evaluate(async id => {
         const { state } = await import('/isomap/state.js');
@@ -87,8 +123,29 @@ try {
       }, member.id);
       assert.ok(Math.abs(contribution.actual - contribution.expected) < 1e-9);
       receipt.observations.aliases.push({ id: member.id, labels, contribution: contribution.actual });
+      // These toolbar controls replay the actual source navigation history;
+      // inspector visibility stays on the user's selected task surface.
+      await toolbar.getByRole('button', { name: 'Previous selection', exact: true }).click();
+      await waitForFile(node.path);
+      assert.equal(await selectionValue('Members').textContent(), String(node.members.length));
+      await toolbar.getByRole('button', { name: 'Next selection', exact: true }).click();
+      await waitForMember(member);
+      assert.deepEqual(await selectionValue('Aliases').locator('.sel-pill').allTextContents(), labels);
+      receipt.observations.navigation.push({ file: node.path, member: member.id, back: 'file', forward: 'member', aliases: labels.length });
+      await openPanel('Explore');
     }
   }
+  assert.equal(receipt.observations.files.length, 5);
+  assert.equal(receipt.observations.aliases.length, 1);
+  assert.equal(receipt.observations.navigation.length, 1);
+  const aliasMember = expected.nodes.flatMap(node => node.members)[0];
+  await search.fill(aliasMember.name);
+  const namedMember = tree.getByRole('button', { name: `${aliasMember.file} / ${aliasMember.name}`, exact: true });
+  await namedMember.focus(); await namedMember.press('Enter');
+  await waitForMember(aliasMember);
+  await openPanel('Inspect');
+  assert.deepEqual(await selectionValue('Aliases').locator('.sel-pill').allTextContents(), aliasMember.dataflow.aliases);
+  receipt.observations.memberNameSearch = { id: aliasMember.id, action: 'actual source-name search and keyboard Enter', aliases: 5 };
   assert.deepEqual(errors, []);
   receipt.screenshot = path.join(out, 'inventory-alias-inspector.png');
   await page.screenshot({ path: receipt.screenshot });
