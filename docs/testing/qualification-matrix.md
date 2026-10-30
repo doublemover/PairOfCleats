@@ -15,20 +15,9 @@ passes without warnings or errors (37 required packages, 33 routes, seven patche
 [current reconciliation](../archived/p2-p3-closeout-2026-10-29.md) includes later
 new/reopened intake and leaves 56 P2/P3 targets plus six exclusions.
 
-The [repair wave](../archived/windows-consumer-repair-wave-2026-10-30.md) at
-`7e9866a8720880eeebad85a5b9bf44e4d62cb71a` passes33 final affected controls.
-The Rust owner files pass156 tests with their exact hashes retained. Latest
-recorded observations are311 passing/three failing across314 distinct IDs and
-multiple source revisions. Two original JS API deadlines and semantic drain
-still fail; both TS API cases pass. An earlier five-case pass did not repeat and
-does not close the current deadline blockers. Authored cache/resource and
-independent MiniLM capsules await actual execution.
-The canonical Three rendered lifecycle and complete UTF-8 VFS sequence remain
-unqualified; bounded replacement phase measurements retain their explicit inputs
-and execution boundaries. Optional native Tantivy, real models and broad resource
-acceptance remain separate. The Linux ELF positive retains its Linux owner and
-the Windows unsupported-platform control passes. New implementation is not
-qualified by the frozen-source observations below.
+The [focused follow-up](../archived/windows-focused-followup-2026-10-30.md) binds22 semantic/SQLite controls and five original deadline passes to `5e678b10c`;27 consumer controls, two native/lease controls and the complete publication gate bind to `ce65ac232`. All eight source51 Windows CI failures pass affected rechecks. Semantic drain took29.434 seconds; repeated deadline reliability remains open. Source51 hosted authority passes41/41 without skips, including physical-link checks; current-head hosted acceptance remains separate.
+
+The [serial window](../archived/windows-serial-qualification-2026-10-30.md) records12 native-cache,15 UTF-8 VFS and13 map-serialization passes and the canonical real-Three rendered lifecycle at source51. SQLite/map-builder/inventory-browser repairs and nine new language-cost capsules await focused execution. Actual MiniLM matching-shape raw reference passes at unchanged tolerance; product execution exposed a second tokenizer-loader defect after the callable repair. Optional native Tantivy, EG2/M3/E5 and broad resource/release acceptance remain open. Linux ELF positives retain their Linux owner and Windows unsupported-platform controls remain separate.
 
 The [P2/P3 closeout](../archived/p2-p3-closeout-2026-10-29.md) reuses exact
 Windows hosted observations at `4c535a148` where source and complete issue controls
