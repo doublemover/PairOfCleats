@@ -3,6 +3,17 @@ import { MessagePort } from 'node:worker_threads';
 import { currentSchedulerTaskLease } from '../../../shared/concurrency/scheduler-task-scope.js';
 import { createWorkerFatalError, isWorkerFatalControl } from './fatal-policy.js';
 import { readWorkerObservation, WORKER_OBSERVATION_VERSION } from './observation.js';
+import { createThreadTaskAssociation } from './thread-task-association.js';
+import { isAbortError } from '../../../shared/abort.js';
+
+export const createIndexerThreadPool = (Piscina, options) => {
+  if (options.loadBalancer || options.concurrentTasksPerWorker != null && options.concurrentTasksPerWorker !== 1) {
+    throw new TypeError('Indexer thread ownership requires its qualified single-task public load balancer.');
+  }
+  const association = createThreadTaskAssociation({ version: Piscina.version, queueOptionsSymbol: Piscina.queueOptionsSymbol });
+  return new IndexerThreadPool(new Piscina({ ...options, concurrentTasksPerWorker: 1,
+    loadBalancer: association.loadBalancer }), association);
+};
 
 const observe = (target, event, value) => {
   // Logging/metric listeners cannot alter task outcomes or terminal retirement.
@@ -14,9 +25,10 @@ const observe = (target, event, value) => {
  * and their scheduler ownership stays attached to all original worker exits.
  */
 export class IndexerThreadPool extends EventEmitter {
-  constructor(pool) {
+  constructor(pool, association = null) {
     super();
     this.pool = pool;
+    this.association = association;
     this.owners = new Map();
     this.pending = new Set();
     this.closed = false;
@@ -79,13 +91,14 @@ export class IndexerThreadPool extends EventEmitter {
       }
       if (this.owners.has(worker)) continue;
       let finish;
-      const owner = { id: worker.threadId, exited: new Promise(resolve => { finish = resolve; }) };
+      const owner = { id: worker.threadId, closed: false, exited: new Promise(resolve => { finish = resolve; }) };
       this.owners.set(worker, owner);
       // Prepend before Piscina's handler can reject a task or remove the handle.
       worker.prependListener('error', () => { if (!owner.retiring) this.poison('uncaught thread error'); });
       worker.prependOnceListener('exit', code => {
         if (!owner.retiring && !this.closed) this.poison(`unexpected thread exit (${code})`);
         owner.observationPort?.close();
+        owner.closed = true;
         this.owners.delete(worker); finish();
       });
       if (this.closed) void worker.terminate().catch(error => observe(this, 'error', error));
@@ -123,11 +136,21 @@ export class IndexerThreadPool extends EventEmitter {
     this.observeWorkers();
     let rejectFatal;
     const fatal = new Promise((_, reject) => { rejectFatal = reject; });
-    const task = { rejectFatal };
+    const task = { rejectFatal, owner: null };
     this.pending.add(task);
     const lease = currentSchedulerTaskLease();
-    let operation;
-    try { operation = this.pool.run(payload, options); }
+    let operation, prepared;
+    try {
+      prepared = this.association?.prepare(payload, id => {
+        this.observeWorkers();
+        const owner = [...this.owners.values()].find(candidate => candidate.id === id);
+        if (!owner || owner.closed || owner.retiring) throw Object.assign(new Error('Selected original thread owner is unavailable.'), {
+          code: 'ERR_WORKER_TASK_ASSOCIATION_REQUIRED'
+        });
+        task.owner = owner;
+      });
+      operation = this.pool.run(prepared ? prepared.payload : payload, options);
+    }
     catch (error) { operation = Promise.reject(error); }
     this.observeWorkers();
     return Promise.race([operation, fatal]).then(value => {
@@ -138,8 +161,21 @@ export class IndexerThreadPool extends EventEmitter {
         lease?.trackWait?.(() => this.fatal.workerSettlement, { retainCpu: true }).catch(() => {});
         throw this.fatal;
       }
+      if (isAbortError(error) && task.owner?.retiring && !task.owner.closed) {
+        const owner = task.owner;
+        const failure = Object.isExtensible(error) ? error : Object.assign(new Error('Thread task aborted before original worker exit.', { cause: error }), {
+          name: 'AbortError', code: 'ABORT_ERR'
+        });
+        Object.defineProperties(failure, {
+          workerOwnershipPending: { get: () => !owner.closed },
+          workerOwnershipReleased: { value: () => owner.closed },
+          workerSettlement: { value: owner.exited }
+        });
+        lease?.trackWait?.(() => owner.exited, { retainCpu: true }).catch(() => {});
+        throw failure;
+      }
       throw error;
-    }).finally(() => { this.pending.delete(task); });
+    }).finally(() => { prepared?.release(); this.pending.delete(task); });
   }
 
   destroy() {

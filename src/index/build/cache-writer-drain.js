@@ -1,4 +1,5 @@
 import { runBuildCleanupWithTimeout, resolveBuildCleanupTimeoutMs } from './cleanup-timeout.js';
+import { observeStorageResource } from '../../shared/storage/failure-observation.js';
 
 const captureClosure = error => {
   if (!error) return null;
@@ -45,6 +46,16 @@ const poolsFor = runtime => {
   return [...pools];
 };
 
+const composeDrainFailures = (failures, message) => {
+  const observations = failures.map(error => observeStorageResource(error, { phase: 'cache-worker-termination' }));
+  return Object.assign(new AggregateError(failures, message, { cause: failures[0] }), {
+    code: 'ERR_INDEX_CACHE_DRAIN_INCOMPLETE',
+    ...(observations.some(observation => observation.hasResourceObservation) ? {
+      cacheOwnershipPending: true, cacheOwnershipReleased: () => observations.every(observation => observation.isSettled())
+    } : {})
+  });
+};
+
 /** A missing activity receipt is not evidence that a present owner is idle. */
 export const cacheWritersAreIdle = runtime => {
   try {
@@ -87,13 +98,15 @@ export const drainCacheWriters = async (runtime, { shutdown = false, timeoutMs =
         if (result?.timedOut) throw Object.assign(new Error('Cache writer workers did not terminate.'), { code: 'ERR_INDEX_CACHE_DRAIN_INCOMPLETE' });
       })));
       const failures = results.filter(result => result.status === 'rejected').map(result => result.reason);
-      if (failures.length) throw Object.assign(new AggregateError(failures, 'Cache worker termination failed.'), { code: 'ERR_INDEX_CACHE_DRAIN_INCOMPLETE' });
+      if (failures.length) {
+        throw composeDrainFailures(failures, 'Cache worker termination failed.');
+      }
     });
   }
   await run('cache-writer.file-tasks.drain', () => runtime.cacheWriterDrain?.());
   if (!shutdown && !cacheWritersAreIdle(runtime)) errors.push(Object.assign(new Error('Cache writer activity remains after file-task drain.'),
     { code: 'ERR_INDEX_CACHE_DRAIN_INCOMPLETE' }));
   if (errors.length === 1) throw errors[0];
-  if (errors.length) throw Object.assign(new AggregateError(errors, 'Cache writers failed to drain.'), { code: 'ERR_INDEX_CACHE_DRAIN_INCOMPLETE' });
+  if (errors.length) throw composeDrainFailures(errors, 'Cache writers failed to drain.');
   runtime.semanticReplayVerification?.clear();
 };

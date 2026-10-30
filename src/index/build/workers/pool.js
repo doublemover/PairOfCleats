@@ -1,12 +1,12 @@
 import { decodeFileAnalysisInput, FILE_ANALYSIS_MAX_INPUT_BYTES } from './file-analysis-contract.js';
 import { validateTokenizeBatch } from './tokenize-batch.js';
 import { IndexerProcessPool, getProcessMemoryAccount } from './process-pool.js';
-import { IndexerThreadPool } from './thread-pool.js';
+import { createIndexerThreadPool } from './thread-pool.js';
 import { projectWorkerError } from './observation.js';
 import { readEffectiveMemory } from '../../../shared/effective-memory.js';
 import { resolveWorkerHeapLaunchContract } from '../../../shared/workers/heap-contract.js';
 import { isAbortError, throwIfAborted } from '../../../shared/abort.js';
-import { createLifecycleRegistry } from '../../../shared/lifecycle/registry.js';
+import { createWorkerCleanupGroup } from './pool/cleanup-group.js';
 import { awaitWithKeepalive } from '../../../shared/promise-keepalive.js';
 import { isQueueRecoveryUnsafe } from '../../../shared/concurrency/queue-recovery.js';
 import os from 'node:os';
@@ -231,6 +231,7 @@ export async function createIndexerWorkerPool(input = {}) {
 
     let activeTasks = 0;
     let backendTasks = 0;
+    let cleanupConfirmed = false;
     let waitingForThrottle = 0;
     let completedRequests = 0;
     let quantizeTypedTempBuffers = 0;
@@ -380,7 +381,7 @@ export async function createIndexerWorkerPool(input = {}) {
           budgetAccount: getProcessMemoryAccount(memoryPolicy),
           maxMessageBytes: Math.max(4096, Math.min(32 * 1024 * 1024, Math.floor(maxGlobalRssBytes * 0.025))) });
       }
-      return new IndexerThreadPool(new Piscina({
+      return createIndexerThreadPool(Piscina, {
         filename: fileURLToPath(new URL('./indexer-worker.js', import.meta.url)),
         // Tiny/inline-only builds need no idle worker startup. Preserve the
         // admitted ceiling and create native workers when actual tasks arrive.
@@ -394,7 +395,7 @@ export async function createIndexerWorkerPool(input = {}) {
         execArgv: workerExecArgv,
         ...(currentResourceLimits ? { resourceLimits: currentResourceLimits } : {}),
         workerData
-      }));
+      });
     };
 
     lifecycle = createWorkerPoolLifecycle({
@@ -901,6 +902,7 @@ export async function createIndexerWorkerPool(input = {}) {
           }
         }
       },
+      isSettled: () => cleanupConfirmed,
       async destroy() {
         const reliefDrain = queueController.close();
         await Promise.all([reliefDrain, destroyWorkerPoolLifecycleWithTimeout({
@@ -909,6 +911,7 @@ export async function createIndexerWorkerPool(input = {}) {
           timeoutMs: resolvedCleanupTimeoutMs,
           log
         })]);
+        cleanupConfirmed = true;
       }
     };
   } catch (err) {
@@ -949,16 +952,12 @@ export async function createIndexerWorkerPools(input = {}) {
   } };
   const baseConfig = input.config;
   if (!baseConfig || baseConfig.enabled === false) {
-    return { runtimeEvidence, tokenizePool: null, quantizePool: null, destroy: async () => {} };
+    return { runtimeEvidence, tokenizePool: null, quantizePool: null, destroy: async () => {}, isSettled: () => true };
   }
   if (!baseConfig.splitByTask) {
     const pool = await createIndexerWorkerPool({ ...input, poolName: 'tokenize' });
-    const destroy = async () => {
-      if (pool?.destroy) {
-        await pool.destroy();
-      }
-    };
-    return { runtimeEvidence, tokenizePool: pool, quantizePool: pool, destroy };
+    const cleanup = createWorkerCleanupGroup(pool?.destroy ? [{ close: () => pool.destroy(), isSettled: pool.isSettled }] : []);
+    return { runtimeEvidence, tokenizePool: pool, quantizePool: pool, ...cleanup };
   }
 
   // When splitting work across pools, treat maxWorkers as a TOTAL thread budget.
@@ -971,12 +970,8 @@ export async function createIndexerWorkerPools(input = {}) {
   // If there is no room to split, fall back to a single pool.
   if (totalBudget <= 1) {
     const pool = await createIndexerWorkerPool({ ...input, poolName: 'tokenize' });
-    const destroy = async () => {
-      if (pool?.destroy) {
-        await pool.destroy();
-      }
-    };
-    return { runtimeEvidence, tokenizePool: pool, quantizePool: pool, destroy };
+    const cleanup = createWorkerCleanupGroup(pool?.destroy ? [{ close: () => pool.destroy(), isSettled: pool.isSettled }] : []);
+    return { runtimeEvidence, tokenizePool: pool, quantizePool: pool, ...cleanup };
   }
 
   const requestedQuantize = Number.isFinite(baseConfig.quantizeMaxWorkers)
@@ -990,13 +985,8 @@ export async function createIndexerWorkerPools(input = {}) {
     config: { ...baseConfig, maxWorkers: tokenizeBudget },
     poolName: 'tokenize'
   });
-  // Register ownership as each pool becomes available. The shared lifecycle
-  // owner attempts every cleanup even when another fails, including partial
-  // initialization. Its reverse-order close matches acquisition order.
-  const lifecycle = createLifecycleRegistry({ name: 'indexer-worker-pools' });
-  if (tokenizePool?.destroy) {
-    lifecycle.registerCleanup(() => tokenizePool.destroy(), { label: 'tokenize' });
-  }
+  const owners = [];
+  if (tokenizePool?.destroy) owners.push({ close: () => tokenizePool.destroy(), isSettled: tokenizePool.isSettled });
   let quantizePool;
   try {
     quantizePool = await createIndexerWorkerPool({
@@ -1005,11 +995,11 @@ export async function createIndexerWorkerPools(input = {}) {
       poolName: 'quantize'
     });
     if (quantizePool?.destroy && quantizePool !== tokenizePool) {
-      lifecycle.registerCleanup(() => quantizePool.destroy(), { label: 'quantize' });
+      owners.unshift({ close: () => quantizePool.destroy(), isSettled: quantizePool.isSettled });
     }
   } catch (error) {
     try {
-      await lifecycle.close();
+      await createWorkerCleanupGroup(owners).destroy();
     } catch (cleanupError) {
       throw new AggregateError([error, cleanupError], 'Worker pool initialization and cleanup failed.');
     }
@@ -1017,15 +1007,11 @@ export async function createIndexerWorkerPools(input = {}) {
   }
   const finalTokenizePool = tokenizePool || quantizePool;
   const finalQuantizePool = quantizePool || tokenizePool;
-  let destroyPromise = null;
-  const destroy = () => {
-    if (!destroyPromise) destroyPromise = lifecycle.close();
-    return destroyPromise;
-  };
+  const { destroy, isSettled } = createWorkerCleanupGroup(owners);
   return {
     runtimeEvidence,
     tokenizePool: finalTokenizePool,
     quantizePool: finalQuantizePool,
-    destroy
+    destroy, isSettled
   };
 }

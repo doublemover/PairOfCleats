@@ -9,6 +9,7 @@ import { resolveThreadLimits } from '../../../shared/threads.js';
 import { createIndexerWorkerPools, resolveWorkerPoolConfig } from '../worker-pool.js';
 import { resolveWorkerHeapBudgetPolicy, resolveWorkerResourceLimits } from '../workers/config.js';
 import { createCrashLogger } from '../crash-log.js';
+import { createWorkerCleanupGroup } from '../workers/pool/cleanup-group.js';
 
 const MIN_RUNTIME_CACHE_MB = 64;
 const MIN_RUNTIME_WRITE_BUFFER_MB = 64;
@@ -647,7 +648,7 @@ export const createRuntimeWorkerPools = async ({
     await workerCrashLogger.close?.();
   };
 
-  let workerPools = { tokenizePool: null, quantizePool: null, destroy: closeWorkerCrashLogger };
+  let workerPools = { tokenizePool: null, quantizePool: null, destroy: async () => {}, isSettled: () => true };
   let workerPool = null;
   let quantizePool = null;
   if (workerPoolConfig.enabled !== false) {
@@ -698,28 +699,13 @@ export const createRuntimeWorkerPools = async ({
   const destroyWorkerPools = typeof workerPools?.destroy === 'function'
     ? workerPools.destroy.bind(workerPools)
     : async () => {};
-  let destroyWorkerPoolsPromise = null;
+  const cleanup = createWorkerCleanupGroup([
+    { close: destroyWorkerPools, isSettled: workerPools.isSettled },
+    { close: closeWorkerCrashLogger }
+  ]);
   workerPools = {
     ...workerPools,
-    async destroy() {
-      if (!destroyWorkerPoolsPromise) {
-        destroyWorkerPoolsPromise = (async () => {
-          let firstError = null;
-          try {
-            await destroyWorkerPools();
-          } catch (err) {
-            firstError = err;
-          }
-          try {
-            await closeWorkerCrashLogger();
-          } catch (err) {
-            if (!firstError) firstError = err;
-          }
-          if (firstError) throw firstError;
-        })();
-      }
-      await destroyWorkerPoolsPromise;
-    }
+    destroy: cleanup.destroy, isSettled: cleanup.isSettled
   };
 
   return { workerPools, workerPool, quantizePool };

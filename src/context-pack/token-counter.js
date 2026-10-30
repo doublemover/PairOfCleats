@@ -3,7 +3,7 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 import { fileURLToPath } from 'node:url';
 import PQueue from 'p-queue';
 import Piscina from 'piscina';
-import { IndexerThreadPool } from '../index/build/workers/thread-pool.js';
+import { createIndexerThreadPool } from '../index/build/workers/thread-pool.js';
 import { readVerifiedContainedFile } from '../shared/contained-file.js';
 import { resolveWorkerHeapLaunchContract } from '../shared/workers/heap-contract.js';
 import { destroyPiscinaPool } from '../shared/piscina-cleanup.js';
@@ -121,8 +121,8 @@ export const withRenderedContextTokenCounter = async ({ policy, repoRoot, taskPo
             if (!pool) {
               const launch = resolveWorkerHeapLaunchContract(resourceLimits);
               if (!launch.supported) throw new Error('Parent startup options prevent bounded tokenizer worker heaps.');
-              pool = new IndexerThreadPool(new Piscina({ filename: fileURLToPath(new URL('./tokenizer-worker.js', import.meta.url)),
-                minThreads: 1, maxThreads: 1, maxQueue: 1, resourceLimits, execArgv: [], trackUnmanagedFds: true }));
+              pool = createIndexerThreadPool(Piscina, { filename: fileURLToPath(new URL('./tokenizer-worker.js', import.meta.url)),
+                minThreads: 1, maxThreads: 1, maxQueue: 1, resourceLimits, execArgv: [], trackUnmanagedFds: true });
             }
             let inputs = {}, transferList = [];
             if (!initialized) {
