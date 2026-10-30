@@ -10,20 +10,16 @@ import { getIndexDir, loadUserConfig } from '../../../src/shared/dict-utils.js';
 import { loadJsonArrayArtifactRows } from '../../../src/shared/artifact-io/loaders.js';
 import { buildApiContractsReport } from '../../../src/integrations/tooling/api-contracts.js';
 import { validateApiContracts } from '../../../src/contracts/validators/analysis.js';
+import { qualifiedTargetSources } from './qualified-target-source-fixture.js';
 
 const selected = process.env.PAIROFCLEATS_TEST_ID?.split('tooling/api-contracts/qualified-target-joins-cli/')[1];
 assert.ok(['js-clean', 'ts-clean', 'js-violation', 'ts-violation'].includes(selected));
 const diagnostics = installPublicationBoundaryDiagnostics();
 const { buildIndex } = await import('../../../src/integrations/core/index.js');
-const [language, operation] = selected.split('-'), type = language === 'ts' ? ': number' : '';
+const [language, operation] = selected.split('-');
 const root = process.cwd(), { dir } = await prepareIsolatedTestCacheDir(`api-qualified-target-${selected}`);
 const repo = path.join(dir, 'repo'); await fs.mkdir(repo); initGitRepo(repo);
-await fs.writeFile(path.join(repo, `a.${language}`), `export function foo(a${type}) { return a; }
-export function useA() { return foo(1); }
-`);
-await fs.writeFile(path.join(repo, `b.${language}`), `export function foo(a${type}, b${type}) { return a+b; }
-${operation === 'violation' ? 'export function useB() { return foo(1); }' : ''}
-`);
+for (const [file, bytes] of Object.entries(qualifiedTargetSources(language, operation))) await fs.writeFile(path.join(repo, file), bytes);
 // The fixture is a closed source project. Parent checkout ambient @types and
 // browser libraries are not inputs to these ECMAScript callable assertions.
 await fs.writeFile(path.join(repo, 'tsconfig.json'), JSON.stringify({ compilerOptions: { types: [], lib: ['es2022'] } }));
