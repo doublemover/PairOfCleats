@@ -200,7 +200,7 @@ try {
     receipt.corpus.judgments = { id: judgedCorpus.id, version: judgedCorpus.version, scope: judgedCorpus.scope,
       documents: judgedCorpus.documents.map(({ text, ...row }) => row), queries: judgedCorpus.queries, grades: judgedCorpus.judgments };
     receipt.exportSelection = { modelId: denseRecipe.modelId, revision: denseRecipe.revision, precision: denseRecipe.dtype,
-      rawOutput: 'last_hidden_state', pooling: denseRecipe.pooling, normalize: true, graphIdentity: denseRecipe.artifacts };
+      rawOutput: denseRecipe.rawOutput, pooling: denseRecipe.pooling, normalize: true, graphIdentity: denseRecipe.artifacts };
   }
   if (miniLm || manifest.corpusSource?.path === 'tests/fixtures/embeddings/minilm-provider-corpus.json') {
     assert.equal(manifest.corpusSource?.path, 'tests/fixtures/embeddings/minilm-provider-corpus.json');

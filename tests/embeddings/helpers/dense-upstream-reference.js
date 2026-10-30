@@ -9,7 +9,7 @@ import { throwIfAborted } from '../../../src/shared/abort.js';
 const instruction = 'Instruct: Given a code search query, retrieve relevant source code or documentation passages that answer the query\nQuery: ';
 const recipes = [
   { id: 'm3-raw-cls-l2-v1', modelId: 'Xenova/bge-m3', revision: '46ce10a0ac77ca4bab460d6676ba8260b33e68dc',
-    dtype: 'q8', dimensions: 1024, maxLength: 8192, pooling: 'cls', queryPrefix: '',
+    dtype: 'q8', dimensions: 1024, maxLength: 8192, pooling: 'cls', rawOutput: 'last_hidden_state', queryPrefix: '',
     source: 'https://huggingface.co/Xenova/bge-m3#usage-transformersjs',
     exportSource: 'https://huggingface.co/Xenova/bge-m3/commit/044d00eef6d42d3695148639ab2b8702b6cb9159',
     cacheSelection: 'same verified generic cache as production; export revision and graph identity frozen by manifest',
@@ -17,7 +17,7 @@ const recipes = [
       sha256: '0826f8c1ab9edf1801db86c61919d4d108e8bfc0b809ec823ad366882ff0b77d' }] },
   { id: 'e5-instruct-raw-mask-mean-l2-v1', modelId: 'intfloat/multilingual-e5-large-instruct',
     revision: 'c9e87c786ffac96aeaeb42863276930883923ecb', dtype: 'fp32', dimensions: 1024, maxLength: 512,
-    pooling: 'mask-mean', queryPrefix: instruction,
+    pooling: 'mask-mean', rawOutput: 'token_embeddings', queryPrefix: instruction,
     source: 'https://huggingface.co/intfloat/multilingual-e5-large-instruct#usage',
     exportSource: 'https://huggingface.co/intfloat/multilingual-e5-large-instruct/commit/c9e87c786ffac96aeaeb42863276930883923ecb',
     cacheSelection: 'immutable author revision; explicit external data fetched by upstream before native session creation',
@@ -143,10 +143,17 @@ export const createDenseUpstreamReference = async ({ transformers, manifest, sig
       assert.equal(input.input_ids.data.length, input.input_ids.dims[0] * input.input_ids.dims[1]);
       const output = await model(input);
       tensors(scope, output, 'raw author output'); throwIfAborted(signal);
-      const { vectors, tokenCounts } = scalarDenseReference({ hidden: output.last_hidden_state, mask: input.attention_mask,
+      // The byte-pinned E5 graph e3aeea... declares token_embeddings as float32
+      // [batch_size,sequence_length,1024], produced by layer23's final LayerNorm.
+      // Its other output sentence_embedding is already mean/L2 pooled. HF4.3.2
+      // encoder_forward preserves these ONNX names; never substitute pooled
+      // output or infer a first-output alias for the independent token recipe.
+      assert.ok(output && Object.hasOwn(output, recipe.rawOutput), 'Require the pinned per-token graph output: ' + recipe.rawOutput);
+      const hidden = output[recipe.rawOutput];
+      const { vectors, tokenCounts } = scalarDenseReference({ hidden, mask: input.attention_mask,
         count: texts.length, recipe, signal });
       result = { vectors, tokenization: { inputIds: tensorReceipt(input.input_ids), attentionMask: tensorReceipt(input.attention_mask), tokenCounts },
-        rawOutput: tensorReceipt(output.last_hidden_state), outputBytes: texts.length * 1024 * 4 };
+        rawOutput: { name: recipe.rawOutput, ...tensorReceipt(hidden) }, outputBytes: texts.length * 1024 * 4 };
     } catch (error) { failed = true; failure = error; scope.retainFailure(error); }
     try { await scope.close(); } catch (cleanup) { throw failed ? preserveEmbeddingCleanupFailure(failure, cleanup) : cleanup; }
     if (failed) throw failure;

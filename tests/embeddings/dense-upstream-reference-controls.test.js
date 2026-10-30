@@ -6,6 +6,7 @@ import { applyTestEnv } from '../helpers/test-env.js';
 
 applyTestEnv();
 const m3 = resolveDenseReferenceRecipe('Xenova/bge-m3'), e5 = resolveDenseReferenceRecipe('intfloat/multilingual-e5-large-instruct');
+assert.equal(m3.rawOutput, 'last_hidden_state'); assert.equal(e5.rawOutput, 'token_embeddings');
 assert.equal(resolveDenseReferenceRecipe('onnx-community/embeddinggemma-2-ONNX'), null);
 assert.equal(resolveDenseReferenceRecipe('BAAI/bge-m3'), null);
 assert.equal(resolveDenseReferenceRecipe('Xenova/multilingual-e5-large'), null);
@@ -57,8 +58,13 @@ for (const recipe of [m3, e5]) {
     return { input_ids: tensor('ids', { type: 'int64', dims: [2, 3], data: BigInt64Array.of(0n, 2n, 1n, 0n, 2n, 1n) }),
       attention_mask: tensor('mask', { ...mask, data: new BigInt64Array(mask.data) }) };
   }, { dispose() { closed.push('tokenizer'); } });
-  const model = Object.assign(async () => ({ last_hidden_state: tensor('hidden', { ...hidden, data: new Float32Array(hidden.data) }),
-    pooler_output: tensor('unused-pooled', { type: 'float32', dims: [2, 1024], data: new Float32Array(2048) }) }),
+  const pooledName = recipe === e5 ? 'sentence_embedding' : 'pooler_output';
+  // E5's actual graph has distinct token_embeddings and sentence_embedding
+  // outputs. Insert a contradictory pooled vector first: output enumeration or
+  // accepting the prepooled result cannot pass the independent masked mean.
+  const model = Object.assign(async () => ({
+    [pooledName]: tensor('unused-pooled', { type: 'float32', dims: [2, 1024], data: Float32Array.from({ length: 2048 }, (_, index) => Number(index % 1024 === 0)) }),
+    [recipe.rawOutput]: tensor('hidden', { ...hidden, data: new Float32Array(hidden.data) }) }),
   { dispose() { closed.push('model'); } });
   const mod = { env: { version: '4.3.2' },
     AutoConfig: { from_pretrained: async (id, options) => { calls.push(['config', id, options]); return originalConfig; } },
@@ -66,6 +72,7 @@ for (const recipe of [m3, e5]) {
     AutoModel: { from_pretrained: async (id, options) => { calls.push(['model', id, options]); return model; } } };
   const reference = await createDenseUpstreamReference({ transformers: mod, manifest });
   const vectors = await reference.embed(['first', '第二段']);
+  assert.equal(vectors.rawOutput.name, recipe.rawOutput); assert.deepEqual(vectors.rawOutput.dimensions, [2, 3, 1024]);
   compareDenseReferenceVectors(vectors.vectors, recipe === m3 ? cls.vectors : mean.vectors, 1e-5);
   assert.deepEqual(new Set(tensorCloses), new Set(['ids', 'mask', 'hidden', 'unused-pooled']));
   assert.equal(originalConfig['transformers.js_config'], undefined);
@@ -90,19 +97,25 @@ for (const recipe of [m3, e5]) {
     await assert.rejects(createDenseUpstreamReference({ transformers: cancelled, manifest, signal: controller.signal }), { name: 'AbortError' });
     assert.deepEqual(cancelledCloses, abortAt === 'tokenizer' ? ['tokenizer'] : ['model', 'tokenizer']);
   }
-  const malformedCloses = [];
-  const malformed = {
-    ...mod,
-    AutoTokenizer: { from_pretrained: async () => Object.assign((...args) => tokenizer(...args),
-      { dispose() { malformedCloses.push('tokenizer'); } }) },
-    AutoModel: { from_pretrained: async () => Object.assign(async () => ({
-      last_hidden_state: { type: 'float32', dims: [2, 1024], data: new Float32Array(2048), dispose() { malformedCloses.push('tensor'); } }
-    }), { dispose() { malformedCloses.push('model'); } }) }
-  };
-  const invalidReference = await createDenseUpstreamReference({ transformers: malformed, manifest });
-  try { await assert.rejects(invalidReference.embed(['first', '第二段']), { code: 'ERR_ASSERTION' }); }
-  finally { await invalidReference.close(); }
-  assert.deepEqual(malformedCloses, ['tensor', 'model', 'tokenizer'], 'a rejected output is still closed before component cleanup');
+  for (const mode of ['rank-two', 'wrong-name', 'pooled-only']) {
+    const malformedCloses = [];
+    const badTensor = value => ({ ...value, dispose() { malformedCloses.push('tensor'); } });
+    const malformed = {
+      ...mod,
+      AutoTokenizer: { from_pretrained: async () => Object.assign((...args) => tokenizer(...args),
+        { dispose() { malformedCloses.push('tokenizer'); } }) },
+      AutoModel: { from_pretrained: async () => Object.assign(async () => {
+        const key = mode === 'rank-two' ? recipe.rawOutput : mode === 'pooled-only' ? pooledName
+          : recipe === e5 ? 'last_hidden_state' : 'token_embeddings';
+        return { [key]: badTensor({ type: 'float32', dims: mode === 'wrong-name' ? [2, 3, 1024] : [2, 1024],
+          data: new Float32Array(mode === 'wrong-name' ? 6144 : 2048) }) };
+      }, { dispose() { malformedCloses.push('model'); } }) }
+    };
+    const invalidReference = await createDenseUpstreamReference({ transformers: malformed, manifest });
+    try { await assert.rejects(invalidReference.embed(['first', '第二段']), { code: 'ERR_ASSERTION' }); }
+    finally { await invalidReference.close(); }
+    assert.deepEqual(malformedCloses, ['tensor', 'model', 'tokenizer'], 'Every rejected named output is closed before component cleanup: ' + mode);
+  }
 }
 const corpus = await loadDenseJudgedCorpus();
 assert.equal(corpus.documents.length, 16); assert.equal(corpus.queries.length, 8);

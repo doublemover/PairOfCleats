@@ -1,6 +1,6 @@
 # PairOfCleats Roadmap
 
-Status: P2/P3 closeout; Windows repairs and focused qualification
+Status: Windows P2/P3 checkpoint; execution paused by request
 Last audited: 2026-10-30
 Last reconciled: 2026-10-30
 Canonical for: initiative status, execution order, and remaining work
@@ -11,7 +11,7 @@ The [current reconciliation](archived/windows-p2-p3-closure-followup-2026-10-30.
 
 P2/P3 has **331 qualified closures /nine remaining targets /six editor exclusions** from346 reports. The parent and two persistent Sol6.1 High agents share the Windows checkout. Frontload shared-owner repairs, then run affected controls.
 
-The [native parity repair](archived/windows-onnx-runtime-parity-2026-10-30.md) attributes the mixed ORT crash to API31 requested from the loaded1.30 DLL. Both consumers share exact1.30.0: ten fresh minimized cases, both public MiniLM orders and13 focused controls pass; setup verifies both orders. The [native/drain closeout](archived/windows-native-phase-closeout-2026-10-30.md) records the Perl counterfactual, nine historical traversal comparisons, three complete drain passes and compiler revocation. The [LSP/native window](archived/windows-lsp-native-qualification-2026-10-30.md) retains45 focused passes and18 projection capsules. Earlier source-bound receipts remain in the matrix below. Real models and full SQLite costs remain.
+The [native parity repair](archived/windows-onnx-runtime-parity-2026-10-30.md) records shared ORT1.30.0, ten minimized fresh passes, both public MiniLM orders and13 focused controls. The [native/drain closeout](archived/windows-native-phase-closeout-2026-10-30.md) records Perl counterfactuals, historical traversal comparisons, three complete drain passes and revocation. [Projection acceptance](archived/windows-native-projection-final-qualification-2026-10-30.md) adds seven functional controls,18 fresh-arm memory and18 current-binary query/publication passes. E5 reference output naming is repaired; its actual rerun, remaining model costs and full SQLite qualification remain.
 
 Completed source-bound checks are indexed in the
 [qualification archive](archived/native-runtime-qualification-index-2026-10-27.md)
