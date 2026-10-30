@@ -1,6 +1,6 @@
 import { writeSqliteIndexFormat } from '../index-format.js';
 import { CREATE_SEMANTIC_TABLES_SQL } from '../semantic/schema.js';
-import { createOptionalFtsTables, listOptionalFtsTables } from '../fts-variants.js';
+import { createFtsMultiRowInserter, createOptionalFtsTables, listOptionalFtsTables } from '../fts-variants.js';
 import fsSync from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
@@ -19,7 +19,7 @@ import {
 } from '../utils.js';
 import { applyBuildPragmas, optimizeBuildDatabase, optimizeFtsTable, restoreBuildPragmas } from './pragmas.js';
 import { validateSqliteDatabase } from './validate.js';
-import { createInsertStatements } from './statements.js';
+import { createInsertStatements, SQLITE_CHUNK_COLUMNS } from './statements.js';
 import { createMultiRowInserter } from './multi-row.js';
 import { createTempPath } from '../../../shared/json-stream/atomic.js';
 import { getCacheTempRoot } from '../../../shared/cache-roots.js';
@@ -256,10 +256,10 @@ const createOptionalMultiRowInserter = (db, enabled, options) => (
 /**
  * Create prepared/multi-row inserters for all sqlite output tables.
  * @param {any} db
- * @param {{batchStats?:object,resolvedStatementStrategy?:string}} input
+ * @param {{batchStats?:object,resolvedStatementStrategy?:string,uniqueTokenPostings?:boolean}} input
  * @returns {object}
  */
-export const createSqliteBuildInsertContext = (db, { batchStats, resolvedStatementStrategy }) => {
+export const createSqliteBuildInsertContext = (db, { batchStats, resolvedStatementStrategy, uniqueTokenPostings = false }) => {
   const statements = createInsertStatements(db, { updateMode: 'full', stats: batchStats });
   const insertClause = statements.insertClause || batchStats?.insertStatements?.insertClause || 'INSERT';
   const tokenPostingsConflictClause = insertClause === 'INSERT'
@@ -270,6 +270,10 @@ export const createSqliteBuildInsertContext = (db, { batchStats, resolvedStateme
     ...statements,
     insertClause,
     useMultiRow,
+    insertChunkMany: createOptionalMultiRowInserter(db, useMultiRow, {
+      table: 'chunks', columns: SQLITE_CHUNK_COLUMNS, insertClause, stats: batchStats
+    }),
+    insertFtsMany: useMultiRow ? createFtsMultiRowInserter(db, { insertClause, stats: batchStats }) : null,
     insertTokenVocabMany: createOptionalMultiRowInserter(db, useMultiRow, {
       table: 'token_vocab',
       columns: ['mode', 'token_id', 'token'],
@@ -282,8 +286,7 @@ export const createSqliteBuildInsertContext = (db, { batchStats, resolvedStateme
       columns: ['mode', 'token_id', 'doc_id', 'tf'],
       insertClause,
       conflictClause: tokenPostingsConflictClause,
-      dedupeKeyIndices: [0, 1, 2],
-      dedupeSumIndex: 3,
+      ...(uniqueTokenPostings ? {} : { dedupeKeyIndices: [0, 1, 2], dedupeSumIndex: 3 }),
       maxRows: 200,
       stats: batchStats
     }),

@@ -6,6 +6,8 @@ import { assertMinhashHashIdentity } from '../../../index/minhash.js';
 import { writeSqliteMinhashHeader } from '../minhash.js';
 import { throwIfAborted, isAbortError } from '../../../shared/abort.js';
 import { rebuildSqliteFilterFacts } from '../filter-facts.js';
+import { SQLITE_FTS_ROW_KEYS } from '../fts-variants.js';
+import { SQLITE_CHUNK_COLUMNS } from './statements.js';
 import {
   buildChunkRow,
   buildFileManifestRows,
@@ -190,9 +192,13 @@ async function buildDatabaseFromBundlesOwned({
   });
   let succeeded = false, operationFailed = false, operationError;
   try {
+    // Each assigned document ID is unique, and buildTokenFrequency emits one
+    // posting per token/document. Avoid re-encoding dedupe keys for those rows.
     const {
       insertChunk,
       insertFts,
+      insertChunkMany,
+      insertFtsMany,
       insertTokenVocab,
       insertTokenPosting,
       insertDocLength,
@@ -212,7 +218,7 @@ async function buildDatabaseFromBundlesOwned({
       insertPhrasePostingMany,
       insertChargramVocabMany,
       insertChargramPostingMany
-    } = createSqliteBuildInsertContext(db, { batchStats, resolvedStatementStrategy });
+    } = createSqliteBuildInsertContext(db, { batchStats, resolvedStatementStrategy, uniqueTokenPostings: true });
     const selectTokenVocabId = db.prepare('SELECT token_id FROM token_vocab WHERE mode = ? AND token = ?');
     const selectPhraseVocabId = db.prepare('SELECT phrase_id FROM phrase_vocab WHERE mode = ? AND ngram = ?');
     const selectChargramVocabId = db.prepare('SELECT gram_id FROM chargram_vocab WHERE mode = ? AND gram = ?');
@@ -300,6 +306,7 @@ async function buildDatabaseFromBundlesOwned({
     let denseRows = 0;
     let denseMetaRows = 0;
 
+    const chunkBuffer = [], ftsBuffer = [];
     const tokenVocabBuffer = [];
     const tokenPostingBuffer = [];
     const docLengthBuffer = [];
@@ -321,6 +328,8 @@ async function buildDatabaseFromBundlesOwned({
     };
 
     const flushAllBuffers = () => {
+      flushBuffer(chunkBuffer, insertChunkMany);
+      flushBuffer(ftsBuffer, insertFtsMany);
       flushBuffer(tokenVocabBuffer, insertTokenVocabMany, insertTokenVocab);
       flushBuffer(tokenPostingBuffer, insertTokenPostingMany, insertTokenPosting);
       flushBuffer(docLengthBuffer, insertDocLengthMany, insertDocLength);
@@ -439,8 +448,14 @@ async function buildDatabaseFromBundlesOwned({
         const docId = resolveChunkDocId(chunk, fileKey);
 
         const row = buildChunkRow({ ...chunk, file: chunk.file || fileKey }, mode, docId);
-        insertChunk.run(row);
-        insertFts.run(row);
+        if (insertChunkMany) {
+          chunkBuffer.push(SQLITE_CHUNK_COLUMNS.map(key => row[key]));
+          if (chunkBuffer.length >= insertChunkMany.maxRows) flushBuffer(chunkBuffer, insertChunkMany);
+        } else insertChunk.run(row);
+        if (insertFtsMany) {
+          ftsBuffer.push(SQLITE_FTS_ROW_KEYS.map(key => row[key]));
+          if (ftsBuffer.length >= insertFtsMany.maxRows) flushBuffer(ftsBuffer, insertFtsMany);
+        } else insertFts.run(row);
         chunkRows += 1;
         ftsRows += 1;
 

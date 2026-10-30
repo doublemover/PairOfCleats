@@ -1,5 +1,12 @@
 import { createFtsInserter } from '../fts-variants.js';
 import { createSqliteFilterFactWriter } from '../filter-facts.js';
+
+export const SQLITE_CHUNK_COLUMNS = Object.freeze([
+  'id', 'chunk_id', 'mode', 'file', 'start', 'end', 'startLine', 'endLine', 'ext', 'kind', 'name',
+  'metaV2_json', 'headline', 'preContext', 'postContext', 'weight', 'tokens', 'phrase_tokens', 'ngrams', 'codeRelations',
+  'docmeta', 'stats', 'complexity', 'lint', 'externalDocs', 'last_modified', 'last_author',
+  'churn', 'churn_added', 'churn_deleted', 'churn_commits', 'chunk_authors'
+]);
 /**
  * Create and return the sqlite insert statement set for one build pass.
  * @param {any} db
@@ -21,18 +28,8 @@ export const createInsertStatements = (db, options = {}) => {
 
   const putFilterFacts = createSqliteFilterFactWriter(db);
   const chunkStatement = db.prepare(`
-    ${insertClause} INTO chunks (
-      id, chunk_id, mode, file, start, end, startLine, endLine, ext, kind, name,
-      metaV2_json, headline, preContext, postContext, weight, tokens, phrase_tokens, ngrams, codeRelations,
-      docmeta, stats, complexity, lint, externalDocs, last_modified, last_author,
-      churn, churn_added, churn_deleted, churn_commits, chunk_authors
-    ) VALUES (
-      @id, @chunk_id, @mode, @file, @start, @end, @startLine, @endLine, @ext, @kind,
-      @name, @metaV2_json, @headline, @preContext, @postContext, @weight, @tokens, @phrase_tokens, @ngrams,
-      @codeRelations, @docmeta, @stats, @complexity, @lint, @externalDocs,
-      @last_modified, @last_author, @churn, @churn_added, @churn_deleted, @churn_commits,
-      @chunk_authors
-    );
+    ${insertClause} INTO chunks (${SQLITE_CHUNK_COLUMNS.join(',')})
+    VALUES (${SQLITE_CHUNK_COLUMNS.map(column => '@' + column).join(',')});
   `);
   const insertChunk = updateMode === 'full' ? chunkStatement : { run(row) {
     const result = chunkStatement.run(row);
