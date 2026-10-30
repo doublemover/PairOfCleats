@@ -69,7 +69,11 @@ try {
               `${backend}/${mode}/${generation}/${temperature}/${query}/${fileFilter}`);
             assert.equal(hits.executionOutcome.cacheable, true);
             if (query === 'alpha OR NOT gamma' && !fileFilter) {
-              assert.equal(hits[0].id, 0); assert.equal(hits[1].id, 1); assert.equal(hits[1].sparseScore, 0);
+              assert.equal(hits[0].id, 0); assert.equal(hits[1].id, 1);
+              // SQLite FTS negates its ascending BM25 cost. Its exact SQL zero
+              // therefore becomes IEEE -0, the same zero lexical contribution.
+              assert.ok(hits[1].sparseScore === 0, 'the complement has exactly zero lexical contribution');
+              assert.ok(hits[0].sparseScore > hits[1].sparseScore);
             }
           }
           if (backend === 'tantivy' && query === 'alpha OR NOT gamma' && !fileFilter) {
