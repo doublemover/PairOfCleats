@@ -7,18 +7,11 @@ Canonical for: initiative status, execution order, and remaining work
 
 ## Current GitHub repair program
 
-The [closeout review](archived/github-issue-closeout-2026-10-26.md) and later
-qualified checks closed325 reports; three earlier GitHub closures are also reconciled. The
-[current reconciliation](archived/p2-p3-closeout-2026-10-29.md)
-leaves **442 open**:204 qualification-pending,
-149 partial and 89 unresolved entries.
+The [current reconciliation](archived/p2-p3-closeout-2026-10-29.md) covers **791 reports: 372 closed /419 open**. The open queue has 146 qualification-pending, 165 partial/follow-up and 108 unresolved reports. Sixty new closures were individually verified; 19 new reports and 18 reopened reports are included.
 
-The [assessment](archived/github-issue-closeout-2026-10-26.json) maps sources,
-tests and closure witnesses; [earlier receipts](archived/solo-issue-repairs-2026-10-25.md)
-retain historical evidence. Parent and two persistent agents work on Windows; hosted checks retain
-their source identities. Consumer candidate `27c2a65af` adds273 passing affected/gate cases and29
-individually verified closures; #1362’s backend fault matrix is complete. #1350 retains its semantic-drain
-timeout; #1384 retains its excluded editor component.
+P2/P3 now has **284 qualified closures /56 remaining targets /six editor exclusions** from 346 intake reports. The parent and two persistent Sol 6.1 High agents share the Windows checkout. Frontload shared-owner repairs, then run affected controls.
+
+The [consumer/measurement receipt](archived/windows-consumer-measurement-closeout-2026-10-29.md) binds source `5368f9642`: 478 distinct passing Node cases, 152 Rust tests and all eight publish checks, including 41 gate cases. Fresh native verification passes without warnings. Four API deadlines, semantic drain, the complete UTF-8 VFS sequence, canonical Three lifecycle, real models and optional/native performance acceptance remain open. Subsequent source changes await their own qualification.
 
 Completed source-bound checks are indexed in the
 [qualification archive](archived/native-runtime-qualification-index-2026-10-27.md)
@@ -49,7 +42,7 @@ await execution; lifecycle policy (#1267) and custom cleanup (#1574) remain.
 The [owner queue](archived/remaining-issue-batches-2026-10-26.json) orders
 implementation by severity and shared dependencies:
 
-1. [P2/P3 closeout](archived/p2-p3-closeout-2026-10-29.md): 83 targets remain; six editor issues are excluded. All 658 mapped correctness checks ran (637 pass/21 fail); focused repairs now pass. P1 #1574 remains outside this request.
+1. [P2/P3 closeout](archived/p2-p3-closeout-2026-10-29.md): 56 targets remain; six editor issues are excluded. All 658 mapped correctness checks ran (637 pass/21 fail); focused repairs now pass. P1 #1574 remains outside this request.
 2. Worker/service ownership and provider installation (#631); [compilation context and report refresh](archived/throughput-materialization-implementation-2026-10-28.md) await qualification.
 3. Language/semantic/replay and retrieval/API evidence contracts; [comment source/demand ownership](archived/comment-pipeline-implementation-2026-10-27.md)
    has 38 authored JS/TS/Rust/import cases. [Frontmatter interiors](archived/frontmatter-content-implementation-2026-10-27.md)

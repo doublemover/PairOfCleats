@@ -6,6 +6,23 @@ Current execution evidence and unresolved failures belong to the
 [deep test audit](../archived/deep-test-audit-2026-10-18.md) and the
 [active roadmap](../roadmap.md).
 
+The latest [consumer/measurement receipt](../archived/windows-consumer-measurement-closeout-2026-10-29.md)
+qualifies frozen source `5368f9642bcf4423a895715b9e33f34e1e1346a8`: **478 distinct
+passing discovered Node cases**, **152 Rust tests**, all eight publication checks
+and **41 gate cases**. Fresh Windows x64/ABI 147 verification on Node 26.13.0
+passes without warnings or errors (37 required packages, 33 routes, seven patches,
+25 targets, 59 hunks). Sixty issue closures were read back individually; the
+[current reconciliation](../archived/p2-p3-closeout-2026-10-29.md) includes later
+new/reopened intake and leaves 56 P2/P3 targets plus six exclusions.
+
+The original four API deadlines and semantic phase-drain timeout remain failures.
+The canonical Three rendered lifecycle and complete UTF-8 VFS sequence remain
+unqualified; bounded replacement phase measurements retain their explicit inputs
+and execution boundaries. Optional native Tantivy, real models and broad resource
+acceptance remain separate. The Linux ELF positive retains its Linux owner and
+the Windows unsupported-platform control passes. New implementation is not
+qualified by the frozen-source observations below.
+
 The [P2/P3 closeout](../archived/p2-p3-closeout-2026-10-29.md) reuses exact
 Windows hosted observations at `4c535a148` where source and complete issue controls
 match. Five reports close without rerunning passing controls. Six editor-dependent
