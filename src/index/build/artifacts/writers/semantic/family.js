@@ -1,20 +1,16 @@
-import { assertSemanticOperationIndex } from '../../../../../contracts/validators/semantic-operation-index.js';
-import { operationIndexEntries, compareOperationIndexRows } from '../../../../../semantic/operation-index.js';
 import { semanticHash, canonicalSemanticJson } from '../../../../semantic/identity.js';
 import { semanticTaskInputHash } from '../../../../semantic/frontier.js';
 import { createHash } from 'node:crypto';
-import { writeSemanticQueryIndex } from './query-index.js';
+import { writeValidatedSemanticIndexes } from './validated-indexes.js';
 import { createSemanticDiskAccount } from './partition.js';
 import { assertSemanticEnvelope } from '../../../../../contracts/validators/semantic-envelopes.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createArtifactSemanticStore } from '../../../../../semantic/artifact-store.js';
-import { validateSemanticPartitions } from '../../../../semantic/reconcile.js';
 import { SEMANTIC_MEMBER_NAMES } from '../../../../../contracts/schemas/semantic-envelopes.js';
 import { ARTIFACT_SURFACE_VERSION } from '../../../../../contracts/versioning.js';
 import { writeSemanticJson } from '../../../../semantic/disk-writes.js';
 import { normalizeSemanticConfig } from '../../../../semantic/config.js';
-import { runWithSettledConcurrency } from '../../../../../shared/concurrency/run-with-queue.js';
 
 /** Existing write queue owns this family; existing whole-build promoter exposes it. */
 export const enqueueSemanticArtifacts = ({ state, root, outDir, indexState, enabled,
@@ -37,7 +33,6 @@ export const enqueueSemanticArtifacts = ({ state, root, outDir, indexState, enab
     const semanticRoot = path.join(outDir, 'semantic');
     const store = createArtifactSemanticStore({ root: semanticRoot, repoRoot: root,
       artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION, generation, partitions });
-    await validateSemanticPartitions({ store, partitions, signal });
     const planning = [...(state.semanticPlanningBySource?.values() || [])].map(plan => {
       const descriptor = descriptorsBySource.get(plan.sourceUnitId);
       if (!descriptor || descriptor.sourceHash !== plan.sourceHash || descriptor.syntaxPartitionId !== plan.syntaxPartitionId) throw new Error('Semantic planning/source identity mismatch.');
@@ -61,27 +56,51 @@ export const enqueueSemanticArtifacts = ({ state, root, outDir, indexState, enab
       }
       targetPaths.set(target.path, { ...target, payload: JSON.parse(bytes.toString('utf8')) });
     }
-    const tasks = new Map();
-    for (const partition of partitions) for await (const task of store.iterateRows(partition.partitionId, 'semantic_frontier', { signal })) {
-      const target = targetPaths.get(task.targetsRef);
-      if (!target || task.baseBuildId !== generation.baseBuildId
-        || canonicalSemanticJson(target.payload.generation) !== canonicalSemanticJson(generation)
-        || semanticHash('pairofcleats.semantic.binding-targets.v1', target.payload) !== task.targetSetHash) {
-        throw new Error('Semantic frontier target/generation mismatch.');
+    const tasks = new Map(), sources = new Map();
+    const partitionRanks = new Map(partitions.map((partition, rank) => [partition.partitionId, rank]));
+    const [queryIndex, operationIndex] = await writeValidatedSemanticIndexes({
+      root: semanticRoot, generation, partitions, store, diskAccount, signal,
+      onValidatedRow({ partition, member, row, rowOrdinal }) {
+        if (member === 'semantic_sources') {
+          const descriptor = descriptorsBySource.get(row.sourceUnitId);
+          if (!descriptor || descriptor.sourceHash !== row.byteHash || descriptor.repositoryNamespace !== row.repositoryNamespace) {
+            throw Object.assign(new Error('Semantic descriptor/source identity mismatch.'), { code: 'ERR_SEMANTIC_INTEGRITY' });
+          }
+          sources.set(partition.partitionId, path.join(semanticRoot, 'semantic-sources', row.byteHash + '.utf8'));
+        }
+        if (member !== 'semantic_frontier') return;
+        const target = targetPaths.get(row.targetsRef);
+        if (!target || row.baseBuildId !== generation.baseBuildId
+          || canonicalSemanticJson(target.payload.generation) !== canonicalSemanticJson(generation)
+          || semanticHash('pairofcleats.semantic.binding-targets.v1', target.payload) !== row.targetSetHash) {
+          throw new Error('Semantic frontier target/generation mismatch.');
+        }
+        // Preserve the previous sorted-partition/row last-write precedence,
+        // independent of which bounded validation worker reaches this row first.
+        const rank = partitionRanks.get(partition.partitionId), previous = tasks.get(row.taskId);
+        if (!previous || rank > previous.rank || rank === previous.rank && rowOrdinal > previous.rowOrdinal) {
+          tasks.set(row.taskId, { task: row, rank, rowOrdinal });
+        }
+      },
+      async afterValidation() {
+        const evidencePaths = new Set(evidenceArtifacts.map(item => item.path));
+        for (const admission of manifest.compilerAdmissions) {
+          if (!evidencePaths.has(admission.decisionRef) || (admission.receiptRef && !evidencePaths.has(admission.receiptRef))
+            || admission.taskIds.some(id => !tasks.has(id))) throw new Error('Semantic compiler admission evidence mismatch.');
+        }
+        for (const receipt of completedTasks) {
+          const task = tasks.get(receipt.taskId)?.task;
+          if (!task || receipt.baseBuildId !== generation.baseBuildId || receipt.policyHash !== task.policyHash || receipt.inputHash !== semanticTaskInputHash(task)) {
+            throw new Error('Semantic completion receipt mismatch.');
+          }
+        }
+        const verified = new Set();
+        for (const partition of partitions) {
+          const filename = sources.get(partition.partitionId);
+          if (!verified.has(filename)) { await fs.stat(filename); verified.add(filename); }
+        }
       }
-      tasks.set(task.taskId, task);
-    }
-    const evidencePaths = new Set(evidenceArtifacts.map(item => item.path));
-    for (const admission of manifest.compilerAdmissions) {
-      if (!evidencePaths.has(admission.decisionRef) || (admission.receiptRef && !evidencePaths.has(admission.receiptRef))
-        || admission.taskIds.some(id => !tasks.has(id))) throw new Error('Semantic compiler admission evidence mismatch.');
-    }
-    for (const receipt of completedTasks) {
-      const task = tasks.get(receipt.taskId);
-      if (!task || receipt.baseBuildId !== generation.baseBuildId || receipt.policyHash !== task.policyHash || receipt.inputHash !== semanticTaskInputHash(task)) {
-        throw new Error('Semantic completion receipt mismatch.');
-      }
-    }
+    });
     await writeSemanticJson({ filename: path.join(outDir, 'semantic_manifest.json'), value: manifest, diskAccount, signal });
     const register = (name, filePath, count = 0, sealedHash = null, bytes = null) => {
       if (sealedHash != null && !/^[a-f0-9]{64}$/.test(sealedHash)) throw new Error('Invalid sealed semantic checksum.');
@@ -93,17 +112,6 @@ export const enqueueSemanticArtifacts = ({ state, root, outDir, indexState, enab
     for (const artifact of evidenceArtifacts) register('semantic_evidence', path.join(semanticRoot, artifact.path), 0, artifact.hash, artifact.bytes);
     for (const target of frontierTargets) register('semantic_frontier_targets', path.join(semanticRoot, target.path), 0, target.hash, target.bytes);
     register('semantic_manifest', path.join(outDir, 'semantic_manifest.json'), partitions.length);
-    // These physical indexes have independent inputs and private output roots.
-    // Retain each index's original 1MiB row allowance, with at most two bounded
-    // buffers. Share the former row-count/merge fan-in budgets, and drain both
-    // original owners before registration or exposing any failure.
-    const [queryIndex, operationIndex] = await runWithSettledConcurrency(['query', 'operation'], 2,
-      kind => writeSemanticQueryIndex({ root: semanticRoot, repoRoot: root, generation, partitions, store,
-        diskAccount, signal, batchRows: 512, batchBytes: 1048576, maxOpenRuns: 8,
-        ...(kind === 'operation' ? { entries: operationIndexEntries(store, partitions, signal),
-          compareRows: compareOperationIndexRows, keyForRow: row => row,
-          validateIndex: assertSemanticOperationIndex, directoryPrefix: 'semantic-operation-index-', schemaVersion: 2 } : {}) }),
-      { signal, collectResults: true });
     await writeSemanticJson({ filename: path.join(outDir, 'semantic_query_index.json'), value: queryIndex, diskAccount, signal });
     register('semantic_query_index', path.join(outDir, 'semantic_query_index.json'), queryIndex.rowCount);
     for (const piece of queryIndex.pieces) {
@@ -128,14 +136,8 @@ export const enqueueSemanticArtifacts = ({ state, root, outDir, indexState, enab
     }
     const registered = new Set();
     for (const partition of partitions) {
-      for await (const source of store.iterateRows(partition.partitionId, 'semantic_sources', { signal })) {
-        const descriptor = descriptorsBySource.get(source.sourceUnitId);
-        if (!descriptor || descriptor.sourceHash !== source.byteHash || descriptor.repositoryNamespace !== source.repositoryNamespace) {
-          throw Object.assign(new Error('Semantic descriptor/source identity mismatch.'), { code: 'ERR_SEMANTIC_INTEGRITY' });
-        }
-        const filePath = path.join(semanticRoot, 'semantic-sources', source.byteHash + '.utf8');
-        if (!registered.has(filePath)) { await fs.stat(filePath); register('semantic_source_text', filePath); registered.add(filePath); }
-      }
+      const filePath = sources.get(partition.partitionId);
+      if (!registered.has(filePath)) { register('semantic_source_text', filePath); registered.add(filePath); }
     }
   }, { family: 'semantic' });
 };

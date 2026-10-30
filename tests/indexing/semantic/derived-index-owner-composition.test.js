@@ -18,7 +18,7 @@ globalThis[key] = state;
 const source = new URL('../../../src/index/build/artifacts/writers/semantic/query-index.js', import.meta.url).href;
 const hooks = registerHooks({
   resolve(specifier, context, next) {
-    if (context.parentURL?.endsWith('/writers/semantic/family.js') && specifier === './query-index.js') {
+    if (context.parentURL?.endsWith('/writers/semantic/validated-indexes.js') && specifier === './query-index.js') {
       return { url: 'derived-index:observed-owner', shortCircuit: true };
     }
     return next(specifier, context);
@@ -26,14 +26,17 @@ const hooks = registerHooks({
   load(url, context, next) {
     if (url !== 'derived-index:observed-owner') return next(url, context);
     return { format: 'module', shortCircuit: true, source: `
-      import { writeSemanticQueryIndex as original } from ${JSON.stringify(source)};
-      export async function writeSemanticQueryIndex(options) {
+      import { createSemanticQueryIndexIntake as original } from ${JSON.stringify(source)};
+      export async function createSemanticQueryIndexIntake(options) {
         const state = globalThis[Symbol.for('poc.derived-index-composition')];
         const operation = options.directoryPrefix === 'semantic-operation-index-';
         state.calls.push({operation,batchRows:options.batchRows,batchBytes:options.batchBytes,maxOpenRuns:options.maxOpenRuns});
-        if (operation && state.failure) throw state.originalFailure;
-        if (!operation) { state.entered.resolve(); await state.release.promise; }
-        return original(options);
+        const intake = await original(options);
+        return {...intake, async finalize(...args) {
+          if (operation && state.failure) throw state.originalFailure;
+          if (!operation) { state.entered.resolve(); await state.release.promise; }
+          return intake.finalize(...args);
+        }};
       }` };
   }
 });

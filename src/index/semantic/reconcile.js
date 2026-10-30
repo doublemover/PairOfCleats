@@ -40,15 +40,16 @@ export const reconcileCompilerSummaryDemandSeed = async ({ store, request, signa
  * It cannot supply a receipt or bypass validation. All admitted observer work
  * joins the existing bounded partition/reader lifetime, including rejection.
  */
-export const validateSemanticPartitions = async ({ store, partitions, referencePartitions = partitions, signal = null, onValidatedRow = null }) => {
+export const validateSemanticPartitions = async ({ store, partitions, referencePartitions = partitions, signal = null, onValidatedRow = null, partitionConcurrency = 4 }) => {
   if (onValidatedRow !== null && typeof onValidatedRow !== 'function') throw new TypeError('Host semantic row observer must be callable.');
+  if (!Number.isSafeInteger(partitionConcurrency) || partitionConcurrency < 1 || partitionConcurrency > 4) throw new RangeError('Semantic partition readers must remain bounded by four.');
   const sizes = new Map(referencePartitions.map((p) => [p.partitionId,
     p.members.semantic_records.reduce((sum, piece) => sum + piece.count, 0)]));
   // Partition hashes/references are independent once the closed inventory is
   // captured. Bound outstanding readers and drain every admitted partition on
   // failure; never return while another partition still owns original I/O.
   const sourceChecks = new Map();
-  await runWithSettledConcurrency(partitions, 4, async partition => {
+  await runWithSettledConcurrency(partitions, partitionConcurrency, async partition => {
     const hashes = {};
     const checkRef = (ref) => {
       if (!ref || !Object.hasOwn(ref, 'partitionId')) return;
@@ -77,7 +78,7 @@ export const validateSemanticPartitions = async ({ store, partitions, referenceP
           for (const key of ['parent', 'owner', 'initializer', 'typeSyntax', 'expression', 'occurrence', 'site', 'storage', 'invocation']) checkRef(row.data[key]);
         } else for (const key of ['parent', 'child', 'from', 'to', 'callSite', 'condition', 'evidence', 'recordRef', 'scope']) checkRef(row[key]);
         if (onValidatedRow) {
-          const observed = onValidatedRow({ partition, member, row });
+          const observed = onValidatedRow({ partition, member, row, rowOrdinal: count - 1 });
           if (observed !== undefined) await observed;
         }
       }
