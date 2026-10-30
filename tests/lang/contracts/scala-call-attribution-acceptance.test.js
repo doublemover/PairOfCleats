@@ -22,6 +22,11 @@ const cases = [
       + '\ndef zzz(): Int = target()\n', calls: [['zzz', 'target', 'target()']] },
   { name: 'positive', text: 'def real(): Int = helper()\n', calls: [['real', 'helper', 'helper()']] }
 ];
+const expectedOwners = {
+  'no-call': ['first', 'second'], independent: ['first', 'second'], recursive: ['recur'],
+  qualified: ['Box.caller', 'Box.helper'], 'comment-and-string': ['real'], nullary: ['first', 'second'],
+  starvation: [...'abcdefghijkl', 'zzz'], positive: ['real']
+};
 const parser = getNativeTreeSitterParser('scala'); assert.ok(parser);
 const ordered = rows => rows.map(row => JSON.stringify(row)).toSorted();
 for (const spec of cases) {
@@ -47,7 +52,22 @@ for (const spec of cases) {
     });
     assert.deepEqual(ordered(projected), ordered(occurrences), spec.name + ': exact owner and complete invocation ranges');
     assert.deepEqual(ordered(fixture.projected.flatMap(row => row.calls || [])), ordered(expected));
-    assert.ok(fixture.chunks.every(chunk => chunk.chunkUid && Array.isArray(chunk.meta.syntaxCalls)));
+    const callable = chunk => /Function|Method/u.test(chunk.kind);
+    assert.deepEqual(fixture.chunks.filter(callable).map(chunk => chunk.name).toSorted(),
+      expectedOwners[spec.name].toSorted(), spec.name + ': every independently expected callable must remain available');
+    for (const [index, chunk] of fixture.chunks.entries()) {
+      assert.ok(chunk.chunkUid, spec.name + ': canonical identity');
+      if (callable(chunk)) {
+        assert.ok(Array.isArray(chunk.meta.syntaxCalls) && Object.isFrozen(chunk.meta.syntaxCalls), spec.name + ': callable occurrence snapshot');
+        assert.equal(chunk.meta.syntaxCallCoverage, 'complete-supported-call-roles', spec.name + ': known empty is complete callable evidence');
+        assert.equal(fixture.projected[index].callCoverage, 'complete-supported-call-roles');
+      } else {
+        assert.equal(spec.name, 'qualified'); assert.equal(chunk.name, 'Box'); assert.equal(chunk.kind, 'ObjectDeclaration');
+        assert.equal(chunk.meta.syntaxCalls, undefined, 'a container is not a callable with an empty native snapshot');
+        assert.equal(fixture.projected[index].callDetails, undefined);
+        assert.deepEqual(fixture.projected[index].calls || [], [], 'container projection cannot inherit its methods\' invocations');
+      }
+    }
     assert.ok(!fixture.chunks.some(chunk => ['ghost', 'invented'].includes(chunk.name)));
     const sites = createCallSites({ chunks: fixture.chunks.map((chunk, index) => ({ ...chunk,
       file: spec.name + '.scala', lang: 'scala', codeRelations: fixture.projected[index] })) });
