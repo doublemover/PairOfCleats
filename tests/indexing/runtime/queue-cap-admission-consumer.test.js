@@ -6,9 +6,15 @@ import { withSchedulerCpuSuspended } from '../../../src/shared/concurrency/sched
 const gate = () => { let resolve; const promise = new Promise(done => { resolve = done; }); return { promise, resolve }; };
 const build = (scheduler, extra = {}) => createRuntimeQueues({ ioConcurrency: 2, cpuConcurrency: 2,
   fileConcurrency: 2, embeddingConcurrency: 2, procConcurrency: 2, pendingLimits: {}, scheduler, ...extra }).queues;
+// This matrix measures queue/token caps with adequate memory. Give the real
+// effective-memory owner explicit inputs so unrelated host pressure cannot
+// lower the configured memory token ceiling halfway through a held task.
+const memoryBytes = 64 * 1024 ** 3;
+const memoryBudget = { hostTotalBytes: memoryBytes, hostFreeBytes: memoryBytes,
+  constrainedBytes: memoryBytes, configuredLimitBytes: memoryBytes, availableBytes: memoryBytes, rssBytes: 0 };
 for (const enabled of [true, false]) for (const adaptive of [true, false]) for (const global of [1, 8]) {
   const scheduler = createBuildScheduler({ enabled, adaptive, cpuTokens: global, ioTokens: global,
-    memoryTokens: global, maxCpuTokens: global, maxIoTokens: global, maxMemoryTokens: global });
+    memoryTokens: global, maxCpuTokens: global, maxIoTokens: global, maxMemoryTokens: global, memoryBudget });
   const queues = build(scheduler), finish = gate();
   try {
     for (const kind of ['cpu', 'io', 'proc', 'embedding']) {

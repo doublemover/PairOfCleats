@@ -41,10 +41,18 @@ for (const mode of ['ci', 'nightly']) {
         : line === ann ? ['retrieval/ann/generation-lmdb',
           'retrieval/ann/generation-publication', 'retrieval/ann/generation-rebuild-failure']
           : ['indexing/semantic/compiler-single-cpu-lifecycle',
+            'map/member-join-work-consumer/measure',
+            ...['render', 'graph-skewed', 'graph-skewed-independent', 'map-large', 'memory-transient', 'vfs-ascii',
+              'vfs-many-persisted-1', 'vfs-many-persisted-2', 'vfs-many-persisted-3',
+              'vfs-many-hot-1', 'vfs-many-hot-2', 'vfs-many-hot-3', 'vfs-budget',
+              'sqlite-wide-a', 'sqlite-wide-b', 'sqlite-wide-c1', 'sqlite-wide-c2']
+              .map(id => `perf/bench/representative-workload-consumers/${id}`),
+            ...['results', 'publication'].map(id => `perf/bench/selected-cohort-generation-consumer/${id}`),
             'perf/parsers/jinja-cold-budget', 'perf/parsers/toml-cold-budget', 'perf/parsers/xml-cold-budget',
+            'retrieval/backend/fts-cooperative-timing-consumer',
             'smoke/baseline-negative/corrupt', 'smoke/baseline-negative/incomplete',
             'smoke/baseline-negative/legacy', 'smoke/baseline-negative/missing',
-            'tooling/reports/summary/report']);
+            'tooling/reports/summary/report'].sort());
       const broad = lines.find(value => value.startsWith('[dry-run] CI test lane:'));
       for (const id of selected) {
         const exclusion = `--exclude /^${id.replaceAll('/', '\\/')}$/`;

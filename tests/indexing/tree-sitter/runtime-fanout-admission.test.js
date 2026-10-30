@@ -11,12 +11,16 @@ const { dir } = await prepareIsolatedTestCacheDir('runtime-fanout-' + selected),
 const key = Symbol.for('poc.runtime-fanout'), state = { active: 0, peak: 0, tasks: [] }; globalThis[key] = state;
 const hooks = registerHooks({
   resolve(specifier, context, next) {
+    // The CPU-envelope matrix controls process availability as well as the
+    // parser scheduler. A hosted runner's physical core count is not its input.
+    if (context.parentURL?.endsWith('/shared/effective-cpu.js') && specifier === 'node:os') return { url: 'fanout:runtime-os', shortCircuit: true };
     if (context.parentURL?.endsWith('/runner/task-scheduler.js') && specifier === 'node:os') return { url: 'fanout:os', shortCircuit: true };
     if (context.parentURL?.endsWith('/runner/task-scheduler.js') && specifier.endsWith('/effective-memory.js') && selected === 'memory') return { url: 'fanout:memory', shortCircuit: true };
     if (context.parentURL?.endsWith('/runner/task-execution.js') && specifier.endsWith('/subprocess/runner.js')) return { url: 'fanout:spawn', shortCircuit: true };
     return next(specifier, context);
   },
   load(url, context, next) {
+    if (url === 'fanout:runtime-os') return { format: 'module', shortCircuit: true, source: 'import os from "node:os"; export default {...os, availableParallelism:()=>16};' };
     if (url === 'fanout:os') return { format: 'module', shortCircuit: true, source: 'import os from "node:os"; export default {...os, availableParallelism:()=>'+(selected === 'affinity' ? 2 : 16)+'};' };
     if (url === 'fanout:memory') return { format: 'module', shortCircuit: true, source: 'export const readEffectiveMemory=()=>({freeBytes:268435456});' };
     if (url === 'fanout:spawn') return { format: 'module', shortCircuit: true, source: `
