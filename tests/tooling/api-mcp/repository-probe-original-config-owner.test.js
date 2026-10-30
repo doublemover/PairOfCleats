@@ -22,6 +22,9 @@ const opened = new Set(); let active = false, opens = 0, reads = 0, closes = 0, 
 const primary = Object.freeze(new Error('original config descriptor operation failed'));
 const closeFailure = Object.freeze(new Error('original config descriptor close remains unknown'));
 const target = path.join(location === 'child' ? child : repo, '.pairofcleats.json');
+// Repository selection returns the canonical comparison spelling on Windows.
+// This equivalence applies to actual native paths, never artifact labels.
+const nativePathKey = value => process.platform === 'win32' ? path.resolve(value).toLowerCase() : path.resolve(value);
 let manager, failure, dependencyFailure;
 const graph = error => {
   const queue = [error], seen = new Set(), values = [];
@@ -39,10 +42,10 @@ try {
   await fsp.mkdir(path.join(parentArtifacts, 'index-code'), { recursive: true });
   if (surface !== 'mcp') manager = (surface === 'api' ? createApiManager : createRepoCacheManager)({ defaultRepo: repo });
   const resolve = candidate => surface === 'mcp' ? resolveRepoPath(candidate) : manager.getRepoCaches(candidate).repoRoot;
-  assert.equal(resolve(repo), repo, 'an explicit discovered root bypasses optional selection probes');
-  assert.equal(resolve(child), repo, 'settled child absence retains the current ancestor fallback');
+  assert.equal(nativePathKey(resolve(repo)), nativePathKey(repo), 'an explicit discovered root bypasses optional selection probes');
+  assert.equal(nativePathKey(resolve(child)), nativePathKey(repo), 'settled child absence retains the current ancestor fallback');
   await fsp.mkdir(path.join(childArtifacts, 'index-code'), { recursive: true });
-  assert.equal(resolve(child), child, 'healthy explicit child artifacts retain the repaired explicit-first policy');
+  assert.equal(nativePathKey(resolve(child)), nativePathKey(child), 'healthy explicit child artifacts retain the repaired explicit-first policy');
   manager?.closeRepoCaches();
   if (location === 'root') await fsp.rm(childArtifacts, { recursive: true, force: true });
   if (mode === 'read') {
@@ -56,8 +59,8 @@ try {
   } else primaryFailure = primary;
   fs.openSync = (filename, ...args) => {
     const fd = originalOpen(filename, ...args);
-    if (active && typeof filename === 'string' && path.resolve(filename) === path.join(repo, '.pairofcleats.json')) rootOpens++;
-    if (active && typeof filename === 'string' && path.resolve(filename) === target) { opens++; opened.add(fd); }
+    if (active && typeof filename === 'string' && nativePathKey(filename) === nativePathKey(path.join(repo, '.pairofcleats.json'))) rootOpens++;
+    if (active && typeof filename === 'string' && nativePathKey(filename) === nativePathKey(target)) { opens++; opened.add(fd); }
     return fd;
   };
   fs.fstatSync = (fd, ...args) => { if (active && mode === 'close' && opened.has(fd)) throw primaryFailure; return originalStat(fd, ...args); };
