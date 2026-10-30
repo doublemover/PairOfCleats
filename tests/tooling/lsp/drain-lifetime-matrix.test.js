@@ -8,6 +8,7 @@ const selected = process.env.PAIROFCLEATS_TEST_ID?.split('tooling/lsp/drain-life
 assert.ok(['kill-timeout', 'graceful-timeout-force', 'delayed-close', 'real-server-exit'].includes(selected));
 let creations = 0, kills = 0, syncKills = 0, shutdowns = 0, settled = false, phase = selected;
 let resolveKill, resolveClose, resolveShutdown, activeConfirm = () => {};
+const syncKillFailure = Object.freeze(new Error('original controlled synchronous kill denial'));
 const evidence = () => ({ settled, closeObserved: settled, exitObserved: settled, pending: !settled });
 const confirm = () => activeConfirm();
 globalThis.__drainLifetimeFactory = () => {
@@ -20,7 +21,8 @@ globalThis.__drainLifetimeFactory = () => {
     onResourcesSettled: observer => { observers.add(observer); return () => observers.delete(observer); },
     shutdownAndExit() { shutdowns++; return phase === 'graceful-timeout-force' ? new Promise(resolve => { resolveShutdown = resolve; }) : Promise.resolve(); },
     waitForResourceSettlement: () => phase === 'delayed-close' && !closed ? new Promise(resolve => { resolveClose = resolve; }) : Promise.resolve(ownedEvidence()),
-    killSync() { syncKills++; return { terminated: false, exitObserved: false }; },
+    killSync() { syncKills++; if (phase === 'kill-timeout') throw syncKillFailure;
+      return { terminated: false, exitObserved: false }; },
     kill() {
       kills++;
       if (phase === 'kill-timeout') return new Promise(resolve => { resolveKill = resolve; });
@@ -58,6 +60,8 @@ try {
     } else {
       const receipt = await drainLspSessionPool({ timeoutMs: 100, killFirst: false, log });
       assert.equal(receipt.status, 'timed_out'); assert.equal(settled, false); assert.ok(syncKills > 0);
+      assert.equal(receipt.failures[0].code, 'LSP_SESSION_POOL_DRAIN_TIMEOUT', 'the actual deadline cause is retained');
+      if (selected === 'kill-timeout') assert.equal(receipt.failures[1], syncKillFailure, 'exact original hard-kill failure accompanies the actual timeout');
       assert.ok(__testLspSessionPool.getPendingDisposals() > 0);
       const cancellation = new AbortController();
       const blocked = withLspSession({ ...options, abortSignal: cancellation.signal }, async () => assert.fail('pending owner cannot be replaced'));

@@ -2,6 +2,21 @@
 
 This document defines the operational surfaces for the LSP runtime, replay artifacts, and CI gates.
 
+## Explicit pool drain failures
+
+The explicit pool drain reports `ok`, `failed` or `timed_out` and retains the
+exact original rejection values in `failures`, including frozen errors and
+falsey thrown values. This array is drawn from the original bounded disposal
+wait. A timeout retains its original deadline error and any synchronous hard-kill
+failure; it still does not establish child exit or resource settlement. Warning
+callbacks cannot replace these causes. Same-key pending-disposal barriers remain
+owned by the original session.
+
+The partial-LSP benchmark consumes that receipt through its shared drain-result
+assertion. It preserves original causes with the existing storage error-composition
+owner and retains the fixture on unconfirmed closure. Error counts alone are not
+a replacement for the original cleanup failure or a deletion capability.
+
 ## Clangd compilation context
 
 Clangd admits a compilation database as bounded, read-only data. Missing,

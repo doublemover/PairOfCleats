@@ -793,12 +793,15 @@ const waitForAllSettledWithTimeout = async (promises, timeoutMs) => {
 };
 
 const hardKillSessionsSync = (sessionsToKill) => {
+  const failures = [];
   for (const session of sessionsToKill) {
     try { killSessionClient(session, { sync: true }); } catch (error) {
+      failures.push(error);
       unconfirmedDisposals.set(session.key, session);
       emitPoolWarning(session?.options?.log, `LSP hard kill failed: ${error?.message || error}`);
     }
   }
+  return failures;
 };
 
 const killAllSessionsNow = () => {
@@ -1017,7 +1020,7 @@ const acquireSessionTurn = async (options, owner) => {
  * idle timers or process exit hooks to reap language-server subprocesses.
  *
  * @param {{timeoutMs?:number,killFirst?:boolean,log?:(line:string)=>void}} [options]
- * @returns {Promise<{status:'ok'|'timed_out',total:number,rejected:number,timedOut:boolean,timeoutMs:number}>}
+ * @returns {Promise<{status:'ok'|'failed'|'timed_out',total:number,rejected:number,timedOut:boolean,timeoutMs:number,failures:Array<unknown>}>}
  */
 export const drainLspSessionPool = async (options = {}) => {
   if (drainSessionPoolPromise) return drainSessionPoolPromise;
@@ -1038,7 +1041,7 @@ export const drainLspSessionPool = async (options = {}) => {
       timeoutMs
     );
     if (waited.timedOut) {
-      hardKillSessionsSync(liveSessions);
+      const hardKillFailures = hardKillSessionsSync(liveSessions);
       if (log) {
         emitPoolWarning(log,
           `[tooling:lsp] session pool drain timed out after ${timeoutMs}ms; `
@@ -1050,10 +1053,14 @@ export const drainLspSessionPool = async (options = {}) => {
         total: liveSessions.length,
         rejected: 0,
         timedOut: true,
-        timeoutMs
+        timeoutMs,
+        failures: Object.freeze([waited.error, ...hardKillFailures])
       };
     }
-    const rejected = waited.settled.filter((entry) => entry?.status === 'rejected').length;
+    // Retain the exact original rejection values already admitted by this
+    // bounded wait. Counts and warning callbacks cannot replace their causes.
+    const failures = Object.freeze(waited.settled.filter((entry) => entry?.status === 'rejected').map(entry => entry.reason));
+    const rejected = failures.length;
     if (!rejected && sessionPoolMetrics.disposalFailures === disposalFailuresBeforeDrain) {
       retireUnusedHealthySessionRecords();
     }
@@ -1068,7 +1075,8 @@ export const drainLspSessionPool = async (options = {}) => {
       total: liveSessions.length,
       rejected,
       timedOut: false,
-      timeoutMs
+      timeoutMs,
+      failures
     };
   })();
   try {

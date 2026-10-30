@@ -11,6 +11,7 @@ const { formatStats, summarizeDurations, writeJsonWithDir } = await import('../m
 const { drainLspSessionPool } = await import('../../../src/integrations/tooling/providers/lsp/session-pool.js');
 const { observeStorageResource } = await import('../../../src/shared/storage/failure-observation.js');
 const { addStorageFailureContext } = await import('../../../src/shared/storage/operation-error.js');
+const { assertPartialLspDrain } = await import('./drain-result.js');
 
 async function main() {
   const rawArgs = process.argv.slice(2);
@@ -98,8 +99,7 @@ async function main() {
     try {
       if (failed) observeStorageResource(primary, { phase: 'partial-lsp-benchmark-before-cleanup' }).requireSettled();
       const drain = await drainLspSessionPool({ timeoutMs: 5000 });
-      if (drain.status !== 'ok') throw Object.assign(new Error('LSP benchmark pool drain is unconfirmed; fixture retained.'), {
-        code: 'ERR_BENCH_LSP_DRAIN', drain, fixtureRoot: tempRoot });
+      assertPartialLspDrain(drain, tempRoot);
       if (!argv.keep) await fs.rm(tempRoot, { recursive: true, force: true });
     } catch (cleanup) {
       if (failed) throw addStorageFailureContext(primary, { phase: 'partial-lsp-benchmark-cleanup' }, cleanup, { secondaryPresent: true });
