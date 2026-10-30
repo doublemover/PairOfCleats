@@ -51,13 +51,16 @@ try {
   const ordered = rows => rows.map(row => JSON.stringify(row)).toSorted();
   const declarations = [
     { form: 'braced', source: 'package Demo {\nsub callee { return 1; }\nsub caller { callee(); }\n}\n',
-      names: ['Demo.callee', 'Demo.caller'], snippets: ['sub callee { return 1; }', 'sub caller { callee(); }'],
+      names: ['Demo.callee', 'Demo.caller'], snippets: ['sub callee { return 1; }', 'sub caller { callee(); }\n'],
+      ranges: [[15, 39], [40, 65]],
       caller: 'Demo.caller', callee: 'callee', affected: ['Demo.callee', 'Demo.caller'] },
     { form: 'nested', source: 'package Demo {\nsub outer { sub helper { return 1; } helper(); }\n}\n',
-      names: ['Demo.outer', 'Demo.outer.helper'], snippets: ['sub outer { sub helper { return 1; } helper(); }', 'sub helper { return 1; }'],
+      names: ['Demo.outer', 'Demo.outer.helper'], snippets: ['sub outer { sub helper { return 1; } helper(); }\n', 'sub helper { return 1; }'],
+      ranges: [[15, 64], [27, 51]],
       caller: 'Demo.outer', callee: 'helper', affected: ['Demo.outer'] },
     { form: 'unbraced', source: 'package Demo;\nsub callee { return 1; }\nsub caller { callee(); }\n',
-      names: ['callee', 'caller'], snippets: ['sub callee { return 1; }', 'sub caller { callee(); }'],
+      names: ['callee', 'caller'], snippets: ['sub callee { return 1; }', 'sub caller { callee(); }\n'],
+      ranges: [[14, 38], [39, 64]],
       caller: 'caller', callee: 'callee', affected: [] }
   ];
   const cases = [];
@@ -67,8 +70,43 @@ try {
     const stat = await fs.stat(absolute), sourceHash = digest(source), fileHash = digest(source, 'sha1');
     const lineIndex = buildLineIndex(source), parser = getNativeTreeSitterParser('perl');
     assert.ok(parser, 'the actual installed patched Perl grammar is mandatory');
-    const tree = parser.parse(source);
-    try { assert.equal(tree.rootNode.hasError, false, tree.rootNode.toString()); }
+    const tree = parser.parse(source); let nativeEnvelopes;
+    try {
+      assert.equal(tree.rootNode.hasError, false, tree.rootNode.toString());
+      const pending = [tree.rootNode], definitions = [];
+      while (pending.length) {
+        const node = pending.pop();
+        if (node.type === 'function_definition') definitions.push(node);
+        for (const child of node.namedChildren) pending.push(child);
+      }
+      definitions.sort((left, right) => left.startIndex - right.startIndex);
+      assert.equal(definitions.length, spec.names.length);
+      nativeEnvelopes = spec.names.map((name, index) => {
+        const node = definitions[index], snippet = spec.snippets[index], [start, end] = spec.ranges[index];
+        assert.equal(source.indexOf(snippet), start); assert.equal(start + snippet.length, end);
+        assert.equal(node.startIndex, start); assert.equal(node.endIndex, end);
+        assert.equal(source.slice(node.startIndex, node.endIndex), snippet);
+        const identifier = node.childForFieldName('name'), body = node.childForFieldName('body');
+        assert.ok(identifier && body); assert.equal(source.slice(identifier.startIndex, identifier.endIndex), name.split('.').at(-1));
+        assert.equal(body.startIndex, start + snippet.indexOf('{')); assert.equal(body.endIndex, end);
+        const closingBrace = body.children.findLast(child => child.type === '}'); assert.ok(closingBrace);
+        const lexicalEnd = start + snippet.lastIndexOf('}') + 1;
+        assert.equal(closingBrace.startIndex, lexicalEnd - 1); assert.equal(closingBrace.endIndex, lexicalEnd);
+        // Installed Perl grammar.js:573–579 includes optional semi_colon in a
+        // block. scanner.c:1013–1026 skips LF before the next }/EOF and marks
+        // its automatic terminator there. Preserve that complete native range.
+        const terminator = body.children.find(child => child.type === 'semi_colon' && child.startIndex >= lexicalEnd);
+        if (snippet.endsWith('\n')) {
+          assert.equal(source.slice(lexicalEnd, end), '\n'); assert.ok(terminator);
+          assert.equal(terminator.startIndex, end); assert.equal(terminator.endIndex, end);
+          assert.ok(end === source.length || source[end] === '}');
+        } else { assert.equal(lexicalEnd, end); assert.equal(terminator, undefined); }
+        return { name, nodeType: node.type, start, end, bodyStart: body.startIndex, bodyEnd: body.endIndex,
+          closingBraceStart: closingBrace.startIndex, closingBraceEnd: closingBrace.endIndex,
+          automaticTerminator: terminator ? { type: terminator.type, start: terminator.startIndex, end: terminator.endIndex } : null,
+          envelope: snippet, sourceSliceHash: digest(source.slice(start, end)) };
+      });
+    }
     finally { tree.delete?.(); parser.reset?.(); }
     // Historical query instrumentation differs. This regression deliberately
     // uses real walk mode; existing repaired query/walk controls stay separate.
@@ -86,9 +124,12 @@ try {
     const chunks = smartChunk({ ...input, context });
     assert.deepEqual(chunks.map(({ name, kind }) => ({ name, kind })), expected);
     for (const [index, name] of spec.names.entries()) {
-      const chunk = chunks.find(row => row.name === name), snippet = spec.snippets[index], start = source.indexOf(snippet);
-      assert.ok(start >= 0); assert.equal(chunk.start, start); assert.equal(chunk.end, start + snippet.length);
-      assert.equal(source.slice(chunk.start, chunk.end), snippet, 'independently authored original declaration span');
+      const snippet = spec.snippets[index], [start, end] = spec.ranges[index];
+      assert.equal(source.indexOf(snippet), start); assert.equal(start + snippet.length, end);
+      for (const chunk of [native.find(row => row.name === name), chunks.find(row => row.name === name)]) {
+        assert.ok(chunk); assert.equal(chunk.start, start); assert.equal(chunk.end, end);
+        assert.equal(source.slice(chunk.start, chunk.end), snippet, 'independently authored complete native declaration envelope');
+      }
     }
     const expectedCalls = arm === 'original' && spec.affected.length ? [] : [[spec.caller, spec.callee]];
     const expectedExports = spec.names.filter(name => !(arm === 'original' && spec.affected.includes(name)));
@@ -140,6 +181,7 @@ try {
     assert.deepEqual(createCallSites({ chunks: cachedBundle.chunks }), sites);
     assert.equal(digest(await fs.readFile(absolute)), sourceHash);
     cases.push({ form: spec.form, source, sourceHash, fileHash, sourceBytes: Buffer.byteLength(source),
+      nativeEnvelopes,
       affected: spec.affected, rawCalls: raw.calls, filteredCalls: filtered.calls, exports: filtered.exports,
       callSites: sites, identities: payloads.map(row => ({ name: row.name, kind: row.kind, start: row.start, end: row.end,
         startLine: row.startLine, endLine: row.endLine, chunkUid: row.chunkUid,

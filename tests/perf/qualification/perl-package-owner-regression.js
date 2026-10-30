@@ -30,6 +30,7 @@ const transitions = [];
 for (const [index, before] of original.cases.entries()) {
   const after = current.cases[index];
   for (const field of ['source', 'sourceHash', 'fileHash', 'sourceBytes', 'affected']) assert.deepEqual(after[field], before[field]);
+  assert.deepEqual(after.nativeEnvelopes, before.nativeEnvelopes, 'both roles preserve the exact authored native envelopes and automatic terminators');
   assert.equal(before.identities.length, after.identities.length);
   for (const [rowIndex, oldRow] of before.identities.entries()) {
     const newRow = after.identities[rowIndex];
