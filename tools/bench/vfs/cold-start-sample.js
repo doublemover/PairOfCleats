@@ -7,7 +7,8 @@ import { VFS_COLD_START_MAX_BYTES } from '../../../src/index/tooling/vfs/constan
 import { VFS_COLD_MAX_ENTRIES } from '../../../src/index/tooling/vfs/cold-start-owner.js';
 import { readVerifiedContainedFile } from '../../../src/shared/contained-file.js';
 
-export const admitVfsColdStartWork = ({ docs, docBytes, samples }) => {
+export const admitVfsColdStartWork = ({ docs, docBytes, samples, content = 'ascii' }) => {
+  if (!['ascii', 'utf8'].includes(content)) throw new RangeError('Cold-start content must be ascii or utf8.');
   for (const [name, value, minimum] of [['docs', docs, 1], ['docBytes', docBytes, 8], ['samples', samples, 1]]) {
     if (!Number.isSafeInteger(value) || value < minimum) throw new RangeError(`Invalid cold-start benchmark ${name}.`);
   }
@@ -15,15 +16,17 @@ export const admitVfsColdStartWork = ({ docs, docBytes, samples }) => {
     || !Number.isSafeInteger(docs * docBytes) || docs * docBytes > VFS_COLD_START_MAX_BYTES * 2) {
     throw new RangeError('Cold-start benchmark exceeds 50,000 documents, 64 MiB per document or 128 MiB total.');
   }
-  return { docs, docBytes, samples };
+  return { docs, docBytes, samples, content };
 };
 
-export const buildVfsColdStartPlan = async ({ docs, docBytes }) => {
-  admitVfsColdStartWork({ docs, docBytes, samples: 1 });
+export const buildVfsColdStartPlan = async ({ docs, docBytes, content = 'ascii' }) => {
+  admitVfsColdStartWork({ docs, docBytes, samples: 1, content });
   const documents = [], witness = createHash('sha256'), contentHashes = new Set();
   let totalBytes = 0;
   for (let index = 0; index < docs; index++) {
-    const prefix = `doc-${index}-`, text = prefix.slice(0, docBytes) + 'x'.repeat(Math.max(0, docBytes - prefix.length));
+    const prefix = `doc-${index}-`.slice(0, docBytes), remaining = docBytes - Buffer.byteLength(prefix);
+    const unit = content === 'utf8' ? 'π😀' : 'x', unitBytes = Buffer.byteLength(unit);
+    const text = prefix + unit.repeat(Math.floor(remaining / unitBytes)) + 'x'.repeat(remaining % unitBytes);
     const hashed = await checksumString(text);
     if (hashed?.algo !== 'xxh64' || hashed.value === null || hashed.value === undefined || !String(hashed.value)) throw new Error('VFS benchmark source hash is unavailable.');
     const docHash = `xxh64:${hashed.value}`, bytes = Buffer.byteLength(text, 'utf8');
@@ -32,7 +35,7 @@ export const buildVfsColdStartPlan = async ({ docs, docBytes }) => {
     documents.push(document); totalBytes += bytes; contentHashes.add(sha256);
     witness.update(JSON.stringify([document.virtualPath, docHash, bytes, sha256])); witness.update('\n');
   }
-  return Object.freeze({ documents: Object.freeze(documents), identity: Object.freeze({ generator: 'fixed-byte-ascii-documents-v2',
+  return Object.freeze({ documents: Object.freeze(documents), identity: Object.freeze({ generator: content === 'utf8' ? 'fixed-byte-utf8-documents-v3' : 'fixed-byte-ascii-documents-v2',
     docs, requestedDocBytes: docBytes, actualUtf8Bytes: totalBytes, uniqueContentHashes: contentHashes.size,
     sha256: witness.digest('hex'), docHashAlgorithm: 'xxh64', hashBackend: await getXxhashBackend() }) });
 };

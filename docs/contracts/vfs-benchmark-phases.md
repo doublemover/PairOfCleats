@@ -40,3 +40,25 @@ profiles, churn/cache-budget ladders and final-source Windows execution remain
 separate qualification work. Cache root/content and live-bound repairs retain
 their own contracts in `vfs-materialization-integrity.md` and
 `vfs-cold-cache-bounds.md`.
+
+## Deterministic text profiles
+
+The cold-start CLI accepts `--content ascii|utf8` (default `ascii`). Both profiles
+materialize exactly `docBytes` UTF-8 bytes per document; Unicode units are never
+split. UTF-8 workload identity names generator version 3 while the existing ASCII
+generator remains version 2. The owned fixture marker binds the selected profile
+across actual child scenarios. Budget/churn controls preserve content parity but
+cannot label partial persisted-hit coverage a fully warm phase.
+
+The bounded large-workload controls retain three repetitions of 256 documents
+of 8191 UTF-8 bytes in separate persisted-pair and hot-access capsules. A persisted
+pair uses fresh cold and warm child processes sharing the same exclusive root,
+with equal flush obligations and independent content verification. A hot capsule
+uses the original sample owner in a fresh child and materializes its exclusive
+root during warmup, outside hot timing. This preparation differs from the full
+benchmark's already-materialized hot input. The controls retain raw phase/work
+receipts but do not qualify the full alternating three-mode schedule, sustained
+end-to-end latency or an application gain. The original full UTF-8 aggregate's
+30-second failures remain historical evidence. The smaller ASCII control retains
+the unchanged complete three-repetition orchestration; production default and
+full-benchmark execution remain unchanged.

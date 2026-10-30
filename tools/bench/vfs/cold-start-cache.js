@@ -31,9 +31,9 @@ const writeMarker = async (root, value) => {
   ensureToolingCacheDir(root);
   await fs.writeFile(path.join(root, markerName), JSON.stringify({ kind: markerKind, ...value }) + '\n', { flag: 'wx' });
 };
-const runSubprocess = async ({ mode, rootDir, docs, docBytes }) => {
+const runSubprocess = async ({ mode, rootDir, docs, docBytes, content }) => {
   const result = await spawnSubprocess(process.execPath, [fileURLToPath(import.meta.url), '--mode', mode, '--root', rootDir,
-    '--docs', String(docs), '--docBytes', String(docBytes), '--samples', '1', '--json'], {
+    '--docs', String(docs), '--docBytes', String(docBytes), '--content', content, '--samples', '1', '--json'], {
     timeoutMs: 30000, maxOutputBytes: 256 * 1024, outputEncoding: 'utf8', outputMode: 'string',
     captureStdout: true, captureStderr: true, rejectOnNonZeroExit: true, killTree: true
   });
@@ -59,22 +59,23 @@ const summarize = samples => {
 };
 
 export const runVfsColdStartBench = async input => {
-  const { docs, docBytes, samples } = admitVfsColdStartWork(input);
+  const { docs, docBytes, samples, content } = admitVfsColdStartWork(input);
   const repoRoot = fileURLToPath(new URL('../../../', import.meta.url));
   const tempBase = resolveDevelopmentArtifactPath(repoRoot, 'bench-cache', 'vfs-cold');
   ensureToolingCacheDir(tempBase);
   const taskRoot = await fs.mkdtemp(path.join(tempBase, 'run-')), owner = randomUUID();
   let primary, failed = false, result;
   try {
-    await writeMarker(taskRoot, { owner, docs, docBytes });
+    await writeMarker(taskRoot, { owner, docs, docBytes, content });
     const observations = { cold: [], warm: [], hot: [] }, order = [];
     let workloadIdentity = null, outputIdentity = null;
     for (let index = 0; index < samples; index++) {
-      const rootDir = path.join(taskRoot, `sample-${index + 1}`);
-      await writeMarker(rootDir, { owner, docs, docBytes, sample: index + 1 });
-      const modes = ['cold', ...(index % 2 ? ['hot', 'warm'] : ['warm', 'hot'])];
+      const sampleId = index + 1;
+      const rootDir = path.join(taskRoot, `sample-${sampleId}`);
+      await writeMarker(rootDir, { owner, docs, docBytes, content, sample: sampleId });
+      const modes = ['cold', ...((sampleId - 1) % 2 ? ['hot', 'warm'] : ['warm', 'hot'])];
       for (const mode of modes) {
-        const sample = await runSubprocess({ mode, rootDir, docs, docBytes });
+        const sample = await runSubprocess({ mode, rootDir, docs, docBytes, content });
         if (sample.mode !== mode || sample.counts?.documents !== docs || sample.consumerParity?.state !== 'byte-identical'
           || !['qualified-phase', 'unqualified-phase'].includes(sample.state)) throw new Error('VFS child sample has inconsistent phase or content evidence.');
         const workload = stableStringify(sample.workload), output = sample.consumerParity.sha256;
@@ -82,7 +83,7 @@ export const runVfsColdStartBench = async input => {
           throw new Error('VFS benchmark samples changed their input or consumer content.');
         }
         workloadIdentity = workload; outputIdentity = output; observations[mode].push(sample);
-        order.push({ sample: index + 1, mode });
+        order.push({ sample: sampleId, mode });
       }
     }
     result = { schemaVersion: 2, kind: 'vfs-cache-phase-benchmark', generatedAt: new Date().toISOString(), docs, docBytes, samples,
@@ -111,16 +112,17 @@ export const runVfsColdStartBenchCli = async (rawArgs = process.argv.slice(2)) =
     mode: { type: 'string', describe: 'Internal: cold|warm|hot single scenario' },
     docs: { type: 'number', default: 2000, describe: 'Document count' },
     docBytes: { type: 'number', default: 256, describe: 'UTF-8 bytes per document' },
+    content: { type: 'string', default: 'ascii', describe: 'Deterministic document profile: ascii|utf8' },
     samples: { type: 'number', default: 3, describe: 'Independent repetitions per scenario' },
     root: { type: 'string', describe: 'Internal: owned scenario root' },
     json: { type: 'boolean', default: false }, out: { type: 'string', describe: 'Write JSON results to a file' }
   } }).parse();
-  const work = admitVfsColdStartWork({ docs: argv.docs, docBytes: argv.docBytes, samples: argv.samples });
+  const work = admitVfsColdStartWork({ docs: argv.docs, docBytes: argv.docBytes, samples: argv.samples, content: argv.content });
   let result;
   if (argv.mode) {
     if (!['cold', 'warm', 'hot'].includes(argv.mode) || !argv.root || work.samples !== 1) throw new TypeError('Internal VFS scenario requires its owned root and exactly one sample.');
     const rootDir = path.resolve(argv.root), marker = readMarker(rootDir);
-    if (marker.docs !== work.docs || marker.docBytes !== work.docBytes) throw new Error('VFS scenario request differs from its owned fixture.');
+    if (marker.docs !== work.docs || marker.docBytes !== work.docBytes || marker.content !== work.content) throw new Error('VFS scenario request differs from its owned fixture.');
     const started = performance.now(), plan = await buildVfsColdStartPlan(work), documentPlanMs = performance.now() - started;
     result = { ...await runVfsColdStartSample({ mode: argv.mode, rootDir, plan }), documentPlanMs };
   } else result = await runVfsColdStartBench(work);

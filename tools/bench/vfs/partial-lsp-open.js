@@ -8,6 +8,9 @@ import path from 'node:path';
 const { createCli } = await import('../../../src/shared/cli.js');
 const { collectLspTypes } = await import('../../../src/integrations/tooling/providers/lsp.js');
 const { formatStats, summarizeDurations, writeJsonWithDir } = await import('../micro/utils.js');
+const { drainLspSessionPool } = await import('../../../src/integrations/tooling/providers/lsp/session-pool.js');
+const { observeStorageResource } = await import('../../../src/shared/storage/failure-observation.js');
+const { addStorageFailureContext } = await import('../../../src/shared/storage/operation-error.js');
 
 async function main() {
   const rawArgs = process.argv.slice(2);
@@ -41,6 +44,7 @@ async function main() {
   const targetsSparse = buildTargets(documents, targetCount);
   const targetsAll = buildTargets(documents, docsCount);
 
+  let failed = false, primary;
   try {
     const sparse = await runScenario({
       label: 'sparse-targets',
@@ -89,9 +93,17 @@ async function main() {
       printBench('sparse-targets', sparse);
       printBench('all-targets', full);
     }
-  } finally {
-    if (!argv.keep) {
-      await fs.rm(tempRoot, { recursive: true, force: true });
+  } catch (error) { failed = true; primary = error; throw error; }
+  finally {
+    try {
+      if (failed) observeStorageResource(primary, { phase: 'partial-lsp-benchmark-before-cleanup' }).requireSettled();
+      const drain = await drainLspSessionPool({ timeoutMs: 5000 });
+      if (drain.status !== 'ok') throw Object.assign(new Error('LSP benchmark pool drain is unconfirmed; fixture retained.'), {
+        code: 'ERR_BENCH_LSP_DRAIN', drain, fixtureRoot: tempRoot });
+      if (!argv.keep) await fs.rm(tempRoot, { recursive: true, force: true });
+    } catch (cleanup) {
+      if (failed) throw addStorageFailureContext(primary, { phase: 'partial-lsp-benchmark-cleanup' }, cleanup, { secondaryPresent: true });
+      throw cleanup;
     }
   }
 }
@@ -164,8 +176,12 @@ async function runScenario({ label, samples, documents, targets, mode, scheme, r
     totalMs += elapsed;
   }
   const stats = summarizeDurations(timings);
-  const docsPerSec = totalMs > 0 ? documents.length / (totalMs / 1000) : 0;
+  const completedDocumentInventory = documents.length * timings.length;
+  const docsPerSec = totalMs > 0 ? completedDocumentInventory / (totalMs / 1000) : 0;
   return {
+    schemaVersion: 2, completedDocumentInventory, completedSamples: timings.length,
+    rateScope: 'admitted-document-inventories-across-all-repetitions', openedDocumentCount: null,
+    rawSampleDurationsMs: timings,
     label,
     totalMs,
     stats,

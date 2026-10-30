@@ -132,9 +132,11 @@ function runBaselineBench({ segments, samples }) {
   const timings = [];
   let totalMs = 0;
   let lastCount = 0;
+  let completedOperations = 0, completedOutputDocuments = 0;
   for (let i = 0; i < samples; i += 1) {
     const start = process.hrtime.bigint();
     lastCount = baselineSegments(segments);
+    completedOperations += segments.length; completedOutputDocuments += lastCount;
     const elapsed = Number(process.hrtime.bigint() - start) / 1e6;
     timings.push(elapsed);
     totalMs += elapsed;
@@ -142,8 +144,10 @@ function runBaselineBench({ segments, samples }) {
   const stats = summarizeDurations(timings);
   const docsBefore = segments.length;
   const docsAfter = lastCount;
-  const opsPerSec = totalMs > 0 ? docsBefore / (totalMs / 1000) : 0;
+  const opsPerSec = totalMs > 0 ? completedOperations / (totalMs / 1000) : 0;
   return {
+    schemaVersion: 2, completedOperations, completedOutputDocuments, completedSamples: timings.length,
+    rateScope: 'input-segments-across-all-repetitions', rawSampleDurationsMs: timings,
     totalMs,
     stats,
     docsBefore,
@@ -158,9 +162,11 @@ function runCoalesceBench({ segments, samples }) {
   const timings = [];
   let totalMs = 0;
   let lastResult = null;
+  let completedOperations = 0, completedOutputDocuments = 0;
   for (let i = 0; i < samples; i += 1) {
     const start = process.hrtime.bigint();
     const result = coalesceSegments(segments);
+    completedOperations += segments.length; completedOutputDocuments += result.length;
     const elapsed = Number(process.hrtime.bigint() - start) / 1e6;
     timings.push(elapsed);
     totalMs += elapsed;
@@ -169,8 +175,10 @@ function runCoalesceBench({ segments, samples }) {
   const stats = summarizeDurations(timings);
   const docsBefore = segments.length;
   const docsAfter = lastResult ? lastResult.length : 0;
-  const opsPerSec = totalMs > 0 ? docsBefore / (totalMs / 1000) : 0;
+  const opsPerSec = totalMs > 0 ? completedOperations / (totalMs / 1000) : 0;
   return {
+    schemaVersion: 2, completedOperations, completedOutputDocuments, completedSamples: timings.length,
+    rateScope: 'input-segments-across-all-repetitions', rawSampleDurationsMs: timings,
     totalMs,
     stats,
     docsBefore,
