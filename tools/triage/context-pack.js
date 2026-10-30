@@ -143,7 +143,9 @@ function buildEvidenceQueries(finding) {
   if (vulnId) queries.add(vulnId);
   for (const pkg of getRecordPackages(finding)) {
     if (pkg.name) queries.add(pkg.name);
-    if (pkg.importName) queries.add(pkg.importName);
+    for (const alias of [pkg.importName, pkg.module, pkg.moduleName]) {
+      if (typeof alias === 'string' && alias.trim()) queries.add(alias);
+    }
     if (pkg.name?.includes('/')) queries.add(pkg.name.split('/').pop());
     if (pkg.manifestPath) queries.add(path.basename(pkg.manifestPath));
   }
@@ -155,10 +157,11 @@ function buildEvidenceQueries(finding) {
 }
 
 function pickImportName(finding) {
+  const legacyPackage = Array.isArray(finding?.packages) ? null : finding?.package;
   const candidates = [
-    finding?.package?.importName,
-    finding?.package?.module,
-    finding?.package?.moduleName,
+    legacyPackage?.importName,
+    legacyPackage?.module,
+    legacyPackage?.moduleName,
     finding?.importName,
     finding?.import,
     finding?.module

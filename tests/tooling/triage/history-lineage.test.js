@@ -9,6 +9,7 @@ import { writeTriageRecordArtifacts } from '../../../tools/triage/record-writer.
 import { loadTriageRecordSnapshot } from '../../../tools/triage/record-snapshot.js';
 import { readTriagePublication, TRIAGE_PUBLICATION_FIELD } from '../../../src/integrations/triage/record-publication.js';
 import { renderRecordMarkdown } from '../../../src/integrations/triage/render.js';
+import { TRIAGE_RENDERER_VERSION } from '../../../src/contracts/triage-record-publication.js';
 import { prepareIsolatedTestCacheDir, resolveTestCachePath } from '../../helpers/test-cache.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 import { MinHeap } from '../../../src/shared/min-heap.js';
@@ -214,7 +215,7 @@ try {
       const upgraded = await writeTriageRecordArtifacts(records, record);
       assert.notEqual(upgraded.generation, output.generation);
       assert.equal(await fs.readFile(output.mdPath, 'utf8'), legacyText, 'the original immutable generation is retained');
-      assert.equal((await readTriagePublication(records, upgraded.jsonPath)).publication.rendererVersion, 2);
+      assert.equal((await readTriagePublication(records, upgraded.jsonPath)).publication.rendererVersion, TRIAGE_RENDERER_VERSION);
     }
   }
 } catch (error) { workError = error; }

@@ -10,8 +10,11 @@ export function renderRecordMarkdown(record, { rendererVersion = TRIAGE_RENDERER
   const lines = [];
   const recordType = record?.recordType || 'record';
   const vulnId = record?.vuln?.vulnId || record?.vulnId || record?.recordId || '';
-  const packageName = record?.package?.name || '';
-  const packageVersion = record?.package?.installedVersion || '';
+  // Old immutable publications reconstruct their exact declared title bytes.
+  // New publications derive even the title from the canonical collection.
+  const representative = rendererVersion >= 3 ? getRecordPackages(record)[0] : record?.package;
+  const packageName = representative?.name || '';
+  const packageVersion = representative?.installedVersion || '';
   const service = record?.service || '';
   const env = record?.env || '';
   const severity = record?.vuln?.severity || '';

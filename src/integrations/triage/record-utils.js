@@ -19,11 +19,13 @@ export const getRecordPackages = record => Array.isArray(record?.packages)
  * The compatibility representative is separate from the canonical collection;
  * legacy records remain readable without manufacturing occurrence identities.
  * @param {object} finding
- * @returns {{package:object|null,packages:object[]}}
+ * @returns {{package:object|null,packages:object[],parseWarnings?:string[]}}
  */
 export const snapshotFindingPackages = finding => ({
   package: finding?.package ? structuredClone(finding.package) : null,
-  packages: structuredClone(getRecordPackages(finding))
+  packages: structuredClone(getRecordPackages(finding)),
+  ...(Array.isArray(finding?.parseWarnings) && finding.parseWarnings.length
+    ? { parseWarnings: structuredClone(finding.parseWarnings) } : {})
 });
 
 /**
@@ -67,6 +69,9 @@ function resolvePromotedValue(record, field) {
     const key = field === 'packageName' ? 'name' : 'ecosystem';
     const values = [...new Set(getRecordPackages(record).map(pkg => pkg[key]).filter(isValuePresent))];
     if (values.length) return values.length === 1 ? values[0] : values;
+    // An admitted collection, including an empty one, is authoritative. A
+    // compatibility singleton cannot manufacture metadata absent from it.
+    if (Array.isArray(record.packages)) return undefined;
   }
   const path = PROMOTED_FIELD_PATHS[field];
   if (path) {
