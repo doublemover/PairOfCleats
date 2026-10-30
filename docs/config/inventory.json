@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-30T04:59:22.656Z",
+  "generatedAt": "2026-10-30T06:38:57.765Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
@@ -4706,6 +4706,7 @@
         "tests/indexing/build-state/store-resource-ownership.test.js",
         "tests/indexing/build/stage4-mixed-mode-generations.test.js",
         "tests/indexing/crash-log-boundary-controls.test.js",
+        "tests/indexing/embeddings/adapter-callable-invocation.test.js",
         "tests/indexing/embeddings/build/cache-only-provider-admission.test.js",
         "tests/indexing/embeddings/build/chunk-channel-cache-routes.test.js",
         "tests/indexing/embeddings/manifest-publication-ownership.test.js",
@@ -4746,6 +4747,8 @@
         "tests/indexing/segments/rust-comment-occurrences.test.js",
         "tests/indexing/semantic/derived-index-owner-composition.test.js",
         "tests/indexing/semantic/drain-ownership-cancellation-consumers.test.js",
+        "tests/indexing/semantic/validated-family-frontier-order.test.js",
+        "tests/indexing/semantic/validated-index-fusion.test.js",
         "tests/indexing/semantic/wasm-flow-policy-construction.test.js",
         "tests/indexing/stage1/process-files-live-abort-owner.test.js",
         "tests/indexing/stage1/scm-wait-watchdog-consumer.test.js",
@@ -4839,6 +4842,7 @@
         "tests/storage/native-index-state-publication.test.js",
         "tests/storage/semantic/manifest-serving-consumers.test.js",
         "tests/storage/semantic/published-manifest-cache-authority.test.js",
+        "tests/storage/semantic/query-index-intake.test.js",
         "tests/storage/semantic/runtime-source-reference-authority.test.js",
         "tests/storage/semantic/trace-continuation-state.test.js",
         "tests/storage/sqlite/build/original-close-owner.test.js",
@@ -5873,7 +5877,7 @@
   ],
   "envVarsUnknown": [],
   "cliFlags": {
-    "totalFlags": 509,
+    "totalFlags": 510,
     "publicFlags": [
       "all",
       "allow-unauthenticated",
@@ -6353,6 +6357,7 @@
       "target",
       "targets",
       "tests-json",
+      "texts",
       "timeout-ratio-max",
       "timeoutMs",
       "token-postings-size",
@@ -6765,6 +6770,12 @@
           "maxBytes",
           "minBytes",
           "minFileBytes"
+        ]
+      },
+      {
+        "file": "tests/indexing/embeddings/adapter-callable-invocation.test.js",
+        "flags": [
+          "texts"
         ]
       },
       {
