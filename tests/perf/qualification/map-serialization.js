@@ -10,6 +10,19 @@ await requireBootstrap(); applyTestEnv();
 if (!process.argv[2]) throw new Error('Explicit output directory required.');
 const output = path.resolve(process.argv[2]); await fs.mkdir(output, { recursive: false });
 const source = captureSweepSource(process.cwd()), observations = [];
+const controlResult = await runQualificationCapsule({ args: ['--expose-gc','tools/bench/map/worker.js',
+  JSON.stringify({ operation: 'transient-memory-control' })], receiptPath: path.join(output,'transient-native-invocation.json') });
+const transientControl = JSON.parse(controlResult.stdout);
+await atomicWriteJson(path.join(output,'transient-native.json'),{historicalAuthorWorkspace:true,source,
+  capsuleMs:controlResult.durationMs,report:transientControl},{createOnly:true});
+assert.equal(controlResult.stderr,'');assert.equal(controlResult.outputCapture.stdout.truncated,false);
+assert.equal(transientControl.state,'qualified-actual-transient',transientControl.unqualifiedReason);
+assert.equal(transientControl.touchedBytes,32*1024*1024);assert.equal(transientControl.checksum,3019898880);
+assert.equal(transientControl.preparationCollections,2);assert.equal(transientControl.explicitReleaseCollections,2);
+assert.equal(transientControl.allocationObserved,true);
+assert.equal(transientControl.nativeHighWaterObserved,true);
+assert.ok(transientControl.memory.processLifetimeRss.bytes>Math.max(transientControl.before.rss,transientControl.after.rss));
+assert.ok(transientControl.during.rss>Math.max(transientControl.before.rss,transientControl.after.rss));
 for (let trial = 0; trial < 6; trial++) for (const profile of trial % 2 ? ['large', 'medium'] : ['medium', 'large']) {
   const result = await runQualificationCapsule({ args: ['tests/fixtures/benchmarks/map-serialization-pair.js', JSON.stringify({ profile, trial })],
     receiptPath: path.join(output, `invocation-${profile}-${trial + 1}.json`) });
@@ -28,4 +41,4 @@ for (const profile of ['medium', 'large']) {
 }
 assert.deepEqual(captureSweepSource(process.cwd()), source);
 await atomicWriteJson(path.join(output, 'final.json'), { historicalAuthorWorkspace: true, source,
-  claim: 'synthetic serializer observations only;no whole-build or stable performance-gain claim', observations }, { createOnly: true });
+  claim: 'synthetic serializer observations only;no whole-build or stable performance-gain claim', transientControl, observations }, { createOnly: true });

@@ -26,8 +26,9 @@ await assert.rejects(failed.track('failed', () => { throw primary; }), error => 
   };
   visit(error); assert.ok(found.has(primary)); assert.ok(found.has(secondary)); return true;
 });
-// Controlled transient allocation disappears between endpoint observations;
-// its lifetime counter remains distinct from those two boundary values.
+// Named projection adapter only: this literal counter proves unit conversion,
+// not actual transient allocation. The explicit map-serialization qualification
+// owner separately requires a fresh-child touched allocation and native RSS.
 const observed = observeMapProcessMemory({ before: { rss: 1000, heapUsed: 100 }, after: { rss: 1000, heapUsed: 100 }, through: 'controlled-transient' },
   { resourceUsage: () => ({ maxRSS: 64 }) });
 assert.equal(observed.observedBoundaryMax.rss, 1000); assert.equal(observed.processLifetimeRss.bytes, 64 * 1024);

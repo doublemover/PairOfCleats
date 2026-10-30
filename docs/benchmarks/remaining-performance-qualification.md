@@ -25,7 +25,14 @@ stdout/stderr, original causes and any unconfirmed generated work.
   admission limit. Each pair uses the original atomic publication owner and full
   parsed-output parity. Raw GC events and heap spaces describe observed collector
   work; they do not certify a heap peak. Lifetime RSS includes preparation and
-  publication. Actual large-profile writer/warmup GC must be observed.
+  publication. Actual large-profile writer/warmup GC must be observed. Before
+  these writer trials, a separate fresh child uses `--expose-gc` to touch and
+  checksum all 32 MiB of a temporary native Buffer. Two baseline collections and
+  two release collections belong only to this control. Actual ArrayBuffer
+  allocation/release, an in-allocation RSS excursion above both endpoints and
+  the native lifetime high-water counter must all be observed. Its compact raw
+  receipt is retained even if the allocator does not expose the required RSS
+  distinction; that outcome is unqualified, not a passing adapter substitute.
 
 The map GC record is version 1. Unsupported or truncated observations retain
 null phase counts and cannot qualify memory behavior. Small ordinary tests use

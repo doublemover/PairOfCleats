@@ -30,6 +30,37 @@ const readPreparedModel = async (root, marker) => {
 };
 
 export const runMapBenchWorker = async request => {
+  if (request?.operation === 'transient-memory-control') {
+    if (typeof globalThis.gc !== 'function') throw new Error('The explicit fresh-child transient control requires --expose-gc.');
+    const bytes = 32 * 1024 * 1024, fill = 0x5a;
+    // Baseline preparation belongs only to this control, never either writer.
+    globalThis.gc(); await new Promise(resolve => setImmediate(resolve));
+    globalThis.gc(); await new Promise(resolve => setImmediate(resolve));
+    const before = process.memoryUsage();
+    let allocation = Buffer.alloc(bytes, fill), checksum = 0, touchedBytes = 0;
+    // Read every touched byte, so neither reservation nor endpoint-only
+    // metadata can stand in for the actual transient native allocation.
+    for (let index = 0; index < allocation.length; index++) { checksum += allocation[index]; touchedBytes++; }
+    const during = process.memoryUsage();
+    allocation = null;
+    globalThis.gc(); await new Promise(resolve => setImmediate(resolve));
+    globalThis.gc(); await new Promise(resolve => setImmediate(resolve));
+    const after = process.memoryUsage();
+    const memory = observeMapProcessMemory({ before, after, through: 'actual-transient-release-and-two-explicit-control-collections' });
+    const allocationObserved = during.arrayBuffers >= before.arrayBuffers + bytes
+      && during.arrayBuffers - after.arrayBuffers >= bytes;
+    const nativeHighWaterObserved = memory.processLifetimeRss.state === 'observed'
+      && memory.processLifetimeRss.bytes + 1023 >= during.rss
+      && memory.processLifetimeRss.bytes > memory.observedBoundaryMax.rss
+      && during.rss > memory.observedBoundaryMax.rss;
+    return { schemaVersion: 1, operation: 'transient-memory-control', pid: process.pid,
+      state: allocationObserved && nativeHighWaterObserved && touchedBytes === bytes && checksum === bytes * fill ? 'qualified-actual-transient' : 'unqualified-actual-transient',
+      scope: 'separate-fresh-child-native-allocation-control;not-writer-measurement',
+      preparationCollections: 2, explicitReleaseCollections: 2, requestedBytes: bytes, touchedBytes, fill, checksum,
+      before, during, after, allocationObserved, nativeHighWaterObserved, memory,
+      unqualifiedReason: !allocationObserved ? 'array-buffer-allocation-or-release-not-observed'
+        : !nativeHighWaterObserved ? 'native-high-water-did-not-distinguish-endpoint-observations' : null };
+  }
   if (request?.operation === 'serialize') {
     const { rootDir, arm } = request;
     if (!path.isAbsolute(rootDir) || !['baseline', 'streaming'].includes(arm)) throw new TypeError('Invalid map serialization worker request.');
