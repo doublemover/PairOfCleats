@@ -2,9 +2,8 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
-import { Session } from 'node:inspector/promises';
 import { requireBootstrap } from '../../../src/shared/bootstrap-readiness.js';
-import { addStorageFailureContext } from '../../../src/shared/storage/operation-error.js';
+import { observeHeapAllocations } from '../../helpers/heap-sampling.js';
 import { collectPythonImports } from '../../../src/lang/python/imports.js';
 import { buildLineIndex } from '../../../src/lang/python/normalize.js';
 import { createPythonByteColumnResolver } from '../../../src/lang/python/byte-columns.js';
@@ -31,35 +30,7 @@ const measure = (name, operation, validate, iterations = 16) => {
   const row = { name, iterations, samples, outputBytes: Buffer.byteLength(JSON.stringify(result)), outputSha256: digest(result) };
   observations.push(row); return { row, result };
 };
-const allocationSample = async (name, operation) => {
-  const session = new Session(); session.connect(); let failure, hasFailure = false, profile;
-  try {
-    await session.post('HeapProfiler.startSampling', { samplingInterval: 32768,
-      includeObjectsCollectedByMajorGC: true, includeObjectsCollectedByMinorGC: true });
-    for (let index = 0; index < 16; index++) operation();
-    ({ profile } = await session.post('HeapProfiler.stopSampling'));
-  } catch (error) { failure = error; hasFailure = true; }
-  finally {
-    try { session.disconnect(); }
-    catch (cleanup) { failure = hasFailure ? addStorageFailureContext(failure, { phase: 'original-inspector-disconnect' }, cleanup,
-      { secondaryPresent: true }) : cleanup; hasFailure = true; }
-  }
-  if (hasFailure) throw failure;
-  assert.ok(profile.samples.length <= 50000, 'Bounded workload must fit the recorded sampling budget.');
-  const nodes = [], pending = [[profile.head, null]];
-  while (pending.length) {
-    const [node, parentId] = pending.pop(); assert.ok(nodes.length < 50000);
-    nodes.push({ id: node.id, parentId, selfSize: node.selfSize, ...node.callFrame });
-    for (const child of node.children || []) pending.push([child, node.id]);
-  }
-  const file = path.join(destination, name + '-allocation.json');
-  const bytes = JSON.stringify({ samplingInterval: 32768, includeCollectedMajorAndMinor: true, nodes, samples: profile.samples });
-  assert.ok(Buffer.byteLength(bytes) <= 4 * 1024 * 1024);
-  await fs.writeFile(file, bytes + '\n', { flag: 'wx' });
-  return { path: file, sha256: digest(bytes + '\n'), bytes: Buffer.byteLength(bytes) + 1,
-    sampledBytes: profile.samples.reduce((sum, sample) => sum + sample.size, 0), sampleCount: profile.samples.length,
-    scope: 'separate16-operation V8 Poisson heap-allocation observation, including collected objects;not exact allocations, native bytes, retained heap or clean latency' };
-};
+const allocationSample = (name, operation) => observeHeapAllocations({ destination, name, operation });
 if (scenario === 'python-inline') {
   for (const count of [64, 256, 1024]) for (const unicode of [false, true]) {
     const expected = Array.from({ length: count }, (_, index) => `${unicode ? '包' : 'dep'}_${String(index).padStart(5, '0')}`);

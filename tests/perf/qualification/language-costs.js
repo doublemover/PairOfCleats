@@ -10,6 +10,7 @@ await requireBootstrap(); applyTestEnv();
 assert.ok(process.argv[2], 'An explicit fresh output directory is required.');
 const output = path.resolve(process.argv[2]); await fs.mkdir(output);
 const source = captureSweepSource(process.cwd()), observations = [];
+assert.equal(source.state, 'clean-revision', 'Qualification requires a committed, clean source identity.');
 for (let repetition = 1; repetition <= 3; repetition++) {
   const scenarios = ['python-inline', 'python-lines', 'yaml'];
   for (const scenario of repetition % 2 ? scenarios : scenarios.toReversed()) {

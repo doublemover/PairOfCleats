@@ -72,6 +72,34 @@ if (selected === 'identity-adapter') {
     assert.equal(zero.changedFiles.summary.coverageFraction, 0); assert.equal(zero.changedFiles.measurement.status, 'complete');
     assert.throws(() => buildCoveragePolicyReport({ root: repo, baseRef, headRef, coverageArtifact: { entries: both } }),
       { code: 'ERR_COVERAGE_SOURCE_IDENTITY' });
+    if (process.platform !== 'win32') {
+      // This physical POSIX fixture is intentionally external to Windows
+      // qualification. Expected filenames remain authored literal identities.
+      const labels = ['src/retrieval/ é#?.js', 'src/retrieval/line\nname.js',
+        'src/retrieval/tab\tname.js', 'src/retrieval/ leading .js', 'src/retrieval/back`tick.js'];
+      await fs.writeFile(path.join(repo, 'src/retrieval/a\\b.js'), 'export const value = 3;\n');
+      for (const label of labels) await fs.writeFile(path.join(repo, label), 'export const value = 1;\n');
+      git(['add', '.']); git(['commit', '-m', 'exact physical source labels']);
+      const labelsHead = git(['rev-parse', 'HEAD']);
+      await fs.writeFile(source, JSON.stringify({ result: [observed('src/retrieval/a\\b.js', 1),
+        observed('src/retrieval/a/b.js', 0), ...labels.map(label => observed(label, 0))] }));
+      const exact = await collectV8CoverageEntries({ root: repo, coverageDir });
+      const exactArtifact = JSON.parse(JSON.stringify(buildCoverageArtifact({ runId: 'exact-labels', entries: exact })));
+      const exactReport = JSON.parse(JSON.stringify(buildCoveragePolicyReport({ root: repo, baseRef,
+        headRef: labelsHead, coverageArtifact: exactArtifact })));
+      const expectedLabels = ['src/retrieval/a\\b.js', 'src/retrieval/a/b.js', ...labels];
+      assert.equal(exactArtifact.entries.length, expectedLabels.length);
+      assert.equal(exactReport.changedFiles.inventory.length, expectedLabels.length);
+      const markdown = renderCoveragePolicyMarkdown(exactReport);
+      for (const label of expectedLabels) {
+        assert.equal(exactArtifact.entries.filter(row => row.path === label).length, 1);
+        assert.equal(exactReport.changedFiles.inventory.filter(row => row.path === label).length, 1);
+        const displayed = JSON.stringify(label).replaceAll('`', '\\u0060');
+        assert.ok(markdown.includes(displayed), `exact escaped label survives Markdown: ${JSON.stringify(label)}`);
+        assert.ok(!displayed.includes('\n') && !displayed.includes('\t'), 'display labels cannot introduce raw Markdown rows');
+      }
+      assert.equal(exactReport.changedFiles.measurement.status, 'complete');
+    }
     console.log(JSON.stringify({ platform: process.platform, physicalLiteralBackslash: process.platform !== 'win32',
       portableAdapter: 'separate identity-adapter case', sources: both.map(row => row.path) }));
   } finally { await fs.rm(dir, { recursive: true, force: true }); }
