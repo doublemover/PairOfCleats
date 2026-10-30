@@ -50,8 +50,10 @@ try {
       for (const backend of ['tantivy', 'memory', 'sqlite-fts']) {
         const tracker = createRetrievalStageTracker({ enabled: true });
         const idx = backend === 'sqlite-fts' ? sqlite.loadIndexFromSqlite(mode, {
-          includeChunks: false, includeDense: false, includeMinhash: false, includeFilterIndex: false
+          includeChunks: true, includeDense: false, includeMinhash: false, includeFilterIndex: false
         }) : { chunkMeta: chunks.map(row => ({ ...row })) };
+        assert.deepEqual(idx.chunkMeta.filter(Boolean).map(row => row.file), chunks.map(row => row.file),
+          'each independent comparator receives its actual selected-mode metadata before file filtering');
         idx.tantivy = { available: true, dir: `generation-${generation}-${mode}` };
         const pipeline = createInMemorySearchPipeline({ query, queryTokens: plan.queryTokens,
           filters: plan.filters, filtersActive: plan.filtersActive, topN: 10, stageTracker: tracker,

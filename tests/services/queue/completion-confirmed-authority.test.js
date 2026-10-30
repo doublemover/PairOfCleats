@@ -46,13 +46,19 @@ try {
     const work = worker.processQueueOnce(metrics).finally(() => { settled = true; });
     try {
       await clock.settle(); assert.ok(signal);
+      const authorityTimers = new Set(clock.timers.values());
+      assert.equal(authorityTimers.size, 2, 'the claim owns exactly its renewal interval and confirmed-expiry deadline');
       if (scenario !== 'fast') await clock.advance(250);
       producer.resolve(); await clock.settle();
       assert.ok(phases.includes('close-hooks'));
       if (scenario !== 'fast') {
         assert.equal(settled, false, `${scenario}: the original drain remains held`);
-        assert.ok([...clock.timers.values()].every(timer => timer.interval === null && timer.at > Date.parse(claim.lease.expiresAt)),
-          'renewal/expiry timers are stopped; only the independent original lifecycle drain deadline may remain');
+        const drainingTimers = [...clock.timers.values()];
+        assert.ok(drainingTimers.every(timer => !authorityTimers.has(timer)),
+          'both original renewal/expiry timers are stopped before joining closeout work');
+        assert.equal(drainingTimers.length, scenario === 'telemetry' ? 0 : 1);
+        if (drainingTimers.length) assert.equal(drainingTimers[0].interval, 1000,
+          'awaitWithKeepalive owns the sole referenced timer while the original lifecycle drains');
         assert.equal(signal.aborted, false, 'producer returned before confirmed authority expired');
         await clock.advance(1000); phases.push('expiry-crossed');
         if (scenario === 'rollback') Date.now = () => clock.now() - 1000;

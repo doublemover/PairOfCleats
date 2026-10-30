@@ -139,7 +139,8 @@ try {
           } else if (fault === 'growth') await fs.appendFile(target, ' ');
           else if (fault === 'truncate') await fs.truncate(target, 1);
         } });
-      await reject(states, error => error.code === 'ERR_SEMANTIC_INTEGRITY');
+      await reject(states, error => error.code === (fault === 'nested-link'
+        ? 'ERR_UNSAFE_FILE_PATH' : 'ERR_SEMANTIC_INTEGRITY'));
       if (fault === 'same-bytes-external') assert.equal(states.find(state => state.filename === target)?.bytes, 0,
         'an escaped opened identity is refused before any outside payload bytes');
       if (fault === 'oversized') assert.equal(states.find(state => state.filename === target)?.reads, 0,
