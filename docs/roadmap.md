@@ -2,16 +2,16 @@
 
 Status: P2/P3 closeout; Windows repairs and focused qualification
 Last audited: 2026-10-30
-Last reconciled: 2026-10-29
+Last reconciled: 2026-10-30
 Canonical for: initiative status, execution order, and remaining work
 
 ## Current GitHub repair program
 
-The [current reconciliation](archived/p2-p3-closeout-2026-10-29.md) covers **791 reports: 372 closed /419 open**. The open queue has 146 qualification-pending, 165 partial/follow-up and 108 unresolved reports. Sixty new closures were individually verified; 19 new reports and 18 reopened reports are included.
+The [current reconciliation](archived/windows-source-cost-closeout-2026-10-30.md) records **791 reports: 401 closed /390 open**. Twenty-nine further closures have individual GitHub readbacks; prior ledgers retain their dated counts.
 
-P2/P3 now has **284 qualified closures /56 remaining targets /six editor exclusions** from 346 intake reports. The parent and two persistent Sol 6.1 High agents share the Windows checkout. Frontload shared-owner repairs, then run affected controls.
+P2/P3 has **313 qualified closures /27 remaining targets /six editor exclusions** from346 reports. The parent and two persistent Sol6.1 High agents share the Windows checkout. Frontload shared-owner repairs, then run affected controls.
 
-The [native/serving follow-up](archived/windows-native-serving-closeout-2026-10-30.md) records19 SQLite/cache/VFS and34 language/serving passes; the original167,936-row seed passes19.617s and the real inventory browser13.189s. PHP semicolon namespaces now retain ownership (native18/source53). The [runtime window](archived/windows-runtime-qualification-2026-10-30.md) records actual MiniLM5routes,18 artifact,37 ownership,9 language and4 builder capsules. Earlier native/VFS/map/Three observations remain source-bound. The complete SQLite campaign and further source-cost cohorts remain pending; semantic drain retains a29.434s repeatability risk. Native verification passes (37 packages/33 routes/seven patches).
+The [source-cost closeout](archived/windows-source-cost-closeout-2026-10-30.md) records six comparison and three natural-worker capsules plus all eight publication checks (41 gate passes). The [native/serving follow-up](archived/windows-native-serving-closeout-2026-10-30.md) records19/34 focused passes, original167,936-row SQLite seed19.617s, real inventory browser13.189s and PHP namespace repair (native18/source53). The [runtime window](archived/windows-runtime-qualification-2026-10-30.md) retains MiniLM5routes and18 artifact/37 ownership/9 language/4 builder capsules. SQLite campaign, Python costs, CSS/Lua admission and semantic-drain repeatability remain. Native verification passes37packages/33routes/sevenpatches.
 
 Completed source-bound checks are indexed in the
 [qualification archive](archived/native-runtime-qualification-index-2026-10-27.md)
