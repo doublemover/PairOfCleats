@@ -1,6 +1,7 @@
 import { rankLanceDb } from '../../lancedb.js';
 import { ANN_PROVIDER_IDS } from '../types.js';
 import { canRunAnnQuery, isAnnProviderAvailable } from '../utils.js';
+import { throwIfAborted } from '../../../shared/abort.js';
 
 /** @returns {import('../types.js').AnnProvider} */
 export function createLanceDbAnnProvider({
@@ -28,6 +29,7 @@ export function createLanceDbAnnProvider({
       backendReady: isBackendReady(idx, mode)
     }),
     query: async ({ idx, mode, embedding, topN, candidateSet, signal, budget }) => {
+      throwIfAborted(signal);
       const resolvedTopN = resolveTopN(topN, budget);
       if (!canRunAnnQuery({
         signal,
@@ -46,7 +48,7 @@ export function createLanceDbAnnProvider({
         config: lancedbConfig,
         signal
       });
-      if (signal?.aborted) return [];
+      throwIfAborted(signal);
       if (hits.length && lanceAnnUsed && mode in lanceAnnUsed) {
         lanceAnnUsed[mode] = true;
       }

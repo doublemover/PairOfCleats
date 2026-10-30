@@ -1,4 +1,6 @@
-export const RETRIEVAL_EXECUTION_VERSION = 1;
+// v2 invalidates previously cacheable executions whose LanceDB native failure
+// was swallowed as successful empty output before the canonical outcome owner.
+export const RETRIEVAL_EXECUTION_VERSION = 2;
 export const RETRIEVAL_EXECUTION_MODES = Object.freeze(['code', 'prose', 'extracted-prose', 'records']);
 export const RETRIEVAL_EXECUTION_REASONS = Object.freeze(['sparse-provider-failure', 'sparse-budget', 'ann-provider-failure',
   'ann-unavailable', 'ann-budget', 'graph-budget', 'reranker-fallback', 'reranker-pending', 'outcome-unrecorded', 'chunk-author-unavailable']);

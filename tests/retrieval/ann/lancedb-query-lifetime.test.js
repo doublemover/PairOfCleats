@@ -38,7 +38,7 @@ globalThis[key] = async dir => {
     async openTable() {
       state.opens = (state.opens || 0) + 1;
       if (state.openGate) await state.openGate.promise;
-      if (state.failOpen) { state.failOpen = false; throw new Error('controlled open failure'); }
+      if (state.failOpen) { state.failOpen = false; throw state.openFailure; }
       const table = { closed: false };
       state.table = table; tableCreates++;
       return {
@@ -128,7 +128,9 @@ try {
     await clearLanceDbConnectionCache();
   }
   const retry = await fixture('retry'); states.get(retry).failOpen = true;
-  assert.deepEqual(await query(retry), []);
+  const openFailure = Object.freeze(new Error('controlled open failure')); states.get(retry).openFailure = openFailure;
+  await assert.rejects(query(retry), error => error === openFailure,
+    'ordinary native failure propagates after lease settlement instead of certifying healthy empty output');
   assert.equal((await query(retry))[0].idx, 0, 'failed table opens can be retried');
   assert.equal(states.get(retry).opens, 2);
   await clearLanceDbConnectionCache();
@@ -150,8 +152,7 @@ try {
   assert.equal(connections, beforeCancelled, 'pre-cancelled requests do not acquire native connections');
   assert.equal(closes, connections, 'all acquired connection handles close exactly once');
   assert.equal(tableCloses, tableCreates, 'all successful table handles remain tracked until close');
-  assert.equal(warnings.length, 1);
-  assert.match(warnings[0], /controlled open failure/);
+  assert.deepEqual(warnings, [], 'the adapter mechanism leaves fallback diagnostics to its policy consumer');
 } finally {
   Date.now = originalNow; console.warn = originalWarn;
   for (const state of states.values()) { state.openGate?.resolve(); state.queryGate?.resolve(); }

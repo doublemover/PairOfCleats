@@ -2,7 +2,6 @@ import fs from 'node:fs';
 import { distanceToSimilarity, withAnnScoreSpace } from '../shared/ann-similarity.js';
 import { tryImport } from '../shared/optional-deps.js';
 import { normalizeLanceDbConfig } from '../shared/lancedb.js';
-import { createWarnOnce } from '../shared/logging/warn-once.js';
 import { normalizePositiveInt } from '../shared/limits.js';
 import {
   candidateSetHas,
@@ -20,14 +19,16 @@ const CONNECTION_CACHE_TTL_MS = 10 * 60 * 1000;
 const CONNECTION_CACHE_MAX_ENTRIES = 8;
 
 let cachedModule = null;
-const warnOnce = createWarnOnce();
+const unavailable = (message, cause) => Object.assign(new Error(message, cause === undefined ? undefined : { cause }), {
+  code: 'ERR_LANCEDB_UNAVAILABLE'
+});
 
 const loadLanceDb = async () => {
   if (cachedModule) return cachedModule;
   const result = await tryImport('@lancedb/lancedb');
   if (!result.ok) {
-    warnOnce('lancedb-missing', '[ann] LanceDB unavailable; falling back to other ANN backends.');
-    return null;
+    if (result.reason === 'error') throw result.error;
+    throw unavailable('LanceDB optional dependency is ' + result.reason + '.', result.error);
   }
   cachedModule = result.mod?.default || result.mod;
   return cachedModule;
@@ -140,7 +141,8 @@ const getConnection = async (dir) => {
     entry.pending = (async () => {
       const lancedb = await loadLanceDb();
       const connect = lancedb?.connect || lancedb?.default?.connect;
-      const db = connect ? await connect(dir) : null;
+      if (typeof connect !== 'function') throw unavailable('LanceDB module has no supported connect method.');
+      const db = await connect(dir);
       ownedEntry.db = db;
       if (db) ownedEntry.dbOwner = createLanceDbResourceOwner(db, 'lancedb-connection');
       return db;
@@ -162,7 +164,7 @@ const getConnection = async (dir) => {
   try {
     await pruneConnectionCache({ now });
     await entry.pending;
-    if (!entry.db) throw new Error('LanceDB connection unavailable.');
+    if (!entry.db) throw unavailable('LanceDB connect returned no connection.');
     entry.pending = null;
     touchConnectionEntry(entry);
     return { entry, release };
@@ -171,8 +173,7 @@ const getConnection = async (dir) => {
     entry.retired = true; retiredConnections.add(entry);
     try { await release(); }
     catch (cleanupError) { throw withLanceDbCleanupFailure(error, cleanupError); }
-    if (error?.cacheOwnershipPending) throw error;
-    return null;
+    throw error;
   }
 };
 
@@ -182,8 +183,7 @@ const getTable = async (dir, tableName) => {
   const connection = lease.entry;
   try {
     if (!tableName || typeof connection.db?.openTable !== 'function') {
-      await lease.release();
-      return null;
+      throw unavailable('LanceDB connection has no supported table-open method or table name.');
     }
     if (!connection.tables.has(tableName)) {
       if (!connection.openingTables.has(tableName)) {
@@ -205,11 +205,11 @@ const getTable = async (dir, tableName) => {
 };
 
 const toArray = async (query) => {
-  if (!query) return [];
+  if (!query) throw unavailable('LanceDB returned no query builder.');
   if (typeof query.toArray === 'function') return query.toArray();
   if (typeof query.execute === 'function') return query.execute();
   if (typeof query.collect === 'function') return query.collect();
-  return [];
+  throw unavailable('LanceDB query has no supported result materialization method.');
 };
 
 const readRowId = (row, idColumn) => {
@@ -259,7 +259,7 @@ export async function rankLanceDb({
   const embeddingArray = normalized.embedding;
 
   const dir = lancedbInfo.dir;
-  if (!dir || !fs.existsSync(dir)) return [];
+  if (!dir || !fs.existsSync(dir)) throw unavailable('Declared LanceDB directory is unavailable.');
 
   let tableLease;
   try {
@@ -267,19 +267,15 @@ export async function rankLanceDb({
   } catch (err) {
     if (err?.cacheOwnershipPending) throw err;
     throwIfAborted(signal);
-    warnOnce(
-      'lancedb-table-load',
-      `[ann] LanceDB table load failed; falling back to other ANN backends. ${err?.message || err}`
-    );
-    return [];
+    throw err;
   }
   const table = tableLease?.table;
-  if (!tableLease) { throwIfAborted(signal); return []; }
+  if (!tableLease) { throwIfAborted(signal); throw unavailable('LanceDB table lease is unavailable.'); }
 
   let primaryError, hasPrimary = false;
   try {
     throwIfAborted(signal);
-    if (!table || typeof table.search !== 'function') return [];
+    if (!table || typeof table.search !== 'function') throw unavailable('LanceDB table has no supported search method.');
     const limitBase = normalizePositiveInt(topN, 1) || 1;
     const candidateIds = (candidateCount && isSafeIdColumn(idColumn))
       ? normalizeCandidateSetIds(candidateSet)
@@ -349,7 +345,8 @@ export async function rankLanceDb({
       // based on candidate count cannot bound the nearest allowed row's rank.
         const limit = candidateCount ? Number(await table.countRows?.()) : limitBase;
         throwIfAborted(signal);
-        if (!Number.isSafeInteger(limit) || limit <= 0) return [];
+        if (!Number.isSafeInteger(limit) || limit < 0) throw unavailable('LanceDB query cannot determine its required exhaustive candidate extent.');
+        if (limit === 0) return [];
         const rows = await toArray(buildQuery(limit));
         throwIfAborted(signal);
         await admitRows(rows);
@@ -359,9 +356,7 @@ export async function rankLanceDb({
     } catch (err) {
       if (err?.cacheOwnershipPending) throw err;
       throwIfAborted(signal);
-      primaryError = err; hasPrimary = true;
-      warnOnce('lancedb-query', `[ann] LanceDB query failed; falling back to other ANN backends. ${err?.message || err}`);
-      return [];
+      throw err;
     }
   } catch (error) {
     primaryError = error; hasPrimary = true;

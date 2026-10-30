@@ -125,7 +125,7 @@ try {
   await clearLanceDbConnectionCache(); ordinary.state.queryGate.resolve();
   const ordinaryCombined = await captureFailure(ordinaryQuery);
   assert.equal(ordinaryCombined.primaryError, ordinaryCause, 'a fallback-bound query error is retained if final cleanup also fails');
-  assert.equal(warnings.length, 1); assert.match(warnings.pop(), /ordinary frozen query failed/);
+  assert.deepEqual(warnings, [], 'native failure and cleanup evidence propagate without claiming a fallback decision');
   await ordinaryCombined.lanceDbOwner.close(); assert.equal(ordinaryCombined.cacheOwnershipReleased(), true);
 
   const primary = await fixture('query-and-close'), primaryState = primary.state;

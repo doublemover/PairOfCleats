@@ -6,6 +6,7 @@ import { persistSearchSession } from '../../../src/retrieval/cli/run-search-sess
 import { createRetrievalExecutionOutcome } from '../../../src/retrieval/pipeline/execution-outcome.js';
 import { createQueryCacheLookupInput, createQueryCachePersistInput } from './query-cache-fixture.js';
 import { prepareIsolatedTestCacheDir } from '../../helpers/test-cache.js';
+import { RETRIEVAL_EXECUTION_VERSION } from '../../../src/contracts/retrieval-execution.js';
 
 const { dir } = await prepareIsolatedTestCacheDir('query-execution-admission');
 try {
@@ -16,9 +17,12 @@ try {
   assert.equal(canonicalHit.cacheHit, true);
   assert.equal(canonicalHit.cacheHotPathHit, false, 'zero freshness validates the canonical disk entry on each lookup');
   const original = JSON.parse(await fs.readFile(miss.queryCachePath, 'utf8'));
+  assert.equal(original.entries[0].meta.executionOutcomes.code.schemaVersion, RETRIEVAL_EXECUTION_VERSION);
   const touchPath = `${miss.queryCachePath}.touches.json`;
   const touchBytes = await fs.readFile(touchPath, 'utf8');
   for (const change of [
+    // Exact old persisted v1 proof could certify a swallowed LanceDB failure.
+    entry => { entry.meta.executionOutcomes.code.schemaVersion = 1; },
     entry => { delete entry.meta.executionOutcomes; },
     entry => { entry.meta.executionOutcomes = {}; },
     entry => { entry.meta.executionOutcomes.code = createRetrievalExecutionOutcome({ mode: 'code', annRequested: true }); },
