@@ -79,7 +79,8 @@ const install = ({ target = null, beforeOpen = null, afterRead = null, close = n
   };
   return states;
 };
-const restore = async () => { fs.open = originalOpen; nativeFs.lstatSync = originalLstat; await fixture.restore(); };
+const originalStat = nativeFs.statSync;
+const restore = async () => { fs.open = originalOpen; nativeFs.lstatSync = originalLstat; nativeFs.statSync = originalStat; await fixture.restore(); };
 const assertClosed = states => { for (const state of states) {
   assert.equal(state.handle.fd, -1); assert.equal(state.closes, 1);
   assert.ok(state.windows.every(bytes => bytes <= 65536));
@@ -115,6 +116,9 @@ try {
     }
     for (const fault of ['rewrite', 'replacement', 'growth', 'oversized', 'truncate', 'premature-eof', 'same-bytes-external', 'nested-link']) {
       let changed = false;
+      if (fault === 'replacement') nativeFs.statSync = function (filename, ...args) {
+        return originalStat.call(this, changed && path.resolve(String(filename)) === target ? target + '.replacement' : filename, ...args);
+      };
       if (fault === 'oversized') await fs.truncate(target, 32 * 1024 * 1024 + 1);
       if (fault === 'nested-link') nativeFs.lstatSync = function (filename, ...args) {
         const stat = originalLstat.call(this, filename, ...args);
@@ -128,7 +132,10 @@ try {
             const changedBytes = Buffer.from(original); changedBytes[changedBytes.length - 1] = 10;
             await fs.writeFile(target, changedBytes);
           } else if (fault === 'replacement') {
-            const replacement = target + '.replacement'; await fs.writeFile(replacement, original); await fs.rename(replacement, target);
+            // Retain the actual open FD while a fresh pathname observation
+            // reports another actual inode; no unsupported Windows rename.
+            const replacement = target + '.replacement'; await fs.writeFile(replacement, original);
+            assert.notEqual(originalStat(target, { bigint: true }).ino, originalStat(replacement, { bigint: true }).ino);
           } else if (fault === 'growth') await fs.appendFile(target, ' ');
           else if (fault === 'truncate') await fs.truncate(target, 1);
         } });
@@ -198,6 +205,6 @@ try {
   console.log(JSON.stringify({ consumer, familyKinds: 3, physicalLinkQualification: 'not claimed; native metadata admission controls only',
     successfulStores: constructed, backend }));
 } finally {
-  fs.open = originalOpen; nativeFs.lstatSync = originalLstat;
+  fs.open = originalOpen; nativeFs.lstatSync = originalLstat; nativeFs.statSync = originalStat;
   for (const close of held.values()) await close(); await fixture.cleanup();
 }

@@ -9,10 +9,23 @@ import { runBuildCleanupWithTimeout, isOwnedBuildCleanupTimeout } from './cleanu
 import { openContainedFile, verifyContainedFileHandle } from '../../shared/contained-file.js';
 import { createContainedFileResource } from '../../shared/contained-file-resource.js';
 import { readExactAt } from '../../shared/io/read-exact.js';
-import { throwIfAborted } from '../../shared/abort.js';
+import { isAbortError, throwIfAborted } from '../../shared/abort.js';
+import { observeStorageResource } from '../../shared/storage/failure-observation.js';
 
 const MINIFIED_SAMPLE_EXTS = new Set([...JS_EXTS, ...CSS_EXTS, ...HTML_EXTS]);
 export const FILE_TYPE_PROBE_MAX_BYTES = 8192;
+
+const sourceAuthorityFailures = new Set(['ENOENT', 'ERR_UNSAFE_FILE_PATH', 'ERR_ARTIFACT_PATH',
+  'ERR_FILE_CHANGED', 'ERR_FILE_INTEGRITY', 'ERR_FILE_TOO_LARGE', 'ERR_IO_READ_PROGRESS', 'EISDIR']);
+// Optional content probes may lack ordinary I/O diagnostics. They cannot turn
+// refused source identity, cancellation or original resource ownership into a
+// successful classification, including after a failed close later settles.
+export const preserveSourceSampleFailure = (error, phase = 'file-scan-sample') => {
+  const observation = observeStorageResource(error, { phase }); observation.requireSettled();
+  let code;
+  try { code = error?.code; } catch { throw error; }
+  if (observation.hasResourceObservation || isAbortError(error) || sourceAuthorityFailures.has(code)) throw error;
+};
 
 /** Keep the original close deadline while the ordinary contained-resource owner
  * retains exact read/close failures and its original handle recovery capability.
@@ -348,7 +361,8 @@ export function createFileScanner(fileScanConfig = {}) {
     let sampleBuffer = null;
     try {
       sampleBuffer = await readSample(absPath, tier1Bytes);
-    } catch {
+    } catch (error) {
+      preserveSourceSampleFailure(error);
       sampleBuffer = null;
     }
     if (!sampleBuffer) return result;
@@ -391,7 +405,8 @@ export function createFileScanner(fileScanConfig = {}) {
       let extendedBuffer = null;
       try {
         extendedBuffer = await readSample(absPath, sampleSizeBytes);
-      } catch {
+      } catch (error) {
+        preserveSourceSampleFailure(error);
         extendedBuffer = null;
       }
       if (extendedBuffer?.length && extendedBuffer.length > sampleBuffer.length) {

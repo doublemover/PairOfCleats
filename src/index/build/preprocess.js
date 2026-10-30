@@ -5,7 +5,7 @@ import { countLinesForEntries } from '../../shared/file-stats.js';
 import { isRelativePathEscape, toPosix } from '../../shared/file-paths.js';
 import { runWithConcurrency } from '../../shared/concurrency/run-with-queue.js';
 import { coerceAbortSignal, throwIfAborted } from '../../shared/abort.js';
-import { createFileScanner, readFileSample } from './file-scan.js';
+import { createFileScanner, readFileSample, preserveSourceSampleFailure } from './file-scan.js';
 import { discoverEntries } from './discover.js';
 import { forwardDiscoveryDirectoryInventory } from './discovery/directory-inventory.js';
 import { createPreprocessSnapshotSession } from './preprocess-snapshot.js';
@@ -221,7 +221,7 @@ export async function preprocessFiles({
             });
             recordSampleText = recordSample.text;
           } catch (error) {
-            observeStorageResource(error, { phase: 'preprocess-record-sample' }).requireSettled();
+            preserveSourceSampleFailure(error, 'preprocess-record-sample');
           }
         }
         const record = recordsClassifier.classify({
@@ -285,7 +285,8 @@ export async function preprocessFiles({
         if (!sampleBuffer) {
           try {
             sampleBuffer = await sample(entry.abs, EXTRACTED_PROSE_PREFILTER_SAMPLE_BYTES);
-          } catch {
+          } catch (error) {
+            preserveSourceSampleFailure(error, 'preprocess-extracted-prose-sample');
             sampleBuffer = null;
           }
         }

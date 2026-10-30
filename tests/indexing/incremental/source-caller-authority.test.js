@@ -71,6 +71,14 @@ const install = ({ fault = null, controller = null, primary = null, secondary = 
     return fault === 'nested-link' && path.resolve(String(filename)) === fixture.repoRoot
       ? Object.create(stat, { isSymbolicLink: { value: () => true } }) : stat;
   };
+  nativeFs.statSync = function (filename, ...args) {
+    // Windows prohibits renaming over this original open handle. Substitute
+    // only the fresh pathname metadata with another actual file's identity;
+    // the original admitted FD/read/close remain real and unchanged.
+    const actual = fault === 'replacement' && changed && path.resolve(String(filename)) === abs
+      ? abs + '.replacement' : filename;
+    return originalStat.call(this, actual, ...args);
+  };
   fs.open = async (filename, ...args) => {
     if (path.resolve(String(filename)) !== abs) return originalOpen(filename, ...args);
     if (fault === 'delete-before-open' && !changed) { changed = true; await fs.unlink(abs); }
@@ -87,7 +95,8 @@ const install = ({ fault = null, controller = null, primary = null, secondary = 
       if (!changed) {
         changed = true;
         if (fault === 'replacement') {
-          const replacement = abs + '.replacement'; await fs.writeFile(replacement, file.bytes); await fs.rename(replacement, abs);
+          const replacement = abs + '.replacement'; await fs.writeFile(replacement, file.bytes);
+          assert.notEqual(originalStat(abs, { bigint: true }).ino, originalStat(replacement, { bigint: true }).ino);
         } else if (fault === 'growth') await fs.appendFile(abs, ' ');
         else if (fault === 'truncate') await fs.truncate(abs, 1);
         else if (fault === 'rewrite') {
@@ -107,6 +116,7 @@ const install = ({ fault = null, controller = null, primary = null, secondary = 
 };
 const reset = async () => {
   fs.open = originalOpen; nativeFs.lstatSync = originalLstat; nativeFs.statSync = originalStat;
+  await fs.rm(abs + '.replacement', { force: true });
   await fs.writeFile(abs, file.bytes); sourceStat = await fs.stat(abs); sharedReadState = new Map();
 };
 const assertClosed = states => { for (const state of states) {
@@ -202,7 +212,9 @@ try {
     assert.equal(states.reduce((sum, state) => sum + state.bytes, 0), 0, 'only the caller-bound private unchanged-source receipt reuses bytes');
     assert.ok(states.length > 0, 'cache reuse still reacquires exact contained identity'); assertClosed(states);
   }
-  console.log(JSON.stringify({ caller: selected, observations, physicalLinks: 'not qualified by metadata controls' }));
+  console.log(JSON.stringify({ caller: selected, observations,
+    replacementScope: 'real held source descriptor versus independently created file identity at fresh pathname stat; no physical open-file rename claimed',
+    physicalLinks: 'not qualified by metadata controls' }));
 } finally {
   fs.open = originalOpen; nativeFs.lstatSync = originalLstat; nativeFs.statSync = originalStat;
   for (const close of retained.values()) await close(); await fixture.cleanup();
