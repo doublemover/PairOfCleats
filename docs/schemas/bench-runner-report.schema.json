@@ -5,7 +5,7 @@
   "type": "object",
   "required": ["schemaVersion", "generatedAt", "runner", "summary", "results"],
   "properties": {
-    "schemaVersion": { "type": "integer", "const": 2 },
+    "schemaVersion": { "type": "integer", "const": 3 },
     "generatedAt": { "type": "string" },
     "experiment": { "type": ["object", "null"] },
     "workload": { "type": "object" },

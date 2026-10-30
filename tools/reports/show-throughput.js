@@ -527,13 +527,13 @@ const getSortValue = (row, metric) => {
     case 'name':
       return String(row?.label || row?.folder || row?.repoIdentity || '');
     case 'chunks':
-      return Number(row?.chunksMedian ?? row?.chunkMedian ?? row?.codeDistribution?.chunksPerSec?.median ?? 0);
+      return Number(row?.currentChunks ?? row?.chunksMedian ?? row?.chunkMedian ?? row?.codeDistribution?.chunksPerSec?.median ?? 0);
     case 'files':
       return Number(row?.filesMedian ?? row?.codeDistribution?.filesPerSec?.median ?? 0);
     case 'lines':
       return Number(row?.linesPerSec ?? 0);
     case 'build':
-      return Number(row?.buildIndexMedian ?? 0);
+      return Number(row?.currentBuild ?? row?.buildIndexMedian ?? 0);
     case 'query':
       return Number(row?.queryMedian ?? 0);
     case 'search':
@@ -816,6 +816,8 @@ for (const dir of folders) {
     backendLatency,
     aggregateIndexed,
     aggregateLinesPerSec,
+    linesPerSecByMode: Object.fromEntries([...modeTotalsFolder].map(([mode, totals]) => [mode,
+      totals.durationMs > 0 && Number.isFinite(totals.lines) ? totals.lines / (totals.durationMs / 1000) : null])),
     folderLedgerRegressions,
     regressionCount: folderRegressionCount,
     regressionSeverity: folderRegressionSeverity,
@@ -1570,14 +1572,15 @@ const outputSummary = {
     codeChunksMedian: report.codeDistribution?.chunksPerSec?.median ?? null,
     codeChunksP95: report.codeDistribution?.chunksPerSec?.p95 ?? null,
     codeFilesMedian: report.codeDistribution?.filesPerSec?.median ?? null,
-    linesPerSec: report.aggregateLinesPerSec,
+    linesPerSec: report.linesPerSecByMode?.[modeFilter || 'code'] ?? null,
+    metricScopes: { linesPerSec: modeFilter || 'code', buildIndexMedian: 'whole-build' },
     buildIndexMedian: report.buildIndexMs?.median ?? null,
     queryMedian: report.wallPerQuery?.median ?? null,
     searchMedian: report.wallPerSearch?.median ?? null,
     regressionCount: report.regressionCount,
     ledgerComparisons: report.ledgerComparisons,
     regressionSeverity: report.regressionSeverity,
-    variability: report.codeDistribution?.chunksPerSec?.coefficientOfVariation ?? null,
+    variability: pickModeDistribution(report, modeFilter || 'code')?.chunksPerSec?.coefficientOfVariation ?? null,
     coverageCandidates: report.outcomeRepos.coverage.candidates,
     coverageScanned: report.outcomeRepos.coverage.scanned,
     coverageSkipped: report.outcomeRepos.coverage.skipped,
@@ -1592,18 +1595,21 @@ const buildFamilyRows = () => sortRows(folderReports.map((report) => ({
   chunkMedian: pickModeDistribution(report, modeFilter || 'code')?.chunksPerSec?.median ?? null,
   chunkP95: pickModeDistribution(report, modeFilter || 'code')?.chunksPerSec?.p95 ?? null,
   filesMedian: pickModeDistribution(report, modeFilter || 'code')?.filesPerSec?.median ?? null,
-  linesPerSec: report.aggregateLinesPerSec,
+  linesPerSec: report.linesPerSecByMode?.[modeFilter || 'code'] ?? null,
+  metricScopes: { linesPerSec: modeFilter || 'code', buildIndexMedian: 'whole-build' },
   buildIndexMedian: report.buildIndexMs?.median ?? null,
+  queryMedian: report.wallPerQuery?.median ?? null,
   searchMedian: report.wallPerSearch?.median ?? null,
   regressions: report.regressionCount,
   regressionSeverity: report.regressionSeverity,
-  variability: report.codeDistribution?.chunksPerSec?.coefficientOfVariation ?? null,
+  variability: pickModeDistribution(report, modeFilter || 'code')?.chunksPerSec?.coefficientOfVariation ?? null,
   coverageCandidates: report.outcomeRepos.coverage.candidates,
   coverageScanned: report.outcomeRepos.coverage.scanned,
   coverageSkipped: report.outcomeRepos.coverage.skipped
 })), sortMetric).slice(0, topN);
 
 const buildRepoRows = () => {
+  if (sortMetric === 'variability') throw new Error('Repo profile rows are individual runs and do not supply --sort variability.');
   const rows = [];
   for (const report of folderReports) {
     for (const run of report.runs) {
@@ -1618,6 +1624,8 @@ const buildRepoRows = () => {
         file: run.file,
         chunksMedian: toFiniteOrNull(modeDistribution?.chunksPerSec),
         filesMedian: toFiniteOrNull(modeDistribution?.filesPerSec),
+        linesPerSec: Number.isFinite(modeDistribution?.linesPerSec) ? modeDistribution.linesPerSec : null,
+        metricScopes: { throughput: modeFilter || 'code', buildIndexMedian: 'whole-build' },
         buildIndexMedian: toFiniteOrNull(run.summary?.buildMs?.index),
         queryMedian: toFiniteOrNull(run.summary?.queryWallMsPerQuery),
         searchMedian: toFiniteOrNull(run.summary?.queryWallMsPerSearch),
@@ -1655,6 +1663,9 @@ const printRepoText = (rows) => {
 };
 
 const buildComparison = () => {
+  if (!['name', 'chunks', 'build', 'regressions'].includes(sortMetric)) {
+    throw new Error(`Compare profile does not supply --sort ${sortMetric}; use name, chunks, build or regressions.`);
+  }
   if (!compareRoot) {
     throw new Error('--compare is required when --profile compare is used');
   }
@@ -1734,7 +1745,8 @@ if (!shouldRenderTextOverview) {
     else if (csvOutput) printCsv(comparison.rows);
     else printCompareText(comparison);
   } else if (jsonOutput || profile === 'raw') {
-    emitJson(outputSummary);
+    emitJson({ ...outputSummary,
+      ...(profile === 'family' ? { rows: buildFamilyRows() } : profile === 'repo' ? { rows: buildRepoRows() } : {}) });
   } else if (csvOutput) {
     const rows = profile === 'repo' ? buildRepoRows() : buildFamilyRows();
     printCsv(rows);

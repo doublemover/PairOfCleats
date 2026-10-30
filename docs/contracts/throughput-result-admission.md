@@ -70,3 +70,10 @@ allowances, cancellation, no inspection writes, rejected materialization inputs,
 zero-exit wrong/partial child output and explicit empty reports. Existing positive
 profile/comparison assertions remain. Functional execution is deferred with the
 implementation wave.
+
+Throughput report/comparison version 3 projects the selected focused mode into
+text, JSON and CSV rows, including variability and line rates. `extractedProse`
+normalizes to `extracted-prose`. Comparison numeric sorting consumes the current
+comparison values; unsupported combinations fail explicitly. Repository/latest
+selection does not modify source reports. Run-level waiver policy findings affect
+verdict and issue counts without inflating repository result-class denominators.

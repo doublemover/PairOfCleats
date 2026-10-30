@@ -6,11 +6,13 @@ import os from 'node:os';
 import { createHash } from 'node:crypto';
 import { isDirectExecution } from '../../src/shared/direct-execution.js';
 import { observeStorageResource } from '../../src/shared/storage/failure-observation.js';
+import { redactDiagnosticText } from '../../src/shared/diagnostic-text.js';
 import { resolveBenchRunnerWorkload, reobserveBenchSources, substituteBenchTokens, readBenchmarkExperiment, BENCH_REPORT_MAX_BYTES } from './runner-workload.js';
 import { atomicWriteText } from '../../src/shared/io/atomic-write.js';
 import { BENCH_RUNNER_REPORT_VERSION } from './runner-contract.js';
 import { classifyBenchOutcome, summarizeBenchOutcomes } from './runner-outcome.js';
 import { collectUtilizationSamples, summarizeUtilization } from './runner-utilization.js';
+import { captureArtifactTiming, qualifyAggregateWorkEstimate } from './runner-timing.js';
 
 const { getEnvConfig } = await import('../../src/shared/env/runtime.js');
 const { spawnSubprocessSync } = await import('../../src/shared/subprocess/runner.js');
@@ -291,26 +293,28 @@ const resolveStageDurations = (json) => {
  * @param {{json:any,script:string,durationMs:number}} input
  * @returns {{script:string,totalMs:number,parseMs:number|null,inferMs:number|null,writeMs:number|null,overlapMs:number,overlapPct:number}|null}
  */
-const resolveStageOverlapRow = ({ json, script, durationMs }) => {
-  const totalMs = toFiniteNumber(json?.timings?.totalMs ?? json?.timings?.durationMs ?? durationMs);
+const resolveStageOverlapRow = ({ json, script }) => {
+  const totalMs = toFiniteNumber(json?.timings?.totalMs ?? json?.timings?.durationMs);
   const durations = resolveStageDurations(json);
-  const parseMs = toFiniteNumber(durations.parseMs);
-  const inferMs = toFiniteNumber(durations.inferMs);
-  const writeMs = toFiniteNumber(durations.writeMs);
+  const nonnegative = value => typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : null;
+  const parseMs = nonnegative(durations.parseMs);
+  const inferMs = nonnegative(durations.inferMs);
+  const writeMs = nonnegative(durations.writeMs);
   const stageSumMs = [parseMs, inferMs, writeMs]
-    .filter((value) => Number.isFinite(value))
+    .filter((value) => Number.isFinite(value) && value >= 0)
     .reduce((acc, value) => acc + value, 0);
-  if (!Number.isFinite(totalMs) || stageSumMs <= 0) return null;
+  if (!Number.isFinite(totalMs) || totalMs < 0 || stageSumMs <= 0) return null;
   const overlapMs = Math.max(0, stageSumMs - totalMs);
-  return {
+  return qualifyAggregateWorkEstimate({
     script,
     totalMs,
+    totalSource: 'producer-declared-same-payload-total',
     parseMs,
     inferMs,
     writeMs,
     overlapMs,
     overlapPct: (overlapMs / Math.max(1, stageSumMs)) * 100
-  };
+  });
 };
 
 /**
@@ -335,8 +339,9 @@ const resolveStageOverlapRow = ({ json, script, durationMs }) => {
 const runOne = ({ script, args, timeoutMs, tokens }) => {
   const absScript = path.isAbsolute(script) ? script : path.join(process.cwd(), script);
   const start = Date.now();
+  const elapsedStart = process.hrtime.bigint();
   let result = null;
-  let timedOut = false, processFailure = null;
+  let timedOut = false, processFailure = null, processFailureReceipt = null;
   try {
     result = spawnSubprocessSync(
       process.execPath,
@@ -355,6 +360,9 @@ const runOne = ({ script, args, timeoutMs, tokens }) => {
   } catch (error) {
     observeStorageResource(error, { phase: 'bench-child-settlement' }).requireSettled();
     processFailure = typeof error?.code === 'string' ? error.code : 'SUBPROCESS_EXECUTION_FAILED';
+    processFailureReceipt = { kind: processFailure, name: typeof error.name === 'string' ? error.name : 'Error',
+      message: redactDiagnosticText(typeof error.message === 'string' ? error.message : 'Subprocess execution failed.', 4096),
+      code: typeof error.code === 'string' ? error.code : null };
     timedOut = error?.name === 'SubprocessTimeoutError'
       || error?.code === 'SUBPROCESS_TIMEOUT'
       || String(error?.result?.errorCode || '').toUpperCase() === 'ETIMEDOUT';
@@ -365,7 +373,7 @@ const runOne = ({ script, args, timeoutMs, tokens }) => {
       stderr: error?.message || String(error || '')
     };
   }
-  const durationMs = Date.now() - start;
+  const durationMs = Number(process.hrtime.bigint() - elapsedStart) / 1e6;
   const stdout = typeof result?.stdout === 'string' ? result.stdout : '';
   const stderr = typeof result?.stderr === 'string' ? result.stderr : '';
   const combined = `${stdout}\n${stderr}`;
@@ -376,12 +384,14 @@ const runOne = ({ script, args, timeoutMs, tokens }) => {
     script,
     absScript,
     startedAtMs: start,
-    endedAtMs: start + durationMs,
+    endedAtMs: Date.now(),
+    clockOrigin: 'unix-epoch-ms', elapsedClock: 'monotonic-hrtime',
     durationMs,
     exitCode,
     timedOut,
     signal: typeof result?.signal === 'string' ? result.signal : null,
     processFailure,
+    processFailureReceipt,
     outputCapture: result?.outputCapture || null,
     ok: exitCode === 0 && !timedOut && !result?.signal && !processFailure,
     stdout,
@@ -452,6 +462,7 @@ export const runBenchRunner = async ({ argv = parseArgs(), resolveSuite = resolv
   const artifactDurations = [];
   const stageOverlapRows = [];
   const utilizationSamples = [];
+  const utilizationIntervalTotals = new Map();
   let utilizationObserved = 0, utilizationValid = 0, utilizationUnavailable = 0;
   for (const entry of results) {
     const stageOverlapRow = resolveStageOverlapRow({
@@ -465,27 +476,23 @@ export const runBenchRunner = async ({ argv = parseArgs(), resolveSuite = resolv
     utilizationObserved += utilization.observedCount;
     utilizationValid += utilization.validCount;
     utilizationUnavailable += utilization.unavailableCount;
+    // Online aggregates cover every admitted interval, independently of the
+    // bounded display suffix and script emission density/order.
+    for (const [scope, input] of Object.entries(utilization.intervalObservation.intervalsByScope)) {
+      const total = utilizationIntervalTotals.get(scope) || { observedIntervals: 0, coveredMs: 0, weightedPctMs: 0, scripts: 0 };
+      total.observedIntervals += input.observedIntervals; total.coveredMs += input.coveredMs; total.weightedPctMs += input.weightedPctMs;
+      total.scripts++;
+      utilizationIntervalTotals.set(scope, total);
+    }
     const artifacts = Array.isArray(entry?.json?.timings?.artifacts)
       ? entry.json.timings.artifacts
       : [];
     for (const artifact of artifacts) {
-      const durationMs = Number(artifact?.durationMs);
-      if (!Number.isFinite(durationMs) || durationMs < 0) continue;
-      const stallMs = toFiniteNumber(artifact?.stallMs ?? artifact?.queueDelayMs ?? artifact?.waitMs ?? durationMs);
-      const startedAtMs = toFiniteNumber(artifact?.startedAtMs ?? artifact?.startAtMs);
-      const endedAtMs = toFiniteNumber(artifact?.endedAtMs ?? artifact?.endAtMs)
-        ?? (Number.isFinite(startedAtMs) ? startedAtMs + durationMs : null);
-      artifactDurations.push({
-        script: entry.script,
-        path: typeof artifact?.path === 'string' ? artifact.path : null,
-        durationMs,
-        stallMs: Number.isFinite(stallMs) ? stallMs : durationMs,
-        startedAtMs,
-        endedAtMs
-      });
+      const timing = captureArtifactTiming(artifact, entry.script);
+      if (timing) artifactDurations.push(timing);
     }
   }
-  const artifactDurationValues = artifactDurations.map((entry) => entry.stallMs);
+  const artifactDurationValues = artifactDurations.map((entry) => entry.stallMs).filter(Number.isFinite);
   const artifactStallDurationMs = artifactDurationValues.length
     ? {
       count: artifactDurationValues.length,
@@ -501,6 +508,10 @@ export const runBenchRunner = async ({ argv = parseArgs(), resolveSuite = resolv
     .map((entry) => ({
       script: entry.script,
       durationMs: entry.durationMs,
+      startedAtMs: entry.startedAtMs ?? null,
+      endedAtMs: entry.endedAtMs ?? null,
+      clockOrigin: entry.clockOrigin || null,
+      elapsedClock: entry.elapsedClock || null,
       ok: entry.ok
     }));
   const criticalPathArtifacts = artifactDurations
@@ -517,7 +528,7 @@ export const runBenchRunner = async ({ argv = parseArgs(), resolveSuite = resolv
       durationMs: entry.durationMs
     })),
     ...artifactDurations
-      .filter((entry) => Number.isFinite(entry.endedAtMs))
+      .filter((entry) => entry.crossProcessOrder === 'available')
       .map((entry) => ({
         type: 'artifact',
         script: entry.script,
@@ -532,6 +543,7 @@ export const runBenchRunner = async ({ argv = parseArgs(), resolveSuite = resolv
     .slice(-20);
   const overlapValues = stageOverlapRows.map((entry) => entry.overlapPct);
   const stageOverlap = {
+    kind: 'excess-aggregate-stage-work-estimate', observedOverlap: false,
     count: stageOverlapRows.length,
     avgPct: overlapValues.length
       ? overlapValues.reduce((acc, value) => acc + value, 0) / overlapValues.length
@@ -542,7 +554,8 @@ export const runBenchRunner = async ({ argv = parseArgs(), resolveSuite = resolv
     rows: stageOverlapRows
   };
   const perCoreUtilization = summarizeUtilization({ samples: utilizationSamples, observedCount: utilizationObserved,
-    validCount: utilizationValid, unavailableCount: utilizationUnavailable, percentile: resolvePercentile });
+    validCount: utilizationValid, unavailableCount: utilizationUnavailable, percentile: resolvePercentile,
+    intervalObservations: [{ intervalsByScope: Object.fromEntries(utilizationIntervalTotals) }] });
   const triageHints = [];
   if ((summary.error || 0) > 0 || (summary.timeout || 0) > 0) {
     triageHints.push('One or more bench scripts failed or timed out; inspect stderr for first failing script.');
@@ -568,6 +581,8 @@ export const runBenchRunner = async ({ argv = parseArgs(), resolveSuite = resolv
   summary.stageOverlap = stageOverlap;
   summary.perCoreUtilization = perCoreUtilization;
   summary.criticalPath = {
+    kind: 'completion-timeline', causalCriticalPath: false, clockOrigin: 'unix-epoch-ms',
+    unavailableCrossClockArtifacts: artifactDurations.filter(row => row.crossProcessOrder !== 'available'),
     scripts: criticalPathScripts,
     artifacts: criticalPathArtifacts,
     reconstructedTail: criticalPathSequence
@@ -622,6 +637,7 @@ export const runBenchRunner = async ({ argv = parseArgs(), resolveSuite = resolv
       processOk: entry.processOk,
       signal: entry.signal,
       processFailure: entry.processFailure,
+      processFailureReceipt: entry.processFailureReceipt || null,
       skipped: entry.skipped === true,
       skipReason: entry.skipReason || null,
       parsedOk: entry.parsedOk === true,
@@ -629,6 +645,10 @@ export const runBenchRunner = async ({ argv = parseArgs(), resolveSuite = resolv
       timedOut: entry.timedOut,
       exitCode: entry.exitCode,
       durationMs: entry.durationMs,
+      startedAtMs: entry.startedAtMs ?? null,
+      endedAtMs: entry.endedAtMs ?? null,
+      clockOrigin: entry.clockOrigin || null,
+      elapsedClock: entry.elapsedClock || null,
       parsed: entry.parsed,
       json: entry.json,
       stdout: entry.stdout,

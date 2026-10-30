@@ -46,3 +46,13 @@ skip and nonzero/missing-output failures; injected process facts cover signal,
 timeout and spawn failure portably. Numerical fixtures independently check low
 percentages, ratios, missingness, retained suffixes and summary statistics. These
 controls do not qualify a real workload, native backend or measured performance.
+
+Runner report version 3 measures parent elapsed duration with a monotonic clock.
+Wall timestamps remain separately labeled. A child artifact interval participates
+in the completion timeline only with an explicit compatible Unix epoch clock.
+Service duration cannot supply queue/stall delay. Aggregate stage-work excess is
+an arithmetic estimate, not observed overlap or a causal critical path.
+Utilization retains a bounded sample mean separately from left-held interval
+weighting over compatible ordered samples. Interval accumulation precedes display
+caps; unknown gaps and cross-script overlap remain unobserved. Original process
+failure excerpts remain bounded and redacted alongside terminal disposition.

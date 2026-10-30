@@ -4,6 +4,7 @@ await guardBootstrapEntry(import.meta.url);
 import fs from 'node:fs/promises';
 import path from 'node:path';
 const { buildBenchRunDiff } = await import('./language/diff.js');
+const { compareGenericBenchmarkReports } = await import('./generic-diff.js');
 
 const parseArgs = () => {
   const out = { before: null, after: null, json: false };
@@ -30,20 +31,6 @@ const parseArgs = () => {
     }
   }
   return out;
-};
-
-const pickNumber = (metrics, keys) => {
-  if (!metrics || typeof metrics !== 'object') return null;
-  for (const key of keys) {
-    const value = metrics[key];
-    if (Number.isFinite(Number(value))) return Number(value);
-  }
-  return null;
-};
-
-const resolveDurationMs = (entry) => {
-  const metrics = entry?.parsed?.current?.metrics || entry?.parsed?.baseline?.metrics || null;
-  return pickNumber(metrics, ['duration', 'total', 'ms', 'totalMs']);
 };
 
 const main = async () => {
@@ -107,41 +94,10 @@ const main = async () => {
     return;
   }
 
-  const indexResults = (report) => {
-    const out = new Map();
-    const results = Array.isArray(report?.results) ? report.results : [];
-    for (const entry of results) {
-      if (!entry?.script) continue;
-      out.set(String(entry.script), entry);
-    }
-    return out;
-  };
-
-  const beforeMap = indexResults(before);
-  const afterMap = indexResults(after);
-
-  const scripts = Array.from(new Set([...beforeMap.keys(), ...afterMap.keys()])).sort();
-  const diffs = [];
-  for (const script of scripts) {
-    const beforeEntry = beforeMap.get(script) || null;
-    const afterEntry = afterMap.get(script) || null;
-    const beforeMs = resolveDurationMs(beforeEntry);
-    const afterMs = resolveDurationMs(afterEntry);
-    const deltaMs = (beforeMs !== null && afterMs !== null) ? (afterMs - beforeMs) : null;
-    const deltaPct = (beforeMs !== null && afterMs !== null && beforeMs !== 0)
-      ? (deltaMs / beforeMs) * 100
-      : null;
-    diffs.push({
-      script,
-      beforeMs,
-      afterMs,
-      deltaMs,
-      deltaPct
-    });
-  }
+  const comparison = compareGenericBenchmarkReports(before, after), { diffs } = comparison;
 
   if (argv.json) {
-    process.stdout.write(`${JSON.stringify({ diffs }, null, 2)}\n`);
+    process.stdout.write(`${JSON.stringify(comparison, null, 2)}\n`);
     return;
   }
 
@@ -150,7 +106,7 @@ const main = async () => {
     const afterMs = row.afterMs === null ? 'n/a' : row.afterMs.toFixed(1);
     const deltaMs = row.deltaMs === null ? 'n/a' : row.deltaMs.toFixed(1);
     const deltaPct = row.deltaPct === null ? 'n/a' : `${row.deltaPct.toFixed(1)}%`;
-    console.log(`${row.script}: ${beforeMs}ms -> ${afterMs}ms (delta ${deltaMs}ms, ${deltaPct})`);
+    console.log(`${row.id}/${row.script}: ${beforeMs}ms -> ${afterMs}ms (delta ${deltaMs}ms, ${deltaPct}) ${row.state}${row.reasons.length ? ': ' + row.reasons.join(', ') : ''}`);
   }
 };
 

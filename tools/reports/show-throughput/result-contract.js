@@ -1,8 +1,8 @@
 import { isSupportedScanProfileVersion } from '../../../src/contracts/scan-profile.js';
 import { BENCH_MEASUREMENT_SNAPSHOT_VERSION } from '../../bench/language/metrics/recorded-contract.js';
 import { readBenchSkipReceipt } from '../../bench/runner-outcome.js';
-export const THROUGHPUT_REPORT_VERSION = 2;
-export const THROUGHPUT_COMPARISON_VERSION = 2;
+export const THROUGHPUT_REPORT_VERSION = 3;
+export const THROUGHPUT_COMPARISON_VERSION = 3;
 export const THROUGHPUT_INPUT_VERSION = 1;
 const object = value => value && typeof value === 'object' && !Array.isArray(value);
 const nonempty = value => typeof value === 'string' && value.trim().length > 0;
