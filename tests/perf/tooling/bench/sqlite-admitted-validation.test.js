@@ -17,6 +17,7 @@ try {
   assert.equal(admission.rows, 8); assert.equal(admission.files, 4); assert.ok(admission.bundleBytes > admission.sourceBytes);
   const dbPath = path.join(workspace.workRoot, 'actual.db');
   const built = await buildDatabaseFromBundles({ Database, outPath: dbPath, mode: 'code', emitOutput: false,
+    envConfig:{bundleThreads:1},threadLimits:{fileConcurrency:1},
     incrementalData: { bundleDir: workspace.bundleDir, manifest }, vectorConfig: { enabled: false }, validateMode: 'off' });
   assert.equal(built.count, 8);
   const valid = await validateSqliteBenchDatabase({ Database, dbPath, bundleDir: workspace.bundleDir, manifest, mode: 'code', expectedRows: 8, admission });

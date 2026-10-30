@@ -27,7 +27,8 @@ for(const options of [nativeDeclarationOptions,{treeSitter:{enabled:false}},
   assert.deepEqual(edges(fixture),expected);
   for(const [index,chunk] of fixture.chunks.entries()) {
     assert.ok(chunk.chunkUid); assert.equal(fixture.payloads[index].start,chunk.start);
-    if(['idle','outer','strings'].includes(chunk.name)) assert.deepEqual(fixture.projected[index].calls,[],chunk.name);
+    const expectedOwned=expected.filter(edge=>edge.startsWith(chunk.name+' -> ')).map(edge=>edge.split(' -> '));
+    assert.deepEqual(fixture.projected[index].calls??[],expectedOwned,chunk.name+' exact optional-call projection');
     if(options===nativeDeclarationOptions) assert.ok(Array.isArray(chunk.meta.syntaxCalls),'native route cannot silently fall back');
     else {
       assert.equal(fixture.relations.callCoverage,'partial');

@@ -7,8 +7,7 @@ import { createChunkCachePayload,admitChunkCacheRows,CHUNK_CACHE_PERSISTENT_SCHE
 import { withGeneratedCacheMetadata } from '../../../src/shared/generated-artifact-cache.js';
 import { treeSitterState } from '../../../src/lang/tree-sitter/state.js';
 import { buildTreeSitterChunks } from '../../../src/lang/tree-sitter/chunking.js';
-import { getContainedFileSession } from '../../../src/shared/contained-file-resource.js';
-import { observeStorageResource } from '../../../src/shared/storage/failure-observation.js';
+import { spawnSubprocess } from '../../../src/shared/subprocess/runner.js';
 import { prepareIsolatedTestCacheDir } from '../../helpers/test-cache.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 applyTestEnv();
@@ -47,12 +46,10 @@ if(selected==='schema-and-bytes') {
   assert.ok(cache.size<=2);assert.ok(chunkCacheRetentionObservation().retainedBytes<=limits.maxRetainedBytes);
 } else if(selected==='opened-resource') {
   const original={open:fs.openSync,read:fs.readSync,close:fs.closeSync,lstat:fs.lstatSync,stat:fs.statSync};
-  let activeFd=null,mode='short',reads=0,opens=0,allowClose=false,failure;
-  const closeFailure=Object.freeze(new Error('original contained cache close failure'));
+  let activeFd=null,mode='short',reads=0,opens=0;
   fs.openSync=function(file,...args){const fd=original.open.call(this,file,...args);if(path.resolve(String(file))===paths.canonical){activeFd=fd;opens++;}return fd;};
   fs.readSync=function(fd,...args){if(fd===activeFd){reads++;if(mode==='short')return 0;
     const value=original.read.call(this,fd,...args);if(mode==='growth'){mode='grown';fs.appendFileSync(paths.canonical,' ');}return value;}return original.read.call(this,fd,...args);};
-  fs.closeSync=function(fd){if(fd===activeFd&&mode==='close'&&!allowClose)throw closeFailure;return original.close.call(this,fd);};
   fs.lstatSync=function(file,...args){const stat=original.lstat.call(this,file,...args);
     return mode==='reparse'&&path.resolve(String(file))===paths.canonical?new Proxy(stat,{get:(v,k)=>k==='isSymbolicLink'?()=>true:Reflect.get(v,k)}):stat;};
   fs.statSync=function(file,...args){const stat=original.stat.call(this,file,...args);
@@ -61,20 +58,17 @@ if(selected==='schema-and-bytes') {
   try{
     for(const fault of ['short','growth','identity','reparse']){mode=fault;reads=0;write(paths.canonical,payload());clear();const before=opens;assert.equal(load(),null);
       if(fault==='reparse')assert.equal(opens,before,'actual no-follow authority rejects injected reparse kind before open');}
-    mode='close';write(paths.canonical,payload());clear();
-    try{load();assert.fail('unconfirmed original close must escape cache-miss handling');}catch(error){failure=error;}
-    assert.equal(observeStorageResource(failure).isSettled(),false);
-    const findSession=(error,seen=new Set())=>{
-      if(!error||typeof error!=='object'||seen.has(error))return null;seen.add(error);
-      return getContainedFileSession(error)||findSession(error.cause,seen)||(error.errors||[]).map(value=>findSession(value,seen)).find(Boolean);
-    };
-    const session=findSession(failure);assert.ok(session);
-    const before=opens;
-    assert.throws(()=>storeCachedChunks({cache,key,chunks:rows,maxEntries,cacheRoot:root,sourceLength}),error=>!observeStorageResource(error).isSettled());
-    assert.equal(opens,before,'no replacement cache work while the original descriptor remains unconfirmed');
-    allowClose=true;session.releaseAfterCloseSync();assert.equal(session.isSettled(),true);
-    assert.deepEqual(load(),rows);assert.ok(reads>0);
   }finally{fs.openSync=original.open;fs.readSync=original.read;fs.closeSync=original.close;fs.lstatSync=original.lstat;fs.statSync=original.stat;}
+  const childRoot=path.join(root,'unknown-close-child');fs.mkdirSync(childRoot);
+  const identity=fs.lstatSync(childRoot,{bigint:true});
+  const result=await spawnSubprocess(process.execPath,['tests/fixtures/workers/persistent-cache-unknown-close.js',childRoot],
+    {timeoutMs:10000,maxOutputBytes:65536,captureStdout:true,captureStderr:true,rejectOnNonZeroExit:false});
+  assert.equal(result.exitCode,0,result.stderr);
+  assert.deepEqual(JSON.parse(result.stdout),{pending:true,descriptorCloseAttempts:1,opens:1,boundary:'real-child-exit-required'});
+  const after=fs.lstatSync(childRoot,{bigint:true});
+  assert.ok(!after.isSymbolicLink()&&after.isDirectory()&&after.dev===identity.dev&&after.ino===identity.ino);
+  assert.equal(path.dirname(childRoot),root);
+  fs.rmSync(childRoot,{recursive:true,force:false}); // Only after confirmed actual child exit.
 } else {
   const text='export function actual(value) { return work(value); }\n';
   const request={languageId:'javascript',text,options:{...options,treeSitterCacheKey:'actual-source'}};
