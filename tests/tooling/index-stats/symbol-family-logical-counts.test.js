@@ -20,6 +20,10 @@ const chunks = [...Array.from({ length: 4 }, (_, id) => {
   row.name = `alpha-${id}`; row.chunkUid = uid; row.metaV2.chunkUid = uid;
   row.metaV2.symbol = { ...row.metaV2.symbol, chunkUid: uid, symbolId: `sym:${uid}`, qualifiedName: row.name };
   row.codeRelations.callLinks[0].fromChunkUid = uid; row.codeRelations.usageLinks[0].fromChunkUid = uid;
+  // The canonical call-site writer requires complete positive source
+  // coordinates; the older symbol-only helper intentionally omits them.
+  Object.assign(row.codeRelations.callDetails[0], { start: id * 16, end: id * 16 + 4,
+    startLine: id + 1, startCol: 1, endLine: id + 1, endCol: 5 });
   return row;
 }), beta];
 const writers = [
@@ -44,6 +48,7 @@ try {
   for (const [family, _field, writer, expected] of writers) {
     const first = path.join(dir, family), original = await write(first, writer, null);
     const data = original.find(piece => piece.name === family);
+    assert.ok(data, family + ' must be admitted by its actual canonical writer');
     const rows = (await fs.readFile(path.join(first, data.path), 'utf8')).trimEnd().split('\n');
     assert.equal(rows.length, expected, family + ' actual unsharded rows');
     const maxLine = Math.max(...rows.map(line => Buffer.byteLength(line) + 1));
