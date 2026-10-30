@@ -32,6 +32,21 @@ const write = async (name, value) => {
   pieces.push({ name, path: `${name}.json`, format: 'json' });
 };
 try {
+  const placeholderWarnings = [];
+  const placeholderProjection = buildMapMembers({
+    fileMeta: [{ file: 'fallback.js' }, { file: 'real.js' }], fileRelations: [],
+    chunkMeta: [{ file: 'fallback.js', name: 'file', kind: 'File', chunkUid: 'fallback-original' },
+      { file: 'real.js', name: 'File', kind: 'ClassDeclaration', chunkUid: 'real-file-class' }],
+    repoMap: [{ file: 'fallback.js', name: 'file', kind: 'File', chunkUid: 'fallback-original' },
+      { file: 'legacy.js', name: 'file', kind: 'File' }],
+    intern: value => value, strict: true, warnings: placeholderWarnings
+  });
+  assert.deepEqual([...placeholderProjection.membersByFile.keys()].sort(), ['fallback.js', 'legacy.js', 'real.js']);
+  assert.deepEqual(placeholderProjection.membersByFile.get('fallback.js'), []);
+  assert.deepEqual(placeholderProjection.membersByFile.get('legacy.js'), []);
+  assert.equal(placeholderProjection.membersByFile.get('real.js')[0].name, 'File');
+  assert.equal(placeholderProjection.membersByFile.get('real.js')[0].kind, 'ClassDeclaration');
+  assert.deepEqual(placeholderWarnings, [], 'file inventory placeholders do not invent unresolved semantic member evidence');
   await write('repo_map', repoMap);
   await write('chunk_meta', chunks);
   await write('file_relations', [...relations].map(([file, value]) => ({ file, relations: value })));

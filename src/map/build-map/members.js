@@ -47,6 +47,10 @@ export const buildMapMembers = ({ repoMap, chunkMeta, fileMeta, fileRelations, i
     const file = admitFile(meta.file || chunk?.file);
     const name = intern(meta.name || chunk?.name || null);
     if (!file || !name) continue;
+    // File fallback chunks retain inventory authority, not semantic membership.
+    // A real class/function named File keeps its own declaration kind.
+    const kind = intern(meta.kind || chunk.kind || null);
+    if (kind === 'File') continue;
     const chunkUid = identityText(meta.chunkUid || chunk.chunkUid);
     if (!chunkUid) {
       const message = `chunkUid missing for ${file}::${name}`;
@@ -54,7 +58,6 @@ export const buildMapMembers = ({ repoMap, chunkMeta, fileMeta, fileRelations, i
       warnings.push(message);
       continue;
     }
-    const kind = intern(meta.kind || chunk.kind || null);
     const id = identityText(buildSymbolId({ symbolId: meta.symbol?.symbolId, chunkUid }));
     const virtualPath = originOf(meta) || originOf(chunk);
     const prior = memberById.get(id);
@@ -94,6 +97,7 @@ export const buildMapMembers = ({ repoMap, chunkMeta, fileMeta, fileRelations, i
     const file = admitFile(entry?.file);
     const name = intern(entry?.name || null);
     if (!file || !name) continue;
+    if (entry.kind === 'File') continue;
     const uid = identityText(entry.chunkUid), symbolId = identityText(entry.symbolId);
     const uidId = uid && memberByChunkUid.get(uid);
     const symbolMember = symbolId && memberById.get(symbolId);

@@ -604,7 +604,7 @@ export function buildNodeList(mapModel) {
 }
 
 export function buildMapCacheKey({ buildId, indexIdentity, options }) {
-  const payload = { producerVersion: 4, modelVersion: MAP_MODEL_VERSION,
+  const payload = { producerVersion: 5, modelVersion: MAP_MODEL_VERSION,
     buildId: buildId || null, indexIdentity: indexIdentity || null, options: options || null };
   return buildLocalCacheKey({
     namespace: 'code-map',
