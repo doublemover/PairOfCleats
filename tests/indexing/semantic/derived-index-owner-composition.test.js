@@ -44,7 +44,7 @@ try {
   const partition = await fixture.write([semanticNode(0, fixture.source.textLength), semanticNode(1, fixture.source.textLength),
     { family: 'operand', row: { parent: ref(0), child: ref(1), slot: 'callee', ordinal: 0, flags: [] } }]);
   const facts = createSemanticFactsRef({ source: fixture.source, partitions: [partition], syntaxPartitionId: partition.partitionId,
-    storage: { generation: fixture.generation, relativePath: 'semantic' }, coverage: {} });
+    storage: { generation: fixture.generation, relativePath: 'semantic' }, coverage: [] });
   const jobs = [], pieces = [];
   const { enqueueSemanticArtifacts } = await import('../../../src/index/build/artifacts/writers/semantic/family.js');
   enqueueSemanticArtifacts({ state: { semanticFactsByFile: new Map([['original.js', facts]]), semanticDiskAccount: fixture.account },
