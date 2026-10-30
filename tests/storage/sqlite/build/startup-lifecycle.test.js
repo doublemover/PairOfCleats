@@ -3,6 +3,7 @@ import { ARTIFACT_SURFACE_VERSION } from '../../../../src/contracts/versioning.j
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import os from 'node:os';
 import { createRequire } from 'node:module';
 import Database from 'better-sqlite3';
 import { prepareIsolatedTestCacheDir } from '../../../helpers/test-cache.js';
@@ -16,8 +17,9 @@ const pools = [];
 let poolFailure = null;
 const bundle = { artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION, chunks: [{ file: 'sample.js', start: 0, end: 1, tokens: ['sample'] }] };
 class FakePiscina {
-  constructor() {
+  constructor(options) {
     if (poolFailure) throw poolFailure;
+    this.options = options;
     this.closeCount = 0;
     this.runCount = 0;
     pools.push(this);
@@ -49,7 +51,7 @@ const failures = [];
 const contains = (value, expected) => value === expected || Boolean(value && typeof value === 'object'
   && (contains(value.cause, expected) || value instanceof AggregateError && value.errors.some(error => contains(error, expected))));
 
-const runCase = async ({ name, direct = false, failureAt = null, closeFailure = false, buildPragmas = false }) => {
+const runCase = async ({ name, direct = false, failureAt = null, closeFailure = false, buildPragmas = false, cpuThreads = 2 }) => {
   const failure = Object.freeze(new Error(`injected ${name} failure`));
   const cleanupFailure = Object.freeze(new Error('injected secondary close failure'));
   const handles = [];
@@ -104,7 +106,9 @@ const runCase = async ({ name, direct = false, failureAt = null, closeFailure = 
         bundleDir: tempRoot
       },
       envConfig: { bundleThreads: 2 },
-      threadLimits: { fileConcurrency: 1 },
+      // A file window is not a CPU grant. These recording-pool cases explicitly
+      // admit two workers; the inline control retains the one-thread boundary.
+      threadLimits: { fileConcurrency: 1, threads: cpuThreads, cpuConcurrency: cpuThreads, totalMemBytes: 4 * 1024 ** 3 },
       workerPath: 'stub-worker-never-started.js',
       modelConfig: { id: null },
       vectorConfig: { enabled: false },
@@ -149,10 +153,12 @@ const runCase = async ({ name, direct = false, failureAt = null, closeFailure = 
         `${name}: restore acquired pragma state before close`);
     }
     const createdPools = pools.slice(poolStart);
-    if (direct || ['open', 'pragma', 'schema', 'version', 'prepare', 'pool'].includes(failureAt)) {
+    if (direct || cpuThreads === 1 || ['open', 'pragma', 'schema', 'version', 'prepare', 'pool'].includes(failureAt)) {
       assert.equal(createdPools.length, 0, `${name}: defer workers until setup succeeds`);
     } else {
       assert.equal(createdPools.length, 1, `${name}: exactly one stub worker pool`);
+      assert.equal(createdPools[0].options.maxThreads, 2, `${name}: use the explicit two-thread CPU grant`);
+      assert.equal(createdPools[0].options.minThreads, 0, `${name}: preserve lazy worker startup`);
       assert.equal(createdPools[0].runCount, failureAt === 'log' ? 0 : 1);
       assert.equal(createdPools[0].closeCount, 1, `${name}: close worker pool exactly once`);
     }
@@ -164,14 +170,23 @@ const runCase = async ({ name, direct = false, failureAt = null, closeFailure = 
   }
 };
 
+const originalTotal = os.totalmem, originalFree = os.freemem;
+const originalConstrained = process.constrainedMemory, originalAvailable = process.availableMemory;
 try {
+  // Control resource observations only around a fake pool, so hosted pressure
+  // cannot silently turn worker-construction/cleanup assertions into inline I/O.
+  os.totalmem = () => 8 * 1024 ** 3;
+  os.freemem = () => 6 * 1024 ** 3;
+  process.constrainedMemory = () => 0;
+  process.availableMemory = () => 6 * 1024 ** 3;
   const cases = [
     ...['pragma', 'schema', 'version'].map((failureAt) => ({ name: `direct-${failureAt}`, direct: true, failureAt })),
     { name: 'direct-secondary-close', direct: true, failureAt: 'schema', closeFailure: true },
     { name: 'direct-schema-restore', direct: true, failureAt: 'schema', buildPragmas: true },
     { name: 'direct-success', direct: true },
     ...['open', 'schema', 'prepare', 'pool', 'log'].map((failureAt) => ({ name: `bundle-${failureAt}`, failureAt })),
-    { name: 'bundle-success' }
+    { name: 'bundle-success' },
+    { name: 'bundle-inline-success', cpuThreads: 1 }
   ];
   for (const testCase of cases) {
     try {
@@ -182,6 +197,8 @@ try {
   }
   assert.deepEqual(failures, [], 'all SQLite startup ownership cases must pass');
 } finally {
+  os.totalmem = originalTotal; os.freemem = originalFree;
+  process.constrainedMemory = originalConstrained; process.availableMemory = originalAvailable;
   await fs.rm(tempRoot, { recursive: true, force: true });
 }
 
