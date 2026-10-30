@@ -12,7 +12,8 @@ const fixture = await createRuntimeImportFixture();
 const originalStream = fsSync.createReadStream, originalOpen = fs.open;
 let release;
 const gate = new Promise(resolve => { release = resolve; });
-let closeRequested = false, completed = false, operation;
+let closeRequested = false, completed = false, operation, closeObserved;
+const observedClose = new Promise(resolve => { closeObserved = resolve; });
 try {
   const imported = await importRuntimeEvidence(fixture.options());
   const source = path.join(fixture.options().destination, 'generations', imported.pointer.generationId);
@@ -20,7 +21,7 @@ try {
   const root = path.join(fixture.root, 'hash-close'); await fs.mkdir(root);
   await fs.copyFile(path.join(source, 'evidence.jsonl'), path.join(root, 'evidence.jsonl'));
   const filename = path.join(root, 'query.sqlite');
-  const hold = action => { closeRequested = true; return gate.then(action); };
+  const hold = action => { closeRequested = true; closeObserved(); return gate.then(action); };
   fsSync.createReadStream = (file, options) => String(file) !== filename ? originalStream(file, options)
     : originalStream(file, { ...options, fs: { ...fsSync,
       close(fd, callback) { void hold(() => fsSync.close(fd, callback)); } } });
@@ -35,7 +36,14 @@ try {
   };
   operation = writeRuntimeQueryIndex({ root, evidence: manifest.evidence, capture: imported.capture,
     reserve: async () => {}, release: () => {} }).then(value => { completed = true; return value; });
-  for (let count = 0; count < 1000 && !closeRequested; count++) await tick();
+  // Wait for the actual descriptor handoff. A fixed number of immediates is
+  // not an I/O deadline on a busy Windows runner.
+  let timer;
+  try {
+    await Promise.race([observedClose,
+      operation.then(() => assert.fail('query-index completed without its observed hash close')),
+      new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('original hash close was not reached within 5 seconds')), 5000); })]);
+  } finally { clearTimeout(timer); }
   assert.equal(closeRequested, true, 'exercise the actual final hash descriptor close');
   await tick();
   assert.equal(completed, false, 'query-index publication cannot precede its original hash descriptor close');
