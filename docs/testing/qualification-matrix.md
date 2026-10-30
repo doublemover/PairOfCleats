@@ -6,6 +6,12 @@ Current execution evidence and unresolved failures belong to the
 [deep test audit](../archived/deep-test-audit-2026-10-18.md) and the
 [active roadmap](../roadmap.md).
 
+The [native/drain closeout](../archived/windows-native-phase-closeout-2026-10-30.md)
+qualifies clean `b55c76ac4`: both exact-original/current Perl arms, nine historic
+traversal comparisons, three complete production drain cases below30seconds,
+and independent compiler revocation. Raw compiler verifier inputs remain equal;
+native-memory peaks and broad latency remain separate from these observations.
+
 The latest [consumer/measurement receipt](../archived/windows-consumer-measurement-closeout-2026-10-29.md)
 qualifies frozen source `5368f9642bcf4423a895715b9e33f34e1e1346a8`: **478 distinct
 passing discovered Node cases**, **152 Rust tests**, all eight publication checks

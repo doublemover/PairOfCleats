@@ -1,12 +1,14 @@
 # Semantic phase drain and compiler revocation capsules — 2026-10-30
 
-Current correction is source-ready, without a passing runtime qualification.
+The [runtime receipt](windows-native-phase-closeout-2026-10-30.md) qualifies
+the corrected source at `b55c76ac4`: complete production drain passes three fresh
+cases in29.568/28.941/29.088s; independent compiler revocation passes12.863s.
 At `4a6dbb672`, both partition fixtures failed before the drain because the
 source-ready witness incorrectly expected physical `repo/input.ts` in the
 compiler closure. Their historical author-workspace logs are under
 `.testLogs/run-1793364712232-7s7964/`; the actual root was canonical
-`repo/.poc-vfs/input.ts`. The corrected independent VFS expectations and complete
-initial/fresh equality assertions still require runtime rechecks.
+`repo/.poc-vfs/input.ts`. Corrected independent VFS expectations and complete
+initial/fresh equality assertions now pass without removing provenance fields.
 The author-workspace `.testLogs/consumer-wave-next-20261030/phase-default-final-1*`
 receipts are historical, unavailable in a clean checkout, and remain failed
 deadline evidence. That invocation completed its assertions and naturally exited
@@ -84,6 +86,6 @@ node tests/run.js --lane all --match indexing/semantic/phase-drain-production --
 node tests/run.js --lane all --match indexing/semantic/phase-drain-compiler-revocation --jobs 1 --timeout-ms 30000 --retries 0
 ```
 
-Both must pass on the final candidate. This source partition is not passing
-performance evidence and does not replace any other mapped drain authority,
-cancellation, publication, native or compiler controls.
+The recorded candidate passes both IDs under the unchanged deadline. That
+bounded result does not replace any other mapped drain authority, cancellation,
+publication, native or compiler controls, or establish broad performance claims.
