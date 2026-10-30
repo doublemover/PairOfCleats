@@ -9,18 +9,22 @@ import { applyTestEnv } from '../../helpers/test-env.js';
 const selected = process.env.PAIROFCLEATS_TEST_ID?.split('indexing/stage1/process-files-live-abort-owner/')[1];
 assert.ok(['complete', 'mid-stage-abort'].includes(selected));
 const { dir } = await prepareIsolatedTestCacheDir(`stage1-live-listener-${selected}`);
-const repo = path.join(dir, 'repo'); await fs.mkdir(repo); await fs.writeFile(path.join(repo, 'input.md'), '# Actual prose input\nalpha beta gamma\n');
-applyTestEnv({ cacheRoot: path.join(dir, 'cache'), embeddings: 'off', testConfig: { threads: 1 } });
+const repo = path.join(dir, 'repo'); await fs.mkdir(repo); await fs.writeFile(path.join(repo, 'supported.md'), '# Actual prose input\nalpha beta gamma\n');
+applyTestEnv({ cacheRoot: path.join(dir, 'cache'), embeddings: 'off', testConfig: {
+  threads: 1, indexing: { scm: { provider: 'none' } }
+} });
 const controller = new AbortController(), cause = new Error('exact mid-stage external abort');
 let nonempty = 0, fileUpdates = 0, rejected = false;
 globalThis.__stage1LiveForwarding = async (original, options) => {
   if (!options.entries?.length) return original(options);
+  assert.deepEqual(options.entries.map(entry => entry.rel), ['supported.md']);
   nonempty++;
   const unrelated = () => {};
   options.abortSignal.addEventListener('abort', unrelated);
   const baseline = getEventListeners(options.abortSignal, 'abort');
   const update = options.crashLogger.updateFile;
   options.crashLogger.updateFile = function (...args) {
+    assert.equal(args[0].file, 'supported.md');
     fileUpdates++; const result = update.apply(this, args);
     if (selected === 'mid-stage-abort' && !controller.signal.aborted) controller.abort(cause);
     return result;
