@@ -5,7 +5,7 @@ import { relocateSemanticCacheEntry } from './semantic-cache.js';
 import { normalizeBundleFormat } from '../../../shared/bundle-io-paths.js';
 import { requiresSourceHashVerification } from './source-freshness.js';
 import { readIncrementalSourceSnapshot, isIncrementalSourceMiss } from './source-snapshot.js';
-import { composeAbortSignals } from '../../../shared/abort.js';
+import { composeAbortSignals, throwIfAborted } from '../../../shared/abort.js';
 import {
   entryStatsMatch,
   pathExists,
@@ -50,6 +50,7 @@ export async function readCachedBundle({
   signal = null
 }) {
   const sourceSignal = composeAbortSignals(signal, semanticContext?.signal);
+  throwIfAborted(sourceSignal);
   if (semanticContext) semanticContext = { ...semanticContext, signal: sourceSignal };
   let cachedBundle = null;
   let fileHash = null;
@@ -62,6 +63,7 @@ export async function readCachedBundle({
   const cachedEntry = manifest?.files?.[relKey];
   if (!cachedEntry) return { cachedBundle, fileHash, buffer };
   const finish = async () => {
+    throwIfAborted(sourceSignal);
     if (!cachedBundle) return { cachedBundle, fileHash, buffer };
     if (cachedEntry.semanticCache) cachedBundle.semanticCache = cachedEntry.semanticCache;
     if (!semanticContext) return { cachedBundle, fileHash, buffer };
@@ -183,6 +185,7 @@ export async function readCachedImports({
   expectedImportScanFingerprint = null,
   signal = null
 }) {
+  throwIfAborted(signal);
   if (!enabled) return null;
   assertCurrentIndexFormat({ operation: 'resume', component: 'incremental manifest',
     foundVersion: manifest?.artifactSurfaceVersion, repoRoot, indexPath: bundleDir });
@@ -214,8 +217,10 @@ export async function readCachedImports({
       });
       const fileHash = sharedRead.hash;
       if (fileHash !== cachedEntry.hash) return null;
+      const bundle = await readBundleOrNull({ bundleRecords, repoRoot });
+      throwIfAborted(signal);
       return resolveBundleImports(
-        await readBundleOrNull({ bundleRecords, repoRoot }),
+        bundle,
         { expectedImportScanFingerprint }
       );
     } catch (error) {
@@ -243,8 +248,10 @@ export async function readCachedImports({
   for (const record of bundleRecords) {
     if (!(await pathExists(record.bundlePath))) return null;
   }
+  const bundle = await readBundleOrNull({ bundleRecords, repoRoot });
+  throwIfAborted(signal);
   return resolveBundleImports(
-    await readBundleOrNull({ bundleRecords, repoRoot }),
+    bundle,
     { expectedImportScanFingerprint }
   );
 }

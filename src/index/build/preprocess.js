@@ -3,7 +3,7 @@ import path from 'node:path';
 import { getLanguageRouteForFile } from '../language-registry/routing.js';
 import { countLinesForEntries } from '../../shared/file-stats.js';
 import { isRelativePathEscape, toPosix } from '../../shared/file-paths.js';
-import { runWithConcurrency } from '../../shared/concurrency/run-with-queue.js';
+import { runWithSettledConcurrency } from '../../shared/concurrency/run-with-queue.js';
 import { coerceAbortSignal, throwIfAborted } from '../../shared/abort.js';
 import { createFileScanner, readFileSample, preserveSourceSampleFailure } from './file-scan.js';
 import { discoverEntries } from './discover.js';
@@ -163,7 +163,7 @@ export async function preprocessFiles({
   const observations = new WeakMap();
   const replayed = new WeakSet();
   const scanSkips = [];
-  await runWithConcurrency(
+  await runWithSettledConcurrency(
     entries,
     Math.max(1, Math.floor(concurrency)),
     async (entry) => {
@@ -305,9 +305,7 @@ export async function preprocessFiles({
     },
     {
       collectResults: false,
-      signal: effectiveAbortSignal,
-      requireSignal: true,
-      signalLabel: 'build.preprocess.runWithConcurrency'
+      signal: effectiveAbortSignal
     }
   );
   if (scanSkips.length) skippedCommon.push(...scanSkips);
@@ -320,11 +318,10 @@ export async function preprocessFiles({
   if (needsLines && supportedEntries.length) {
     throwIfAborted(effectiveAbortSignal);
     if (snapshot) {
-      await runWithConcurrency(supportedEntries, Math.max(1, Math.floor(concurrency)), async entry => {
+      await runWithSettledConcurrency(supportedEntries, Math.max(1, Math.floor(concurrency)), async entry => {
         if (!replayed.has(entry)) await snapshot.countAndCapture(entry, observations.get(entry));
         lineCountMap.set(toPosix(entry.rel || ''), entry.lines);
-      }, { collectResults: false, signal: effectiveAbortSignal, requireSignal: true,
-        signalLabel: 'build.preprocess.snapshot-lines' });
+      }, { collectResults: false, signal: effectiveAbortSignal });
     } else {
       lineCountMap = await countLinesForEntries(supportedEntries, {
         concurrency: Math.max(1, Math.floor(concurrency)), signal: effectiveAbortSignal

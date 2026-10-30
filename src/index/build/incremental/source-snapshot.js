@@ -46,6 +46,9 @@ export const readIncrementalSourceSnapshot = async ({ repoRoot, absPath, fileSta
     ? Math.min(fileStat.size, MAX_SOURCE_BYTES) : MAX_SOURCE_BYTES;
   const snapshot = await readVerifiedContainedFile(root, file,
     { maxBytes, expectedStat: fileStat, hashAlgorithm: 'sha1', signal });
+  // Closing the original descriptor can itself observe cancellation. Do not
+  // publish either bytes or a reusable receipt after that boundary.
+  throwIfAborted(signal);
   if (cache && relKey && snapshot.buffer.length <= MAX_CACHE_BYTES) {
     const admitted = Object.freeze({ schemaVersion: 1, hash: snapshot.hash, size: snapshot.stat.size, mtimeMs: snapshot.stat.mtimeMs });
     const stat = Object.freeze(Object.fromEntries(fields.map(key => [key, snapshot.stat[key]])));

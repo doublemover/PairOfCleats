@@ -4,7 +4,7 @@ import { resolveStageRefresh } from '../incremental/stage-reuse.js';
 import { readCachedBundle, writeIncrementalBundle } from '../incremental.js';
 import { readIncrementalSourceSnapshot, isIncrementalSourceMiss } from '../incremental/source-snapshot.js';
 import { readFileCompletion } from '../incremental/file-completion.js';
-import { composeAbortSignals } from '../../../shared/abort.js';
+import { composeAbortSignals, throwIfAborted } from '../../../shared/abort.js';
 
 export async function loadCachedBundleForFile({
   repoRoot = process.cwd(),
@@ -16,6 +16,7 @@ export async function loadCachedBundleForFile({
   semanticContext = null,
   signal = null
 }) {
+  throwIfAborted(composeAbortSignals(signal, semanticContext?.signal));
   if (semanticContext) semanticContext = { ...semanticContext, signal: composeAbortSignals(signal, semanticContext.signal) };
   if (semanticContext && incrementalState.semanticReplayVerification) semanticContext = {
     ...semanticContext, replayVerification: incrementalState.semanticReplayVerification
@@ -67,6 +68,7 @@ export async function loadCachedBundleForFile({
         try {
           const current = await runIo(() => readVerifiedContainedFile(repoRoot, absPath, {
             expectedStat: fileStat, expectedBytes: previous.size, expectedHash: previous.hash, hashAlgorithm: 'sha1', signal }));
+          throwIfAborted(signal);
           result = { ...result, fileHash: current.hash, buffer: current.buffer,
             parseCheckpointFallback: { sourceHash: current.hash, checkpoint } };
         } catch (error) {

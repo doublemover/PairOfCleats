@@ -84,7 +84,7 @@ const install = ({ fault = null, controller = null, primary = null, secondary = 
     if (fault === 'delete-before-open' && !changed) { changed = true; await fs.unlink(abs); }
     const actual = fault === 'same-bytes-external' ? external : filename;
     const handle = await originalOpen(actual, ...args), read = handle.read.bind(handle), close = handle.close.bind(handle);
-    const state = { handle, actual: path.resolve(String(actual)), bytes: 0, reads: 0, closes: 0, content: [], windows: [] };
+    const state = { fault, handle, actual: path.resolve(String(actual)), bytes: 0, reads: 0, closes: 0, content: [], windows: [] };
     states.push(state); retained.set(handle, close);
     handle.read = async (buffer, offset, length, position) => {
       state.reads++; state.windows.push(length);
@@ -120,7 +120,8 @@ const reset = async () => {
   await fs.writeFile(abs, file.bytes); sourceStat = await fs.stat(abs); sharedReadState = new Map();
 };
 const assertClosed = states => { for (const state of states) {
-  assert.equal(state.handle.fd, -1); assert.equal(state.closes, 1);
+  assert.equal(state.handle.fd, -1, `${selected}/${state.fault || 'healthy'}: the original descriptor is closed`);
+  assert.equal(state.closes, 1, `${selected}/${state.fault || 'healthy'}: exactly one original close`);
 } };
 const healthy = async (fault = null) => {
   const { states } = install({ fault }); const result = await invoke();
@@ -186,7 +187,7 @@ try {
   for (const fault of ['abort-before', 'abort-read', 'abort-closed']) {
     const controller = new AbortController(); if (fault === 'abort-before') controller.abort();
     const { states } = install({ fault, controller });
-    await assert.rejects(invoke(controller.signal), error => error.code === 'ABORT_ERR' || error.name === 'AbortError');
+    await assert.rejects(invoke(controller.signal), error => error.code === 'ABORT_ERR' || error.name === 'AbortError', `${selected}/${fault}`);
     if (fault === 'abort-before') assert.equal(states.length, 0);
     assertClosed(states); await reset(); alignEntry();
   }
