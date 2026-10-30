@@ -1,5 +1,6 @@
 import { isBazelSourceFile } from '../bazel-label.js';
 import path from 'node:path';
+import { pythonModuleName } from '../../../../lang/python/identifiers.js';
 import { listFilesInDir } from '../lookup.js';
 import { normalizeRelPath } from '../path-utils.js';
 import {
@@ -41,8 +42,9 @@ export const resolveLanguageNonRelativeImport = ({
     if (rubyResolved) return { resolvedType: 'ruby-load-path', resolvedPath: rubyResolved };
   }
   if (importerInfo.isPython) {
-    if (/^[A-Za-z_][\w.]*$/.test(spec)) {
-      const modulePath = spec.replace(/\./g, '/');
+    const moduleName = typeof spec === 'string' ? pythonModuleName(spec) : null;
+    if (moduleName) {
+      const modulePath = moduleName.semantic.replace(/\./g, '/');
       const resolved = resolveFromCandidateList([
         `${modulePath}.py`,
         `${modulePath}.pyi`,

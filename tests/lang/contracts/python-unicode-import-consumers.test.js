@@ -10,6 +10,9 @@ import { spawnSubprocess } from '../../../src/shared/subprocess/runner.js';
 import { prepareIsolatedTestCacheDir } from '../../helpers/test-cache.js';
 import { shutdownPythonAstPool } from '../../../src/lang/python.js';
 import { resolveImportLinks } from '../../../src/index/build/import-resolution.js';
+import { scanImports } from '../../../src/index/build/imports.js';
+import { sha1 } from '../../../src/shared/hash.js';
+import { SEMANTIC_ANALYSIS_VERSIONS } from '../../../src/index/semantic/analysis-versions.js';
 import { assertEscapedImportReplay } from './escaped-import-replay-fixture.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 applyTestEnv();
@@ -78,16 +81,36 @@ try {
   const {lang,context}=await buildLanguageContext(input); assert.ok(context.pythonAst);
   const relations=lang.buildRelations({...input,context});
   assert.deepEqual(relations.imports.toSorted(),expected); assert.deepEqual(relations.usages.toSorted(),usages);
-  const {root,abs,stat}=await assertEscapedImportReplay({name:'python-unicode-import-consumers',file:'package/main.py',source,expected});
-  const localSource='import café\nfrom .包 import 模块\nimport K\n';
-  const files=[{abs,rel:'package/main.py',stat}];
-  for(const rel of ['café.py','K.py','package/包.py']) {
+  const {root}=await assertEscapedImportReplay({name:'python-unicode-import-consumers',file:'package/main.py',source,expected});
+  const localSource='import café\nfrom .包 import 模块\nimport K\nimport 包.模块\nimport e\u0301\nimport a\u200db\nimport a\u200cb\n';
+  const rel='package/resolution.py',abs=path.join(root,rel);await fs.writeFile(abs,localSource);
+  const importer={abs,rel,stat:await fs.stat(abs)},files=[importer];
+  const expectedLinks=['café.py','K.py','package/包.py','包/模块.py','é.py','a\u200db.py','a\u200cb.py'].toSorted();
+  for(const rel of [...expectedLinks,'class.py','a/b.py','\u200da.py']) {
     const target=path.join(root,rel); await fs.mkdir(path.dirname(target),{recursive:true}); await fs.writeFile(target,'');
     files.push({abs:target,rel,stat:await fs.stat(target)});
   }
-  const imports=collectPythonImports(localSource).imports;
-  const mapped=new Map([['package/main.py',{imports}]]);
-  resolveImportLinks({root,entries:files,importsByFile:{'package/main.py':imports},fileRelations:mapped,enableGraph:true});
-  assert.deepEqual(mapped.get('package/main.py').importLinks.toSorted(),['K.py','café.py','package/包.py'].toSorted());
+  const scanned=await scanImports({root,files:[importer],mode:'code',importConcurrency:1,
+    languageOptions:{pythonAst:{enabled:false},treeSitter:{enabled:false}}});
+  assert.deepEqual(scanned.importsByFile[rel].toSorted(),['café','.包','K','包.模块','é','a\u200db','a\u200cb'].toSorted());
+  const cache={files:{}},fileHashes=new Map([[rel,sha1(localSource)]]);
+  const resolve=()=>{
+    const mapped=new Map([[rel,{imports:scanned.importsByFile[rel]}]]);
+    const result=resolveImportLinks({root,entries:files,importsByFile:scanned.importsByFile,
+      importExtractionByFile:scanned.importExtractionByFile,fileRelations:mapped,enableGraph:true,cache,fileHashes});
+    assert.deepEqual(mapped.get(rel).importLinks.toSorted(),expectedLinks);
+    return result;
+  };
+  assert.equal(resolve().cacheStats.filesReused,0);
+  assert.equal(resolve().cacheStats.filesReused,1,'the same admitted Unicode resolution has a real warm-cache consumer');
+  const producer=SEMANTIC_ANALYSIS_VERSIONS.importResolution;
+  assert.ok(cache.files[rel].resolverScopeFingerprint.startsWith(producer+':'));
+  // Named old-producer receipt adapter preserves all current content/lookup/key
+  // facts and changes only its producer namespace; it cannot reuse those rows.
+  cache.files[rel].resolverScopeFingerprint=String(Number(producer)-1)+cache.files[rel].resolverScopeFingerprint.slice(producer.length);
+  assert.equal(resolve().cacheStats.filesReused,0,'prior producer meaning must recompute the actual Unicode links');
+  const invalid=new Map([[rel,{imports:['class','a..b','\u200da']}]]);
+  resolveImportLinks({root,entries:files,importsByFile:{[rel]:['class','a..b','\u200da']},fileRelations:invalid,enableGraph:true});
+  assert.deepEqual(invalid.get(rel).importLinks,[],'real files with invalid Python module spellings do not gain local import edges');
 } finally { await shutdownPythonAstPool(); }
 console.log('Python Unicode identifiers retain raw/NFKC provenance through CPython, registered scans, local resolution and persisted refresh.');

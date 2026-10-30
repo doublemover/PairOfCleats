@@ -1,5 +1,6 @@
 import { admitImportMapExtraction } from './extraction-admission.js';
 import { summarizeImportExtraction } from '../../../shared/import-extraction.js';
+import { SEMANTIC_ANALYSIS_VERSIONS } from '../../semantic/analysis-versions.js';
 import { createBazelPackageIndex, isBazelSourceFile } from './bazel-label.js';
 import path from 'node:path';
 import { buildCacheKey } from '../../../shared/cache-key.js';
@@ -354,7 +355,7 @@ export function resolveImportLinks({
     budgetConfigFingerprint: budgetConfigFingerprint || 'none',
     aliasRulesFingerprint: aliasRulesFingerprint || 'none'
   }));
-  const resolverRuntimeScopeFingerprint = sha1(JSON.stringify({
+  const resolverRuntimeScopeFingerprint = SEMANTIC_ANALYSIS_VERSIONS.importResolution + ':' + sha1(JSON.stringify({
     resolverStaticScopeFingerprint,
     workspaceFingerprint: lookupCompatibilityFingerprint || fileSetFingerprint || 'none',
     buildContextFingerprint: buildContext?.fingerprint || 'none',
@@ -402,7 +403,7 @@ export function resolveImportLinks({
         ...(expectedArtifactsIndex?.fingerprint ? [`expectedArtifacts:${expectedArtifactsIndex.fingerprint}`] : [])
       ],
       pathPolicy: 'posix',
-      extra: { fileSetFingerprint }
+      extra: { fileSetFingerprint, importResolutionProducer: SEMANTIC_ANALYSIS_VERSIONS.importResolution }
     })
     : null;
   const cacheKey = cacheKeyInfo?.key || null;
