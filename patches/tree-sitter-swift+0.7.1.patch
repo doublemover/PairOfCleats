@@ -11,3 +11,21 @@ index 5284292..5fbf5a7 100644
    },
    "peerDependenciesMeta": {
      "tree_sitter": {
+diff --git a/node_modules/tree-sitter-swift/src/scanner.c b/node_modules/tree-sitter-swift/src/scanner.c
+index fdc24848cffa63162cf1fbb186102cc18c04471f..7bc4be154b0481df3d70b2b8842cb4040453cb3e 100644
+--- a/node_modules/tree-sitter-swift/src/scanner.c
++++ b/node_modules/tree-sitter-swift/src/scanner.c
+@@ -1,2 +1,3 @@
+ #include "tree_sitter/parser.h"
++#include <stdint.h>
+ #include <string.h>
+@@ -130,3 +131,3 @@
+     0, // MINUS_THEN_WS,
+-    1UL << FAKE_TRY_BANG, // BANG,
++    UINT64_C(1) << FAKE_TRY_BANG, // BANG,
+         0, // THROWS_KEYWORD,
+@@ -513,3 +514,3 @@
+             for (uint64_t suppressor = 0; suppressor < TOKEN_COUNT; suppressor++) {
+-                if (!(suppressing_symbols & 1 << suppressor)) {
++                if (!(suppressing_symbols & (UINT64_C(1) << suppressor))) {
+                     continue;

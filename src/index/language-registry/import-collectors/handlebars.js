@@ -1,4 +1,4 @@
-import { addBudgetedCollectorImport, collectTemplatePartialImports, createCollectorBudgetContext } from './utils.js';
+import { addBudgetedCollectorImport, scanTemplatePartialImports, createCollectorBudgetContext } from './utils.js';
 import { parseHandlebarsStructure } from '../../../shared/handlebars-ast.js';
 
 const HANDLEBARS_SCAN_BUDGET = Object.freeze({ maxChars: 524288, maxLines: 3000,
@@ -16,9 +16,8 @@ export const createHandlebarsImportCollector = ({ parseStructure = parseHandleba
       const lines = budgetContext.source.split(/\r\n|\n|\r/u);
       lineLimited = budgetContext.budget.maxLines > 0 && lines.length > budgetContext.budget.maxLines;
       const boundedSource = lineLimited ? lines.slice(0, budgetContext.budget.maxLines).join('\n') : budgetContext.source;
-      for (const value of collectTemplatePartialImports(boundedSource)) {
-        if (budgetContext.scanBudget.exhausted || !budgetContext.scanBudget.consumeMatch()) break;
-        addBudgetedCollectorImport(imports, value, budgetContext.scanBudget);
+      for (const value of scanTemplatePartialImports(boundedSource, { scanBudget: budgetContext.scanBudget })) {
+        if (!addBudgetedCollectorImport(imports, value, budgetContext.scanBudget, { literal: true })) break;
       }
       return [...imports];
     }
@@ -27,7 +26,7 @@ export const createHandlebarsImportCollector = ({ parseStructure = parseHandleba
       if (partial.kind !== 'static') continue;
       if (budgetContext.budget.maxLines > 0 && partial.line >= budgetContext.budget.maxLines) continue;
       if (budgetContext.scanBudget.exhausted || !budgetContext.scanBudget.consumeMatch()) break;
-      addBudgetedCollectorImport(imports, partial.name, budgetContext.scanBudget);
+      addBudgetedCollectorImport(imports, partial.name, budgetContext.scanBudget,{literal:true});
     }
     return [...imports];
   } finally {

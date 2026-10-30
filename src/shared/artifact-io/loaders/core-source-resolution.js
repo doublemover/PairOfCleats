@@ -92,6 +92,26 @@ const resolveReadableArtifactPathState = (targetPath) => {
  */
 const resolveReadableArtifactPath = (targetPath) => resolveReadableArtifactPathState(targetPath).path;
 
+/** Bind row-local evidence to canonical pieces before selecting recovery paths. */
+const resolveCanonicalSourceParts = ({ dir, manifest, name, canonicalPaths, paths = canonicalPaths, strict }) => {
+  const entriesByPath = new Map();
+  for (const entry of manifest.pieces || []) {
+    if (entry?.name !== name) continue;
+    const canonical = path.resolve(dir, entry.path);
+    if (strict && entriesByPath.has(canonical)) {
+      throw createLoaderError('ERR_MANIFEST_INVALID', `Duplicate manifest path for ${name}: ${entry.path}`);
+    }
+    entriesByPath.set(canonical, entry);
+  }
+  return canonicalPaths.map((canonicalPath, index) => {
+    const entry = entriesByPath.get(path.resolve(canonicalPath));
+    if (strict && !entry) {
+      throw createLoaderError('ERR_MANIFEST_INCOMPLETE', `Missing canonical manifest entry for ${name}: ${canonicalPath}`);
+    }
+    return { canonicalPath, sourcePath: paths[index], expectedCount: strict ? entry?.count ?? null : null };
+  });
+};
+
 /**
  * Resolve and validate manifest-declared sources for a required artifact.
  *
@@ -202,6 +222,11 @@ const resolveRequiredSources = ({
     }
   }
   const resolvedPaths = resolvedPathStates.map((entry) => entry.path);
+  // Canonical manifest identity owns counts; a recovery filename owns only the
+  // read target. Build one index instead of rediscovering authority per row/shard.
+  const sourceParts = resolveCanonicalSourceParts({
+    dir, manifest, name, canonicalPaths: paths, paths: resolvedPaths, strict
+  });
   const resolvedOffsets = Array.isArray(sources.offsets)
     ? sources.offsets.map((targetPath) => resolveReadableArtifactPath(targetPath))
     : null;
@@ -217,9 +242,11 @@ const resolveRequiredSources = ({
   const layout = resolveSourceLayoutSummary({ manifest, sources });
 
   if (!isSingleSourceFormat) {
-    assertNoShardIndexGaps(resolvedPaths, name);
+    assertNoShardIndexGaps(paths, name);
     return {
       ...sources,
+      sourceParts,
+      canonicalPaths: paths,
       paths: resolvedPaths,
       offsets: resolvedOffsets,
       layout
@@ -227,8 +254,11 @@ const resolveRequiredSources = ({
   }
   return {
     ...sources,
+    sourceParts,
+    canonicalPaths: paths,
     paths: resolvedPaths,
     offsets: resolvedOffsets,
+    canonicalBinaryColumnar: sidecars,
     binaryColumnar: resolvedBinaryColumnar,
     layout
   };
@@ -269,25 +299,28 @@ const resolveBinaryColumnarSourcePart = (sources, partIndex = 0) => {
   if (!paths.length) return { ...sources, paths: [] };
   const normalizedIndex = Math.max(0, Math.min(paths.length - 1, Math.floor(Number(partIndex) || 0)));
   const dataPath = paths[normalizedIndex];
-  const binaryColumnar = sources?.binaryColumnar && typeof sources.binaryColumnar === 'object'
+  const canonicalDataPath = sources?.canonicalPaths?.[normalizedIndex] || dataPath;
+  const binaryColumnar = sources?.canonicalBinaryColumnar || (sources?.binaryColumnar && typeof sources.binaryColumnar === 'object'
     ? sources.binaryColumnar
-    : null;
-  const primaryDataPath = binaryColumnar?.dataPath || paths[0] || null;
+    : null);
+  const primaryDataPath = binaryColumnar?.dataPath || sources?.canonicalPaths?.[0] || paths[0] || null;
   let isPrimaryPath = false;
   if (typeof primaryDataPath === 'string' && primaryDataPath) {
-    if (primaryDataPath === dataPath) {
+    if (primaryDataPath === canonicalDataPath) {
       isPrimaryPath = true;
     } else {
       try {
-        isPrimaryPath = path.resolve(primaryDataPath) === path.resolve(dataPath);
+        isPrimaryPath = path.resolve(primaryDataPath) === path.resolve(canonicalDataPath);
       } catch {
         isPrimaryPath = false;
       }
     }
   }
-  const defaults = resolveBinaryColumnarDefaultPaths(dataPath);
+  const defaults = resolveBinaryColumnarDefaultPaths(canonicalDataPath);
   return {
     ...sources,
+    sourceParts: sources?.sourceParts ? [sources.sourceParts[normalizedIndex]] : undefined,
+    canonicalPaths: [canonicalDataPath],
     paths: [dataPath],
     offsets: Array.isArray(sources?.offsets) && sources.offsets[normalizedIndex]
       ? [sources.offsets[normalizedIndex]]
@@ -307,6 +340,7 @@ export {
   resolveManifestMaxBytes,
   resolveReadableArtifactPath,
   resolveReadableArtifactPathState,
+  resolveCanonicalSourceParts,
   resolveRequiredSources,
   resolveBinaryColumnarDefaultPaths,
   resolveBinaryColumnarSourcePart

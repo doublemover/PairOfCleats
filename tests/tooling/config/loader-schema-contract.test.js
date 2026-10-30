@@ -18,8 +18,10 @@ const configPath = path.join(root, '.pairofcleats.json');
 // Cover every declared key, including nested maps and all current union shapes.
 // New schema properties automatically enter this projection-regression test.
 const sample = (node, variant) => {
+  if (Object.hasOwn(node, 'const')) return node.const;
   if (node.enum) return node.enum[variant % node.enum.length];
   if (node.anyOf) return sample(node.anyOf[variant % node.anyOf.length], variant);
+  if (node.oneOf) return sample(node.oneOf[variant % node.oneOf.length], variant);
   const type = Array.isArray(node.type) ? node.type[variant % node.type.length] : node.type;
   switch (type) {
     case 'object': {
@@ -34,12 +36,16 @@ const sample = (node, variant) => {
     case 'array': return variant === 0 ? [] : [sample(node.items, variant)];
     case 'boolean': return variant === 1;
     case 'number':
-    case 'integer': return Math.max(node.minimum ?? 0, variant);
+    case 'integer': return Math.min(node.maximum ?? Infinity,
+      Math.max(node.minimum ?? 0, node.exclusiveMinimum != null ? node.exclusiveMinimum + 1 : 0, variant));
     case 'null': return null;
     case 'string': {
-      if (node.pattern === '^[a-fA-F0-9]{40}$') return String(variant).repeat(40);
-      assert.equal(node.pattern, undefined, 'new patterned strings need a valid fixture');
-      return 'fixture';
+      const candidates = ['fixture', String(variant).repeat(40), String(variant).repeat(64),
+        `su1:${String(variant).repeat(64)}`, `sy1:${String(variant).repeat(64)}`];
+      const value = candidates.find(candidate => (!node.pattern || new RegExp(node.pattern).test(candidate))
+        && candidate.length >= (node.minLength || 0) && candidate.length <= (node.maxLength ?? Infinity));
+      assert.notEqual(value, undefined, `new string constraint needs a valid fixture: ${JSON.stringify(node)}`);
+      return value;
     }
     default: throw new Error(`Unhandled schema shape: ${JSON.stringify(node)}`);
   }

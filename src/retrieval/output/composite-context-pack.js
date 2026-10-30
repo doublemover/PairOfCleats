@@ -4,6 +4,7 @@ import {
 } from './risk-explain.js';
 import { renderGraphContextPack } from './graph-context-pack.js';
 import { renderCompositeContextPackSarif } from './risk-sarif.js';
+import { enforceContextPackResponseBudget, CONTEXT_PACK_RESPONSE_MAX_BYTES } from '../../context-pack/response-budget.js';
 
 const renderPrimary = (primary) => {
   const lines = [];
@@ -17,10 +18,18 @@ const renderPrimary = (primary) => {
     ? `[${primary.range.startLine}-${primary.range.endLine}]`
     : '';
   lines.push(`File: ${file}${range ? `:${range}` : ''}`);
+  const unit = primary.unit;
+  if (unit) {
+    lines.push(`Edit unit: ${unit.granularity}; UTF-16 [${unit.span[0]}, ${unit.span[1]}); ${unit.byteLength} UTF-8 bytes`);
+    lines.push(`Source hash: ${unit.sourceHash}`);
+    if (unit.contentHash) lines.push(`Unit hash: ${unit.contentHash}`);
+    lines.push(`Index generation: ${unit.indexSignature}`);
+    if (unit.fallbackUsed) lines.push('Whole-file fallback: explicitly allowed');
+  }
   const excerpt = primary.excerpt || '';
   if (excerpt) {
     lines.push('');
-    lines.push('Excerpt:');
+    lines.push(unit ? `Complete ${unit.granularity}:` : 'Excerpt:');
     lines.push(excerpt);
   }
   const provenance = primary?.provenance && typeof primary.provenance === 'object' ? primary.provenance : null;
@@ -73,7 +82,7 @@ const resolveRiskSubject = (payload) => {
   };
 };
 
-const buildContextPackRiskPresentation = (payload) => {
+const buildContextPackRiskPresentation = (payload, format) => {
   if (!payload?.risk) {
     return null;
   }
@@ -81,13 +90,14 @@ const buildContextPackRiskPresentation = (payload) => {
     payload.risk,
     {
       surface: 'contextPack',
+      format,
       subject: resolveRiskSubject(payload)
     }
   );
 };
 
 const renderRisk = (payload) => {
-  const presentation = buildContextPackRiskPresentation(payload);
+  const presentation = buildContextPackRiskPresentation(payload, 'md');
   if (!presentation) {
     return 'Risk\n- (none)';
   }
@@ -95,7 +105,7 @@ const renderRisk = (payload) => {
 };
 
 const renderRiskJson = (payload) => {
-  const presentation = buildContextPackRiskPresentation(payload);
+  const presentation = buildContextPackRiskPresentation(payload, 'json');
   return presentation?.json || null;
 };
 
@@ -165,7 +175,7 @@ const renderEvidence = (payload) => {
   return lines.join('\n');
 };
 
-export const renderCompositeContextPackJson = (payload) => ({
+const projectCompositeContextPackJson = (payload) => ({
   ...payload,
   rendered: {
     risk: renderRiskJson(payload),
@@ -176,9 +186,43 @@ export const renderCompositeContextPackJson = (payload) => ({
   }
 });
 
+export const renderCompositeContextPackJson = (payload, options = {}) => {
+  if (payload.tokenAccounting) {
+    const projected = projectCompositeContextPackJson(payload);
+    if (Buffer.byteLength(JSON.stringify(projected, null, 2)) + 1 > CONTEXT_PACK_RESPONSE_MAX_BYTES) {
+      throw Object.assign(new Error('Counted context exceeds the complete CLI JSON response byte budget.'), {
+        code: 'ERR_CONTEXT_PACK_RESPONSE_BUDGET', status: 413
+      });
+    }
+    return projected;
+  }
+  const bounded = structuredClone(payload);
+  let projected;
+  enforceContextPackResponseBudget(bounded, {
+    strictEvidence: options.strictEvidence ?? (payload?.evidence?.policy?.strictEvidence === true),
+    strictRisk: options.strictRisk === true,
+    measure: value => {
+      projected = projectCompositeContextPackJson(value);
+      // emitCliOutput uses console.log, so the final newline is part of stdout.
+      return Buffer.byteLength(JSON.stringify(projected, null, 2)) + 1;
+    }
+  });
+  return projected;
+};
+
 export const renderCompositeContextPack = (payload) => {
   const sections = [];
   sections.push(renderPrimary(payload?.primary).join('\n'));
+  if (payload?.evidenceSelection) {
+    const selection = payload.evidenceSelection;
+    const lines = ['Optional evidence set (' + selection.selectorVersion + ')',
+      'Control: ' + selection.policy.algorithm, 'Policy: ' + selection.policyDigest,
+      'Role evidence: ' + selection.roleVersion + '; similarity: ' + selection.similarityVersion,
+      'Selection is bounded and heuristic. JSON records costs, omissions and the coverage frontier.'];
+    for (const entry of selection.selected) lines.push(['Evidence ' + entry.id,
+      'Graph roles: ' + (entry.roles.join(', ') || 'unavailable'), ...renderPrimary(entry).slice(1)].join('\n'));
+    sections.push(lines.join('\n\n'));
+  }
   if (payload?.graph) {
     sections.push(renderGraphContextPack(payload.graph));
   }

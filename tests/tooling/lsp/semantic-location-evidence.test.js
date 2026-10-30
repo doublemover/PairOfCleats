@@ -28,12 +28,25 @@ try {
     cmd: process.execPath, args: [path.resolve('tests/fixtures/lsp/semantic-location-server.js')], providerId: 'semantic-fixture', providerVersion: '1', semanticSession: session,
     parseSignature: () => ({ returnType: 'number', paramTypes: [], paramNames: [] }), timeoutMs: 5000, retries: 0, sessionPoolingEnabled: false, vfsColdStartCache: false, semanticTokensEnabled: false, signatureHelpEnabled: false, typeDefinitionEnabled: false, referencesEnabled: false, inlayHintsEnabled: false });
   delete process.env.POC_SEMANTIC_LSP_TRACE;
-  assert.equal(output.semanticFacts.partitions.length, 1);
+  assert.equal(output.semanticFacts.partitions.length, 2,
+    'definition bindings and structured response observations retain separate partitions');
   const requests = (await fs.readFile(trace,'utf8')).trim().split('\n').map(JSON.parse); assert.equal(requests.length, 5, 'definition admission targets unresolved occurrences even when source signature is complete'); assert.equal(new Set(requests.map(value=>JSON.stringify(value.position))).size, 5);
   const store = createArtifactSemanticStore({ root: fixture.stagingRoot, repoRoot: fixture.root, generation: fixture.generation, artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION, partitions: [facts.partition,...output.semanticFacts.partitions] });
-  const rows = [], edges = [];
-  for await(const row of store.iterateRows(output.semanticFacts.partitions[0].partitionId,'semantic_records')) rows.push(row);
-  for await(const row of store.iterateRows(output.semanticFacts.partitions[0].partitionId,'semantic_edges')) edges.push(row);
+  const derived = [];
+  for (const partition of output.semanticFacts.partitions) {
+    const rows = [], edges = [];
+    for await (const row of store.iterateRows(partition.partitionId, 'semantic_records')) rows.push(row);
+    for await (const row of store.iterateRows(partition.partitionId, 'semantic_edges')) edges.push(row);
+    derived.push({ partition, rows, edges });
+  }
+  const bindingPartitions = derived.filter(value => value.rows.some(row => row.kind === 'binding'));
+  assert.equal(bindingPartitions.length, 1);
+  const { partition: bindingPartition, rows, edges } = bindingPartitions[0];
+  const structured = derived.filter(value => value !== bindingPartitions[0]);
+  assert.equal(structured.length, 1);
+  assert.ok(structured[0].rows.length > 0);
+  assert.ok(structured[0].rows.every(row => row.kind === 'evidence'
+    && row.data.evidenceKind === 'lsp-structured-observation'));
   assert.deepEqual(rows.filter(row=>row.kind==='binding').map(row=>row.data.status), ['resolved','ambiguous','heuristic','unresolved','unresolved']);
   assert.ok(rows.filter(row=>row.kind==='binding').every(row=>row.data.signature === null)); assert.ok(edges.some(row=>row.certainty==='exact-static')); assert.ok(edges.some(row=>row.certainty==='modeled'));
   assert.ok(rows.filter(row=>row.kind==='externalDeclaration').every(row=>row.data.sourceRange === null && row.data.sourceHash === null));
@@ -41,7 +54,7 @@ try {
   for(const record of state.semanticEvidenceArtifacts) { const bytes=await fs.readFile(path.join(fixture.stagingRoot,record.path)); assert.equal(bytes.length,record.bytes); assert.equal(createHash('sha256').update(bytes).digest('hex'),record.hash); }
   const links = await Promise.all(state.semanticEvidenceArtifacts.map(async record=>JSON.parse(await fs.readFile(path.join(fixture.stagingRoot,record.path),'utf8'))));
   assert.ok(links.some(value=>value.payload?.[0]?.targetSelectionRange && value.payload[0].originSelectionRange)); assert.ok(links.some(value=>value.error?.message));
-  const coverage=[]; for await(const row of store.iterateRows(output.semanticFacts.partitions[0].partitionId,'semantic_coverage')) coverage.push(row); assert.equal(coverage[0].state,'failed');
+  const coverage=[]; for await(const row of store.iterateRows(bindingPartition.partitionId,'semantic_coverage')) coverage.push(row); assert.equal(coverage[0].state,'failed');
   assert.equal(exactLspRange(facts.source,text,{start:{line:999,character:0},end:{line:999,character:1}}),null);
   const unsupported = await createSemanticLspSession({state,runtime:{root:fixture.root,buildRoot:fixture.root,semanticPolicy:policy}}); await unsupported.collectDocument({doc,uri:'file:///unsupported.js',definitionEnabled:false,requestDefinition:()=>assert.fail('unsupported must not request')}); const unavailable=fixture.store([facts.partition,...unsupported.output().partitions]); const states=[];for await(const row of unavailable.iterateRows(unsupported.output().partitions[0].partitionId,'semantic_coverage')) states.push(row.state); assert.deepEqual(states,['unsupported']);
   console.log('Semantic LSP Location/LocationLink evidence passed');

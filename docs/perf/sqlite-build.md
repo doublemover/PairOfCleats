@@ -115,7 +115,7 @@ Each script accepts `--mode` with one of:
 - `current` runs the optimized path only
 
 `tools/bench/sqlite/build-from-artifacts.js` also accepts:
-- `--index-dir <path>`: run against a real Stage2/Stage3 index output directory (otherwise it generates synthetic artifacts under `.benchCache`).
+- `--index-dir <path>`: run against a real Stage2/Stage3 index output directory (otherwise it generates synthetic artifacts under `.tmp/dev/benchmarks/`).
 - `--statement-strategy <prepared|multi-row|prepare-per-shard>`: force a specific insert strategy and print prepare/multi-row telemetry.
 
 Each benchmark should report:

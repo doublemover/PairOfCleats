@@ -41,11 +41,14 @@ with tempfile.TemporaryDirectory(prefix='poc-native-lifetime-') as directory:
     rows = []
     output_open = True
     terminal_tail = [b'']
+    terminal_output = [b'']
 
     def drain():
         if output_open and select.select([output_master], [], [], 0)[0]:
             try:
-                wire = terminal_tail[0] + os.read(output_master, 65536)
+                chunk = os.read(output_master, 65536)
+                terminal_output[0] = (terminal_output[0] + chunk)[-32768:]
+                wire = terminal_tail[0] + chunk
                 # A real PTY needs a terminal emulator's standard DSR response.
                 # Only terminal wire negotiation is emulated; UI, jobs, and
                 # supervisor lifecycle all execute the native production code.
@@ -70,6 +73,18 @@ with tempfile.TemporaryDirectory(prefix='poc-native-lifetime-') as directory:
     def read_rows():
         return [json.loads(line) for line in receipt.read_text().splitlines()] if receipt.exists() else []
 
+    def search_overlay_ready():
+        if not terminal_output[0]:
+            return False
+        module_url = (pathlib.Path(root) / 'tools/testing/terminal-screen.js').as_uri()
+        script = ('import { reconstructTerminalScreen } from ' + json.dumps(module_url) + ';'
+                  'import { readFileSync } from "node:fs";'
+                  'process.stdout.write(reconstructTerminalScreen(readFileSync(0, "utf8"),'
+                  '{ columns: 140, rows: 40 }).text);')
+        rendered = subprocess.run([node, '--input-type=module', '-e', script], input=terminal_output[0],
+                                  stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=1, check=True)
+        return b'Type to filter' in rendered.stdout
+
     try:
         wait_until(lambda: receipt.exists())
         os.write(input_master, b'r')
@@ -77,24 +92,41 @@ with tempfile.TemporaryDirectory(prefix='poc-native-lifetime-') as directory:
         rows = read_rows()
         if mode == 'quit':
             os.write(input_master, b'q')
+        elif mode == 'interrupt':
+            terminal_output[0] = b''
+            os.write(input_master, b'/')
+            wait_until(search_overlay_ready, 2)
+            os.write(input_master, b'\x03\x03')
         elif mode == 'terminal-error':
             os.close(output_master)
             output_open = False
         wait_until(lambda: child.poll() is not None, 14)
         code = child.wait()
-        if mode == 'quit':
+        if mode in ('quit', 'interrupt'):
             assert code == 0, child.stderr.read().decode()
+        elif mode == 'supervisor-error':
+            assert code != 0, 'unexpected supervisor failure must propagate to the native exit status'
+            assert 'supervisor exited before TUI shutdown' in child.stderr.read().decode()
         elif mode == 'terminal-error':
             assert code != 0, 'closed real output terminal must exercise the error return'
+        elif mode == 'event-transport-error':
+            assert code != 0, 'event pipe EOF while the owned supervisor is alive must fail'
+            assert 'supervisor event transport closed while the owned child remained active' in child.stderr.read().decode()
         assert termios.tcgetattr(input_slave) == original, 'raw terminal settings must be restored'
         pids = {value for row in rows for key, value in row.items()
                 if key in ('proxy', 'supervisor', 'job', 'descendant')}
         wait_until(lambda: all(not pathlib.Path('/proc/' + str(pid)).exists() for pid in pids), 2, require_alive=False)
         state = json.loads(snapshot.read_text())
         statuses = list(state['final_job_statuses'].values())
-        assert statuses and all(status in ('cancelled', 'failed', 'done') for status in statuses), state
-        if mode != 'supervisor-error':
+        if mode in ('interrupt', 'event-transport-error'):
+            requests = [row.get('request') for row in read_rows()]
+            assert requests.count('eof') == 1, 'Ctrl+C must use the existing single graceful supervisor EOF'
+            assert 'job:cancel' not in requests, 'Ctrl+C cannot submit selected-job cancellation'
+        assert statuses and all(status in ('cancelled', 'failed', 'done', 'interrupted') for status in statuses), state
+        if mode not in ('supervisor-error', 'event-transport-error'):
             assert statuses == ['cancelled'], state
+        else:
+            assert statuses == ['interrupted'], state
         print(json.dumps(dict(mode=mode, exitCode=code, ownedPids=sorted(pids),
                               allReaped=True, terminalRestored=True, finalStatuses=statuses)))
     finally:

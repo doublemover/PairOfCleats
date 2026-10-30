@@ -6,6 +6,7 @@ import { ARTIFACT_SCHEMA_DEFS } from '../../src/contracts/registry.js';
 import { readJsoncFile } from '../../src/shared/jsonc.js';
 import { resolveToolRoot } from '../shared/dict-utils.js';
 import { writeStableGeneratedJsonReport, writeTextIfChanged } from '../shared/generated-report.js';
+import { collectSearchOptionFlags } from './search-option-inventory.js';
 
 const ROOT = resolveToolRoot();
 
@@ -50,32 +51,6 @@ const extractBalancedObjectBlock = (text, marker) => {
   }
   if (endIndex < 0) return null;
   return text.slice(openIndex + 1, endIndex);
-};
-
-const extractOptionsKeys = (text) => {
-  const block = extractBalancedObjectBlock(text, 'const options = {')
-    || extractBalancedObjectBlock(text, 'const SEARCH_OPTIONS = {');
-  if (!block) return [];
-  const keys = new Set();
-  const keyRegex = /(^|\n)\s*(['"]?)([A-Za-z0-9_-]+)\2\s*:\s*\{/g;
-  let match = null;
-  while ((match = keyRegex.exec(block)) !== null) {
-    keys.add(match[3]);
-  }
-  return toSortedArray(keys);
-};
-
-const extractAliases = (text) => {
-  const aliases = new Set();
-  const aliasMatch = text.match(/alias\(\s*\{([^}]+)\}\s*\)/m);
-  if (!aliasMatch) return aliases;
-  const pairs = aliasMatch[1].split(',');
-  for (const pair of pairs) {
-    const [rawKey] = pair.split(':');
-    const key = rawKey ? rawKey.trim().replace(/['"]/g, '') : '';
-    if (key) aliases.add(`-${key}`);
-  }
-  return aliases;
 };
 
 const extractFlagsFromDoc = (text) => {
@@ -184,20 +159,9 @@ const main = async () => {
   const runnerDocText = readText(path.join(root, 'docs', 'testing', 'test-runner-interface.md'));
   const regroupingDocText = readText(path.join(root, 'docs', 'testing', 'test-decomposition-regrouping.md'));
 
-  const searchArgsText = readText(path.join(root, 'src', 'retrieval', 'cli-args.js'));
-  const pipelineText = readText(path.join(root, 'src', 'retrieval', 'pipeline.js'));
+  const pipelineText = readText(path.join(root, 'src', 'retrieval', 'pipeline', 'rank-stage.js'));
 
-  const searchOptionKeys = extractOptionsKeys(searchArgsText);
-  const optionKeySet = new Set(searchOptionKeys);
-  const searchFlags = new Set(searchOptionKeys.map((key) => `--${key}`));
-  const aliasFlags = extractAliases(searchArgsText);
-  for (const alias of aliasFlags) searchFlags.add(alias);
-  for (const alias of aliasFlags) {
-    const longForm = `--${alias.replace(/^-/, '')}`;
-    if (!optionKeySet.has(alias.replace(/^-/, ''))) {
-      searchFlags.delete(longForm);
-    }
-  }
+  const searchFlags = collectSearchOptionFlags();
 
   const docFlagsRaw = extractFlagsFromDoc(searchCliText);
   const docFlags = normalizeDocFlags(docFlagsRaw, searchFlags);
@@ -226,14 +190,14 @@ const main = async () => {
   const checks = {
     searchCliFlags: {
       doc: 'docs/contracts/search-cli.md',
-      source: 'src/retrieval/cli-args.js',
+      source: 'src/retrieval/cli-options.js',
       sourceCount: searchFlags.size,
       docCount: docFlags.size,
       ...searchCliDiff
     },
     searchContractFlags: {
       doc: 'docs/contracts/search-contract.md',
-      source: 'src/retrieval/cli-args.js',
+      source: 'src/retrieval/cli-options.js',
       sourceCount: searchFlags.size,
       docCount: contractFlags.size,
       nonBlocking: true,
@@ -248,7 +212,7 @@ const main = async () => {
     },
     scoreBreakdown: {
       doc: 'docs/contracts/search-contract.md',
-      source: 'src/retrieval/pipeline.js',
+      source: 'src/retrieval/pipeline/rank-stage.js',
       sourceCount: scoreKeysSource.size,
       docCount: scoreKeysDoc.size,
       ...scoreDiff

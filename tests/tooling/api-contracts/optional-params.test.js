@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { withFixtureCallArguments } from '../../helpers/call-arguments.js';
 import assert from 'node:assert';
 import { buildApiContractsReport } from '../../../src/integrations/tooling/api-contracts.js';
 
@@ -6,7 +7,7 @@ const symbols = [
   {
     symbolId: 'sym-optional',
     chunkUid: 'chunk-optional',
-    file: 'src/example.js',
+    file: 'src/example.ts', lang: 'typescript',
     name: 'doThing',
     kind: 'Function',
     signature: 'doThing(a, b=1, c?)'
@@ -14,7 +15,7 @@ const symbols = [
   {
     symbolId: 'sym-rest',
     chunkUid: 'chunk-rest',
-    file: 'src/example.js',
+    file: 'src/example.ts', lang: 'typescript',
     name: 'log',
     kind: 'Function',
     signature: 'log(a, ...rest)'
@@ -36,7 +37,7 @@ const callSites = [
     startLine: 20,
     args: ['1', '2', '3']
   }
-];
+].map(withFixtureCallArguments);
 
 const report = buildApiContractsReport({
   symbols,

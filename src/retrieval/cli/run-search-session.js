@@ -4,6 +4,7 @@ import { resolveRetrievalCacheDir } from './cache-paths.js';
 import { incCacheEvent } from '../../shared/metrics/core.js';
 import { ERROR_CODES } from '../../shared/error-codes.js';
 import { createSearchPipeline } from '../pipeline.js';
+import { createRetrievalExecutionOutcome } from '../pipeline/execution-outcome.js';
 import { runSearchByMode } from './search-runner.js';
 import { resolveSqliteFtsRoutingByMode } from '../routing-policy.js';
 import {
@@ -19,10 +20,13 @@ import {
 } from './run-search-session/persist.js';
 import {
   attachCommentExcerpts,
-  buildCommentLookup
+  buildCommentLookup,
+  needsCommentExcerpts
 } from './run-search-session/comment-excerpts.js';
 import { normalizeDenseVectorMode } from '../../shared/dense-vector-mode.js';
 import { isDenseVectorPayloadAvailable } from '../../shared/dense-vector-artifacts.js';
+import { resolveChunkAuthorCacheEvidence } from './chunk-author-cache.js';
+import { createRetrievalWorkObservation } from '../../contracts/retrieval-work.js';
 
 const EMBEDDING_MODE_ORDER = Object.freeze([
   'code',
@@ -230,7 +234,8 @@ async function resolveQueryEmbeddingsByMode({
       state.embeddingNormalize,
       state.inputFormatting,
       state.embeddingModelProfile,
-      state.embeddingIdentity
+      state.embeddingIdentity,
+      mode
     );
   }
   return embeddingsByMode;
@@ -295,7 +300,9 @@ async function persistSessionQueryCache({
   query,
   backendLabel,
   hitsByMode,
-  queryCacheMaxEntries
+  executionOutcomes,
+  queryCacheMaxEntries,
+  signal = null
 }) {
   return persistSearchSession({
     queryCacheEnabled,
@@ -312,7 +319,9 @@ async function persistSessionQueryCache({
     extractedProseHits: hitsByMode['extracted-prose'],
     codeHits: hitsByMode.code,
     recordHits: hitsByMode.records,
-    queryCacheMaxEntries
+    executionOutcomes,
+    queryCacheMaxEntries,
+    signal
   });
 }
 
@@ -338,6 +347,7 @@ async function persistSessionQueryCache({
  * @returns {Promise<object>}
  */
 export async function runSearchSession({
+  effectivePlanIdentity = null,
   filterOnly = false,
   filterCursor = null,
   rootDir,
@@ -460,6 +470,11 @@ export async function runSearchSession({
     annActive = false;
     contextExpansionEnabled = false;
   }
+  const chunkAuthorCache = resolveChunkAuthorCacheEvidence([
+    ...(runCode ? [['code', idxCode]] : []), ...(runProse ? [['prose', idxProse]] : []),
+    ...(runExtractedProse ? [['extracted-prose', idxExtractedProse]] : []), ...(runRecords ? [['records', idxRecords]] : [])
+  ]);
+  if (!chunkAuthorCache.qualified) queryCacheEnabled = false;
   const resolvedDenseMode = normalizeDenseVectorMode(resolvedDenseVectorMode, 'merged');
   enforceSqliteAnnDenseModeCompatibility({
     resolvedDenseMode,
@@ -582,6 +597,8 @@ export async function runSearchSession({
       idxRecords
     },
     cacheLookupInput: {
+      effectivePlanIdentity,
+      chunkAuthorEvidence: chunkAuthorCache.evidence,
       queryCacheEnabled,
       queryCacheDir,
       metricsDir,
@@ -644,7 +661,8 @@ export async function runSearchSession({
       cacheFilters,
       graphRankingConfig,
       queryCacheTtlMs,
-      queryCacheMaxEntries
+      queryCacheMaxEntries,
+      signal
     }
   });
   if (queryCacheEnabled) {
@@ -674,6 +692,7 @@ export async function runSearchSession({
     const state = modeState[mode];
     return state.run && state.hasAnn;
   });
+  const queryWork = stageTracker?.enabled ? createRetrievalWorkObservation() : null;
   const getEmbeddingForModel = createEmbeddingResolver({
     throwIfAborted,
     embeddingQueryText,
@@ -682,7 +701,8 @@ export async function runSearchSession({
     embeddingProvider,
     embeddingOnnx,
     rootDir,
-    generation: indexSignaturePayload || indexDirByMode
+    generation: indexSignaturePayload || indexDirByMode,
+    work: queryWork
   });
   const queryEmbeddingsByMode = await resolveQueryEmbeddingsByMode({
     modeState,
@@ -712,20 +732,12 @@ export async function runSearchSession({
 
   const joinComments = commentsEnabled && runCode && extractedProseLoaded;
 
-  const commentLookup = buildCommentLookup({
-    joinComments,
-    extractedChunkMeta: idxExtractedProse?.chunkMeta || null
-  });
-
-  attachCommentExcerpts({
-    hits: codeHits,
-    commentLookup
-  });
-
   const {
     contextExpansionStats,
     expandModeHits
   } = createModeExpander({
+    signal,
+    contextCacheDir: resolveRetrievalCacheDir({ queryCacheDir, metricsDir }),
     contextExpansionEnabled,
     contextExpansionOptions,
     contextExpansionRespectFilters,
@@ -740,6 +752,10 @@ export async function runSearchSession({
     code: codeHits,
     records: recordHits
   };
+  const executionOutcomes = cacheHit ? cachedPayload.executionOutcomes
+    : Object.fromEntries(EMBEDDING_MODE_ORDER.filter(mode => modeState[mode].run).map(mode => [mode,
+      hitsByMode[mode].executionOutcome || createRetrievalExecutionOutcome({ mode, unrecorded: true,
+        chunkAuthorCoverage: modeState[mode].idx?.chunkAuthorCoverage })]));
   const expandedByMode = await expandSessionHitsByMode({
     expandModeHits,
     modeState,
@@ -750,6 +766,10 @@ export async function runSearchSession({
   const codeExpanded = expandedByMode.code;
   const recordExpanded = expandedByMode.records;
 
+  const commentLookup = buildCommentLookup({
+    joinComments: joinComments && needsCommentExcerpts(codeExpanded.hits),
+    extractedChunkMeta: idxExtractedProse?.chunkMeta || null
+  });
   attachCommentExcerpts({
     hits: codeExpanded.hits,
     commentLookup
@@ -774,7 +794,9 @@ export async function runSearchSession({
     query,
     backendLabel,
     hitsByMode,
-    queryCacheMaxEntries
+    executionOutcomes,
+    queryCacheMaxEntries,
+    signal
   }));
 
   return {
@@ -788,6 +810,8 @@ export async function runSearchSession({
     codeExpanded,
     recordExpanded,
     contextExpansionStats,
+    executionOutcomes,
+    work: queryWork,
     annBackend: annBackendUsed,
     profile: {
       byMode: profilePolicyByMode || null,

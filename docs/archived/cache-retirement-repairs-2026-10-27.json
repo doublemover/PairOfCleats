@@ -1,0 +1,848 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-10-27",
+  "sourceHead": "9d1c90a5ce795d6ec0ced12b4058f2abc925c1c0",
+  "sourceTree": "66ab4d5e9388de1ac2945eef03d1acd8986c9ea5",
+  "branch": "codex/pr557-audit-repairs-20261012",
+  "platform": "win32",
+  "arch": "x64",
+  "node": "v26.12.1",
+  "issues": [
+    {
+      "number": 1591,
+      "state": "closed",
+      "stateReason": "completed",
+      "closedAt": "2026-10-27T04:23:41Z",
+      "qualificationOnly": true,
+      "qualifiedTests": [
+        "indexing/runtime/subprocess-cleanup-cache-barrier",
+        "indexing/runtime/teardown-original-failure-observations",
+        "map/workspace/reader-close-failure",
+        "services/queue/cleanup-retirement",
+        "services/queue/daemon-cleanup-retirement"
+      ]
+    },
+    {
+      "number": 1718,
+      "state": "closed",
+      "stateReason": "completed",
+      "closedAt": "2026-10-27T04:23:43Z",
+      "followupComments": [
+        6385688097
+      ],
+      "qualifiedTests": [
+        "retrieval/federation/cache-failure-contract-matrix",
+        "retrieval/federation/cache-retirement-ownership",
+        "retrieval/federation/strict-failure-stops-admission",
+        "services/embedding-cache-shutdown",
+        "storage/sqlite/cache-failed-close-ownership",
+        "storage/sqlite/cache-generation-tag",
+        "tooling/api-mcp/repo-cache-config-parity",
+        "tooling/api-mcp/repo-cache-retirement",
+        "tooling/api-mcp/router-close-retirement"
+      ]
+    }
+  ],
+  "currentCounts": {
+    "open": 736,
+    "qualificationPending": 475,
+    "partialFollowup": 147,
+    "implementationStatusUnresolved": 114
+  },
+  "liveCensus": {
+    "open": 736,
+    "newOrUnexpectedRemovedIssues": [],
+    "authorWorkspaceReceipt": ".tmp/tasks/cache-retirement-20261027/open-issues.json"
+  },
+  "policy": {
+    "jobs": 1,
+    "indexingThreads": 1,
+    "timeoutMs": 30000,
+    "retries": 0,
+    "nativeStatusRedo": false,
+    "physicalSymlinks": false,
+    "elevation": false,
+    "wsl": false,
+    "subagents": false,
+    "taskLaunch": "Inherited missing PAIROFCLEATS_TRUSTED_CONFIG selector omitted only from task child; no user settings changed."
+  },
+  "dependencies": {
+    "preparedCheckout": true,
+    "dependencyOrPatchChanges": false,
+    "packageLockSha256": "f0e510a4d22802873b02dbb9d5cac1505db8efa137c1a5a605c871819cd94850",
+    "newNativeBackendQualification": false
+  },
+  "focused": {
+    "uniquePassing": 14,
+    "finalCases": [
+      {
+        "id": "indexing/runtime/subprocess-cleanup-cache-barrier",
+        "status": "passed",
+        "attempts": 1,
+        "durationMs": 241,
+        "exitCode": 0,
+        "timedOut": false,
+        "skipReason": null,
+        "run": "focused"
+      },
+      {
+        "id": "indexing/runtime/teardown-original-failure-observations",
+        "status": "passed",
+        "attempts": 1,
+        "durationMs": 388,
+        "exitCode": 0,
+        "timedOut": false,
+        "skipReason": null,
+        "run": "focused"
+      },
+      {
+        "id": "map/workspace/reader-close-failure",
+        "status": "passed",
+        "attempts": 1,
+        "durationMs": 759,
+        "exitCode": 0,
+        "timedOut": false,
+        "skipReason": null,
+        "run": "focused"
+      },
+      {
+        "id": "retrieval/federation/cache-failure-contract-matrix",
+        "status": "passed",
+        "attempts": 1,
+        "durationMs": 3442,
+        "exitCode": 0,
+        "timedOut": false,
+        "skipReason": null,
+        "run": "focused"
+      },
+      {
+        "id": "retrieval/federation/cache-retirement-ownership",
+        "status": "passed",
+        "attempts": 1,
+        "durationMs": 1426,
+        "exitCode": 0,
+        "timedOut": false,
+        "skipReason": null,
+        "run": "lease-corrected"
+      },
+      {
+        "id": "retrieval/federation/strict-failure-stops-admission",
+        "status": "passed",
+        "attempts": 1,
+        "durationMs": 4452,
+        "exitCode": 0,
+        "timedOut": false,
+        "skipReason": null,
+        "run": "focused"
+      },
+      {
+        "id": "services/embedding-cache-shutdown",
+        "status": "passed",
+        "attempts": 1,
+        "durationMs": 3468,
+        "exitCode": 0,
+        "timedOut": false,
+        "skipReason": null,
+        "run": "focused"
+      },
+      {
+        "id": "services/queue/cleanup-retirement",
+        "status": "passed",
+        "attempts": 1,
+        "durationMs": 639,
+        "exitCode": 0,
+        "timedOut": false,
+        "skipReason": null,
+        "run": "lease-final"
+      },
+      {
+        "id": "services/queue/daemon-cleanup-retirement",
+        "status": "passed",
+        "attempts": 1,
+        "durationMs": 3486,
+        "exitCode": 0,
+        "timedOut": false,
+        "skipReason": null,
+        "run": "focused"
+      },
+      {
+        "id": "storage/sqlite/cache-failed-close-ownership",
+        "status": "passed",
+        "attempts": 1,
+        "durationMs": 127,
+        "exitCode": 0,
+        "timedOut": false,
+        "skipReason": null,
+        "run": "focused"
+      },
+      {
+        "id": "storage/sqlite/cache-generation-tag",
+        "status": "passed",
+        "attempts": 1,
+        "durationMs": 402,
+        "exitCode": 0,
+        "timedOut": false,
+        "skipReason": null,
+        "run": "focused"
+      },
+      {
+        "id": "tooling/api-mcp/repo-cache-config-parity",
+        "status": "passed",
+        "attempts": 1,
+        "durationMs": 750,
+        "exitCode": 0,
+        "timedOut": false,
+        "skipReason": null,
+        "run": "focused"
+      },
+      {
+        "id": "tooling/api-mcp/repo-cache-retirement",
+        "status": "passed",
+        "attempts": 1,
+        "durationMs": 940,
+        "exitCode": 0,
+        "timedOut": false,
+        "skipReason": null,
+        "run": "focused"
+      },
+      {
+        "id": "tooling/api-mcp/router-close-retirement",
+        "status": "passed",
+        "attempts": 1,
+        "durationMs": 1426,
+        "exitCode": 0,
+        "timedOut": false,
+        "skipReason": null,
+        "run": "focused"
+      }
+    ],
+    "runs": [
+      {
+        "name": "focused",
+        "summary": {
+          "total": 13,
+          "passed": 13,
+          "failed": 0,
+          "skipped": 0,
+          "durationMs": 21207
+        },
+        "tests": [
+          {
+            "id": "indexing/runtime/subprocess-cleanup-cache-barrier",
+            "status": "passed",
+            "attempts": 1,
+            "durationMs": 241,
+            "exitCode": 0,
+            "timedOut": false,
+            "skipReason": null
+          },
+          {
+            "id": "indexing/runtime/teardown-original-failure-observations",
+            "status": "passed",
+            "attempts": 1,
+            "durationMs": 388,
+            "exitCode": 0,
+            "timedOut": false,
+            "skipReason": null
+          },
+          {
+            "id": "map/workspace/reader-close-failure",
+            "status": "passed",
+            "attempts": 1,
+            "durationMs": 759,
+            "exitCode": 0,
+            "timedOut": false,
+            "skipReason": null
+          },
+          {
+            "id": "retrieval/federation/cache-failure-contract-matrix",
+            "status": "passed",
+            "attempts": 1,
+            "durationMs": 3442,
+            "exitCode": 0,
+            "timedOut": false,
+            "skipReason": null
+          },
+          {
+            "id": "retrieval/federation/cache-retirement-ownership",
+            "status": "passed",
+            "attempts": 1,
+            "durationMs": 1309,
+            "exitCode": 0,
+            "timedOut": false,
+            "skipReason": null
+          },
+          {
+            "id": "retrieval/federation/strict-failure-stops-admission",
+            "status": "passed",
+            "attempts": 1,
+            "durationMs": 4452,
+            "exitCode": 0,
+            "timedOut": false,
+            "skipReason": null
+          },
+          {
+            "id": "services/embedding-cache-shutdown",
+            "status": "passed",
+            "attempts": 1,
+            "durationMs": 3468,
+            "exitCode": 0,
+            "timedOut": false,
+            "skipReason": null
+          },
+          {
+            "id": "services/queue/daemon-cleanup-retirement",
+            "status": "passed",
+            "attempts": 1,
+            "durationMs": 3486,
+            "exitCode": 0,
+            "timedOut": false,
+            "skipReason": null
+          },
+          {
+            "id": "storage/sqlite/cache-failed-close-ownership",
+            "status": "passed",
+            "attempts": 1,
+            "durationMs": 127,
+            "exitCode": 0,
+            "timedOut": false,
+            "skipReason": null
+          },
+          {
+            "id": "storage/sqlite/cache-generation-tag",
+            "status": "passed",
+            "attempts": 1,
+            "durationMs": 402,
+            "exitCode": 0,
+            "timedOut": false,
+            "skipReason": null
+          },
+          {
+            "id": "tooling/api-mcp/repo-cache-config-parity",
+            "status": "passed",
+            "attempts": 1,
+            "durationMs": 750,
+            "exitCode": 0,
+            "timedOut": false,
+            "skipReason": null
+          },
+          {
+            "id": "tooling/api-mcp/repo-cache-retirement",
+            "status": "passed",
+            "attempts": 1,
+            "durationMs": 940,
+            "exitCode": 0,
+            "timedOut": false,
+            "skipReason": null
+          },
+          {
+            "id": "tooling/api-mcp/router-close-retirement",
+            "status": "passed",
+            "attempts": 1,
+            "durationMs": 1426,
+            "exitCode": 0,
+            "timedOut": false,
+            "skipReason": null
+          }
+        ]
+      },
+      {
+        "name": "lease-final",
+        "summary": {
+          "total": 2,
+          "passed": 1,
+          "failed": 1,
+          "skipped": 0,
+          "durationMs": 1952
+        },
+        "tests": [
+          {
+            "id": "retrieval/federation/cache-retirement-ownership",
+            "status": "failed",
+            "attempts": 1,
+            "durationMs": 1307,
+            "exitCode": 1,
+            "timedOut": false,
+            "skipReason": null
+          },
+          {
+            "id": "services/queue/cleanup-retirement",
+            "status": "passed",
+            "attempts": 1,
+            "durationMs": 639,
+            "exitCode": 0,
+            "timedOut": false,
+            "skipReason": null
+          }
+        ]
+      },
+      {
+        "name": "lease-corrected",
+        "summary": {
+          "total": 1,
+          "passed": 1,
+          "failed": 0,
+          "skipped": 0,
+          "durationMs": 1430
+        },
+        "tests": [
+          {
+            "id": "retrieval/federation/cache-retirement-ownership",
+            "status": "passed",
+            "attempts": 1,
+            "durationMs": 1426,
+            "exitCode": 0,
+            "timedOut": false,
+            "skipReason": null
+          }
+        ]
+      }
+    ]
+  },
+  "gate": {
+    "summary": {
+      "total": 40,
+      "passed": 40,
+      "failed": 0,
+      "skipped": 0,
+      "durationMs": 4456
+    },
+    "steps": [
+      {
+        "exitCode": 0,
+        "name": "format",
+        "durationMs": 32877,
+        "stderr": ".tmp\\tasks\\cache-retirement-20261027\\format.stderr.log",
+        "stdout": ".tmp\\tasks\\cache-retirement-20261027\\format.stdout.log"
+      },
+      {
+        "exitCode": 0,
+        "name": "config-budget",
+        "durationMs": 2759,
+        "stderr": ".tmp\\tasks\\cache-retirement-20261027\\config-budget.stderr.log",
+        "stdout": ".tmp\\tasks\\cache-retirement-20261027\\config-budget.stdout.log"
+      },
+      {
+        "exitCode": 0,
+        "name": "environment",
+        "durationMs": 1245,
+        "stderr": ".tmp\\tasks\\cache-retirement-20261027\\environment.stderr.log",
+        "stdout": ".tmp\\tasks\\cache-retirement-20261027\\environment.stdout.log"
+      },
+      {
+        "exitCode": 0,
+        "name": "generated",
+        "durationMs": 11093,
+        "stderr": ".tmp\\tasks\\cache-retirement-20261027\\generated.stderr.log",
+        "stdout": ".tmp\\tasks\\cache-retirement-20261027\\generated.stdout.log"
+      },
+      {
+        "exitCode": 0,
+        "name": "command-surface",
+        "durationMs": 2890,
+        "stderr": ".tmp\\tasks\\cache-retirement-20261027\\command-surface.stderr.log",
+        "stdout": ".tmp\\tasks\\cache-retirement-20261027\\command-surface.stdout.log"
+      },
+      {
+        "exitCode": 0,
+        "name": "workflow",
+        "durationMs": 219,
+        "stderr": ".tmp\\tasks\\cache-retirement-20261027\\workflow.stderr.log",
+        "stdout": ".tmp\\tasks\\cache-retirement-20261027\\workflow.stdout.log"
+      },
+      {
+        "exitCode": 0,
+        "name": "gate-lane",
+        "durationMs": 6677,
+        "stderr": ".tmp\\tasks\\cache-retirement-20261027\\gate-lane.stderr.log",
+        "stdout": ".tmp\\tasks\\cache-retirement-20261027\\gate-lane.stdout.log"
+      },
+      {
+        "exitCode": 0,
+        "name": "diff",
+        "durationMs": 57,
+        "stderr": ".tmp\\tasks\\cache-retirement-20261027\\diff.stderr.log",
+        "stdout": ".tmp\\tasks\\cache-retirement-20261027\\diff.stdout.log"
+      }
+    ],
+    "tests": [
+      {
+        "id": "indexing/policy/hotpath-membership-guard",
+        "status": "passed",
+        "attempts": 1,
+        "durationMs": 63,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "indexing/policy/module-cache-boundedness-contract",
+        "status": "passed",
+        "attempts": 1,
+        "durationMs": 66,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "indexing/policy/generated-matrix",
+        "status": "passed",
+        "attempts": 1,
+        "durationMs": 70,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "indexing/contracts/artifact-surface-version",
+        "status": "passed",
+        "attempts": 1,
+        "durationMs": 64,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "indexing/contracts/n-minus-one-adapter",
+        "status": "passed",
+        "attempts": 1,
+        "durationMs": 66,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "indexing/contracts/public-artifact-surface-doc",
+        "status": "passed",
+        "attempts": 1,
+        "durationMs": 73,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "indexing/contracts/index-compatibility-key-generation",
+        "status": "passed",
+        "attempts": 1,
+        "durationMs": 177,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "indexing/contracts/semver-policy-enforced",
+        "status": "passed",
+        "attempts": 1,
+        "durationMs": 65,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "indexing/contracts/index-state-dense-sidecars-present",
+        "status": "passed",
+        "attempts": 1,
+        "durationMs": 74,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "contracts/manifest-max-bytes-validation",
+        "status": "passed",
+        "attempts": 1,
+        "durationMs": 164,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "indexing/policy/repo-inventory",
+        "status": "passed",
+        "attempts": 1,
+        "durationMs": 2123,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "indexing/policy/shared-module-cycle-guard",
+        "status": "passed",
+        "attempts": 1,
+        "durationMs": 278,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "indexing/contracts/loader-matrix-parity",
+        "status": "passed",
+        "attempts": 1,
+        "durationMs": 230,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "indexing/policy/analysis-schema",
+        "status": "passed",
+        "attempts": 1,
+        "durationMs": 344,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "indexing/contracts/snapshots",
+        "status": "passed",
+        "attempts": 1,
+        "durationMs": 308,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "indexing/contracts/builds-current-repo-head-schema",
+        "status": "passed",
+        "attempts": 1,
+        "durationMs": 303,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "indexing/contracts/call-sites-schema",
+        "status": "passed",
+        "attempts": 1,
+        "durationMs": 321,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "indexing/contracts/diffs",
+        "status": "passed",
+        "attempts": 1,
+        "durationMs": 303,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "indexing/contracts/additional-properties-policy",
+        "status": "passed",
+        "attempts": 1,
+        "durationMs": 335,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "indexing/contracts/index-compatibility-key-enforced-on-load",
+        "status": "passed",
+        "attempts": 1,
+        "durationMs": 599,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "indexing/contracts/schema-registry-single-source",
+        "status": "passed",
+        "attempts": 1,
+        "durationMs": 287,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "tooling/api-contracts/caps",
+        "status": "passed",
+        "attempts": 1,
+        "durationMs": 779,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "tooling/api-contracts/schema-validate",
+        "status": "passed",
+        "attempts": 1,
+        "durationMs": 1071,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "tooling/api-contracts/fail-on-warn",
+        "status": "passed",
+        "attempts": 1,
+        "durationMs": 1062,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "tooling/api-contracts/optional-params",
+        "status": "passed",
+        "attempts": 1,
+        "durationMs": 1018,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "tooling/api-contracts/large-call-sites",
+        "status": "passed",
+        "attempts": 1,
+        "durationMs": 810,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "indexing/contracts/embedding-identity-gating-on-load",
+        "status": "passed",
+        "attempts": 1,
+        "durationMs": 680,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "ci/capability-gate.smoke",
+        "status": "passed",
+        "attempts": 1,
+        "durationMs": 1099,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "indexing/contracts/index-compatibility-key-federation-block",
+        "status": "passed",
+        "attempts": 1,
+        "durationMs": 1560,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "indexing/policy/stable-entrypoints",
+        "status": "passed",
+        "attempts": 1,
+        "durationMs": 93,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "indexing/policy/optional-deps",
+        "status": "passed",
+        "attempts": 1,
+        "durationMs": 1621,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "indexing/policy/analysis-gating",
+        "status": "passed",
+        "attempts": 1,
+        "durationMs": 1284,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "ci/tooling-doctor-gate.smoke",
+        "status": "passed",
+        "attempts": 1,
+        "durationMs": 1428,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "tooling/api-contracts/basic",
+        "status": "passed",
+        "attempts": 1,
+        "durationMs": 858,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "contracts/module-export-surface-compat",
+        "status": "passed",
+        "attempts": 1,
+        "durationMs": 2847,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "indexing/contracts/semantic-foundations",
+        "status": "passed",
+        "attempts": 1,
+        "durationMs": 1440,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "indexing/contracts/semantic-handoff-contracts",
+        "status": "passed",
+        "attempts": 1,
+        "durationMs": 490,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "indexing/contracts/runtime-evidence",
+        "status": "passed",
+        "attempts": 1,
+        "durationMs": 684,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "indexing/contracts/index-format-cutover",
+        "status": "passed",
+        "attempts": 1,
+        "durationMs": 1447,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "ci/windows-authority-cohort",
+        "status": "passed",
+        "attempts": 1,
+        "durationMs": 1332,
+        "exitCode": 0,
+        "timedOut": false
+      }
+    ]
+  },
+  "beforeRepairControl": {
+    "baseline": "d41e8315d33490f06950191f1c363f4cfa7fd642",
+    "owner": "src/retrieval/federation/coordinator.js",
+    "method": "Parent-scoped Node module hook loads exact git-show baseline coordinator; all other source remains unchanged.",
+    "summary": {
+      "total": 1,
+      "passed": 0,
+      "failed": 1,
+      "skipped": 0,
+      "durationMs": 1031
+    },
+    "tests": [
+      {
+        "id": "retrieval/federation/cache-retirement-ownership",
+        "status": "failed",
+        "attempts": 1,
+        "durationMs": 1026,
+        "exitCode": 1,
+        "timedOut": false
+      }
+    ],
+    "expectedFailure": "Missing expected rejection: successful fanout hid cache retirement failure",
+    "baselineSha256": "1c8d469bbf528a23e116a138746130eb4012d58bd391f8c1964e1d82086fd742"
+  },
+  "lifecycleAssertions": {
+    "nativeCloseFailureAttempts": 1,
+    "independentHealthyCloseAttempts": 1,
+    "automaticNativeRetries": 0,
+    "explicitRecoveryNativeCloses": 1,
+    "borrowedCacheClosesDuringRequest": 0,
+    "activeLeaseNativeClosesBeforeRelease": 0,
+    "activeLeaseNativeClosesAfterRelease": 1,
+    "failedOutcomePreservedAfterSettlement": true,
+    "retirementOwnerNonEnumerable": true
+  },
+  "retainedHarnessFailures": [
+    {
+      "run": "lease-final",
+      "cause": "Both fixture workers entered before asynchronous assignment; claimed the one-fixture-lease slot synchronously without changing assertions."
+    },
+    {
+      "run": "before-control",
+      "cause": "Split node-options argument parsed as an unknown import option before discovery; corrected to the documented equals form."
+    }
+  ],
+  "rawEvidence": {
+    "scope": "historical author workspace; not available in clean checkouts",
+    "directory": ".tmp/tasks/cache-retirement-20261027",
+    "logs": ".testLogs/"
+  },
+  "remaining": [
+    "P1 custom-backend cleanup registration and original reader/writer adoption (#1574); current protected-root refusal retained",
+    "Tantivy immutable source/mapping publication and reader lifetime (#1627)",
+    "Other open-issue and full Windows-suite acceptance",
+    "Actual optional backend/model and non-Windows/release qualification",
+    "Default inherited launch still refers to missing external trusted-config file"
+  ]
+}

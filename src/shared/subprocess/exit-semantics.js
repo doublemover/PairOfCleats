@@ -1,3 +1,5 @@
+import { dispatchSelfSignal } from './signals.js';
+
 /**
  * Exit current process using child-command semantics.
  *
@@ -17,7 +19,8 @@ export const exitLikeChildResult = (result, proc = process) => {
     : null;
   if (signal) {
     try {
-      proc.kill(proc.pid, signal);
+      if (proc === process) dispatchSelfSignal(signal);
+      else proc.kill(proc.pid, signal);
       return;
     } catch {}
   }

@@ -103,7 +103,8 @@ try {
   const dataLines = (await fs.readFile(dataPath, 'utf8')).trim().split(/\r?\n/).filter(Boolean);
   assert.equal(dataLines.length, meta.entries, 'expected jsonl line count to match meta.entries');
 
-  // Plateau: repeated load/set/flush loops must keep entry count/bytes bounded.
+  // Persisted/reloaded bounds: this loop intentionally creates a new owner.
+  // The single-live-owner control is tooling/vfs/cold-start-live-bounds.
   for (let i = 0; i < 25; i += 1) {
     const loaded = await loadCache();
     assert.ok(loaded.size() <= 3, 'expected cache size to remain bounded across reloads');
@@ -120,7 +121,7 @@ try {
     assert.ok(loopMeta.entries <= 3, 'expected meta.entries to remain bounded across flushes');
   }
 
-  console.log('VFS memory plateau test passed');
+  console.log('VFS persisted compaction and reload bounds passed');
 } finally {
   await rmDirRecursive(tempRoot);
 }

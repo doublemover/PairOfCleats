@@ -114,6 +114,20 @@ const queueDelayedLifecycle = resolveFileLifecycleDurations({
 assert.equal(queueDelayedLifecycle.queueDelayMs, 8_000, 'expected queue delay to capture enqueue->dequeue wait');
 assert.equal(queueDelayedLifecycle.activeDurationMs, 800, 'expected active duration to capture parse-only window');
 assert.equal(queueDelayedLifecycle.scmProcQueueWaitMs, 0, 'expected scm proc-queue wait to default to zero');
+const scmDelayed = resolveFileLifecycleDurations({
+  enqueuedAtMs: 1000, dequeuedAtMs: 2000, parseStartAtMs: 2000, parseEndAtMs: 3300, scmProcQueueWaitMs: 650
+});
+assert.equal(scmDelayed.scmProcQueueWaitMs, 650);
+assert.equal(scmDelayed.activeProcessingDurationMs, 650);
+assert.equal(resolveEffectiveSlowFileDurationMs({ activeDurationMs: scmDelayed.activeDurationMs,
+  scmProcQueueWaitMs: scmDelayed.scmProcQueueWaitMs }), 650, 'caller receives actual SCM queue wait');
+assert.equal(resolveFileLifecycleDurations({ parseStartAtMs: 2000, parseEndAtMs: null,
+  scmProcQueueWaitMs: 650 }).scmProcQueueWaitMs, 650, 'live watchdog retains wait before parse finishes');
+const partial = resolveFileLifecycleDurations({ enqueuedAtMs: null, dequeuedAtMs: 1000,
+  parseStartAtMs: null, parseEndAtMs: 1000, writeStartAtMs: null, writeEndAtMs: 1000 });
+for (const name of ['queueDelayMs', 'activeDurationMs', 'activeProcessingDurationMs', 'writeDurationMs', 'totalDurationMs']) {
+  assert.equal(partial[name], 0, `${name} must not treat null as epoch zero`);
+}
 assert.equal(
   queueDelayedLifecycle.activeProcessingDurationMs,
   800,

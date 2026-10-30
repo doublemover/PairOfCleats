@@ -2,21 +2,25 @@ import { proposalEffect } from './proposals.js';
 import { createWasmTableTargets } from './tables.js';
 import { throwIfAborted } from '../../../shared/abort.js';
 import { WASM_OPS } from './opcodes.js';
+import { createWasmStructuralCatalog, consumeWasmStructuralCatalog } from './structure.js';
 
 /** Structured stack SSA: loop header and exit values exist before back/forward
  * branches. Joining adds edges to stable phis, never iterates producer sets.
  * Only reachable instructions receive value/control edges; syntax is retained.
  */
-export const analyzeWasmModule = (module, { signal = null } = {}) => {
+export const analyzeWasmModule = (module, { signal = null, catalog = null } = {}) => {
+  catalog ||= createWasmStructuralCatalog(module);
+  module = consumeWasmStructuralCatalog(catalog, module);
   throwIfAborted(signal);
-  const nodes = [], edges = [], functions = [], reasons = new Set();
-  const budget = () => { if (nodes.length >= 32768 || edges.length >= 131072) throw Object.assign(new Error('WASM flow graph budget.'), { code: 'ERR_WASM_FLOW_BUDGET' }); };
+  const nodes = [...catalog.nodes], edges = [], functions = [], reasons = new Set();
+  const budget = () => { if (nodes.length >= 32768 || edges.length >= 131072) throw Object.assign(new Error('WASM flow graph budget.'), { code: 'ERR_WASM_FLOW_BUDGET',
+    work: { nodes: Math.max(0, nodes.length - catalog.nodes.length), edges: edges.length } }); };
   const node = (kind, data) => { budget(); const id = nodes.length; nodes.push({ id, kind, ...data }); return id; };
   const edge = (kind, from, to, extra = {}) => { budget(); if (from != null && to != null) edges.push({ kind, from, to, ...extra }); };
   const value = (origin, site, type) => node('value', { origin, site, type });
   const imported = module.imports.filter(item => item.kind === 0);
   for (const [index, fn] of [...imported, ...module.functions].entries()) {
-    const type = module.types[fn.typeIndex], ref = node('function', { index, typeIndex: fn.typeIndex, import: index < imported.length ? fn : null });
+    const type = module.types[fn.typeIndex], ref = catalog.functions[index].ref;
     functions.push({ index, ref, type, params: type.params.map(type => value('parameter', ref, type)),
       results: type.results.map(type => value('return', ref, type)), entry: node('block', { owner: ref, blockKind: 'entry' }),
       exit: node('block', { owner: ref, blockKind: 'exit' }), exception: node('block', { owner: ref, blockKind: 'exception' }), trap: node('block', { owner: ref, blockKind: 'exception' }), thrown: node('block', { owner: ref, blockKind: 'exception' }) });
@@ -25,31 +29,22 @@ export const analyzeWasmModule = (module, { signal = null } = {}) => {
   const tags = [...module.imports.filter(item => item.kind === 4), ...module.tags];
   const importedTagCount = module.imports.filter(item => item.kind === 4).length;
   const tagTypes = index => module.types[tags[index].typeIndex].params;
-  const storages = {};
-  for (const [kind, number] of [['table',1],['memory',2],['global',3]]) {
-    const definitions = [...module.imports.filter(item=>item.kind===number).map(item=>item[kind]), ...module[kind==='memory'?'memories':kind+'s']];
-    storages[kind] = definitions.map((type,index)=>node('storage',{storageKind:kind,index,type}));
-  }
-  storages.tag = tags.map((tag,index) => node('storage', {storageKind:'tag', index, type:tag}));
-  storages.data = module.data.map((segment,index)=>{
-    const source=node('storage',{storageKind:'data-segment',index,type:{mode:segment.mode,offset:segment.offset}});
-    if(segment.mode==='active')edge('copies',source,storages.memory[segment.memoryIndex||0]);return source;
+  const storages = catalog.storages;
+  module.data.forEach((segment, index) => {
+    if (segment.mode === 'active') edge('copies', storages.data[index], storages.memory[segment.memoryIndex || 0]);
   });
-  storages.element = module.elements.map((segment, index) => {
-    const source = node('storage', { storageKind: 'element-segment', index, type: segment });
+  module.elements.forEach((segment, index) => {
+    const source = storages.element[index];
     if (segment.mode === 'active') edge('copies', source, storages.table[segment.tableIndex || 0]);
     for (const target of segment.functions || segment.expressions?.filter(expr => expr[0]?.name === 'ref.func').map(expr => expr[0].index) || []) edge('packs', functions[target]?.ref, source);
-    return source;
   });
-  module.globals.forEach((global,index)=>{
-    const source=node('storage',{storageKind:'global-initializer',index,type:global});
-    edge('defines',source,storages.global[module.imports.filter(item=>item.kind===3).length+index]);
-  });
+  const importedGlobalCount = module.imports.filter(item => item.kind === 3).length;
+  module.globals.forEach((global, index) => edge('defines', catalog.globalInitializers[index], storages.global[importedGlobalCount + index]));
   const tableTargets = createWasmTableTargets(module), constants = new Map(), functionValues = new Map();
   for (const fn of module.functions) {
     throwIfAborted(signal);
     const owner = functions[fn.index], instructions = fn.instructions;
-    const refs = instructions.map(item => node('instruction', { ...item, functionIndex: fn.index, owner: owner.ref }));
+    const refs = catalog.instructionsByFunction[fn.index];
     const localTypes = [...owner.type.params, ...fn.locals];
     const initialLocals = [...owner.params, ...fn.locals.map(type => value('definition', owner.ref, type))];
     const merge = (site, resultTypes, withLocals = true) => ({

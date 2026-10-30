@@ -1,8 +1,11 @@
 import { findTopLevelIndex, splitTopLevel, stripTopLevelAssignment } from './shared.js';
+import { setOwn } from '../../../shared/object-record.js';
+import { normalizeTypeWhitespace, transformTypeTextOutsideLiterals } from '../../../shared/type-normalization.js';
 
-const splitPythonParams = (value) => splitTopLevel(value, ',');
+const PYTHON_NESTING = Object.freeze({ angleBrackets: false });
+const splitPythonParams = (value) => splitTopLevel(value, ',', PYTHON_NESTING);
 
-const stripDefaultValue = (value) => stripTopLevelAssignment(value);
+const stripDefaultValue = (value) => stripTopLevelAssignment(value, PYTHON_NESTING);
 
 const parsePythonParam = (value) => {
   let cleaned = stripDefaultValue(value).trim();
@@ -10,7 +13,7 @@ const parsePythonParam = (value) => {
   if (cleaned.startsWith('**')) cleaned = cleaned.slice(2).trim();
   else if (cleaned.startsWith('*')) cleaned = cleaned.slice(1).trim();
   if (!cleaned) return null;
-  const colonIdx = findTopLevelIndex(cleaned, ':');
+  const colonIdx = findTopLevelIndex(cleaned, ':', PYTHON_NESTING);
   const name = (colonIdx === -1 ? cleaned : cleaned.slice(0, colonIdx)).trim();
   const type = colonIdx === -1 ? null : cleaned.slice(colonIdx + 1).trim();
   if (!name) return null;
@@ -19,16 +22,23 @@ const parsePythonParam = (value) => {
 
 const normalizePythonType = (value) => {
   if (!value) return value;
-  return value.replace(/\b(?:builtins|typing|typing_extensions|collections\.abc)\./g, '');
+  return transformTypeTextOutsideLiterals(value, text => text.replace(
+    /(?<![\p{ID_Continue}.])[\p{ID_Start}_][\p{ID_Continue}]*(?:\s*\.\s*[\p{ID_Start}_][\p{ID_Continue}]*)+/gu,
+    name => {
+      const parts=name.split(/\s*\.\s*/u);
+      if (['builtins','typing','typing_extensions'].includes(parts[0])) return parts.slice(1).join('.');
+      if (parts.length>2 && parts[0]==='collections' && parts[1]==='abc') return parts.slice(2).join('.');
+      return name;
+    }
+  ));
 };
 
-const normalizeLine = (value) => String(value || '')
+const normalizeLine = (value) => normalizeTypeWhitespace(String(value || '')
   .replace(/^\s*(?:>\s*)+/, '')
   .replace(/^\s*[-*]\s+/, '')
   .replace(/^`+/, '')
   .replace(/`+$/, '')
-  .replace(/\s+/g, ' ')
-  .trim();
+  .trim());
 
 const stripCodeFenceMarkers = (detail) => String(detail || '')
   .split(/\r?\n/)
@@ -99,7 +109,9 @@ export const parsePythonSignature = (detail) => {
   if (!candidate) return null;
   const signature = candidate.trim().replace(/:\s*$/, '');
   const open = signature.indexOf('(');
-  const close = signature.lastIndexOf(')');
+  // The last parenthesis can belong to a return annotation or function body.
+  const closingOffset = open < 0 ? -1 : findTopLevelIndex(signature.slice(open), ')', PYTHON_NESTING);
+  const close = closingOffset < 0 ? -1 : open + closingOffset;
   if (open === -1 || close === -1 || close < open) return null;
   const paramsText = signature.slice(open + 1, close).trim();
   const after = signature.slice(close + 1).trim();
@@ -122,7 +134,7 @@ export const parsePythonSignature = (detail) => {
     const parsed = parsePythonParam(part);
     if (!parsed) continue;
     paramNames.push(parsed.name);
-    if (parsed.type) paramTypes[parsed.name] = normalizePythonType(parsed.type);
+    if (parsed.type) setOwn(paramTypes,parsed.name,normalizePythonType(parsed.type));
   }
 
   if (!returnType && !paramNames.length) return null;

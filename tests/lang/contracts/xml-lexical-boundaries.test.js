@@ -1,9 +1,17 @@
 import assert from 'node:assert/strict';
-import { createXmlStructureParser, parseXmlStructure } from '../../../src/shared/xml-structure.js';
-import { createXmlChunker, chunkXml } from '../../../src/index/chunking/formats/xml.js';
-import { createXmlImportCollector, collectXmlImports } from '../../../src/index/language-registry/import-collectors/xml.js';
-import { collectLanguageImports } from '../../../src/index/language-registry/registry.js';
-import { buildConfigFileAdapters } from '../../../src/index/language-registry/adapters/config-files.js';
+import { createXmlStructureParser } from '../../../src/shared/xml-structure.js';
+import { createXmlChunker } from '../../../src/index/chunking/formats/xml.js';
+import { sourceSections } from '../helpers/source-sections.js';
+import { createXmlImportCollector } from '../../../src/index/language-registry/import-collectors/xml.js';
+
+// Lexical content/ranges use an injected clock. Default exported API and
+// registry/adapter positives retain real-clock, serial acceptance in
+// perf/parsers/xml-cold-budget; expiry and owner overrun remain asserted below.
+const parseXmlStructure = createXmlStructureParser({ now: () => 0 });
+const chunkXmlSource = createXmlChunker({ parseStructure: parseXmlStructure, now: () => 0 });
+const chunkXml = (text, ...args) => sourceSections(text, chunkXmlSource(text, ...args));
+const collector = createXmlImportCollector({ parseStructure: parseXmlStructure });
+const collectXmlImports = (source, options = {}) => collector(source, { collectorNow: () => 0, ...options });
 
 globalThis.fetch = () => { throw Error('Excluded external reference/DTD fetching'); };
 const text = ['<root>', '  <![CDATA[😀 > <include href="cdata.fake"/><phony/>]]>',
@@ -22,21 +30,28 @@ assert.equal(text.slice(model.importEntries[0].nameRange.start, model.importEntr
 assert.equal(model.sections[0].start, text.lastIndexOf('<include'));
 assert.equal(text.slice(model.sections[0].start, model.sections[0].end), '<include\r\n    href="real.xml"/>');
 assert.deepEqual(collectXmlImports(text), ['real.xml']);
-assert.deepEqual(collectLanguageImports({ text, ext: '.xml', relPath: 'project.xml', mode: 'code' }), ['real.xml']);
+const sourceChunks = chunkXmlSource(text, {});
+assert.equal(sourceChunks[0].name, 'root-preamble');
+assert.equal(sourceChunks[0].meta.sourceCoverage, 'document-envelope');
+assert.equal(sourceChunks[0].meta.sectionRangeSource, 'application-source-gap');
+assert.equal(sourceChunks[0].start, 0); assert.equal(sourceChunks[0].end, model.sections[0].start);
+assert.equal(text.slice(sourceChunks[0].start, sourceChunks[0].end), text.slice(0, model.sections[0].start),
+  'root/CDATA/comment/instruction prefix remains covered before selecting lexical child sections');
 const chunks = chunkXml(text, {});
 assert.deepEqual(chunks.map((entry) => entry.name), ['include', 'last']);
 assert.ok(chunks.every((entry) => entry.meta.parserCoverage === 'partial'
   && entry.meta.astRange === undefined && entry.meta.rangeSource === 'application-utf16-lexer'));
 assert.equal(chunks[0].end, chunks[1].start);
 assert.equal(chunks[0].meta.lexicalElementRange.end, model.sections[0].end);
-const adapter = buildConfigFileAdapters().find((entry) => entry.id === 'xml');
-assert.deepEqual(adapter.buildRelations({ text, options: {} }).imports, ['real.xml']);
 const quoted = '<root>\n <item text=">"/>\n <include href="greater>name.xml"/>\n <last/>\n</root>';
 assert.deepEqual(chunkXml(quoted, {}).map((entry) => entry.name), ['item', 'include', 'last']);
 assert.deepEqual(collectXmlImports(quoted), ['greater>name.xml']);
-const namespace = '<root xsi:schemaLocation="urn:real schema.xsd">'
+const unboundNamespace = '<root xsi:schemaLocation="urn:real schema.xsd">'
   + '<cfg:include href="local.xml" SRC="upper.xml"/><cfg:worker/><include href="second.xml"/></root>';
-assert.deepEqual(collectXmlImports(namespace), ['urn:real', 'schema.xsd', 'local.xml', 'upper.xml', 'second.xml']);
+assert.deepEqual(collectXmlImports(unboundNamespace), ['local.xml', 'upper.xml', 'second.xml'], 'unbound xsi cannot qualify standard schema hints');
+assert.equal(collectXmlImports(unboundNamespace).coverage.state, 'partial');
+const namespace = unboundNamespace.replace('<root ', '<root xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" ');
+assert.deepEqual(collectXmlImports(namespace), ['schema.xsd', 'local.xml', 'upper.xml', 'second.xml']);
 assert.deepEqual(chunkXml(namespace, {}).map((entry) => entry.name), ['cfg:include', 'cfg:worker', 'include']);
 assert.deepEqual(collectXmlImports('<root>text xsi:schemaLocation="not-an-attribute.xsd"</root>'), []);
 const unicode = '<根><😀名/><!-- 😀 --><include href="😀.xml"/></根>';
@@ -83,7 +98,7 @@ assert.equal(stable('<root>' + '<!--x-->'.repeat(65536) + '</root>').reason, 'to
 assert.equal(stable('<root>' + '<n/>'.repeat(20000) + '</root>').reason, 'node-limit');
 assert.equal(stable('<n>'.repeat(65) + '</n>'.repeat(65)).reason, 'depth-limit');
 assert.equal(stable('<root>' + '<include href="x"/>'.repeat(4097) + '</root>').reason, 'import-limit');
-const expired = createXmlStructureParser();
+const expired = createXmlStructureParser({ now: () => 0 });
 assert.equal(expired('<root/>', { remainingMs: () => 0 }).reason, 'time-limit');
 assert.equal(expired('<root/>', { remainingMs: () => NaN }).reason, 'time-limit');
 assert.equal(expired('<root/>').reason, null);
@@ -109,7 +124,7 @@ assert.equal(expiredAssembly.meta.parserFallbackReason, 'time-limit');
 assert.equal(expiredAssembly.meta.parseMetrics.ownerMeasuredOverrunMs, 2);
 const parts = '<root>\n<include href="first.xml"/>\n<include\n href="excluded.xml"/>\n</root>';
 assert.deepEqual(collectXmlImports(parts, { collectorScanBudget: { maxLines: 2, maxMs: 0 } }), ['first.xml']);
-assert.deepEqual(collectXmlImports(namespace, { collectorScanBudget: { maxTokens: 1, maxMs: 0 } }), ['urn:real']);
-assert.deepEqual(collectXmlImports(namespace, { collectorScanBudget: { maxMatches: 1, maxMs: 0 } }), ['urn:real']);
+assert.deepEqual(collectXmlImports(namespace, { collectorScanBudget: { maxTokens: 1, maxMs: 0 } }), ['schema.xsd']);
+assert.deepEqual(collectXmlImports(namespace, { collectorScanBudget: { maxMatches: 1, maxMs: 0 } }), ['schema.xsd']);
 assert.equal(JSON.stringify(chunkXml(namespace, {})), JSON.stringify(chunkXml(namespace, {})), 'unchanged successful results remain deterministic');
 console.log('XML lexical ownership respects quoted delimiters/CDATA and exact UTF-16 ranges without declaration/entity resolution');

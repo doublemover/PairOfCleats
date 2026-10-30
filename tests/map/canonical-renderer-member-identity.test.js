@@ -1,0 +1,43 @@
+import assert from 'node:assert/strict';
+import { canonicalMemberId, lookupMemberIdentity, createMemberAliasIndex } from '../../src/map/isometric/client/data/member-identity.js';
+import { buildStackModel } from '../../src/map/isometric/client/stack-model.js';
+import { createSourceIndex } from '../../src/map/isometric/client/source-index.js';
+import { selectionEndpointMatcher } from '../../src/map/isometric/client/selection-endpoints.js';
+import { projectPipeRows } from '../../src/map/isometric/client/coverage.js';
+import { parseSavedMap } from '../../tools/analysis/map-saved-input.js';
+import { MAP_MODEL_VERSION } from '../../src/map/constants.js';
+import { createMapSnapshotTransport } from '../../tools/analysis/map-snapshot-transport.js';
+import { snapshotRequest } from '../../src/map/isometric/client/data/protocol.js';
+
+const aliases=createMemberAliasIndex(),numeric={id:0,label:'numeric'},opaque={id:'opaque:a:😀',label:'opaque'};
+aliases.set(0,numeric);aliases.set(opaque.id,opaque);
+const source={resolve(info){return aliases.get(info.id)||null;}};
+const slots=new Map([[0,{slot:7}],[opaque.id,{slot:11}]]);
+assert.equal(canonicalMemberId('0',source),0,'legacy string text resolves through pinned source inventory');
+assert.equal(lookupMemberIdentity(slots,'0',source).slot,7);assert.equal(lookupMemberIdentity(slots,opaque.id,source).slot,11);
+assert.equal(canonicalMemberId('42'), '42','numeric-looking opaque strings never become numbers by parsing');
+assert.equal(canonicalMemberId(''), '','empty legacy scalar identity is not replaced with an instance ordinal');
+const textual={id:'0',label:'text'};aliases.set('0',textual);slots.set('0',{slot:13});
+assert.equal(canonicalMemberId(0,source),0);assert.equal(canonicalMemberId('0',source),'0');
+assert.equal(lookupMemberIdentity(slots,0,source).slot,7);assert.equal(lookupMemberIdentity(slots,'0',source).slot,13);
+aliases.clear();assert.equal(aliases.get(0),undefined);
+aliases.set('undefined',{id:'undefined'});assert.equal(aliases.get(undefined),undefined,'missing endpoints cannot alias an opaque symbol named undefined');
+// Renderer and saved-input owners preserve typed scalar identities. Only exact
+// typed duplicates are rejected; legacy textual aliases require source proof.
+const nodes=[{path:'a.ts',members:[{id:0,name:'numeric'}]},{path:'b.ts',members:[{id:'0',name:'text'}]}];
+const edge={from:{member:0},to:{member:'0'},type:'call'},model=buildStackModel(nodes,[edge]);
+assert.equal(model.memberById.get(0).file.key,'a.ts');assert.equal(model.memberById.get('0').file.key,'b.ts');
+const cloned=structuredClone(model);assert.equal(cloned.memberById.get(0).segment.member.id,0);assert.equal(cloned.memberById.get('0').segment.member.id,'0');
+assert.equal(model.levels.segments[0].fromMember,0);assert.equal(model.levels.segments[0].toMember,'0');
+assert.equal(projectPipeRows(model.levels.segments,{level:'segments',tier:'segments',selected:{type:'member',id:0}}).length,1);
+const inventory=createSourceIndex({nodes,edges:[edge]});
+assert.equal(inventory.resolve({type:'member',id:0}).file,'a.ts');assert.equal(inventory.resolve({type:'member',id:'0'}).file,'b.ts');
+const match=selectionEndpointMatcher({type:'member',id:0},{sourceIndex:inventory});assert.equal(match(edge.from),true);assert.equal(match(edge.to),false);
+assert.deepEqual(parseSavedMap(JSON.stringify({version:MAP_MODEL_VERSION,root:{id:'fixture'},nodes,edges:[edge]})).model.nodes,nodes);
+assert.throws(()=>parseSavedMap(JSON.stringify({version:MAP_MODEL_VERSION,root:{id:'fixture'},
+  nodes:[nodes[0],{path:'other.ts',members:[{id:0}]}],edges:[]})),/Duplicate map member identity/);
+const legacy={version:MAP_MODEL_VERSION,root:{id:'fixture'},nodes:[nodes[0]],edges:[{from:{member:'0'},to:{file:'a.ts'},type:'usage'}]};
+const transport=createMapSnapshotTransport({model:legacy,snapshotId:'legacy:a'});
+const summary=JSON.parse(transport.respond(snapshotRequest({snapshot:'legacy:a',request:1,kind:'adjacency-summary',entity:{type:'member',id:0}})));
+assert.equal(summary.outgoing,1);assert.equal(summary.incoming,0);transport.dispose();
+console.log('Typed renderer identities and explicit source-qualified legacy aliases authored; saved admission unchanged.');

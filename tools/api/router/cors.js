@@ -1,3 +1,4 @@
+import { OBSERVABILITY_HEADER_NAMES } from '../../../src/shared/observability.js';
 const isLocalOrigin = (origin) => {
   try {
     const parsed = new URL(origin);
@@ -44,7 +45,8 @@ export const createCorsResolver = (cors = {}) => {
     return {
       'Access-Control-Allow-Origin': origin,
       'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+      'Access-Control-Allow-Headers': ['Content-Type', 'Authorization', ...OBSERVABILITY_HEADER_NAMES].join(', '),
+      'Access-Control-Expose-Headers': OBSERVABILITY_HEADER_NAMES.join(', '),
       Vary: 'Origin'
     };
   };

@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
 import { resolveSchedulerConfig } from '../../../src/index/build/runtime/scheduler.js';
+import { SCHEDULER_AUTOTUNE_PROFILE_VERSION } from '../../../src/index/build/runtime/scheduler-autotune-policy.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 
 applyTestEnv();
@@ -99,7 +100,7 @@ assert.equal(defaults.queues['stage1.postings'].floorCpu, 1, 'expected postings 
 assert.equal(defaults.writeBackpressure.enabled, true, 'expected write backpressure enabled by default');
 assert.equal(defaults.writeBackpressure.pendingThreshold, 256, 'expected default write pending threshold');
 
-const autotuned = resolveSchedulerConfig({
+const autotuneInput = {
   argv: {},
   rawArgv: ['node', 'script'],
   envConfig: {},
@@ -109,9 +110,15 @@ const autotuned = resolveSchedulerConfig({
       cpuConcurrency: { value: 4 },
       ioConcurrency: { value: 4 }
     }
-  },
+  }
+};
+const baselineAutotune = resolveSchedulerConfig(autotuneInput);
+const autotuned = resolveSchedulerConfig({
+  ...autotuneInput,
   autoTuneProfile: {
-    version: 1,
+    version: SCHEDULER_AUTOTUNE_PROFILE_VERSION,
+    generatedAt: new Date().toISOString(),
+    resourceIdentity: baselineAutotune.resourceIdentity,
     sourceBuildId: 'prev-build',
     recommended: {
       maxCpuTokens: 7,
@@ -124,6 +131,15 @@ assert.equal(autotuned.maxCpuTokens, 7, 'expected max CPU tokens to use autotune
 assert.equal(autotuned.maxIoTokens, 9, 'expected max IO tokens to use autotune recommendation');
 assert.equal(autotuned.maxMemoryTokens, 8, 'expected max memory tokens to use autotune recommendation');
 assert.equal(autotuned.autoTune.sourceBuildId, 'prev-build', 'expected autotune source build metadata');
+assert.equal(autotuned.autoTune.profileEligible, true);
+for (const patch of [{ version: 1 }, { version: 2 }, { resourceIdentity: 'other-machine' }, { generatedAt: '2020-01-01T00:00:00Z' }]) {
+  const rejected = resolveSchedulerConfig({ ...autotuneInput, autoTuneProfile: {
+    version: SCHEDULER_AUTOTUNE_PROFILE_VERSION, generatedAt: new Date().toISOString(), resourceIdentity: baselineAutotune.resourceIdentity,
+    recommended: { maxCpuTokens: 7 }, ...patch
+  } });
+  assert.equal(rejected.autoTune.profileEligible, false);
+  assert.equal(rejected.maxCpuTokens, baselineAutotune.maxCpuTokens);
+}
 
 const fdPressureParsed = resolveSchedulerConfig({
   argv: {},

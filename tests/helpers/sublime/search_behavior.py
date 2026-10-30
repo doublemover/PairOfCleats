@@ -1,3 +1,4 @@
+import hashlib
 import importlib
 import os
 import sys
@@ -5,7 +6,7 @@ import unittest
 
 sys.path.insert(0, os.path.dirname(__file__))
 
-from runtime_harness import FakeRegion, FakeView, FakeWindow, install_fake_modules
+from runtime_harness import FakeRegion, FakeView, FakeWindow, install_fake_modules, isolated_temp_directory
 
 
 class SearchBehaviorTests(unittest.TestCase):
@@ -18,6 +19,14 @@ class SearchBehaviorTests(unittest.TestCase):
     def setUp(self):
         self.sublime.reset()
         self.window = FakeWindow()
+        temporary = isolated_temp_directory()
+        self.repo = temporary.__enter__()
+        self.addCleanup(temporary.__exit__, None, None, None)
+        os.mkdir(os.path.join(self.repo, 'src'))
+        self.source_text = '\n\nconst buildWidget = 1;\n'
+        with open(os.path.join(self.repo, 'src', 'index.js'), 'wb') as handle:
+            handle.write(self.source_text.encode('utf-8'))
+        self.window.set_folders([self.repo])
         self.sublime.set_active_window(self.window)
         self.runner_calls = []
         self.api_calls = []
@@ -30,10 +39,11 @@ class SearchBehaviorTests(unittest.TestCase):
             'run_process': self.search.runner.run_process,
             'api_search_json': self.search.api_client.search_json,
             'api_run_async': self.search.api_client.run_async,
+            'service_resolve': self.search.service_repository.resolve,
         }
         self.search.paths.resolve_repo_root = (
-            lambda _window, return_reason=True, path_hint=None, allow_fallback=True: ('C:/repo', None)
-            if return_reason else 'C:/repo'
+            lambda _window, return_reason=True, path_hint=None, allow_fallback=True: (self.repo, None)
+            if return_reason else self.repo
         )
         self.search.config.validate_settings = lambda _settings, _repo_root, workflow=None: []
         self.search.paths.resolve_cli = lambda _settings, _repo_root: {
@@ -42,6 +52,7 @@ class SearchBehaviorTests(unittest.TestCase):
             'source': 'path',
         }
         self.search.config.build_env = lambda _settings: {}
+        self.search.service_repository.resolve = lambda _window, _settings, root, on_done, **options: on_done(root)
 
     def tearDown(self):
         for key, value in self._originals.items():
@@ -61,6 +72,8 @@ class SearchBehaviorTests(unittest.TestCase):
                 self.search.api_client.search_json = value
             elif key == 'api_run_async':
                 self.search.api_client.run_async = value
+            elif key == 'service_resolve':
+                self.search.service_repository.resolve = value
 
     def test_search_prefers_api_when_configured(self):
         self.search.config.get_settings = lambda _window: {
@@ -172,8 +185,11 @@ class SearchBehaviorTests(unittest.TestCase):
 
         self.search.PairOfCleatsGotoDefinitionCommand(view).run(None)
 
-        self.assertEqual(self.api_calls[0]['limit'], 25)
-        self.assertEqual(self.api_calls[0]['query'], 'buildWidget')
+        self.assertEqual(self.api_calls, [], 'qualified navigation cannot substitute approximate API search')
+        args = self.runner_calls[0]['args']
+        self.assertEqual(args[:2], ['tooling', 'navigate'])
+        self.assertEqual(args[args.index('--top') + 1], '25')
+        self.assertEqual(args[args.index('--symbol') + 1], 'buildWidget')
         self.assertEqual(len(self.window.opened_files), 1)
         self.assertTrue(self.window.opened_files[0]['path'].replace('\\', '/').endswith('src/index.js:3'))
 
@@ -183,8 +199,11 @@ class SearchBehaviorTests(unittest.TestCase):
 
         self.search.PairOfCleatsFindReferencesCommand(view).run(None)
 
-        self.assertEqual(self.api_calls[0]['limit'], 50)
-        self.assertEqual(self.api_calls[0]['query'], 'buildWidget')
+        self.assertEqual(self.api_calls, [])
+        args = self.runner_calls[0]['args']
+        self.assertEqual(args[:2], ['tooling', 'navigate'])
+        self.assertEqual(args[args.index('--top') + 1], '50')
+        self.assertEqual(args[args.index('--symbol') + 1], 'buildWidget')
         self.assertEqual(self.window.opened_files, [])
         self.assertIsNotNone(self.window.quick_panel_items)
 
@@ -227,11 +246,13 @@ class SearchBehaviorTests(unittest.TestCase):
         }
         self.search.api_client.search_json = self._search_json_success
         self.search.api_client.run_async = self._run_api_immediate
+        self.search.runner.run_process = self._run_process
 
     def _symbol_view(self):
-        view = FakeView('C:/repo/src/index.js', 'const buildWidget = 1;')
+        view = FakeView(os.path.join(self.repo, 'src', 'index.js'), self.source_text)
         view.sel().clear()
-        view.sel().append(FakeRegion(8, 8))
+        point = self.source_text.index('buildWidget') + 2
+        view.sel().append(FakeRegion(point, point))
         self.window.set_active_view(view)
         return view
 
@@ -248,7 +269,8 @@ class SearchBehaviorTests(unittest.TestCase):
             allow_sparse_fallback=False,
             as_of=None,
             snapshot=None,
-            advanced=None):
+            advanced=None,
+            cursor=None):
         self.api_calls.append({
             'base_url': base_url,
             'repo_root': repo_root,
@@ -261,6 +283,7 @@ class SearchBehaviorTests(unittest.TestCase):
             'as_of': as_of,
             'snapshot': snapshot,
             'advanced': advanced or {},
+            'cursor': cursor,
         })
         return ({
             'ok': True,
@@ -271,20 +294,23 @@ class SearchBehaviorTests(unittest.TestCase):
             }],
         }, {})
 
-    def _run_api_immediate(self, request_fn, on_done, on_progress=None):
+    def _run_api_immediate(self, request_fn, on_done, on_progress=None, **options):
+        self.assertIsNotNone(options.get('scope'))
         if callable(on_progress):
             on_progress('Request started.')
         payload, headers = request_fn()
         on_done(self.search.api_client.ApiResult(payload=payload, headers=headers))
         return None
 
-    def _run_api_error(self, _request_fn, on_done, on_progress=None):
+    def _run_api_error(self, _request_fn, on_done, on_progress=None, **options):
+        self.assertIsNotNone(options.get('scope'))
         if callable(on_progress):
             on_progress('Request started.')
         on_done(self.search.api_client.ApiResult(error='api down'))
         return None
 
-    def _run_process(self, _command, _args, cwd=None, env=None, window=None, title=None, capture_json=None, on_done=None, stream_output=None, panel_name=None):
+    def _run_process(self, _command, _args, cwd=None, env=None, window=None, title=None, capture_json=None, on_done=None, stream_output=None, panel_name=None, **options):
+        self.assertIsNotNone(options.get('operation_scope'))
         self.runner_calls.append({
             'cwd': cwd,
             'title': title,
@@ -298,6 +324,15 @@ class SearchBehaviorTests(unittest.TestCase):
                 'startLine': 3,
             }],
         }
+        if list(_args[:2]) == ['tooling', 'navigate']:
+            digest = hashlib.sha256(self.source_text.encode('utf-8')).hexdigest()
+            self.assertEqual(_args[_args.index('--source-hash') + 1], digest)
+            self.assertEqual(_args[_args.index('--source-version') + 1], '0')
+            self.assertEqual(options.get('timeout_ms'), 5000)
+            payload = {'ok': True, 'status': 'resolved', 'binding': {'status': 'resolved'},
+                       'sourceHash': digest, 'sourceVersion': '0', 'coordinateUnit': 'utf16', 'results': [{
+                           'file': 'src/index.js', 'name': 'buildWidget', 'sourceHash': digest,
+                           'coordinateUnit': 'utf16', 'startLine': 3, 'startCol': 7, 'endLine': 3, 'endCol': 18}]}
         on_done(type('FakeResult', (), {
             'returncode': 0,
             'output': '',

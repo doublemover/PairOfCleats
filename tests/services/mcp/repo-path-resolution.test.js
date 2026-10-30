@@ -5,9 +5,10 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { resolveRepoPath, resolveToolTimeoutMs } from '../../../tools/mcp/repo.js';
+import { resolveRepoPath, resolveToolTimeoutMs, getRepoCaches, clearRepoCaches } from '../../../tools/mcp/repo.js';
 import { resolveMcpRepoContext } from '../../../tools/mcp/tools/helpers.js';
 import { getRepoCacheRoot, loadUserConfig } from '../../../tools/shared/dict-utils.js';
+import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
 
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 
@@ -26,7 +27,7 @@ const ensureRepoArtifacts = async (repoPath, buildId = 'test-build') => {
   const currentPath = path.join(buildsRoot, 'current.json');
   await fsPromises.writeFile(
     currentPath,
-    JSON.stringify({ buildId, buildRoot: buildId }, null, 2),
+    JSON.stringify({ artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION, buildId, buildRoot: buildId }, null, 2),
     'utf8'
   );
   return repoCacheRoot;
@@ -46,7 +47,8 @@ if (gitInit.status !== 0) {
 
 const prevEnv = {
   PAIROFCLEATS_CACHE_ROOT: process.env.PAIROFCLEATS_CACHE_ROOT,
-  PAIROFCLEATS_TESTING: process.env.PAIROFCLEATS_TESTING
+  PAIROFCLEATS_TESTING: process.env.PAIROFCLEATS_TESTING,
+  PAIROFCLEATS_TRUSTED_REPOS: process.env.PAIROFCLEATS_TRUSTED_REPOS
 };
 applyTestEnv({ cacheRoot });
 
@@ -84,7 +86,15 @@ try {
   delete runtimeBaseEnv.PAIROFCLEATS_NODE_OPTIONS;
   delete runtimeBaseEnv.PAIROFCLEATS_MAX_OLD_SPACE_MB;
   delete runtimeBaseEnv.PAIROFCLEATS_UV_THREADPOOL_SIZE;
+  delete process.env.PAIROFCLEATS_TRUSTED_REPOS;
+  const untrustedContext = resolveMcpRepoContext(nested, { baseEnv: runtimeBaseEnv });
+  assert.doesNotMatch(String(untrustedContext.runtimeEnv.NODE_OPTIONS || ''), /--trace-warnings/,
+    'repository-selected Node options require launch-selected trust');
+  process.env.PAIROFCLEATS_TRUSTED_REPOS = JSON.stringify([repoRoot, nested]);
+  runtimeBaseEnv.PAIROFCLEATS_TRUSTED_REPOS = process.env.PAIROFCLEATS_TRUSTED_REPOS;
   const mcpContext = resolveMcpRepoContext(nested, { baseEnv: runtimeBaseEnv });
+  assert.equal(mcpContext.userConfig.runtime?.nodeOptions, '--trace-warnings',
+    'launch-selected repository trust must admit the runtime options');
   assert.equal(
     normPath(mcpContext.repoPath),
     normPath(repoRoot),
@@ -97,6 +107,9 @@ try {
 
   await fsPromises.rm(rootCache, { recursive: true, force: true });
   await ensureRepoArtifacts(nested, 'nested-build');
+  await fsPromises.writeFile(path.join(nested, '.pairofcleats.json'), JSON.stringify({ mcp: {
+    toolTimeoutMs: 2222, toolTimeouts: { search: 3333, build_index: 4444 }
+  } }));
   const resolvedWithNestedArtifacts = resolveRepoPath(nested);
   assert.equal(
     normPath(resolvedWithNestedArtifacts),
@@ -111,8 +124,8 @@ try {
   });
   assert.equal(
     perToolTimeout,
-    9876,
-    'toolTimeouts from repository root config should apply for nested repoPath'
+    3333,
+    'toolTimeouts belong to the exact independently indexed nested root'
   );
 
   const defaultToolTimeout = resolveToolTimeoutMs('index_status', { repoPath: nested }, {
@@ -122,9 +135,19 @@ try {
   });
   assert.equal(
     defaultToolTimeout,
-    4321,
-    'toolTimeoutMs from repository root config should apply for nested repoPath'
+    2222,
+    'default timeout belongs to the same exact indexed nested root'
   );
+  await ensureRepoArtifacts(repoRoot, 'root-build-restored');
+  assert.equal(normPath(resolveRepoPath(nested)), normPath(nested), 'exact indexed root wins when both roots have publications');
+  assert.equal(normPath(getRepoCaches(nested).repoRoot), normPath(nested), 'cache ownership agrees with selected root');
+  const mutationContext = resolveMcpRepoContext(nested, { preserveExplicitTarget: true, baseEnv: runtimeBaseEnv });
+  assert.equal(normPath(mutationContext.repoPath), normPath(nested));
+  assert.equal(mutationContext.userConfig.mcp.toolTimeoutMs, 2222);
+  assert.equal(resolveToolTimeoutMs('build_index', { repoPath: nested }, {
+    envToolTimeoutMs: 111, defaultToolTimeoutMs: 222, defaultToolTimeouts: {}
+  }), 4444);
+  await clearRepoCaches(nested);
 } finally {
   syncProcessEnv(prevEnv, Object.keys(prevEnv), { clearMissing: true });
   if (fs.existsSync(testRoot)) {

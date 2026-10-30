@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
-import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { runEmbeddingsStage } from '../../../src/integrations/core/build-index/stages.js';
@@ -9,18 +8,23 @@ import { resolveBuildInvocationArgs } from '../../../src/integrations/core/args.
 import { loadQueue } from '../../../tools/service/queue.js';
 import { createJobExecutor } from '../../../tools/service/indexer-service/job-executor.js';
 import { parseBuildEmbeddingsArgs } from '../../../tools/build/embeddings/cli.js';
-import { attachEmbeddingExecutionPlan, validateEmbeddingExecutionPlan } from '../../../src/shared/embedding-execution-plan.js';
+import { attachEmbeddingExecutionPlan, validateEmbeddingExecutionPlan, createEmbeddingExecutionPlan,
+  captureEmbeddingExecutionPlan } from '../../../src/shared/embedding-execution-plan.js';
 import { applyTestEnv, withTemporaryEnv } from '../../helpers/test-env.js';
 import { toRealPathSync } from '../../../src/workspace/identity.js';
+import { prepareIsolatedTestCacheDir } from '../../helpers/test-cache.js';
+import { getRepoId } from '../../../src/shared/repo-paths.js';
 
-const temp = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-plan-handoff-'));
+const { dir: temp } = await prepareIsolatedTestCacheDir('embedding-plan-handoff');
 const repo = path.join(temp, 'repo');
-const build = path.join(temp, 'build');
+const cacheRoot = path.join(temp, 'cache');
 const queueDir = path.join(temp, 'queue');
 const output = path.join(temp, 'capture.json');
 const toolRoot = path.join(temp, 'tool');
 const script = path.join(toolRoot, 'tools', 'build', 'embeddings.js');
 await fs.mkdir(repo);
+const repoCacheRoot = path.join(cacheRoot, 'repos', getRepoId(repo));
+const build = path.join(repoCacheRoot, 'builds', 'build-fixture');
 await fs.mkdir(path.join(build, 'index-code'), { recursive: true });
 await fs.mkdir(path.dirname(script), { recursive: true });
 const parserUrl = pathToFileURL(path.resolve('tools/build/embeddings/cli.js')).href;
@@ -29,7 +33,7 @@ await fs.writeFile(script, `const fs = await import('node:fs');
   const c = parseBuildEmbeddingsArgs();
   fs.writeFileSync(${JSON.stringify(output)}, JSON.stringify({argv:c.argv,model:c.modelId,dims:c.configuredDims,
     provider:c.embeddingProvider,normalize:c.embeddingsConfig.normalize,plan:c.executionPlan,rawThreads:c.envConfig.threads}));`);
-const env = applyTestEnv({ syncProcess: false, cacheRoot: path.join(temp, 'cache'), embeddings: 'stub' });
+const env = applyTestEnv({ syncProcess: false, cacheRoot, embeddings: 'stub' });
 const config = { models: { id: 'original-config-model' }, indexing: { embeddings: { normalize: false, mode: 'service' } } };
 await fs.writeFile(path.join(repo, '.pairofcleats.json'), JSON.stringify(config));
 const callerHook = () => {};
@@ -48,26 +52,41 @@ assert.equal(canonicalWins['scheduler-cpu'], 4);
 assert.equal(canonicalWins['stub-embeddings'], false);
 assert.equal(resolveBuildInvocationArgs({ ...apiOptions, rawArgv: [], 'scheduler-cpu': 5 }).argv['scheduler-cpu'], 5);
 const base = { root: repo, argv, embedModes: ['code'], userConfig: config, indexRoot: build,
-  includeEmbeddings: true, overallProgressRef: {}, log: () => {}, repoCacheRoot: path.join(temp, 'repo-cache'),
+  includeEmbeddings: true, overallProgressRef: {}, log: () => {}, repoCacheRoot,
   runtimeEnv: env, recordIndexMetric: () => {}, buildEmbeddingsPath: script };
 try {
-  await runEmbeddingsStage({ ...base, embeddingRuntime: { embeddingEnabled: true, embeddingService: false,
-    useStubEmbeddings: true, resolvedEmbeddingMode: 'stub' } });
+  const inlineIntent = { embeddingEnabled: true, embeddingService: false, useStubEmbeddings: true, resolvedEmbeddingMode: 'stub' };
+  const selected = captureEmbeddingExecutionPlan(createEmbeddingExecutionPlan({ root: repo, argv, userConfig: config,
+    modes: ['code'], rawEnv: env, intent: inlineIntent }));
+  const changedConfig = { ...config, models: { ...config.models, id: 'later-parent-config' },
+    indexing: { ...config.indexing, embeddings: { ...config.indexing.embeddings, normalize: true, provider: 'onnx' } } };
+  await withTemporaryEnv({ PAIROFCLEATS_CACHE_ROOT: path.join(temp, 'unselected-ambient-cache') }, () =>
+    runEmbeddingsStage({ ...base, userConfig: changedConfig,
+      runtimeEnv: { ...env, PAIROFCLEATS_THREADS: '9' }, embeddingRuntime: { ...inlineIntent, executionPlan: selected } }));
   const direct = JSON.parse(await fs.readFile(output, 'utf8'));
   assert.equal(direct.plan.repoRoot, toRealPathSync(repo));
   assert.equal(direct.plan.indexRoot, toRealPathSync(build));
   assert.equal(direct.model, 'parent-cli-model');
   assert.equal(direct.dims, 16);
+  assert.equal(direct.normalize, false); assert.equal(direct.provider, selected.embeddings.provider);
+  assert.equal(direct.plan.selectedAt, selected.selectedAt);
+  assert.deepEqual(direct.plan.environment, selected.environment);
+  await assert.rejects(runEmbeddingsStage({ ...base, repoCacheRoot: path.join(temp, 'unselected'),
+    embeddingRuntime: { ...inlineIntent, executionPlan: selected } }), { code: 'ERR_INDEX_STORAGE_SELECTION' });
   for (const key of ['threads', 'scheduler', 'scheduler-cpu', 'scheduler-io', 'scheduler-mem', 'scheduler-starvation', 'scheduler-low-resource']) {
     assert.equal(direct.argv[key], argv[key], key);
   }
-  await runEmbeddingsStage({ ...base, embeddingRuntime: { embeddingEnabled: true, embeddingService: true,
-    useStubEmbeddings: true, resolvedEmbeddingMode: 'service', queueDir } });
+  const queuedIntent = { embeddingEnabled: true, embeddingService: true,
+    useStubEmbeddings: true, resolvedEmbeddingMode: 'service', queueDir };
+  const queuedSelection = captureEmbeddingExecutionPlan(createEmbeddingExecutionPlan({ root: repo, argv, userConfig: config,
+    modes: ['code'], rawEnv: env, intent: queuedIntent }));
+  await runEmbeddingsStage({ ...base, embeddingRuntime: { ...queuedIntent, executionPlan: queuedSelection } });
   const queue = await loadQueue(queueDir, 'embeddings');
   assert.equal(queue.jobs.length, 1);
   const job = queue.jobs[0];
   assert.equal(job.embeddingPlan.options.model, 'parent-cli-model');
   assert.equal(job.embeddingPlan.sources.model, 'cli.model');
+  assert.equal(job.observability.context.embeddingSelectionDigest, queuedSelection.digest);
   await fs.writeFile(path.join(repo, '.pairofcleats.json'), JSON.stringify({
     models: { id: 'changed-after-submission' }, threads: 7,
     indexing: { embeddings: { provider: 'onnx', mode: 'off', normalize: true } }
@@ -93,8 +112,9 @@ try {
   assert.throws(() => validateEmbeddingExecutionPlan({ ...job.embeddingPlan, indexRoot: temp }), /digest mismatch/);
   assert.throws(() => validateEmbeddingExecutionPlan(job.embeddingPlan, { root: repo, indexRoot: temp }), /root mismatch/);
   assert.throws(() => validateEmbeddingExecutionPlan(job.embeddingPlan, { root: temp, indexRoot: build }), /repository root mismatch/);
-  const repoAlias = path.join(temp, 'repo-alias');
-  await fs.symlink(repo, repoAlias, process.platform === 'win32' ? 'junction' : 'dir');
+  // Portable canonical spelling, without creating links or requiring privileges.
+  // Physical symlink equivalence belongs to workspace identity qualification.
+  const repoAlias = repo + path.sep + '.';
   assert.equal(validateEmbeddingExecutionPlan(job.embeddingPlan, { root: repoAlias, indexRoot: build }).digest, job.embeddingPlan.digest);
   const missing = attachEmbeddingExecutionPlan(env, job.embeddingPlan);
   const context = JSON.parse(missing.PAIROFCLEATS_OBSERVABILITY_CONTEXT);

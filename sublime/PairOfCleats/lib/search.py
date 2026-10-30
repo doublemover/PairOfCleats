@@ -99,13 +99,20 @@ def build_search_payload(
         allow_sparse_fallback=False,
         as_of=None,
         snapshot=None,
-        advanced=None):
+        advanced=None,
+        cursor=None):
+    from . import config
+    api_backends = config._contract_get(['search', 'apiBackends'], ['auto', 'memory', 'sqlite', 'sqlite-fts', 'lmdb'])
+    if backend and backend not in api_backends:
+        raise ValueError('The API does not admit backend {0}. Choose a supported backend or explicitly select CLI mode.'.format(backend))
     payload = {
         'repo': repo_root,
         'query': query,
         'mode': mode or 'both',
         'output': 'compact',
     }
+    if cursor:
+        payload['cursor'] = cursor
     if backend:
         payload['backend'] = backend
     if isinstance(limit, int) and limit > 0:
@@ -135,8 +142,11 @@ def build_search_args(
         allow_sparse_fallback=False,
         as_of=None,
         snapshot=None,
-        advanced=None):
-    args = ['search', query, '--json']
+        advanced=None,
+        cursor=None):
+    args = ['search', '--json']
+    if cursor:
+        args.extend(['--cursor', str(cursor)])
     if mode and mode != 'both':
         args.extend(['--mode', mode])
     if backend:
@@ -166,4 +176,64 @@ def build_search_args(
         args.extend([spec['cli'], str(value)])
     if repo_root:
         args.extend(['--repo', repo_root])
+    args.extend(['--', str(query or '')])
     return args
+
+
+def has_effective_filter(advanced):
+    controls = {'case', 'case_file', 'case_tokens', 'branch'}
+    for key, value in normalize_advanced_search_defaults(advanced).items():
+        if key in controls:
+            continue
+        if key == 'modified_since' and isinstance(value, int) and value >= 0:
+            return True
+        if isinstance(value, bool):
+            if key in ('lint', 'async', 'generator', 'returns') and value:
+                return True
+        elif value:
+            return True
+    return False
+
+
+def validate_search_options(options):
+    from . import config
+    errors = []
+    if not isinstance(options, dict):
+        return ['Search options must be an object.']
+    if not isinstance(options.get('mode'), str) or options['mode'] not in config.VALID_INDEX_MODES:
+        errors.append('Search mode must be one of: ' + ', '.join(sorted(config.VALID_INDEX_MODES)))
+    if options.get('backend') is not None and (not isinstance(options['backend'], str)
+            or options['backend'] and options['backend'] not in config.VALID_BACKENDS):
+        errors.append('Search backend must be one of: ' + ', '.join(sorted(config.VALID_BACKENDS)))
+    limit = options.get('limit')
+    if type(limit) is not int or limit < 1:
+        errors.append('Search limit must be a positive integer.')
+    if options.get('ann') is not None and not isinstance(options['ann'], bool):
+        errors.append('Search ANN must be true, false or default.')
+    if not isinstance(options.get('allow_sparse_fallback'), bool):
+        errors.append('Sparse fallback must be true or false.')
+    for key in ('as_of', 'snapshot'):
+        if options.get(key) is not None and not isinstance(options[key], str):
+            errors.append('Search ' + key + ' must be a string.')
+    if options.get('as_of') and options.get('snapshot'):
+        errors.append('Choose an as-of reference or a snapshot, not both.')
+    if options.get('cursor') is not None and (not isinstance(options['cursor'], str) or not 0 < len(options['cursor']) <= 8192):
+        errors.append('Indexed continuation cursor is invalid or exceeds its 8 KiB bound. Restart browsing.')
+    advanced = options.get('advanced')
+    if not isinstance(advanced, dict):
+        errors.append('Search filters must be an object.')
+    else:
+        for key, value in advanced.items():
+            spec = ADVANCED_SEARCH_OPTION_SPECS.get(key)
+            if spec is None:
+                errors.append('Unsupported search filter: ' + str(key))
+                continue
+            kind = spec['type']
+            valid = ((kind == 'string' and isinstance(value, str))
+                or (kind == 'bool' and isinstance(value, bool))
+                or (kind == 'int' and type(value) is int and value >= 0)
+                or (kind == 'list' and (isinstance(value, str)
+                    or isinstance(value, list) and all(isinstance(item, str) and item for item in value))))
+            if not valid:
+                errors.append('Invalid value for search filter: ' + str(key))
+    return errors

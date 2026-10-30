@@ -1,11 +1,16 @@
 diff --git a/node_modules/@ganezdragon/tree-sitter-perl/src/scanner.c b/node_modules/@ganezdragon/tree-sitter-perl/src/scanner.c
-index 58b5c40..ca82475 100644
+index 58b5c4050..7b5ebae8e 100644
 --- a/node_modules/@ganezdragon/tree-sitter-perl/src/scanner.c
 +++ b/node_modules/@ganezdragon/tree-sitter-perl/src/scanner.c
-@@ -100,158 +100,160 @@ static char *my_strdup(const char *str) {
-   return duplicate; // Return a pointer to the duplicated string
+@@ -96,3 +96,3 @@
+   // Copy the input string to the newly allocated memory using strncpy
+-  strncpy(duplicate, str, len); // Copy up to 'len' characters from 'str' to 'duplicate'
++  memcpy(duplicate, str, len); // Copy up to 'len' characters from 'str' to 'duplicate'
+   duplicate[len - 1] = '\0'; // Ensure null-termination of the duplicated string
+@@ -101,67 +101,73 @@
  }
- 
+-
++
 -// START OF --- a array implementation of STRING queue in C
 +// START OF --- dynamic STRING queue in C
  typedef struct
@@ -16,7 +21,8 @@ index 58b5c40..ca82475 100644
 +  uint32_t cap;
    char **data;
  } StringQueue;
- 
+-
++
 -// function to create a queue
 -// of given capacity.
 -// It initializes size of queue as 0
@@ -52,7 +58,8 @@ index 58b5c40..ca82475 100644
 +  }
    return queue;
  }
- 
+-
++
 -// StringQueue is full when size becomes
 -// equal to the capacity
 -static int isStringQueueFull(StringQueue *queue) {
@@ -64,7 +71,8 @@ index 58b5c40..ca82475 100644
 -  return (queue->size == 0);
 +  return queue == NULL || queue->len == 0;
  }
- 
+-
++
 -// Function to add an item to the queue.
 -// It changes rear and size
  static void enqueueStringQueue(StringQueue *queue, String *item) {
@@ -79,7 +87,8 @@ index 58b5c40..ca82475 100644
 +  if (dup == NULL) return;
 +  queue->data[queue->len++] = dup;
  }
- 
+-
++
 -// Function to remove an item from queue.
 -// It changes front and size
  static char *dequeueStringQueue(StringQueue *queue) {
@@ -98,7 +107,8 @@ index 58b5c40..ca82475 100644
 +  queue->data[queue->len] = NULL;
    return item;
  }
- 
+-
++
 -// Function to get front of queue
  static char *front(StringQueue *queue) {
 -  // if (isQueueEmpty(queue))
@@ -119,7 +129,7 @@ index 58b5c40..ca82475 100644
 -  return NULL;
 +  queue->len = 0;
  }
- 
+@@ -169,75 +175,74 @@
  void deleteStringQueue(StringQueue *queue) {
 -  if (queue != NULL) {
 -    // Free the dynamically allocated data array
@@ -132,10 +142,12 @@ index 58b5c40..ca82475 100644
 +  free(queue->data);
 +  free(queue);
  }
- 
+-
++
 -// END OF --- a array implementation of STRING queue in C
 +// END OF --- dynamic STRING queue in C
- 
+-
++
 -// START OF --- a array implementation of Boolean queue in C
 +// START OF --- dynamic Boolean queue in C
  typedef struct
@@ -146,7 +158,8 @@ index 58b5c40..ca82475 100644
 +  uint32_t cap;
    bool *data;
  } BoolQueue;
- 
+-
++
 -// function to create a queue
 -// of given capacity.
 -// It initializes size of queue as 0
@@ -183,7 +196,8 @@ index 58b5c40..ca82475 100644
 +  }
    return queue;
  }
- 
+-
++
 -// BoolQueue is full when size becomes
 -// equal to the capacity
 -static int isBoolQueueFull(BoolQueue *queue) {
@@ -195,7 +209,8 @@ index 58b5c40..ca82475 100644
 -  return (queue->size == 0);
 +  return queue == NULL || queue->len == 0;
  }
- 
+-
++
 -// Function to add an item to the queue.
 -// It changes rear and size
  static void enqueueBoolQueue(BoolQueue *queue, bool item) {
@@ -208,7 +223,8 @@ index 58b5c40..ca82475 100644
 +  if (!ensureBoolQueueCapacity(queue, queue->len + 1)) return;
 +  queue->data[queue->len++] = item;
  }
- 
+-
++
 -// Function to remove an item from queue.
 -// It changes front and size
  static bool dequeueBoolQueue(BoolQueue *queue) {
@@ -226,7 +242,8 @@ index 58b5c40..ca82475 100644
 +  queue->data[queue->len] = false;
    return item;
  }
- 
+-
++
 -// Function to get front of queue
  static bool frontBoolQueue(BoolQueue *queue) {
 -  // if (isBoolQueueEmpty(queue))
@@ -243,7 +260,7 @@ index 58b5c40..ca82475 100644
 +  if (queue == NULL) return;
 +  queue->len = 0;
  }
- 
+@@ -245,12 +250,9 @@
  void deleteBoolQueue(BoolQueue *queue) {
 -  if (queue != NULL) {
 -    // Free the dynamically allocated data array
@@ -255,25 +272,99 @@ index 58b5c40..ca82475 100644
 +  free(queue->data);
 +  free(queue);
  }
- 
+-
++
 -// END OF --- a array implementation of Boolean queue in C
 +// END OF --- dynamic Boolean queue in C
- 
+-
++
  typedef struct {
-   bool started_heredoc;
-@@ -578,7 +580,8 @@ static bool exit_if_heredoc_end_delimiter(Scanner *scanner, TSLexer *lexer) {
-     // unset stuffs
-     scanner->heredoc.started_heredoc = false;
+@@ -488,2 +490,3 @@
+   bool allows_interpolation = true;
++  bool allows_indent = false;
+   String unquoted_word = string_new();
+@@ -492,6 +495,4 @@
+   if (lexer->lookahead == '~') {
+-    enqueueBoolQueue(scanner->heredoc.heredoc_allows_indent, true);
++    allows_indent = true;
+     advance(lexer);
+-  } else {
+-    enqueueBoolQueue(scanner->heredoc.heredoc_allows_indent, false);
+   }
+@@ -521,2 +522,3 @@
+   else if (has_space_before) {
++    STRING_FREE(unquoted_word);
+     return false;
+@@ -532,6 +534,16 @@
+       advance(lexer);
+-      if (!lexer->lookahead)
++      if (!lexer->lookahead) {
++        STRING_FREE(unquoted_word);
+         return false;
++      }
+     }
+     empty = false;
++    // External scanner state must fit Tree-sitter's fixed serialization buffer.
++    size_t state_bytes = 12 + 3 + unquoted_word.len + 1;
++    for (uint32_t i = 0; i < scanner->heredoc.heredoc_identifier_queue->len; i++)
++      state_bytes += 3 + strlen(scanner->heredoc.heredoc_identifier_queue->data[i]);
++    if (state_bytes > TREE_SITTER_SERIALIZATION_BUFFER_SIZE) {
++      STRING_FREE(unquoted_word);
++      return false;
++    }
+     STRING_PUSH(unquoted_word, lexer->lookahead);
+@@ -547,3 +559,4 @@
+     enqueueBoolQueue(scanner->heredoc.heredoc_allows_interpolation, allows_interpolation);
++    enqueueBoolQueue(scanner->heredoc.heredoc_allows_indent, allows_indent);
+-
++
+     scanner->heredoc.started_heredoc = true;
+@@ -559,4 +572,4 @@
+   lexer->result_symbol = HEREDOC_END_IDENTIFIER;
+-  while (!iswspace(lexer->lookahead)) {
+-    // printf("string here - %c", lexer->lookahead);
++  while (lexer->lookahead && lexer->lookahead != '\n' && lexer->lookahead != '\r') {
++    // Only a complete delimiter line closes a heredoc.
+     STRING_PUSH(word, lexer->lookahead);
+@@ -580,5 +593,6 @@
      scanner->heredoc.started_heredoc_body = false;
 -    dequeueStringQueue(scanner->heredoc.heredoc_identifier_queue);
 +    char *popped = dequeueStringQueue(scanner->heredoc.heredoc_identifier_queue);
 +    free(popped);
      dequeueBoolQueue(scanner->heredoc.heredoc_allows_interpolation);
-     return true;
+-    return true;
++    dequeueBoolQueue(scanner->heredoc.heredoc_allows_indent);
    }
-@@ -1013,28 +1016,23 @@ static inline bool scan(Scanner *scanner, TSLexer *lexer, const bool *valid_symb
+@@ -586,3 +600,2 @@
+     lexer->result_symbol = HEREDOC_CONTENT;
+-    return true;
+   }
+@@ -590,2 +603,3 @@
+   STRING_FREE(word);
++  return true;
  }
- 
+@@ -927,2 +941,5 @@
+           }
++          lexer->result_symbol = HEREDOC_CONTENT;
++          advance(lexer);
++          return true;
+         }
+@@ -933,2 +950,5 @@
+           }
++          lexer->result_symbol = HEREDOC_CONTENT;
++          advance(lexer);
++          return true;
+         }
+@@ -940,3 +960,3 @@
+           if (frontBoolQueue(scanner->heredoc.heredoc_allows_indent)) {
+-            while (iswspace(lexer->lookahead)) {
++            while (lexer->lookahead == ' ' || lexer->lookahead == '\t') {
+               advance(lexer);
+@@ -1013,11 +1033,29 @@
+ }
+-
++
++// All lexical state participates in parser branch restoration and incremental edits.
  static unsigned serialize(Scanner *scanner, char *buffer) {
 -  uint32_t size = 0;
 -
@@ -282,12 +373,37 @@ index 58b5c40..ca82475 100644
 -
 -static inline void reset_heredoc(StringQueue *queue) {
 -  queue->data = NULL;
-+  (void)scanner;
-+  (void)buffer;
-+  return 0;
++  StringQueue *queue = scanner->heredoc.heredoc_identifier_queue;
++  size_t size = 12;
++  for (uint32_t i = 0; i < queue->len; i++) size += 3 + strlen(queue->data[i]);
++  if (size > TREE_SITTER_SERIALIZATION_BUFFER_SIZE || queue->len > UINT16_MAX)
++    return 0;
++  buffer[0] = 1;
++  buffer[1] = scanner->is_separator_delimiter_parsed
++    | (scanner->is_delimiter_enclosing << 1)
++    | (scanner->heredoc.started_heredoc << 2)
++    | (scanner->heredoc.started_heredoc_body << 3);
++  memcpy(buffer + 2, &scanner->start_delimiter_char, 4);
++  memcpy(buffer + 6, &scanner->end_delimiter_char, 4);
++  uint16_t count = (uint16_t)queue->len;
++  memcpy(buffer + 10, &count, 2);
++  unsigned offset = 12;
++  for (uint32_t i = 0; i < queue->len; i++) {
++    uint16_t len = (uint16_t)strlen(queue->data[i]);
++    memcpy(buffer + offset, &len, 2);
++    buffer[offset + 2] = scanner->heredoc.heredoc_allows_interpolation->data[i]
++      | (scanner->heredoc.heredoc_allows_indent->data[i] << 1);
++    memcpy(buffer + offset + 3, queue->data[i], len);
++    offset += 3 + len;
++  }
++  return offset;
  }
- 
+@@ -1025,7 +1063,11 @@
  static void reset (Scanner *scanner) {
++  scanner->start_delimiter_char = 0;
++  scanner->end_delimiter_char = 0;
++  scanner->is_separator_delimiter_parsed = false;
++  scanner->is_delimiter_enclosing = false;
    scanner->heredoc.started_heredoc = false;
    scanner->heredoc.started_heredoc_body = false;
 -  for (int i = 0; i < scanner->heredoc.heredoc_identifier_queue->size; i++) {
@@ -297,15 +413,55 @@ index 58b5c40..ca82475 100644
 +  clearBoolQueue(scanner->heredoc.heredoc_allows_interpolation);
 +  clearBoolQueue(scanner->heredoc.heredoc_allows_indent);
  }
- 
+@@ -1033,6 +1075,36 @@
  static void deserialize(Scanner *scanner, const char *buffer, unsigned length) {
 -  // printf("sdf %d \n", length);
 -  // if (length == 0) {
 -  //   reset(scanner);
 -  // }
-+  (void)buffer;
-+  (void)length;
 +  reset(scanner);
++  if (length < 12 || length > TREE_SITTER_SERIALIZATION_BUFFER_SIZE
++      || buffer[0] != 1 || ((unsigned char)buffer[1] & ~15)) return;
++  uint16_t count;
++  memcpy(&count, buffer + 10, 2);
++  unsigned offset = 12;
++  // Validate the complete buffer before changing scanner ownership.
++  for (uint16_t i = 0; i < count; i++) {
++    if (length - offset < 3) return;
++    uint16_t len;
++    memcpy(&len, buffer + offset, 2);
++    if (!len || ((unsigned char)buffer[offset + 2] & ~3)
++        || len > length - offset - 3 || memchr(buffer + offset + 3, 0, len)) return;
++    offset += 3 + len;
++  }
++  if (offset != length) return;
++  memcpy(&scanner->start_delimiter_char, buffer + 2, 4);
++  memcpy(&scanner->end_delimiter_char, buffer + 6, 4);
++  scanner->is_separator_delimiter_parsed = buffer[1] & 1;
++  scanner->is_delimiter_enclosing = buffer[1] & 2;
++  scanner->heredoc.started_heredoc = buffer[1] & 4;
++  scanner->heredoc.started_heredoc_body = buffer[1] & 8;
++  offset = 12;
++  for (uint16_t i = 0; i < count; i++) {
++    uint16_t len;
++    memcpy(&len, buffer + offset, 2);
++    String word = string_new();
++    for (uint16_t j = 0; j < len; j++) { STRING_PUSH(word, buffer[offset + 3 + j]); }
++    enqueueStringQueue(scanner->heredoc.heredoc_identifier_queue, &word);
++    enqueueBoolQueue(scanner->heredoc.heredoc_allows_interpolation, buffer[offset + 2] & 1);
++    enqueueBoolQueue(scanner->heredoc.heredoc_allows_indent, buffer[offset + 2] & 2);
++    STRING_FREE(word);
++    offset += 3 + len;
++  }
  }
- 
+@@ -1040,3 +1112,4 @@
  void *tree_sitter_perl_external_scanner_create() {
+-  Scanner *scanner = malloc(sizeof(Scanner));
++  Scanner *scanner = calloc(1, sizeof(Scanner));
++  if (scanner == NULL) return NULL;
+   scanner->heredoc = heredoc_new();
+@@ -1057,3 +1130,3 @@
+   Scanner *scanner = (Scanner *)payload;
+-  deserialize(scanner, buffer, length);  // TODO: need to deserialize heredoc
++  deserialize(scanner, buffer, length);
+ }

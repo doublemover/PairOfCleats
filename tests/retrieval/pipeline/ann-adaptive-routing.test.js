@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
+import { quantizeEmbeddingVector } from '../../../src/shared/embedding-quantization.js';
 import { createSearchPipeline } from '../../../src/retrieval/pipeline.js';
 import { ANN_PROVIDER_IDS } from '../../../src/retrieval/ann/types.js';
 import { buildAnnPipelineFixture } from './helpers/ann-scenarios.js';
@@ -41,7 +42,7 @@ const buildTokenIndex = (token, docCount) => ({
   }));
   idx.tokenIndex = buildTokenIndex('alpha', idx.chunkMeta.length);
   idx.denseVec = {
-    vectors: Array.from({ length: idx.chunkMeta.length }, () => [0.1, 0.2]),
+    vectors: Array.from({ length: idx.chunkMeta.length }, () => quantizeEmbeddingVector([0.1, 0.2])),
     dims: 2
   };
   const pipeline = createSearchPipeline(context);
@@ -110,7 +111,7 @@ const buildTokenIndex = (token, docCount) => ({
   }));
   idx.tokenIndex = buildTokenIndex('::$$##', idx.chunkMeta.length);
   idx.denseVec = {
-    vectors: Array.from({ length: idx.chunkMeta.length }, () => [0.2, 0.1]),
+    vectors: Array.from({ length: idx.chunkMeta.length }, () => quantizeEmbeddingVector([0.2, 0.1])),
     dims: 2
   };
   const pipeline = createSearchPipeline(context);

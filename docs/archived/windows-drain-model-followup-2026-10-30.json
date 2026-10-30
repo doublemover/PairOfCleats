@@ -1,0 +1,2218 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-10-30",
+  "historicalAuthorWorkspace": true,
+  "publishedHead": "e96cf6106ae892bac0f29b126979d703c212ebad",
+  "runs": [
+    {
+      "name": "new-owner-focus",
+      "source": "6258c6e0f6c038e7fbae417f38cc958fd1b41dc2",
+      "summary": {
+        "durationMs": 146291,
+        "failed": 7,
+        "passed": 29,
+        "skipped": 0,
+        "total": 36
+      },
+      "tests": [
+        {
+          "attempts": 1,
+          "durationMs": 138,
+          "exitCode": 0,
+          "id": "embeddings/dense-upstream-reference-controls",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\consumer-wave-next-20261030\\new-owner-focus-logs\\run-1793356277736-0qkezk\\embeddings_dense-upstream-reference-controls.attempt-1.log"
+          ],
+          "path": "embeddings/dense-upstream-reference-controls.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "embeddings",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 303,
+          "exitCode": 0,
+          "id": "embeddings/embedding-acquisition-plan",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\consumer-wave-next-20261030\\new-owner-focus-logs\\run-1793356277736-0qkezk\\embeddings_embedding-acquisition-plan.attempt-1.log"
+          ],
+          "path": "embeddings/embedding-acquisition-plan.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "embeddings",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 331,
+          "exitCode": 0,
+          "id": "embeddings/instruct-e5-acquisition",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\consumer-wave-next-20261030\\new-owner-focus-logs\\run-1793356277736-0qkezk\\embeddings_instruct-e5-acquisition.attempt-1.log"
+          ],
+          "path": "embeddings/instruct-e5-acquisition.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "embeddings",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 273,
+          "exitCode": 0,
+          "id": "indexing/artifacts/checksum-native-metadata-consumers",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\consumer-wave-next-20261030\\new-owner-focus-logs\\run-1793356277736-0qkezk\\indexing_artifacts_checksum-native-metadata-consumers.attempt-1.log"
+          ],
+          "path": "indexing/artifacts/checksum-native-metadata-consumers.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 250,
+          "exitCode": 0,
+          "id": "indexing/embeddings/artifact-async-lease-authority",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\consumer-wave-next-20261030\\new-owner-focus-logs\\run-1793356277736-0qkezk\\indexing_embeddings_artifact-async-lease-authority.attempt-1.log"
+          ],
+          "path": "indexing/embeddings/artifact-async-lease-authority.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "embeddings",
+            "indexing",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 188,
+          "exitCode": 0,
+          "id": "indexing/embeddings/artifact-byte-progress-admission",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\consumer-wave-next-20261030\\new-owner-focus-logs\\run-1793356277736-0qkezk\\indexing_embeddings_artifact-byte-progress-admission.attempt-1.log"
+          ],
+          "path": "indexing/embeddings/artifact-byte-progress-admission.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "embeddings",
+            "indexing",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 163,
+          "exitCode": 0,
+          "id": "indexing/embeddings/artifact-verification-cancellation",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\consumer-wave-next-20261030\\new-owner-focus-logs\\run-1793356277736-0qkezk\\indexing_embeddings_artifact-verification-cancellation.attempt-1.log"
+          ],
+          "path": "indexing/embeddings/artifact-verification-cancellation.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "embeddings",
+            "indexing",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 182,
+          "exitCode": 0,
+          "id": "indexing/embeddings/dense-model-encoding-contract",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\consumer-wave-next-20261030\\new-owner-focus-logs\\run-1793356277736-0qkezk\\indexing_embeddings_dense-model-encoding-contract.attempt-1.log"
+          ],
+          "path": "indexing/embeddings/dense-model-encoding-contract.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "embeddings",
+            "indexing",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 143,
+          "exitCode": 0,
+          "id": "indexing/embeddings/identity",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\consumer-wave-next-20261030\\new-owner-focus-logs\\run-1793356277736-0qkezk\\indexing_embeddings_identity.attempt-1.log"
+          ],
+          "path": "indexing/embeddings/identity.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "embeddings",
+            "indexing",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 198,
+          "exitCode": 0,
+          "id": "indexing/embeddings/identity-key-order",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\consumer-wave-next-20261030\\new-owner-focus-logs\\run-1793356277736-0qkezk\\indexing_embeddings_identity-key-order.attempt-1.log"
+          ],
+          "path": "indexing/embeddings/identity-key-order.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "embeddings",
+            "indexing",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 237,
+          "exitCode": 0,
+          "id": "indexing/embeddings/model-artifact-identity",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\consumer-wave-next-20261030\\new-owner-focus-logs\\run-1793356277736-0qkezk\\indexing_embeddings_model-artifact-identity.attempt-1.log"
+          ],
+          "path": "indexing/embeddings/model-artifact-identity.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "embeddings",
+            "indexing",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 8385,
+          "exitCode": 0,
+          "id": "indexing/semantic/drain-falsey-failure-ownership/builder-empty",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\consumer-wave-next-20261030\\new-owner-focus-logs\\run-1793356277736-0qkezk\\indexing_semantic_drain-falsey-failure-ownership_builder-empty.attempt-1.log"
+          ],
+          "path": "indexing/semantic/drain-falsey-failure-ownership.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 8288,
+          "exitCode": 0,
+          "id": "indexing/semantic/drain-falsey-failure-ownership/builder-false",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\consumer-wave-next-20261030\\new-owner-focus-logs\\run-1793356277736-0qkezk\\indexing_semantic_drain-falsey-failure-ownership_builder-false.attempt-1.log"
+          ],
+          "path": "indexing/semantic/drain-falsey-failure-ownership.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 8159,
+          "exitCode": 0,
+          "id": "indexing/semantic/drain-falsey-failure-ownership/builder-nan",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\consumer-wave-next-20261030\\new-owner-focus-logs\\run-1793356277736-0qkezk\\indexing_semantic_drain-falsey-failure-ownership_builder-nan.attempt-1.log"
+          ],
+          "path": "indexing/semantic/drain-falsey-failure-ownership.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 8143,
+          "exitCode": 0,
+          "id": "indexing/semantic/drain-falsey-failure-ownership/builder-null",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\consumer-wave-next-20261030\\new-owner-focus-logs\\run-1793356277736-0qkezk\\indexing_semantic_drain-falsey-failure-ownership_builder-null.attempt-1.log"
+          ],
+          "path": "indexing/semantic/drain-falsey-failure-ownership.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 8232,
+          "exitCode": 0,
+          "id": "indexing/semantic/drain-falsey-failure-ownership/builder-undefined",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\consumer-wave-next-20261030\\new-owner-focus-logs\\run-1793356277736-0qkezk\\indexing_semantic_drain-falsey-failure-ownership_builder-undefined.attempt-1.log"
+          ],
+          "path": "indexing/semantic/drain-falsey-failure-ownership.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 8308,
+          "exitCode": 0,
+          "id": "indexing/semantic/drain-falsey-failure-ownership/builder-unicode",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\consumer-wave-next-20261030\\new-owner-focus-logs\\run-1793356277736-0qkezk\\indexing_semantic_drain-falsey-failure-ownership_builder-unicode.attempt-1.log"
+          ],
+          "path": "indexing/semantic/drain-falsey-failure-ownership.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 8231,
+          "exitCode": 0,
+          "id": "indexing/semantic/drain-falsey-failure-ownership/builder-zero",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\consumer-wave-next-20261030\\new-owner-focus-logs\\run-1793356277736-0qkezk\\indexing_semantic_drain-falsey-failure-ownership_builder-zero.attempt-1.log"
+          ],
+          "path": "indexing/semantic/drain-falsey-failure-ownership.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 8494,
+          "exitCode": 0,
+          "id": "indexing/semantic/drain-falsey-failure-ownership/release-empty",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\consumer-wave-next-20261030\\new-owner-focus-logs\\run-1793356277736-0qkezk\\indexing_semantic_drain-falsey-failure-ownership_release-empty.attempt-1.log"
+          ],
+          "path": "indexing/semantic/drain-falsey-failure-ownership.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 11011,
+          "exitCode": 0,
+          "id": "indexing/semantic/drain-falsey-failure-ownership/release-false",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\consumer-wave-next-20261030\\new-owner-focus-logs\\run-1793356277736-0qkezk\\indexing_semantic_drain-falsey-failure-ownership_release-false.attempt-1.log"
+          ],
+          "path": "indexing/semantic/drain-falsey-failure-ownership.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 8767,
+          "exitCode": 0,
+          "id": "indexing/semantic/drain-falsey-failure-ownership/release-nan",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\consumer-wave-next-20261030\\new-owner-focus-logs\\run-1793356277736-0qkezk\\indexing_semantic_drain-falsey-failure-ownership_release-nan.attempt-1.log"
+          ],
+          "path": "indexing/semantic/drain-falsey-failure-ownership.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 8355,
+          "exitCode": 0,
+          "id": "indexing/semantic/drain-falsey-failure-ownership/release-null",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\consumer-wave-next-20261030\\new-owner-focus-logs\\run-1793356277736-0qkezk\\indexing_semantic_drain-falsey-failure-ownership_release-null.attempt-1.log"
+          ],
+          "path": "indexing/semantic/drain-falsey-failure-ownership.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 8650,
+          "exitCode": 0,
+          "id": "indexing/semantic/drain-falsey-failure-ownership/release-undefined",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\consumer-wave-next-20261030\\new-owner-focus-logs\\run-1793356277736-0qkezk\\indexing_semantic_drain-falsey-failure-ownership_release-undefined.attempt-1.log"
+          ],
+          "path": "indexing/semantic/drain-falsey-failure-ownership.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 8756,
+          "exitCode": 0,
+          "id": "indexing/semantic/drain-falsey-failure-ownership/release-zero",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\consumer-wave-next-20261030\\new-owner-focus-logs\\run-1793356277736-0qkezk\\indexing_semantic_drain-falsey-failure-ownership_release-zero.attempt-1.log"
+          ],
+          "path": "indexing/semantic/drain-falsey-failure-ownership.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 188,
+          "exitCode": 0,
+          "id": "runner/publication-diagnostic-ownership/boundary",
+          "lane": "unit",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\consumer-wave-next-20261030\\new-owner-focus-logs\\run-1793356277736-0qkezk\\runner_publication-diagnostic-ownership_boundary.attempt-1.log"
+          ],
+          "path": "runner/publication-diagnostic-ownership.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "unit"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 193,
+          "exitCode": 0,
+          "id": "runner/publication-diagnostic-ownership/io",
+          "lane": "unit",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\consumer-wave-next-20261030\\new-owner-focus-logs\\run-1793356277736-0qkezk\\runner_publication-diagnostic-ownership_io.attempt-1.log"
+          ],
+          "path": "runner/publication-diagnostic-ownership.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "unit"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 3210,
+          "exitCode": 1,
+          "id": "tooling/architecture/caps-verdict-cli-consumers/clean",
+          "lane": "unit",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\consumer-wave-next-20261030\\new-owner-focus-logs\\run-1793356277736-0qkezk\\tooling_architecture_caps-verdict-cli-consumers_clean.attempt-1.log",
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\consumer-wave-next-20261030\\new-owner-focus-logs\\run-1793356277736-0qkezk\\tooling_architecture_caps-verdict-cli-consumers_clean.attempt-1.failure.json"
+          ],
+          "path": "tooling/architecture/caps-verdict-cli-consumers.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "failed",
+          "tags": [
+            "tooling",
+            "unit"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 3270,
+          "exitCode": 1,
+          "id": "tooling/architecture/caps-verdict-cli-consumers/max-edges-only",
+          "lane": "unit",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\consumer-wave-next-20261030\\new-owner-focus-logs\\run-1793356277736-0qkezk\\tooling_architecture_caps-verdict-cli-consumers_max-edges-only.attempt-1.log",
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\consumer-wave-next-20261030\\new-owner-focus-logs\\run-1793356277736-0qkezk\\tooling_architecture_caps-verdict-cli-consumers_max-edges-only.attempt-1.failure.json"
+          ],
+          "path": "tooling/architecture/caps-verdict-cli-consumers.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "failed",
+          "tags": [
+            "tooling",
+            "unit"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 3266,
+          "exitCode": 1,
+          "id": "tooling/architecture/caps-verdict-cli-consumers/max-violations-only",
+          "lane": "unit",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\consumer-wave-next-20261030\\new-owner-focus-logs\\run-1793356277736-0qkezk\\tooling_architecture_caps-verdict-cli-consumers_max-violations-only.attempt-1.log",
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\consumer-wave-next-20261030\\new-owner-focus-logs\\run-1793356277736-0qkezk\\tooling_architecture_caps-verdict-cli-consumers_max-violations-only.attempt-1.failure.json"
+          ],
+          "path": "tooling/architecture/caps-verdict-cli-consumers.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "failed",
+          "tags": [
+            "tooling",
+            "unit"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 3236,
+          "exitCode": 1,
+          "id": "tooling/architecture/caps-verdict-cli-consumers/omitted-violation",
+          "lane": "unit",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\consumer-wave-next-20261030\\new-owner-focus-logs\\run-1793356277736-0qkezk\\tooling_architecture_caps-verdict-cli-consumers_omitted-violation.attempt-1.log",
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\consumer-wave-next-20261030\\new-owner-focus-logs\\run-1793356277736-0qkezk\\tooling_architecture_caps-verdict-cli-consumers_omitted-violation.attempt-1.failure.json"
+          ],
+          "path": "tooling/architecture/caps-verdict-cli-consumers.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "failed",
+          "tags": [
+            "tooling",
+            "unit"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 3229,
+          "exitCode": 1,
+          "id": "tooling/architecture/caps-verdict-cli-consumers/unknown-upstream",
+          "lane": "unit",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\consumer-wave-next-20261030\\new-owner-focus-logs\\run-1793356277736-0qkezk\\tooling_architecture_caps-verdict-cli-consumers_unknown-upstream.attempt-1.log",
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\consumer-wave-next-20261030\\new-owner-focus-logs\\run-1793356277736-0qkezk\\tooling_architecture_caps-verdict-cli-consumers_unknown-upstream.attempt-1.failure.json"
+          ],
+          "path": "tooling/architecture/caps-verdict-cli-consumers.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "failed",
+          "tags": [
+            "tooling",
+            "unit"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 3298,
+          "exitCode": 1,
+          "id": "tooling/architecture/caps-verdict-cli-consumers/zero-details",
+          "lane": "unit",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\consumer-wave-next-20261030\\new-owner-focus-logs\\run-1793356277736-0qkezk\\tooling_architecture_caps-verdict-cli-consumers_zero-details.attempt-1.log",
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\consumer-wave-next-20261030\\new-owner-focus-logs\\run-1793356277736-0qkezk\\tooling_architecture_caps-verdict-cli-consumers_zero-details.attempt-1.failure.json"
+          ],
+          "path": "tooling/architecture/caps-verdict-cli-consumers.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "failed",
+          "tags": [
+            "tooling",
+            "unit"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 3452,
+          "exitCode": 1,
+          "id": "tooling/architecture/caps-verdict-cli-consumers/zero-work",
+          "lane": "unit",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\consumer-wave-next-20261030\\new-owner-focus-logs\\run-1793356277736-0qkezk\\tooling_architecture_caps-verdict-cli-consumers_zero-work.attempt-1.log",
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\consumer-wave-next-20261030\\new-owner-focus-logs\\run-1793356277736-0qkezk\\tooling_architecture_caps-verdict-cli-consumers_zero-work.attempt-1.failure.json"
+          ],
+          "path": "tooling/architecture/caps-verdict-cli-consumers.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "failed",
+          "tags": [
+            "tooling",
+            "unit"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 1742,
+          "exitCode": 0,
+          "id": "tooling/architecture/rule-input-cli",
+          "lane": "unit",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\consumer-wave-next-20261030\\new-owner-focus-logs\\run-1793356277736-0qkezk\\tooling_architecture_rule-input-cli.attempt-1.log"
+          ],
+          "path": "tooling/architecture/rule-input-cli.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "tooling",
+            "unit"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 1040,
+          "exitCode": 0,
+          "id": "tooling/install/model-readiness-resource-admission",
+          "lane": "unit",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\consumer-wave-next-20261030\\new-owner-focus-logs\\run-1793356277736-0qkezk\\tooling_install_model-readiness-resource-admission.attempt-1.log"
+          ],
+          "path": "tooling/install/model-readiness-resource-admission.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "tooling",
+            "unit"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 5929,
+          "exitCode": 0,
+          "id": "tooling/install/setup-model-readiness",
+          "lane": "unit",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\consumer-wave-next-20261030\\new-owner-focus-logs\\run-1793356277736-0qkezk\\tooling_install_setup-model-readiness.attempt-1.log"
+          ],
+          "path": "tooling/install/setup-model-readiness.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "tooling",
+            "unit"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        }
+      ]
+    },
+    {
+      "name": "architecture-ci-close-focus",
+      "source": "fixture repairs before format;matching published owner blobs below",
+      "summary": {
+        "durationMs": 28384,
+        "failed": 0,
+        "passed": 8,
+        "skipped": 0,
+        "total": 8
+      },
+      "tests": [
+        {
+          "attempts": 1,
+          "durationMs": 850,
+          "exitCode": 0,
+          "id": "storage/semantic/runtime-query-index-hash-close",
+          "lane": "storage",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\consumer-wave-next-20261030\\architecture-ci-close-focus-logs\\run-1793356615593-0h401r\\storage_semantic_runtime-query-index-hash-close.attempt-1.log"
+          ],
+          "path": "storage/semantic/runtime-query-index-hash-close.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "storage"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 3698,
+          "exitCode": 0,
+          "id": "tooling/architecture/caps-verdict-cli-consumers/clean",
+          "lane": "unit",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\consumer-wave-next-20261030\\architecture-ci-close-focus-logs\\run-1793356615593-0h401r\\tooling_architecture_caps-verdict-cli-consumers_clean.attempt-1.log"
+          ],
+          "path": "tooling/architecture/caps-verdict-cli-consumers.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "tooling",
+            "unit"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 3658,
+          "exitCode": 0,
+          "id": "tooling/architecture/caps-verdict-cli-consumers/max-edges-only",
+          "lane": "unit",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\consumer-wave-next-20261030\\architecture-ci-close-focus-logs\\run-1793356615593-0h401r\\tooling_architecture_caps-verdict-cli-consumers_max-edges-only.attempt-1.log"
+          ],
+          "path": "tooling/architecture/caps-verdict-cli-consumers.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "tooling",
+            "unit"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 3563,
+          "exitCode": 0,
+          "id": "tooling/architecture/caps-verdict-cli-consumers/max-violations-only",
+          "lane": "unit",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\consumer-wave-next-20261030\\architecture-ci-close-focus-logs\\run-1793356615593-0h401r\\tooling_architecture_caps-verdict-cli-consumers_max-violations-only.attempt-1.log"
+          ],
+          "path": "tooling/architecture/caps-verdict-cli-consumers.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "tooling",
+            "unit"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 3616,
+          "exitCode": 0,
+          "id": "tooling/architecture/caps-verdict-cli-consumers/omitted-violation",
+          "lane": "unit",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\consumer-wave-next-20261030\\architecture-ci-close-focus-logs\\run-1793356615593-0h401r\\tooling_architecture_caps-verdict-cli-consumers_omitted-violation.attempt-1.log"
+          ],
+          "path": "tooling/architecture/caps-verdict-cli-consumers.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "tooling",
+            "unit"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 4280,
+          "exitCode": 0,
+          "id": "tooling/architecture/caps-verdict-cli-consumers/unknown-upstream",
+          "lane": "unit",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\consumer-wave-next-20261030\\architecture-ci-close-focus-logs\\run-1793356615593-0h401r\\tooling_architecture_caps-verdict-cli-consumers_unknown-upstream.attempt-1.log"
+          ],
+          "path": "tooling/architecture/caps-verdict-cli-consumers.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "tooling",
+            "unit"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 4402,
+          "exitCode": 0,
+          "id": "tooling/architecture/caps-verdict-cli-consumers/zero-details",
+          "lane": "unit",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\consumer-wave-next-20261030\\architecture-ci-close-focus-logs\\run-1793356615593-0h401r\\tooling_architecture_caps-verdict-cli-consumers_zero-details.attempt-1.log"
+          ],
+          "path": "tooling/architecture/caps-verdict-cli-consumers.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "tooling",
+            "unit"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 4306,
+          "exitCode": 0,
+          "id": "tooling/architecture/caps-verdict-cli-consumers/zero-work",
+          "lane": "unit",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\consumer-wave-next-20261030\\architecture-ci-close-focus-logs\\run-1793356615593-0h401r\\tooling_architecture_caps-verdict-cli-consumers_zero-work.attempt-1.log"
+          ],
+          "path": "tooling/architecture/caps-verdict-cli-consumers.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "tooling",
+            "unit"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        }
+      ]
+    },
+    {
+      "name": "provider-provenance-focus",
+      "source": "e96cf6106ae892bac0f29b126979d703c212ebad",
+      "summary": {
+        "durationMs": 486,
+        "failed": 0,
+        "passed": 2,
+        "skipped": 0,
+        "total": 2
+      },
+      "tests": [
+        {
+          "attempts": 1,
+          "durationMs": 161,
+          "exitCode": 0,
+          "id": "embeddings/dense-upstream-reference-controls",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\consumer-wave-next-20261030\\provider-provenance-focus-logs\\run-1793356947434-9m09ic\\embeddings_dense-upstream-reference-controls.attempt-1.log"
+          ],
+          "path": "embeddings/dense-upstream-reference-controls.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "embeddings",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 320,
+          "exitCode": 0,
+          "id": "embeddings/provider-runtime-provenance",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\consumer-wave-next-20261030\\provider-provenance-focus-logs\\run-1793356947434-9m09ic\\embeddings_provider-runtime-provenance.attempt-1.log"
+          ],
+          "path": "embeddings/provider-runtime-provenance.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "embeddings",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        }
+      ]
+    }
+  ],
+  "latestFocusedOutcomes": [
+    {
+      "attempts": 1,
+      "durationMs": 161,
+      "exitCode": 0,
+      "id": "embeddings/dense-upstream-reference-controls",
+      "lane": "integration",
+      "logs": [
+        "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\consumer-wave-next-20261030\\provider-provenance-focus-logs\\run-1793356947434-9m09ic\\embeddings_dense-upstream-reference-controls.attempt-1.log"
+      ],
+      "path": "embeddings/dense-upstream-reference-controls.test.js",
+      "signal": null,
+      "skipReason": null,
+      "status": "passed",
+      "tags": [
+        "embeddings",
+        "integration"
+      ],
+      "termination": null,
+      "timedOut": false,
+      "timeoutClass": null
+    },
+    {
+      "attempts": 1,
+      "durationMs": 303,
+      "exitCode": 0,
+      "id": "embeddings/embedding-acquisition-plan",
+      "lane": "integration",
+      "logs": [
+        "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\consumer-wave-next-20261030\\new-owner-focus-logs\\run-1793356277736-0qkezk\\embeddings_embedding-acquisition-plan.attempt-1.log"
+      ],
+      "path": "embeddings/embedding-acquisition-plan.test.js",
+      "signal": null,
+      "skipReason": null,
+      "status": "passed",
+      "tags": [
+        "embeddings",
+        "integration"
+      ],
+      "termination": null,
+      "timedOut": false,
+      "timeoutClass": null
+    },
+    {
+      "attempts": 1,
+      "durationMs": 331,
+      "exitCode": 0,
+      "id": "embeddings/instruct-e5-acquisition",
+      "lane": "integration",
+      "logs": [
+        "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\consumer-wave-next-20261030\\new-owner-focus-logs\\run-1793356277736-0qkezk\\embeddings_instruct-e5-acquisition.attempt-1.log"
+      ],
+      "path": "embeddings/instruct-e5-acquisition.test.js",
+      "signal": null,
+      "skipReason": null,
+      "status": "passed",
+      "tags": [
+        "embeddings",
+        "integration"
+      ],
+      "termination": null,
+      "timedOut": false,
+      "timeoutClass": null
+    },
+    {
+      "attempts": 1,
+      "durationMs": 273,
+      "exitCode": 0,
+      "id": "indexing/artifacts/checksum-native-metadata-consumers",
+      "lane": "integration",
+      "logs": [
+        "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\consumer-wave-next-20261030\\new-owner-focus-logs\\run-1793356277736-0qkezk\\indexing_artifacts_checksum-native-metadata-consumers.attempt-1.log"
+      ],
+      "path": "indexing/artifacts/checksum-native-metadata-consumers.test.js",
+      "signal": null,
+      "skipReason": null,
+      "status": "passed",
+      "tags": [
+        "indexing",
+        "integration"
+      ],
+      "termination": null,
+      "timedOut": false,
+      "timeoutClass": null
+    },
+    {
+      "attempts": 1,
+      "durationMs": 250,
+      "exitCode": 0,
+      "id": "indexing/embeddings/artifact-async-lease-authority",
+      "lane": "integration",
+      "logs": [
+        "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\consumer-wave-next-20261030\\new-owner-focus-logs\\run-1793356277736-0qkezk\\indexing_embeddings_artifact-async-lease-authority.attempt-1.log"
+      ],
+      "path": "indexing/embeddings/artifact-async-lease-authority.test.js",
+      "signal": null,
+      "skipReason": null,
+      "status": "passed",
+      "tags": [
+        "embeddings",
+        "indexing",
+        "integration"
+      ],
+      "termination": null,
+      "timedOut": false,
+      "timeoutClass": null
+    },
+    {
+      "attempts": 1,
+      "durationMs": 188,
+      "exitCode": 0,
+      "id": "indexing/embeddings/artifact-byte-progress-admission",
+      "lane": "integration",
+      "logs": [
+        "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\consumer-wave-next-20261030\\new-owner-focus-logs\\run-1793356277736-0qkezk\\indexing_embeddings_artifact-byte-progress-admission.attempt-1.log"
+      ],
+      "path": "indexing/embeddings/artifact-byte-progress-admission.test.js",
+      "signal": null,
+      "skipReason": null,
+      "status": "passed",
+      "tags": [
+        "embeddings",
+        "indexing",
+        "integration"
+      ],
+      "termination": null,
+      "timedOut": false,
+      "timeoutClass": null
+    },
+    {
+      "attempts": 1,
+      "durationMs": 163,
+      "exitCode": 0,
+      "id": "indexing/embeddings/artifact-verification-cancellation",
+      "lane": "integration",
+      "logs": [
+        "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\consumer-wave-next-20261030\\new-owner-focus-logs\\run-1793356277736-0qkezk\\indexing_embeddings_artifact-verification-cancellation.attempt-1.log"
+      ],
+      "path": "indexing/embeddings/artifact-verification-cancellation.test.js",
+      "signal": null,
+      "skipReason": null,
+      "status": "passed",
+      "tags": [
+        "embeddings",
+        "indexing",
+        "integration"
+      ],
+      "termination": null,
+      "timedOut": false,
+      "timeoutClass": null
+    },
+    {
+      "attempts": 1,
+      "durationMs": 182,
+      "exitCode": 0,
+      "id": "indexing/embeddings/dense-model-encoding-contract",
+      "lane": "integration",
+      "logs": [
+        "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\consumer-wave-next-20261030\\new-owner-focus-logs\\run-1793356277736-0qkezk\\indexing_embeddings_dense-model-encoding-contract.attempt-1.log"
+      ],
+      "path": "indexing/embeddings/dense-model-encoding-contract.test.js",
+      "signal": null,
+      "skipReason": null,
+      "status": "passed",
+      "tags": [
+        "embeddings",
+        "indexing",
+        "integration"
+      ],
+      "termination": null,
+      "timedOut": false,
+      "timeoutClass": null
+    },
+    {
+      "attempts": 1,
+      "durationMs": 143,
+      "exitCode": 0,
+      "id": "indexing/embeddings/identity",
+      "lane": "integration",
+      "logs": [
+        "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\consumer-wave-next-20261030\\new-owner-focus-logs\\run-1793356277736-0qkezk\\indexing_embeddings_identity.attempt-1.log"
+      ],
+      "path": "indexing/embeddings/identity.test.js",
+      "signal": null,
+      "skipReason": null,
+      "status": "passed",
+      "tags": [
+        "embeddings",
+        "indexing",
+        "integration"
+      ],
+      "termination": null,
+      "timedOut": false,
+      "timeoutClass": null
+    },
+    {
+      "attempts": 1,
+      "durationMs": 198,
+      "exitCode": 0,
+      "id": "indexing/embeddings/identity-key-order",
+      "lane": "integration",
+      "logs": [
+        "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\consumer-wave-next-20261030\\new-owner-focus-logs\\run-1793356277736-0qkezk\\indexing_embeddings_identity-key-order.attempt-1.log"
+      ],
+      "path": "indexing/embeddings/identity-key-order.test.js",
+      "signal": null,
+      "skipReason": null,
+      "status": "passed",
+      "tags": [
+        "embeddings",
+        "indexing",
+        "integration"
+      ],
+      "termination": null,
+      "timedOut": false,
+      "timeoutClass": null
+    },
+    {
+      "attempts": 1,
+      "durationMs": 237,
+      "exitCode": 0,
+      "id": "indexing/embeddings/model-artifact-identity",
+      "lane": "integration",
+      "logs": [
+        "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\consumer-wave-next-20261030\\new-owner-focus-logs\\run-1793356277736-0qkezk\\indexing_embeddings_model-artifact-identity.attempt-1.log"
+      ],
+      "path": "indexing/embeddings/model-artifact-identity.test.js",
+      "signal": null,
+      "skipReason": null,
+      "status": "passed",
+      "tags": [
+        "embeddings",
+        "indexing",
+        "integration"
+      ],
+      "termination": null,
+      "timedOut": false,
+      "timeoutClass": null
+    },
+    {
+      "attempts": 1,
+      "durationMs": 8385,
+      "exitCode": 0,
+      "id": "indexing/semantic/drain-falsey-failure-ownership/builder-empty",
+      "lane": "integration",
+      "logs": [
+        "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\consumer-wave-next-20261030\\new-owner-focus-logs\\run-1793356277736-0qkezk\\indexing_semantic_drain-falsey-failure-ownership_builder-empty.attempt-1.log"
+      ],
+      "path": "indexing/semantic/drain-falsey-failure-ownership.test.js",
+      "signal": null,
+      "skipReason": null,
+      "status": "passed",
+      "tags": [
+        "indexing",
+        "integration"
+      ],
+      "termination": null,
+      "timedOut": false,
+      "timeoutClass": null
+    },
+    {
+      "attempts": 1,
+      "durationMs": 8288,
+      "exitCode": 0,
+      "id": "indexing/semantic/drain-falsey-failure-ownership/builder-false",
+      "lane": "integration",
+      "logs": [
+        "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\consumer-wave-next-20261030\\new-owner-focus-logs\\run-1793356277736-0qkezk\\indexing_semantic_drain-falsey-failure-ownership_builder-false.attempt-1.log"
+      ],
+      "path": "indexing/semantic/drain-falsey-failure-ownership.test.js",
+      "signal": null,
+      "skipReason": null,
+      "status": "passed",
+      "tags": [
+        "indexing",
+        "integration"
+      ],
+      "termination": null,
+      "timedOut": false,
+      "timeoutClass": null
+    },
+    {
+      "attempts": 1,
+      "durationMs": 8159,
+      "exitCode": 0,
+      "id": "indexing/semantic/drain-falsey-failure-ownership/builder-nan",
+      "lane": "integration",
+      "logs": [
+        "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\consumer-wave-next-20261030\\new-owner-focus-logs\\run-1793356277736-0qkezk\\indexing_semantic_drain-falsey-failure-ownership_builder-nan.attempt-1.log"
+      ],
+      "path": "indexing/semantic/drain-falsey-failure-ownership.test.js",
+      "signal": null,
+      "skipReason": null,
+      "status": "passed",
+      "tags": [
+        "indexing",
+        "integration"
+      ],
+      "termination": null,
+      "timedOut": false,
+      "timeoutClass": null
+    },
+    {
+      "attempts": 1,
+      "durationMs": 8143,
+      "exitCode": 0,
+      "id": "indexing/semantic/drain-falsey-failure-ownership/builder-null",
+      "lane": "integration",
+      "logs": [
+        "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\consumer-wave-next-20261030\\new-owner-focus-logs\\run-1793356277736-0qkezk\\indexing_semantic_drain-falsey-failure-ownership_builder-null.attempt-1.log"
+      ],
+      "path": "indexing/semantic/drain-falsey-failure-ownership.test.js",
+      "signal": null,
+      "skipReason": null,
+      "status": "passed",
+      "tags": [
+        "indexing",
+        "integration"
+      ],
+      "termination": null,
+      "timedOut": false,
+      "timeoutClass": null
+    },
+    {
+      "attempts": 1,
+      "durationMs": 8232,
+      "exitCode": 0,
+      "id": "indexing/semantic/drain-falsey-failure-ownership/builder-undefined",
+      "lane": "integration",
+      "logs": [
+        "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\consumer-wave-next-20261030\\new-owner-focus-logs\\run-1793356277736-0qkezk\\indexing_semantic_drain-falsey-failure-ownership_builder-undefined.attempt-1.log"
+      ],
+      "path": "indexing/semantic/drain-falsey-failure-ownership.test.js",
+      "signal": null,
+      "skipReason": null,
+      "status": "passed",
+      "tags": [
+        "indexing",
+        "integration"
+      ],
+      "termination": null,
+      "timedOut": false,
+      "timeoutClass": null
+    },
+    {
+      "attempts": 1,
+      "durationMs": 8308,
+      "exitCode": 0,
+      "id": "indexing/semantic/drain-falsey-failure-ownership/builder-unicode",
+      "lane": "integration",
+      "logs": [
+        "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\consumer-wave-next-20261030\\new-owner-focus-logs\\run-1793356277736-0qkezk\\indexing_semantic_drain-falsey-failure-ownership_builder-unicode.attempt-1.log"
+      ],
+      "path": "indexing/semantic/drain-falsey-failure-ownership.test.js",
+      "signal": null,
+      "skipReason": null,
+      "status": "passed",
+      "tags": [
+        "indexing",
+        "integration"
+      ],
+      "termination": null,
+      "timedOut": false,
+      "timeoutClass": null
+    },
+    {
+      "attempts": 1,
+      "durationMs": 8231,
+      "exitCode": 0,
+      "id": "indexing/semantic/drain-falsey-failure-ownership/builder-zero",
+      "lane": "integration",
+      "logs": [
+        "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\consumer-wave-next-20261030\\new-owner-focus-logs\\run-1793356277736-0qkezk\\indexing_semantic_drain-falsey-failure-ownership_builder-zero.attempt-1.log"
+      ],
+      "path": "indexing/semantic/drain-falsey-failure-ownership.test.js",
+      "signal": null,
+      "skipReason": null,
+      "status": "passed",
+      "tags": [
+        "indexing",
+        "integration"
+      ],
+      "termination": null,
+      "timedOut": false,
+      "timeoutClass": null
+    },
+    {
+      "attempts": 1,
+      "durationMs": 8494,
+      "exitCode": 0,
+      "id": "indexing/semantic/drain-falsey-failure-ownership/release-empty",
+      "lane": "integration",
+      "logs": [
+        "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\consumer-wave-next-20261030\\new-owner-focus-logs\\run-1793356277736-0qkezk\\indexing_semantic_drain-falsey-failure-ownership_release-empty.attempt-1.log"
+      ],
+      "path": "indexing/semantic/drain-falsey-failure-ownership.test.js",
+      "signal": null,
+      "skipReason": null,
+      "status": "passed",
+      "tags": [
+        "indexing",
+        "integration"
+      ],
+      "termination": null,
+      "timedOut": false,
+      "timeoutClass": null
+    },
+    {
+      "attempts": 1,
+      "durationMs": 11011,
+      "exitCode": 0,
+      "id": "indexing/semantic/drain-falsey-failure-ownership/release-false",
+      "lane": "integration",
+      "logs": [
+        "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\consumer-wave-next-20261030\\new-owner-focus-logs\\run-1793356277736-0qkezk\\indexing_semantic_drain-falsey-failure-ownership_release-false.attempt-1.log"
+      ],
+      "path": "indexing/semantic/drain-falsey-failure-ownership.test.js",
+      "signal": null,
+      "skipReason": null,
+      "status": "passed",
+      "tags": [
+        "indexing",
+        "integration"
+      ],
+      "termination": null,
+      "timedOut": false,
+      "timeoutClass": null
+    },
+    {
+      "attempts": 1,
+      "durationMs": 8767,
+      "exitCode": 0,
+      "id": "indexing/semantic/drain-falsey-failure-ownership/release-nan",
+      "lane": "integration",
+      "logs": [
+        "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\consumer-wave-next-20261030\\new-owner-focus-logs\\run-1793356277736-0qkezk\\indexing_semantic_drain-falsey-failure-ownership_release-nan.attempt-1.log"
+      ],
+      "path": "indexing/semantic/drain-falsey-failure-ownership.test.js",
+      "signal": null,
+      "skipReason": null,
+      "status": "passed",
+      "tags": [
+        "indexing",
+        "integration"
+      ],
+      "termination": null,
+      "timedOut": false,
+      "timeoutClass": null
+    },
+    {
+      "attempts": 1,
+      "durationMs": 8355,
+      "exitCode": 0,
+      "id": "indexing/semantic/drain-falsey-failure-ownership/release-null",
+      "lane": "integration",
+      "logs": [
+        "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\consumer-wave-next-20261030\\new-owner-focus-logs\\run-1793356277736-0qkezk\\indexing_semantic_drain-falsey-failure-ownership_release-null.attempt-1.log"
+      ],
+      "path": "indexing/semantic/drain-falsey-failure-ownership.test.js",
+      "signal": null,
+      "skipReason": null,
+      "status": "passed",
+      "tags": [
+        "indexing",
+        "integration"
+      ],
+      "termination": null,
+      "timedOut": false,
+      "timeoutClass": null
+    },
+    {
+      "attempts": 1,
+      "durationMs": 8650,
+      "exitCode": 0,
+      "id": "indexing/semantic/drain-falsey-failure-ownership/release-undefined",
+      "lane": "integration",
+      "logs": [
+        "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\consumer-wave-next-20261030\\new-owner-focus-logs\\run-1793356277736-0qkezk\\indexing_semantic_drain-falsey-failure-ownership_release-undefined.attempt-1.log"
+      ],
+      "path": "indexing/semantic/drain-falsey-failure-ownership.test.js",
+      "signal": null,
+      "skipReason": null,
+      "status": "passed",
+      "tags": [
+        "indexing",
+        "integration"
+      ],
+      "termination": null,
+      "timedOut": false,
+      "timeoutClass": null
+    },
+    {
+      "attempts": 1,
+      "durationMs": 8756,
+      "exitCode": 0,
+      "id": "indexing/semantic/drain-falsey-failure-ownership/release-zero",
+      "lane": "integration",
+      "logs": [
+        "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\consumer-wave-next-20261030\\new-owner-focus-logs\\run-1793356277736-0qkezk\\indexing_semantic_drain-falsey-failure-ownership_release-zero.attempt-1.log"
+      ],
+      "path": "indexing/semantic/drain-falsey-failure-ownership.test.js",
+      "signal": null,
+      "skipReason": null,
+      "status": "passed",
+      "tags": [
+        "indexing",
+        "integration"
+      ],
+      "termination": null,
+      "timedOut": false,
+      "timeoutClass": null
+    },
+    {
+      "attempts": 1,
+      "durationMs": 188,
+      "exitCode": 0,
+      "id": "runner/publication-diagnostic-ownership/boundary",
+      "lane": "unit",
+      "logs": [
+        "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\consumer-wave-next-20261030\\new-owner-focus-logs\\run-1793356277736-0qkezk\\runner_publication-diagnostic-ownership_boundary.attempt-1.log"
+      ],
+      "path": "runner/publication-diagnostic-ownership.test.js",
+      "signal": null,
+      "skipReason": null,
+      "status": "passed",
+      "tags": [
+        "unit"
+      ],
+      "termination": null,
+      "timedOut": false,
+      "timeoutClass": null
+    },
+    {
+      "attempts": 1,
+      "durationMs": 193,
+      "exitCode": 0,
+      "id": "runner/publication-diagnostic-ownership/io",
+      "lane": "unit",
+      "logs": [
+        "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\consumer-wave-next-20261030\\new-owner-focus-logs\\run-1793356277736-0qkezk\\runner_publication-diagnostic-ownership_io.attempt-1.log"
+      ],
+      "path": "runner/publication-diagnostic-ownership.test.js",
+      "signal": null,
+      "skipReason": null,
+      "status": "passed",
+      "tags": [
+        "unit"
+      ],
+      "termination": null,
+      "timedOut": false,
+      "timeoutClass": null
+    },
+    {
+      "attempts": 1,
+      "durationMs": 3698,
+      "exitCode": 0,
+      "id": "tooling/architecture/caps-verdict-cli-consumers/clean",
+      "lane": "unit",
+      "logs": [
+        "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\consumer-wave-next-20261030\\architecture-ci-close-focus-logs\\run-1793356615593-0h401r\\tooling_architecture_caps-verdict-cli-consumers_clean.attempt-1.log"
+      ],
+      "path": "tooling/architecture/caps-verdict-cli-consumers.test.js",
+      "signal": null,
+      "skipReason": null,
+      "status": "passed",
+      "tags": [
+        "tooling",
+        "unit"
+      ],
+      "termination": null,
+      "timedOut": false,
+      "timeoutClass": null
+    },
+    {
+      "attempts": 1,
+      "durationMs": 3658,
+      "exitCode": 0,
+      "id": "tooling/architecture/caps-verdict-cli-consumers/max-edges-only",
+      "lane": "unit",
+      "logs": [
+        "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\consumer-wave-next-20261030\\architecture-ci-close-focus-logs\\run-1793356615593-0h401r\\tooling_architecture_caps-verdict-cli-consumers_max-edges-only.attempt-1.log"
+      ],
+      "path": "tooling/architecture/caps-verdict-cli-consumers.test.js",
+      "signal": null,
+      "skipReason": null,
+      "status": "passed",
+      "tags": [
+        "tooling",
+        "unit"
+      ],
+      "termination": null,
+      "timedOut": false,
+      "timeoutClass": null
+    },
+    {
+      "attempts": 1,
+      "durationMs": 3563,
+      "exitCode": 0,
+      "id": "tooling/architecture/caps-verdict-cli-consumers/max-violations-only",
+      "lane": "unit",
+      "logs": [
+        "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\consumer-wave-next-20261030\\architecture-ci-close-focus-logs\\run-1793356615593-0h401r\\tooling_architecture_caps-verdict-cli-consumers_max-violations-only.attempt-1.log"
+      ],
+      "path": "tooling/architecture/caps-verdict-cli-consumers.test.js",
+      "signal": null,
+      "skipReason": null,
+      "status": "passed",
+      "tags": [
+        "tooling",
+        "unit"
+      ],
+      "termination": null,
+      "timedOut": false,
+      "timeoutClass": null
+    },
+    {
+      "attempts": 1,
+      "durationMs": 3616,
+      "exitCode": 0,
+      "id": "tooling/architecture/caps-verdict-cli-consumers/omitted-violation",
+      "lane": "unit",
+      "logs": [
+        "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\consumer-wave-next-20261030\\architecture-ci-close-focus-logs\\run-1793356615593-0h401r\\tooling_architecture_caps-verdict-cli-consumers_omitted-violation.attempt-1.log"
+      ],
+      "path": "tooling/architecture/caps-verdict-cli-consumers.test.js",
+      "signal": null,
+      "skipReason": null,
+      "status": "passed",
+      "tags": [
+        "tooling",
+        "unit"
+      ],
+      "termination": null,
+      "timedOut": false,
+      "timeoutClass": null
+    },
+    {
+      "attempts": 1,
+      "durationMs": 4280,
+      "exitCode": 0,
+      "id": "tooling/architecture/caps-verdict-cli-consumers/unknown-upstream",
+      "lane": "unit",
+      "logs": [
+        "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\consumer-wave-next-20261030\\architecture-ci-close-focus-logs\\run-1793356615593-0h401r\\tooling_architecture_caps-verdict-cli-consumers_unknown-upstream.attempt-1.log"
+      ],
+      "path": "tooling/architecture/caps-verdict-cli-consumers.test.js",
+      "signal": null,
+      "skipReason": null,
+      "status": "passed",
+      "tags": [
+        "tooling",
+        "unit"
+      ],
+      "termination": null,
+      "timedOut": false,
+      "timeoutClass": null
+    },
+    {
+      "attempts": 1,
+      "durationMs": 4402,
+      "exitCode": 0,
+      "id": "tooling/architecture/caps-verdict-cli-consumers/zero-details",
+      "lane": "unit",
+      "logs": [
+        "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\consumer-wave-next-20261030\\architecture-ci-close-focus-logs\\run-1793356615593-0h401r\\tooling_architecture_caps-verdict-cli-consumers_zero-details.attempt-1.log"
+      ],
+      "path": "tooling/architecture/caps-verdict-cli-consumers.test.js",
+      "signal": null,
+      "skipReason": null,
+      "status": "passed",
+      "tags": [
+        "tooling",
+        "unit"
+      ],
+      "termination": null,
+      "timedOut": false,
+      "timeoutClass": null
+    },
+    {
+      "attempts": 1,
+      "durationMs": 4306,
+      "exitCode": 0,
+      "id": "tooling/architecture/caps-verdict-cli-consumers/zero-work",
+      "lane": "unit",
+      "logs": [
+        "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\consumer-wave-next-20261030\\architecture-ci-close-focus-logs\\run-1793356615593-0h401r\\tooling_architecture_caps-verdict-cli-consumers_zero-work.attempt-1.log"
+      ],
+      "path": "tooling/architecture/caps-verdict-cli-consumers.test.js",
+      "signal": null,
+      "skipReason": null,
+      "status": "passed",
+      "tags": [
+        "tooling",
+        "unit"
+      ],
+      "termination": null,
+      "timedOut": false,
+      "timeoutClass": null
+    },
+    {
+      "attempts": 1,
+      "durationMs": 1742,
+      "exitCode": 0,
+      "id": "tooling/architecture/rule-input-cli",
+      "lane": "unit",
+      "logs": [
+        "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\consumer-wave-next-20261030\\new-owner-focus-logs\\run-1793356277736-0qkezk\\tooling_architecture_rule-input-cli.attempt-1.log"
+      ],
+      "path": "tooling/architecture/rule-input-cli.test.js",
+      "signal": null,
+      "skipReason": null,
+      "status": "passed",
+      "tags": [
+        "tooling",
+        "unit"
+      ],
+      "termination": null,
+      "timedOut": false,
+      "timeoutClass": null
+    },
+    {
+      "attempts": 1,
+      "durationMs": 1040,
+      "exitCode": 0,
+      "id": "tooling/install/model-readiness-resource-admission",
+      "lane": "unit",
+      "logs": [
+        "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\consumer-wave-next-20261030\\new-owner-focus-logs\\run-1793356277736-0qkezk\\tooling_install_model-readiness-resource-admission.attempt-1.log"
+      ],
+      "path": "tooling/install/model-readiness-resource-admission.test.js",
+      "signal": null,
+      "skipReason": null,
+      "status": "passed",
+      "tags": [
+        "tooling",
+        "unit"
+      ],
+      "termination": null,
+      "timedOut": false,
+      "timeoutClass": null
+    },
+    {
+      "attempts": 1,
+      "durationMs": 5929,
+      "exitCode": 0,
+      "id": "tooling/install/setup-model-readiness",
+      "lane": "unit",
+      "logs": [
+        "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\consumer-wave-next-20261030\\new-owner-focus-logs\\run-1793356277736-0qkezk\\tooling_install_setup-model-readiness.attempt-1.log"
+      ],
+      "path": "tooling/install/setup-model-readiness.test.js",
+      "signal": null,
+      "skipReason": null,
+      "status": "passed",
+      "tags": [
+        "tooling",
+        "unit"
+      ],
+      "termination": null,
+      "timedOut": false,
+      "timeoutClass": null
+    },
+    {
+      "attempts": 1,
+      "durationMs": 850,
+      "exitCode": 0,
+      "id": "storage/semantic/runtime-query-index-hash-close",
+      "lane": "storage",
+      "logs": [
+        "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\consumer-wave-next-20261030\\architecture-ci-close-focus-logs\\run-1793356615593-0h401r\\storage_semantic_runtime-query-index-hash-close.attempt-1.log"
+      ],
+      "path": "storage/semantic/runtime-query-index-hash-close.test.js",
+      "signal": null,
+      "skipReason": null,
+      "status": "passed",
+      "tags": [
+        "storage"
+      ],
+      "termination": null,
+      "timedOut": false,
+      "timeoutClass": null
+    },
+    {
+      "attempts": 1,
+      "durationMs": 320,
+      "exitCode": 0,
+      "id": "embeddings/provider-runtime-provenance",
+      "lane": "integration",
+      "logs": [
+        "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\consumer-wave-next-20261030\\provider-provenance-focus-logs\\run-1793356947434-9m09ic\\embeddings_provider-runtime-provenance.attempt-1.log"
+      ],
+      "path": "embeddings/provider-runtime-provenance.test.js",
+      "signal": null,
+      "skipReason": null,
+      "status": "passed",
+      "tags": [
+        "embeddings",
+        "integration"
+      ],
+      "termination": null,
+      "timedOut": false,
+      "timeoutClass": null
+    }
+  ],
+  "distinctPassing": 38,
+  "ownerBlobs": {
+    "src/semantic/enrichment.js": "712fc639ec35e5329871b4aa5475670739d29bc3",
+    "src/index/semantic/sqlite-disk.js": "5a8c789af1a570638abba37d1bf6a0a78261f2d6",
+    "src/index/build/artifacts/checksums.js": "ee37116812f07285c53299dccb1945b251ed45d0",
+    "src/index/build/stage-output.js": "4b34c64f6d8a5c07fdddcc05e594aaad33fad820",
+    "tests/helpers/publication-boundary-diagnostics.js": "89c2ceca9e99a301d96259638435f0261ca907f3",
+    "tests/storage/semantic/runtime-query-index-hash-close.test.js": "c050162330ad8bb11b9185f6d1212c01e38da9cc",
+    "tests/tooling/architecture/caps-verdict-cli-consumers.test.js": "6f7eeb508ca02340a12511f468b0d46b4076cb70",
+    "tests/embeddings/helpers/provider-runtime-provenance.js": "ebbc817758ebd25ad3dea8ffe6479a74c300fa4c"
+  },
+  "preservedFailures": {
+    "architecture": "All seven new valid-index CLI cases originally failed strict stderr because their fixture omitted compatibilityKey. The fixture now uses canonical computeCompatibilityKey, publishes/promotes it and independently asserts manifest/readback/CLI identity. No warning filtering or admission relaxation.",
+    "hosted": {
+      "source": "1708b2b4c40deace584e23e48bf1b47cad7fd4fd",
+      "runId": 41033906776,
+      "runUrl": "https://github.com/doublemover/PairOfCleats/actions/runs/41033906776",
+      "jobs": [
+        {
+          "id": 123990046802,
+          "name": "gate",
+          "conclusion": "success"
+        },
+        {
+          "id": 123990935771,
+          "name": "ubuntu",
+          "conclusion": "failure"
+        },
+        {
+          "id": 123990935794,
+          "name": "macos",
+          "conclusion": "failure"
+        },
+        {
+          "id": 123990935810,
+          "name": "native-inspection (windows-latest)",
+          "conclusion": "success"
+        },
+        {
+          "id": 123990935837,
+          "name": "rust-tui",
+          "conclusion": "success"
+        },
+        {
+          "id": 123990935848,
+          "name": "windows",
+          "conclusion": "failure"
+        },
+        {
+          "id": 123990935879,
+          "name": "windows-authority",
+          "conclusion": "success"
+        },
+        {
+          "id": 123990936038,
+          "name": "native-inspection (ubuntu-latest)",
+          "conclusion": "success"
+        },
+        {
+          "id": 123990936429,
+          "name": "native-inspection (macos-latest)",
+          "conclusion": "success"
+        }
+      ],
+      "windowsSummary": {
+        "passed": 1908,
+        "failed": 1,
+        "timeouts": 0,
+        "skipped": 3
+      },
+      "windowsFailure": {
+        "id": "storage/semantic/runtime-query-index-hash-close",
+        "durationMs": 1580,
+        "message": "AssertionError: exercise the actual final hash descriptor close"
+      },
+      "scope": "Hosted observations only; no new local Linux/macOS execution."
+    }
+  },
+  "publicationGate": {
+    "source": {
+      "state": "clean-revision",
+      "revision": "e96cf6106ae892bac0f29b126979d703c212ebad"
+    },
+    "format": {
+      "command": "npm run format",
+      "source": "6258c6e0f6c038e7fbae417f38cc958fd1b41dc2",
+      "sourceState": "source batch before commit",
+      "exitCode": 0,
+      "durationMs": 32805,
+      "log": ".testLogs/consumer-wave-next-20261030/native-model-batch-format.log"
+    },
+    "checks": [
+      {
+        "name": "config-budget",
+        "command": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\node-v26.13.0-win-x64\\node.exe",
+        "args": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\node-v26.13.0-win-x64\\node_modules\\npm\\bin\\npm-cli.js",
+          "run",
+          "config:budget"
+        ],
+        "exitCode": 0,
+        "durationMs": 2236,
+        "signal": null,
+        "log": ".testLogs/consumer-wave-next-20261030/native-model-batch-ready-config-budget.log",
+        "capture": {
+          "stdout": {
+            "enabled": true,
+            "maxBytes": 4194304,
+            "observedBytes": 78,
+            "retainedBytes": 78,
+            "droppedBytes": 0,
+            "retainedBufferBytes": 78,
+            "outputBytes": 78,
+            "encodingLoss": false,
+            "truncated": false
+          },
+          "stderr": {
+            "enabled": true,
+            "maxBytes": 4194304,
+            "observedBytes": 0,
+            "retainedBytes": 0,
+            "droppedBytes": 0,
+            "retainedBufferBytes": 0,
+            "outputBytes": 0,
+            "encodingLoss": false,
+            "truncated": false
+          }
+        },
+        "logOrder": "stdout followed by stderr"
+      },
+      {
+        "name": "env-check",
+        "command": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\node-v26.13.0-win-x64\\node.exe",
+        "args": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\node-v26.13.0-win-x64\\node_modules\\npm\\bin\\npm-cli.js",
+          "run",
+          "env:check"
+        ],
+        "exitCode": 0,
+        "durationMs": 1216,
+        "signal": null,
+        "log": ".testLogs/consumer-wave-next-20261030/native-model-batch-ready-env-check.log",
+        "capture": {
+          "stdout": {
+            "enabled": true,
+            "maxBytes": 4194304,
+            "observedBytes": 68,
+            "retainedBytes": 68,
+            "droppedBytes": 0,
+            "retainedBufferBytes": 68,
+            "outputBytes": 68,
+            "encodingLoss": false,
+            "truncated": false
+          },
+          "stderr": {
+            "enabled": true,
+            "maxBytes": 4194304,
+            "observedBytes": 0,
+            "retainedBytes": 0,
+            "droppedBytes": 0,
+            "retainedBufferBytes": 0,
+            "outputBytes": 0,
+            "encodingLoss": false,
+            "truncated": false
+          }
+        },
+        "logOrder": "stdout followed by stderr"
+      },
+      {
+        "name": "generated-freshness",
+        "command": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\node-v26.13.0-win-x64\\node.exe",
+        "args": [
+          "tools/docs/generated-surfaces.js",
+          "--check-freshness"
+        ],
+        "exitCode": 0,
+        "durationMs": 13880,
+        "signal": null,
+        "log": ".testLogs/consumer-wave-next-20261030/native-model-batch-ready-generated-freshness.log",
+        "capture": {
+          "stdout": {
+            "enabled": true,
+            "maxBytes": 4194304,
+            "observedBytes": 42,
+            "retainedBytes": 42,
+            "droppedBytes": 0,
+            "retainedBufferBytes": 42,
+            "outputBytes": 42,
+            "encodingLoss": false,
+            "truncated": false
+          },
+          "stderr": {
+            "enabled": true,
+            "maxBytes": 4194304,
+            "observedBytes": 0,
+            "retainedBytes": 0,
+            "droppedBytes": 0,
+            "retainedBufferBytes": 0,
+            "outputBytes": 0,
+            "encodingLoss": false,
+            "truncated": false
+          }
+        },
+        "logOrder": "stdout followed by stderr"
+      },
+      {
+        "name": "command-surface",
+        "command": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\node-v26.13.0-win-x64\\node.exe",
+        "args": [
+          "tools/ci/check-command-surface.js"
+        ],
+        "exitCode": 0,
+        "durationMs": 3399,
+        "signal": null,
+        "log": ".testLogs/consumer-wave-next-20261030/native-model-batch-ready-command-surface.log",
+        "capture": {
+          "stdout": {
+            "enabled": true,
+            "maxBytes": 4194304,
+            "observedBytes": 81,
+            "retainedBytes": 81,
+            "droppedBytes": 0,
+            "retainedBufferBytes": 81,
+            "outputBytes": 81,
+            "encodingLoss": false,
+            "truncated": false
+          },
+          "stderr": {
+            "enabled": true,
+            "maxBytes": 4194304,
+            "observedBytes": 0,
+            "retainedBytes": 0,
+            "droppedBytes": 0,
+            "retainedBufferBytes": 0,
+            "outputBytes": 0,
+            "encodingLoss": false,
+            "truncated": false
+          }
+        },
+        "logOrder": "stdout followed by stderr"
+      },
+      {
+        "name": "workflow-contract",
+        "command": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\node-v26.13.0-win-x64\\node.exe",
+        "args": [
+          "tests/ci/workflow-contract.test.js"
+        ],
+        "exitCode": 0,
+        "durationMs": 304,
+        "signal": null,
+        "log": ".testLogs/consumer-wave-next-20261030/native-model-batch-ready-workflow-contract.log",
+        "capture": {
+          "stdout": {
+            "enabled": true,
+            "maxBytes": 4194304,
+            "observedBytes": 62,
+            "retainedBytes": 62,
+            "droppedBytes": 0,
+            "retainedBufferBytes": 62,
+            "outputBytes": 62,
+            "encodingLoss": false,
+            "truncated": false
+          },
+          "stderr": {
+            "enabled": true,
+            "maxBytes": 4194304,
+            "observedBytes": 0,
+            "retainedBytes": 0,
+            "droppedBytes": 0,
+            "retainedBufferBytes": 0,
+            "outputBytes": 0,
+            "encodingLoss": false,
+            "truncated": false
+          }
+        },
+        "logOrder": "stdout followed by stderr"
+      },
+      {
+        "name": "gate",
+        "command": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\node-v26.13.0-win-x64\\node.exe",
+        "args": [
+          "tests/run.js",
+          "--lane",
+          "gate",
+          "--jobs",
+          "1",
+          "--pairofcleats-threads",
+          "1",
+          "--timeout-ms",
+          "30000",
+          "--retries",
+          "0",
+          "--native-status-redo=false",
+          "--report-file",
+          ".testLogs/consumer-wave-next-20261030/native-model-batch-ready-gate-lane.json",
+          "--log-dir",
+          ".testLogs/consumer-wave-next-20261030/native-model-batch-ready-gate-logs"
+        ],
+        "exitCode": 0,
+        "durationMs": 23567,
+        "signal": null,
+        "log": ".testLogs/consumer-wave-next-20261030/native-model-batch-ready-gate.log",
+        "capture": {
+          "stdout": {
+            "enabled": true,
+            "maxBytes": 4194304,
+            "observedBytes": 3379,
+            "retainedBytes": 3379,
+            "droppedBytes": 0,
+            "retainedBufferBytes": 3379,
+            "outputBytes": 3379,
+            "encodingLoss": false,
+            "truncated": false
+          },
+          "stderr": {
+            "enabled": true,
+            "maxBytes": 4194304,
+            "observedBytes": 0,
+            "retainedBytes": 0,
+            "droppedBytes": 0,
+            "retainedBufferBytes": 0,
+            "outputBytes": 0,
+            "encodingLoss": false,
+            "truncated": false
+          }
+        },
+        "logOrder": "stdout followed by stderr"
+      },
+      {
+        "name": "diff-check",
+        "command": "git",
+        "args": [
+          "diff",
+          "--check"
+        ],
+        "exitCode": 0,
+        "durationMs": 95,
+        "signal": null,
+        "log": ".testLogs/consumer-wave-next-20261030/native-model-batch-ready-diff-check.log",
+        "capture": {
+          "stdout": {
+            "enabled": true,
+            "maxBytes": 4194304,
+            "observedBytes": 0,
+            "retainedBytes": 0,
+            "droppedBytes": 0,
+            "retainedBufferBytes": 0,
+            "outputBytes": 0,
+            "encodingLoss": false,
+            "truncated": false
+          },
+          "stderr": {
+            "enabled": true,
+            "maxBytes": 4194304,
+            "observedBytes": 0,
+            "retainedBytes": 0,
+            "droppedBytes": 0,
+            "retainedBufferBytes": 0,
+            "outputBytes": 0,
+            "encodingLoss": false,
+            "truncated": false
+          }
+        },
+        "logOrder": "stdout followed by stderr"
+      }
+    ],
+    "status": "passed",
+    "fixtureTimeoutMs": 30000,
+    "commandOwnerTimeoutMs": 120000
+  },
+  "discovery": {
+    "all": 6690,
+    "ciLite": 1972,
+    "newOrderedIds": 26
+  },
+  "changes": [
+    "Preserve primitive primary and cleanup errors through real semantic drain, transaction rollback and bounded terminal journal projection.",
+    "Use fresh same-descriptor native metadata at two checksum consumers; retain original growth rejection, opened-byte authority and confirmed close.",
+    "Default publication diagnostics retain named boundaries without wrapping filesystem APIs; full private IO counters are separately selectable and never grant resource settlement authority.",
+    "Acquire exact author instruct-E5 fp32 export with declared external data; generic q8 requested a nonexistent graph.",
+    "Freeze independent M3/E5 scalar reference recipes and sixteen-document/eight-query bilingual judgments; real-model execution remains pending.",
+    "Record Transformers-resolved ONNX Runtime1.30.0 separately from root1.31.1, with original addon and packaged-library hashes.",
+    "Replace fixed scheduler-turn polling in the CI hash-close fixture with a bounded original-descriptor handoff; retain pending-publication and exact hash assertions."
+  ],
+  "limits": [
+    "These source-bound focused runs are composed by unchanged owner identity; not every case was rerun at the final published head.",
+    "Real M3/E5/EG2 execution, same-source validation costs and SQLite/native projection campaigns are not claimed here.",
+    "Semantic-drain repeatability remains open; prior29,758ms PASS and30,280ms timeout are preserved in the closure delta.",
+    "Hosted Windows result is at1708; future hosted acceptance of e96 is pending. No new local Linux/macOS execution."
+  ]
+}

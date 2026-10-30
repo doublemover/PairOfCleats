@@ -1,14 +1,14 @@
 import { spawnSync } from 'node:child_process';
 
 export const ensureGitAvailableOrSkip = () => {
-  const gitCheck = spawnSync('git', ['--version'], { encoding: 'utf8' });
+  const gitCheck = spawnSync('git', ['--version'], { encoding: 'utf8', windowsHide: true });
   if (gitCheck.status === 0) return true;
   console.log('[skip] git not available');
   return false;
 };
 
 export const runGit = (args, { cwd, label = null } = {}) => {
-  const result = spawnSync('git', args, { cwd, encoding: 'utf8' });
+  const result = spawnSync('git', args, { cwd, encoding: 'utf8', windowsHide: true });
   if (result.status !== 0) {
     const commandLabel = label || `git ${args.join(' ')}`;
     const details = String(result.stderr || result.stdout || '').trim();

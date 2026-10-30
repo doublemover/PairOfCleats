@@ -15,8 +15,9 @@ export const prepareArtifactIoTestDir = async (name, { root = process.cwd() } = 
 export const writePiecesManifest = async (
   dir,
   pieces,
-  { compatibilityKey = 'test-compat', semantic = false, buildId = 'artifact-fixture' } = {}
+  options = {}
 ) => {
+  const { compatibilityKey = 'test-compat', semantic = false, buildId = 'artifact-fixture' } = options;
   const manifestPath = path.join(dir, 'pieces', 'manifest.json');
   await fs.mkdir(path.dirname(manifestPath), { recursive: true });
   const normalizedPieces = Array.isArray(pieces)
@@ -27,7 +28,7 @@ export const writePiecesManifest = async (
     : [];
   if (semantic) normalizedPieces.push(...await writeSemanticFixtureFamily(dir, { buildId }));
   const manifest = {
-    ...(semantic ? { buildId } : {}),
+    ...(semantic || Object.hasOwn(options, 'buildId') ? { buildId } : {}),
     artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
     compatibilityKey,
     pieces: normalizedPieces

@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
+import { errorGraphMatches } from '../../helpers/error-graph.js';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -13,6 +14,7 @@ import {
 } from '../../../src/shared/managed-go.js';
 import { resolveLocalToolingBinDirs } from '../../../src/shared/tooling-bin-dirs.js';
 import { applyToolchainDaemonPolicyEnv } from '../../../src/shared/toolchain-env.js';
+import { resolveEnvPath } from '../../../src/shared/env-path.js';
 
 process.env.PAIROFCLEATS_TESTING = '1';
 const root = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-go-sdk-recipe-'));
@@ -50,17 +52,24 @@ const createDependencies = (overrides = {}) => ({
   },
   probe: async (command, options) => {
     probes += 1;
-    assert.ok(command.endsWith('/go/bin/go'));
+    assert.equal(command.endsWith(path.join('go', 'bin', 'go')), true);
     assert.equal(options.cwd, root);
     assert.equal(options.env.GOENV, 'off');
     assert.equal(options.env.GOWORK, 'off');
     assert.equal(options.env.GOTOOLCHAIN, 'local');
     assert.equal(options.env.GOMAXPROCS, '1');
     assert.equal(options.env.GOFLAGS, '-p=1');
-    return { ok: true, stdout: `go version ${version} linux/amd64` };
+    return { ok: true, stdout: `go version ${version} linux/amd64`, settlement: { resourceId: options.resourceId, settled: true, pending: false } };
   },
   ...overrides
 });
+const containsFailure = (error, primary) => {
+  const pending = [error], seen = new Set();
+  while (pending.length) { const current = pending.pop(); if (current === primary) return true;
+    if (!current || typeof current !== 'object' || seen.has(current)) continue; seen.add(current);
+    pending.push(current.cause, ...(Array.isArray(current.errors) ? current.errors : [])); }
+  return false;
+};
 
 try {
   assert.deepEqual(resolveGoSdkTarget({ platform: 'darwin', arch: 'arm64' }), { os: 'darwin', arch: 'arm64', archiveType: 'tar.gz' });
@@ -77,7 +86,8 @@ try {
   assert.throws(() => selectOfficialGoSdkArchive(traversal, linux), /metadata/);
 
   const toolingRoot = path.join(root, 'shared tooling');
-  const sdk = await ensureManagedGoSdk({ toolingRoot, cwd: root, baseEnv: {},
+  const storageEstimate = { complete: true, writes: [{ destination: 'artifacts', requiredBytes: 1024 * 1024 }] };
+  const sdk = await ensureManagedGoSdk({ toolingRoot, storageEstimate, cwd: root, baseEnv: {},
     platform: 'linux', arch: 'x64', dependencies: createDependencies() });
   assert.equal(downloads, 2);
   assert.equal(extracts, 1);
@@ -110,12 +120,33 @@ try {
   const standaloneEnv = applyManagedGoEnvironment({}, { toolingRoot, sdk });
   assert.ok(standaloneEnv.GOCACHE.startsWith(toolingRoot));
   assert.ok(standaloneEnv.GOPATH.startsWith(toolingRoot));
+  const relativeRoot = path.relative(process.cwd(), toolingRoot);
+  const relativeEnv = applyManagedGoEnvironment({}, { toolingRoot: relativeRoot, sdk });
+  assert.equal(relativeEnv.GOPATH, path.join(toolingRoot, 'go-cache', 'modules'),
+    'Go requires an absolute module cache even when the configured tooling root is relative');
+  assert.equal(relativeEnv.GOCACHE, path.join(toolingRoot, 'go-cache', 'build'),
+    'Go requires an absolute build cache even when the configured tooling root is relative');
+  const relativeSdkEnv = applyManagedGoEnvironment({}, { toolingRoot: relativeRoot,
+    sdk: { ...sdk, goRoot: path.relative(process.cwd(), sdk.goRoot), binDir: path.relative(process.cwd(), sdk.binDir) } });
+  assert.equal(relativeSdkEnv.GOROOT, sdk.goRoot,
+    'compiler subprocesses must retain an absolute SDK root after changing working directory');
+  assert.equal(resolveEnvPath(relativeSdkEnv).split(path.delimiter)[0], sdk.binDir,
+    'the managed SDK executable directory must remain absolute for descendant launches');
+  const relativeSdk = resolveManagedGoSdk(relativeRoot, { platform: 'linux', arch: 'x64' });
+  assert.equal(relativeSdk.command, sdk.command, 'cache reuse must return the absolute verified executable');
+  assert.equal(relativeSdk.goRoot, sdk.goRoot, 'cache reuse must return the absolute verified SDK root');
+  const explicitCaches = { GOPATH: path.join(root, 'custom modules'), GOCACHE: path.join(root, 'custom build') };
+  const explicitEnv = applyManagedGoEnvironment(explicitCaches, { toolingRoot: relativeRoot, sdk });
+  assert.equal(explicitEnv.GOPATH, explicitCaches.GOPATH, 'explicit module-cache ownership remains active');
+  assert.equal(explicitEnv.GOCACHE, explicitCaches.GOCACHE, 'explicit build-cache ownership remains active');
+  assert.deepEqual(explicitCaches, { GOPATH: path.join(root, 'custom modules'), GOCACHE: path.join(root, 'custom build') },
+    'launch preparation must not mutate the caller environment');
   assert.equal((await fs.readdir(path.join(toolingRoot, 'sdk/go'))).some((entry) => entry.startsWith('.install-')), false);
 
   const beforeExtracts = extracts;
   const beforeProbes = probes;
   const corruptRoot = path.join(root, 'bad-checksum');
-  await assert.rejects(ensureManagedGoSdk({ toolingRoot: corruptRoot, cwd: root, platform: 'linux', arch: 'x64',
+  await assert.rejects(ensureManagedGoSdk({ toolingRoot: corruptRoot, storageEstimate, cwd: root, platform: 'linux', arch: 'x64',
     dependencies: createDependencies({ download: async (request) => ({ sourceUrl: request.url,
       body: request.url === GO_RELEASE_INDEX_URL ? Buffer.from(JSON.stringify(releases)) : Buffer.from('bad') }) }) }),
   (error) => error.reason === 'go_sdk_checksum_mismatch');
@@ -124,10 +155,74 @@ try {
   assert.deepEqual(await fs.readdir(path.join(corruptRoot, 'sdk/go')), []);
 
   const probeRoot = path.join(root, 'bad-probe');
-  await assert.rejects(ensureManagedGoSdk({ toolingRoot: probeRoot, cwd: root, platform: 'linux', arch: 'x64',
-    dependencies: createDependencies({ probe: async () => ({ ok: true, stdout: 'go version go1.26.8 linux/amd64' }) }) }),
+  await assert.rejects(ensureManagedGoSdk({ toolingRoot: probeRoot, storageEstimate, cwd: root, platform: 'linux', arch: 'x64',
+    dependencies: createDependencies({ probe: async (_command, { resourceId }) => ({ ok: true, stdout: 'go version go1.26.8 linux/amd64', settlement: { resourceId, settled: true, pending: false } }) }) }),
   (error) => error.reason === 'go_sdk_probe_failed');
   assert.deepEqual(await fs.readdir(path.join(probeRoot, 'sdk/go')), []);
+  const pendingRoot = path.join(root, 'pending-probe');
+  let actualProbeClosed = false;
+  const pendingFailure = Object.assign(new Error('fixture verifier still owns output handles'), {
+    cacheOwnershipPending: true, cacheOwnershipReleased: () => actualProbeClosed
+  });
+  let pendingOwner;
+  await assert.rejects(ensureManagedGoSdk({ toolingRoot: pendingRoot, storageEstimate, cwd: root, platform: 'linux', arch: 'x64',
+    dependencies: createDependencies({ probe: async () => { throw pendingFailure; } }) }), error => {
+    pendingOwner = error; return containsFailure(error, pendingFailure);
+  });
+  assert.equal(pendingFailure.cacheOwnershipPending, true);
+  assert.ok((await fs.readdir(path.join(pendingRoot, 'sdk/go'))).some(name => name.startsWith('.install-')),
+    'unknown child closure preserves exact transaction bytes and storage owners');
+  await assert.rejects(fs.stat(path.join(pendingRoot, 'sdk/go/current.json')), { code: 'ENOENT' });
+  await assert.rejects(pendingOwner.goSdkInstallSession.releaseAfterClosure(), error => errorGraphMatches(error, /remains pending/));
+  actualProbeClosed = true;
+  assert.equal(await pendingOwner.goSdkInstallSession.releaseAfterClosure(), true);
+  assert.deepEqual(await fs.readdir(path.join(pendingRoot, 'sdk/go')), []);
+  const incompleteRoot = path.join(root, 'incomplete-verifier-settlement');
+  let incompleteClosed = false;
+  const incompleteFailure = Object.assign(new Error('fixture verifier omitted explicit pending state'), {
+    cacheOwnershipReleased: () => incompleteClosed
+  });
+  let incompleteOwner;
+  await assert.rejects(ensureManagedGoSdk({ toolingRoot: incompleteRoot, storageEstimate, cwd: root, platform: 'linux', arch: 'x64',
+    dependencies: createDependencies({ probe: async (_command, { resourceId }) => {
+      incompleteFailure.settlement = { resourceId, settled: true };
+      throw incompleteFailure;
+    } }) }), error => { incompleteOwner = error; return containsFailure(error, incompleteFailure) && error.cacheOwnershipPending === true; });
+  assert.ok((await fs.readdir(path.join(incompleteRoot, 'sdk/go'))).some(name => name.startsWith('.install-')),
+    'missing explicit pending:false cannot authorize transaction cleanup');
+  await assert.rejects(incompleteOwner.goSdkInstallSession.releaseAfterClosure(), error => errorGraphMatches(error, /remains pending/));
+  incompleteClosed = true;
+  assert.equal(await incompleteOwner.goSdkInstallSession.releaseAfterClosure(), true);
+  assert.deepEqual(await fs.readdir(path.join(incompleteRoot, 'sdk/go')), []);
+  const pointer = path.join(toolingRoot, 'sdk', 'go', 'current.json');
+  const selectedReceipt = await fs.readFile(pointer);
+  const newerVersion = 'go1.27.2';
+  const newerFilename = `${newerVersion}.linux-amd64.tar.gz`;
+  const newerReleases = [{ stable: true, version: newerVersion, files: [{ filename: newerFilename, version: newerVersion,
+    os: 'linux', arch: 'amd64', kind: 'archive', size: bytes.length, sha256: checksum }] }];
+  const fixtureExtract = createDependencies().extract;
+  const changedReceipt = Buffer.from(JSON.stringify({ schemaVersion: 1, pinned: 'fixture in-place selection change' }));
+  const pointerIdentity = await fs.stat(pointer);
+  try {
+    await assert.rejects(ensureManagedGoSdk({ toolingRoot, storageEstimate, cwd: root, version: newerVersion,
+      platform: 'linux', arch: 'x64', dependencies: createDependencies({
+        download: async ({ url }) => ({ sourceUrl: url,
+          body: url === GO_RELEASE_INDEX_URL ? Buffer.from(JSON.stringify(newerReleases)) : bytes }),
+        extract: async (...args) => {
+          await fixtureExtract(...args);
+          await fs.writeFile(path.join(args[1], 'go', 'VERSION'), newerVersion);
+        },
+        probe: async (_command, { resourceId }) => {
+          await fs.writeFile(pointer, changedReceipt);
+          assert.equal((await fs.stat(pointer)).ino, pointerIdentity.ino, 'fixture exercises in-place mutation with unchanged file object');
+          return { ok: true, stdout: `go version ${newerVersion} linux/amd64`, settlement: { resourceId, settled: true, pending: false } };
+        }
+      }) }), error => error.reason === 'go_sdk_cache_changed' && error.recovery?.currentSelectionPreserved === true);
+    assert.deepEqual(await fs.readFile(pointer), changedReceipt, 'SDK publication cannot overwrite a concurrently edited receipt with the same inode');
+    assert.equal((await fs.stat(path.join(toolingRoot, 'sdk', 'go', `${newerVersion}-linux-amd64`, 'go', 'bin', 'go'))).isFile(), true,
+      'verified unselected replacement is retained for explicit recovery');
+    assert.deepEqual(await fs.readFile(sdk.command), bytes, 'the prior SDK remains intact');
+  } finally { await fs.writeFile(pointer, selectedReceipt); }
   const runtimeMarker = path.join(sdk.goRoot, 'src/runtime/runtime.go');
   await fs.rm(runtimeMarker);
   assert.equal(resolveManagedGoSdk(toolingRoot, { platform: 'linux', arch: 'x64' }), null,
@@ -136,7 +231,7 @@ try {
   assert.ok(resolveManagedGoSdk(toolingRoot, { platform: 'linux', arch: 'x64' }));
   await fs.writeFile(sdk.command, Buffer.from('changed SDK artifact'));
   assert.equal(resolveManagedGoSdk(toolingRoot, { platform: 'linux', arch: 'x64' }), null);
-  await assert.rejects(ensureManagedGoSdk({ toolingRoot, cwd: root, platform: 'linux', arch: 'x64',
+  await assert.rejects(ensureManagedGoSdk({ toolingRoot, storageEstimate, cwd: root, platform: 'linux', arch: 'x64',
     dependencies: { download: () => { throw new Error('unverified cache must be preserved'); } } }),
   (error) => error.reason === 'go_sdk_cache_unverified');
 } finally {

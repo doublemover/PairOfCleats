@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["module-only", "no-comments", "python-doc"]
+}

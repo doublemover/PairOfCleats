@@ -39,7 +39,9 @@ try {
   assert.deepEqual(await readRepoGitState(root, { includeRemote: true }), {
     head, dirty: false, remote: 'https://example.invalid/fixture.git'
   });
-  assert.equal(await resolveRepoBranch({ root, metricsDir: path.join(root, 'missing-metrics') }), 'migration-fixture');
+  assert.deepEqual(await resolveRepoBranch({ root, metricsDir: path.join(root, 'missing-metrics') }), {
+    branch: 'migration-fixture', revision: head, reason: null
+  });
   const status = await indexStatus({ repoPath: root });
   assert.deepEqual(status.git, { isRepo: true, head, branch: 'migration-fixture', isDirty: false });
   const meta = await getGitMetaForFile(file, { baseDir: root, blame: true });

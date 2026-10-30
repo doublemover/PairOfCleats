@@ -1,6 +1,83 @@
-const ANSI_PATTERN = /\x1b\[[0-9;]*m/g;
+const ANSI_PATTERN = /\x1b(?:\[[0-?]*[ -/]*[@-~]|\][\s\S]*?(?:\x07|\x1b\\))/g;
+const graphemes = new Intl.Segmenter('en', { granularity: 'grapheme' });
+const wideCodePoint = code => code >= 0x1100 && (code <= 0x115f || code === 0x2329 || code === 0x232a
+  || (code >= 0x2e80 && code <= 0xa4cf && code !== 0x303f) || (code >= 0xac00 && code <= 0xd7a3)
+  || (code >= 0xf900 && code <= 0xfaff) || (code >= 0xfe10 && code <= 0xfe19)
+  || (code >= 0xfe30 && code <= 0xfe6f) || (code >= 0xff00 && code <= 0xff60)
+  || (code >= 0xffe0 && code <= 0xffe6) || (code >= 0x20000 && code <= 0x3fffd));
+
+/** Ambiguous glyphs occupy one cell; emoji graphemes and East Asian wide glyphs occupy two. */
+export const graphemeWidth = value => {
+  if (!value || /^[\p{Mark}\p{Cf}\p{Cc}]*$/u.test(value)) return 0;
+  if (/\p{Regional_Indicator}{2}|\u20e3|\uFE0F/u.test(value)
+    || (!value.includes('\uFE0E') && /\p{Emoji_Presentation}/u.test(value))) return 2;
+  if (/\u200d/u.test(value) && /\p{Extended_Pictographic}/u.test(value)) return 2;
+  return [...value].some(character => wideCodePoint(character.codePointAt(0))) ? 2 : 1;
+};
+
+/** Flatten embedded line/control characters at the human projection boundary. */
+export const sanitizeDisplayText = value => {
+  const text = String(value ?? '');
+  const clean = plain => plain.replace(/[\r\n\t]+/g, ' ').replace(/[\x00-\x1f\x7f]/g, '');
+  let result = '';
+  let cursor = 0;
+  for (const match of text.matchAll(ANSI_PATTERN)) {
+    result += clean(text.slice(cursor, match.index));
+    if (/^\x1b\[[0-9;:]*m$/.test(match[0]) || /^\x1b\]8;[^\x00-\x1f]*(?:\x07|\x1b\\)$/.test(match[0])) result += match[0];
+    cursor = match.index + match[0].length;
+  }
+  return result + clean(text.slice(cursor));
+};
 
 export const stripAnsi = (value) => String(value || '').replace(ANSI_PATTERN, '');
+export const displayWidth = value => [...graphemes.segment(stripAnsi(sanitizeDisplayText(value)))].reduce((sum, segment) => sum + graphemeWidth(segment.segment), 0);
+
+const closeDisplayStyles = text => {
+  let styled = false;
+  let hyperlink = false;
+  for (const match of text.matchAll(ANSI_PATTERN)) {
+    const token = match[0];
+    if (token.startsWith('\x1b[')) styled = !/^\x1b\[(?:0(?:;0)*)?m$/.test(token);
+    if (token.startsWith('\x1b]8;')) {
+      const payload = token.slice(4).replace(/(?:\x07|\x1b\\)$/, '');
+      hyperlink = payload.slice(payload.indexOf(';') + 1).length > 0;
+    }
+  }
+  return text + (hyperlink ? '\x1b]8;;\x1b\\' : '') + (styled ? '\x1b[0m' : '');
+};
+
+const sliceDisplayCells = (value, width) => {
+  const text = sanitizeDisplayText(value);
+  const plain = stripAnsi(text);
+  let end = 0;
+  let cells = 0;
+  for (const segment of graphemes.segment(plain)) {
+    const size = graphemeWidth(segment.segment);
+    if (cells + size > width) break;
+    cells += size;
+    end = segment.index + segment.segment.length;
+  }
+  let consumed = 0;
+  let offset = 0;
+  let result = '';
+  let styled = false;
+  let hyperlink = false;
+  for (const match of text.matchAll(ANSI_PATTERN)) {
+    const visible = text.slice(offset, match.index);
+    const take = Math.min(visible.length, Math.max(0, end - consumed));
+    result += visible.slice(0, take);
+    consumed += visible.length;
+    if (consumed >= end) break;
+    result += match[0];
+    if (/^\x1b\[/.test(match[0])) styled = true;
+    if (/^\x1b\]8;/.test(match[0])) hyperlink = true;
+    offset = match.index + match[0].length;
+  }
+  if (consumed < end) result += text.slice(offset, offset + end - consumed);
+  if (hyperlink) result += '\x1b]8;;\x1b\\';
+  if (styled) result += '\x1b[0m';
+  return result;
+};
 
 export const formatCount = (value) => {
   if (!Number.isFinite(value)) return '?';
@@ -9,34 +86,30 @@ export const formatCount = (value) => {
 
 export const padLabel = (label, width) => {
   const safeWidth = Math.max(1, Math.floor(width));
-  const plain = stripAnsi(label);
-  if (plain.length === safeWidth) return label;
-  if (plain.length < safeWidth) return `${label}${' '.repeat(safeWidth - plain.length)}`;
-  if (safeWidth <= 3) return plain.slice(0, safeWidth);
-  return `${plain.slice(0, safeWidth - 3)}...`;
+  return padVisible(truncateLine(label, safeWidth), safeWidth);
 };
 
 export const padVisible = (text, width) => {
-  const value = String(text ?? '');
-  const plainLength = stripAnsi(value).length;
+  const value = closeDisplayStyles(sanitizeDisplayText(text));
+  const plainLength = displayWidth(value);
   if (plainLength >= width) return value;
   return `${value}${' '.repeat(width - plainLength)}`;
 };
 
 export const padVisibleStart = (text, width) => {
-  const value = String(text ?? '');
-  const plainLength = stripAnsi(value).length;
+  const value = closeDisplayStyles(sanitizeDisplayText(text));
+  const plainLength = displayWidth(value);
   if (plainLength >= width) return value;
   return `${' '.repeat(width - plainLength)}${value}`;
 };
 
 export const truncateLine = (line, width) => {
   if (!line) return '';
-  const safeWidth = Math.max(1, Math.floor(width));
-  const plain = stripAnsi(line);
-  if (plain.length <= safeWidth) return line;
-  if (safeWidth <= 3) return plain.slice(0, safeWidth);
-  return `${plain.slice(0, safeWidth - 3)}...`;
+  const safeWidth = Number.isFinite(width) ? Math.max(0, Math.floor(width)) : 80;
+  const text = sanitizeDisplayText(line);
+  if (displayWidth(text) <= safeWidth) return closeDisplayStyles(text);
+  if (safeWidth <= 3) return sliceDisplayCells(text, safeWidth);
+  return `${sliceDisplayCells(text, safeWidth - 3)}...`;
 };
 
 export const formatDurationShort = (seconds) => {

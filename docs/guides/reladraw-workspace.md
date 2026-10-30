@@ -2,11 +2,15 @@
 
 Status: **real Chromium/service/Worker qualification passed; software WebGL only** (2026-10-12).
 
+That status describes the historical qualification below. The October 22 loaded-response
+find and page-aware history source changes are **unvalidated**; they do not inherit
+browser, responsiveness or performance qualification from that earlier receipt.
+
 The initial workspace checkpoint was based on `codex/semantic-resume-campaign-20261010`
 at `91b3c48968d3453d051bd41e23a70d98eca4f697`. The October 12 interface repairs use
 the audited `bb9901ac808a24629c8004ddd2479006716498be` baseline.
 The [owner's integration plan](https://chatgpt.com/space/page_aa58b6c8d548819184b23ee01c489455) identifies
-`reladraw/reladraw`; the npm dependency is exactly `reladraw@0.16.0`, Apache-2.0.
+`reladraw/reladraw`; the npm dependency is `reladraw@0.21.0`, Apache-2.0.
 The upstream NOTICE is retained in `docs/licenses/reladraw-NOTICE.txt`.
 No upstream contribution, GitHub publication or live user indexing is part of this checkpoint.
 
@@ -63,6 +67,22 @@ Unknown totals/values remain unknown. Missing artifacts and partial responses ar
 The inspector exposes convenient identity/source/certainty fields plus every original field via
 lazy expansion (40 entries at a time, nesting cap 32). Only one response is retained; there is
 no accumulated expanded-path graph cache.
+
+Find offers **This page** and **Loaded response** scopes with the same name/kind/identity
+matching. Loaded response find indexes scalar labels and original locators once when a
+response is accepted; it does not hydrate every detail on each keystroke. Work yields
+cooperatively and new input/response replacement cancels stale find authority. At most
+50 previews show identity, supplied file/mode and original rank; Next/Previous match
+navigates all local matches in original order, selecting the matching existing page.
+The 200-node/400-edge projection limits remain unchanged. Back/Forward restores both
+page and selected identity. A new response clears old find results even when its
+generation label is unchanged. Non-graph evidence lists use the same local locators.
+
+Zero find matches means absence from the selected loaded scope only. Unloaded server
+pages and source/query gaps remain explicit; **Next response page** and canonical index
+queries are separate deliberate actions. Find never fetches, rebuilds or reranks data.
+Input responsiveness near the 2 MiB ceiling and actual browser/frame parity are deferred
+qualification; source visit/admission bounds are not measured latency or RSS evidence.
 
 ## Bounds and lifecycle
 
@@ -147,8 +167,12 @@ Run the harness with explicitly supplied task-owned browser assets and an isolat
 receipt directory; it does not install browser dependencies or capture a live process:
 
 ```text
-node tests/map/workspace/browser-qualification.js --playwright /task/browser/node_modules/playwright/index.mjs --chromium /task/browser/chrome --out /task/evidence
+node tests/map/workspace/browser-qualification.js --scenario workspace --playwright /task/browser/node_modules/playwright/index.mjs --chromium /task/browser/chrome --out /task/evidence/workspace
+node tests/map/workspace/browser-qualification.js --scenario three --playwright /task/browser/node_modules/playwright/index.mjs --chromium /task/browser/chrome --out /task/evidence/three
 ```
+
+Both explicit scenarios are required. Each builds a fresh published source fixture
+and has a separate 30-second bound including cleanup; neither substitutes for the other.
 
 `browser-qualification.json` records the checkout, source/generation identity, browser,
 observed renderer, request statuses, measured worker deadline and workflow results.
@@ -174,4 +198,12 @@ exports are intentionally rejected; this does not establish unrestricted large-i
 The tiny actual-service workflows qualify selection/focus, source identity, downloads,
 stale/cancelled views, bounded Worker deadlines, responsive control layout and software
 WebGL fallback. Large graph label density, screen-reader order, CPU-pressure behavior,
-hardware FPS/GPU performance and native Windows browser execution require separate receipts.
+hardware FPS/GPU performance require separate receipts. The October 29 Windows
+workspace and Three.js runs pass with software-renderer receipts in the
+[P2/P3 qualification archive](../archived/p2-p3-closeout-2026-10-29.md).
+
+Independently bounded negative renderer scenarios use the same command and explicit
+browser assets with --scenario three-module-404, three-shader-failure, and
+three-render-noop, each in its own output directory. They must reject 3D readiness
+while retaining real source navigation; exact injected diagnostics remain phase-owned.
+They complement the positive three scenario and do not qualify hardware performance.

@@ -20,12 +20,12 @@ try {
   const manifest = { bundleFormat: 'json', files: {
     'empty.md': { ...await seed('empty.md', [[]]), orderIndex: 0 },
     'missing.md': { bundles: ['missing.json'], orderIndex: 1 },
-    'valid.md': { ...await seed('valid.md', [[{ chunkUid: 'fixture-vector', file: 'valid.md', embedding_u8: [1, 2] }]]), orderIndex: 2 }
+    'valid.md': { ...await seed('valid.md', [[{ chunkUid: 'fixture-vector', chunkId: 'fixture-vector', file: 'valid.md', embedding_u8: [1, 2] }]]), orderIndex: 2 }
   } };
   const manifestPath = path.join(root, 'manifest.json');
   const refreshed = await refreshIncrementalBundlesWithEmbeddings({ mode: 'code', repoCacheRoot: root,
     incremental: { manifest, bundleDir, manifestPath }, chunksByFile: new Map([['valid.md', [{ index: 0,
-      chunk: { chunkUid: 'fixture-vector' } }]]]), mergedVectors: [new Uint8Array([1, 2])],
+      chunk: { chunkUid: 'fixture-vector', chunkId: 'fixture-vector', file: 'valid.md' } }]]]), mergedVectors: [new Uint8Array([1, 2])],
     embeddingMode: 'stub', embeddingIdentityKey: 'fixture', lowYieldBailout: { enabled: false },
     scheduleIo: (operation) => operation(), log: () => {}, warn: () => {} });
   assert.equal(refreshed.completeCoverage, false);
@@ -42,15 +42,15 @@ try {
     const file = `generated/empty-${orderIndex}.js`;
     emptyEntries.push([file, { ...await seed(file, [[]]), orderIndex }]);
   }
-  const lateEntry = await seed('generated/late.js', [[{ chunkUid: 'late-a' }], [{ chunkUid: 'late-b' }]]);
+  const lateEntry = await seed('generated/late.js', [[{ chunkUid: 'late-a', chunkId: 'late-a' }], [{ chunkUid: 'late-b', chunkId: 'late-b' }]]);
   const bailoutManifest = { bundleFormat: 'json', files: Object.fromEntries([
     ...emptyEntries, ['generated/late.js', { ...lateEntry, orderIndex: 48 }]
   ]) };
   const bailoutPath = path.join(root, 'bailout-manifest.json');
   const bailoutInput = { mode: 'extracted-prose', repoCacheRoot: root,
     incremental: { manifest: bailoutManifest, bundleDir, manifestPath: bailoutPath },
-    chunksByFile: new Map([['generated/late.js', [{ index: 0, chunk: { chunkUid: 'late-a' } },
-      { index: 1, chunk: { chunkUid: 'late-b' } }]]]), mergedVectors: [new Uint8Array([11, 22]), new Uint8Array([33, 44])],
+    chunksByFile: new Map([['generated/late.js', [{ index: 0, chunk: { chunkUid: 'late-a', chunkId: 'late-a' } },
+      { index: 1, chunk: { chunkUid: 'late-b', chunkId: 'late-b' } }]]]), mergedVectors: [new Uint8Array([11, 22]), new Uint8Array([33, 44])],
     embeddingMode: 'stub', embeddingIdentityKey: 'fixture',
     scheduleIo: (operation) => operation(), log: () => {}, warn: () => {} };
   const bailed = await refreshIncrementalBundlesWithEmbeddings({ ...bailoutInput,

@@ -153,7 +153,7 @@ export function createAdaptiveTokenController({
       const effectiveScaleStep = burstMode ? (scaleStep + 1) : scaleStep;
       const nextCpu = Math.min(config.maxLimits.cpu, state.tokens.cpu.total + effectiveScaleStep);
       const ioCeiling = fdTokenCap == null ? config.maxLimits.io : Math.min(config.maxLimits.io, fdTokenCap);
-      const nextIo = Math.min(ioCeiling, state.tokens.io.total + effectiveScaleStep);
+      const nextIo = Math.max(state.tokens.io.used, Math.min(ioCeiling, state.tokens.io.total + effectiveScaleStep));
       const nextMem = Math.min(config.maxLimits.mem, memoryTokenHeadroomCap, state.tokens.mem.total + config.adaptiveStep);
       state.tokens.cpu.total = nextCpu;
       state.tokens.io.total = nextIo;

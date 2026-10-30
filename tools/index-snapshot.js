@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import yargs from 'yargs/yargs';
+import { SNAPSHOT_COMMANDS, configureSnapshotCommand } from '../src/shared/index-tool-options.js';
 import { isDirectExecution } from '../src/shared/direct-execution.js';
 import { createError, ERROR_CODES } from '../src/shared/error-codes.js';
 import { resolveRepoConfig } from './shared/dict-utils.js';
@@ -58,19 +59,9 @@ export async function runSnapshotCli(rawArgs = process.argv.slice(2)) {
     .strict(false);
 
   parser.command(
-    'create',
-    'Create a pointer snapshot from the current validated build',
-    (command) => command
-      .option('repo', { type: 'string' })
-      .option('modes', { type: 'string' })
-      .option('id', { type: 'string' })
-      .option('label', { type: 'string' })
-      .option('tags', { type: 'string' })
-      .option('tag', { type: 'array', string: true })
-      .option('retention-tier', { type: 'string' })
-      .option('wait-ms', { type: 'number', default: 0 })
-      .option('max-pointer-snapshots', { type: 'number' })
-      .option('json', { type: 'boolean', default: false }),
+    SNAPSHOT_COMMANDS.create.command,
+    SNAPSHOT_COMMANDS.create.description,
+    (command) => configureSnapshotCommand(command, 'create'),
     async (argv) => {
       try {
         const { repoRoot, userConfig } = resolveRepoConfig(argv.repo);
@@ -101,19 +92,9 @@ export async function runSnapshotCli(rawArgs = process.argv.slice(2)) {
   );
 
   parser.command(
-    'freeze <snapshotId>',
-    'Freeze a pointer snapshot into immutable frozen roots',
-    (command) => command
-      .positional('snapshotId', { type: 'string', demandOption: true })
-      .option('repo', { type: 'string' })
-      .option('modes', { type: 'string' })
-      .option('method', { type: 'string', default: 'hardlink' })
-      .option('verify', { type: 'boolean', default: true })
-      .option('include-sqlite', { type: 'string', default: 'auto' })
-      .option('include-lmdb', { type: 'boolean', default: false })
-      .option('retention-tier', { type: 'string' })
-      .option('wait-ms', { type: 'number', default: 0 })
-      .option('json', { type: 'boolean', default: false }),
+    SNAPSHOT_COMMANDS.freeze.command,
+    SNAPSHOT_COMMANDS.freeze.description,
+    (command) => configureSnapshotCommand(command, 'freeze'),
     async (argv) => {
       try {
         const { repoRoot, userConfig } = resolveRepoConfig(argv.repo);
@@ -146,18 +127,9 @@ export async function runSnapshotCli(rawArgs = process.argv.slice(2)) {
   );
 
   parser.command(
-    'gc',
-    'Garbage-collect old snapshots with protected-tag safety',
-    (command) => command
-      .option('repo', { type: 'string' })
-      .option('keep-pointer', { type: 'number' })
-      .option('keep-frozen', { type: 'number' })
-      .option('keep-tags', { type: 'string' })
-      .option('max-age-days', { type: 'number' })
-      .option('staging-max-age-hours', { type: 'number' })
-      .option('wait-ms', { type: 'number', default: 0 })
-      .option('dry-run', { type: 'boolean', default: false })
-      .option('json', { type: 'boolean', default: false }),
+    SNAPSHOT_COMMANDS.gc.command,
+    SNAPSHOT_COMMANDS.gc.description,
+    (command) => configureSnapshotCommand(command, 'gc'),
     async (argv) => {
       await runSnapshotMaintenanceCommand(argv, {
         execute: ({ repoRoot, userConfig, snapshotDefaults }) => gcSnapshots({
@@ -180,14 +152,9 @@ export async function runSnapshotCli(rawArgs = process.argv.slice(2)) {
   );
 
   parser.command(
-    'prune',
-    'Prune old untagged pointer snapshots',
-    (command) => command
-      .option('repo', { type: 'string' })
-      .option('max-pointer-snapshots', { type: 'number' })
-      .option('wait-ms', { type: 'number', default: 0 })
-      .option('dry-run', { type: 'boolean', default: false })
-      .option('json', { type: 'boolean', default: false }),
+    SNAPSHOT_COMMANDS.prune.command,
+    SNAPSHOT_COMMANDS.prune.description,
+    (command) => configureSnapshotCommand(command, 'prune'),
     async (argv) => {
       await runSnapshotMaintenanceCommand(argv, {
         execute: ({ repoRoot, userConfig, snapshotDefaults }) => pruneSnapshots({
@@ -204,11 +171,9 @@ export async function runSnapshotCli(rawArgs = process.argv.slice(2)) {
   );
 
   parser.command(
-    'list',
-    'List snapshots',
-    (command) => command
-      .option('repo', { type: 'string' })
-      .option('json', { type: 'boolean', default: false }),
+    SNAPSHOT_COMMANDS.list.command,
+    SNAPSHOT_COMMANDS.list.description,
+    (command) => configureSnapshotCommand(command, 'list'),
     async (argv) => {
       try {
         const { repoRoot, userConfig } = resolveRepoConfig(argv.repo);
@@ -230,12 +195,9 @@ export async function runSnapshotCli(rawArgs = process.argv.slice(2)) {
   );
 
   parser.command(
-    'show <snapshotId>',
-    'Show one snapshot',
-    (command) => command
-      .positional('snapshotId', { type: 'string', demandOption: true })
-      .option('repo', { type: 'string' })
-      .option('json', { type: 'boolean', default: false }),
+    SNAPSHOT_COMMANDS.show.command,
+    SNAPSHOT_COMMANDS.show.description,
+    (command) => configureSnapshotCommand(command, 'show'),
     async (argv) => {
       try {
         const { repoRoot, userConfig } = resolveRepoConfig(argv.repo);
@@ -261,14 +223,9 @@ export async function runSnapshotCli(rawArgs = process.argv.slice(2)) {
   );
 
   parser.command(
-    ['rm <snapshotId>', 'remove <snapshotId>'],
-    'Remove a snapshot',
-    (command) => command
-      .positional('snapshotId', { type: 'string', demandOption: true })
-      .option('repo', { type: 'string' })
-      .option('force', { type: 'boolean', default: false })
-      .option('wait-ms', { type: 'number', default: 0 })
-      .option('json', { type: 'boolean', default: false }),
+    SNAPSHOT_COMMANDS.remove.command,
+    SNAPSHOT_COMMANDS.remove.description,
+    (command) => configureSnapshotCommand(command, 'remove'),
     async (argv) => {
       try {
         const { repoRoot, userConfig } = resolveRepoConfig(argv.repo);

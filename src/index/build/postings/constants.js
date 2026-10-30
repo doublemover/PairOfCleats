@@ -56,8 +56,10 @@ export const createCooperativeYield = ({
  * @param {(() => Promise<void> | null)|null|undefined} requestYield
  * @returns {Promise<void>}
  */
+export const requestCooperativeYield = (requestYield) => requestYield?.() || null;
+
 export const maybeYield = async (requestYield) => {
-  const waitForYield = requestYield?.();
+  const waitForYield = requestCooperativeYield(requestYield);
   if (waitForYield) await waitForYield;
 };
 

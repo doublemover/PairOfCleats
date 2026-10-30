@@ -18,7 +18,11 @@ export async function createJsonGateHarness({
   const resolvedScriptPath = scriptPath || path.join(rootDir, scriptRelativePath || '');
   const resolvedTempRoot = tempRoot || await fs.mkdtemp(path.join(os.tmpdir(), tempPrefix));
   const jsonPath = path.join(resolvedTempRoot, jsonFileName);
-  const runtimeEnv = env || applyTestEnv({ syncProcess: false });
+  const runtimeEnv = env || applyTestEnv({ syncProcess: false,
+    cacheRoot: path.join(resolvedTempRoot, 'cache'), extraEnv: {
+      PAIROFCLEATS_HOME: path.join(resolvedTempRoot, 'home'),
+      PAIROFCLEATS_TRUSTED_CONFIG: null, PAIROFCLEATS_TRUSTED_REPOS: null
+    } });
 
   return {
     rootDir,

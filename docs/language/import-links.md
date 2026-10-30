@@ -1,6 +1,23 @@
 # Import Links
 
 ## What they are
+
+Import collection advances block-comment state before directive prechecks,
+including nested Dart/Scala/Nix comments and multiline Razor comments. A trailing
+slash is a directory hint even when the directory name contains a dot. Unknown
+reason strings always receive the complete unknown decision; object-prototype
+names are not registry entries.
+
+TypeScript configuration is parsed by TypeScript's existing config owner, with
+ordered multi-base inheritance and paths resolved relative to their defining
+configuration. The winning exact/most-specific paths key owns all of its ordered
+replacement attempts. A missing winner does not select a weaker key.
+Package `#imports` retain their leading hash and resolve in the nearest package
+scope. External package targets remain external. Resolver cache admission binds
+consulted package manifests by content, including absent ancestor manifests;
+lookup snapshots record the filesystem case policy. Linked prefixes omitted
+from an existence scan remain unknown and require bounded fallback probes.
+Fixture location alone does not suppress a missing source-module dependency.
 `importLinks` represent **true dependency edges**: importer → resolved in-repo target. Raw specifiers are resolved to repo-local file paths (relative specifiers and TS path aliases) and only internal targets become `importLinks`.
 
 See `docs/contracts/artifact-schemas.md` for the Import Resolution Graph (IRG)

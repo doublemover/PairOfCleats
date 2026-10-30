@@ -31,6 +31,7 @@ export const runNode = (args, label, cwd, env, options = {}) => {
     encoding,
     timeout: timeoutMs,
     killSignal: 'SIGTERM',
+    windowsHide: true,
     ...spawnOptions
   };
   // Keep raw spawnSync validation and results, including zero/undefined timeout
@@ -47,7 +48,9 @@ export const runNode = (args, label, cwd, env, options = {}) => {
     if (process.platform === 'win32') {
       // spawnSync has already reaped the direct child. The Windows owner can
       // discover surviving descendants even when taskkill cannot find that PID.
-      killProcessTreeSync(result.pid, { killTree: true, detached: resolvedSpawnOptions.detached === true });
+      Object.defineProperty(result, 'timeoutCleanup', { value: killProcessTreeSync(result.pid, {
+        killTree: true, detached: resolvedSpawnOptions.detached === true
+      }) });
     } else {
       killTimedOutSyncProcessTree(result.pid, resolvedSpawnOptions.timeout, true, resolvedSpawnOptions.detached === true);
     }

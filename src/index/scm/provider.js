@@ -1,5 +1,9 @@
 import { preserveScmMetadataFailure, normalizeScmMetadataDiagnostics } from './metadata-diagnostics.js';
 import { SCM_PROVIDER_NAMES } from './types.js';
+import { normalizeScmFileKey } from './paths.js';
+import { observeStorageResource } from '../../shared/storage/failure-observation.js';
+import { declaredScmFileInventory, unavailableScmFileInventory, scmFileInventoryReceipt } from './file-inventory.js';
+import { isAbortError, throwIfAborted } from '../../shared/abort.js';
 
 const REQUIRED_METHODS = [
   'detect',
@@ -9,7 +13,7 @@ const REQUIRED_METHODS = [
   'getFileMeta'
 ];
 
-const OPTIONAL_METHODS = ['annotate', 'getFileMetaBatch'];
+const OPTIONAL_METHODS = ['annotate', 'getFileMetaBatch', 'getHistoryAffectedFiles'];
 const ADAPTER_MODES = Object.freeze(['parity', 'experimental', 'disabled']);
 const DEFAULT_ADAPTER_MODE_BY_PROVIDER = Object.freeze({
   git: 'parity',
@@ -96,16 +100,24 @@ export const assertScmProvider = (provider) => {
       reason: allowedReasons.has(reason) ? reason : fallbackReason
     };
   };
-  const normalizeFileList = (result, allowedReasons) => {
-    if (result && Array.isArray(result.filesPosix)) {
+  const normalizeFileList = (result, allowedReasons, operation) => {
+    let inventory = declaredScmFileInventory(result, { provider: name, operation });
+    if (inventory.complete && Array.isArray(result?.filesPosix)
+      && result.filesPosix.every(entry => typeof entry === 'string' && entry.length > 0 && !entry.includes('\0'))) {
       const filesPosix = Array.from(new Set(
         result.filesPosix
-          .map((entry) => String(entry || '').replace(/\\/g, '/'))
-          .filter(Boolean)
+          .map((entry) => process.platform === 'win32' ? entry.replace(/\\/g, '/') : entry)
       )).sort((a, b) => a.localeCompare(b));
-      return { filesPosix };
+      return { complete: true, inventory, filesPosix };
     }
-    return normalizeReason(result, allowedReasons);
+    if (inventory.complete) inventory = scmFileInventoryReceipt({ provider: name, operation, reason: 'invalid-path-inventory' });
+    return { ...normalizeReason(result, allowedReasons), complete: false, inventory };
+  };
+  const fileListFailure = (error, input, operation) => {
+    observeStorageResource(error, { phase: 'scm-' + operation + '-inventory' }).requireSettled();
+    if (isAbortError(error)) throw error;
+    throwIfAborted(input?.signal);
+    return unavailableScmFileInventory(scmFileInventoryReceipt({ provider: name, operation, reason: 'provider-threw' }));
   };
   const normalizeFileMetaValue = (meta) => {
     const value = meta && typeof meta === 'object' ? meta : {};
@@ -137,7 +149,7 @@ export const assertScmProvider = (provider) => {
     }
     return normalizeFileMetaValue(result);
   };
-  const normalizeFileMetaBatch = (result) => {
+  const normalizeFileMetaBatch = (result, input) => {
     if (result && result.ok === false) {
       return { ...normalizeReason(result, FILE_META_BATCH_UNAVAILABLE_REASONS), ...preserveScmMetadataFailure(result) };
     }
@@ -147,7 +159,7 @@ export const assertScmProvider = (provider) => {
       : [];
     const fileMetaByPath = Object.create(null);
     for (const [rawPath, rawMeta] of entries) {
-      const key = String(rawPath || '').replace(/\\/g, '/').trim();
+      const key = normalizeScmFileKey(rawPath, { repoRoot: input?.repoRoot, rejectEscape: true });
       if (!key) continue;
       fileMetaByPath[key] = normalizeFileMetaValue(rawMeta);
     }
@@ -220,27 +232,31 @@ export const assertScmProvider = (provider) => {
     },
     async listTrackedFiles(input) {
       try {
+        throwIfAborted(input?.signal);
         const result = await Promise.resolve(provider.listTrackedFiles(input));
-        return normalizeFileList(result, FILE_LIST_UNAVAILABLE_REASONS);
-      } catch {
-        return { ok: false, reason: 'unavailable' };
-      }
+        throwIfAborted(input?.signal);
+        return normalizeFileList(result, FILE_LIST_UNAVAILABLE_REASONS, 'tracked');
+      } catch (error) { return fileListFailure(error, input, 'tracked'); }
     },
     async getRepoProvenance(input) {
       try {
         const result = await Promise.resolve(provider.getRepoProvenance(input));
         return normalizeProvenance(result, input);
-      } catch {
+      } catch (error) {
+        observeStorageResource(error, { phase: 'scm-provenance' }).requireSettled();
+        if (error?.code === 'ERR_SCM_OPERATION_UNAVAILABLE') throw error;
+        if (isAbortError(error)) throw error;
+        throwIfAborted(input?.signal);
         return normalizeProvenance(null, input);
       }
     },
     async getChangedFiles(input) {
       try {
+        throwIfAborted(input?.signal);
         const result = await Promise.resolve(provider.getChangedFiles(input));
-        return normalizeFileList(result, CHANGED_FILES_UNAVAILABLE_REASONS);
-      } catch {
-        return { ok: false, reason: 'unavailable' };
-      }
+        throwIfAborted(input?.signal);
+        return normalizeFileList(result, CHANGED_FILES_UNAVAILABLE_REASONS, 'changed');
+      } catch (error) { return fileListFailure(error, input, 'changed'); }
     },
     async getFileMeta(input) {
       try {
@@ -251,6 +267,16 @@ export const assertScmProvider = (provider) => {
       }
     }
   };
+  if (typeof provider.getHistoryAffectedFiles === 'function') {
+    wrapped.getHistoryAffectedFiles = async input => {
+      try {
+        throwIfAborted(input?.signal);
+        const result = await provider.getHistoryAffectedFiles(input);
+        throwIfAborted(input?.signal);
+        return normalizeFileList(result, CHANGED_FILES_UNAVAILABLE_REASONS, 'history');
+      } catch (error) { return fileListFailure(error, input, 'history'); }
+    };
+  }
   if (typeof provider.annotate === 'function') {
     wrapped.annotate = async (input) => {
       try {
@@ -266,7 +292,10 @@ export const assertScmProvider = (provider) => {
           return { lines };
         }
         return normalizeReason(result, ANNOTATE_UNAVAILABLE_REASONS);
-      } catch {
+      } catch (error) {
+        observeStorageResource(error, { phase: 'scm-annotation' }).requireSettled();
+        if (isAbortError(error)) throw error;
+        throwIfAborted(input?.signal);
         return { ok: false, reason: 'unavailable' };
       }
     };
@@ -275,7 +304,7 @@ export const assertScmProvider = (provider) => {
     wrapped.getFileMetaBatch = async (input) => {
       try {
         const result = await Promise.resolve(provider.getFileMetaBatch(input));
-        return normalizeFileMetaBatch(result);
+        return normalizeFileMetaBatch(result, input);
       } catch (error) {
         return { ok: false, reason: 'unavailable', ...preserveScmMetadataFailure(null, error, 'getFileMetaBatch') };
       }

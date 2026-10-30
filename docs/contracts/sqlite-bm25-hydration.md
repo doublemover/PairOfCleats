@@ -1,0 +1,13 @@
+# Selective SQLite BM25 hydration
+
+The sparse candidate stage passes its exact eligible ordinal domain into SQLite query-index hydration. Domains up to 4,096 IDs and 64 KiB of serialized bound parameters may use indexed probes when they contain at most half the corpus. Unknown/noniterable or broader domains retain the broad path. These are internal conservative admission limits, not new CLI or configuration surfaces. No approximate filter is treated as exact eligibility.
+
+Selected token postings join document lengths through the existing `(mode, token_id, doc_id)` and `(mode, doc_id)` primary keys. IDs and tokens are bound parameters; there are no temporary writes or new indexes. Rows stream directly into their one retained postings representation. Only matching documents populate a sparse length map; a cold selective request does not hydrate the full document-length array.
+
+`documentFrequencies` remains a separate aligned array of exact global token posting counts, acquired by indexed count queries. BM25 uses those counts with the unchanged global `totalDocs` and `avgDocLen`; filtered posting length never replaces global DF. Invalid global-count evidence fails instead of being clamped. Fielded body aliases use the same map/count contract. Boolean zero-score completion retains the caller's full eligible universe independently of matched posting rows.
+
+Complete corpus statistics require no document-length hydration. If legacy statistics are missing, SQL aggregates preserve the existing ordinal-span/length-sum fallback semantics without transferring all lengths into JavaScript. Broad scoring may still need its full length view. Metadata/statistic caches and prepared statements are scoped to exact database handles and modes, so generation replacement cannot inherit another handle's counts.
+
+Hydration costs report selected-domain bytes, returned posting rows, unique loaded length documents, global-DF queries/documents and statement counts. Global DF still requires counting every relevant token's corpus postings; returned-row savings do not establish fewer database visits or a measured latency improvement. Broad streams retain the final nested scorer representation, but no longer retain a duplicate raw-row array.
+
+The authored fixture uses the actual SQLite schema and query plan, repeated/absent terms, sparse ordinals, one/empty/multiple eligible IDs, body aliases, global score parity, cold length-read refusal, broad fallback and database replacement. All execution, FTS degradation integration, query-plan qualification on supported hosts and CPU/wall/allocation/RSS measurements remain deferred.

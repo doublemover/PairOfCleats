@@ -1,69 +1,160 @@
-# Unified Setup
+# Set up the checkout and a target
 
-Bootstrap evidence separates package loadability, per-language parser activation,
-provider initialization, and project qualification. Required registered native
-grammars activate in isolated bounded processes using the production binding
-resolver and a tiny language-specific sample. The readiness receipt records
-language, package/version, Node version and ABI for activated routes. Parsing a
-sample does not certify a compiler/LSP project or full language semantics. A
-loadable grammar that fails `setLanguage` is not parser-activated.
+Run application commands from the PairOfCleats checkout. Every target command
+below includes `--repo`; that selects source to index and never authorizes
+installing that project's dependencies.
 
-The unified setup script (`pairofcleats setup`) guides you through installing optional dependencies and building indexes in one flow. It is interactive by default.
+## Prepare the application checkout
 
-## Usage
+Use the exact Node 26.13.0 pin in `.nvmrc` and the current
+[native prerequisites](bootstrap-prerequisites.md). The normal application,
+tests and benchmarks require verified readiness.
 
-- Interactive (recommended):
-  - `pairofcleats setup`
-- Non-interactive (CI):
-  - `node tools/setup/setup.js --non-interactive`
-- Non-interactive with JSON summary:
-  - `node tools/setup/setup.js --non-interactive --json`
+```sh
+node tools/setup/preflight.js --json
+npm run bootstrap:ci
+```
 
-## What it can do
+The first command discovers prerequisites and, on Windows, compiles/links the
+selected target capability in owned scratch; it does not record readiness.
+The second performs the locked
+application install, required package patches, native builds/probes and readiness
+receipt. `npm run bootstrap` uses dependency resolution and belongs to an
+intentional dependency update. It is different from target provisioning with
+`node bin/pairofcleats.js bootstrap --repo ...`.
 
-- Install Node dependencies (`npm install`).
-- Download dictionaries (English wordlist by default).
-- Download embedding models.
-- Download the SQLite ANN extension when available.
-- Detect and optionally install tooling.
-- Restore CI artifacts when present.
-- Build file-backed indexes (optionally incremental).
-- Build SQLite indexes (default unless `--skip-sqlite`).
+## Review a first-search plan
 
-## Flags
+Prepared checkouts can preview a sparse code-first plan without downloads,
+provider execution, file writes or target dependency installation:
 
-- Flags below apply to the direct script (`node tools/setup/setup.js`):
-  - `--non-interactive` / `--ci`: Skip prompts and use defaults.
-  - `--json`: Emit a summary report to stdout (logs go to stderr).
-  - `--with-sqlite`: Force SQLite build on (default behavior).
-  - `--incremental`: Use incremental indexing if available.
-  - `--validate-config`: Validate `.pairofcleats.json` before running setup.
-  - `--skip-validate`: Skip config validation prompts.
-  - `--tooling-scope cache|global`: Override tooling install scope.
-  - `--require-steps <csv>`: Treat the named checks as prerequisites, for example `dictionaries,tooling`. Missing, skipped, declined or failed prerequisites produce a nonzero exit; this does not enable a skipped operation.
-  - `--skip-install`: Skip `npm install`.
-  - `--skip-dicts`: Skip dictionary download.
-  - `--skip-models`: Skip model download.
-  - `--skip-extensions`: Skip SQLite extension download.
-  - `--skip-tooling`: Skip tooling detection/install.
-  - `--skip-artifacts`: Skip CI artifact restore.
-  - `--skip-index`: Skip file-backed index build.
-  - `--skip-sqlite`: Skip SQLite index build.
+<!-- poc:recipe setup-plan shell=portable effects=read-only -->
+```sh
+node bin/pairofcleats.js setup --repo "path/to/your-project" --plan --profile sparse --backend memory --json
+```
 
-## Notes
+Save that JSON to a file with your shell's ordinary UTF-8 redirection, inspect its
+application/target roots, minimal config patch, output locations and operations,
+then explicitly apply it. Applying preserves comments outside modified fields
+and unrelated settings. It rejects a changed target/config/effective policy,
+selected runtime or operation plan; generate a fresh plan after any such change.
+The preview uses the canonical repository-authority and trusted-policy merge.
+A trusted override that defeats a requested choice, or a selected tool without
+a qualified recipe, blocks apply before the config is written. Local model asset
+presence is reported separately from executable or inference verification.
 
-- The JSON summary includes a readiness receipt for the selected checks: `ready`, `degraded` for optional omissions, or `blocked` for required failures. Failed requested dependency/config/index/SQLite steps block completion. Optional download/tooling failures remain visible and no longer print an unconditional success message.
-- Tool installation rechecks executable resolution, the command probe and package layout after the installer exits. A successful installer process without a working executable is a failure; manual-only tools remain explicit prerequisites requiring action. The receipt identifies this verification level. It does not claim an LSP initialize/workspace check, complete model validation or native-extension loading from a presence/probe check alone; those capabilities require their own admission checks.
+<!-- poc:recipe setup-apply shell=portable effects=target-config-and-derived-build -->
+```sh
+node bin/pairofcleats.js setup --repo "path/to/your-project" --apply-plan "setup-plan.json" --json
+```
 
-- Defaults follow `.pairofcleats.json` where applicable.
-- Tree-sitter grammars load via native `tree-sitter` language modules.
-- SQLite builds use file-backed indexes by default, and will stream from piece artifacts or incremental bundles when available.
-- `build_index.js` can be run from any working directory; it resolves SQLite build tooling from the install root.
-- Index builds write `preprocess.json` under the repo cache root with scan and skip statistics.
-- Default ignore patterns can be overridden by adding negated entries (e.g. `!dist/allow.js`) in `extraIgnore`.
-- Ignore files configured via `ignoreFiles` must resolve inside the repo root; outside paths are skipped with a warning.
-- Index builds write `pieces/manifest.json` in each index directory to list artifact pieces and checksums.
-- Use `node tools/index/assemble-pieces.js --input <indexDir> --out <dest>` to merge piece outputs into a single index directory.
-- Use `node tools/index/compact-pieces.js --repo <repo>` to compact chunk_meta parts and token_postings shards.
-- After setup, run `pairofcleats index validate` to confirm index artifacts are healthy.
-- If you prefer a fast, no-prompts path, use `pairofcleats bootstrap`.
+Semantic planning requires `--profile semantic --model <selected-model>`.
+`--tools <id,id>` provisions only explicitly selected tools. Review their runtime
+requirements, immutable sources, trusted policy and platform blockers first.
+Unknown download sizes remain unknown. A requested tool with an unsupported
+recipe remains blocked; installed bytes, version output, protocol initialization,
+model inference and project qualification are separate evidence.
+`tooling install --dry-run` now takes a separate metadata-only source path:
+located executables are labeled `located-not-probed`, prerequisite commands are
+not executed and recipe environment values are omitted. Unknown allocation or
+missing qualified recipes produce visible blockers and a nonzero status; a
+preview never reports an installation ready. This new path is **UNVALIDATED**.
+
+## Existing interactive and unattended setup
+
+The existing prompted path remains available for selected optional assets:
+
+<!-- poc:recipe setup-interactive shell=portable effects=selected-provision-and-build -->
+```sh
+node bin/pairofcleats.js setup --repo "path/to/your-project" --skip-install
+```
+
+For unattended use, state omitted work explicitly. This example validates only
+and omits optional acquisition/build work:
+
+<!-- poc:recipe setup-unattended shell=portable effects=read-only -->
+```sh
+node bin/pairofcleats.js setup --repo "path/to/your-project" --non-interactive --validate-config --skip-install --skip-dicts --skip-models --skip-extensions --skip-tooling --skip-artifacts --skip-index --skip-sqlite --json
+```
+
+Unattended prompt defaults are choices, not consent inferred from a previous
+interactive run. JSON mode emits one final stdout object; prompts, diagnostics
+and child progress use stderr. `--require-steps <csv>` makes named prerequisites
+required but does not enable a skipped operation. Read the readiness summary:
+`ready`, limited/degraded scope and blocked prerequisites mean different things.
+A skipped requested capability is not complete.
+
+Guided setup and fast `bootstrap --repo ...` await the shared asynchronous child
+owner. `SIGINT` and `SIGTERM` stop later stages and retain exit status `130` and
+`143`. JSON mode reports one terminal summary; `lifecycle.state` distinguishes
+`cancelled`, `blocked` and `settlement-pending`. An unconfirmed child teardown
+stops the run even in an optional step. Keep its resource owners until actual
+settlement is established. Target index, SQLite and artifact-restore children
+receive the selected repository explicitly, including nested project folders.
+These source changes and their inert regressions are **UNVALIDATED**.
+
+Dictionaries download selected supported missing wordlists; models acquire the
+selected model; tooling can execute installers; extensions acquire approved
+native assets; builds write target cache artifacts. Review each capability's
+configuration, trust and storage location before opting in. Guided setup leaves
+application and consumer dependency graphs to their explicit owners.
+
+## Validate and search
+
+Follow the [first-search guide](first-search.md) for a bounded code build, selected
+mode validation and a query chosen from your project. The plan prints target-
+qualified validation/search argument vectors; its example query is a placeholder,
+not fabricated proof that your repository contains a symbol.
+
+## Diagnose readiness
+
+The direct ONNX provider and Transformers share exactly `onnxruntime-node`
+`1.30.0`, matching Transformers `4.3.2`'s native dependency. The package override
+keeps every Node consumer on that single runtime. Update these together:
+Windows can reuse an already loaded `onnxruntime.dll` for a second addon, so
+independent successful imports cannot establish native API compatibility.
+Bootstrap checks both consumer resolutions and runs a small CPU model in both
+import orders, disposing its tensors and sessions before natural child exit.
+That bounded lifecycle check does not qualify every embedding model or backend.
+
+Before bootstrap, the dependency-free front door is available:
+
+```sh
+node bin/pairofcleats.js checkout diagnose --json
+node bin/pairofcleats.js checkout diagnose --prerequisites --json
+```
+
+The report names runtime, executable, ABI, physical checkout and individual
+receipt mismatch fields. Metadata inspection does not activate native packages.
+The required Tree-sitter patch also owns an async Node-API cleanup handle.
+On Node 26.12.1, an interrupted parser worker can otherwise drain a queued
+finalizer after its environment has been freed. The handle releases through the
+supported async cleanup API; parser operations, worker cancellation and strict
+callback errors remain enabled. Setup activation is separate from the ten
+fresh-process natural/cancelled worker cases in
+`tests/tooling/install/native-parser-error-contract.test.js`.
+
+For intact dependencies and patches under the selected runtime,
+`node tools/setup/rebuild-native.js --verify` can verify and refresh readiness;
+it cannot repair missing patches. Input/lock/patch drift needs locked bootstrap.
+Never copy or rewrite receipt identity as a repair.
+
+If a selected provider/model fails, retain its exact path/identity and bounded
+stderr. Re-plan after fixing the stated prerequisite. If work is quiet, use
+structured progress and owned activity timestamps; elapsed time alone does not
+prove a stall. Cancellation/partial results list completed and pending operations.
+Inspect active readers/writers before recovery; do not remove locks or entire
+cache roots as a generic fix.
+
+The [source-upgrade guide](upgrades.md) covers existing installations. Contributor
+scratch conventions belong in [contributing](contributing.md). The
+[archived setup account](../archived/setup-2026-10-22.md) preserves dated
+node-pty/docx/Perl, scheduler and platform evidence and its limitations. This
+reorganization does not claim new native/platform qualification.
+# Build ownership and selected targets
+
+Setup forwards its explicit repository target to index and artifact-restoration children. After a child completes, guided setup checks artifacts under that target's configured cache before reporting index readiness. A successful child exit alone does not establish target readiness.
+
+A normal core build owns its selected-generation SQLite work. Bootstrap with --with-sqlite requests SQLite in that build; a separate Stage4 is used when the normal build was skipped or artifacts were restored. CI artifact builds similarly forward --sqlite or --no-sqlite and avoid a second normal-build pass. Existing/restored generations use the core Stage4 selection and validation owner.
+
+Build terminal outcomes describe the selected stage, generation and attempt. Human and structured summaries share those facts; queued/background work remains pending, and partial queue admission retains the admitted job IDs and rejected mode reasons. Missing run-qualified counts stay unavailable. A stale repository preprocess.json never qualifies source counts for an unrelated stage or attempt.

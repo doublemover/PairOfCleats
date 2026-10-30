@@ -1,0 +1,921 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-10-27",
+  "sourceHead": "8e91fa316389f52a45f7bab6a597c737363dff1f",
+  "sourceTree": "d7557b2044ec27fec4b6703988d4396267f839bd",
+  "branch": "codex/pr557-audit-repairs-20261012",
+  "platform": "win32",
+  "arch": "x64",
+  "node": "v26.12.1",
+  "issues": {
+    "partial": [
+      1574
+    ]
+  },
+  "setup": {
+    "dependenciesChanged": false,
+    "nativeBinariesChanged": false,
+    "patchesChanged": false,
+    "bootstrapRerun": false
+  },
+  "before": {
+    "method": "Child-only historical SQLite report, strict parity and LMDB report owners from 621c8f7b6; checkout files were never reverted.",
+    "cases": [
+      {
+        "name": "sqlite-validator-resource-session",
+        "exitCode": 1,
+        "signal": null,
+        "error": null,
+        "durationMs": 341,
+        "failure": [
+          "AggregateError: ENOENT: no such file or directory, scandir 'C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\native-validator-sqlite-20292-1793111662159-ddthap\\home\\state\\storage-access\\323d434551f189bc98b65e66c5d064ccd723c2f57d078ce2f4b5724ab5b4652b\\leases'\r",
+          "  [cause]: Error: ENOENT: no such file or directory, scandir 'C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\native-validator-sqlite-20292-1793111662159-ddthap\\home\\state\\storage-access\\323d434551f189bc98b65e66c5d064ccd723c2f57d078ce2f4b5724ab5b4652b\\leases'\r",
+          "    Error: ENOENT: no such file or directory, scandir 'C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\native-validator-sqlite-20292-1793111662159-ddthap\\home\\state\\storage-access\\323d434551f189bc98b65e66c5d064ccd723c2f57d078ce2f4b5724ab5b4652b\\leases'\r",
+          "    AggregateError: SQLite cache closure remains unconfirmed.\r"
+        ],
+        "baseline": "621c8f7b62828b4767e5f7708d97110861264530",
+        "files": [
+          "src/index/validate/sqlite-report.js"
+        ],
+        "command": [
+          "C:\\nvm4w\\nodejs\\node.exe",
+          "--import",
+          "file:///C:/Users/sneak/Development/PairOfCleats/.tmp/tasks/native-validator-sessions-20261027/before-sqlite-validator-resource-session-hook.mjs",
+          "tests/shared/storage/native-validator-sessions.test.js"
+        ],
+        "receipt": ".tmp/tasks/native-validator-sessions-20261027/before-sqlite-validator-resource-session.json"
+      },
+      {
+        "name": "sqlite-validator-admission",
+        "exitCode": 1,
+        "signal": null,
+        "error": null,
+        "durationMs": 378,
+        "failure": [
+          "AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:\r",
+          "  actual: AggregateError: ENOENT: no such file or directory, scandir 'C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\native-validator-sqlite-admission-29312-1793111662549-5z4zgz\\home\\state\\storage-access\\e6a80619787486ba1768f5f8c6182f15b52f77a3d927f2b862d45266614f8ea2\\leases'\r",
+          "    [cause]: Error: ENOENT: no such file or directory, scandir 'C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\native-validator-sqlite-admission-29312-1793111662549-5z4zgz\\home\\state\\storage-access\\e6a80619787486ba1768f5f8c6182f15b52f77a3d927f2b862d45266614f8ea2\\leases'\r",
+          "      Error: ENOENT: no such file or directory, scandir 'C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\native-validator-sqlite-admission-29312-1793111662549-5z4zgz\\home\\state\\storage-access\\e6a80619787486ba1768f5f8c6182f15b52f77a3d927f2b862d45266614f8ea2\\leases'\r"
+        ],
+        "baseline": "621c8f7b62828b4767e5f7708d97110861264530",
+        "files": [
+          "src/index/validate/sqlite-report.js"
+        ],
+        "command": [
+          "C:\\nvm4w\\nodejs\\node.exe",
+          "--import",
+          "file:///C:/Users/sneak/Development/PairOfCleats/.tmp/tasks/native-validator-sessions-20261027/before-sqlite-validator-admission-hook.mjs",
+          "tests/shared/storage/native-validator-sessions.test.js"
+        ],
+        "receipt": ".tmp/tasks/native-validator-sessions-20261027/before-sqlite-validator-admission.json"
+      },
+      {
+        "name": "lmdb-validator-resource-session",
+        "exitCode": 1,
+        "signal": null,
+        "error": null,
+        "durationMs": 322,
+        "failure": [
+          "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\r",
+          "false !== true\r"
+        ],
+        "baseline": "621c8f7b62828b4767e5f7708d97110861264530",
+        "files": [
+          "src/index/validate/lmdb-report.js"
+        ],
+        "command": [
+          "C:\\nvm4w\\nodejs\\node.exe",
+          "--import",
+          "file:///C:/Users/sneak/Development/PairOfCleats/.tmp/tasks/native-validator-sessions-20261027/before-lmdb-validator-resource-session-hook.mjs",
+          "tests/storage/lmdb/prefetch-close-ownership.test.js"
+        ],
+        "receipt": ".tmp/tasks/native-validator-sessions-20261027/before-lmdb-validator-resource-session.json"
+      },
+      {
+        "name": "lmdb-validator-admission",
+        "exitCode": 1,
+        "signal": null,
+        "error": null,
+        "durationMs": 339,
+        "failure": [
+          "AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:\r",
+          "  actual: AggregateError: ENOENT: no such file or directory, scandir 'C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\native-validator-lmdb-admission-28180-1793111663340-008p55\\home\\state\\storage-access\\007a7e7a89e9eed956e8c1adb41bf11850808b304bac5535ff310c9c4c6fdf8e\\leases'\r",
+          "    [cause]: Error: ENOENT: no such file or directory, scandir 'C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\native-validator-lmdb-admission-28180-1793111663340-008p55\\home\\state\\storage-access\\007a7e7a89e9eed956e8c1adb41bf11850808b304bac5535ff310c9c4c6fdf8e\\leases'\r",
+          "      Error: ENOENT: no such file or directory, scandir 'C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\native-validator-lmdb-admission-28180-1793111663340-008p55\\home\\state\\storage-access\\007a7e7a89e9eed956e8c1adb41bf11850808b304bac5535ff310c9c4c6fdf8e\\leases'\r"
+        ],
+        "baseline": "621c8f7b62828b4767e5f7708d97110861264530",
+        "files": [
+          "src/index/validate/lmdb-report.js"
+        ],
+        "command": [
+          "C:\\nvm4w\\nodejs\\node.exe",
+          "--import",
+          "file:///C:/Users/sneak/Development/PairOfCleats/.tmp/tasks/native-validator-sessions-20261027/before-lmdb-validator-admission-hook.mjs",
+          "tests/shared/storage/native-validator-sessions.test.js"
+        ],
+        "receipt": ".tmp/tasks/native-validator-sessions-20261027/before-lmdb-validator-admission.json"
+      },
+      {
+        "name": "sqlite-parity-resource-session",
+        "exitCode": 1,
+        "signal": null,
+        "error": null,
+        "durationMs": 928,
+        "failure": [
+          "AggregateError: ENOENT: no such file or directory, scandir 'C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\native-validator-parity-28456-1793111802599-4kcet3\\home\\state\\storage-access\\4dfe6694ecd05fa8e54e7d16b3ece5f1724a697d6e132d32915473e9e2be1029\\leases'\r",
+          "  [cause]: Error: ENOENT: no such file or directory, scandir 'C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\native-validator-parity-28456-1793111802599-4kcet3\\home\\state\\storage-access\\4dfe6694ecd05fa8e54e7d16b3ece5f1724a697d6e132d32915473e9e2be1029\\leases'\r",
+          "    Error: ENOENT: no such file or directory, scandir 'C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\native-validator-parity-28456-1793111802599-4kcet3\\home\\state\\storage-access\\4dfe6694ecd05fa8e54e7d16b3ece5f1724a697d6e132d32915473e9e2be1029\\leases'\r",
+          "    AggregateError: SQLite cache closure remains unconfirmed.\r"
+        ],
+        "baseline": "621c8f7b62828b4767e5f7708d97110861264530",
+        "files": [
+          "src/index/validate/chunk-meta.js"
+        ],
+        "command": [
+          "C:\\nvm4w\\nodejs\\node.exe",
+          "--import",
+          "file:///C:/Users/sneak/Development/PairOfCleats/.tmp/tasks/native-validator-sessions-20261027/before-sqlite-parity-resource-session-hook.mjs",
+          "tests/shared/storage/native-validator-sessions.test.js"
+        ],
+        "receipt": ".tmp/tasks/native-validator-sessions-20261027/before-sqlite-parity-resource-session.json"
+      }
+    ]
+  },
+  "checks": {
+    "focused": {
+      "summary": {
+        "total": 32,
+        "passed": 32,
+        "failed": 0,
+        "skipped": 0,
+        "durationMs": 21959
+      },
+      "tests": [
+        {
+          "id": "indexing/validate/index-sqlite-zero-state-db-required",
+          "status": "passed",
+          "durationMs": 282,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/validate/operation-generation-selection/capture-authority",
+          "status": "passed",
+          "durationMs": 1340,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/validate/operation-generation-selection/captured-move",
+          "status": "passed",
+          "durationMs": 1336,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/validate/operation-generation-selection/during-read",
+          "status": "passed",
+          "durationMs": 1330,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/validate/operation-generation-selection/invalid-selection",
+          "status": "passed",
+          "durationMs": 851,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/validate/operation-generation-selection/legacy-move",
+          "status": "passed",
+          "durationMs": 1333,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/validate/operation-generation-selection/mixed-roots",
+          "status": "passed",
+          "durationMs": 1320,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/validate/operation-generation-selection/strict-ledger",
+          "status": "passed",
+          "durationMs": 1318,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/validate/resource-failure-classification",
+          "status": "passed",
+          "durationMs": 70,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "shared/storage/native-validator-sessions/lmdb",
+          "status": "passed",
+          "durationMs": 524,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "shared/storage/native-validator-sessions/lmdb-admission",
+          "status": "passed",
+          "durationMs": 522,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "shared/storage/native-validator-sessions/lmdb-metadata",
+          "status": "passed",
+          "durationMs": 592,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "shared/storage/native-validator-sessions/lmdb-missing",
+          "status": "passed",
+          "durationMs": 517,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "shared/storage/native-validator-sessions/lmdb-native",
+          "status": "passed",
+          "durationMs": 571,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "shared/storage/native-validator-sessions/lmdb-pending",
+          "status": "passed",
+          "durationMs": 586,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "shared/storage/native-validator-sessions/parity",
+          "status": "passed",
+          "durationMs": 677,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "shared/storage/native-validator-sessions/parity-admission",
+          "status": "passed",
+          "durationMs": 663,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "shared/storage/native-validator-sessions/parity-metadata",
+          "status": "passed",
+          "durationMs": 755,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "shared/storage/native-validator-sessions/parity-native",
+          "status": "passed",
+          "durationMs": 715,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "shared/storage/native-validator-sessions/parity-pending",
+          "status": "passed",
+          "durationMs": 734,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "shared/storage/native-validator-sessions/sqlite",
+          "status": "passed",
+          "durationMs": 573,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "shared/storage/native-validator-sessions/sqlite-admission",
+          "status": "passed",
+          "durationMs": 566,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "shared/storage/native-validator-sessions/sqlite-metadata",
+          "status": "passed",
+          "durationMs": 629,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "shared/storage/native-validator-sessions/sqlite-native",
+          "status": "passed",
+          "durationMs": 611,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "shared/storage/native-validator-sessions/sqlite-pending",
+          "status": "passed",
+          "durationMs": 640,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "storage/lmdb/prefetch-close-ownership/builder",
+          "status": "passed",
+          "durationMs": 326,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "storage/lmdb/prefetch-close-ownership/builder-storage",
+          "status": "passed",
+          "durationMs": 463,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "storage/lmdb/prefetch-close-ownership/retrieval",
+          "status": "passed",
+          "durationMs": 323,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "storage/lmdb/prefetch-close-ownership/retrieval-storage",
+          "status": "passed",
+          "durationMs": 576,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "storage/lmdb/prefetch-close-ownership/validator",
+          "status": "passed",
+          "durationMs": 343,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "storage/lmdb/prefetch-close-ownership/validator-storage",
+          "status": "passed",
+          "durationMs": 461,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "storage/sqlite/zero-state-proof-admission",
+          "status": "passed",
+          "durationMs": 390,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        }
+      ]
+    },
+    "gate": {
+      "summary": {
+        "total": 40,
+        "passed": 40,
+        "failed": 0,
+        "skipped": 0,
+        "durationMs": 22157
+      },
+      "tests": [
+        {
+          "id": "indexing/policy/hotpath-membership-guard",
+          "status": "passed",
+          "durationMs": 72,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/policy/module-cache-boundedness-contract",
+          "status": "passed",
+          "durationMs": 79,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/policy/generated-matrix",
+          "status": "passed",
+          "durationMs": 80,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/contracts/artifact-surface-version",
+          "status": "passed",
+          "durationMs": 68,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/contracts/n-minus-one-adapter",
+          "status": "passed",
+          "durationMs": 74,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/contracts/public-artifact-surface-doc",
+          "status": "passed",
+          "durationMs": 67,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/contracts/index-compatibility-key-generation",
+          "status": "passed",
+          "durationMs": 165,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/contracts/semver-policy-enforced",
+          "status": "passed",
+          "durationMs": 72,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/contracts/index-state-dense-sidecars-present",
+          "status": "passed",
+          "durationMs": 79,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "contracts/manifest-max-bytes-validation",
+          "status": "passed",
+          "durationMs": 149,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/policy/repo-inventory",
+          "status": "passed",
+          "durationMs": 1430,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/policy/shared-module-cycle-guard",
+          "status": "passed",
+          "durationMs": 228,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/contracts/loader-matrix-parity",
+          "status": "passed",
+          "durationMs": 202,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/policy/analysis-schema",
+          "status": "passed",
+          "durationMs": 269,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/contracts/snapshots",
+          "status": "passed",
+          "durationMs": 267,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/contracts/builds-current-repo-head-schema",
+          "status": "passed",
+          "durationMs": 253,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/contracts/call-sites-schema",
+          "status": "passed",
+          "durationMs": 264,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/contracts/diffs",
+          "status": "passed",
+          "durationMs": 262,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/contracts/additional-properties-policy",
+          "status": "passed",
+          "durationMs": 274,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/contracts/index-compatibility-key-enforced-on-load",
+          "status": "passed",
+          "durationMs": 486,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/contracts/schema-registry-single-source",
+          "status": "passed",
+          "durationMs": 245,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "tooling/api-contracts/caps",
+          "status": "passed",
+          "durationMs": 605,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "tooling/api-contracts/schema-validate",
+          "status": "passed",
+          "durationMs": 789,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "tooling/api-contracts/fail-on-warn",
+          "status": "passed",
+          "durationMs": 783,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "tooling/api-contracts/optional-params",
+          "status": "passed",
+          "durationMs": 753,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "tooling/api-contracts/large-call-sites",
+          "status": "passed",
+          "durationMs": 599,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/contracts/embedding-identity-gating-on-load",
+          "status": "passed",
+          "durationMs": 536,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "ci/capability-gate.smoke",
+          "status": "passed",
+          "durationMs": 776,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/contracts/index-compatibility-key-federation-block",
+          "status": "passed",
+          "durationMs": 1096,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/policy/stable-entrypoints",
+          "status": "passed",
+          "durationMs": 79,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/policy/optional-deps",
+          "status": "passed",
+          "durationMs": 1227,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/policy/analysis-gating",
+          "status": "passed",
+          "durationMs": 957,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "ci/tooling-doctor-gate.smoke",
+          "status": "passed",
+          "durationMs": 1068,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "tooling/api-contracts/basic",
+          "status": "passed",
+          "durationMs": 588,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "contracts/module-export-surface-compat",
+          "status": "passed",
+          "durationMs": 2449,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/contracts/semantic-foundations",
+          "status": "passed",
+          "durationMs": 1204,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/contracts/semantic-handoff-contracts",
+          "status": "passed",
+          "durationMs": 334,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/contracts/runtime-evidence",
+          "status": "passed",
+          "durationMs": 511,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/contracts/index-format-cutover",
+          "status": "passed",
+          "durationMs": 1402,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "ci/windows-authority-cohort",
+          "status": "passed",
+          "durationMs": 1279,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        }
+      ]
+    },
+    "frontGate": [
+      {
+        "arguments": [
+          "run",
+          "config:budget"
+        ],
+        "executable": "npm.cmd",
+        "durationMs": 2669,
+        "exitCode": 0,
+        "name": "config-budget"
+      },
+      {
+        "arguments": [
+          "run",
+          "env:check"
+        ],
+        "executable": "npm.cmd",
+        "durationMs": 1544,
+        "exitCode": 0,
+        "name": "environment"
+      },
+      {
+        "arguments": [
+          "tools/docs/generated-surfaces.js",
+          "--check-freshness"
+        ],
+        "executable": "node",
+        "durationMs": 10736,
+        "exitCode": 0,
+        "name": "generated"
+      },
+      {
+        "arguments": [
+          "tools/ci/check-command-surface.js"
+        ],
+        "executable": "node",
+        "durationMs": 2755,
+        "exitCode": 0,
+        "name": "command-surface"
+      },
+      {
+        "arguments": [
+          "tests/ci/workflow-contract.test.js"
+        ],
+        "executable": "node",
+        "durationMs": 233,
+        "exitCode": 0,
+        "name": "workflow"
+      },
+      {
+        "arguments": [
+          "tests/run.js",
+          "--lane",
+          "gate",
+          "--jobs",
+          "1",
+          "--timeout-ms",
+          "30000",
+          "--retries",
+          "0",
+          "--native-status-redo=false",
+          "--pairofcleats-threads",
+          "1",
+          "--json"
+        ],
+        "executable": "node",
+        "durationMs": 22925,
+        "exitCode": 0,
+        "name": "gate-lane"
+      },
+      {
+        "arguments": [
+          "diff",
+          "--check"
+        ],
+        "executable": "git",
+        "durationMs": 74,
+        "exitCode": 0,
+        "name": "diff"
+      }
+    ],
+    "earlierScope": "The first 27-case cohort/front gate preceded discovery of the independent strict-parity reader. Final 32-case cohort and complete front gate were rerun after that owner and its five cases were implemented; earlier observations are not used as final-source acceptance.",
+    "format": true,
+    "workingAndStagedDiff": true,
+    "policy": {
+      "jobs": 1,
+      "threads": 1,
+      "timeoutMs": 30000,
+      "retries": 0,
+      "nativeStatusRedo": false
+    }
+  },
+  "coverage": {
+    "owners": "SQLite table validation, strict chunk metadata parity and LMDB native reports admit launch-selected repository/resource/category sessions before native open.",
+    "native": "Original physical SQLite close and LMDB result+completion callback precede lease release. Real LMDB prefetch callback handoff is held while resource/category protection remains live.",
+    "failure": "Exact independent query observations survive late report replacement. Metadata-only recovery does not repeat confirmed physical close. Controlled native close failures retain unknown ownership; missing LMDB diagnostics release an admission that never opened a handle.",
+    "compatibility": "Selected A/B/mixed native generations, exact capture authority, strict source/order ledger, zero-state and finding classification controls remain."
+  },
+  "remaining": [
+    "Custom/external backend registration with producer/publication identity and explicit launch authority.",
+    "Complete SQLite builder, sidecar and unadopted legacy/other-backend native lifetimes.",
+    "Category-specific eligible backend deletion/requalification and all/multi-repo CLI/MCP acceptance."
+  ],
+  "limits": "These native validator owners are qualified; complete SQLite build and other adapter/category/platform acceptance remain. No custom/external root registration or deletion authority was added.",
+  "authority": "No actual user cache cleanup, GUI, WSL, elevation, physical links, public knobs or security-setting changes.",
+  "rawEvidence": "Historical author-workspace .tmp/.testLogs evidence is absent from clean checkouts; controlled native-unknown tests manually close their actual handles without forging protocol settlement."
+}

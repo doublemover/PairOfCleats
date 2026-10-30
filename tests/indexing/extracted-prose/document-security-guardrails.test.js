@@ -80,12 +80,12 @@ const timeoutPdf = runPdfStubCase({
 assert.equal(timeoutPdf?.ok, false, 'expected timeout pdf to fail');
 assert.equal(timeoutPdf?.reason, 'extract_timeout', 'expected timeout pdf reason');
 
-const scannedPdf = runPdfStubCase({
+const noTextPdf = runPdfStubCase({
   payload: '   ',
   timeoutMs: 50,
   delayMs: 0
 });
-assert.equal(scannedPdf?.ok, false, 'expected scanned pdf to fail');
-assert.equal(scannedPdf?.reason, 'unsupported_scanned', 'expected scanned pdf reason');
+assert.equal(noTextPdf?.ok, false, 'expected a PDF without observed text to retain an explicit unavailable result');
+assert.equal(noTextPdf?.reason, 'no_text_observed', 'an empty text result does not establish scanned-page content');
 
 console.log('document security guardrails test passed');

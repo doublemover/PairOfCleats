@@ -3,7 +3,7 @@
 **Area:** Language detection / file classification
 
 ## Why this matters for PairOfCleats
-Use Linguists language metadata and heuristics to classify files for parser selection and to exclude vendored/generated content.
+Use Linguist's language metadata and heuristics to classify files for parser selection and to exclude vendored/generated content.
 
 ## Implementation notes (practical)
 - Consume `languages.yml` as the extension/filename/interpreter map (source of truth).
@@ -15,9 +15,9 @@ Use Linguists language metadata and heuristics to classify files for parser sel
 - Filters: expose `--language` / `--vendored` / `--generated` style constraints.
 
 ## Deep links (implementation-relevant)
-1. Language metadata source of truth (extensions � language, filenames, interpreters)  https://github.com/github-linguist/linguist/blob/master/lib/linguist/languages.yml
-2. How Linguist works (heuristics, vendored/generated classification)  https://github.com/github-linguist/linguist
-3. Overrides (how to force language detection when heuristics are wrong)  https://github.com/github-linguist/linguist/wiki
+1. [Language metadata source](https://github.com/github-linguist/linguist/blob/master/lib/linguist/languages.yml): extensions to languages, filenames and interpreters.
+2. [How Linguist works](https://github.com/github-linguist/linguist): heuristics and vendored/generated classification.
+3. [Overrides](https://github.com/github-linguist/linguist/wiki): force language detection when heuristics are wrong.
 
 ## Suggested extraction checklist
 - [x] Identify the exact API entrypoints you will call and the data structures you will persist. (Planned: load linguist-languages.json to map extensions/filenames to languageId.)

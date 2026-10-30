@@ -1,6 +1,6 @@
 import { createRequire } from 'node:module';
 import { VISITOR_KEYS } from '@babel/types';
-import { canonicalSemanticJson } from './identity.js';
+import { prepareSemanticBatchEntry, semanticBatchEntryBytes } from './prepared-batch.js';
 import { throwIfAborted } from '../../shared/abort.js';
 import { semanticLiteralScalar } from './semantic-literal.js';
 
@@ -204,8 +204,9 @@ export const createSemanticCollector = ({ ast, source, partitionId, unavailable 
     let batch = [];
     let byteCount = 0;
     let sequence = 0;
-    for (const entry of rows()) {
-      const bytes = Buffer.byteLength(canonicalSemanticJson(entry)) + 1;
+    for (const rawEntry of rows()) {
+      const entry = prepareSemanticBatchEntry(rawEntry);
+      const bytes = semanticBatchEntryBytes(entry);
       if (bytes > batchBytes) throw Object.assign(new Error('Semantic record exceeds producer batch allowance.'),
         { code: 'ERR_SEMANTIC_RECORD_LIMIT' });
       if (batch.length && (batch.length >= batchRows || byteCount + bytes > batchBytes)) {

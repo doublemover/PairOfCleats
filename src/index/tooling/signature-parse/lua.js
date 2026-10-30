@@ -1,8 +1,10 @@
-import { splitTopLevel } from './shared.js';
+import { findMatchingParen, splitTopLevel } from './shared.js';
+import { setOwn } from '../../../shared/object-record.js';
+import { normalizeTypeWhitespace } from '../../../shared/type-normalization.js';
 
 const LUA_IDENT = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
-const normalizeType = (value) => String(value || '').replace(/\s+/g, ' ').trim();
+const normalizeType = (value) => normalizeTypeWhitespace(value);
 
 const splitParams = (value) => splitTopLevel(value, ',');
 
@@ -40,7 +42,7 @@ export const parseLuaSignature = (detail) => {
   if (!detail || typeof detail !== 'string') return null;
   const signature = detail.trim();
   const open = signature.indexOf('(');
-  const close = signature.lastIndexOf(')');
+  const close = findMatchingParen(signature,open);
   if (open === -1 || close === -1 || close < open) return null;
   const before = stripLuaNamePrefix(signature.slice(0, open));
   if (!before) return null;
@@ -53,7 +55,7 @@ export const parseLuaSignature = (detail) => {
     const parsed = parseLuaParam(part);
     if (!parsed) continue;
     paramNames.push(parsed.name);
-    paramTypes[parsed.name] = parsed.type;
+    setOwn(paramTypes,parsed.name,parsed.type);
   }
   if (!returnType && !paramNames.length) return null;
   return { signature, returnType, paramTypes, paramNames };

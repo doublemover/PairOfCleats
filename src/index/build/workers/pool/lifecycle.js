@@ -24,7 +24,8 @@ import { destroyPiscinaPool } from '../../../../shared/piscina-cleanup.js';
  * @param {number} [input.upscaleRssThreshold]
  * @param {number} [input.upscaleGcThreshold]
  * @param {(input:{rssPressure:number,gcPressure:number,rssThreshold:number,gcThreshold:number})=>boolean} [input.shouldDownscaleWorkersForPressure]
- * @param {()=>number} [input.getActiveTasks]
+ * @param {()=>number} [input.getActiveTasks] Dispatched backend operations through
+ * settled execution/recovery; excludes requests awaiting throttle or ensurePool.
  * @param {(input:{pool:string})=>void} [input.incWorkerRetries]
  * @param {number|null} [input.cleanupTimeoutMs]
  * @param {(maxWorkers:number)=>unknown} input.createPool
@@ -33,7 +34,7 @@ import { destroyPiscinaPool } from '../../../../shared/piscina-cleanup.js';
  */
 export const createWorkerPoolLifecycle = (input = {}) => {
   const {
-    log = () => {},
+    log: writeLog = () => {},
     poolLabel = 'tokenize',
     summarizeError = (err) => err?.message || String(err),
     maxRestartAttempts = 3,
@@ -55,12 +56,14 @@ export const createWorkerPoolLifecycle = (input = {}) => {
     createPool,
     attachPoolListeners = () => {}
   } = input;
+  const log = line => { try { writeLog(line); } catch { /* lifecycle logging is non-authoritative */ } };
   const resolvedCleanupTimeoutMs = resolveBuildCleanupTimeoutMs(cleanupTimeoutMs);
 
   let pool = null;
   let disabled = false;
   let permanentlyDisabled = false;
   let restartAttempts = 0;
+  let fatalRestartAttempts = 0;
   let restartAtMs = 0;
   let restarting = null;
   let shutdownWhenIdle = false;
@@ -69,6 +72,7 @@ export const createWorkerPoolLifecycle = (input = {}) => {
   let forceDestroyPromise = null;
   let destroying = false;
   let pendingRestart = false;
+  let pressureReconfigurePending = false;
   let idleShutdownWaiters = [];
   let effectiveMaxWorkers = Math.max(1, Math.floor(Number(configuredMaxWorkers) || 1));
   let pressureDownscaleEvents = 0;
@@ -76,12 +80,12 @@ export const createWorkerPoolLifecycle = (input = {}) => {
   let lastPressureDownscaleAtMs = 0;
   let lastPressureUpscaleAtMs = 0;
 
-  const settleIdleShutdownWaiters = (error = null) => {
+  const settleIdleShutdownWaiters = (error = null, failed = error != null) => {
     if (!idleShutdownWaiters.length) return;
     const waiters = idleShutdownWaiters;
     idleShutdownWaiters = [];
     for (const waiter of waiters) {
-      if (error) waiter.reject(error);
+      if (failed) waiter.reject(error);
       else waiter.resolve();
     }
   };
@@ -97,11 +101,10 @@ export const createWorkerPoolLifecycle = (input = {}) => {
     }
     if (!pool) return;
     const currentPool = pool;
-    pool = null;
     shutdownPromise = (async () => {
-      let shutdownError = null;
+      let shutdownError, shutdownFailed = false;
       try {
-        await runBuildCleanupWithTimeout({
+        const cleanupResult = await runBuildCleanupWithTimeout({
           label: `worker-pool.${poolLabel}.destroy`,
           cleanup: () => destroyPiscinaPool(currentPool, {
             label: `worker-pool.${poolLabel}`,
@@ -112,14 +115,22 @@ export const createWorkerPoolLifecycle = (input = {}) => {
           log,
           swallowTimeout: false
         });
+        if (cleanupResult?.skipped || cleanupResult?.timedOut) {
+          throw Object.assign(new Error('Worker pool teardown was not confirmed.'), {
+            code: 'ERR_WORKER_POOL_CLEANUP_UNCONFIRMED'
+          });
+        }
+        if (pool === currentPool) pool = null;
       } catch (err) {
-        const detail = summarizeError(err);
+        let detail;
+        try { detail = summarizeError(err); } catch { /* diagnostics cannot replace original cleanup */ }
         log(`Worker pool shutdown failed: ${detail || 'unknown error'}`);
         shutdownError = err;
+        shutdownFailed = true;
       } finally {
         shutdownPromise = null;
       }
-      if (shutdownError) throw shutdownError;
+      if (shutdownFailed) throw shutdownError;
     })();
     await shutdownPromise;
   };
@@ -142,18 +153,21 @@ export const createWorkerPoolLifecycle = (input = {}) => {
     await shutdownNowOrWhenIdle();
   };
 
-  const scheduleRestart = async (reason) => {
+  const scheduleRestart = async (reason, { terminateActive = false, fatal = false } = {}) => {
     if (permanentlyDisabled) return;
     if (!pool && disabled && restartAttempts > maxRestartAttempts) return;
     disabled = true;
+    pressureReconfigurePending = false;
     restartAttempts += 1;
-    incWorkerRetries({ pool: poolLabel });
-    if (restartAttempts > maxRestartAttempts) {
+    if (fatal) fatalRestartAttempts += 1;
+    try { incWorkerRetries({ pool: poolLabel }); } catch { /* metric failure cannot block retirement */ }
+    if (restartAttempts > maxRestartAttempts || fatalRestartAttempts > maxRestartAttempts) {
       pendingRestart = false;
       permanentlyDisabled = true;
       disabled = true;
       if (reason) log(`Worker pool disabled: ${reason}`);
-      await shutdownNowOrWhenIdle();
+      if (terminateActive) await shutdownPool();
+      else await shutdownNowOrWhenIdle();
       return;
     }
     const delayMs = Math.min(
@@ -162,7 +176,8 @@ export const createWorkerPoolLifecycle = (input = {}) => {
     );
     restartAtMs = Date.now() + delayMs;
     pendingRestart = true;
-    await shutdownNowOrWhenIdle();
+    if (terminateActive) await shutdownPool();
+    else await shutdownNowOrWhenIdle();
     if (reason) log(`Worker pool disabled: ${reason} (retry in ${delayMs}ms).`);
   };
 
@@ -170,6 +185,7 @@ export const createWorkerPoolLifecycle = (input = {}) => {
     if (permanentlyDisabled) return;
     disabled = true;
     pendingRestart = true;
+    pressureReconfigurePending = true;
     restartAtMs = Date.now() + 50;
     await shutdownNowOrWhenIdle();
     if (reason) log(`Worker pool reconfigure: ${reason}`);
@@ -308,7 +324,7 @@ export const createWorkerPoolLifecycle = (input = {}) => {
         await shutdownPool();
         settleIdleShutdownWaiters();
       } catch (error) {
-        settleIdleShutdownWaiters(error);
+        settleIdleShutdownWaiters(error, true);
         throw error;
       }
     }
@@ -317,6 +333,7 @@ export const createWorkerPoolLifecycle = (input = {}) => {
   };
 
   const initialize = () => {
+    if (pool || shutdownPromise || destroying) throw new Error('Worker pool ownership has not been relinquished.');
     pool = createPool(effectiveMaxWorkers);
     attachPoolListeners(pool);
     return pool;
@@ -348,7 +365,8 @@ export const createWorkerPoolLifecycle = (input = {}) => {
         }
       })();
     }
-    await destroyPromise;
+    try { await destroyPromise; }
+    catch (error) { destroyPromise = null; throw error; }
   };
 
   /**
@@ -373,12 +391,14 @@ export const createWorkerPoolLifecycle = (input = {}) => {
           await shutdownPool();
           settleIdleShutdownWaiters();
         } catch (error) {
-          settleIdleShutdownWaiters(error);
+          settleIdleShutdownWaiters(error, true);
           throw error;
+        } finally {
+          destroying = false;
         }
       })();
     }
-    return forceDestroyPromise;
+    return forceDestroyPromise.catch(error => { forceDestroyPromise = null; throw error; });
   };
 
   const pressureDownscaleStats = () => ({
@@ -411,7 +431,9 @@ export const createWorkerPoolLifecycle = (input = {}) => {
     isDisabled: () => disabled,
     isPermanentlyDisabled: () => permanentlyDisabled,
     isPendingRestart: () => pendingRestart,
+    isPressureReconfigurePending: () => pendingRestart && pressureReconfigurePending && !permanentlyDisabled,
     getRestartAttempts: () => restartAttempts,
+    getFatalRestartAttempts: () => fatalRestartAttempts,
     getEffectiveMaxWorkers: () => effectiveMaxWorkers,
     getConfiguredMaxWorkers: () => configuredMaxWorkers,
     pressureDownscaleStats

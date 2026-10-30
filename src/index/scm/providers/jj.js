@@ -2,6 +2,9 @@ import fsSync from 'node:fs';
 import path from 'node:path';
 import PQueue from 'p-queue';
 import { runScmCommand } from '../runner.js';
+import { acquireScmReadOperation, createScmReadSession, getScmReadSessionConfig } from '../read-session.js';
+import { inspectScmFileInventory, unavailableScmFileInventory, scmFileInventoryReceipt } from '../file-inventory.js';
+import { throwIfAborted } from '../../../shared/abort.js';
 import { getScmRuntimeConfig } from '../runtime.js';
 import { toUniqueRepoPosixFiles } from '../paths.js';
 import { toPosix } from '../../../shared/file-paths.js';
@@ -27,8 +30,6 @@ let logVersionPromise = null;
 
 let jjQueue = null;
 let jjQueueConcurrency = null;
-const pinnedOperations = new Map();
-const snapshotPromises = new Map();
 const jjFileMetaCache = new Map();
 const DEFAULT_CHANGED_FILES_MAX = 10000;
 const JJ_FILE_META_CACHE_MAX_ENTRIES = 50000;
@@ -44,8 +45,8 @@ const JJ_METADATA_CAPABILITIES = Object.freeze({
   annotateCommitId: false
 });
 
-const resolveJjConfig = () => {
-  const config = getScmRuntimeConfig() || {};
+const resolveJjConfig = (session = null) => {
+  const config = (session ? getScmReadSessionConfig(session) : getScmRuntimeConfig()) || {};
   const annotateConfig = config.annotate || {};
   const jjConfig = config.jj || {};
   const maxConcurrentProcesses = Number.isFinite(Number(config.maxConcurrentProcesses))
@@ -151,8 +152,7 @@ const buildBaseArgs = ({ operation, ignoreWorkingCopy }) => {
   return args;
 };
 
-const runJjRaw = async ({ repoRoot, args, timeoutMs, useQueue = true, signal }) => {
-  const config = resolveJjConfig();
+const runJjRaw = async ({ repoRoot, args, timeoutMs, useQueue = true, signal, config = resolveJjConfig() }) => {
   const queue = useQueue ? getQueue(config.maxConcurrentProcesses) : null;
   const run = () => runScmCommand('jj', args, {
     cwd: repoRoot,
@@ -173,6 +173,7 @@ const logJjInfo = async (repoRoot, config) => {
   }
   if (repoRoot && !logState.roots.has(repoRoot)) {
     logState.roots.add(repoRoot);
+    if (logState.roots.size > 128) logState.roots.delete(logState.roots.values().next().value);
     log(`[scm] jj root: ${repoRoot}`);
   }
   if (!logState.mode) {
@@ -202,34 +203,27 @@ const logJjInfo = async (repoRoot, config) => {
   }
 };
 
-const ensurePinnedOperation = async (repoRoot, config) => {
-  if (!config.snapshotWorkingCopy) return '@';
-  const resolvedRoot = path.resolve(repoRoot);
-  const existing = pinnedOperations.get(resolvedRoot);
-  if (existing) return existing;
-  const inFlight = snapshotPromises.get(resolvedRoot);
-  if (inFlight) return inFlight;
-  const snapshotPromise = (async () => {
-    const snapshotArgs = [
-      ...buildBaseArgs({ operation: null, ignoreWorkingCopy: false }),
-      'op',
-      'snapshot',
-      '--config',
-      'snapshot.auto-track=none()'
-    ];
-    const snapshotResult = await runJjRaw({
-      repoRoot,
-      args: snapshotArgs,
-      timeoutMs: config.timeoutMs,
-      useQueue: true
-    });
-    if (snapshotResult.exitCode !== 0) {
-      warnOnce('jj-snapshot', '[scm] jj snapshot failed; falling back to @');
-      pinnedOperations.set(resolvedRoot, '@');
-      return '@';
+const ensurePinnedOperation = async (repoRoot, config, session) => {
+  return acquireScmReadOperation(session, repoRoot, async signal => {
+    if (config.snapshotWorkingCopy) {
+      const snapshotArgs = [
+        ...buildBaseArgs({ operation: null, ignoreWorkingCopy: false }),
+        'status',
+        '--config',
+        'snapshot.auto-track=none()'
+      ];
+      const snapshotResult = await runJjRaw({
+        repoRoot,
+        args: snapshotArgs,
+        timeoutMs: config.timeoutMs,
+        useQueue: true, signal, config
+      });
+      if (!inspectScmFileInventory(snapshotResult, { provider: 'jj', operation: 'snapshot', framing: 'raw' }).complete) {
+        throw Object.assign(new Error('JJ working-copy snapshot acquisition failed.'), { code: 'ERR_SCM_OPERATION_UNAVAILABLE', result: snapshotResult });
+      }
     }
     const opLogArgs = [
-      ...buildBaseArgs({ operation: null, ignoreWorkingCopy: false }),
+      ...buildBaseArgs({ operation: null, ignoreWorkingCopy: true }),
       'op',
       'log',
       '--no-graph',
@@ -242,23 +236,20 @@ const ensurePinnedOperation = async (repoRoot, config) => {
       repoRoot,
       args: opLogArgs,
       timeoutMs: config.timeoutMs,
-      useQueue: true
+      useQueue: true, signal, config
     });
     const opId = String(opResult.stdout || '').trim();
-    const resolved = opResult.exitCode === 0 && opId ? opId : '@';
-    pinnedOperations.set(resolvedRoot, resolved);
-    return resolved;
-  })().finally(() => {
-    snapshotPromises.delete(resolvedRoot);
+    if (!inspectScmFileInventory(opResult, { provider: 'jj', operation: 'operation-pin', framing: 'raw' }).complete
+      || !/^[a-f0-9]{16,128}$/i.test(opId)) throw Object.assign(
+      new Error('JJ immutable operation acquisition failed.'), { code: 'ERR_SCM_OPERATION_UNAVAILABLE', result: opResult });
+    return opId;
   });
-  snapshotPromises.set(resolvedRoot, snapshotPromise);
-  return snapshotPromise;
 };
 
-const runJjCommand = async ({ repoRoot, args, timeoutMs, signal }) => {
-  const config = resolveJjConfig();
+const runJjCommand = async ({ repoRoot, args, timeoutMs, signal, scmReadSession }) => {
+  const config = resolveJjConfig(scmReadSession);
   await logJjInfo(repoRoot, config);
-  const operation = await ensurePinnedOperation(repoRoot, config);
+  const operation = await ensurePinnedOperation(repoRoot, config, scmReadSession);
   const baseArgs = buildBaseArgs({
     operation,
     ignoreWorkingCopy: !config.snapshotWorkingCopy
@@ -268,7 +259,7 @@ const runJjCommand = async ({ repoRoot, args, timeoutMs, signal }) => {
     args: [...baseArgs, ...args],
     timeoutMs,
     signal,
-    useQueue: true
+    useQueue: true, config
   });
 };
 
@@ -281,6 +272,12 @@ const toJjFileset = (relPath) => {
   const escaped = raw.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
   return `root-file:"${escaped}"`;
 };
+
+// Serialize each value rather than relying on object literals introduced after
+// JJ 0.38. JSON escaping belongs to JJ; each revision emits one complete row.
+const jsonRowTemplate = fields => fields.map(([key, expression], index) => (
+  `${JSON.stringify(`${index ? ',' : '{'}${JSON.stringify(key)}:`)} ++ json(${expression})`
+)).join(' ++ ') + ' ++ "}\\n"';
 
 const toUniquePosixFiles = (filesPosix = [], repoRoot = null) => toUniqueRepoPosixFiles(filesPosix, {
   repoRoot,
@@ -295,48 +292,46 @@ export const jjProvider = {
     const repoRoot = findJjRoot(startPath || process.cwd());
     return repoRoot ? { ok: true, provider: 'jj', repoRoot, detectedBy: 'jj-root' } : { ok: false };
   },
-  async listTrackedFiles({ repoRoot, subdir = null }) {
+  async listTrackedFiles({ repoRoot, subdir = null, signal = null, scmReadSession = createScmReadSession({ repoRoot, signal }) }) {
+    throwIfAborted(signal);
     const nulResult = await runJjCommand({
-      repoRoot,
-      args: ['file', 'list', '--tracked', '-0', '-r', '@']
+      repoRoot, scmReadSession,
+      args: ['file', 'list', '--tracked', '-0', '-r', '@'], signal
     });
+    throwIfAborted(signal);
     let output = nulResult.stdout;
     let nullDelimited = true;
+    let inventory = inspectScmFileInventory(nulResult, { provider: 'jj', operation: 'tracked' });
     if (nulResult.exitCode !== 0) {
+      if (nulResult.signal !== null) return unavailableScmFileInventory(inventory);
       warnOnce('jj-file-list-nul', '[scm] jj file list -0 failed; falling back to newline output.');
       const lineResult = await runJjCommand({
-        repoRoot,
-        args: ['file', 'list', '-r', '@']
+        repoRoot, scmReadSession,
+        args: ['file', 'list', '-r', '@'], signal
       });
-      if (lineResult.exitCode !== 0) {
-        return { ok: false, reason: 'unavailable' };
-      }
+      throwIfAborted(signal);
+      inventory = inspectScmFileInventory(lineResult, { provider: 'jj', operation: 'tracked', framing: 'line' });
       output = lineResult.stdout;
       nullDelimited = false;
     }
+    if (!inventory.complete) return unavailableScmFileInventory(inventory);
     const entries = parseJjFileListOutput({ output, nullDelimited });
     const { filesPosix } = normalizeJjPathList({ entries, repoRoot, subdir });
-    return { filesPosix };
+    return { complete: true, inventory, filesPosix };
   },
-  async getRepoProvenance({ repoRoot }) {
-    const config = resolveJjConfig();
-    const operationId = config.snapshotWorkingCopy
-      ? await ensurePinnedOperation(repoRoot, config)
-      : null;
-    const template = [
-      'json({',
-      '"commit_id": commit_id.short(12),',
-      '"change_id": change_id.short(12),',
-      '"author": author.name(),',
-      '"timestamp": author.timestamp().utc().format("%Y-%m-%dT%H:%M:%SZ")',
-      '})'
-    ].join(' ');
+  async getRepoProvenance({ repoRoot, signal = null, scmReadSession = createScmReadSession({ repoRoot, signal }) }) {
+    const config = resolveJjConfig(scmReadSession);
+    const operationId = await ensurePinnedOperation(repoRoot, config, scmReadSession);
+    const template = jsonRowTemplate([
+      ['commit_id', 'commit_id'], ['change_id', 'change_id'], ['author', 'author.name()'],
+      ['timestamp', 'author.timestamp().utc().format("%Y-%m-%dT%H:%M:%SZ")']
+    ]);
     const logResult = await runJjCommand({
-      repoRoot,
+      repoRoot, scmReadSession, signal,
       args: ['log', '--no-graph', '-n', '1', '-r', '@', '-T', template]
     });
     const bookmarksResult = await runJjCommand({
-      repoRoot,
+      repoRoot, scmReadSession, signal,
       args: ['log', '--no-graph', '-n', '1', '-r', '@', '-T', 'bookmarks']
     });
     const parsedHead = parseJjHeadOutput({
@@ -350,7 +345,7 @@ export const jjProvider = {
     const bookmarks = parsedHead.bookmarks;
     let dirty = null;
     const dirtyResult = await runJjCommand({
-      repoRoot,
+      repoRoot, scmReadSession, signal,
       args: ['diff', '-r', '@', '--name-only'],
       timeoutMs: config.timeoutMs
     });
@@ -377,18 +372,19 @@ export const jjProvider = {
       bookmarks
     };
   },
-  async getChangedFiles({ repoRoot, fromRef = null, toRef = null, subdir = null }) {
+  async getChangedFiles({ repoRoot, fromRef = null, toRef = null, subdir = null, signal = null, scmReadSession = createScmReadSession({ repoRoot, signal }) }) {
+    throwIfAborted(signal);
     if (!fromRef && !toRef) {
       return { ok: false, reason: 'unsupported' };
     }
-    const config = resolveJjConfig();
+    const config = resolveJjConfig(scmReadSession);
     const args = ['diff', '--name-only'];
     if (fromRef) args.push('--from', fromRef);
     if (toRef) args.push('--to', toRef);
-    const result = await runJjCommand({ repoRoot, args });
-    if (result.exitCode !== 0) {
-      return { ok: false, reason: 'unavailable' };
-    }
+    const result = await runJjCommand({ repoRoot, args, signal, scmReadSession });
+    throwIfAborted(signal);
+    const inventory = inspectScmFileInventory(result, { provider: 'jj', operation: 'changed', framing: 'line' });
+    if (!inventory.complete) return unavailableScmFileInventory(inventory);
     const entries = parseJjFileListOutput({ output: result.stdout, nullDelimited: false });
     const { filesPosix, truncated } = normalizeJjPathList({
       entries,
@@ -401,10 +397,12 @@ export const jjProvider = {
         'jj-changed-files-truncated',
         `[scm] jj changed files truncated to ${config.maxChangedFiles} entries.`
       );
+      return unavailableScmFileInventory(scmFileInventoryReceipt({ provider: 'jj', operation: 'changed',
+        reason: 'record-limit', capture: inventory.capture }));
     }
-    return { filesPosix };
+    return { complete: true, inventory, filesPosix };
   },
-  async getFileMeta({ repoRoot, filePosix, timeoutMs, includeChurn = true, headId = null }) {
+  async getFileMeta({ repoRoot, filePosix, timeoutMs, includeChurn = true, headId = null, signal = null, scmReadSession = createScmReadSession({ repoRoot, signal }) }) {
     const cached = readJjFileMetaCache({
       repoRoot,
       filePosix,
@@ -412,29 +410,18 @@ export const jjProvider = {
       headId
     });
     if (cached) return cached;
-    const config = resolveJjConfig();
+    const config = resolveJjConfig(scmReadSession);
     const fileset = toJjFileset(filePosix);
     if (!fileset) return { ok: false, reason: 'unavailable' };
     const filesetLiteral = JSON.stringify(fileset);
-    const template = includeChurn
-      ? [
-        'json({',
-        '"commit_id": commit_id.short(12),',
-        '"author": author.name(),',
-        '"timestamp": author.timestamp().utc().format("%Y-%m-%dT%H:%M:%SZ"),',
-        `"added": self.diff(${filesetLiteral}).stat().total_added(),`,
-        `"removed": self.diff(${filesetLiteral}).stat().total_removed()`,
-        '})'
-      ].join(' ')
-      : [
-        'json({',
-        '"commit_id": commit_id.short(12),',
-        '"author": author.name(),',
-        '"timestamp": author.timestamp().utc().format("%Y-%m-%dT%H:%M:%SZ")',
-        '})'
-      ].join(' ');
+    const template = jsonRowTemplate([
+      ['commit_id', 'commit_id'], ['author', 'author.name()'],
+      ['timestamp', 'author.timestamp().utc().format("%Y-%m-%dT%H:%M:%SZ")'],
+      ...(includeChurn ? [['added', `self.diff(${filesetLiteral}).stat().total_added()`],
+        ['removed', `self.diff(${filesetLiteral}).stat().total_removed()`]] : [])
+    ]);
     const result = await runJjCommand({
-      repoRoot,
+      repoRoot, scmReadSession, signal,
       args: ['log', '--no-graph', '-n', includeChurn ? String(config.churnWindowCommits) : '1', '-T', template, fileset],
       timeoutMs: Number.isFinite(timeoutMs) ? timeoutMs : config.timeoutMs
     });
@@ -476,8 +463,8 @@ export const jjProvider = {
     });
     return resolved;
   },
-  async getFileMetaBatch({ repoRoot, filesPosix, timeoutMs, includeChurn = true, headId = null }) {
-    const config = resolveJjConfig();
+  async getFileMetaBatch({ repoRoot, filesPosix, timeoutMs, includeChurn = true, headId = null, signal = null, scmReadSession = createScmReadSession({ repoRoot, signal }) }) {
+    const config = resolveJjConfig(scmReadSession);
     const normalizedFiles = toUniquePosixFiles(filesPosix, repoRoot);
     const fileMetaByPath = Object.create(null);
     if (!normalizedFiles.length) return { fileMetaByPath };
@@ -501,7 +488,7 @@ export const jjProvider = {
       });
       await Promise.all(uncached.map((filePosix) => queue.add(async () => {
         const meta = await this.getFileMeta({
-          repoRoot,
+          repoRoot, scmReadSession, signal,
           filePosix,
           timeoutMs,
           includeChurn,
@@ -513,13 +500,13 @@ export const jjProvider = {
     }
     return { fileMetaByPath };
   },
-  async annotate({ repoRoot, filePosix, timeoutMs, signal }) {
-    const config = resolveJjConfig();
+  async annotate({ repoRoot, filePosix, timeoutMs, signal, scmReadSession = createScmReadSession({ repoRoot, signal }) }) {
+    const config = resolveJjConfig(scmReadSession);
     const fileset = toJjFileset(filePosix);
     if (!fileset) return { ok: false, reason: 'unavailable' };
     const template = 'commit.author().name()';
     const result = await runJjCommand({
-      repoRoot,
+      repoRoot, scmReadSession,
       args: ['file', 'annotate', '-T', template, fileset],
       timeoutMs: Number.isFinite(timeoutMs) ? timeoutMs : config.annotateTimeoutMs,
       signal

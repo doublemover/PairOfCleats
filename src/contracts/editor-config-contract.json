@@ -1,5 +1,10 @@
 {
   "schemaVersion": 1,
+  "search": {
+    "modes": ["code", "prose", "both", "records", "extracted-prose", "all"],
+    "backends": ["auto", "memory", "sqlite", "sqlite-fts", "lmdb", "tantivy"],
+    "apiBackends": ["auto", "memory", "sqlite", "sqlite-fts", "lmdb"]
+  },
   "repoRoot": {
     "markers": [
       ".pairofcleats.json",
@@ -15,12 +20,14 @@
   "cli": {
     "defaultCommand": "pairofcleats",
     "repoRelativeEntrypoint": "bin/pairofcleats.js",
-    "jsEntrypointExtension": ".js"
+    "jsEntrypointExtension": ".js",
+    "minimumNodeVersion": "26.12.1"
   },
   "settings": {
     "vscode": {
       "namespace": "pairofcleats",
       "cliPathKey": "cliPath",
+      "nodePathKey": "nodePath",
       "cliArgsKey": "cliArgs",
       "apiServerUrlKey": "apiServerUrl",
       "apiTimeoutKey": "apiTimeoutMs",

@@ -52,6 +52,13 @@ export const ARCHITECTURE_REPORT_SCHEMA = {
       }
     },
     violations: { type: 'array', items: architectureViolationSchema },
+    summary: {
+      type: 'object', required: ['detectedViolations', 'retainedViolations', 'omittedViolations', 'edgesExamined', 'complete'],
+      properties: {
+        detectedViolations: { type: 'integer', minimum: 0 }, retainedViolations: { type: 'integer', minimum: 0 },
+        omittedViolations: { type: 'integer', minimum: 0 }, edgesExamined: { type: 'integer', minimum: 0 }, complete: { type: 'boolean' }
+      }, additionalProperties: false
+    },
     truncation: { type: ['array', 'null'], items: truncationRecordSchema },
     warnings: { type: ['array', 'null'], items: warningRecordSchema }
   },
@@ -82,11 +89,34 @@ const suggestedTestSchema = {
   additionalProperties: true
 };
 
+const suggestionCount = { type: 'integer', minimum: 0 };
+const suggestionExecutionSchema = {
+  type: 'object', additionalProperties: false,
+  required: ['schemaVersion', 'scope', 'clock', 'excluded', 'limitMs', 'elapsedMs', 'preparationElapsedMs', 'state',
+    'phaseAtStop', 'completedPhases', 'observed', 'settlement', 'interruptibility', 'overrunMs'],
+  properties: {
+    schemaVersion: { const: 1 }, scope: { const: 'suggestion-computation' }, clock: { const: 'monotonic' },
+    excluded: { const: ['configuration-and-input-loading', 'graph-artifact-preparation', 'rendering-and-serialization'] },
+    limitMs: suggestionCount, elapsedMs: { type: 'number', minimum: 0 },
+    preparationElapsedMs: { type: ['number', 'null'], minimum: 0 },
+    state: { enum: ['complete', 'deadline-limited'] }, phaseAtStop: { type: ['string', 'null'] },
+    completedPhases: { type: 'array', uniqueItems: true, items: { type: 'string' } },
+    observed: { type: 'object', additionalProperties: false,
+      required: ['directoryOpens', 'directoryReads', 'directoryCloses', 'inventoryEntries', 'graphNodes', 'graphEdges',
+        'neighborReads', 'candidateChecks', 'fallbackChecks', 'witnessLinks'],
+      properties: Object.fromEntries(['directoryOpens', 'directoryReads', 'directoryCloses', 'inventoryEntries', 'graphNodes',
+        'graphEdges', 'neighborReads', 'candidateChecks', 'fallbackChecks', 'witnessLinks'].map(key => [key, suggestionCount])) },
+    settlement: { const: 'confirmed' }, interruptibility: { const: 'cooperative-between-synchronous-operations-and-sorts' },
+    overrunMs: { type: 'number', minimum: 0 }
+  }
+};
+
 export const SUGGEST_TESTS_SCHEMA = {
   type: 'object',
   required: ['version', 'changed', 'suggestions', 'provenance', 'fidelity'],
   properties: {
     version: semverString,
+    execution: suggestionExecutionSchema,
     provenance: provenanceSchema,
     changed: {
       type: 'array',

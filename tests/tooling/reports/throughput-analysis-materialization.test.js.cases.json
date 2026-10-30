@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["same-analysis", "key-order", "changed-source", "missing-source", "malformed-source", "read-provenance", "native-provenance", "cli-idempotence", "cli-refresh-failure"]
+}

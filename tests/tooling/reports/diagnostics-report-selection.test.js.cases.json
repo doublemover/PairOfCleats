@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["unknown", "empty", "empty-member", "non-string", "mixed-all", "no-input", "missing-repo", "missing-pack", "selection-before-config", "duplicate-selection", "cli-warning", "cli-error-report", "cli-invalid"]
+}

@@ -1,14 +1,23 @@
-import path from 'node:path';
+import { callArgumentView } from '../../contracts/call-arguments.js';
+import { runtimeParameterSlots, runtimeParameterFor } from '../../contracts/callable-parameters.js';
+import { literalEvidenceType } from '../../contracts/literal-evidence.js';
+import { setImmediate as yieldPropagation } from 'node:timers/promises';
+import { resolveCrossFileFidelity, resolveCrossFilePropagationBudget, orderCrossFileChunks } from '../cross-file-fidelity.js';
+import { createSymbolRefCacheMaintenance } from './symbol-ref-cache-maintenance.js';
+import { syncCallDetailResolution } from './call-detail-resolution.js';
+import { isShadowedImportCall, collectShadowedImportCallees, unresolvedShadowedImport } from './lexical-call-binding.js';
 import { uniqueTypes } from '../../integrations/tooling/providers/shared.js';
 import { mergeSymbolicTypeGraphs } from '../../shared/symbolic-types.js';
-import { readTextFile } from '../../shared/encoding.js';
+import { createCrossFileSourceReader } from './source-inputs.js';
 import { FLOW_CONFIDENCE, FLOW_SOURCE } from './constants.js';
 import { addInferredParam, addInferredReturn } from './apply.js';
+import { propagateReturnTypeFact } from './return-evidence.js';
 import {
   ensureParamTypeMap,
   extractParamTypes,
   extractReturnCalls,
   extractReturnTypes,
+  extractReturnTypeFacts,
   getParamTypeList,
   inferArgType
 } from './extract.js';
@@ -23,15 +32,6 @@ import {
 import { throwIfAborted } from '../../shared/abort.js';
 import { runWithConcurrency } from '../../shared/concurrency/run-with-queue.js';
 
-const LARGE_REPO_CHUNK_THRESHOLD = 3000;
-const LARGE_REPO_FILE_THRESHOLD = 500;
-const LARGE_REPO_CALL_LINKS_PER_CHUNK = 96;
-const LARGE_REPO_CALL_SUMMARIES_PER_CHUNK = 128;
-const LARGE_REPO_USAGE_LINKS_PER_CHUNK = 128;
-const LARGE_REPO_CALL_LINKS_TOTAL = 25000;
-const LARGE_REPO_USAGE_LINKS_TOTAL = 25000;
-const LARGE_REPO_CALL_SAMPLE_LIMIT = 10;
-const LARGE_REPO_PARAM_TYPE_LIMIT = 3;
 const SYMBOL_REF_CACHE_MAX_ENTRIES = 20000;
 const SYMBOL_REF_CACHE_TTL_MS = 5 * 60 * 1000;
 const TOOLING_PRELOAD_CONCURRENCY_DEFAULT = 8;
@@ -67,27 +67,6 @@ const addLink = (list, link) => {
   list.push(link);
 };
 
-const formatCandidateId = (candidate) => {
-  if (!candidate) return null;
-  return candidate.chunkUid || candidate.symbolId || candidate.symbolKey || null;
-};
-
-const buildCandidateIds = (symbolRef) => {
-  if (!symbolRef || !Array.isArray(symbolRef.candidates)) return [];
-  const ids = symbolRef.candidates.map(formatCandidateId).filter(Boolean);
-  return ids.length ? ids : [];
-};
-
-const syncCallDetailResolution = (detail, symbolRef) => {
-  if (!detail || typeof detail !== 'object') return;
-  const resolvedChunkUid = symbolRef?.resolved?.chunkUid || null;
-  const candidateIds = buildCandidateIds(symbolRef);
-  detail.calleeRef = symbolRef || null;
-  detail.resolvedCalleeChunkUid = resolvedChunkUid;
-  detail.targetChunkUid = resolvedChunkUid;
-  detail.targetCandidates = candidateIds;
-};
-
 const buildEdgeLink = ({ edgeKind, fromChunkUid, symbolRef, resolvedEntry }) => {
   if (!symbolRef) return null;
   const link = {
@@ -113,20 +92,6 @@ const buildEdgeLink = ({ edgeKind, fromChunkUid, symbolRef, resolvedEntry }) => 
   return link;
 };
 
-const buildLargeRepoBudget = ({ chunkCount, fileCount }) => (
-  chunkCount >= LARGE_REPO_CHUNK_THRESHOLD || fileCount >= LARGE_REPO_FILE_THRESHOLD
-    ? {
-      maxCallLinksPerChunk: LARGE_REPO_CALL_LINKS_PER_CHUNK,
-      maxCallSummariesPerChunk: LARGE_REPO_CALL_SUMMARIES_PER_CHUNK,
-      maxUsageLinksPerChunk: LARGE_REPO_USAGE_LINKS_PER_CHUNK,
-      maxTotalCallLinks: LARGE_REPO_CALL_LINKS_TOTAL,
-      maxTotalUsageLinks: LARGE_REPO_USAGE_LINKS_TOTAL,
-      callSampleLimit: LARGE_REPO_CALL_SAMPLE_LIMIT,
-      paramTypeLimit: LARGE_REPO_PARAM_TYPE_LIMIT
-    }
-    : null
-);
-
 const confidenceForHop = (hops) => Math.max(0.2, FLOW_CONFIDENCE * (0.85 ** hops));
 
 const toTypeNameList = (value) => {
@@ -140,6 +105,7 @@ const toTypeNameList = (value) => {
 export async function runCrossFilePropagation({
   rootDir,
   buildRoot,
+  storageContext = null,
   chunks,
   log = () => {},
   useTooling = false,
@@ -147,6 +113,7 @@ export async function runCrossFilePropagation({
   enableRiskCorrelation = false,
   fileRelations = null,
   inferenceLite = false,
+  fidelity = resolveCrossFileFidelity(),
   inferenceLiteHighSignalOnly = true,
   toolingConfig = null,
   toolingTimeoutMs = 60000,
@@ -154,35 +121,22 @@ export async function runCrossFilePropagation({
   toolingBreaker = 3,
   toolingLogDir = null,
   symbolicTypeGraphs: inputSymbolicTypeGraphs = [],
-  abortSignal = null
+  abortSignal = null,
+  onProgress = null
 }) {
   throwIfAborted(abortSignal);
+  chunks = orderCrossFileChunks(chunks);
   const symbolEntries = [];
+  const entryChunks = new WeakMap();
   const entryByKey = new Map();
   const entryByUid = new Map();
   const chunkByUid = new Map();
   const fileSet = new Set();
   const symbolRefCache = new Map();
   const callSampleCounts = new Map();
-
-  const pruneSymbolRefCache = (nowMs) => {
-    if (!symbolRefCache.size) return;
-    if (symbolRefCache.size > SYMBOL_REF_CACHE_MAX_ENTRIES) {
-      const toEvict = symbolRefCache.size - SYMBOL_REF_CACHE_MAX_ENTRIES;
-      const iter = symbolRefCache.keys();
-      for (let index = 0; index < toEvict; index += 1) {
-        const next = iter.next();
-        if (next.done) break;
-        symbolRefCache.delete(next.value);
-      }
-    }
-    const cutoff = nowMs - SYMBOL_REF_CACHE_TTL_MS;
-    for (const [key, entry] of symbolRefCache.entries()) {
-      if (!entry || Number(entry.ts) < cutoff) {
-        symbolRefCache.delete(key);
-      }
-    }
-  };
+  const symbolRefMaintenance = createSymbolRefCacheMaintenance(symbolRefCache, {
+    maxEntries: SYMBOL_REF_CACHE_MAX_ENTRIES, ttlMs: SYMBOL_REF_CACHE_TTL_MS
+  });
 
   for (const chunk of chunks) {
     throwIfAborted(abortSignal);
@@ -198,12 +152,18 @@ export async function runCrossFilePropagation({
       chunkUid,
       qualifiedName: chunk.metaV2?.symbol?.qualifiedName || chunk.name,
       symbol: chunk.metaV2?.symbol || null,
+      ...(['javascript', 'typescript', 'jsx', 'tsx'].includes(chunk.lang)
+        && (Object.hasOwn(chunk.docmeta || {}, 'exported') || Object.hasOwn(chunk.docmeta || {}, 'exportNames'))
+        ? { moduleExports: { exported: chunk.docmeta?.exported, exportNames: chunk.docmeta?.exportNames,
+          typeOnlyExportNames: chunk.docmeta?.typeOnlyExportNames },
+        start: chunk.start, end: chunk.end } : {}),
       returnTypes: extractReturnTypes(chunk),
       typeDeclaration: isTypeDeclaration(chunk.kind),
       paramNames,
       paramTypes: ensureParamTypeMap(paramTypes)
     };
     symbolEntries.push(entry);
+    entryChunks.set(entry, chunk);
     entryByKey.set(`${chunk.file}::${chunk.name}`, entry);
     if (chunkUid) {
       entryByUid.set(chunkUid, entry);
@@ -214,12 +174,13 @@ export async function runCrossFilePropagation({
   const resolveSymbolRefCached = ({
     targetName,
     kindHint = null,
-    fromFile = null
+    fromFile = null,
+    runtimeOnly = true
   }) => {
     const name = typeof targetName === 'string' ? targetName : null;
     if (!name) return null;
     const now = Date.now();
-    const cacheKey = `${fromFile || ''}\u0001${kindHint || ''}\u0001${name}`;
+    const cacheKey = `${fromFile || ''}\u0001${kindHint || ''}\u0001${name}\u0001${runtimeOnly ? 'runtime' : 'usage'}`;
     const cached = symbolRefCache.get(cacheKey);
     if (cached && Number(cached.ts) >= (now - SYMBOL_REF_CACHE_TTL_MS)) {
       symbolRefCache.delete(cacheKey);
@@ -235,24 +196,27 @@ export async function runCrossFilePropagation({
       fromFile,
       fileRelations,
       symbolIndex: symbolResolver,
-      fileSet
+      fileSet,
+      runtimeOnly
     });
     symbolRefCache.set(cacheKey, { value: resolved || null, ts: now });
+    symbolRefMaintenance.inserted(now);
     if (symbolRefCache.size > SYMBOL_REF_CACHE_MAX_ENTRIES) {
-      pruneSymbolRefCache(now);
+      symbolRefMaintenance.prune(now);
     }
     return resolved || null;
   };
 
-  const largeRepoBudget = buildLargeRepoBudget({
+  const largeRepoBudget = resolveCrossFilePropagationBudget({
+    fidelity,
     chunkCount: chunks.length,
     fileCount: fileSet.size
   });
-  const inferenceLiteEnabled = inferenceLite === true;
+  const inferenceLiteEnabled = fidelity.mode !== 'comprehensive' && inferenceLite === true;
   const inferenceLiteHighSignalOnlyMode = inferenceLiteEnabled
     && inferenceLiteHighSignalOnly !== false;
-  const callSampleLimit = largeRepoBudget?.callSampleLimit ?? 25;
-  const paramTypeLimit = largeRepoBudget?.paramTypeLimit ?? 5;
+  const callSampleLimit = fidelity.mode === 'comprehensive' ? Infinity : largeRepoBudget?.callSampleLimit ?? 25;
+  const paramTypeLimit = fidelity.mode === 'comprehensive' ? null : largeRepoBudget?.paramTypeLimit ?? 5;
   if (largeRepoBudget && typeof log === 'function') {
     log(
       `[perf] cross-file budget enabled `
@@ -269,6 +233,7 @@ export async function runCrossFilePropagation({
   }
 
   let linkedCalls = 0;
+  let linkedCallSummaries = 0;
   let linkedUsages = 0;
   let inferredReturns = 0;
   let riskFlows = 0;
@@ -283,31 +248,28 @@ export async function runCrossFilePropagation({
   let droppedCallLinks = 0;
   let droppedCallSummaries = 0;
   let droppedUsageLinks = 0;
+  const category = () => ({ visited: 0, unsupported: 0, unresolved: 0, ambiguous: 0, dynamic: 0, self: 0, dropped: 0 });
+  const admission = { policy: fidelity, calls: category(), callDetails: category(), usages: category(), affectedChunks: [],
+    parameterSamplesDropped: 0, parameterTypesDropped: 0, inferenceLiteEnabled };
+  let candidateWork = 0;
+  const admitCandidate = async category => {
+    category.visited += 1;
+    if (++candidateWork % 256 === 0) await yieldPropagation();
+    throwIfAborted(abortSignal);
+  };
   const maxTotalCallLinks = Number.isFinite(largeRepoBudget?.maxTotalCallLinks)
     ? Math.max(0, Math.floor(largeRepoBudget.maxTotalCallLinks))
     : null;
   const maxTotalUsageLinks = Number.isFinite(largeRepoBudget?.maxTotalUsageLinks)
     ? Math.max(0, Math.floor(largeRepoBudget.maxTotalUsageLinks))
     : null;
-  const isCallBudgetExhausted = () => maxTotalCallLinks != null && linkedCalls >= maxTotalCallLinks;
+  const isCallBudgetExhausted = () => maxTotalCallLinks != null && linkedCalls + linkedCallSummaries >= maxTotalCallLinks;
   const isUsageBudgetExhausted = () => maxTotalUsageLinks != null && linkedUsages >= maxTotalUsageLinks;
   const fileUsageFallbackApplied = new Set();
 
-  const fileTextByRel = new Map();
-  const fileTextByAbs = new Map();
-  const getFileText = async (relPath) => {
-    if (!relPath) return '';
-    const absPath = path.join(rootDir, relPath);
-    if (fileTextByAbs.has(absPath)) return fileTextByAbs.get(absPath) || '';
-    let text = '';
-    try {
-      const result = await readTextFile(absPath);
-      text = result?.text || '';
-    } catch {}
-    fileTextByAbs.set(absPath, text);
-    fileTextByRel.set(relPath, text);
-    return text;
-  };
+  const sourceReader = createCrossFileSourceReader({ rootDir, chunks, signal: abortSignal });
+  const fileTextByRel = sourceReader.fileTextByFile;
+  const getFileText = sourceReader.getText;
 
   let symbolicTypeGraphs = mergeSymbolicTypeGraphs([], inputSymbolicTypeGraphs);
   const toolingEnabled = useTooling && enableTypeInference && toolingConfig?.autoEnableOnDetect !== false;
@@ -351,6 +313,7 @@ export async function runCrossFilePropagation({
     log('[tooling] pass:start stage=cross-file.');
     const toolingResult = await runToolingPass({
       rootDir,
+      storageContext,
       buildRoot: buildRoot || rootDir,
       chunks,
       entryByUid,
@@ -377,11 +340,7 @@ export async function runCrossFilePropagation({
     symbolicTypeGraphs = mergeSymbolicTypeGraphs(symbolicTypeGraphs, toolingResult.symbolicTypeGraphs || []);
   }
 
-  const getChunkText = async (chunk) => {
-    if (!chunk?.file) return '';
-    const text = await getFileText(chunk.file);
-    return text.slice(chunk.start, chunk.end);
-  };
+  const getChunkText = sourceReader.getChunkText;
 
   const collectKnownCallees = (chunk) => {
     const known = new Set();
@@ -408,12 +367,16 @@ export async function runCrossFilePropagation({
     const cached = returnCallsByChunk.get(chunk);
     if (cached) return cached;
     const chunkText = await getChunkText(chunk);
-    if (!chunkText || !chunkText.includes('return')) {
+    if (!chunkText) {
       const empty = { calls: new Set(), news: new Set() };
       returnCallsByChunk.set(chunk, empty);
       return empty;
     }
-    const parsed = extractReturnCalls(chunkText, { knownCallees: collectKnownCallees(chunk) });
+    const fileRelation = fileRelations
+      ? (typeof fileRelations.get === 'function' ? fileRelations.get(chunk.file) : fileRelations[chunk.file]) : null;
+    const parsed = extractReturnCalls(chunkText, { knownCallees: collectKnownCallees(chunk), chunk,
+      importBindings: fileRelation?.importBindings,
+      admitConstructor: targetName => resolveSymbolRefCached({ targetName, fromFile: chunk.file })?.reason !== 'module-export-unavailable' });
     returnCallsByChunk.set(chunk, parsed);
     return parsed;
   };
@@ -436,6 +399,14 @@ export async function runCrossFilePropagation({
         }
       }
     }
+  }
+
+  // Own one seed snapshot after tooling and constructor inference. Do not feed
+  // later mutations back into this pass or make results depend on bundle order.
+  for (const entry of symbolEntries) {
+    const chunk = entryChunks.get(entry);
+    entry.returnTypeFacts = extractReturnTypeFacts(chunk);
+    entry.returnTypes = uniqueTypes(entry.returnTypeFacts.map(fact => fact.type));
   }
 
   const normalizeRisk = (chunk) => {
@@ -526,6 +497,8 @@ export async function runCrossFilePropagation({
       throwIfAborted(abortSignal);
       if (!chunk) continue;
       const relations = chunk.codeRelations || {};
+      const shadowedImports = collectShadowedImportCallees(relations.callDetails);
+      const droppedBefore = [droppedCallLinks, droppedCallSummaries, droppedUsageLinks];
       const fromChunkUid = chunk.chunkUid || chunk.metaV2?.chunkUid || null;
       const fileRelation = fileRelations
         ? (typeof fileRelations.get === 'function'
@@ -563,22 +536,25 @@ export async function runCrossFilePropagation({
         }
         for (let callIndex = 0; callIndex < maxCallLinkSource && !isCallBudgetExhausted(); callIndex += 1) {
           if (maxTotalCallLinks != null) {
-            const remaining = Math.max(0, maxTotalCallLinks - (linkedCalls + callLinks.length));
+            const remaining = Math.max(0, maxTotalCallLinks - (linkedCalls + linkedCallSummaries + callLinks.length));
             if (remaining <= 0) {
               droppedCallLinks += maxCallLinkSource - callIndex;
               break;
             }
           }
+          await admitCandidate(admission.calls);
           const callEntry = relations.calls[callIndex];
-          if (!Array.isArray(callEntry) || callEntry.length < 2) continue;
+          if (!Array.isArray(callEntry) || callEntry.length < 2) { admission.calls.unsupported += 1; continue; }
           const callee = callEntry[1];
-          const symbolRef = resolveSymbolRefCached({
+          const symbolRef = shadowedImports.only.has(callee) ? unresolvedShadowedImport(callee) : resolveSymbolRefCached({
             targetName: callee,
             kindHint: null,
             fromFile: chunk.file
           });
+          if (!symbolRef || symbolRef.status === 'unresolved') admission.calls.unresolved += 1;
           if (!symbolRef) continue;
-          if (symbolRef.resolved?.chunkUid && symbolRef.resolved.chunkUid === fromChunkUid) continue;
+          if (symbolRef.status === 'ambiguous') admission.calls.ambiguous += 1;
+          if (symbolRef.resolved?.chunkUid && symbolRef.resolved.chunkUid === fromChunkUid) admission.calls.self += 1;
           const resolvedEntry = symbolRef.resolved?.chunkUid
             ? entryByUid.get(symbolRef.resolved.chunkUid)
             : null;
@@ -607,20 +583,29 @@ export async function runCrossFilePropagation({
         }
         for (let detailIndex = 0; detailIndex < maxCallSummarySource && !isCallBudgetExhausted(); detailIndex += 1) {
           if (maxTotalCallLinks != null) {
-            const remaining = Math.max(0, maxTotalCallLinks - (linkedCalls + callLinks.length));
+            const remaining = Math.max(0, maxTotalCallLinks - (linkedCalls + linkedCallSummaries + callLinks.length + callSummaries.length));
             if (remaining <= 0) {
               droppedCallSummaries += maxCallSummarySource - detailIndex;
               break;
             }
           }
+          await admitCandidate(admission.callDetails);
           const detail = relations.callDetails[detailIndex];
           const callee = detail?.callee;
-          if (!callee) continue;
-          const symbolRef = detail.compilerBinding?.symbolRef || resolveSymbolRefCached({
+          const dynamicSyntax = !callee && detail?.source === 'tree-sitter'
+            && detail.coordinateSystem === 'utf16' && typeof detail.calleeRaw === 'string' && detail.calleeRaw.length > 0;
+          if (!callee && !dynamicSyntax) { admission.callDetails.unsupported += 1; continue; }
+          // Supported dynamic syntax is unresolved evidence, not unsupported
+          // extraction. A display spelling must never become a static target.
+          const symbolRef = detail.compilerBinding?.symbolRef || (isShadowedImportCall(detail) ? unresolvedShadowedImport(callee) : callee ? resolveSymbolRefCached({
             targetName: callee,
             kindHint: null,
             fromFile: chunk.file
-          });
+          }) : null);
+          if (!symbolRef || symbolRef.status === 'unresolved') admission.callDetails.unresolved += 1;
+          if (symbolRef?.status === 'ambiguous') admission.callDetails.ambiguous += 1;
+          if (dynamicSyntax) admission.callDetails.dynamic += 1;
+          if (symbolRef?.resolved?.chunkUid === fromChunkUid) admission.callDetails.self += 1;
           syncCallDetailResolution(detail, symbolRef);
           const resolvedEntry = symbolRef?.resolved?.chunkUid
             ? entryByUid.get(symbolRef.resolved.chunkUid)
@@ -628,9 +613,14 @@ export async function runCrossFilePropagation({
           const args = Array.isArray(detail.args) ? detail.args : [];
           const summary = {
             v: 1,
-            name: callee,
+            name: callee || detail.calleeRaw,
+            role: detail.role || 'call',
+            resolution: symbolRef?.status || 'unresolved',
+            reason: symbolRef?.reason || detail.reason || (dynamicSyntax ? 'dynamic-call-target' : 'syntax-target-unresolved'),
             start: detail.start ?? null, end: detail.end ?? null, callSiteRef: detail.semanticRecordRef || null,
             args,
+            ...(Array.isArray(detail.argLiterals) ? { argLiterals: detail.argLiterals } : {}),
+            ...(detail.arguments ? { arguments: detail.arguments } : {}),
             calleeRef: symbolRef || null,
             resolvedCalleeChunkUid: symbolRef?.resolved?.chunkUid || null
           };
@@ -641,21 +631,22 @@ export async function runCrossFilePropagation({
             summary.kind = resolvedEntry.kind || null;
             summary.legacy = true;
             if (resolvedEntry.returnTypes?.length) summary.returnTypes = resolvedEntry.returnTypes;
+            if (resolvedEntry.returnTypeFacts?.length) summary.returnTypeFacts = resolvedEntry.returnTypeFacts;
             if (resolvedEntry.paramNames?.length) summary.params = resolvedEntry.paramNames;
             if (resolvedEntry.paramTypes && Object.keys(resolvedEntry.paramTypes).length) {
               summary.paramTypes = resolvedEntry.paramTypes;
             }
           }
-          const paramNames = Array.isArray(summary.params) ? summary.params : [];
-          if (args.length && paramNames.length) {
-            const argMap = {};
-            for (let i = 0; i < paramNames.length && i < args.length; i += 1) {
-              const paramName = paramNames[i];
-              const argValue = args[i];
-              if (paramName && argValue) argMap[paramName] = argValue;
+          const parameterSlots = runtimeParameterSlots(resolvedEntry ? chunkByUid.get(resolvedEntry.chunkUid)?.docmeta : null);
+          const argMap = Object.create(null);
+          for (const slot of callArgumentView(detail).slots) {
+            if (slot.runtimeOrdinal === null || slot.previewTruncated) continue;
+            const parameter = runtimeParameterFor(parameterSlots, slot.runtimeOrdinal);
+            if (parameter?.name && parameter.binding === 'identifier' && !parameter.rest && slot.preview) {
+              argMap[parameter.name] = slot.preview;
             }
-            if (Object.keys(argMap).length) summary.argMap = argMap;
           }
+          if (Object.keys(argMap).length) summary.argMap = argMap;
           addLink(callSummaries, summary);
         }
       }
@@ -693,14 +684,18 @@ export async function runCrossFilePropagation({
               break;
             }
           }
+          await admitCandidate(admission.usages);
           const usage = usageSource[usageIndex];
           const symbolRef = resolveSymbolRefCached({
             targetName: usage,
             kindHint: null,
-            fromFile: chunk.file
+            fromFile: chunk.file,
+            runtimeOnly: false
           });
+          if (!symbolRef || symbolRef.status === 'unresolved') admission.usages.unresolved += 1;
           if (!symbolRef) continue;
-          if (symbolRef.resolved?.chunkUid && symbolRef.resolved.chunkUid === fromChunkUid) continue;
+          if (symbolRef.status === 'ambiguous') admission.usages.ambiguous += 1;
+          if (symbolRef.resolved?.chunkUid && symbolRef.resolved.chunkUid === fromChunkUid) admission.usages.self += 1;
           const resolvedEntry = symbolRef.resolved?.chunkUid
             ? entryByUid.get(symbolRef.resolved.chunkUid)
             : null;
@@ -714,12 +709,19 @@ export async function runCrossFilePropagation({
         }
       }
 
+
+      const omitted = [droppedCallLinks - droppedBefore[0], droppedCallSummaries - droppedBefore[1], droppedUsageLinks - droppedBefore[2]];
+      if (admission.affectedChunks.length < 32 && omitted.some(count => count > 0)) {
+        admission.affectedChunks.push({ file: chunk.file || null, chunkUid: fromChunkUid,
+          calls: omitted[0], callDetails: omitted[1], usages: omitted[2] });
+      }
       if (callLinks.length) {
         relations.callLinks = callLinks;
         linkedCalls += callLinks.length;
       }
       if (callSummaries.length) {
         relations.callSummaries = callSummaries;
+        linkedCallSummaries += callSummaries.length;
       }
       if (usageLinks.length) {
         relations.usageLinks = usageLinks;
@@ -735,22 +737,22 @@ export async function runCrossFilePropagation({
             if (!calleeChunk) continue;
             const sampleKey = resolvedUid || summary.name;
             const currentSamples = callSampleCounts.get(sampleKey) || 0;
-            if (currentSamples >= callSampleLimit) continue;
+            if (currentSamples >= callSampleLimit) { admission.parameterSamplesDropped += 1; continue; }
             callSampleCounts.set(sampleKey, currentSamples + 1);
-            const args = Array.isArray(summary.args) ? summary.args : [];
-            const paramNames = Array.isArray(calleeChunk.docmeta?.paramNames)
-              ? calleeChunk.docmeta.paramNames
-              : (Array.isArray(calleeChunk.docmeta?.params) ? calleeChunk.docmeta.params : []);
-            const argMap = summary.argMap || {};
-            if (!paramNames.length && !args.length && !Object.keys(argMap).length) continue;
+            const parameterSlots = runtimeParameterSlots(calleeChunk.docmeta);
+            const argumentSlots = callArgumentView(summary).slots;
+            if (!parameterSlots.length || !argumentSlots.length) continue;
             if (!calleeChunk.docmeta || typeof calleeChunk.docmeta !== 'object') calleeChunk.docmeta = {};
             const hopCount = calleeChunk.file !== chunk.file ? 1 : 0;
             const confidence = confidenceForHop(hopCount);
-            for (let i = 0; i < paramNames.length && i < Math.max(args.length, paramNames.length); i += 1) {
-              const name = paramNames[i];
-              const argValue = argMap[name] || args[i];
-              if (!name || !argValue) continue;
-              const type = inferArgType(argValue);
+            for (const slot of argumentSlots) {
+              if (slot.runtimeOrdinal === null || slot.previewTruncated) continue;
+              const parameter = runtimeParameterFor(parameterSlots, slot.runtimeOrdinal), name = parameter?.name;
+              if (!name || parameter.binding !== 'identifier') continue;
+              const literal = slot.expansionOrdinal === null ? summary.argLiterals?.[slot.operandOrdinal] : null;
+              const type = parameter.rest ? 'array' : slot.literalType
+                ? (['string', 'number', 'boolean', 'null', 'bigint', 'undefined'].includes(slot.literalType) ? slot.literalType : null)
+                : literal ? literalEvidenceType(literal) : inferArgType(slot.preview);
               if (!type) continue;
               if (addInferredParam(calleeChunk.docmeta, name, type, FLOW_SOURCE, confidence, paramTypeLimit)) {
                 const entry = resolvedUid ? entryByUid.get(resolvedUid) : null;
@@ -759,7 +761,7 @@ export async function runCrossFilePropagation({
                   const existing = getParamTypeList(entry.paramTypes, name);
                   entry.paramTypes[name] = uniqueTypes([...existing, type]);
                 }
-              }
+              } else { admission.parameterTypesDropped += 1; }
             }
           }
         }
@@ -768,7 +770,7 @@ export async function runCrossFilePropagation({
           return;
         }
 
-        const { calls: returnCalls } = await getReturnCalls(chunk);
+        const { calls: returnCalls, callSites: returnCallSites = null } = await getReturnCalls(chunk);
         if (!returnCalls.size) return;
         if (!chunk.docmeta || typeof chunk.docmeta !== 'object') chunk.docmeta = {};
         const resolvedViaSummaries = new Set();
@@ -776,25 +778,33 @@ export async function runCrossFilePropagation({
           for (const summary of callSummaries) {
             const callName = typeof summary?.name === 'string' ? summary.name : null;
             if (!callName || !returnCalls.has(callName)) continue;
+            if (!returnCallSites && shadowedImports.all.has(callName)) continue;
+            if (returnCallSites && !returnCallSites.has(`${summary.start}:${summary.end}`)) continue;
             const resolvedUid = summary?.resolvedCalleeChunkUid || summary?.targetChunkUid || null;
             const resolvedChunk = resolvedUid ? chunkByUid.get(resolvedUid) : null;
-            const returnTypes = Array.isArray(summary?.returnTypes) && summary.returnTypes.length
-              ? summary.returnTypes
-              : (Array.isArray(entryByUid.get(resolvedUid)?.returnTypes)
-                ? entryByUid.get(resolvedUid).returnTypes
+            const returnFacts = Array.isArray(summary?.returnTypeFacts) && summary.returnTypeFacts.length
+              ? summary.returnTypeFacts
+              : (Array.isArray(entryByUid.get(resolvedUid)?.returnTypeFacts)
+                ? entryByUid.get(resolvedUid).returnTypeFacts
                 : []);
-            if (!returnTypes.length) continue;
+            if (!returnFacts.length) continue;
             resolvedViaSummaries.add(callName);
             const hopCount = resolvedChunk?.file && resolvedChunk.file !== chunk.file ? 1 : 0;
             const confidence = confidenceForHop(hopCount);
-            for (const type of returnTypes) {
-              if (addInferredReturn(chunk.docmeta, type, FLOW_SOURCE, confidence)) {
+            for (const fact of returnFacts) {
+              const propagated = propagateReturnTypeFact(fact, resolvedChunk, confidence);
+              if (addInferredReturn(chunk.docmeta, propagated.type, FLOW_SOURCE, propagated.confidence, propagated.evidence)) {
                 inferredReturns += 1;
               }
             }
           }
         }
+        // Parser-owned return facts authorize only their admitted occurrence.
+        // Name fallback would recreate omitted summaries and could borrow a
+        // different same-spelling call's binding or declared return type.
+        if (returnCallSites) return;
         for (const callName of returnCalls) {
+          if (shadowedImports.all.has(callName)) continue;
           if (resolvedViaSummaries.has(callName)) continue;
           const symbolRef = resolveSymbolRefCached({
             targetName: callName,
@@ -803,12 +813,13 @@ export async function runCrossFilePropagation({
           });
           if (!symbolRef?.resolved?.chunkUid) continue;
           const entry = entryByUid.get(symbolRef.resolved.chunkUid);
-          const returnTypes = toTypeNameList(entry?.returnTypes);
-          if (!returnTypes.length) continue;
+          const returnFacts = entry?.returnTypeFacts || [];
+          if (!returnFacts.length) continue;
           const hopCount = entry?.file !== chunk.file ? 1 : 0;
           const confidence = confidenceForHop(hopCount);
-          for (const type of returnTypes) {
-            if (addInferredReturn(chunk.docmeta, type, FLOW_SOURCE, confidence)) {
+          for (const fact of returnFacts) {
+            const propagated = propagateReturnTypeFact(fact, entryChunks.get(entry), confidence);
+            if (addInferredReturn(chunk.docmeta, propagated.type, FLOW_SOURCE, propagated.confidence, propagated.evidence)) {
               inferredReturns += 1;
             }
           }
@@ -893,6 +904,9 @@ export async function runCrossFilePropagation({
       log
     });
     chunkCursor = bundleEnd;
+    if (onProgress) await onProgress({ observedCompletedChunks: chunkCursor,
+      totalChunks: chunks.length, linkedCalls, linkedCallSummaries, linkedUsages, inferredReturns, riskFlows });
+    throwIfAborted(abortSignal);
   }
 
   if (largeRepoBudget && typeof log === 'function') {
@@ -906,8 +920,14 @@ export async function runCrossFilePropagation({
     }
   }
 
+  admission.calls.dropped = droppedCallLinks;
+  admission.callDetails.dropped = droppedCallSummaries;
+  admission.usages.dropped = droppedUsageLinks;
   return {
+    admission,
+    sourceReadCoverage: sourceReader.coverage(),
     linkedCalls,
+    linkedCallSummaries,
     linkedUsages,
     inferredReturns,
     riskFlows,

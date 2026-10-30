@@ -16,7 +16,7 @@ The key is `sha1(stableStringify(payload))` where the payload includes:
 - **embeddingsKey**: hash of embedding identity/config (null if embeddings disabled).
 - **languagePolicyKey**: hash of segment/language/comment policy.
 - **chunkIdAlgoVersion**: version for chunk identity derivation.
-- **sqliteSchemaVersion**: SQLite schema version (for `chunks` column shape changes).
+- **sqliteSchemaVersion**: SQLite schema version, including chunk columns and incremental `file_manifest` authority. Schema 17 binds finalized immutable bundle inventories independently of source hashes.
 - **modes**: sorted list of modes included in the build.
 
 ## Where it is enforced

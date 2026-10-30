@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { guardBootstrapEntry } from '../../../src/shared/bootstrap-readiness.js';
 await guardBootstrapEntry(import.meta.url);
+const { resolveDevelopmentArtifactPath } = await import('../../shared/dev-artifacts.js');
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { performance } from 'node:perf_hooks';
@@ -20,7 +21,7 @@ const mode = ['baseline', 'current', 'compare'].includes(String(args.mode).toLow
   ? String(args.mode).toLowerCase()
   : 'compare';
 
-const benchRoot = path.join(process.cwd(), '.benchCache', 'artifact-io-read');
+const benchRoot = resolveDevelopmentArtifactPath(process.cwd(), 'bench-cache', 'artifact-io-read');
 const indexDir = path.join(benchRoot, 'index');
 const partsDirName = 'chunk_meta.parts';
 const partPrefix = 'chunk_meta.part-';

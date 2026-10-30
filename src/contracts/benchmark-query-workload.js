@@ -1,0 +1,1 @@
+export const BENCH_QUERY_WORKLOAD_VERSION = 2;

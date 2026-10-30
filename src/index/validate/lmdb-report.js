@@ -11,13 +11,18 @@ import {
   validateLmdbSchemaAndMode
 } from '../../storage/lmdb/utils.js';
 import { addIssue } from './issues.js';
+import { createLmdbCloseOwner } from '../../storage/lmdb/close.js';
+import { addStorageFailureContext } from '../../shared/storage/operation-error.js';
+import { acquireNativeReaderStorage } from '../../shared/storage/native-reader.js';
 
-export const buildLmdbReport = async ({ root, userConfig, indexRoot, modes, report, lmdbEnabled }) => {
+export const buildLmdbReport = async ({ root, userConfig, indexRoot, modes, report, lmdbEnabled, selection = null }) => {
   const enabled = typeof lmdbEnabled === 'boolean'
     ? lmdbEnabled
     : userConfig.lmdb?.use !== false;
-  const lmdbPaths = resolveLmdbPaths(root, userConfig, indexRoot ? { indexRoot } : {});
-  const lmdbTargets = new Set(modes.filter((mode) => mode === 'code' || mode === 'prose'));
+  const lmdbPaths = selection ? { codePath: selection.lmdbPaths.code || null, prosePath: selection.lmdbPaths.prose || null }
+    : resolveLmdbPaths(root, userConfig, indexRoot ? { indexRoot } : {});
+  const lmdbTargets = new Set(modes.filter(mode => (mode === 'code' || mode === 'prose')
+    && (!selection || selection.indexDirs[mode]) && selection?.backendRequirements?.lmdb?.[mode] !== false));
   const lmdbReport = {
     enabled,
     ok: true,
@@ -36,23 +41,36 @@ export const buildLmdbReport = async ({ root, userConfig, indexRoot, modes, repo
     const addLmdbIssue = (label, message, hint) => {
       lmdbReport.ok = false;
       lmdbReport.issues.push(`${label}: ${message}`);
-      addIssue(report, `lmdb/${label}`, message, hint);
+      addIssue(report, ['code', 'prose'].includes(label) ? label : null, message, hint, 'issues',
+        { capability: 'lmdb', displayScope: `lmdb/${label}`, code: 'ERR_INDEX_LMDB_VALIDATION' });
     };
     const addLmdbWarning = (label, message) => {
       lmdbReport.warnings.push(`${label}: ${message}`);
-      report.warnings.push(`[lmdb/${label}] ${message}`);
+      addIssue(report, ['code', 'prose'].includes(label) ? label : null, message, null, 'warnings',
+        { capability: 'lmdb', displayScope: `lmdb/${label}`, state: 'unverified', code: 'WARN_INDEX_LMDB_UNVERIFIED' });
     };
-    const validateStore = (label, storePath) => {
-      if (!hasLmdbStore(storePath)) {
-        addLmdbWarning(label, 'db missing');
-        return;
-      }
-      if (!openLmdb) {
-        addLmdbWarning(label, 'lmdb dependency unavailable; integrity check skipped');
-        return;
-      }
-      const db = openLmdb({ path: storePath, readOnly: true });
+    const validateStore = async (label, storePath) => {
+      let nativeClosed = false, db = null, attemptedOpen = false, closeOwner = null;
+      const storage = storePath ? acquireNativeReaderStorage(storePath, { repoRoot: root, userConfig, nativeBackend: 'lmdb', nativeMode: label },
+        () => nativeClosed || closeOwner?.isSettled() === true) : null;
+      storage?.start();
+      let originalClose, primary, failed = false;
       try {
+        if (!hasLmdbStore(storePath)) {
+          if (selection?.backendRequirements?.lmdb?.[label]) addLmdbIssue(label, 'required published db missing');
+          else addLmdbWarning(label, 'db missing');
+          return;
+        }
+        if (!openLmdb) {
+          addLmdbWarning(label, 'lmdb dependency unavailable; integrity check skipped');
+          return;
+        }
+        attemptedOpen = true;
+        try { db = openLmdb({ path: storePath, readOnly: true }); }
+        catch (error) { storage?.failedOpen(error); throw error; }
+        originalClose = db.close;
+        if (typeof originalClose !== 'function') throw new TypeError('LMDB validation requires its original close method.');
+        closeOwner = createLmdbCloseOwner(db, originalClose);
         const schemaValidation = validateLmdbSchemaAndMode({
           db,
           label,
@@ -111,12 +129,22 @@ export const buildLmdbReport = async ({ root, userConfig, indexRoot, modes, repo
             'Run `pairofcleats lmdb build` (or `node tools/build/lmdb-index.js`) to rebuild LMDB artifacts.'
           );
         }
-      } finally {
-        db.close();
+      } catch (error) { primary = db && storage ? storage.retainFailure(error) : error; failed = true; throw primary; }
+      finally {
+        try {
+          if (db) {
+            try {
+              if (!closeOwner) throw new TypeError('LMDB validation has no captured close owner.');
+              await closeOwner.close(); nativeClosed = true;
+            }
+            catch (error) { throw storage ? storage.retainFailure(error) : error; }
+          } else if (!attemptedOpen) nativeClosed = true;
+          if (db || !attemptedOpen) storage?.releaseAfterClosure();
+        } catch (cleanupError) { throw failed ? addStorageFailureContext(primary, {}, cleanupError, { secondaryPresent: true }) : cleanupError; }
       }
     };
-    if (lmdbTargets.has('code')) validateStore('code', lmdbPaths.codePath);
-    if (lmdbTargets.has('prose')) validateStore('prose', lmdbPaths.prosePath);
+    if (lmdbTargets.has('code')) await validateStore('code', lmdbPaths.codePath);
+    if (lmdbTargets.has('prose')) await validateStore('prose', lmdbPaths.prosePath);
   }
 
   return lmdbReport;

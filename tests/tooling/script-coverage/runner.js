@@ -6,8 +6,10 @@ import { toPosix } from '../../../src/shared/file-paths.js';
 import { normalizeEol } from '../../../src/shared/eol.js';
 import { rmDirRecursive } from '../../helpers/temp.js';
 import { ensureTestingEnv } from '../../helpers/test-env.js';
+import { spawnSubprocess } from '../../../src/shared/subprocess/runner.js';
+import { extractSkipReason } from '../../runner/run-logging.js';
 
-export const resolveRetries = ({ argvRetries, envRetries, defaultRetries = 2 }) => {
+export const resolveRetries = ({ argvRetries, envRetries, defaultRetries = 0 }) => {
   if (Number.isFinite(argvRetries)) return Math.max(0, argvRetries);
   if (Number.isFinite(envRetries)) return Math.max(0, envRetries);
   return defaultRetries;
@@ -43,7 +45,7 @@ const writeFailureLog = (failureLogRoot, label, attempt, cmd, args, options, res
 };
 
 export const createCommandRunner = ({ retries, failureLogRoot }) => {
-  const run = (label, cmd, args, options = {}) => {
+  const run = async (label, cmd, args, options = {}) => {
     const maxAttempts = retries + 1;
     const normalizeOutput = (value) => {
       if (!value) return '';
@@ -62,19 +64,23 @@ export const createCommandRunner = ({ retries, failureLogRoot }) => {
       if (!env.PAIROFCLEATS_TEST_CACHE_SUFFIX) {
         env.PAIROFCLEATS_TEST_CACHE_SUFFIX = `${sanitizeLabel(label)}-a${attempt}-${process.pid}`;
       }
-      const result = spawnSync(cmd, args, {
-        encoding: 'utf8',
-        maxBuffer: 50 * 1024 * 1024,
-        stdio: 'pipe',
-        env,
-        ...spawnOptions
-      });
-      if (result.stdout) process.stdout.write(normalizeOutput(result.stdout));
-      if (result.stderr) process.stderr.write(normalizeOutput(result.stderr));
-      if (result.status === 0) return;
+      let result;
+      try {
+        const child = await spawnSubprocess(cmd, args, {
+          maxOutputBytes: 50 * 1024 * 1024, stdio: 'pipe', env,
+          ...spawnOptions,
+          rejectOnNonZeroExit: false,
+          onStdout: chunk => process.stdout.write(normalizeOutput(chunk)),
+          onStderr: chunk => process.stderr.write(normalizeOutput(chunk))
+        });
+        result = { ...child, status: child.exitCode };
+      } catch (error) {
+        result = { ...error.result, status: null, stderr: error.message };
+      }
+      if (result.status === 0) return { status: 'passed', label };
       if (result.status === 77) {
         console.log(`Skipped: ${label}`);
-        return;
+        return { status: 'skipped', label, reason: extractSkipReason(result.stdout, result.stderr) };
       }
       const logPath = writeFailureLog(failureLogRoot, label, attempt, cmd, args, options, result);
       console.error(`Failed: ${label} (attempt ${attempt}/${maxAttempts}). Log: ${logPath}`);
@@ -86,13 +92,23 @@ export const createCommandRunner = ({ retries, failureLogRoot }) => {
   };
 
   const runNode = (label, scriptPath, args = [], options = {}) => {
-    run(label, process.execPath, [scriptPath, ...args], options);
+    const relative = path.relative(path.resolve('tests'), scriptPath).replace(/\\/g, '/');
+    const testId = !relative.startsWith('../') && !path.isAbsolute(relative) && relative.endsWith('.test.js')
+      ? relative.slice(0, -'.test.js'.length) : null;
+    const testOptions = testId ? { ...options,
+      env: { ...options.env, PAIROFCLEATS_TEST_ID: testId } } : options;
+    return run(label, process.execPath, [scriptPath, ...args], testOptions);
   };
 
   return { run, runNode };
 };
 
-export const runShellScripts = async ({ root, baseCacheRoot, run }) => {
+export const runShellScripts = async ({ root, baseCacheRoot, run },
+  { platform = process.platform, spawnSyncImpl = spawnSync } = {}) => {
+  // A Windows bash/WSL application alias must never start a different platform
+  // qualification implicitly. POSIX merge wrappers have their own owner.
+  if (platform === 'win32') return { status: 'skipped',
+    reason: 'POSIX shell merge wrappers require separate non-Windows qualification; Windows does not launch Bash or WSL.' };
   const shellScripts = [
     path.join(root, 'merge-history.sh'),
     path.join(root, 'merge-no-results.sh'),
@@ -104,17 +120,18 @@ export const runShellScripts = async ({ root, baseCacheRoot, run }) => {
     path.join(root, 'tools', 'merge-agentinfo-index.sh')
   ];
 
-  const bashCheck = spawnSync('bash', ['-c', 'echo ok'], { encoding: 'utf8' });
+  const bashCheck = spawnSyncImpl('bash', ['-c', 'echo ok'], { encoding: 'utf8', timeout: 5000 });
   const bashAvailable = bashCheck.status === 0;
-  const jqCheck = bashAvailable ? spawnSync('bash', ['-c', 'command -v jq'], { encoding: 'utf8' }) : null;
+  const jqCheck = bashAvailable ? spawnSyncImpl('bash', ['-c', 'command -v jq'], { encoding: 'utf8', timeout: 5000 }) : null;
   const jqAvailable = jqCheck && jqCheck.status === 0;
   const toPosixPath = (value) => toPosix(value);
   const bashPathCheck = bashAvailable
-    ? spawnSync('bash', ['-c', `cd "${toPosixPath(root)}"`], { encoding: 'utf8' })
+    ? spawnSyncImpl('bash', ['-c', `cd "${toPosixPath(root)}"`], { encoding: 'utf8', timeout: 5000 })
     : null;
   const bashAccessible = bashPathCheck && bashPathCheck.status === 0;
 
   if (bashAvailable && bashAccessible) {
+    let skipped = false;
     const shellWorkDir = path.join(baseCacheRoot, 'shell');
     await fsPromises.mkdir(shellWorkDir, { recursive: true });
     const base = path.join(shellWorkDir, 'base.json');
@@ -128,14 +145,18 @@ export const runShellScripts = async ({ root, baseCacheRoot, run }) => {
       if (!fs.existsSync(scriptPath)) continue;
       if (scriptPath.endsWith('merge-metrics.sh') && !jqAvailable) {
         console.log(`[skip] ${scriptPath} (jq not available)`);
+        skipped = true;
         continue;
       }
       const args = [scriptPath, base, ours, theirs].map(toPosixPath);
-      run('shell-script', 'bash', args, { cwd: root });
+      const result = await run('shell-script', 'bash', args, { cwd: root });
+      if (result.status === 'skipped') skipped = true;
     }
+    return { status: skipped ? 'skipped' : 'passed', reason: skipped ? 'Shell helper prerequisites unavailable (jq or child capability)' : null };
   } else if (!bashAvailable) {
     console.log('[skip] shell scripts (bash not available)');
   } else {
     console.log('[skip] shell scripts (bash cannot access workspace path)');
   }
+  return { status: 'skipped', reason: !bashAvailable ? 'Bash not available' : 'Bash cannot access workspace path' };
 };

@@ -4,6 +4,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { runToolingProviders } from '../../../src/index/tooling/orchestrator.js';
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
+import { resolveRuntimeRequirementsPreflight } from '../../../src/index/tooling/preflight/runtime-requirements-preflight.js';
 
 const root = process.cwd();
 const tempRoot = resolveTestCachePath(root, `configured-lsp-runtime-req-preflight-${process.pid}-${Date.now()}`);
@@ -84,4 +85,17 @@ assert.equal(
   'expected runtime requirement missing warning check'
 );
 
-console.log('configured LSP runtime requirement preflight degraded test passed');
+// Absence is a degraded prerequisite, never a trust or executable-authority
+// grant. Existing-but-untrusted and ineligible command paths must stay blocked.
+const deniedCommand = path.join(tempRoot, process.platform === 'win32' ? 'untrusted-runtime.cmd' : 'untrusted-runtime');
+await fs.writeFile(deniedCommand, process.platform === 'win32' ? '@echo unexpected execution\r\n' : '#!/bin/sh\necho unexpected execution\n', { mode: 0o755 });
+const invalidCommand = path.join(tempRoot, 'directory-runtime');
+await fs.mkdir(invalidCommand);
+for (const command of [deniedCommand, invalidCommand]) {
+  const classified = resolveRuntimeRequirementsPreflight({ ctx: { repoRoot: tempRoot, toolingConfig: {} },
+    providerId: 'fixture-runtime', requirements: [{ id: 'fixture', cmd: command, args: ['--version'] }] });
+  assert.equal(classified.state, 'blocked');
+  assert.equal(classified.blockProvider, true);
+  assert.equal(classified.reasonCode, 'preflight_runtime_requirement_denied');
+}
+console.log('configured LSP missing-runtime degradation preserves trust and executable admission negatives');

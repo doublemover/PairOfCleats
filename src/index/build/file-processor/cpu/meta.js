@@ -1,4 +1,4 @@
-import { detectFrontmatter } from '../../../segments.js';
+import { detectFrontmatter } from '../../../segments/frontmatter.js';
 import { extractComments } from '../../../comments.js';
 import { tokenizeComments } from './tokenizer.js';
 
@@ -10,19 +10,28 @@ export const buildCommentMeta = ({
   lineIndex,
   normalizedCommentsConfig,
   tokenDictWords,
-  dictConfig
+  dictConfig,
+  commentData: preparedCommentData = null,
+  languageContext = null,
+  commentOccurrences = null,
+  onConfigParse = null,
+  onCommentTokenization = null
 }) => {
   const commentsEnabled = (mode === 'code' || mode === 'extracted-prose')
     && normalizedCommentsConfig.extract !== 'off';
   const commentSegmentsEnabled = mode === 'extracted-prose'
     || (mode === 'code' && normalizedCommentsConfig.includeInCode === true);
-  const commentData = commentsEnabled
+  const commentData = commentsEnabled && preparedCommentData ? preparedCommentData : commentsEnabled
     ? extractComments({
       text,
       ext,
       languageId: languageId || null,
       lineIndex,
-      config: normalizedCommentsConfig
+      config: normalizedCommentsConfig,
+      context: languageContext,
+      commentOccurrences,
+      includeConfigSegments: commentSegmentsEnabled,
+      onConfigParse
     })
     : { comments: [], configSegments: [] };
   const {
@@ -36,7 +45,8 @@ export const buildCommentMeta = ({
     dictConfig,
     normalizedCommentsConfig,
     languageId,
-    commentSegmentsEnabled
+    commentSegmentsEnabled,
+    onTokenization: onCommentTokenization
   });
   const extraSegments = [];
   if (commentSegmentsEnabled && commentSegments.length) {
@@ -69,6 +79,7 @@ export const buildCommentMeta = ({
     commentRanges,
     extraSegments,
     commentsEnabled,
-    commentSegmentsEnabled
+    commentSegmentsEnabled,
+    commentConfigAdmission: commentData.configAdmission || null
   };
 };

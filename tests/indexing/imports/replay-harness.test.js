@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { resolveDevelopmentArtifactPath } from '../../../tools/shared/dev-artifacts.js';
 import {
   aggregateImportResolutionGraphPayloads,
   aggregateImportResolutionGraphReportPaths,
@@ -219,6 +220,12 @@ try {
   const reportPathA = path.join(replayRoot, '.benchCache', 'repo-c', 'import_resolution_graph.json');
   const reportPathB = path.join(replayRoot, '.testCache', 'repo-d', 'import_resolution_graph.json');
   const reportPathIgnored = path.join(replayRoot, '.testCache', 'repo-d', 'not_import_graph.json');
+  const currentPaths = [resolveDevelopmentArtifactPath(replayRoot, 'test-cache', 'repo-e', 'import_resolution_graph.json'),
+    resolveDevelopmentArtifactPath(replayRoot, 'bench-cache', 'repo-f', 'import_resolution_graph.json')];
+  for (const file of currentPaths) {
+    await fs.mkdir(path.dirname(file), { recursive: true });
+    await fs.writeFile(file, JSON.stringify({ generatedAt: new Date().toISOString() }));
+  }
   await fs.mkdir(path.dirname(reportPathA), { recursive: true });
   await fs.mkdir(path.dirname(reportPathB), { recursive: true });
   await fs.writeFile(reportPathA, JSON.stringify({ generatedAt: new Date().toISOString() }, null, 2));
@@ -231,16 +238,31 @@ try {
   });
   assert.deepEqual(
     discovered.map((entry) => entry.replace(/\\/g, '/')),
-    [reportPathA, reportPathB].map((entry) => entry.replace(/\\/g, '/')).sort(),
+    [reportPathA, reportPathB, ...currentPaths].map((entry) => entry.replace(/\\/g, '/')).sort(),
     'expected replay report discovery to only include import_resolution_graph.json files'
   );
+  const bounded = await discoverImportResolutionGraphReports({ rootDir: replayRoot, maxReports: 1 });
+  assert.equal(bounded.length, 1, 'current roots retain the requested discovery bound');
+  assert.ok(currentPaths.includes(bounded[0]), 'current outputs precede historical roots within the bound');
+  const originalReaddir = fs.readdir;
+  try {
+    for (const reverse of [false, true]) {
+      fs.readdir = async (...args) => {
+        const entries = await originalReaddir(...args);
+        entries.sort((left, right) => String(left.name || left).localeCompare(String(right.name || right)));
+        return reverse ? entries.reverse() : entries;
+      };
+      assert.deepEqual(await discoverImportResolutionGraphReports({ rootDir: replayRoot, maxReports: 1 }), bounded,
+        'selection before the limit is independent of actual filesystem enumeration order');
+    }
+  } finally { fs.readdir = originalReaddir; }
 
   const loaded = await loadImportResolutionGraphReports(discovered);
-  assert.equal(loaded.length, 2, 'expected two loaded replay reports');
+  assert.equal(loaded.length, 4, 'current and legacy roots both contribute replay reports');
   assert.equal(
     loaded.filter((entry) => entry.payload && typeof entry.payload === 'object').length,
-    1,
-    'expected one valid replay report payload'
+    3,
+    'expected three valid replay report payloads'
   );
   assert.equal(
     loaded.filter((entry) => entry.payload == null).length,

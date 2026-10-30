@@ -4,6 +4,13 @@ import { detectRiskSignals } from '../../../risk.js';
 import { inferTypeMetadata } from '../../../type-inference.js';
 import { getStructuralMatchesForChunk } from '../chunk.js';
 import { mergeFlowMeta, normalizeDocMeta } from '../meta.js';
+import { buildCallIndex } from '../relations.js';
+import { buildLineIndex } from '../../../../shared/lines.js';
+import { rebaseJavaScriptCallDetails } from '../../../../lang/javascript/source-projection.js';
+import { readChunkContent, readSegmentContent, unmapEmbeddedContentRange } from '../../../../shared/embedded-content.js';
+
+const localCallIndexes = new WeakMap();
+const localLineIndexes = new WeakMap();
 
 /**
  * Resolve framework profile once per file and reuse across chunk iterations.
@@ -106,11 +113,17 @@ export const buildChunkEnrichment = ({
   endLine,
   totalLines,
   fileFrameworkProfile = null,
-  segmentRelationsCache = null
+  segmentRelationsCache = null,
+  sourceLineIndex = null
 }) => {
   const resolvedChunkText = typeof chunkText === 'string'
     ? chunkText
-    : text.slice(chunk.start, chunk.end);
+    : readChunkContent(text, chunk);
+  const contentView = chunk.segment?.contentView || null;
+  const logicalText = contentView ? readSegmentContent(text, chunk.segment) : text;
+  const logicalChunk = contentView ? { ...chunk, ...unmapEmbeddedContentRange(contentView, chunk.start, chunk.end) } : chunk;
+  const sourceView = contentView ? { text, chunk, ...(contentView.pieces.length > 1
+    ? { contentView } : { offset: contentView.sourceStart }) } : null;
   let codeRelations = {};
   let docmeta = {};
   if (chunkMode === 'code') {
@@ -119,18 +132,19 @@ export const buildChunkEnrichment = ({
       updateCrashStage('docmeta', { chunkIndex, languageId: chunkLanguageId || null });
       docmeta = activeLang && typeof activeLang.extractDocMeta === 'function'
         ? activeLang.extractDocMeta({
-          text,
-          chunk,
-          fileRelations,
-          context: activeContext,
-          options: languageOptions
+          text: logicalText,
+          chunk: logicalChunk,
+          fileRelations: contentView ? null : fileRelations,
+          context: contentView ? {} : activeContext,
+          options: languageOptions,
+          sourceView
         })
         : {};
       docmeta = normalizeDocMeta(docmeta);
     } catch (err) {
       return { skip: failFile('parse-error', 'docmeta', err, diagnostics) };
     }
-    if (relationsEnabled && fileRelations) {
+    if (relationsEnabled && !contentView && fileRelations && (activeLang?.id !== 'javascript' || fileRelations.jsDeclarations)) {
       try {
         updateCrashStage('relations', { chunkIndex });
         codeRelations = buildChunkRelations({
@@ -146,19 +160,19 @@ export const buildChunkEnrichment = ({
     } else if (relationsEnabled && activeLang && typeof activeLang.buildRelations === 'function') {
       try {
         const segmentId = chunk?.segment?.segmentId || null;
-        const cacheKey = segmentId || `${chunkLanguageId || 'unknown'}:${chunk.start}:${chunk.end}`;
+        const cacheKey = segmentId || (activeLang.id === 'javascript' ? 'javascript:source-file' : `${chunkLanguageId || 'unknown'}:${chunk.start}:${chunk.end}`);
         const segmentStart = Number(chunk?.segment?.start);
         const segmentEnd = Number(chunk?.segment?.end);
         const hasSegmentBounds = Number.isFinite(segmentStart) && Number.isFinite(segmentEnd) && segmentEnd > segmentStart;
         const relationText = segmentId && hasSegmentBounds
-          ? text.slice(segmentStart, segmentEnd)
-          : resolvedChunkText;
+          ? readSegmentContent(text, chunk.segment)
+          : activeLang.id === 'javascript' ? text : resolvedChunkText;
         let localRelations = segmentRelationsCache?.get(cacheKey);
         if (!localRelations) {
           localRelations = activeLang.buildRelations({
             text: relationText,
             relPath: chunk?.segment?.segmentId || null,
-            context: {},
+            context: activeLang.id === 'javascript' && !segmentId ? activeContext || {} : {},
             options: languageOptions
           }) || {};
           if (segmentRelationsCache && cacheKey) {
@@ -174,12 +188,27 @@ export const buildChunkEnrichment = ({
         if (Array.isArray(localRelations?.usages) && localRelations.usages.length) {
           codeRelations.usages = localRelations.usages;
         }
-        if (Array.isArray(localRelations?.calls) && localRelations.calls.length) {
+        if (localRelations.callOwnership === 'javascript-declaration-occurrences-v1') {
+          const offset = segmentId && hasSegmentBounds ? segmentStart : 0;
+          const localChunk = contentView ? logicalChunk : { ...chunk, start: chunk.start - offset, end: chunk.end - offset };
+          let index = localCallIndexes.get(localRelations);
+          if (!index) { index = buildCallIndex(localRelations); localCallIndexes.set(localRelations, index); }
+          codeRelations = { ...codeRelations, ...buildChunkRelations({ lang: activeLang, chunk: localChunk, fileRelations: localRelations, callIndex: index }) };
+          const view = sourceView || (offset || relationText !== text ? { text, chunk, offset } : null);
+          docmeta = normalizeDocMeta(activeLang.extractDocMeta({ text: relationText, chunk: localChunk,
+            fileRelations: localRelations, context: activeContext || {}, options: languageOptions, sourceView: view }));
+          if ((offset || contentView) && codeRelations.callDetails) {
+            let lines = sourceLineIndex || localLineIndexes.get(localRelations);
+            if (!lines) { lines = buildLineIndex(text); localLineIndexes.set(localRelations, lines); }
+            codeRelations.callDetails = rebaseJavaScriptCallDetails(codeRelations.callDetails,
+              contentView?.pieces.length > 1 ? contentView : offset, lines);
+          }
+        } else if (Array.isArray(localRelations?.calls) && localRelations.calls.length) {
           codeRelations.calls = chunk?.name
             ? localRelations.calls.filter(([caller]) => caller && caller === chunk.name)
             : localRelations.calls;
         }
-        if (Array.isArray(localRelations?.callDetails) && localRelations.callDetails.length) {
+        if (localRelations.callOwnership !== 'javascript-declaration-occurrences-v1' && Array.isArray(localRelations?.callDetails) && localRelations.callDetails.length) {
           codeRelations.callDetails = chunk?.name
             ? localRelations.callDetails.filter((entry) => entry?.caller === chunk.name)
             : localRelations.callDetails;
@@ -202,9 +231,9 @@ export const buildChunkEnrichment = ({
         });
         const flowStart = Date.now();
         flowMeta = activeLang.flow({
-          text,
-          chunk,
-          context: activeContext,
+          text: logicalText,
+          chunk: logicalChunk,
+          context: contentView ? {} : activeContext,
           options: languageOptions
         });
         updateCrashStage('flow:done', {
@@ -242,9 +271,8 @@ export const buildChunkEnrichment = ({
         return { skip: failFile('relation-error', 'flow', err, diagnostics) };
       }
     }
-    if (flowMeta) {
-      docmeta = normalizeDocMeta(mergeFlowMeta(docmeta, flowMeta, { astDataflowEnabled, controlFlowEnabled }));
-    }
+    docmeta = normalizeDocMeta(mergeFlowMeta(docmeta, flowMeta, { astDataflowEnabled, controlFlowEnabled,
+      text, chunk, languageId: chunkLanguageId || activeLang?.id || null, context: activeContext, producerId: activeLang?.id || 'unavailable-flow' }));
     addEnrichDuration(Date.now() - relationStart);
     if (resolvedTypeInferenceEnabled) {
       const enrichStart = Date.now();

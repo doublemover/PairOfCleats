@@ -18,25 +18,8 @@ const INDEX_DIR_NAMES = new Set([
   'index-records'
 ]);
 
-export const SERVICE_BUILD_STATE_FILE = 'build_state.json';
-
-export const resolveServiceBuildStatePath = (buildRoot) => (
-  buildRoot ? path.join(buildRoot, SERVICE_BUILD_STATE_FILE) : null
-);
-
-export const readServiceBuildStateSnapshot = async (buildRoot) => {
-  const statePath = resolveServiceBuildStatePath(buildRoot);
-  if (!statePath) return null;
-  try {
-    const raw = await fs.promises.readFile(statePath, 'utf8');
-    const parsed = JSON.parse(raw);
-    return parsed && typeof parsed === 'object'
-      ? { state: parsed, path: statePath }
-      : null;
-  } catch {
-    return null;
-  }
-};
+export { SERVICE_BUILD_STATE_FILE, resolveServiceBuildStatePath, readServiceBuildStateSnapshot }
+  from './indexer-service/build-state-observation.js';
 
 export const looksLikeEmbeddingIndexDir = (value) => {
   const base = path.basename(String(value || '')).toLowerCase();
@@ -118,6 +101,8 @@ export const resolveEmbeddingBackendStageDir = (job, mode = null) => {
   const normalized = normalizeEmbeddingJob(job);
   const modeName = String(mode || job?.mode || '').trim();
   if (!modeName) return null;
+  if (!['code', 'prose', 'extracted-prose', 'records'].includes(modeName)) throw Object.assign(
+    new Error('Embedding replay requires a canonical index mode.'), { code: 'ERR_EMBEDDING_REPLAY_MODE' });
   const base = normalized.buildRoot || normalized.indexDir || null;
   if (!base) return null;
   return path.join(base, '.embeddings-backend-staging', `index-${modeName}`);

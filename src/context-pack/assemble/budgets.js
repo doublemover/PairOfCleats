@@ -5,6 +5,7 @@ import {
 } from './call-sites.js';
 import { createTruncationRecorder } from '../../shared/truncation.js';
 import { normalizeRiskPathNodes } from './risk-load.js';
+import { measureRiskBudgetValue } from './risk-budget-measure.js';
 
 export const CONTEXT_PACK_MAX_RISK_FLOWS = 5;
 export const CONTEXT_PACK_MAX_RISK_STEPS_PER_FLOW = 8;
@@ -132,14 +133,15 @@ export const selectRiskFlowsWithinBudget = ({
   let maxFlowTruncationRecorded = false;
   let budgetTruncationRecorded = false;
 
-  for (const entry of rankedFlows) {
+  for (let index = 0; index < rankedFlows.length; index += 1) {
+    const entry = rankedFlows[index];
     if (selectedRawFlows.length >= CONTEXT_PACK_MAX_RISK_FLOWS) {
       omittedFlows += 1;
       if (!maxFlowTruncationRecorded) {
         recordRiskTruncation('maxFlows', {
           limit: CONTEXT_PACK_MAX_RISK_FLOWS,
           observed: rankedFlows.length,
-          omitted: rankedFlows.length - CONTEXT_PACK_MAX_RISK_FLOWS,
+          omitted: rankedFlows.length - index,
           note: 'Risk flows truncated for composite context pack.'
         });
         maxFlowTruncationRecorded = true;
@@ -178,9 +180,6 @@ export const selectRiskFlowsWithinBudget = ({
           note: `Risk flow ${flow?.flowId || 'flow'} truncated call-site evidence for one path step.`
         });
       }
-      for (const callSiteId of limitedIds) {
-        if (callSiteId) referencedCallSiteIds.add(callSiteId);
-      }
       return limitedIds;
     });
 
@@ -211,8 +210,9 @@ export const selectRiskFlowsWithinBudget = ({
       notes: normalizeRiskBudgetNotes(flow?.notes)
     };
 
-    const candidateBytes = estimateRiskByteSize(candidate);
-    const candidateTokens = estimateRiskTokenCount(candidate);
+    const { bytes: candidateBytes, tokens: candidateTokens } = measureRiskBudgetValue(candidate, {
+      maxBytes: CONTEXT_PACK_MAX_RISK_BYTES - emittedBytes, maxTokens: CONTEXT_PACK_MAX_RISK_TOKENS - emittedTokens
+    });
     if (
       (emittedBytes + candidateBytes) > CONTEXT_PACK_MAX_RISK_BYTES
       || (emittedTokens + candidateTokens) > CONTEXT_PACK_MAX_RISK_TOKENS
@@ -248,6 +248,9 @@ export const selectRiskFlowsWithinBudget = ({
     emittedTokens += candidateTokens;
     emittedSteps += normalizedStepIds.length;
     selectedRawFlows.push(candidate);
+    for (const ids of normalizedStepIds) for (const callSiteId of ids) {
+      if (callSiteId) referencedCallSiteIds.add(callSiteId);
+    }
   }
 
   return {
@@ -281,14 +284,15 @@ export const selectRiskPartialFlowsWithinBudget = ({
   let maxPartialFlowTruncationRecorded = false;
   let partialBudgetTruncationRecorded = false;
 
-  for (const entry of rankedPartialFlows) {
+  for (let index = 0; index < rankedPartialFlows.length; index += 1) {
+    const entry = rankedPartialFlows[index];
     if (selectedRawPartialFlows.length >= CONTEXT_PACK_MAX_RISK_PARTIAL_FLOWS) {
       omittedPartialFlows += 1;
       if (!maxPartialFlowTruncationRecorded) {
         recordRiskTruncation('maxPartialFlows', {
           limit: CONTEXT_PACK_MAX_RISK_PARTIAL_FLOWS,
           observed: rankedPartialFlows.length,
-          omitted: rankedPartialFlows.length - CONTEXT_PACK_MAX_RISK_PARTIAL_FLOWS,
+          omitted: rankedPartialFlows.length - index,
           note: 'Partial risk flows truncated for composite context pack.'
         });
         maxPartialFlowTruncationRecorded = true;
@@ -303,16 +307,8 @@ export const selectRiskPartialFlowsWithinBudget = ({
     const normalizedStepIds = limitedSteps.map((ids) => {
       const sourceIds = Array.isArray(ids) ? ids : [];
       const limitedIds = sourceIds.slice(0, CONTEXT_PACK_MAX_RISK_CALL_SITES_PER_STEP);
-      for (const callSiteId of limitedIds) {
-        if (callSiteId) referencedCallSiteIds.add(callSiteId);
-      }
       return limitedIds;
     });
-    for (const blocked of Array.isArray(flow?.frontier?.blockedExpansions) ? flow.frontier.blockedExpansions : []) {
-      for (const callSiteId of Array.isArray(blocked?.callSiteIds) ? blocked.callSiteIds : []) {
-        if (callSiteId) referencedCallSiteIds.add(callSiteId);
-      }
-    }
     const candidate = {
       rank: entry.rank,
       partialFlowId: flow?.partialFlowId || null,
@@ -349,8 +345,9 @@ export const selectRiskPartialFlowsWithinBudget = ({
       })
     };
 
-    const candidateBytes = estimateRiskByteSize(candidate);
-    const candidateTokens = estimateRiskTokenCount(candidate);
+    const { bytes: candidateBytes, tokens: candidateTokens } = measureRiskBudgetValue(candidate, {
+      maxBytes: CONTEXT_PACK_MAX_RISK_PARTIAL_BYTES - partialBytes, maxTokens: CONTEXT_PACK_MAX_RISK_PARTIAL_TOKENS - partialTokens
+    });
     if (
       (partialBytes + candidateBytes) > CONTEXT_PACK_MAX_RISK_PARTIAL_BYTES
       || (partialTokens + candidateTokens) > CONTEXT_PACK_MAX_RISK_PARTIAL_TOKENS
@@ -382,6 +379,12 @@ export const selectRiskPartialFlowsWithinBudget = ({
     partialBytes += candidateBytes;
     partialTokens += candidateTokens;
     selectedRawPartialFlows.push(candidate);
+    for (const ids of normalizedStepIds) for (const callSiteId of ids) {
+      if (callSiteId) referencedCallSiteIds.add(callSiteId);
+    }
+    for (const blocked of candidate.frontier.blockedExpansions) for (const callSiteId of blocked.callSiteIds) {
+      if (callSiteId) referencedCallSiteIds.add(callSiteId);
+    }
   }
 
   return {
@@ -390,4 +393,46 @@ export const selectRiskPartialFlowsWithinBudget = ({
     partialTokens,
     omittedPartialFlows
   };
+};
+
+/** Re-admit complete ranked units after metadata and after excerpt hydration.
+ * Counts describe exactly the emitted compact JSON array, including separators. */
+export const admitRiskFlowEnvelope = ({ flows, partial = false, riskCapHits, recordRiskTruncation, stage, hydrate = null }) => {
+  const maxBytes = partial ? CONTEXT_PACK_MAX_RISK_PARTIAL_BYTES : CONTEXT_PACK_MAX_RISK_BYTES;
+  const maxTokens = partial ? CONTEXT_PACK_MAX_RISK_PARTIAL_TOKENS : CONTEXT_PACK_MAX_RISK_TOKENS;
+  const recordBytes = partial
+    ? detail => recordRiskTruncation('maxPartialBytes', detail)
+    : detail => recordRiskTruncation('maxRiskBytes', detail);
+  const recordTokens = partial
+    ? detail => recordRiskTruncation('maxPartialTokens', detail)
+    : detail => recordRiskTruncation('maxRiskTokens', detail);
+  const selected = []; let bytes = 2, tokens = 0, omittedFlows = 0;
+  const measure = (flow, phase) => {
+    if (!flow || typeof flow !== 'object' || Array.isArray(flow)) throw new TypeError('Risk admission requires a complete flow object.');
+    const comma = selected.length ? 1 : 0;
+    const measured = measureRiskBudgetValue(flow, { maxBytes: Math.max(0, maxBytes - bytes - comma), maxTokens: maxTokens - tokens });
+    const nextBytes = bytes + comma + measured.bytes;
+    const nextTokens = measured.tokens === null ? null : tokens + measured.tokens;
+    if (!measured.exactBytes || nextBytes > maxBytes || nextTokens > maxTokens) {
+      for (const [cap, hit, limit, observed, omitted, record] of [
+        [partial ? 'maxPartialBytes' : 'maxRiskBytes', !measured.exactBytes || nextBytes > maxBytes, maxBytes, nextBytes, measured.bytes, recordBytes],
+        [partial ? 'maxPartialTokens' : 'maxRiskTokens', nextTokens !== null && nextTokens > maxTokens, maxTokens, nextTokens, measured.tokens, recordTokens]
+      ]) if (hit) {
+        riskCapHits.add(cap);
+        record({ limit, observed, omitted,
+          note: `Rank ${flow.rank} ${partial ? 'partial ' : ''}risk flow omitted at ${phase} admission; projected ${cap.endsWith('Bytes') ? 'byte' : 'estimated-token'} count is ${!measured.exactBytes || !measured.exactTokens ? 'a lower bound' : 'exact'}.` });
+      }
+      return null;
+    }
+    return { bytes: nextBytes, tokens: nextTokens };
+  };
+  for (const flow of flows) {
+    const preliminary = measure(flow, hydrate ? 'call-site metadata' : stage);
+    if (!preliminary) { omittedFlows++; continue; }
+    const output = hydrate ? hydrate(flow) : flow;
+    const final = hydrate ? measure(output, stage) : preliminary;
+    if (!final) { omittedFlows++; continue; }
+    selected.push(output); bytes = final.bytes; tokens = final.tokens;
+  }
+  return { flows: selected, bytes, tokens, omittedFlows };
 };

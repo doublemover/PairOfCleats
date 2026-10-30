@@ -1,4 +1,5 @@
 import { compileSchema, createAjv } from '../../shared/validation/ajv-factory.js';
+import { runtimeQueryProjectionErrors } from '../runtime-query-projection.js';
 import { RUNTIME_QUERY_REQUEST_SCHEMA, RUNTIME_QUERY_RESULT_SCHEMA, RUNTIME_QUERY_CURSOR_SCHEMA,
   RUNTIME_LOOKUP_SERVICE_REQUEST_SCHEMA, RUNTIME_DISCOVERY_SERVICE_REQUEST_SCHEMA, RUNTIME_DISCOVERY_RESULT_SCHEMA } from '../schemas/runtime-query.js';
 const ajv = createAjv({ allErrors: true, strict: true });
@@ -11,5 +12,10 @@ export const assertRuntimeQuery = (kind, value) => {
   const validate = validators[kind];
   if (!validate || !validate(value)) throw Object.assign(new TypeError('Invalid runtime query ' + kind + ': ' + ajv.errorsText(validate?.errors)),
     { code: 'ERR_RUNTIME_QUERY_CONTRACT' });
+  if (kind === 'result') {
+    const errors = runtimeQueryProjectionErrors(value);
+    if (errors.length) throw Object.assign(new TypeError('Invalid runtime query result: ' + errors.join(' ')),
+      { code: 'ERR_RUNTIME_QUERY_CONTRACT' });
+  }
   return value;
 };

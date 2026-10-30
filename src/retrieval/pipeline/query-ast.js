@@ -1,6 +1,44 @@
 import { extractNgrams } from '../../shared/tokenize.js';
 import { postingIncludesDocId, resolvePhraseRange } from './candidates.js';
 import { createVocabIndex } from '../vocab-index.js';
+import { TEXT_ANALYZER_VERSION } from '../../shared/text-analyzer.js';
+
+/** Whether positive lexical seeding can omit rows admitted by the Boolean AST. */
+export const requiresBooleanUniverse = queryAst => {
+  const visit = node => {
+    if (!node) return { seed: false, narrowed: false, valid: false };
+    if (node.type === 'term' || node.type === 'phrase') return { seed: true, narrowed: false, valid: true };
+    if (node.type === 'not') return { seed: false, narrowed: false, valid: visit(node.child).valid };
+    const left = visit(node.left), right = visit(node.right);
+    const valid = left.valid && right.valid;
+    if (node.type === 'and') return { seed: left.seed || right.seed, narrowed: left.narrowed || right.narrowed, valid };
+    if (node.type === 'or') return { seed: left.seed && right.seed,
+      narrowed: left.narrowed || right.narrowed || left.seed !== right.seed, valid };
+    return { seed: false, narrowed: false, valid: false };
+  };
+  const result = visit(queryAst);
+  return result.valid && (!result.seed || result.narrowed);
+};
+
+/** Exact contiguous membership in the admitted literal token stream. */
+export const matchesLiteralPhraseTokens = (literal, phrase, caseSensitive = false) => {
+  if (!phrase.length || literal.length < phrase.length) return false;
+  for (let start = 0; start <= literal.length - phrase.length; start++) {
+    if (phrase.every((token, offset) => caseSensitive
+      ? literal[start + offset] === token
+      : String(literal[start + offset]).toLowerCase() === String(token).toLowerCase())) return true;
+  }
+  return false;
+};
+
+export const hasCaseSensitivePhrase = node => !!node && ((node.type === 'phrase' && node.caseSensitive === true)
+  || hasCaseSensitivePhrase(node.left) || hasCaseSensitivePhrase(node.right) || hasCaseSensitivePhrase(node.child));
+export const assertCasePreservedPhraseEvidence = (idx, chunk = null) => {
+  if (chunk?.phraseTokensCasePreserved === true || idx?.state?.features?.literalAnalyzer === TEXT_ANALYZER_VERSION) return;
+  throw Object.assign(new Error('Case-sensitive phrases require case-preserving literal evidence. Rebuild this index with the current analyzer.'), {
+    code: 'ERR_LITERAL_ANALYZER_REBUILD'
+  });
+};
 
 /**
  * Build helpers for navigating a parsed query AST.
@@ -113,10 +151,11 @@ export const createQueryAstHelpers = ({ queryAst, phraseNgramSet, phraseRange, t
   const matchesQueryAst = (idx, chunkId, chunk, semantic = false) => {
     if (!queryAst) return true;
     const chunkRecord = resolveChunk(idx, chunkId, chunk);
+    if (hasCaseSensitivePhrase(queryAst)) assertCasePreservedPhraseEvidence(idx, chunkRecord);
     if (requiresLiteral && (chunkRecord?.phraseTokensComplete === false
       || chunkRecord?.phraseTokens === null)) return false;
     const tokens = resolveChunkTokens(idx, chunkId, chunkRecord);
-    const tokenSet = getCachedTokenSet(chunkRecord, chunkId, tokens);
+    let tokenSet;
     const evalNode = (node, relaxTerms = semantic && allowSemanticTerms) => {
       if (!node) return true;
       switch (node.type) {
@@ -124,17 +163,14 @@ export const createQueryAstHelpers = ({ queryAst, phraseNgramSet, phraseRange, t
           if (relaxTerms) return true;
           if (termMatches) return termMatches(node, chunkId);
           if (!node.tokens || !node.tokens.length) return false;
+          tokenSet ??= getCachedTokenSet(chunkRecord, chunkId, tokens);
           if (!tokenSet) return false;
           return node.tokens.some((tok) => tokenSet.has(tok));
         }
         case 'phrase': {
           const literal = chunkRecord?.phraseTokens ?? tokens;
           const phrase = node.tokens ?? [];
-          if (!phrase.length || literal.length < phrase.length) return false;
-          for (let start = 0; start <= literal.length - phrase.length; start++) {
-            if (phrase.every((token, offset) => literal[start + offset] === token)) return true;
-          }
-          return false;
+          return matchesLiteralPhraseTokens(literal, phrase, node.caseSensitive === true);
         }
         case 'not':
           return !evalNode(node.child, false);

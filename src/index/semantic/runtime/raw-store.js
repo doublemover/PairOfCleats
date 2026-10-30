@@ -15,11 +15,12 @@ export const assertRuntimeDiskReserve = async ({ destination, diskReserveBytes, 
 };
 
 /** Fixed working buffer; exact hash and size dominate all caller-supplied metadata. */
-export const hashRuntimeFile = async ({ filename, expectedHash, expectedBytes, maxBytes, signal = null }) => {
+export const hashRuntimeFile = async ({ filename, expectedHash, expectedBytes, maxBytes, signal = null, metrics = null }) => {
   const handle = await fs.open(filename, 'r');
   const hash = createHash('sha256');
   const buffer = Buffer.alloc(64 * 1024);
   let bytes = 0;
+  let operationError, failed = false;
   try {
     const stat = await handle.stat();
     if (!stat.isFile() || stat.size > maxBytes || stat.size !== expectedBytes) throw runtimeImportError('Runtime raw size exceeds authority or allowance.');
@@ -27,13 +28,15 @@ export const hashRuntimeFile = async ({ filename, expectedHash, expectedBytes, m
       throwIfAborted(signal);
       const read = await handle.read(buffer, 0, buffer.length, null);
       if (!read.bytesRead) break;
+      if (metrics) metrics.rawVerificationBytes = (metrics.rawVerificationBytes || 0) + read.bytesRead;
       bytes += read.bytesRead;
       if (bytes > maxBytes || bytes > expectedBytes) throw runtimeImportError('Runtime raw input changed while reading.');
       hash.update(buffer.subarray(0, read.bytesRead));
     }
     if (bytes !== expectedBytes || hash.digest('hex') !== expectedHash) throw runtimeImportError('Runtime raw checksum differs from import authority.');
     return bytes;
-  } finally { await handle.close(); }
+  } catch (error) { failed = true; operationError = error; throw error;
+  } finally { await closeRuntimeResources([handle], operationError, { hasOperationError: failed }); }
 };
 
 /** Retain a byte-for-byte immutable CAS copy. Existing blobs are verified, never overwritten. */
@@ -60,7 +63,7 @@ export const retainRuntimeRaw = async ({ destination, inputPath, artifact, maxBy
     diskAccount.reserve(artifact.byteLength); reserved = true;
     const source = await fs.open(inputPath, 'r');
     let target = null;
-    let copyError = null;
+    let copyError = null, copyErrorPresent = false;
     const buffer = Buffer.alloc(64 * 1024);
     try {
       target = await fs.open(temporary, 'wx');
@@ -74,8 +77,8 @@ export const retainRuntimeRaw = async ({ destination, inputPath, artifact, maxBy
         await target.writeFile(buffer.subarray(0, read.bytesRead));
       }
       await target.sync();
-    } catch (error) { copyError = error; throw error; }
-    finally { await closeRuntimeResources([source, target], copyError); }
+    } catch (error) { copyErrorPresent = true; copyError = error; throw error; }
+    finally { await closeRuntimeResources([source, target], copyError, { hasOperationError: copyErrorPresent }); }
     await hashRuntimeFile({ filename: temporary, expectedHash: artifact.hash, expectedBytes: artifact.byteLength, maxBytes, signal });
     await assertRuntimeDiskReserve({ destination, diskReserveBytes });
     throwIfAborted(signal);

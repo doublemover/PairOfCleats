@@ -41,6 +41,7 @@ export async function runImpactCli(rawArgs = process.argv.slice(2)) {
     scriptName: 'impact',
     argv: ['node', 'impact', ...rawArgs],
     options: buildGraphCliOptions({
+      pathSemantics: { type: 'string', choices: ['graph-witness'] },
       seed: { type: 'string' },
       changed: { type: 'array' },
       changedFile: { type: 'string' }
@@ -80,14 +81,17 @@ export async function runImpactCli(rawArgs = process.argv.slice(2)) {
     const graphInputs = await prepareGraphInputs({
       repoRoot,
       indexDir,
-      strict: true
+      strict: true,
+      includeChunkMeta: seed?.type === 'chunk' && graphSelection?.includes('importGraph')
+        && !graphSelection.includes('callGraph') && !graphSelection.includes('usageGraph')
     });
     const { graphIndex } = await prepareGraphIndex({
       repoRoot,
       indexDir,
       selection: graphSelection,
       strict: true,
-      graphInputs
+      graphInputs,
+      chunkFileFact: graphInputs.chunkMeta?.find(row => row.chunkUid === seed?.chunkUid) || null
     });
 
     const payload = buildImpactAnalysis({
@@ -98,6 +102,7 @@ export async function runImpactCli(rawArgs = process.argv.slice(2)) {
       depth: Math.max(0, Math.floor(Number(argv.depth))),
       edgeFilters,
       caps,
+      pathSemantics: argv.pathSemantics,
       indexCompatKey: graphInputs.indexCompatKey || null,
       indexSignature: graphInputs.indexSignature || null,
       repo: toPosix(path.relative(process.cwd(), repoRoot) || '.'),

@@ -1,10 +1,13 @@
 #!/usr/bin/env node
+import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
+import { writeSqliteIndexFormat } from '../../../src/storage/sqlite/index-format.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { createSqliteBackend } from '../../../src/retrieval/cli-sqlite.js';
 import { createSqliteDbCache } from '../../../src/retrieval/sqlite-cache.js';
+import { getPendingSqliteCacheOwners } from '../../../src/retrieval/sqlite-cache-close-owner.js';
 import { CREATE_TABLES_SQL, SCHEMA_VERSION } from '../../../src/storage/sqlite/schema.js';
 import { ensureTestingEnv } from '../../helpers/test-env.js';
 
@@ -72,12 +75,14 @@ const limitedCache = createSqliteDbCache({ maxEntries: 1 });
 const disabledCache = createSqliteDbCache({ maxEntries: 0 });
 const backends = new Set();
 const externallyOwnedHandles = new Set();
+let releaseExpectedClose = () => {};
 
 try {
   // The reader only needs the canonical schema and a few rows; no index build.
   const writer = new Database(sharedPath);
   try {
     writer.exec(CREATE_TABLES_SQL);
+    writeSqliteIndexFormat(writer);
     writer.pragma(`user_version = ${SCHEMA_VERSION}`);
     const insert = writer.prepare('INSERT INTO chunks (id, chunk_id, mode, file) VALUES (?, ?, ?, ?)');
     modes.forEach((mode, index) => insert.run(index + 1, `chunk-${mode}`, mode, `${mode}.txt`));
@@ -86,12 +91,14 @@ try {
   }
   await fs.copyFile(sharedPath, separatePath);
   const invalidWriter = new Database(invalidPath);
+  invalidWriter.pragma(`user_version = ${SCHEMA_VERSION}`);
+  writeSqliteIndexFormat(invalidWriter);
   invalidWriter.close();
   const originalStat = await fs.stat(sharedPath);
 
   const sqliteStates = Object.fromEntries(modes.map((mode) => [mode, {
     buildId: `build-${mode}`,
-    artifactSurfaceVersion: 1,
+    artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
     profile: { id: 'default', schemaVersion: 1 },
     sqlite: { ready: true, pending: false }
   }]));
@@ -299,22 +306,34 @@ try {
     oneEntryCache.dispose();
   }
 
-  const throwingCleanup = await openBackend({
-    dbCache: null,
-    sqliteProsePath: separatePath,
-    needsExtractedProse: false
-  });
-  const originalClose = throwingCleanup.dbCode.close.bind(throwingCleanup.dbCode);
-  let closeCalls = 0;
-  throwingCleanup.dbCode.close = () => {
-    closeCalls += 1;
-    originalClose();
-    throw new Error('injected first-handle close failure');
+  const originalClose = Database.prototype.close;
+  let closeCalls = 0, denyClose = true, throwingCleanup;
+  Database.prototype.close = function () {
+    const result = originalClose.call(this);
+    if (this.name === sharedPath) {
+      closeCalls += 1;
+      if (denyClose) throw new Error('injected first-handle close failure');
+    }
+    return result;
   };
-  assert.throws(() => throwingCleanup.dispose(), AggregateError);
+  try {
+    throwingCleanup = await openBackend({ dbCache: null, sqliteProsePath: separatePath, needsExtractedProse: false });
+  } finally { Database.prototype.close = originalClose; }
+  releaseExpectedClose = () => {
+    denyClose = false;
+    getPendingSqliteCacheOwners().find(owner => owner.db === throwingCleanup.dbCode)?.release();
+  };
+  let cleanupFailure;
+  assert.throws(() => throwingCleanup.dispose(), error => { cleanupFailure = error; return error instanceof AggregateError; });
   assert.equal(throwingCleanup.dbProse.open, false, 'dispose must attempt all physical handles');
-  await throwingCleanup.dispose();
+  assert.throws(() => throwingCleanup.dispose(), error => error === cleanupFailure, 'repeated dispose preserves its actual failure');
   assert.equal(closeCalls, 1, 'a failing disposer must still be idempotent');
+  assert.equal(cleanupFailure.cacheOwnershipReleased(), false, 'native side effects alone do not acknowledge a thrown close');
+  assert.ok(getPendingSqliteCacheOwners().some(owner => owner.db === throwingCleanup.dbCode));
+  releaseExpectedClose();
+  assert.equal(cleanupFailure.cacheOwnershipReleased(), true);
+  assert.equal(closeCalls, 2, 'only explicit reconciliation invokes the captured close again');
+  backends.delete(throwingCleanup);
 
   const fallbackWarm = await openBackend({
     sqliteExtractedProsePath: invalidPath,
@@ -340,6 +359,7 @@ try {
   assert.equal(fallbackClosed.length, 1, 'fallback must close the shared cache entry exactly once');
   assert.equal(fallbackClosed[0].open, false);
 } finally {
+  releaseExpectedClose();
   for (const backend of backends) await backend.dispose();
   cache.dispose();
   backendCache.dispose();

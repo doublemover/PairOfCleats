@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["js-report", "ts-report", "js-fail", "ts-fail", "js-default-anonymous", "js-default-arrow", "js-default-class", "ts-default-anonymous", "ts-default-arrow", "ts-default-class"]
+}

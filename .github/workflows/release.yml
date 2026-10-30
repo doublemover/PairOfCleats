@@ -43,13 +43,21 @@ jobs:
           fetch-depth: 0
           ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
 
+      - name: Setup Python
+        id: python-runtime
+        uses: actions/setup-python@v7
+        with:
+          python-version-file: .python-version
+
       - name: Setup Node
         uses: actions/setup-node@v7
         with:
-          node-version: '26.8.1'
+          node-version: '26.13.0'
           cache: npm
 
       - name: Install deps
+        env:
+          NODE_GYP_FORCE_PYTHON: ${{ steps.python-runtime.outputs.python-path }}
         run: npm run bootstrap:ci
 
       - name: Resolve checked out release revision
@@ -109,15 +117,23 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
         with:
-          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
+          ref: ${{ needs.prepare.outputs.release_git_sha }}
+
+      - name: Setup Python
+        id: python-runtime
+        uses: actions/setup-python@v7
+        with:
+          python-version-file: .python-version
 
       - name: Setup Node
         uses: actions/setup-node@v7
         with:
-          node-version: '26.8.1'
+          node-version: '26.13.0'
           cache: npm
 
       - name: Install deps
+        env:
+          NODE_GYP_FORCE_PYTHON: ${{ steps.python-runtime.outputs.python-path }}
         run: npm run bootstrap:ci
 
       - name: Build packaged node surfaces
@@ -148,15 +164,23 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
         with:
-          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
+          ref: ${{ needs.prepare.outputs.release_git_sha }}
+
+      - name: Setup Python
+        id: python-runtime
+        uses: actions/setup-python@v7
+        with:
+          python-version-file: .python-version
 
       - name: Setup Node
         uses: actions/setup-node@v7
         with:
-          node-version: '26.8.1'
+          node-version: '26.13.0'
           cache: npm
 
       - name: Install deps
+        env:
+          NODE_GYP_FORCE_PYTHON: ${{ steps.python-runtime.outputs.python-path }}
         run: npm run bootstrap:ci
 
       - name: Verify runtime surfaces
@@ -188,15 +212,23 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
         with:
-          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
+          ref: ${{ needs.prepare.outputs.release_git_sha }}
+
+      - name: Setup Python
+        id: python-runtime
+        uses: actions/setup-python@v7
+        with:
+          python-version-file: .python-version
 
       - name: Setup Node
         uses: actions/setup-node@v7
         with:
-          node-version: '26.8.1'
+          node-version: '26.13.0'
           cache: npm
 
       - name: Install deps
+        env:
+          NODE_GYP_FORCE_PYTHON: ${{ steps.python-runtime.outputs.python-path }}
         run: npm run bootstrap:ci
 
       - name: Download packaged node artifacts
@@ -242,20 +274,28 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
         with:
-          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
+          ref: ${{ needs.prepare.outputs.release_git_sha }}
+
+      - name: Setup Python
+        id: python-runtime
+        uses: actions/setup-python@v7
+        with:
+          python-version-file: .python-version
 
       - name: Setup Node
         uses: actions/setup-node@v7
         with:
-          node-version: '26.8.1'
+          node-version: '26.13.0'
           cache: npm
 
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: 1.88.0
+          toolchain: 1.99.1
 
       - name: Install deps
+        env:
+          NODE_GYP_FORCE_PYTHON: ${{ steps.python-runtime.outputs.python-path }}
         run: npm run bootstrap:ci
 
       - name: Build TUI release artifacts
@@ -297,15 +337,23 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
         with:
-          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
+          ref: ${{ needs.prepare.outputs.release_git_sha }}
+
+      - name: Setup Python
+        id: python-runtime
+        uses: actions/setup-python@v7
+        with:
+          python-version-file: .python-version
 
       - name: Setup Node
         uses: actions/setup-node@v7
         with:
-          node-version: '26.8.1'
+          node-version: '26.13.0'
           cache: npm
 
       - name: Install deps
+        env:
+          NODE_GYP_FORCE_PYTHON: ${{ steps.python-runtime.outputs.python-path }}
         run: npm run bootstrap:ci
 
       - name: Download TUI build artifacts
@@ -347,15 +395,23 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
         with:
-          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
+          ref: ${{ needs.prepare.outputs.release_git_sha }}
+
+      - name: Setup Python
+        id: python-runtime
+        uses: actions/setup-python@v7
+        with:
+          python-version-file: .python-version
 
       - name: Setup Node
         uses: actions/setup-node@v7
         with:
-          node-version: '26.8.1'
+          node-version: '26.13.0'
           cache: npm
 
       - name: Install deps
+        env:
+          NODE_GYP_FORCE_PYTHON: ${{ steps.python-runtime.outputs.python-path }}
         run: npm run bootstrap:ci
 
       - name: Download prepare artifacts
@@ -465,25 +521,33 @@ jobs:
   trust-materials:
     name: trust-materials
     runs-on: ubuntu-latest
-    needs: release-bundle
+    needs: [prepare, release-bundle]
     steps:
       - name: Checkout
         uses: actions/checkout@v7
         with:
-          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
+          ref: ${{ needs.prepare.outputs.release_git_sha }}
+
+      - name: Setup Python
+        id: python-runtime
+        uses: actions/setup-python@v7
+        with:
+          python-version-file: .python-version
 
       - name: Setup Node
         uses: actions/setup-node@v7
         with:
-          node-version: '26.8.1'
+          node-version: '26.13.0'
           cache: npm
 
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: 1.88.0
+          toolchain: 1.99.1
 
       - name: Install deps
+        env:
+          NODE_GYP_FORCE_PYTHON: ${{ steps.python-runtime.outputs.python-path }}
         run: npm run bootstrap:ci
 
       - name: Install cargo-cyclonedx
@@ -524,6 +588,17 @@ jobs:
     permissions:
       contents: write
     steps:
+      - name: Checkout verified promotion helpers
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.prepare.outputs.release_git_sha }}
+          persist-credentials: false
+
+      - name: Setup Node for dependency-free promotion
+        uses: actions/setup-node@v7
+        with:
+          node-version: '26.13.0'
+
       - name: Download release bundle
         uses: actions/download-artifact@v8
         with:
@@ -569,15 +644,15 @@ jobs:
             exit 1
           fi
           NOTES_PATH='dist/release/downloads/release-prepare/notes.md'
+          node --input-type=module -e "import { stageReleaseAssets } from './tools/release/publish-assets.js'; import fs from 'node:fs'; fs.writeFileSync('dist/release/publish-plan.json', JSON.stringify(stageReleaseAssets('dist/release')));"
+          mapfile -t upload_args < <(node -e "const plan=require('./dist/release/publish-plan.json'); process.stdout.write(plan.uploadPaths.join('\n')+'\n');")
+          if [ "${#upload_args[@]}" -eq 0 ]; then
+            echo "release upload plan must not be empty" >&2
+            exit 1
+          fi
           if ! gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
             gh release create "$RELEASE_TAG" --verify-tag --title "PairOfCleats $RELEASE_VERSION" --notes-file "$NOTES_PATH"
           fi
-          mapfile -t release_files < <(find dist/release/downloads dist/release/bundle dist/release/trust -type f | sort)
-          upload_args=()
-          for file_path in "${release_files[@]}"; do
-            rel_path="${file_path#dist/release/}"
-            upload_args+=("${file_path}#${rel_path}")
-          done
           gh release upload "$RELEASE_TAG" "${upload_args[@]}" --clobber
 
   readiness-gate:
@@ -597,15 +672,23 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
         with:
-          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
+          ref: ${{ needs.prepare.outputs.release_git_sha }}
+
+      - name: Setup Python
+        id: python-runtime
+        uses: actions/setup-python@v7
+        with:
+          python-version-file: .python-version
 
       - name: Setup Node
         uses: actions/setup-node@v7
         with:
-          node-version: '26.8.1'
+          node-version: '26.13.0'
           cache: npm
 
       - name: Install deps
+        env:
+          NODE_GYP_FORCE_PYTHON: ${{ steps.python-runtime.outputs.python-path }}
         run: npm run bootstrap:ci
 
       - name: Download prepare artifacts

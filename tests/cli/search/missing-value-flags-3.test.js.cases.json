@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "cases": [
+    "ann-candidates",
+    "backend",
+    "branches",
+    "chunk-author",
+    "continues",
+    "dense-vector-mode",
+    "filter",
+    "graph-ranking-max-work",
+    "inferred-type",
+    "merge",
+    "model",
+    "n",
+    "preset",
+    "return-type",
+    "risk-sink",
+    "select",
+    "struct-rule",
+    "top",
+    "visibility"
+  ]
+}

@@ -5,6 +5,8 @@ import { atomicWriteText } from '../../../../shared/io/atomic-write.js';
 import { toArray } from '../../../../shared/iterables.js';
 import { NATIVE_GRAMMAR_MODULES } from '../../../../lang/tree-sitter/native-runtime.js';
 import { parseSubprocessCrashEvents, tailLines } from './crash-utils.js';
+import { buildSchedulerDegradationReceipt } from '../degradation.js';
+import { createCrashPersistence } from './crash-persistence.js';
 
 const TREE_SITTER_RUNTIME_PACKAGE = 'tree-sitter';
 const CRASH_BUNDLE_SCHEMA_VERSION = '1.0.0';
@@ -227,6 +229,7 @@ const makeBundleSnapshot = ({
   outDir: path.resolve(outDir),
   failedGrammarKeys: Array.from(failedGrammarKeys).sort(),
   degradedVirtualPaths: Array.from(degradedVirtualPaths).sort(),
+  degradation: buildSchedulerDegradationReceipt({ failedGrammarKeys, degradedVirtualPaths }),
   quarantineDecisions: buildQuarantineDecisions(eventsBySignature),
   failureClasses: Object.fromEntries(
     Array.from(failureClassCounts.entries()).sort((a, b) => String(a[0]).localeCompare(String(b[0])))
@@ -253,7 +256,7 @@ const makeBundleSnapshot = ({
  *  getBundlePath: ()=>string,
  *  getDurableBundlePath: ()=>string|null,
  *  summarize: ()=>object,
- *  waitForPersistence: ()=>Promise<void>
+ *  waitForPersistence: ()=>Promise<{ok:boolean,failures:object[],sinks:object[]}>
  * }}
  */
 export const createSchedulerCrashTracker = ({
@@ -270,22 +273,27 @@ export const createSchedulerCrashTracker = ({
   const failureClassCounts = new Map();
   const localBundlePath = path.join(paths.baseDir, CRASH_BUNDLE_FILE);
   const durableBundlePath = resolveDurableCrashBundlePath({ runtime, outDir });
-  let persistSerial = Promise.resolve();
+  const persistence = createCrashPersistence({ log });
+  const attemptSink = persistence.attempt;
 
   /**
    * Serialize crash bundle persistence to keep on-disk snapshots deterministic.
    *
    * @param {object} bundle
+   * @param {object|null} [presentation]
    * @returns {Promise<void>}
    */
-  const enqueuePersist = (bundle) => {
-    persistSerial = persistSerial.then(async () => {
+  const enqueuePersist = (bundle, presentation = null) => {
+    return persistence.enqueue(async () => {
       const serializedBundle = JSON.stringify(bundle);
-      await atomicWriteText(localBundlePath, serializedBundle, { newline: false });
+      await attemptSink('local', localBundlePath, () => atomicWriteText(localBundlePath, serializedBundle, { newline: false }));
       if (durableBundlePath) {
-        await atomicWriteText(durableBundlePath, serializedBundle, { newline: false });
+        await attemptSink('durable', durableBundlePath, () => atomicWriteText(durableBundlePath, serializedBundle, { newline: false }));
       }
-      if (typeof crashLogger?.persistForensicBundle === 'function') {
+      let externalPersist, externalReadError, externalReadFailed = false;
+      try { externalPersist = crashLogger?.persistForensicBundle; }
+      catch (error) { externalReadFailed = true; externalReadError = error; }
+      if (externalReadFailed || typeof externalPersist === 'function') {
         const bundleSignature = `scheduler-${sha1(JSON.stringify({
           failedGrammarKeys: bundle?.failedGrammarKeys || [],
           degradedVirtualPaths: bundle?.degradedVirtualPaths || [],
@@ -293,14 +301,21 @@ export const createSchedulerCrashTracker = ({
             ? bundle.events.map((event) => event?.signature || '').filter(Boolean).sort()
             : []
         })).slice(0, 20)}`;
-        await crashLogger.persistForensicBundle({
-          kind: 'tree-sitter-scheduler-crash',
-          signature: bundleSignature,
-          bundle
+        await attemptSink('external', null, () => {
+          if (externalReadFailed) throw externalReadError;
+          return externalPersist.call(crashLogger, { kind: 'tree-sitter-scheduler-crash',
+            signature: bundleSignature, bundle });
         });
       }
-    }).catch(() => {});
-    return persistSerial;
+      // Optional presentation runs only after the original evidence sinks.
+      // Neither a logger getter nor a callback can prevent bundle admission.
+      if (presentation) persistence.present(async () => {
+        if (typeof log === 'function') await attemptSink('presentation', null, () => log(presentation.line));
+        if (crashLogger) await attemptSink('error-log', null, () => {
+          if (crashLogger.enabled) return crashLogger.logError(presentation.error);
+        });
+      });
+    });
   };
 
   /**
@@ -404,6 +419,7 @@ export const createSchedulerCrashTracker = ({
       signal
     });
     const existing = eventsBySignature.get(signature);
+    let presentation = null;
     if (existing) {
       existing.occurrences += 1;
       existing.lastSeenAt = new Date().toISOString();
@@ -449,14 +465,10 @@ export const createSchedulerCrashTracker = ({
         subprocessEvents: subprocessCrashEvents
       };
       eventsBySignature.set(signature, event);
-      if (typeof log === 'function') {
-        log(
-          `[tree-sitter:schedule] parser crash contained (${grammarKey}); signature=${signature} ` +
-          `stage=${resolvedStage} lang=${parserMetadata.languageId || 'unknown'}`
-        );
-      }
-      if (crashLogger?.enabled) {
-        crashLogger.logError({
+      presentation = {
+        line: `[tree-sitter:schedule] parser crash contained (${grammarKey}); signature=${signature} ` +
+          `stage=${resolvedStage} lang=${parserMetadata.languageId || 'unknown'}`,
+        error: {
           category: 'parse',
           phase: 'tree-sitter-scheduler',
           stage: resolvedStage,
@@ -477,8 +489,8 @@ export const createSchedulerCrashTracker = ({
               ? inferredFailedGrammarKeys.slice()
               : []
           }
-        });
-      }
+        }
+      };
     }
     const bundle = makeBundleSnapshot({
       runtime,
@@ -488,7 +500,7 @@ export const createSchedulerCrashTracker = ({
       degradedVirtualPaths,
       failureClassCounts
     });
-    void enqueuePersist(bundle);
+    void enqueuePersist(bundle, presentation);
   };
 
   return {
@@ -497,21 +509,20 @@ export const createSchedulerCrashTracker = ({
     getDegradedVirtualPaths: () => new Set(degradedVirtualPaths),
     getBundlePath: () => localBundlePath,
     getDurableBundlePath: () => durableBundlePath,
+    isPersistenceSettled: persistence.isSettled,
     summarize: () => ({
       parserCrashSignatures: eventsBySignature.size,
       parserCrashEvents: Array.from(eventsBySignature.values())
         .sort((a, b) => String(a.signature).localeCompare(String(b.signature))),
       failedGrammarKeys: Array.from(failedGrammarKeys).sort(),
       degradedVirtualPaths: Array.from(degradedVirtualPaths).sort(),
+      degradation: buildSchedulerDegradationReceipt({ failedGrammarKeys, degradedVirtualPaths }),
       quarantineDecisions: buildQuarantineDecisions(eventsBySignature),
       failureClasses: Object.fromEntries(
         Array.from(failureClassCounts.entries()).sort((a, b) => String(a[0]).localeCompare(String(b[0])))
-      )
+      ),
+      persistence: persistence.snapshot()
     }),
-    waitForPersistence: async () => {
-      try {
-        await persistSerial;
-      } catch {}
-    }
+    waitForPersistence: persistence.wait
   };
 };

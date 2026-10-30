@@ -1,6 +1,6 @@
 import { canonicalSemanticJson } from './identity.js';
-import { compilerClassDefinitions, compilerConstructorCandidates, compilerReturnExpressions } from './compiler-object-model.js';
-import { compilerPropertyKeys, propertyKeySetsOverlap } from './compiler-property-paths.js';
+import { createCompilerStructuralQueries } from './compiler-structural-queries.js';
+import { compilerPropertyKeys, propertyKeySetsOverlap, unwrapCompilerExpression } from './compiler-property-paths.js';
 import { collectCompilerAliasAssignments } from './compiler-flow-fields.js';
 /** Source-backed call candidates augment checker signatures. Property/prototype
  * lookup stays modeled: getters, proxies, escaping receivers and replacement are
@@ -8,19 +8,20 @@ import { collectCompilerAliasAssignments } from './compiler-flow-fields.js';
 export const createCompilerDispatchResolver = ({ts,checker,nodes,declarationRef}) => {
   nodes=[...nodes];
   const writes = new Map(), assignments=collectCompilerAliasAssignments(ts,checker,nodes);
-  const unwrap = node => { while(node && (ts.isParenthesizedExpression(node)||ts.isAsExpression(node)||ts.isNonNullExpression(node)||ts.isTypeAssertionExpression(node))) node=node.expression; return node; };
+  const structural = createCompilerStructuralQueries({ ts, checker, assignments });
+  const unwrap = node => unwrapCompilerExpression(ts, node);
   const symbolFor = node => { let symbol=checker.getSymbolAtLocation(node); if(symbol?.flags & ts.SymbolFlags.Alias) symbol=checker.getAliasedSymbol(symbol); return symbol; };
   for(const node of nodes) if(ts.isBinaryExpression(node)&&node.operatorToken.kind===ts.SyntaxKind.EqualsToken) {
-    const left=node.left;
+    const left=unwrap(node.left);
     if(!ts.isPropertyAccessExpression(left)&&!ts.isElementAccessExpression(left)) continue;
-    let receiver=left.expression;
+    let receiver=unwrap(left.expression);
     const prototype=ts.isPropertyAccessExpression(receiver)&&receiver.name.text==='prototype';
-    if(prototype)receiver=receiver.expression;
+    if(prototype)receiver=unwrap(receiver.expression);
     const symbol=symbolFor(receiver); if(!symbol)continue;
     if(!writes.has(symbol))writes.set(symbol,[]);
     const list=writes.get(symbol); if(list.length<64)list.push({left,value:node.right,prototype}); else list.truncated=true;
   }
-  return node => {
+  const resolve = node => {
     const reasons=new Set(), found=[], seen=new Set(); let budget=256, incomplete=false, modeled=false, propertyDispatch=false;
     const add = candidate => {
       const owner=ts.isFunctionLike(candidate)&&candidate.parent?.initializer===candidate&&ts.isVariableDeclaration(candidate.parent)?candidate.parent:candidate;
@@ -32,7 +33,7 @@ export const createCompilerDispatchResolver = ({ts,checker,nodes,declarationRef}
       const symbol=symbolFor(input); return symbol?.declarations || [];
     };
     const constructors = definition => {
-      const candidates=compilerConstructorCandidates({ts,checker,definition,reasons});
+      const candidates=structural.constructors(definition,reasons);
       for(const candidate of candidates)add(candidate);
       modeled=true;incomplete=true;reasons.add('constructor_return_override_and_initialization_conservative');
     };
@@ -43,7 +44,7 @@ export const createCompilerDispatchResolver = ({ts,checker,nodes,declarationRef}
       if(ts.isClassDeclaration(input)||ts.isClassExpression(input)){constructors(input);return;}
       if(input.kind===ts.SyntaxKind.SuperKeyword) {
         let owner=input.parent;while(owner&&!ts.isClassDeclaration(owner)&&!ts.isClassExpression(owner))owner=owner.parent;
-        for(const clause of owner?.heritageClauses||[])if(clause.token===ts.SyntaxKind.ExtendsKeyword)for(const type of clause.types)for(const definition of compilerClassDefinitions({ts,checker,node:type.expression,reasons}))constructors(definition);
+        for(const clause of owner?.heritageClauses||[])if(clause.token===ts.SyntaxKind.ExtendsKeyword)for(const type of clause.types)for(const definition of structural.classes(type.expression,reasons))constructors(definition);
         modeled=true;incomplete=true;reasons.add('super_constructor_receiver_modeled');return;
       }
       if(ts.isFunctionLike(input)) { add(input); return; }
@@ -77,19 +78,21 @@ export const createCompilerDispatchResolver = ({ts,checker,nodes,declarationRef}
     const classMember = (definition,names,staticMember,visited=new Set()) => {
       if(visited.has(definition)||visited.size>=16||--budget<0) { incomplete=true; reasons.add('class_heritage_candidate_budget'); return; }
       visited=new Set(visited).add(definition);
-      let matched=false;
-      for(const member of definition.members||[]) {
-        if(Boolean(member.modifiers?.some(modifier=>modifier.kind===ts.SyntaxKind.StaticKeyword))!==staticMember||!member.name)continue;
+      const shadowed=new Set();
+      for(const member of structural.members(definition,names,staticMember,reasons)) {
         const memberKeys=compilerPropertyKeys({ts,checker,node:member.name,reasons});
-        if(!matches(memberKeys,names))continue; matched=true;
-        if(ts.isMethodDeclaration(member))add(member);
+        const runtimeMember=Boolean(member.body || ts.isPropertyDeclaration(member)&&member.initializer);
+        if(runtimeMember&&memberKeys.length===1&&memberKeys[0]!==null)shadowed.add(canonicalSemanticJson(memberKeys[0]));
+        else reasons.add(runtimeMember?'class_member_key_shadowing_conservative':'class_member_runtime_presence_unobserved');
+        if(ts.isMethodDeclaration(member)&&member.body)add(member);
         else if(ts.isPropertyDeclaration(member)&&member.initializer)visit(member.initializer);
-        else if(ts.isGetAccessorDeclaration(member)){for(const value of compilerReturnExpressions({ts,owner:member,reasons}))visit(value);}
+        else if(ts.isGetAccessorDeclaration(member)){for(const value of structural.returns(member,reasons))visit(value);}
         else { incomplete=true; reasons.add('accessor_returned_callable_unresolved'); }
       }
       if(definition.name)patch(definition.name,names,!staticMember);
-      if(!matched || names.includes(null)) for(const clause of definition.heritageClauses||[]) if(clause.token===ts.SyntaxKind.ExtendsKeyword) for(const type of clause.types) {
-        for(const parent of compilerClassDefinitions({ts,checker,node:type.expression,reasons}))classMember(parent,names,staticMember,visited);
+      const inheritedNames=names.filter(name=>name===null||!shadowed.has(canonicalSemanticJson(name)));
+      if(inheritedNames.length) for(const clause of definition.heritageClauses||[]) if(clause.token===ts.SyntaxKind.ExtendsKeyword) for(const type of clause.types) {
+        for(const parent of structural.classes(type.expression,reasons))classMember(parent,inheritedNames,staticMember,visited);
       }
     };
     const property = (receiver,names,visited=new Set()) => {
@@ -114,24 +117,23 @@ export const createCompilerDispatchResolver = ({ts,checker,nodes,declarationRef}
           else incomplete=true;
         }
       } else if(ts.isNewExpression(receiver)) {
-        for(const definition of compilerClassDefinitions({ts,checker,node:receiver.expression,reasons}))classMember(definition,names,false);
+        for(const definition of structural.classes(receiver.expression,reasons))classMember(definition,names,false);
         patch(receiver.expression,names,true);
       } else if(ts.isObjectLiteralExpression(receiver)) {
-        for(const member of receiver.properties) {
+        for(const member of structural.members(receiver,names,false,reasons)) {
           if(ts.isSpreadAssignment(member)) { property(member.expression,names,visited); continue; }
-          if(!matches(compilerPropertyKeys({ts,checker,node:member.name,reasons}),names))continue;
           if(ts.isMethodDeclaration(member))add(member);
           else if(ts.isPropertyAssignment(member))visit(member.initializer);
           else if(ts.isShorthandPropertyAssignment(member)) {
             const symbol=checker.getShorthandAssignmentValueSymbol(member); for(const declaration of symbol?.declarations||[]) if(ts.isFunctionLike(declaration))add(declaration); else if(declaration.initializer)visit(declaration.initializer);
-          } else if(ts.isGetAccessorDeclaration(member)){for(const value of compilerReturnExpressions({ts,owner:member,reasons}))visit(value);} else reasons.add('accessor_returned_callable_unresolved');
+          } else if(ts.isGetAccessorDeclaration(member)){for(const value of structural.returns(member,reasons))visit(value);} else reasons.add('accessor_returned_callable_unresolved');
         }
       } else if(receiver.kind===ts.SyntaxKind.ThisKeyword||receiver.kind===ts.SyntaxKind.SuperKeyword) {
         let owner=receiver.parent,member=null; while(owner&&!ts.isClassDeclaration(owner)&&!ts.isClassExpression(owner)){member=owner;owner=owner.parent;}
         const staticMember=Boolean(member?.modifiers?.some(modifier=>modifier.kind===ts.SyntaxKind.StaticKeyword));
         if(owner) {
           if(receiver.kind===ts.SyntaxKind.ThisKeyword)classMember(owner,names,staticMember);
-          else for(const clause of owner.heritageClauses||[]) for(const type of clause.types) for(const parent of declarations(type.expression))classMember(parent,names,staticMember);
+          else for(const clause of owner.heritageClauses||[]) if(clause.token===ts.SyntaxKind.ExtendsKeyword) for(const type of clause.types) for(const parent of structural.classes(type.expression,reasons))classMember(parent,names,staticMember);
         }
       } else incomplete=true;
     };
@@ -142,4 +144,6 @@ export const createCompilerDispatchResolver = ({ts,checker,nodes,declarationRef}
     const excludedTargets=(ts.isPropertyAccessExpression(callee)||ts.isElementAccessExpression(callee)?declarations(ts.isPropertyAccessExpression(callee)?callee.name:callee):[]).filter(value=>ts.isGetAccessorDeclaration(value)||ts.isSetAccessorDeclaration(value)).map(declarationRef).filter(Boolean);
     return {targets:targets.slice(0,32),incomplete,modeled,propertyDispatch,excludedTargets,reasons:[...reasons]};
   };
+  resolve.stats = structural.stats;
+  return resolve;
 };

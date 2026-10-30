@@ -53,7 +53,7 @@ Outputs:
   relations when present.
 
 ## Compatibility and versioning
-- The map model version is `MAP_MODEL_VERSION` (`1.0.0`).
+- The map model version is `MAP_MODEL_VERSION` (`1.1.0`).
 - New fields must be additive. Consumers should ignore unknown fields.
 
 ## Code touchpoints
@@ -71,5 +71,34 @@ Outputs:
 ## Benchmarks
 - `node tools/bench/map/build-map-streaming.js --repo <repoRoot> --json`
 - `node tools/bench/map/build-map-memory.js --repo <repoRoot> --json`
+- `--runs` requires a positive safe integer. These tools run samples serially in
+  fresh Node processes with a 30-second child deadline and no retry. Filesystem
+  cache state is uncontrolled; neither tool performs explicit GC.
+- The streaming comparison measures serialization of an already materialized,
+  potentially display-limited map. Both encodings use the same atomic stream
+  publication owner. Parsed content must agree before timing and after every
+  sample; arms alternate order. Model preparation, input admission, one warmup,
+  measured publication and child wall time have separate observations.
+- Reports retain the selected index signature, effective options/limits, actual
+  file/member/edge counts, inventory, dropped/truncated state, section hashes,
+  serialized bytes, SHA-256 input identity, raw samples and completed operation
+  counts. They do not establish uncapped indexing or viewer performance.
+- The memory tool builds once per fresh child. `buildMetrics.observedBoundaryMax`
+  includes stage boundaries and the completed model after sorting, hashing and
+  assembly. The model's existing `buildMetrics.peak` is a compatibility alias for
+  those sampled bounds; it does not observe allocations between boundaries.
+- Benchmark reports distinguish boundary heap/RSS samples from process-lifetime
+  RSS high-water observations. [Node's `process.resourceUsage()`](https://nodejs.org/api/process.html#processresourceusage)
+  supplies `maxRSS` in KiB, converted to bytes. Its scope includes child startup,
+  input preparation and any warmup through operation completion, before consumer
+  readback. Missing or inconsistent counters remain unavailable, never zero or
+  endpoint substitutes. No transient heap high-water measurement is claimed.
+- Streaming fixtures use exclusively marked child directories under the shared
+  development benchmark cache, or under the supplied `--out` parent. Cleanup
+  verifies containment, ownership and original resource settlement; existing
+  caller files are retained. Primary and cleanup failures retain their context.
+- Source-level repairs and regression fixtures are not measured performance
+  qualification. Representative profiles, native-counter availability and final
+  Windows runtime execution require their own recorded runs.
 - Bench harness:
 - `node tools/bench/bench-runner.js --suite sweet16-ci --json .testLogs/bench-sweet16.json --quiet`

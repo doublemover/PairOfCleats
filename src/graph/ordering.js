@@ -64,7 +64,7 @@ export const referenceEnvelopeKey = (envelope) => {
     const unique = Array.from(new Set(candidateKeys));
     unique.sort(compareStrings);
     if (unique.length === 1) return unique[0];
-    return `candidates:${unique.join('|')}`;
+    return JSON.stringify(['candidates', unique]);
   }
   if (typeof envelope.targetName === 'string' && envelope.targetName) {
     return `name:${envelope.targetName}`;
@@ -96,7 +96,7 @@ export const edgeKey = (edge) => {
   const toKey = edgeEndpointKey(edge.to);
   const edgeType = typeof edge.edgeType === 'string' ? edge.edgeType : '';
   const graph = typeof edge.graph === 'string' ? edge.graph : '';
-  return `${graph}|${fromKey}|${edgeType}|${toKey}`;
+  return JSON.stringify([graph, fromKey, edgeType, toKey]);
 };
 
 export const compareGraphEdges = (left, right) => {
@@ -118,7 +118,7 @@ export const compareWitnessPaths = (left, right) => {
   if (distanceCompare !== 0) return distanceCompare;
   const toCompare = compareNodeRefs(left?.to, right?.to);
   if (toCompare !== 0) return toCompare;
-  const leftKey = Array.isArray(left?.nodes) ? left.nodes.map(nodeKey).join('>') : '';
-  const rightKey = Array.isArray(right?.nodes) ? right.nodes.map(nodeKey).join('>') : '';
+  const leftKey = JSON.stringify(Array.isArray(left?.nodes) ? left.nodes.map(nodeKey) : []);
+  const rightKey = JSON.stringify(Array.isArray(right?.nodes) ? right.nodes.map(nodeKey) : []);
   return compareStrings(leftKey, rightKey);
 };

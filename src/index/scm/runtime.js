@@ -2,13 +2,18 @@ import path from 'node:path';
 import { sha1 } from '../../shared/hash.js';
 import { stableStringifyForSignature } from '../../shared/stable-json.js';
 
-let activeConfig = {};
+let activeConfig = Object.freeze({});
 let activeConfigSignature = sha1(stableStringifyForSignature(activeConfig));
 let activeConfigEpoch = 0;
 
 const cloneConfig = (config) => (
-  config && typeof config === 'object' ? { ...config } : {}
+  config && typeof config === 'object' ? structuredClone(config) : {}
 );
+const freezeConfig = value => {
+  if (!value || typeof value !== 'object' || Object.isFrozen(value)) return value;
+  for (const child of Object.values(value)) freezeConfig(child);
+  return Object.freeze(value);
+};
 
 const sanitizeScmConfigForSignature = (config) => {
   const cloned = cloneConfig(config);
@@ -40,9 +45,8 @@ const normalizeHeadId = (value) => {
   return trimmed || null;
 };
 
-const resolveRepoHeadId = (value) => (
-  normalizeHeadId(value?.head?.changeId)
-  || normalizeHeadId(value?.head?.commitId)
+export const resolveScmRevisionIdentity = (value) => (
+  normalizeHeadId(value?.head?.commitId)
   || normalizeHeadId(value?.commit)
   || normalizeHeadId(value?.repoHeadId)
   || null
@@ -81,8 +85,8 @@ export const buildScmFreshnessGuard = (input = {}) => {
     ? input.configSignature.trim()
     : (config === activeConfig ? activeConfigSignature : resolveScmConfigSignature(config));
   const headId = normalizeHeadId(input?.repoHeadId)
-    || resolveRepoHeadId(input?.repoProvenance)
-    || resolveRepoHeadId(config?.repoProvenance)
+    || resolveScmRevisionIdentity(input?.repoProvenance)
+    || resolveScmRevisionIdentity(config?.repoProvenance)
     || normalizeHeadId(config?.repoHeadId)
     || null;
   const includeChurn = input?.includeChurn === true;
@@ -100,7 +104,7 @@ export const buildScmFreshnessGuard = (input = {}) => {
 };
 
 export const setScmRuntimeConfig = (config) => {
-  activeConfig = cloneConfig(config);
+  activeConfig = freezeConfig(cloneConfig(config));
   activeConfigSignature = resolveScmConfigSignature(activeConfig);
   activeConfigEpoch += 1;
 };

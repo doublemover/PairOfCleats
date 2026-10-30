@@ -1,8 +1,10 @@
 import fs from 'node:fs/promises';
-import fsSync from 'node:fs';
+import { Readable, Writable } from 'node:stream';
 import path from 'node:path';
 import { pipeline } from 'node:stream/promises';
 import { createGunzip } from 'node:zlib';
+import { archiveStreamError, createArchiveResourceOwner, removeOwnedArchiveDirectory } from './archive-resource-owner.js';
+export { getArchiveExtractionSession, isArchiveExtractionSession, runArchiveTransaction } from './archive-resource-owner.js';
 import { createError, ERROR_CODES } from '../../src/shared/error-codes.js';
 import { isAbsolutePathAny, toPosix } from '../../src/shared/file-paths.js';
 
@@ -95,202 +97,215 @@ function createArchiveLimiter(limits) {
 }
 
 
-async function extractZipNode(archivePath, destDir, limits) {
-  const limiter = createArchiveLimiter(limits);
-  await fs.mkdir(destDir, { recursive: true });
-  const mod = await import('yauzl');
-  const yauzl = mod.default || mod;
-  return new Promise((resolve, reject) => {
-    yauzl.open(archivePath, { lazyEntries: true }, (err, zipfile) => {
-      if (err || !zipfile) return reject(err);
-      const fail = (error) => {
-        try { zipfile.close(); } catch {}
-        reject(error);
-      };
-      zipfile.readEntry();
-      zipfile.on('entry', (entry) => {
-        if (isZipSymlink(entry)) {
-          fail(createError(ERROR_CODES.ARCHIVE_UNSAFE, `unsafe zip entry (symlink): ${entry.fileName}`));
-          return;
-        }
-        let targetPath;
-        try {
-          targetPath = resolveArchivePath(destDir, entry.fileName);
-        } catch (error) {
-          fail(error);
-          return;
-        }
-        if (!targetPath) {
-          fail(createError(ERROR_CODES.ARCHIVE_UNSAFE, `unsafe zip entry: ${entry.fileName}`));
-          return;
-        }
-        const declaredSize = Number(entry.uncompressedSize);
-        let counted = 0;
-        try {
-          counted = limiter.checkEntry(
-            entry.fileName,
-            Number.isFinite(declaredSize) ? declaredSize : 0
-          );
-        } catch (err) {
-          fail(err);
-          return;
-        }
-        if (isZipDirectory(entry)) {
-          fs.mkdir(targetPath, { recursive: true })
-            .then(async () => {
-              try { await fs.chmod(targetPath, DIR_MODE); } catch {}
-            })
-            .then(() => zipfile.readEntry())
-            .catch(fail);
-          return;
-        }
-        fs.mkdir(path.dirname(targetPath), { recursive: true })
-          .then(() => new Promise((resolveStream, rejectStream) => {
-            zipfile.openReadStream(entry, (streamErr, readStream) => {
-              if (streamErr || !readStream) return rejectStream(streamErr);
-              const tempPath = `${targetPath}.tmp-${process.pid}-${Date.now()}-${Math.random()
-                .toString(36)
-                .slice(2, 8)}`;
-              let written = 0;
-              readStream.on('data', (chunk) => {
-                written += chunk.length;
-                if (limits?.maxEntryBytes && written > limits.maxEntryBytes) {
-                  readStream.destroy(
-                    createError(ERROR_CODES.ARCHIVE_TOO_LARGE, `archive entry too large (${entry.fileName}).`)
-                  );
-                }
-              });
-              const writer = fsSync.createWriteStream(tempPath, { mode: FILE_MODE });
-              pipeline(readStream, writer)
-                .then(async () => {
-                  if (written > counted) {
-                    limiter.addBytes(written - counted);
-                  }
-                  try { await fs.chmod(tempPath, FILE_MODE); } catch {}
-                  if (fsSync.existsSync(targetPath)) {
-                    try { await fs.rm(targetPath, { force: true }); } catch {}
-                  }
-                  await fs.rename(tempPath, targetPath);
-                  try { await fs.chmod(targetPath, FILE_MODE); } catch {}
-                  resolveStream();
-                })
-                .catch(async (err) => {
-                  try { await fs.rm(tempPath, { force: true }); } catch {}
-                  rejectStream(err);
-                });
-            });
-          }))
-          .then(() => zipfile.readEntry())
-          .catch(fail);
-      });
-      zipfile.on('end', () => {
-        try { zipfile.close(); } catch {}
-        resolve(true);
-      });
-      zipfile.on('error', fail);
-    });
-  });
+async function openArchiveInput(archivePath, owner) {
+  const input = await owner.open(archivePath, 'r');
+  const stat = await owner.stat(input);
+  const size = Number(stat.size);
+  if (!stat.isFile() || !Number.isSafeInteger(size) || size < 0) throw new Error('Archive input has no bounded regular-file extent.');
+  return { input, size };
 }
 
-async function extractTarNode(archivePath, destDir, gzip, limits) {
+async function writeArchiveEntry(readStream, targetPath, owner, limits, name) {
+  const output = await owner.open(targetPath, 'wx', FILE_MODE);
+  let written = 0;
+  const writer = new Writable({
+    write(chunk, encoding, callback) {
+      written += chunk.length;
+      if (limits?.maxEntryBytes && written > limits.maxEntryBytes) {
+        const error = createError(ERROR_CODES.ARCHIVE_TOO_LARGE, `archive entry too large (${name}).`);
+        owner.record(error); callback(error); return;
+      }
+      owner.write(output, chunk).then(() => callback(), value => callback(archiveStreamError(value)));
+    }
+  });
+  try { await pipeline(readStream, writer); }
+  catch (value) { owner.record(value); throw value; }
+  finally { await owner.closeOne(output); }
+  return written;
+}
+
+const temporaryArchivePath = target => `${target}.tmp-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+async function publishArchiveFile(temporary, target, name) {
+  let previous;
+  try { previous = await fs.lstat(target); } catch (value) { if (value?.code !== 'ENOENT') throw value; }
+  if (previous) {
+    if (!previous.isFile() || previous.isSymbolicLink()) throw createError(ERROR_CODES.ARCHIVE_UNSAFE, `unsafe archive overwrite: ${name}`);
+    await fs.rm(target, { force: false });
+  }
+  await fs.rename(temporary, target);
+}
+
+async function extractZipNode(archivePath, destDir, limits, owner) {
+  const limiter = createArchiveLimiter(limits);
+  const mod = await import('yauzl');
+  const yauzl = mod.default || mod;
+  const { input, size } = await openArchiveInput(archivePath, owner);
+  // Keep yauzl's parser and range protocol, while the actual FileHandle remains
+  // in this owner. reader.close acknowledges only that protocol, never native
+  // descriptor closure. The original FileHandle closes after entry/I/O drain.
+  const reader = new yauzl.RandomAccessReader();
+  reader._readStreamForRange = (start, end) => Readable.from(owner.range(input, start, end));
+  reader.read = (buffer, offset, length, position, callback) => {
+    (async () => {
+      let total = 0;
+      while (total < length) {
+        const { bytesRead } = await owner.read(input, buffer, offset + total, length - total, position + total);
+        if (!Number.isSafeInteger(bytesRead) || bytesRead < 0 || bytesRead > length - total) throw new Error('Zip input descriptor returned an invalid byte count.');
+        if (!bytesRead) break;
+        total += bytesRead;
+      }
+      return total;
+    })().then(bytes => callback(null, bytes), value => callback(archiveStreamError(value)));
+  };
+  reader.close = callback => callback();
+  reader.on('error', value => owner.record(value));
+  let zipfile = null, close = null, stopped = false;
+  const tasks = new Set();
+  const trackEntry = task => {
+    tasks.add(task);
+    task.finally(() => tasks.delete(task)).catch(() => {});
+    return task;
+  };
+  try {
+    zipfile = await new Promise((resolve, reject) => {
+      yauzl.fromRandomAccessReader(reader, size, { lazyEntries: true, autoClose: false }, (error, result) => {
+        if (error) { reject(error); return; }
+        if (!result) { reject(new Error('Zip parser returned no owner.')); return; }
+        resolve(result);
+      });
+    });
+    close = zipfile.close;
+    const readEntry = zipfile.readEntry, openReadStream = zipfile.openReadStream;
+    if (typeof close !== 'function' || typeof readEntry !== 'function' || typeof openReadStream !== 'function') throw new Error('Zip parser has no original protocol owner.');
+    await new Promise((resolve, reject) => {
+      const fail = value => { owner.record(value); stopped = true; reject(value); };
+      // All observations and entry handlers precede the first read admission.
+      zipfile.on('error', fail);
+      zipfile.on('end', () => { stopped = true; resolve(); });
+      zipfile.on('entry', entry => {
+        if (stopped) return;
+        const task = (async () => {
+          if (isZipSymlink(entry)) throw createError(ERROR_CODES.ARCHIVE_UNSAFE, `unsafe zip entry (symlink): ${entry.fileName}`);
+          const targetPath = resolveArchivePath(destDir, entry.fileName);
+          if (!targetPath) throw createError(ERROR_CODES.ARCHIVE_UNSAFE, `unsafe zip entry: ${entry.fileName}`);
+          const declaredSize = Number(entry.uncompressedSize);
+          const counted = limiter.checkEntry(entry.fileName, Number.isFinite(declaredSize) ? declaredSize : 0);
+          if (isZipDirectory(entry)) {
+            await fs.mkdir(targetPath, { recursive: true });
+            try { await fs.chmod(targetPath, DIR_MODE); } catch {}
+            return;
+          }
+          await fs.mkdir(path.dirname(targetPath), { recursive: true });
+          if (stopped) return;
+          const stream = await new Promise((resolveStream, rejectStream) => {
+            openReadStream.call(zipfile, entry, (error, readStream) => {
+              if (error) { rejectStream(error); return; }
+              if (!readStream) { rejectStream(new Error('Zip entry returned no stream.')); return; }
+              resolveStream(readStream);
+            });
+          });
+          const tempPath = temporaryArchivePath(targetPath);
+          try {
+            if (stopped) { stream.destroy(); return; }
+            const written = await writeArchiveEntry(stream, tempPath, owner, limits, entry.fileName);
+            if (written > counted) limiter.addBytes(written - counted);
+            try { await fs.chmod(tempPath, FILE_MODE); } catch {}
+            await publishArchiveFile(tempPath, targetPath, entry.fileName);
+            try { await fs.chmod(targetPath, FILE_MODE); } catch {}
+          } catch (value) {
+            // Temporary files remain within the exclusively owned destination;
+            // recursive cleanup belongs to its owner after native closure.
+            owner.record(value); stream.destroy(); throw value;
+          }
+        })().then(() => { if (!stopped) readEntry.call(zipfile); }).catch(fail);
+        trackEntry(task);
+      });
+      try { readEntry.call(zipfile); } catch (value) { fail(value); }
+    });
+  } catch (value) { stopped = true; owner.record(value); }
+  finally {
+    stopped = true;
+    while (tasks.size) await Promise.allSettled([...tasks]);
+    if (zipfile && close) { try { close.call(zipfile); } catch (value) { owner.record(value); } }
+  }
+}
+
+async function extractTarNode(archivePath, destDir, gzip, limits, owner) {
   const mod = await import('tar-stream');
   const tarStream = mod.default || mod;
   const extract = tarStream.extract();
+  const destroy = extract.destroy;
   const limiter = createArchiveLimiter(limits);
-  await fs.mkdir(destDir, { recursive: true });
+  const tasks = new Set();
+  let stopped = false;
   extract.on('entry', (header, stream, next) => {
-    const rawName = header?.name || '';
-    const type = header?.type || 'file';
-
-    (async () => {
-      // Count directories and special entries before any filesystem effect.
+    // The source can fail while an entry is awaiting mkdir, before its write
+    // pipeline subscribes. Retain that error now and still drain the task.
+    stream.on('error', value => { stopped = true; owner.record(value); });
+    if (stopped) { stream.resume(); return; }
+    const task = (async () => {
+      const rawName = header?.name || '', type = header?.type || 'file';
       const declaredSize = Number(header?.size);
-      const counted = limiter.checkEntry(rawName,
-        Number.isFinite(declaredSize) ? declaredSize : 0);
+      const counted = limiter.checkEntry(rawName, Number.isFinite(declaredSize) ? declaredSize : 0);
       const normalized = normalizeArchiveEntry(rawName);
-      // Reject symlinks/hardlinks to avoid writing outside the destination or
-      // creating unexpected filesystem references.
-      if (type === 'symlink' || type === 'link') {
-        throw createError(ERROR_CODES.ARCHIVE_UNSAFE, `unsafe tar entry (symlink): ${rawName}`);
-      }
-
-      // Skip empty / root-ish entries.
-      if (!normalized || normalized === '.' || normalized === '..') {
-        stream.resume();
-        return;
-      }
-
+      if (type === 'symlink' || type === 'link') throw createError(ERROR_CODES.ARCHIVE_UNSAFE, `unsafe tar entry (symlink): ${rawName}`);
+      if (!normalized || normalized === '.' || normalized === '..') { stream.resume(); return; }
       const targetPath = resolveArchivePath(destDir, normalized);
-      if (!targetPath) {
-        throw createError(ERROR_CODES.ARCHIVE_UNSAFE, `unsafe tar entry: ${rawName}`);
-      }
-
+      if (!targetPath) throw createError(ERROR_CODES.ARCHIVE_UNSAFE, `unsafe tar entry: ${rawName}`);
       if (type === 'directory') {
         await fs.mkdir(targetPath, { recursive: true });
         try { await fs.chmod(targetPath, DIR_MODE); } catch {}
-        stream.resume();
-        return;
+        stream.resume(); return;
       }
-
-      // Ignore special entries (devices, FIFOs, pax headers, etc.).
-      if (type !== 'file' && type !== 'contiguous-file') {
-        stream.resume();
-        return;
-      }
-
+      if (type !== 'file' && type !== 'contiguous-file') { stream.resume(); return; }
       await fs.mkdir(path.dirname(targetPath), { recursive: true });
-
-      const writer = fsSync.createWriteStream(targetPath, { mode: FILE_MODE });
-      let written = 0;
-      stream.on('data', (chunk) => {
-        written += chunk.length;
-        if (limits?.maxEntryBytes && written > limits.maxEntryBytes) {
-          stream.destroy(
-            createError(ERROR_CODES.ARCHIVE_TOO_LARGE, `archive entry too large (${normalized}).`)
-          );
-        }
-      });
-
-      await pipeline(stream, writer);
-
-      if (written > counted) {
-        limiter.addBytes(written - counted);
-      }
+      if (stopped) { stream.resume(); return; }
+      const temporary = temporaryArchivePath(targetPath);
+      const written = await writeArchiveEntry(stream, temporary, owner, limits, normalized);
+      if (written > counted) limiter.addBytes(written - counted);
+      await publishArchiveFile(temporary, targetPath, normalized);
       try { await fs.chmod(targetPath, FILE_MODE); } catch {}
-    })()
-      .then(() => next())
-      .catch((err) => {
-        try { stream.resume(); } catch {}
-        extract.destroy(err);
-      });
+    })().then(() => { if (!stopped) next(); }).catch(value => {
+      stopped = true; owner.record(value);
+      try { stream.resume(); destroy.call(extract, archiveStreamError(value)); }
+      catch (secondary) { owner.record(secondary); }
+    });
+    tasks.add(task);
+    task.finally(() => tasks.delete(task)).catch(() => {});
   });
-  const source = fsSync.createReadStream(archivePath);
-  if (gzip) {
-    await pipeline(source, createGunzip(), extract);
-  } else {
-    await pipeline(source, extract);
+  try {
+    const { input, size } = await openArchiveInput(archivePath, owner);
+    const source = Readable.from(owner.range(input, 0, size));
+    if (gzip) await pipeline(source, createGunzip(), extract);
+    else await pipeline(source, extract);
+  } catch (value) { stopped = true; owner.record(value); }
+  finally {
+    stopped = true;
+    while (tasks.size) await Promise.allSettled([...tasks]);
   }
-  return true;
 }
 
-async function extractArchiveNode(archivePath, destDir, type, limits) {
-  if (type === 'zip') return extractZipNode(archivePath, destDir, limits);
-  const gzip = type === 'tar.gz';
-  return extractTarNode(archivePath, destDir, gzip, limits);
-}
-
-/**
- * Extract an archive into a destination directory.
- * @param {string} archivePath
- * @param {string} destDir
- * @param {string} type
- * @returns {boolean}
+/** Extract only into a new destination, retaining the actual descriptor owner
+ * through parser/entry drain and exact cleanup. No stream protocol receipt is
+ * treated as native FileHandle closure.
  */
 export async function extractArchive(archivePath, destDir, type, limits) {
-  try {
-    return await extractArchiveNode(archivePath, destDir, type, limits);
-  } catch (error) {
-    await fs.rm(destDir, { recursive: true, force: true });
-    throw error;
+  const destination = path.resolve(destDir);
+  try { await fs.mkdir(destination, { mode: DIR_MODE }); }
+  catch (value) {
+    if (value?.code !== 'EEXIST') throw value;
+    throw createError(ERROR_CODES.ARCHIVE_UNSAFE, `Archive destination must not exist: ${destination}`);
   }
+  const owner = createArchiveResourceOwner(destination);
+  let identity = null;
+  owner.setCleanup(() => removeOwnedArchiveDirectory(destination, identity));
+  try {
+    identity = await fs.lstat(destination, { bigint: true });
+    if (!identity.isDirectory() || identity.isSymbolicLink() || identity.ino === 0n) throw createError(ERROR_CODES.ARCHIVE_UNSAFE, 'Archive destination has no known directory identity.');
+    if (type === 'zip') await extractZipNode(archivePath, destination, limits, owner);
+    else if (type === 'tar' || type === 'tar.gz') await extractTarNode(archivePath, destination, type === 'tar.gz', limits, owner);
+    else throw createError(ERROR_CODES.ARCHIVE_UNSAFE, `Unsupported archive type: ${type}`);
+  } catch (value) { owner.record(value); }
+  await owner.finish();
+  return true;
 }

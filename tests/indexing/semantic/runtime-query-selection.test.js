@@ -32,7 +32,9 @@ try {
   const exact = await query({ sources: [{ sourceUnitId: fixture.source.sourceUnitId, byteHash: fixture.source.byteHash }] });
   assert.equal(exact.observations.length, 6); assert.ok(exact.observations.every(row => row.join.quality === 'exact-source'));
   assert.deepEqual(exact.coverage.map(row => row.sourceJoinCounts.exactSource), [6, 0]);
-  assert.ok(exact.coverage[1].reasons.includes('exact_source_mapping_unavailable_in_saved_capture'));
+  assert.ok(exact.coverage[1].reasons.includes('no_retained_exact_source_observations'));
+  assert.equal(exact.coverage[1].requestedSources[0].state, 'no-retained-exact-observations');
+  assert.equal(exact.coverage[1].requestedSources[0].retainedExactCount, 0);
   assert.equal(exact.status, 'partial', 'complete saved profiles do not imply complete source mapping');
   assert.equal((await query({ sources: [{ sourceUnitId: fixture.source.sourceUnitId, byteHash: 'a'.repeat(64) }] })).observations.length, 0);
   assert.equal((await query({ records: fixture.options().sourceCandidates[0].targets })).observations.length, 0,

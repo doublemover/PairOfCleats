@@ -85,11 +85,15 @@ export const createEmbeddingsScheduler = ({ argv, rawArgv, userConfig, rawEnv = 
     { io: 1, signal },
     fn
   );
+  const scheduleNative = (fn, { estimatedBytes = 0 } = {}) => scheduleWithFallback(scheduler,
+    SCHEDULER_QUEUE_NAMES.embeddingsCompute, { cpu: 1, mem: 1,
+      bytes: Math.max(0, Math.min(Number.MAX_SAFE_INTEGER, Math.floor(Number(estimatedBytes) || 0))), signal }, fn);
 
   return {
     scheduler,
     scheduleCompute,
     scheduleIo,
+    scheduleNative,
     envelopeCpuConcurrency,
     runtimeEnvelope: envelope
   };

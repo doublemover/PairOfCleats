@@ -1,0 +1,404 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-10-27",
+  "sourceHead": "957230b1239a322489a63e8d77fe53057bab77ab",
+  "sourceTree": "a6576181d0ed4a0eb3120de6a090007855af495f",
+  "branch": "codex/pr557-audit-repairs-20261012",
+  "platform": "win32",
+  "arch": "x64",
+  "node": "v26.12.1",
+  "issues": [
+    {
+      "number": 1554,
+      "state": "closed",
+      "stateReason": "completed",
+      "closedAt": "2026-10-27T07:45:23Z",
+      "qualificationOnly": true,
+      "qualifiedTests": [
+        "tui/cargo-invocation-policy",
+        "tui/install-generation-transaction",
+        "tui/install-layout-default-root",
+        "tui/installer-unit",
+        "tui/wrapper-behavior",
+        "tui/wrapper-exit-status",
+        "tui/native-install-generation-conpty"
+      ]
+    }
+  ],
+  "currentCounts": {
+    "open": 722,
+    "qualificationPending": 461,
+    "partialFollowup": 147,
+    "implementationStatusUnresolved": 114
+  },
+  "liveCensus": {
+    "open": 722,
+    "checkedAt": "2026-10-27T07:48:17.627Z",
+    "newOrUnexpectedRemovedIssues": []
+  },
+  "build": {
+    "command": [
+      "node",
+      "tools/tui/build.js",
+      "--target",
+      "x86_64-pc-windows-msvc"
+    ],
+    "compiler": "cargo 1.88.0 (873a06493 2025-05-10)",
+    "profile": "locked release",
+    "reportedBuildSeconds": 18.79,
+    "rustSourceTree": "02271ba7718e6a8becf2d5f0903dbd00799fae1d",
+    "artifactSha256": "ab130146767505643fd8503a103f911d7fbb9f214585d8aac155dd3c859b5375",
+    "manifest": {
+      "artifacts": [
+        {
+          "artifactName": "pairofcleats-tui-aarch64-apple-darwin",
+          "artifactPath": ".tmp/tasks/tui-install-qualification-20261027/dist/pairofcleats-tui-aarch64-apple-darwin",
+          "exists": false,
+          "platform": "macos",
+          "sha256": null,
+          "triple": "aarch64-apple-darwin"
+        },
+        {
+          "artifactName": "pairofcleats-tui-x86_64-apple-darwin",
+          "artifactPath": ".tmp/tasks/tui-install-qualification-20261027/dist/pairofcleats-tui-x86_64-apple-darwin",
+          "exists": false,
+          "platform": "macos",
+          "sha256": null,
+          "triple": "x86_64-apple-darwin"
+        },
+        {
+          "artifactName": "pairofcleats-tui-x86_64-pc-windows-msvc.exe",
+          "artifactPath": ".tmp/tasks/tui-install-qualification-20261027/dist/pairofcleats-tui-x86_64-pc-windows-msvc.exe",
+          "exists": true,
+          "platform": "windows",
+          "sha256": "ab130146767505643fd8503a103f911d7fbb9f214585d8aac155dd3c859b5375",
+          "triple": "x86_64-pc-windows-msvc"
+        },
+        {
+          "artifactName": "pairofcleats-tui-x86_64-unknown-linux-gnu",
+          "artifactPath": ".tmp/tasks/tui-install-qualification-20261027/dist/pairofcleats-tui-x86_64-unknown-linux-gnu",
+          "exists": false,
+          "platform": "linux",
+          "sha256": null,
+          "triple": "x86_64-unknown-linux-gnu"
+        }
+      ],
+      "mode": "plan",
+      "pathPolicy": "repo-relative-posix",
+      "schemaVersion": 2,
+      "targetsManifest": {
+        "file": "tools/tui/targets.json",
+        "sha256": "4659f19ce0112bd5d0e989c162ffc792f3d4cb57b34dea571811c42cb4e3927a"
+      },
+      "tool": "pairofcleats-tui"
+    },
+    "scope": "Task-only PATH, RUSTUP_TOOLCHAIN, CARGO_TARGET_DIR and distribution; installed toolchain reused."
+  },
+  "policy": {
+    "jobs": 1,
+    "indexingThreads": 1,
+    "timeoutMs": 30000,
+    "retries": 0,
+    "nativeStatusRedo": false,
+    "launch": "Task children omit only the inherited missing trusted-config selector; user/global settings unchanged."
+  },
+  "uniqueDiscoveredFixtures": 7,
+  "finalObservations": [
+    {
+      "id": "tui/cargo-invocation-policy",
+      "status": "passed",
+      "durationMs": 296,
+      "attempts": 1,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false
+    },
+    {
+      "id": "tui/install-generation-transaction",
+      "status": "passed",
+      "durationMs": 1885,
+      "attempts": 1,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false
+    },
+    {
+      "id": "tui/install-layout-default-root",
+      "status": "passed",
+      "durationMs": 73,
+      "attempts": 1,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false
+    },
+    {
+      "id": "tui/installer-unit",
+      "status": "passed",
+      "durationMs": 1188,
+      "attempts": 1,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false
+    },
+    {
+      "id": "tui/wrapper-behavior",
+      "status": "passed",
+      "durationMs": 1341,
+      "attempts": 1,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false
+    },
+    {
+      "id": "tui/wrapper-exit-status",
+      "status": "passed",
+      "durationMs": 66,
+      "attempts": 1,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false
+    },
+    {
+      "id": "tui/native-install-generation-conpty",
+      "status": "passed",
+      "durationMs": 10512,
+      "attempts": 1,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false
+    }
+  ],
+  "nativeUpgrade": {
+    "artifactSha256": "ab130146767505643fd8503a103f911d7fbb9f214585d8aac155dd3c859b5375",
+    "first": "c25ee8df-4e10-468e-a048-eaec3eab4a14",
+    "second": "1b26b391-4894-479f-9a16-7c742967eb67",
+    "terminalRestored": true,
+    "allReaped": true,
+    "capture": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\native-install-generation-conpty-21128-1793086794221-laz1xf\\capture\\2026-10-27T07-39-54-603Z-native-install-upgrade-140x40-21128",
+    "receipt": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\native-install-generation-conpty-21128-1793086794221-laz1xf\\upgrade-receipt.json"
+  },
+  "nativeUpgradeDetail": {
+    "first": {
+      "artifact": ".tmp/tasks/tui-install-qualification-20261027/dist/pairofcleats-tui-x86_64-pc-windows-msvc.exe",
+      "built": false,
+      "checksum": "ab130146767505643fd8503a103f911d7fbb9f214585d8aac155dd3c859b5375",
+      "eventLogDir": ".tmp/dev/tests/cache/native-install-generation-conpty-21128-1793086794221-laz1xf/install/x86_64-pc-windows-msvc/logs",
+      "installedTo": ".tmp/dev/tests/cache/native-install-generation-conpty-21128-1793086794221-laz1xf/install/x86_64-pc-windows-msvc/generations/c25ee8df-4e10-468e-a048-eaec3eab4a14/pairofcleats-tui-x86_64-pc-windows-msvc.exe",
+      "metadata": ".tmp/dev/tests/cache/native-install-generation-conpty-21128-1793086794221-laz1xf/install/x86_64-pc-windows-msvc/install-manifest.json",
+      "ok": true,
+      "transaction": {
+        "generationId": "c25ee8df-4e10-468e-a048-eaec3eab4a14",
+        "priorGenerations": "retained",
+        "retirement": "not-requested",
+        "state": "published"
+      },
+      "triple": "x86_64-pc-windows-msvc"
+    },
+    "second": {
+      "artifact": ".tmp/tasks/tui-install-qualification-20261027/dist/pairofcleats-tui-x86_64-pc-windows-msvc.exe",
+      "built": false,
+      "checksum": "ab130146767505643fd8503a103f911d7fbb9f214585d8aac155dd3c859b5375",
+      "eventLogDir": ".tmp/dev/tests/cache/native-install-generation-conpty-21128-1793086794221-laz1xf/install/x86_64-pc-windows-msvc/logs",
+      "installedTo": ".tmp/dev/tests/cache/native-install-generation-conpty-21128-1793086794221-laz1xf/install/x86_64-pc-windows-msvc/generations/1b26b391-4894-479f-9a16-7c742967eb67/pairofcleats-tui-x86_64-pc-windows-msvc.exe",
+      "metadata": ".tmp/dev/tests/cache/native-install-generation-conpty-21128-1793086794221-laz1xf/install/x86_64-pc-windows-msvc/install-manifest.json",
+      "ok": true,
+      "transaction": {
+        "generationId": "1b26b391-4894-479f-9a16-7c742967eb67",
+        "priorGenerations": "retained",
+        "retirement": "not-requested",
+        "state": "published"
+      },
+      "triple": "x86_64-pc-windows-msvc"
+    },
+    "denied": {
+      "exitCode": 1,
+      "stderr": "[atomic-write] Failed to write file atomically \"C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\native-install-generation-conpty-21128-1793086794221-laz1xf\\install\\x86_64-pc-windows-msvc\\install-manifest.json\": EPERM: operation not permitted, rename 'C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\native-install-generation-conpty-21128-1793086794221-laz1xf\\install\\x86_64-pc-windows-msvc\\install-manifest.json.tmp-17296-ed3a33e2b84-00000002-d49e6b44e600' -> 'C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\native-install-generation-conpty-21128-1793086794221-laz1xf\\install\\x86_64-pc-windows-msvc\\install-manifest.json'\n[tui-install] phase=promotion selection=promotion-unconfirmed\n[tui-install] retained recovery generation: C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\native-install-generation-conpty-21128-1793086794221-laz1xf\\install\\x86_64-pc-windows-msvc\\generations\\73552cb1-d3b9-4ab3-a36d-55ef96c1cec4\n[tui-install] The previous generation is retained. Close a process holding the install manifest and retry if Windows denied publication.\n"
+    },
+    "liveOriginalPids": [
+      5760,
+      24180,
+      26156
+    ],
+    "newCapture": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\native-install-generation-conpty-21128-1793086794221-laz1xf\\new-generation-session\\capture\\2026-10-27T07-39-59-231Z-native-install-new-140x40-21128",
+    "artifactSha256": "ab130146767505643fd8503a103f911d7fbb9f214585d8aac155dd3c859b5375"
+  },
+  "serialNativeHelperControls": [
+    {
+      "beforeOutput": 7,
+      "afterOutput": 7,
+      "stderr": "",
+      "beforeInput": 503,
+      "mode": "quit",
+      "terminalRestored": true,
+      "exitCode": 0,
+      "afterInput": 503,
+      "binary": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\tui-install-qualification-20261027\\dist\\pairofcleats-tui-x86_64-pc-windows-msvc.exe",
+      "binarySha256": "ab130146767505643fd8503a103f911d7fbb9f214585d8aac155dd3c859b5375",
+      "ownedPids": [
+        20008,
+        22340,
+        17760,
+        16956,
+        7392
+      ],
+      "finalStatuses": [
+        "cancelled"
+      ],
+      "allReaped": true,
+      "capture": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\native-conpty-quit-21496-1793086741302-owxcvp\\capture\\2026-10-27T07-39-01-305Z-native-quit-140x40-21496"
+    },
+    {
+      "stderr": "Error: Owned supervisor shutdown also failed: Owned supervisor exited unsuccessfully during shutdown: exit code: 19\n\nCaused by:\n    supervisor exited before TUI shutdown: exit code: 19\n",
+      "beforeOutput": 7,
+      "beforeInput": 503,
+      "terminalRestored": true,
+      "mode": "supervisor-error",
+      "afterInput": 503,
+      "exitCode": 1,
+      "afterOutput": 7,
+      "binary": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\tui-install-qualification-20261027\\dist\\pairofcleats-tui-x86_64-pc-windows-msvc.exe",
+      "binarySha256": "ab130146767505643fd8503a103f911d7fbb9f214585d8aac155dd3c859b5375",
+      "ownedPids": [
+        27148,
+        25608,
+        19112,
+        19428,
+        17776
+      ],
+      "finalStatuses": [
+        "interrupted"
+      ],
+      "allReaped": true,
+      "capture": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\native-conpty-supervisor-error-21496-1793086743936-0i9bd7\\capture\\2026-10-27T07-39-03-937Z-native-supervisor-error-140x40-21496"
+    },
+    {
+      "beforeOutput": 7,
+      "stderr": "Failed to show the cursor: The pipe is being closed. (os error 232)\nError: The pipe is being closed. (os error 232)\n",
+      "afterInput": 503,
+      "beforeInput": 503,
+      "mode": "terminal-error",
+      "terminalRestored": true,
+      "exitCode": 1,
+      "afterOutput": 7,
+      "binary": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\tui-install-qualification-20261027\\dist\\pairofcleats-tui-x86_64-pc-windows-msvc.exe",
+      "binarySha256": "ab130146767505643fd8503a103f911d7fbb9f214585d8aac155dd3c859b5375",
+      "ownedPids": [
+        23948,
+        21320,
+        25092,
+        25156,
+        3604
+      ],
+      "finalStatuses": [
+        "cancelled"
+      ],
+      "allReaped": true,
+      "capture": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\native-conpty-terminal-error-21496-1793086746360-k9rgta\\capture\\2026-10-27T07-39-06-362Z-native-terminal-error-140x40-21496"
+    }
+  ],
+  "frontGate": [
+    {
+      "arguments": [
+        "run",
+        "config:budget"
+      ],
+      "executable": "npm.cmd",
+      "exitCode": 0,
+      "durationMs": 1895,
+      "name": "config-budget"
+    },
+    {
+      "arguments": [
+        "run",
+        "env:check"
+      ],
+      "executable": "npm.cmd",
+      "exitCode": 0,
+      "durationMs": 1201,
+      "name": "environment"
+    },
+    {
+      "arguments": [
+        "tools/docs/generated-surfaces.js",
+        "--check-freshness"
+      ],
+      "executable": "node",
+      "exitCode": 0,
+      "durationMs": 10085,
+      "name": "generated"
+    },
+    {
+      "arguments": [
+        "tools/ci/check-command-surface.js"
+      ],
+      "executable": "node",
+      "exitCode": 0,
+      "durationMs": 2698,
+      "name": "command-surface"
+    },
+    {
+      "arguments": [
+        "tests/ci/workflow-contract.test.js"
+      ],
+      "executable": "node",
+      "exitCode": 0,
+      "durationMs": 225,
+      "name": "workflow"
+    },
+    {
+      "arguments": [
+        "tests/run.js",
+        "--lane",
+        "gate",
+        "--jobs",
+        "1",
+        "--timeout-ms",
+        "30000",
+        "--retries",
+        "0",
+        "--native-status-redo=false",
+        "--pairofcleats-threads",
+        "1",
+        "--json"
+      ],
+      "executable": "node",
+      "exitCode": 0,
+      "durationMs": 22703,
+      "name": "gate-lane"
+    },
+    {
+      "arguments": [
+        "diff",
+        "--check"
+      ],
+      "executable": "git",
+      "exitCode": 0,
+      "durationMs": 60,
+      "name": "diff"
+    }
+  ],
+  "gateLane": {
+    "total": 40,
+    "passed": 40,
+    "failed": 0,
+    "skipped": 0,
+    "durationMs": 21997
+  },
+  "checkScope": "Final changed-payload fixture rechecked after the gate; unchanged gate/feature source retains recorded scope. No combined full-suite claim.",
+  "rawReceipts": {
+    "historicalAuthorWorkspace": true,
+    "cleanCheckoutAvailability": false,
+    "taskDirectory": ".tmp/tasks/tui-install-qualification-20261027/",
+    "logs": [
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793086645018-gfjm93\\tui_cargo-invocation-policy.attempt-1.log",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793086934773-18jjli\\tui_install-generation-transaction.attempt-1.log",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793086645018-gfjm93\\tui_install-layout-default-root.attempt-1.log",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793086645018-gfjm93\\tui_installer-unit.attempt-1.log",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793086645018-gfjm93\\tui_wrapper-behavior.attempt-1.log",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793086645018-gfjm93\\tui_wrapper-exit-status.attempt-1.log",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793086794122-6vo2k2\\tui_native-install-generation-conpty.attempt-1.log"
+    ]
+  },
+  "initialFailures": "Ambient stage selection sanitized; unsupported --version started native UI; capture API wrapper-depth assumption corrected. Failed receipts retained.",
+  "remaining": "Other TUI targets/releases, backend cleanup #1574, common lifecycle policy #1267 and broader Windows/platform/model/performance/release acceptance."
+}

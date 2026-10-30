@@ -252,7 +252,7 @@ export function buildPhpChunks(text, options = {}) {
     entry.start < offset && entry.end > offset
   );
 
-  const typeRe = /^\s*(?:#[^\n]*\s*)?(?:(?:abstract|final|public|protected|private)\s+)*(class|interface|trait)\s+([A-Za-z_][A-Za-z0-9_]*)/;
+  const typeRe = /^\s*(?:#[^\n]*\s*)?(?:(?:abstract|final|public|protected|private)\s+)*(class|interface|trait|enum)\s+([A-Za-z_][A-Za-z0-9_]*)/;
   const funcRe = /^\s*(?:#[^\n]*\s*)?(?:(?:public|protected|private|static)\s+)*function\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(/;
   const namespaceRe = /^\s*namespace\s+([A-Za-z_][A-Za-z0-9_\\]*)\s*(?:[;{])/;
 
@@ -295,11 +295,12 @@ export function buildPhpChunks(text, options = {}) {
       const kindMap = {
         class: 'ClassDeclaration',
         interface: 'InterfaceDeclaration',
-        trait: 'TraitDeclaration'
+        trait: 'TraitDeclaration',
+        enum: 'EnumDeclaration'
       };
       const entry = { start, end, name: match[2], kind: kindMap[match[1]] || 'ClassDeclaration', meta };
       decls.push(entry);
-      if (match[1] === 'class' || match[1] === 'interface' || match[1] === 'trait') {
+      if (['class','interface','trait','enum'].includes(match[1])) {
         typeDecls.push(entry);
       }
       continue;
@@ -386,6 +387,7 @@ export function buildPhpRelations(text, phpChunks) {
     callableKinds: PHP_CALLABLE_KINDS,
     isExported: (chunk) => {
       if (chunk.kind === 'NamespaceDeclaration'
+        || chunk.kind === 'EnumDeclaration'
         || chunk.kind === 'ClassDeclaration'
         || chunk.kind === 'InterfaceDeclaration'
         || chunk.kind === 'TraitDeclaration'
@@ -404,11 +406,16 @@ export function buildPhpRelations(text, phpChunks) {
  * @returns {{doc:string,params:string[],returns:(string|null),signature:(string|null),decorators:string[],modifiers:string[],visibility:(string|null),returnType:(string|null)}}
  */
 export function extractPhpDocMeta(chunk) {
+  const meta = chunk?.meta || {};
   return buildDefaultDocMeta(chunk, {
     includeReturnType: true,
     decoratorsFrom: 'attributes',
     includeModifiers: true,
-    includeVisibility: true
+    includeVisibility: true,
+    extraFields: {
+      ...(meta.paramTypes && typeof meta.paramTypes === 'object' ? { paramTypes: { ...meta.paramTypes } } : {}),
+      ...(meta.paramDefaults && typeof meta.paramDefaults === 'object' ? { paramDefaults: { ...meta.paramDefaults } } : {})
+    }
   });
 }
 

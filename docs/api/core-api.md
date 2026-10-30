@@ -14,17 +14,25 @@ PairOfCleats exposes a lightweight programmatic API for build/search/status. Imp
 - `buildSqliteIndex(repoRoot, options)`
   - Builds or updates SQLite indexes from file-backed artifacts or incremental bundles.
   - Options: `mode`, `incremental`, `compact`, `out`, `codeDir`, `proseDir`, `extractedProseDir`, `recordsDir`, `args`.
-  - Execution options: `emitOutput`, `exitOnError`, `logger`.
+  - Execution options: `emitOutput`, `exitOnError`, `logger`, `abortSignal`.
+    Cancellation cooperates at ingestion/worker/transaction boundaries, drains
+    owned resources and preserves prior output before atomic publication.
 - `search(repoRoot, params)`
   - Runs search and returns a JSON payload (same shape as `pairofcleats search --json`).
   - Params mapped to CLI flags: `query`, `mode`, `backend`, `ann`, `annBackend`, `cursor`, `n`, `case`, `caseFile`,
     `caseTokens`, `path`, `file`, `ext`, `lang`, `json`, `explain`.
   - Use `args` to pass any other CLI flags (for example `--compact`, `--top`, `--filter`, `--meta`, `--meta-json`).
+    `argsMode: 'additional'` is the default: named parameters are serialized first,
+    then extra arguments, then the query after `--`. An empty `args` array keeps
+    named parameters. Callers with a complete argument vector must explicitly set
+    `argsMode: 'complete'`; legacy parameter validation still applies.
   - Deprecated `context: 0` is a no-op; other values fail before CLI invocation.
   - Execution options: `emitOutput`, `exitOnError`, `indexCache`, `sqliteCache`, `signal`, `scoreMode`, `root`.
 - `status(repoRoot, options)`
   - Returns artifact sizes and health hints (core status payload from `src/integrations/core/status.js`).
   - Options: `includeAll` to include all cached repos.
+  - The object form is `status({ repoRoot, includeAll })`. In the string form,
+    the first `repoRoot` argument takes precedence over `options.repoRoot`.
 
 ## Example
 

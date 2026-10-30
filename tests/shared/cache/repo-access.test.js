@@ -1,0 +1,112 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+import { fork } from 'node:child_process';
+import { runNode } from '../../helpers/run-node.js';
+import { applyTestEnv } from '../../helpers/test-env.js';
+import { CACHE_OWNER_FILE } from '../../../src/shared/cache-deletion.js';
+import { once } from 'node:events';
+import { inspectRepoCacheAccess, repoAccessPaths, withExclusiveRepoCacheCleanup } from '../../../src/shared/cache/repo-access.js';
+import { resolveRepoCacheRootPath } from '../../../src/shared/repo-paths.js';
+import { withGeneratedCacheMetadata } from '../../../src/shared/generated-artifact-cache.js';
+
+const temporary = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-repo-access-'));
+const children = new Set();
+const start = async (explicit = null, cleanup = false) => {
+  const child = fork(path.resolve('tests/fixtures/cache/repo-access-client.js'), [path.join(temporary, 'repo'), path.join(temporary, 'cache'), ...(explicit ? [explicit] : []), ...(cleanup ? ['cleanup'] : [])], { stdio: ['ignore', 'ignore', 'inherit', 'ipc'] });
+  children.add(child);
+  const [message] = await once(child, 'message');
+  return { child, message };
+};
+const stop = async (child, crash = false) => {
+  const exited = once(child, 'exit');
+  if (crash) child.kill('SIGKILL'); else child.send('quit');
+  await exited;
+  children.delete(child);
+};
+const runGc = () => {
+  const run = runNode(['tools/index/cache-gc.js', '--apply', '--json', '--cache-root', path.join(temporary, 'cache'), '--max-bytes', '1'],
+    'online repository GC', process.cwd(), applyTestEnv({ syncProcess: false }), { stdio: 'pipe', allowFailure: true });
+  assert.equal(run.status, 0, run.stderr || run.stdout);
+  return JSON.parse(run.stdout);
+};
+try {
+  const previewRoot = resolveRepoCacheRootPath(path.join(temporary, 'repo'),
+    { cache: { root: path.join(temporary, 'cache') } });
+  assert.ok(previewRoot.endsWith(path.join('repos', path.basename(previewRoot))));
+  assert.deepEqual(await fs.readdir(temporary), [], 'path-only resolution cannot acquire a lease or create a cache');
+  const reader = await start();
+  const root = reader.message.root;
+  assert.ok(root);
+  await fs.mkdir(root, { recursive: true });
+  await fs.writeFile(path.join(root, 'data'), 'retained');
+  await fs.writeFile(path.join(temporary, 'cache', CACHE_OWNER_FILE), JSON.stringify({ owner: 'pairofcleats', layoutVersion: 1 }));
+  const online = runGc();
+  assert.equal(online.protectedRepos.length, 1);
+  assert.equal(online.totals.protectedBytes, null, 'active-owner byte accounting remains unknown without scanning its changing tree');
+  assert.equal(online.quotaSatisfied, null, 'incomplete accounting cannot claim quota satisfaction or zero protected bytes');
+  assert.equal(online.freedBytes, 0);
+  const busy = await withExclusiveRepoCacheCleanup(root, () => assert.fail('active reader must exclude cleanup'));
+  assert.equal(busy.protected, true);
+  assert.equal(await fs.readFile(path.join(root, 'data'), 'utf8'), 'retained');
+  await stop(reader.child, true);
+  assert.deepEqual(inspectRepoCacheAccess(root), [], 'dead owners do not protect forever');
+  const cleaned = await withExclusiveRepoCacheCleanup(root, async () => {
+    const contender = await start();
+    assert.equal(contender.message.code, 'ERR_REPO_CACHE_CLEANUP_BUSY', 'new admission must fail before cache access');
+    await stop(contender.child);
+    await fs.rm(root, { recursive: true, force: true });
+  });
+  assert.equal(cleaned.protected, false);
+  const collector = await start(root, true);
+  assert.equal(collector.message.locked, true);
+  await stop(collector.child, true);
+  const recoveredReader = await start(path.join(root, 'builds', 'reader-recovery', 'index-code'));
+  assert.equal(recoveredReader.message.root, root, 'normal reader recovers a dead local collector without another GC');
+  await stop(recoveredReader.child);
+  const recovered = await withExclusiveRepoCacheCleanup(root, () => 'recovered');
+  assert.equal(recovered.result, 'recovered', 'a subsequent collector recovers a dead local owner');
+  const resumed = await start(path.join(root, 'builds', 'explicit', 'index-code'));
+  assert.equal(resumed.message.root, root);
+  assert.equal(inspectRepoCacheAccess(root).length, 1, 'explicit index path is leased');
+  await stop(resumed.child);
+  await fs.mkdir(root, { recursive: true });
+  await fs.writeFile(path.join(root, 'data'), 'retained');
+  const unknown = runGc();
+  assert.equal(unknown.freedBytes, 0, 'lease release does not turn unmarked arbitrary bytes into disposable generated cache');
+  assert.equal(await fs.readFile(path.join(root, 'data'), 'utf8'), 'retained');
+  // Positive deletion now needs the real producer header/path contract. The
+  // original arbitrary file remains an explicit protected negative above.
+  await fs.unlink(path.join(root, 'data'));
+  const derived = path.join(root, 'tree-sitter-chunk-cache', `tree-sitter-chunk_lk1_${'a'.repeat(40)}.json`);
+  await fs.mkdir(path.dirname(derived), { recursive: true });
+  const derivedPayload = JSON.stringify(withGeneratedCacheMetadata({ chunks: [] }, 'tree-sitter-chunks'));
+  await fs.writeFile(derived, derivedPayload);
+  const applied = runGc();
+  assert.equal(applied.freedBytes, Buffer.byteLength(derivedPayload));
+  assert.equal(applied.quotaSatisfied, true);
+  await assert.rejects(fs.stat(root), { code: 'ENOENT' });
+  const { leases, lockPath } = repoAccessPaths(root);
+  await fs.writeFile(lockPath, JSON.stringify({ hostname: os.hostname(), pid: 'invalid' }));
+  assert.equal((await withExclusiveRepoCacheCleanup(root, () => assert.fail('unknown collector must stay protected'))).protected, true);
+  const unknownReader = await start();
+  assert.equal(unknownReader.message.code, 'ERR_REPO_CACHE_CLEANUP_BUSY');
+  await stop(unknownReader.child);
+  await fs.writeFile(lockPath, JSON.stringify({ hostname: 'foreign-owner', pid: process.pid }));
+  const foreignReader = await start();
+  assert.equal(foreignReader.message.code, 'ERR_REPO_CACHE_CLEANUP_BUSY');
+  await stop(foreignReader.child);
+  await fs.writeFile(lockPath, '{invalid');
+  const unreadableReader = await start();
+  assert.equal(unreadableReader.message.code, 'ERR_REPO_CACHE_CLEANUP_BUSY');
+  await stop(unreadableReader.child);
+  await fs.rm(lockPath);
+  await fs.mkdir(leases, { recursive: true });
+  await fs.writeFile(path.join(leases, 'unknown.json'), '{invalid');
+  assert.equal((await withExclusiveRepoCacheCleanup(root, () => assert.fail('unknown owner must be protected'))).protected, true);
+} finally {
+  for (const child of children) await stop(child, true);
+  await fs.rm(temporary, { recursive: true, force: true });
+}
+console.log('Process leases exclude live readers, reject admission during cleanup, and recover dead owners.');

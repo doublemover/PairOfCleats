@@ -28,11 +28,17 @@ assert.deepEqual(structure.imports, ['common.graphql', 'https://example.invalid/
 assert.equal(parseGraphqlStructure(text), structure, 'one immutable bounded result is shared across core owners');
 assert.ok(Object.isFrozen(structure.definitions));
 const chunks = chunkGraphql(text);
-assert.deepEqual(chunks.map((chunk) => chunk.name), ['type Real', 'type Child', 'extend schema', 'query Find', 'fragment Brief']);
-assert.ok(text.slice(chunks[0].meta.astRange.start, chunks[0].meta.astRange.end).startsWith('"""'));
-assert.ok(text.slice(chunks[0].start, chunks[0].end).includes('Emoji 🚀'));
-assert.equal(text.slice(chunks[1].meta.astRange.start, chunks[1].meta.astRange.end), 'type Child { id: ID! }');
-assert.ok(chunks.every((chunk) => chunk.meta.parserCoverage === 'syntax-only'
+assert.equal(chunks[0].name, 'preamble');
+assert.equal(chunks[0].meta.preamble, true);
+assert.equal(chunks[0].start, 0);
+assert.equal(chunks[0].end, structure.definitions[0].start);
+assert.equal(text.slice(chunks[0].start, chunks[0].end), '# import "common.graphql"\n');
+const declarations = chunks.slice(1);
+assert.deepEqual(declarations.map((chunk) => chunk.name), ['type Real', 'type Child', 'extend schema', 'query Find', 'fragment Brief']);
+assert.ok(text.slice(declarations[0].meta.astRange.start, declarations[0].meta.astRange.end).startsWith('"""'));
+assert.ok(text.slice(declarations[0].start, declarations[0].end).includes('Emoji 🚀'));
+assert.equal(text.slice(declarations[1].meta.astRange.start, declarations[1].meta.astRange.end), 'type Child { id: ID! }');
+assert.ok(declarations.every((chunk) => chunk.meta.parserCoverage === 'syntax-only'
   && chunk.start <= chunk.meta.astRange.start && chunk.end >= chunk.meta.astRange.end));
 assert.deepEqual(collectGraphqlImports(text), ['common.graphql', 'https://example.invalid/real']);
 const adapter = createGraphqlManagedAdapter();
@@ -43,7 +49,9 @@ assert.ok(relations.usages.includes('Brief') && relations.usages.includes('Child
 assert.ok(!relations.exports.includes('Phantom') && !relations.exports.includes('Ghost'));
 assert.ok(relations.calls.every((edge) => !edge.includes('Phantom') && !edge.includes('Ghost')));
 assert.equal(adapter.capabilityProfile.state, 'partial');
-assert.equal(adapter.extractDocMeta({ chunk: chunks[0] }).source, 'managed-graphql-syntax');
+assert.equal(adapter.extractDocMeta({ chunk: declarations[0] }).source, 'managed-graphql-syntax');
+assert.equal(adapter.extractDocMeta({ chunk: chunks[0] }).source, 'managed-heuristic-adapter',
+  'a retained preamble does not borrow the declaration AST qualification');
 
 const sameLine = 'type A { id: ID } type B { value: String }';
 const sameLineChunks = chunkGraphql(sameLine);

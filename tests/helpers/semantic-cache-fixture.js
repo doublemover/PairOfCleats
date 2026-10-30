@@ -11,6 +11,7 @@ import { normalizeSemanticConfig } from '../../src/index/semantic/config.js';
 import { ARTIFACT_SURFACE_VERSION } from '../../src/contracts/versioning.js';
 import { semanticBatch, semanticNode } from './semantic-recovery.js';
 import { applyTestEnv } from './test-env.js';
+import { sha1 } from '../../src/shared/hash.js';
 
 export const createSemanticCacheFixture = async () => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-semantic-cache-'));
@@ -29,12 +30,16 @@ export const createSemanticCacheFixture = async () => {
   const manifest = { artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION, version: 5,
     dependencySignatures, files: {} };
   const createFile = async ({ file = 'input.js', text = 'f(1);', zeroChunks = false,
-    nodeCount = 1, extraRows = [], analysisReason = null,
-    producerHash = 'a'.repeat(64), chunks: suppliedChunks = null } = {}) => {
+    nodeCount = 1, extraRows = [], analysisReason = null, analysisRows = [],
+    producerHash = 'a'.repeat(64), chunks: suppliedChunks = null, fileHash = null,
+    lexiconFilterStats = null, bundleFormat = 'json', vfsManifestRows = null, reuseSource = false } = {}) => {
     const bytes = Buffer.from(text);
     const source = createSemanticSourceSnapshot({ bytes, repositoryNamespace: repoRoot, path: file, language: 'javascript' }).manifest;
     await fs.mkdir(path.dirname(path.join(repoRoot, file)), { recursive: true });
-    await fs.writeFile(path.join(repoRoot, file), bytes);
+    const sourcePath = path.join(repoRoot, file);
+    if (reuseSource) {
+      if (!(await fs.readFile(sourcePath)).equals(bytes)) throw new Error('Reused semantic fixture source bytes must remain identical.');
+    } else await fs.writeFile(sourcePath, bytes);
     const partitionId = createSyntaxPartitionId({ sourceUnitId: source.sourceUnitId,
       parser: { family: 'fixture', version: '1', options: {} }, extractor: { schemaVersion: 1, version: '1' },
       structuralPolicy: { structure: 'complete' } });
@@ -57,7 +62,7 @@ export const createSemanticCacheFixture = async () => {
       const analysis = await createSemanticPartitionSink({ stagingRoot: path.join(buildRoot, storage.relativePath),
         source, sourceBytes: bytes, partitionId: analysisId, producerHash: 'c'.repeat(64),
         policyHash: semanticHash('fixture-policy', { analysisReason }), diskAccount: account });
-      await analysis.appendBatch(semanticBatch(analysisId, [{ family: 'coverage', row }]));
+      await analysis.appendBatch(semanticBatch(analysisId, [{ family: 'coverage', row }, ...analysisRows]));
       partitions.push(await analysis.finalizeSource());
       coverage.push(row);
     }
@@ -65,8 +70,9 @@ export const createSemanticCacheFixture = async () => {
     const chunks = suppliedChunks || (zeroChunks ? [] : [{ file, start: 0, end: text.length,
       kind: 'code', name: 'input', tokens: ['fixture'], text }]);
     const entry = await writeIncrementalBundle({ enabled: true, bundleDir, manifest, relKey: file,
-      fileStat: { mtimeMs: 1234567.25, size: bytes.length }, fileHash: 'hash-' + file,
+      fileStat: await fs.stat(path.join(repoRoot, file)), fileHash: fileHash ?? sha1(bytes),
       fileChunks: chunks, fileRelations: null, dependencySignatures, semanticFactsRef: factsRef,
+      lexiconFilterStats, bundleFormat, vfsManifestRows,
       semanticContext: { buildRoot, diskAccount: account, dependencySignatures: dependencies } });
     if (!entry) throw new Error('Fixture bundle write failed.');
     manifest.files[file] = entry;

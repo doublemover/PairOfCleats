@@ -1,9 +1,11 @@
 import assert from 'node:assert/strict';
 import { createHandlebarsStructureParser, parseHandlebarsStructure } from '../../../src/shared/handlebars-ast.js';
-import { chunkHandlebars, createHandlebarsChunker } from '../../../src/index/chunking/dispatch/heuristic-chunkers.js';
+import { chunkHandlebars as chunkHandlebarsSource, createHandlebarsChunker } from '../../../src/index/chunking/dispatch/heuristic-chunkers.js';
+import { sourceSections } from '../helpers/source-sections.js';
 import { collectHandlebarsImports, createHandlebarsImportCollector } from '../../../src/index/language-registry/import-collectors/handlebars.js';
 import { createHandlebarsManagedAdapter } from '../../../src/index/language-registry/adapters/heuristic.js';
 
+const chunkHandlebars = (text, ...args) => sourceSections(text, chunkHandlebarsSource(text, ...args));
 const text = [
   'Emoji 🚀',
   '{{{{raw}}}}',
@@ -79,6 +81,20 @@ assert.equal(fallback[0].meta.astRange, undefined);
 assert.equal(fallback[0].meta.parserFallbackReason, 'parser-unavailable');
 const fallbackImports = createHandlebarsImportCollector({ parseStructure: missing });
 assert.deepEqual(fallbackImports('{{> old}}'), ['old']);
+const literalFallbackSource = '{{> "thing,"}}{{> thing}}{{> \'thing;\'}}{{> "thing)"}}{{> "\'thing\'"}}{{> " padded "}}';
+const literalFallbackNames = ['thing,', 'thing', 'thing;', 'thing)', "'thing'", ' padded '];
+assert.deepEqual(fallbackImports(literalFallbackSource, { collectorNow: () => 0 }), literalFallbackNames,
+  'fallback literal tokens preserve decoded punctuation, quotes and boundary whitespace');
+assert.deepEqual(createHandlebarsManagedAdapter({ parseStructure: missing }).buildRelations({ text: literalFallbackSource,
+  options: { collectorNow: () => 0 }, context: {} }).imports, literalFallbackNames.toSorted(),
+'the actual managed fallback relation consumer does not normalize literal identities again');
+assert.deepEqual(fallbackImports(String.raw`\{{> escaped}}{{> thing,}}{{> "escaped\"name"}}`), [],
+  'unsupported escaped or incomplete token spellings do not become a shorter concrete import');
+const fallbackDiagnostics = [];
+assert.deepEqual(fallbackImports('{{> "first,"}}{{> second}}', { collectorNow: () => 0,
+  collectorDiagnostics: fallbackDiagnostics, collectorScanBudget: { maxMatches: 1 } }), ['first,']);
+assert.ok(fallbackDiagnostics.some(value => value.reasons.includes('scan_matches')),
+  'the streaming fallback spends the original match budget without discarding its admitted last match');
 assert.deepEqual(fallbackImports('{{> first}}\n{{> second}}', {
   collectorScanBudget: { maxLines: 1, maxMs: 0 }
 }), ['first']);

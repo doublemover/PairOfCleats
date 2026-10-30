@@ -1,6 +1,6 @@
 import {
   buildDocumentAnchor,
-  findCoveredUnitRange,
+  createDocumentUnitRangeLookup,
   normalizeDocumentChunkingBudgets,
   splitRangeByCharBudget
 } from './document-common.js';
@@ -38,8 +38,8 @@ const buildPdfWindows = (pageUnits, budgets) => {
   return windows;
 };
 
-const buildPdfChunk = ({ text, pageUnits, startOffset, endOffset, windowIndex = null }) => {
-  const pageRange = findCoveredUnitRange({
+const buildPdfChunk = ({ text, pageUnits, lookupUnitRange, startOffset, endOffset, windowIndex = null }) => {
+  const pageRange = lookupUnitRange({
     units: pageUnits,
     startOffset,
     endOffset,
@@ -108,6 +108,7 @@ export const chunkPdfDocument = (text, context = null) => {
       }
     }];
   }
+  const lookupUnitRange = createDocumentUnitRangeLookup(pageUnits);
   const budgets = normalizeDocumentChunkingBudgets(context);
   const windows = buildPdfWindows(pageUnits, budgets);
   const chunks = [];
@@ -123,6 +124,7 @@ export const chunkPdfDocument = (text, context = null) => {
       chunks.push(buildPdfChunk({
         text: value,
         pageUnits,
+        lookupUnitRange,
         startOffset: split.start,
         endOffset: split.end,
         windowIndex: split.windowIndex

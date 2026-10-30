@@ -15,11 +15,12 @@ import { createCandidateHelpers } from './filters/candidates.js';
 import { buildFileFilters, matchFileFilters } from './filters/file.js';
 import { collectFilePrefilterMatches } from './filters/file-prefilter.js';
 import { asObject, matchMetaFilters, resolveChunkDocmeta, resolveReturnTypes } from './filters/meta.js';
-import { normalizeList, normalizePhraseList, matchList, truthy } from './filters/predicates.js';
+import { defaultNormalize, normalizeArgumentList, normalizeList, normalizePhraseList, matchList, truthy } from './filters/predicates.js';
 import { matchStructural } from './filters/structural.js';
 import { normalizeFilePath } from '../../shared/path-normalize.js';
 import { toArray } from '../../shared/iterables.js';
 import { resolveFileRelations as resolveFileRelationLookup } from '../file-relations-resolver.js';
+import { resolveFilterVisibility } from '../effective-filter-facts.js';
 
 const normalizeModifierToken = (value) => String(value || '').trim().toLowerCase();
 
@@ -38,27 +39,6 @@ const hasModifierFlag = (modifiers, key) => {
   if (value == null) return false;
   const normalized = normalizeModifierToken(value);
   return normalized === 'true' || normalized === needle;
-};
-
-const resolveVisibilityFromModifiers = (modifiers) => {
-  if (!modifiers) return null;
-  if (modifiers && typeof modifiers === 'object' && !Array.isArray(modifiers)) {
-    if (typeof modifiers.visibility === 'string') return modifiers.visibility;
-    return null;
-  }
-  if (!Array.isArray(modifiers)) return null;
-  for (const entry of modifiers) {
-    const token = normalizeModifierToken(entry);
-    if (!token) continue;
-    if (token.startsWith('visibility:')) {
-      const value = token.split(':').slice(1).join(':').trim();
-      if (value) return value;
-    }
-    if (token === 'public' || token === 'private' || token === 'protected' || token === 'internal') {
-      return token;
-    }
-  }
-  return null;
 };
 
 const resolveDocmetaDecorators = (docmeta) => (
@@ -89,7 +69,7 @@ const resolveDocmetaParents = (docmeta) => (
  * @returns {object}
  */
 export function compileFilterPredicates(filters = {}, { fileChargramN = null } = {}) {
-  const normalize = (value) => String(value || '').toLowerCase();
+  const normalize = defaultNormalize;
   const caseFile = filters.caseFile === true;
   const caseTokens = filters.caseTokens === true;
   const regexConfigRaw = filters.regexConfig || {};
@@ -106,12 +86,15 @@ export function compileFilterPredicates(filters = {}, { fileChargramN = null } =
     regexConfig
   });
   const filePrefilterConfig = filters.filePrefilter || {};
+  const fileMatcherGroups = Array.isArray(filePrefilterConfig.allGroups)
+    ? filePrefilterConfig.allGroups.map(file => buildFileFilters({ file, caseFile, normalize, regexConfig }).fileMatchers)
+    : [];
   const filePrefilterEnabled = filePrefilterConfig.enabled !== false;
   const resolvedFileChargramN = Number.isFinite(Number(filePrefilterConfig.chargramN))
     ? Math.max(2, Math.floor(Number(filePrefilterConfig.chargramN)))
     : (Number.isFinite(Number(fileChargramN)) ? Math.max(2, Math.floor(Number(fileChargramN))) : null);
-  const typeNeedles = normalizeList(filters.type).map(normalize);
-  const authorNeedles = normalizeList(filters.author).map(normalize);
+  const typeNeedles = (Array.isArray(filters.type) ? normalizeArgumentList(filters.type) : normalizeList(filters.type)).map(normalize);
+  const authorNeedles = normalizeArgumentList(filters.author).map(normalize);
   const metaFilters = Array.isArray(filters.meta) ? filters.meta : (filters.meta ? [filters.meta] : []);
   const excludeNeedles = normalizeList(filters.excludeTokens)
     .map((value) => (caseTokens ? String(value || '') : normalize(value)));
@@ -139,6 +122,7 @@ export function compileFilterPredicates(filters = {}, { fileChargramN = null } =
   const structTagNeedles = normalizeList(filters.structTag).map(normalize);
   return {
     fileMatchers,
+    fileMatcherGroups,
     extNeedles,
     langNeedles,
     typeNeedles,
@@ -173,10 +157,11 @@ const resolveFilterState = ({
   const compiled = options.compiled || compileFilterPredicates(filters, {
     fileChargramN: options.fileChargramN ?? filterIndex?.fileChargramN ?? null
   });
-  const normalize = (value) => String(value || '').toLowerCase();
+  const normalize = defaultNormalize;
   const caseFile = compiled.caseFile ?? filters.caseFile;
   const caseTokens = compiled.caseTokens ?? filters.caseTokens;
   const fileMatchers = compiled.fileMatchers || [];
+  const fileMatcherGroups = compiled.fileMatcherGroups || [];
   const extNeedles = compiled.extNeedles || [];
   const langNeedles = compiled.langNeedles || [];
   const typeNeedles = compiled.typeNeedles || [];
@@ -301,6 +286,7 @@ const resolveFilterState = ({
     caseFile,
     caseTokens,
     fileMatchers,
+    fileMatcherGroups,
     extNeedles,
     langNeedles,
     typeNeedles,
@@ -357,7 +343,7 @@ const matchChunkFilters = (c, state) => {
   const docmetaDecorators = resolveDocmetaDecorators(docmeta);
   const docmetaThrows = resolveDocmetaThrows(docmeta);
   const docmetaAwaits = resolveDocmetaAwaits(docmeta);
-  const docmetaVisibility = docmeta?.visibility || resolveVisibilityFromModifiers(docmetaModifiers);
+  const docmetaVisibility = resolveFilterVisibility(c);
   const docmetaParents = resolveDocmetaParents(docmeta);
   const docmetaHasAsync = Boolean(docmeta?.async) || hasModifierFlag(docmetaModifiers, 'async');
   const docmetaHasGenerator = Boolean(docmeta?.generator) || hasModifierFlag(docmetaModifiers, 'generator');
@@ -366,6 +352,7 @@ const matchChunkFilters = (c, state) => {
     filters,
     normalize,
     fileMatchers,
+    fileMatcherGroups,
     extNeedles,
     langNeedles,
     normalizeFile,
@@ -414,7 +401,7 @@ const matchChunkFilters = (c, state) => {
     returns: returnsOnly
   } = filters;
 
-  if (!matchFileFilters({ chunk: c, fileMatchers, extNeedles, langNeedles, normalizeFile, normalize })) {
+  if (!matchFileFilters({ chunk: c, fileMatchers, fileMatcherGroups, extNeedles, langNeedles, normalizeFile, normalize })) {
     return false;
   }
   if (!matchMetaFilters({
@@ -477,7 +464,8 @@ const matchChunkFilters = (c, state) => {
     if (!matchList(authors, chunkAuthor, normalize)) return false;
   }
   if (importName) {
-    const imports = c.codeRelations?.imports || resolveFileRelations(c.file)?.imports;
+    const imports = Array.isArray(c.codeRelations?.imports)
+      ? c.codeRelations.imports : resolveFileRelations(c.file)?.imports;
     if (!Array.isArray(imports) || !imports.includes(importName)) return false;
   }
   if (lint && (!c.lint || !c.lint.length)) return false;
@@ -492,7 +480,8 @@ const matchChunkFilters = (c, state) => {
     if (!found) return false;
   }
   if (uses) {
-    const usages = c.codeRelations?.usages || resolveFileRelations(c.file)?.usages;
+    const usages = Array.isArray(c.codeRelations?.usages)
+      ? c.codeRelations.usages : resolveFileRelations(c.file)?.usages;
     if (!Array.isArray(usages) || !usages.includes(uses)) return false;
   }
   if (signature) {

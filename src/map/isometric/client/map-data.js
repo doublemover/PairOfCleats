@@ -1,4 +1,5 @@
 import { state } from './state.js';
+import { createSourceIndex } from './source-index.js';
 
 const buildMemberKey = (filePath, name, range) => {
   const start = Number.isFinite(range?.startLine) ? range.startLine : '';
@@ -9,6 +10,9 @@ const buildMemberKey = (filePath, name, range) => {
 const buildMemberNameKey = (filePath, name) => `${filePath}::${name || ''}`;
 
 export const initMapData = () => {
+  const source = state.rawMap || state.map;
+  if(state.remoteSource)state.sourceIndex=state.remoteSource.index;
+  else if (state.sourceIndex?.snapshot !== source) state.sourceIndex = createSourceIndex(source);
   const files = Array.isArray(state.map?.nodes) ? state.map.nodes : [];
   const edges = Array.isArray(state.map?.edges) ? state.map.edges : [];
   const edgeAggregates = Array.isArray(state.map?.edgeAggregates) ? state.map.edgeAggregates : [];
@@ -28,7 +32,10 @@ export const initMapData = () => {
       const hasMemberId = member?.id === 0 || Boolean(member?.id);
       if (hasMemberId) memberById.set(member.id, member);
       const filePath = member?.file || node.path || node.name || '';
-      if (hasMemberId) fileByMember.set(member.id, filePath);
+      if (hasMemberId) {
+        fileByMember.set(member.id, filePath);
+        fileByMember.set(String(member.id), filePath);
+      }
       const rangeKey = buildMemberKey(filePath, member?.name || '', member?.range || {});
       memberByKey.set(rangeKey, member);
       const nameKey = buildMemberNameKey(filePath, member?.name || '');

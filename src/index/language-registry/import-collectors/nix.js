@@ -96,6 +96,7 @@ const readIndentedString = (source, start) => {
 
 const createNixLexicalState = () => ({
   inComment: false,
+  blockDepth: 0,
   inSingle: false,
   inDouble: false,
   escaped: false
@@ -103,6 +104,11 @@ const createNixLexicalState = () => ({
 
 const advanceIgnoredNixSpan = (source, index, state) => {
   const char = source[index];
+  if (state.blockDepth > 0) {
+    if (source.startsWith('/*',index)) { state.blockDepth += 1; return index + 2; }
+    if (source.startsWith('*/',index)) { state.blockDepth -= 1; return index + 2; }
+    return index + 1;
+  }
   if (state.inComment) {
     if (char === '\n') state.inComment = false;
     return index + 1;
@@ -126,6 +132,7 @@ const advanceIgnoredNixSpan = (source, index, state) => {
     if (char === '"') state.inDouble = false;
     return index + 1;
   }
+  if (source.startsWith('/*',index)) { state.blockDepth = 1; return index + 2; }
   if (char === '#') {
     state.inComment = true;
     return index + 1;

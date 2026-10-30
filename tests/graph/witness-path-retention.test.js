@@ -83,7 +83,7 @@ const now = () => '2026-10-07T00:00:00.000Z';
 const context = buildGraphContextPack({ ...base, includePaths: true, caps: { maxPaths: 2 }, now, indexSignature: 'witness-chain-fixture-v1' });
 assert.deepEqual(context.paths.map((entry) => entry.nodes.map((node) => node.chunkUid)),
   [[id(0), id(1)], [id(0), id(1), id(2)]]);
-const impact = buildImpactAnalysis({ ...base, seed: base.seed, direction: 'downstream', caps: { maxPaths: 2 }, now, indexSignature: 'witness-chain-fixture-v1' });
+const impact = buildImpactAnalysis({ ...base, seed: base.seed, direction: 'upstream', caps: { maxPaths: 2 }, now, indexSignature: 'witness-chain-fixture-v1' });
 assert.equal(impact.impacted.length, 63);
 assert.equal(impact.impacted.filter((entry) => entry.witnessPath).length, 2);
 assert.equal(impact.impacted.filter((entry) => entry.partial).length, 61);

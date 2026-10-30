@@ -1,7 +1,11 @@
 import { semanticByteAdmissionFor } from './planning.js';
-import { createSemanticPartitionSink } from '../build/artifacts/writers/semantic/partition.js';
-import { canonicalSemanticJson } from './identity.js';
-/** Shared bounded sink for derived rows; analysis never edits syntax partitions. */
+import { createSemanticPartitionSink, abortSemanticPartitionOnFailure } from '../build/artifacts/writers/semantic/partition.js';
+import { prepareSemanticBatchEntry, semanticBatchEntryBytes } from './prepared-batch.js';
+/** Shared pull sink for derived rows; analysis never edits syntax partitions.
+ * A producer must bound construction before each yield. This writer owns one
+ * prepared batch plus one lookahead entry, then awaits append before advancing.
+ * Its queue admission does not bound source/parser state or producer traversal.
+ */
 export const writeSemanticAnalysis = async ({ rows, policy, ...options }) => {
   const sink = await createSemanticPartitionSink({ ...options, byteAdmission: semanticByteAdmissionFor(options.diskAccount, policy.storage.maxQueuedBytes),
     batchRows: policy.storage.batchRows, batchBytes: policy.storage.batchBytes });
@@ -12,12 +16,13 @@ export const writeSemanticAnalysis = async ({ rows, policy, ...options }) => {
     batch = []; byteCount = 0;
   };
   try {
-    for await (const entry of rows) {
-      const bytes = Buffer.byteLength(canonicalSemanticJson(entry)) + 1;
+    for await (const rawEntry of rows) {
+      const entry = prepareSemanticBatchEntry(rawEntry);
+      const bytes = semanticBatchEntryBytes(entry);
       if (batch.length && (batch.length >= policy.storage.batchRows || byteCount + bytes > policy.storage.batchBytes)) await flush();
       batch.push(entry); byteCount += bytes;
     }
     await flush();
     return await sink.finalizeSource();
-  } catch (error) { await sink.abort(); throw error; }
+  } catch (error) { await abortSemanticPartitionOnFailure(sink, error); }
 };

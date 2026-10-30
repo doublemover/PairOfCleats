@@ -37,7 +37,7 @@ const cases = [
     ].join('\n'),
     buildChunks: (text) => buildCLikeChunks(text, '.c'),
     buildRelations: (text, chunks) => buildCLikeRelations(text, chunks),
-    expectCalls: ['foo', 'bar', 'baz'],
+    expectCalls: ['foo', 'obj.bar', 'baz'],
     skipCalls: ['if', 'for', 'while', 'switch', 'return']
   },
   {
@@ -51,7 +51,7 @@ const cases = [
     ].join('\n'),
     buildChunks: (text) => buildGoChunks(text),
     buildRelations: (text, chunks) => buildGoRelations(text, chunks),
-    expectCalls: ['foo', 'bar', 'baz'],
+    expectCalls: ['foo', 'obj.bar', 'baz'],
     skipCalls: ['if', 'for', 'return']
   },
   {
@@ -66,7 +66,7 @@ const cases = [
     ].join('\n'),
     buildChunks: (text) => buildJavaChunks(text),
     buildRelations: (text, chunks) => buildJavaRelations(text, chunks),
-    expectCalls: ['foo', 'bar', 'baz'],
+    expectCalls: ['foo', 'obj.bar', 'baz'],
     skipCalls: ['if', 'for', 'return']
   },
   {
@@ -81,7 +81,7 @@ const cases = [
     ].join('\n'),
     buildChunks: (text) => buildKotlinChunks(text),
     buildRelations: (text, chunks) => buildKotlinRelations(text, chunks),
-    expectCalls: ['foo', 'bar', 'baz'],
+    expectCalls: ['foo', 'obj.bar', 'baz'],
     skipCalls: ['if', 'for', 'when', 'return']
   },
   {
@@ -96,7 +96,7 @@ const cases = [
     ].join('\n'),
     buildChunks: (text) => buildCSharpChunks(text),
     buildRelations: (text, chunks) => buildCSharpRelations(text, chunks),
-    expectCalls: ['foo', 'bar', 'baz'],
+    expectCalls: ['foo', 'obj.bar', 'baz'],
     skipCalls: ['if', 'for', 'return']
   },
   {
@@ -104,7 +104,7 @@ const cases = [
     text: '<?php\nfunction demo() { if ($ready) { foo(); $obj->bar(); } foreach ($items as $item) { baz(); } }',
     buildChunks: (text) => buildPhpChunks(text),
     buildRelations: (text, chunks) => buildPhpRelations(text, chunks),
-    expectCalls: ['foo', 'bar', 'baz'],
+    expectCalls: ['foo', '$obj.bar', 'baz'],
     skipCalls: ['if', 'foreach', 'return']
   },
   {
@@ -112,7 +112,7 @@ const cases = [
     text: 'def demo\n  if ready\n    foo()\n    obj.bar()\n  end\n  for i in [1]\n    baz()\n  end\nend',
     buildChunks: (text) => buildRubyChunks(text),
     buildRelations: (text, chunks) => buildRubyRelations(text, chunks),
-    expectCalls: ['foo', 'bar', 'baz'],
+    expectCalls: ['foo', 'obj.bar', 'baz'],
     skipCalls: ['if', 'for', 'return']
   },
   {
@@ -120,7 +120,7 @@ const cases = [
     text: 'local function demo()\n  if ready then\n    foo()\n    obj:bar()\n  end\n  for i=1,1 do\n    baz()\n  end\nend',
     buildChunks: (text) => buildLuaChunks(text),
     buildRelations: (text, chunks) => buildLuaRelations(text, chunks),
-    expectCalls: ['foo', 'bar', 'baz'],
+    expectCalls: ['foo', 'obj.bar', 'baz'],
     skipCalls: ['if', 'for', 'return']
   },
   {

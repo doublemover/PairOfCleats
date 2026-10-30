@@ -1,10 +1,12 @@
 import { spawnSubprocess } from '../../shared/subprocess/runner.js';
+import { observeStorageResource } from '../../shared/storage/failure-observation.js';
 
 const PYTHON_CANDIDATES = ['python', 'python3'];
 
 let pythonExecutable = null;
 let pythonWarned = false;
 let pythonCheckPromise = null;
+let pythonCheckFailure = null;
 
 async function checkPythonCandidate(candidate) {
   try {
@@ -25,13 +27,19 @@ async function checkPythonCandidate(candidate) {
       }
     );
     return result?.exitCode === 0 && String(result?.stdout || '').trim() === 'ok';
-  } catch {
+  } catch (error) {
+    observeStorageResource(error, { phase: 'python-executable-probe' }).requireSettled();
     return false;
   }
 }
 
 export async function findPythonExecutable(log) {
   if (pythonExecutable) return pythonExecutable;
+  if (pythonCheckFailure) {
+    pythonCheckFailure.requireSettled();
+    pythonCheckFailure = null;
+    pythonCheckPromise = null;
+  }
   if (pythonCheckPromise) return pythonCheckPromise;
   pythonCheckPromise = (async () => {
     for (const candidate of PYTHON_CANDIDATES) {
@@ -48,6 +56,9 @@ export async function findPythonExecutable(log) {
       pythonWarned = true;
     }
     return pythonExecutable;
-  })();
+  })().catch(error => {
+    pythonCheckFailure = observeStorageResource(error, { phase: 'python-executable-probe' });
+    throw error;
+  });
   return pythonCheckPromise;
 }

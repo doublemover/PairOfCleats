@@ -3,6 +3,8 @@ import {
   runWithTimeout
 } from '../../shared/promise-timeout.js';
 import { PREFLIGHT_POLICY } from './provider-contract.js';
+import { isAbortError, throwIfAborted } from '../../shared/abort.js';
+import { currentRunResourceScope } from '../../shared/lifecycle/run-scope.js';
 import {
   TOOLING_PREFLIGHT_REASON_CODES,
   TOOLING_PREFLIGHT_STATES,
@@ -68,6 +70,8 @@ const startProviderPreflight = ({
   if (!provider || typeof provider.preflight !== 'function') {
     return awaitResult ? Promise.resolve(null) : null;
   }
+  const resourceOwner = currentRunResourceScope();
+  resourceOwner?.assertAccepting();
   const state = resolveState(ctx);
   const log = resolveLogger(ctx);
   const providerId = describeProvider(provider);
@@ -80,6 +84,8 @@ const startProviderPreflight = ({
     preflightClass
   });
   const key = resolvePreflightKey({ provider, ctx, inputs });
+  const requestedAbortSignal = resolveRequestedAbortSignal(ctx, inputs);
+  throwIfAborted(requestedAbortSignal);
   const ownershipId = resolvePreflightOwnershipId({
     providerId,
     preflightId,
@@ -143,7 +149,6 @@ const startProviderPreflight = ({
   // New execution should not inherit terminal snapshot state from prior runs.
   state.snapshots.delete(key);
 
-  const requestedAbortSignal = resolveRequestedAbortSignal(ctx, inputs);
   const managedAbortBridge = createManagedAbortBridge(requestedAbortSignal);
   const preflightInputs = {
     ...(inputs && typeof inputs === 'object' ? inputs : {}),
@@ -159,7 +164,8 @@ const startProviderPreflight = ({
   const promise = new Promise((resolve, reject) => {
     resolvePromise = resolve;
     rejectPromise = reject;
-  }).finally(() => {
+  });
+  const releaseOwnership = () => {
     managedAbortBridge.cleanup();
     if (managedAbortBridge.signal && managedAbortHandler) {
       managedAbortBridge.signal.removeEventListener('abort', managedAbortHandler);
@@ -168,7 +174,13 @@ const startProviderPreflight = ({
     if (current?.promise === promise) {
       state.inFlight.delete(key);
     }
-  });
+  };
+  // The public deadline can settle before provider teardown. Keep its ownership
+  // and single-flight entry until the original operation has actually settled.
+  promise.finally(() => {
+    if (task.executionSettlement && !task.executionSettled) task.executionSettlement.then(releaseOwnership);
+    else releaseOwnership();
+  }).catch(() => {});
 
   const task = {
     key,
@@ -184,6 +196,8 @@ const startProviderPreflight = ({
     enqueuedAtMs: null,
     settled: false,
     cancelled: false,
+    executionSettlement: null,
+    executionSettled: false,
     execute: async () => {
       const startedAtMs = Date.now();
       const inFlightEntry = state.inFlight.get(key);
@@ -213,18 +227,28 @@ const startProviderPreflight = ({
         const rawResult = await runWithTimeout(
           async (timeoutSignal) => {
             const effectiveSignal = timeoutSignal || managedAbortBridge.signal || requestedAbortSignal || null;
-            return withTrackedSubprocessSignalScope(
+            const operation = withTrackedSubprocessSignalScope(
               effectiveSignal,
               ownershipId,
-              () => provider.preflight(
-                ctx,
-                {
-                  ...preflightInputs,
-                  abortSignal: effectiveSignal,
-                  managerAbortSignal: effectiveSignal
-                }
-              )
+              () => {
+                throwIfAborted(effectiveSignal);
+                const run = () => provider.preflight(
+                  ctx,
+                  {
+                    ...preflightInputs,
+                    abortSignal: effectiveSignal,
+                    managerAbortSignal: effectiveSignal
+                  }
+                );
+                return resourceOwner ? resourceOwner.track(run) : run();
+              }
             );
+            task.executionSettlement = operation.then(
+              () => { task.executionSettled = true; },
+              () => { task.executionSettled = true; }
+            );
+            if (inFlightEntry) inFlightEntry.settlement = operation;
+            return operation;
           },
           {
             timeoutMs: preflightTimeoutMs,
@@ -321,7 +345,9 @@ const startProviderPreflight = ({
           state.scheduler.metrics.failed += 1;
           incrementClassMetric(state.scheduler.metrics, preflightClass, 'failed');
         }
-        const failOpen = preflightPolicy === PREFLIGHT_POLICY.OPTIONAL;
+        const cancelled = isAbortError(error) || requestedAbortSignal?.aborted === true
+          || managedAbortBridge.signal?.aborted === true;
+        const failOpen = preflightPolicy === PREFLIGHT_POLICY.OPTIONAL && !cancelled;
         const failOpenState = TOOLING_PREFLIGHT_STATES.DEGRADED;
         const finalState = failOpen ? failOpenState : TOOLING_PREFLIGHT_STATES.FAILED;
         const finalReasonCode = timedOut
@@ -354,7 +380,9 @@ const startProviderPreflight = ({
             state: failOpenState,
             reasonCode: finalReasonCode,
             message: finalMessage,
-            blockProvider: false,
+            // A timed-out preflight may still own a child/workspace lock. Do not
+            // start its server while that original operation is draining.
+            blockProvider: timedOut,
             checks: [{
               name: `${providerId}_preflight_failed_open`,
               status: 'warn',
@@ -495,7 +523,8 @@ export const kickoffToolingProviderPreflights = (ctx, providerPlans) => {
       ctx,
       inputs: {
         documents,
-        targets
+        targets,
+        abortSignal: plan.abortSignal || null
       }
     });
     if (seen.has(key)) continue;
@@ -505,7 +534,8 @@ export const kickoffToolingProviderPreflights = (ctx, providerPlans) => {
       provider,
       inputs: {
         documents,
-        targets
+        targets,
+        abortSignal: plan.abortSignal || null
       },
       awaitResult: false,
       waveToken
@@ -632,7 +662,7 @@ export const teardownToolingProviderPreflights = async (ctx, { timeoutMs = 5000 
       return { status: 'ok', total: 0, settled: 0, rejected: 0, timedOut: false, aborted: 0 };
     }
     const promises = inFlightEntries
-      .map(([, entry]) => entry?.promise)
+      .map(([, entry]) => entry?.settlement || entry?.promise)
       .filter((promise) => promise && typeof promise.then === 'function');
     const waited = await waitForPromisesWithTimeout(promises, timeoutMs);
     if (waited.timedOut) {

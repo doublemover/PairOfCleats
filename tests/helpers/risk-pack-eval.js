@@ -167,6 +167,8 @@ export const buildRiskStatsFields = ({
       order: 'deterministic'
     },
     capsHit: [],
+    inputCoverage: { status: 'complete' },
+    droppedRecords: [],
     timingMs: {
       summaries: 1,
       propagation: 1,
@@ -229,7 +231,8 @@ export const createRiskRepoIndexFixture = async ({
   await fs.mkdir(path.dirname(fileAbsPath), { recursive: true });
   const gitInit = spawnSync('git', ['init', '-q'], {
     cwd: repoPath,
-    encoding: 'utf8'
+    encoding: 'utf8',
+    windowsHide: true
   });
   assert.equal(gitInit.status, 0, `expected git init to succeed for ${repoPath}`);
   await fs.writeFile(fileAbsPath, sourceText, 'utf8');
@@ -242,6 +245,7 @@ export const createRiskRepoIndexFixture = async ({
   const buildRoot = path.join(repoCacheRoot, 'builds', buildId);
   await fs.mkdir(path.join(repoCacheRoot, 'builds'), { recursive: true });
   await fs.writeFile(path.join(repoCacheRoot, 'builds', 'current.json'), `${JSON.stringify({
+    artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
     buildId,
     buildRoot,
     modes: ['code']

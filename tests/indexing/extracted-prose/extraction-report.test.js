@@ -47,6 +47,7 @@ const env = applyTestEnv({
     }
   },
   extraEnv: {
+    PAIROFCLEATS_TRUSTED_CONFIG: null,
     PAIROFCLEATS_WORKER_POOL: 'off',
     PAIROFCLEATS_TEST_STUB_PDF_EXTRACT: '1',
     PAIROFCLEATS_TEST_STUB_DOCX_EXTRACT: '1'

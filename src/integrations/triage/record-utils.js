@@ -10,6 +10,24 @@ const PROMOTED_FIELD_PATHS = {
   assetId: ['asset', 'assetId']
 };
 
+/** Canonical collection with legacy singleton compatibility. */
+export const getRecordPackages = record => Array.isArray(record?.packages)
+  ? record.packages.filter(pkg => pkg && typeof pkg === 'object')
+  : record?.package && typeof record.package === 'object' ? [record.package] : [];
+
+/** Snapshot the finding's admitted package occurrences for a manual decision.
+ * The compatibility representative is separate from the canonical collection;
+ * legacy records remain readable without manufacturing occurrence identities.
+ * @param {object} finding
+ * @returns {{package:object|null,packages:object[],parseWarnings?:string[]}}
+ */
+export const snapshotFindingPackages = finding => ({
+  package: finding?.package ? structuredClone(finding.package) : null,
+  packages: structuredClone(getRecordPackages(finding)),
+  ...(Array.isArray(finding?.parseWarnings) && finding.parseWarnings.length
+    ? { parseWarnings: structuredClone(finding.parseWarnings) } : {})
+});
+
 /**
  * Build a stable record id from a source and stable key.
  * @param {string} source
@@ -47,6 +65,14 @@ export function promoteRecordFields(record, promoteFields) {
  */
 function resolvePromotedValue(record, field) {
   if (!record || typeof record !== 'object') return undefined;
+  if (field === 'packageName' || field === 'packageEcosystem') {
+    const key = field === 'packageName' ? 'name' : 'ecosystem';
+    const values = [...new Set(getRecordPackages(record).map(pkg => pkg[key]).filter(isValuePresent))];
+    if (values.length) return values.length === 1 ? values[0] : values;
+    // An admitted collection, including an empty one, is authoritative. A
+    // compatibility singleton cannot manufacture metadata absent from it.
+    if (Array.isArray(record.packages)) return undefined;
+  }
   const path = PROMOTED_FIELD_PATHS[field];
   if (path) {
     const nested = getNestedValue(record, path);

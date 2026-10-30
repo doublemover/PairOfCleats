@@ -1,6 +1,6 @@
-import { estimateJsonBytes } from '../../../shared/cache/size.js';
+import { throwIfAborted } from '../../../shared/abort.js';
 import { createRowSpillCollector } from '../artifacts/helpers.js';
-import { maybeYield, sortStrings } from './constants.js';
+import { requestCooperativeYield } from './constants.js';
 import { mergeIdListsWithNormalizedLeft, normalizeIdList } from './id-lists.js';
 
 const phraseSeparator = '\u0001';
@@ -26,43 +26,46 @@ const resolvePhraseFromIds = (ids, tokenIdMap) => {
 };
 
 /**
- * Flatten hash-bucket phrase postings into sortable `[phrase, posting]` rows.
+ * Lazily resolve one phrase row at a time. The caller consumes bucket ownership
+ * only after accepting its rows, without retaining a full expanded phrase array.
  *
  * @param {{
- *   phraseHashEnabled: boolean,
  *   phrasePostHashBuckets?: Map<any, any>|null,
  *   tokenIdMap?: Map<number|string, string>|null,
- *   requestYield?: (() => Promise<void> | null)|null
  * }} input
- * @returns {Promise<Array<[string, unknown]>>}
+ * @returns {Generator<[string, unknown]|null>}
  */
-const collectPhraseEntriesFromHashBuckets = async ({
-  phraseHashEnabled,
+const iteratePhraseEntriesFromHashBuckets = function* ({
   phrasePostHashBuckets,
-  tokenIdMap,
-  requestYield
-}) => {
-  if (!phraseHashEnabled) return [];
-  if (!phrasePostHashBuckets || typeof phrasePostHashBuckets.entries !== 'function') return [];
-  const rows = [];
-  for (const [, bucket] of phrasePostHashBuckets.entries()) {
-    if (!bucket || typeof bucket !== 'object') continue;
+  tokenIdMap
+}) {
+  if (!phrasePostHashBuckets || typeof phrasePostHashBuckets.entries !== 'function') return;
+  for (const [key, bucket] of phrasePostHashBuckets.entries()) {
+    if (!bucket || typeof bucket !== 'object') { yield null; continue; }
     if (bucket.kind === 'single') {
       const phrase = resolvePhraseFromIds(bucket.ids, tokenIdMap);
-      if (phrase) rows.push([phrase, bucket.posting]);
-      await maybeYield(requestYield);
+      yield phrase ? [phrase, bucket.posting] : null;
+      if (phrase) phrasePostHashBuckets.delete?.(key);
       continue;
     }
     if (Array.isArray(bucket.entries)) {
+      let consumed = false;
       for (const entry of bucket.entries) {
         const phrase = resolvePhraseFromIds(entry?.ids, tokenIdMap);
-        if (phrase) rows.push([phrase, entry?.posting]);
-        await maybeYield(requestYield);
+        yield phrase ? [phrase, entry?.posting] : null;
+        if (phrase) consumed = true;
       }
+      if (consumed) phrasePostHashBuckets.delete?.(key);
     }
-    await maybeYield(requestYield);
   }
-  return rows;
+};
+
+const iterateMapEntries = function* (map) {
+  if (!map || typeof map.entries !== 'function') return;
+  for (const entry of map.entries()) {
+    yield entry;
+    map.delete?.(entry[0]);
+  }
 };
 
 /**
@@ -143,19 +146,22 @@ const createPostingCollector = ({ buildRoot, runPrefix, compare }) => createRowS
 });
 
 /**
- * Collect postings map rows and spill adaptively in a single pass.
+ * Collect lazy postings rows and spill adaptively in a single pass.
  *
  * Avoids a full pre-scan for byte-threshold checks by promoting to spill mode
- * only when the running estimated row bytes crosses `maxSpillBytes`.
+ * when accepted phrase rows or serialized JSONL bytes reach the configured
+ * thresholds. Collision buckets count every phrase, never just the outer key.
  *
  * @param {{
- *   map: Map<string, unknown>,
+ *   entries: Iterable<[string, unknown]|null>,
+ *   inputSize?: number,
  *   buildRoot?: string|null,
  *   runPrefix: string,
  *   compare: (a: any, b: any) => number,
  *   maxSpillUnique?: number,
  *   maxSpillBytes?: number,
  *   normalizePosting?: (posting: unknown) => number[],
+ *   abortSignal?: AbortSignal|null,
  *   requestYield?: (() => Promise<void> | null)|null
  * }} input
  * @returns {Promise<{
@@ -171,82 +177,130 @@ const createPostingCollector = ({ buildRoot, runPrefix, compare }) => createRowS
  * }>}
  */
 const collectRowsWithAdaptiveSpill = async ({
-  map,
+  entries,
+  inputSize = 0,
   buildRoot,
   runPrefix,
   compare,
   maxSpillUnique = 0,
   maxSpillBytes = 0,
   normalizePosting = normalizeIdList,
-  requestYield
+  requestYield,
+  abortSignal
 }) => {
-  if (!map || typeof map.entries !== 'function') {
-    return {
-      rows: [],
-      runs: null,
-      stats: null,
-      cleanup: null,
-      spillEnabled: false
-    };
-  }
-
   const allowSpill = !!buildRoot;
   const spillByUnique = !!(
     allowSpill
     && maxSpillUnique
-    && Number.isFinite(map.size)
-    && map.size >= maxSpillUnique
+    && Number.isFinite(inputSize)
+    && inputSize >= maxSpillUnique
   );
   let collector = spillByUnique
     ? createPostingCollector({ buildRoot, runPrefix, compare })
     : null;
   let bufferedRows = collector ? null : [];
   let bufferedBytes = 0;
-
-  for (const [token, posting] of map.entries()) {
-    const row = {
-      token,
-      postings: normalizePosting(posting)
-    };
-    if (collector) {
-      await collector.append(row);
-    } else {
-      bufferedRows.push(row);
-      if (allowSpill && maxSpillBytes) {
-        bufferedBytes += estimateJsonBytes(row);
-        if (bufferedBytes >= maxSpillBytes) {
+  let collectorRows = 0;
+  let collectorBytes = 0;
+  const assembly = {
+    inputRows: 0, inputSerializedBytes: 0, maxRowBytes: 0,
+    adaptiveBufferHighWaterRows: 0, adaptiveBufferHighWaterBytes: 0,
+    collectorBufferHighWaterRows: 0, collectorBufferHighWaterBytes: 0,
+    collectorMaxRows: SPILL_BUFFER_MAX_ROWS, collectorMaxBytes: SPILL_BUFFER_MAX_BYTES,
+    maxSpillUnique, maxSpillBytes, spillAllowed: allowSpill,
+    sourcePendingRowLimit: 1
+  };
+  const serializeRow = row => {
+    const line = JSON.stringify(row);
+    const lineBytes = Buffer.byteLength(line, 'utf8') + 1;
+    return { line, lineBytes };
+  };
+  const append = async (row, serialized = serializeRow(row)) => {
+    throwIfAborted(abortSignal);
+    const priorRuns = collector.stats.runsSpilled || 0;
+    await collector.append(row, serialized);
+    collectorRows++;
+    collectorBytes += serialized.lineBytes;
+    assembly.collectorBufferHighWaterRows = Math.max(assembly.collectorBufferHighWaterRows, collectorRows);
+    assembly.collectorBufferHighWaterBytes = Math.max(assembly.collectorBufferHighWaterBytes, collectorBytes);
+    if ((collector.stats.runsSpilled || 0) > priorRuns) { collectorRows = 0; collectorBytes = 0; }
+  };
+  try {
+    throwIfAborted(abortSignal);
+    for (const entry of entries || []) {
+      throwIfAborted(abortSignal);
+      if (!entry) {
+        const skippedYield = requestCooperativeYield(requestYield);
+        if (skippedYield) await skippedYield;
+        continue;
+      }
+      const [token, posting] = entry;
+      const row = {
+        token,
+        postings: normalizePosting(posting),
+        // Keep the original stable hashed row order even when planner merges
+        // regroup runs containing equal resolved keys (e.g. token-map aliases).
+        order: assembly.inputRows
+      };
+      let serialized = serializeRow(row);
+      assembly.inputRows++;
+      assembly.inputSerializedBytes += serialized.lineBytes;
+      assembly.maxRowBytes = Math.max(assembly.maxRowBytes, serialized.lineBytes);
+      if (collector) {
+        await append(row, serialized);
+      } else {
+        bufferedRows.push(row);
+        bufferedBytes += serialized.lineBytes;
+        assembly.adaptiveBufferHighWaterRows = Math.max(assembly.adaptiveBufferHighWaterRows, bufferedRows.length);
+        assembly.adaptiveBufferHighWaterBytes = Math.max(assembly.adaptiveBufferHighWaterBytes, bufferedBytes);
+        if (allowSpill && ((maxSpillBytes && bufferedBytes >= maxSpillBytes)
+        || (maxSpillUnique && assembly.inputRows >= maxSpillUnique))) {
+          // Release the current serialized scratch before replaying the buffer.
+          serialized = null;
           collector = createPostingCollector({ buildRoot, runPrefix, compare });
-          for (const bufferedRow of bufferedRows) {
-            await collector.append(bufferedRow);
-            await maybeYield(requestYield);
+          for (let i = 0; i < bufferedRows.length; i++) {
+            await append(bufferedRows[i]);
+            bufferedRows[i] = null;
+            const pendingYield4 = requestCooperativeYield(requestYield);
+            if (pendingYield4) await pendingYield4;
           }
           bufferedRows = null;
         }
       }
+      const pendingYield5 = requestCooperativeYield(requestYield);
+      if (pendingYield5) await pendingYield5;
     }
-    await maybeYield(requestYield);
-  }
-  if (typeof map.clear === 'function') map.clear();
+    throwIfAborted(abortSignal);
 
-  if (!collector) {
-    bufferedRows.sort(compare);
+    if (!collector) {
+      bufferedRows.sort(compare);
+      return {
+        rows: bufferedRows,
+        runs: null,
+        stats: null,
+        cleanup: null,
+        spillEnabled: false,
+        assembly
+      };
+    }
+
+    const collected = await collector.finalize();
     return {
-      rows: bufferedRows,
-      runs: null,
-      stats: null,
-      cleanup: null,
-      spillEnabled: false
+      rows: collected?.rows || null,
+      runs: collected?.runs || null,
+      stats: collected?.stats || null,
+      cleanup: collected?.cleanup || null,
+      spillEnabled: true,
+      assembly
     };
+  } catch (error) {
+    if (collector) {
+      try { await collector.cleanup(); } catch (cleanupError) {
+        throw new AggregateError([error, cleanupError], 'Postings row collection and original spill cleanup failed.', { cause: error });
+      }
+    }
+    throw error;
   }
-
-  const collected = await collector.finalize();
-  return {
-    rows: collected?.rows || null,
-    runs: collected?.runs || null,
-    stats: collected?.stats || null,
-    cleanup: collected?.cleanup || null,
-    spillEnabled: true
-  };
 };
 
 /**
@@ -267,8 +321,10 @@ const foldSortedRows = async ({
   asyncItems = false,
   normalizeRowPosting = normalizeIdList,
   finalizePosting = (posting) => posting,
+  preserveRows = false,
   onRow = null,
-  requestYield
+  requestYield,
+  abortSignal
 }) => {
   const vocab = [];
   const postings = [];
@@ -285,9 +341,17 @@ const foldSortedRows = async ({
   };
 
   const processRow = (row) => {
+    throwIfAborted(abortSignal);
     const token = row?.token;
     if (!token) return;
     if (onRow) onRow(row);
+    if (preserveRows) {
+      // The hashed producer historically emits each resolved key separately,
+      // including empty normalized postings and equal-key token-ID aliases.
+      vocab.push(token);
+      postings.push(normalizeRowPosting(row.postings));
+      return;
+    }
 
     if (currentToken === null) {
       currentToken = token;
@@ -309,16 +373,19 @@ const foldSortedRows = async ({
     if (asyncItems) {
       for await (const row of items) {
         processRow(row);
-        await maybeYield(requestYield);
+        const pendingYield6 = requestCooperativeYield(requestYield);
+        if (pendingYield6) await pendingYield6;
       }
     } else {
       for (const row of items) {
         processRow(row);
-        await maybeYield(requestYield);
+        const pendingYield7 = requestCooperativeYield(requestYield);
+        if (pendingYield7) await pendingYield7;
       }
     }
   }
 
+  throwIfAborted(abortSignal);
   emitCurrent();
   return { vocab, postings };
 };
@@ -369,6 +436,9 @@ const foldSortedRows = async ({
  */
 const buildPostingsFromMap = async ({
   map,
+  entries = null,
+  inputSize = map?.size || 0,
+  preserveRows = false,
   buildRoot,
   runPrefix,
   compare,
@@ -377,24 +447,33 @@ const buildPostingsFromMap = async ({
   normalizePosting = normalizeIdList,
   finalizePosting = (posting) => posting,
   mergeSpillRuns,
-  requestYield
+  requestYield,
+  abortSignal
 }) => {
+  const compareRows = (left, right) => compare(left, right) || (left.order - right.order);
   const collected = await collectRowsWithAdaptiveSpill({
-    map,
+    entries: entries || iterateMapEntries(map),
+    inputSize,
     buildRoot,
     runPrefix,
-    compare,
+    compare: compareRows,
     maxSpillUnique,
     maxSpillBytes,
     normalizePosting,
-    requestYield
+    requestYield,
+    abortSignal
   });
-
   let mergeResult = null;
+  let failed = false;
+  let primaryError;
   try {
+    throwIfAborted(abortSignal);
+    // Incremental iterator deletion occurs only after each row is accepted.
+    // Preserve successful destructive consumption for custom map-like callers.
+    map?.clear?.();
     const runs = collected.runs;
     if (runs) {
-      mergeResult = await mergeSpillRuns({ runs, compare, label: runPrefix });
+      mergeResult = await mergeSpillRuns({ runs, compare: compareRows, label: runPrefix });
     }
     const mergeStats = runs ? createMergeStats(runs, mergeResult) : null;
     const { vocab, postings } = await foldSortedRows({
@@ -402,12 +481,14 @@ const buildPostingsFromMap = async ({
       asyncItems: !!runs,
       normalizeRowPosting: normalizePosting,
       finalizePosting,
+      preserveRows,
       onRow: mergeStats
         ? () => {
           mergeStats.rows += 1;
         }
         : null,
-      requestYield
+      requestYield,
+      abortSignal
     });
     return {
       vocab,
@@ -415,11 +496,22 @@ const buildPostingsFromMap = async ({
       spillEnabled: collected.spillEnabled,
       spillRuns: runs?.length || 0,
       spillStats: collected.stats || null,
+      assembly: collected.assembly,
       mergeStats
     };
+  } catch (error) {
+    failed = true; primaryError = error;
+    throw error;
   } finally {
-    if (mergeResult?.cleanup) await mergeResult.cleanup();
-    if (collected.cleanup) await collected.cleanup();
+    // Each cleanup remains bound to its original owner. A merge teardown
+    // failure cannot prevent original input runs from being released as well.
+    const failures = [];
+    for (const owner of [mergeResult, collected]) {
+      if (!owner?.cleanup) continue;
+      try { await owner.cleanup(); } catch (error) { failures.push(error); }
+    }
+    if (failures.length) throw new AggregateError(failed ? [primaryError, ...failures] : failures,
+      'Postings spill ownership cleanup failed.', failed ? { cause: primaryError } : undefined);
   }
 };
 
@@ -442,6 +534,7 @@ const buildPostingsFromMap = async ({
  *   chargramSpillMaxUnique?: number,
  *   chargramMaxDf?: number,
  *   postingsGuard?: object|null,
+ *   abortSignal?: AbortSignal|null,
  *   requestYield?: (() => Promise<void> | null)|null,
  *   mergeSpillRuns: (input: {
  *     runs: Array<string|{path?: string}>,
@@ -459,6 +552,7 @@ const buildPostingsFromMap = async ({
  * @returns {Promise<{
  *   phraseVocab: string[],
  *   phrasePostings: number[][],
+ *   phraseStats: object|null,
  *   chargramVocab: string[],
  *   chargramPostings: number[][],
  *   chargramStats: object,
@@ -481,6 +575,7 @@ export const buildPhraseAndChargramPostings = async ({
   chargramMaxDf = 0,
   postingsGuard = null,
   requestYield,
+  abortSignal = null,
   mergeSpillRuns,
   compareChargramRows
 } = {}) => {
@@ -503,25 +598,30 @@ export const buildPhraseAndChargramPostings = async ({
 
   let phraseVocab = [];
   let phrasePostings = [];
-  const phraseEntriesFromHash = await collectPhraseEntriesFromHashBuckets({
-    phraseHashEnabled,
-    phrasePostHashBuckets,
-    tokenIdMap,
-    requestYield
-  });
-  if (phraseEnabled && phraseEntriesFromHash.length) {
-    const entries = phraseEntriesFromHash.sort((a, b) => sortStrings(a[0], b[0]));
-    phraseVocab = new Array(entries.length);
-    phrasePostings = new Array(entries.length);
-    for (let i = 0; i < entries.length; i += 1) {
-      const [key, posting] = entries[i];
-      phraseVocab[i] = key;
-      phrasePostings[i] = normalizeIdList(posting);
-      await maybeYield(requestYield);
+  let phraseStats = null;
+  if (phraseEnabled) {
+    let phraseResult = null;
+    const inputHashBuckets = Number.isFinite(phrasePostHashBuckets?.size) ? phrasePostHashBuckets.size : null;
+    if (phraseHashEnabled) {
+      phraseResult = await buildPostingsFromMap({
+        entries: iteratePhraseEntriesFromHashBuckets({ phrasePostHashBuckets, tokenIdMap }),
+        inputSize: inputHashBuckets || 0,
+        preserveRows: true,
+        buildRoot,
+        runPrefix: 'phrase_postings',
+        compare: compareChargramRows,
+        maxSpillUnique: phraseSpillMaxUnique,
+        maxSpillBytes: phraseSpillMaxBytes,
+        mergeSpillRuns,
+        requestYield,
+        abortSignal
+      });
+      if (phraseResult.assembly.inputRows) phrasePostHashBuckets?.clear?.();
+      else phraseResult = null;
     }
-    if (typeof phrasePostHashBuckets.clear === 'function') phrasePostHashBuckets.clear();
-  } else if (phraseEnabled && phrasePost && typeof phrasePost.keys === 'function') {
-    const phraseResult = await buildPostingsFromMap({
+    const source = phraseResult ? 'hashed-buckets' : 'string-map';
+    const inputStringEntries = !phraseResult && Number.isFinite(phrasePost?.size) ? phrasePost.size : 0;
+    if (!phraseResult) phraseResult = await buildPostingsFromMap({
       map: phrasePost,
       buildRoot,
       runPrefix: 'phrase_postings',
@@ -531,11 +631,25 @@ export const buildPhraseAndChargramPostings = async ({
       normalizePosting: normalizeIdList,
       finalizePosting: (posting) => (posting.length ? posting : null),
       mergeSpillRuns,
-      requestYield
+      requestYield,
+      abortSignal
     });
     phraseVocab = phraseResult.vocab;
     phrasePostings = phraseResult.postings;
     postingsMergeStats.phrase = phraseResult.mergeStats;
+    phraseStats = {
+      source, inputHashBuckets, inputStringEntries,
+      ...phraseResult.assembly,
+      spillEnabled: phraseResult.spillEnabled,
+      spillRuns: phraseResult.spillRuns,
+      spillRows: phraseResult.spillStats?.totalRows || 0,
+      spillBytes: phraseResult.spillStats?.totalBytes || 0,
+      spillMaxRowBytes: phraseResult.spillStats?.maxRowBytes || 0,
+      finalRows: phraseVocab.length,
+      // These owners already materialize; serialized assembly telemetry is
+      // neither a V8 heap measurement nor an end-to-end memory bound.
+      inputBucketBytes: null, finalArrayBytes: null
+    };
   }
 
   let chargramVocab = [];
@@ -553,7 +667,8 @@ export const buildPhraseAndChargramPostings = async ({
       normalizePosting: normalizeIdList,
       finalizePosting: normalizeChargramPosting,
       mergeSpillRuns,
-      requestYield
+      requestYield,
+      abortSignal
     });
     chargramVocab = chargramResult.vocab;
     chargramPostings = chargramResult.postings;
@@ -590,6 +705,7 @@ export const buildPhraseAndChargramPostings = async ({
   return {
     phraseVocab,
     phrasePostings,
+    phraseStats,
     chargramVocab,
     chargramPostings,
     chargramStats,

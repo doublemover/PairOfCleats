@@ -1,5 +1,77 @@
 # Dependency security and compatibility
 
+## Current checkout baseline
+
+The checkout now requires Node >=26.12.1 <27 and pins 26.13.0 in `.nvmrc` and workflows.
+Use `npm run bootstrap:ci` for locked setup; see the
+[runtime policy](node-runtime.md). The dated Node 24 and advisory inventories
+below retain their original provenance. Current acceptance belongs in the
+[roadmap](../roadmap.md); neither those inventories nor an offline contract
+establish a fresh hosted security scan.
+
+## October 29 stable-version refresh
+
+The current manifest selects the latest stable direct dependency releases checked
+on October 29, including Babel 8, Astro 4, GraphQL 17, LanceDB 0.41, Arrow 21,
+Tree-sitter 0.25.1 and the maintained `@prometheus-io/client` metrics package.
+The latter replaces deprecated `prom-client`. Scoped LanceDB overrides use the
+current Transformers and OpenAI SDKs; the old optional Transformers 3 dependency
+otherwise reintroduced vulnerable Sharp. Consumers retain LanceDB's own Arrow
+instance for its declared schema contract. LanceDB 0.41 now declares support for
+Arrow 15 through 21. The follow-up registry check leaves only the TypeScript
+compatibility exception below behind its upstream `latest` tag.
+
+TypeScript stays on 6.0.3, the latest complete JavaScript compiler API and
+`tsserver` distribution. TypeScript 7.0.2's native distribution omits both required
+interfaces; the official compatibility package supplies the compiler API but no
+`tsserver`. This exception remains explicit until the embedded provider and
+language server support those replacements. Transitive majors remain subject to
+their upstream consumers' compatibility requirements.
+
+The Tree-sitter and Transformers patches are ported to their current releases.
+DOCX 9.15.0 no longer needs the browser-storage compatibility patch: pristine ESM
+and CommonJS bundles generate real documents without storage reads or warnings.
+Node-gyp now clears executable-only PGO flags for Windows addon builds, matching
+its existing LTO isolation. The official Node headers remain unchanged.
+
+Fresh locked setup on Node 26.13.0 verifies 37 packages, 33 language routes and
+seven required patches. MSVC emits no compiler/linker warnings after the PGO
+repair. npm still reports upstream `prebuild-install@7.1.3` deprecation through
+Perl and optional Zstandard; it is not suppressed. Runtime and hosted acceptance
+remain source-bound in the [stable refresh receipt](../archived/windows-stable-upgrades-2026-10-29.md).
+
+## October 24 advisory repair
+
+The hosted gate at `50c62e7ea` stopped on seven affected npm entries (six high,
+one moderate). The revised lock graph uses Happy DOM 21.0.4, body-parser 2.4.0,
+fast-uri 3.1.9, Undici 8.12.3 and Zod 4.6.7. Their normal resolutions also update
+qs and iconv-lite. The SDK's declared Zod range admits this major; real SDK
+stdio and DOM consumer checks cover the affected integrations.
+
+Azure Identity 4.14.0 still selects MSAL 6. The scoped `@azure/identity` override
+selects the fixed MSAL 7.1.0 and its MSAL Common 16.14.2 dependency. Remove this
+bridge when Identity's own compatible range selects a fixed release. The offline
+security contract exercises the real Identity/MSAL adapter through authority
+discovery, client-credential acquisition and cached reuse with a fixture-only
+transport; it never authenticates against a live account.
+
+On Windows x64 and Node 26.12.1, locked `npm run bootstrap:ci` completed native
+rebuild, parser activation, all eight required patch verifications and readiness
+publication. Its log contained no warning/error diagnostics. The subsequent full
+graph `npm audit --json` reported zero vulnerabilities. Optional Sharp was absent
+and explicitly excluded by setup. These are dated local observations; hosted
+CI, runtime lifecycle and release qualification remain distinct. The immutable
+October 24 advisory inventory supplements the older baselines and the unchanged
+live `npm audit --audit-level=low` gate.
+
+## October 22 Windows validation preparation
+
+The locked install at source c849bf600 resolves optional `ip-address` 10.7.3 to
+10.7.4 for GHSA-rxp7-6hxx-x8q5. This is the only lockfile version change in that
+batch. The subsequent fresh `npm ci --include=dev --ignore-scripts` audit reports
+zero vulnerabilities. Full native setup and Windows suite acceptance remain
+separate, and this does not establish a hosted security rescan.
+
 ## October 7 hosted checkpoint
 
 The completion and dependency proposals through PR540 are merged or specifically
@@ -116,14 +188,21 @@ no patched release for this advisory. The scoped override avoids a global parser
 change; the existing checked package-patch installer applies
 `patches/mammoth+1.13.0.patch`. It preserves CLI argument names, choices, output
 paths and mutual exclusion while using snake_case methods, `String` types and
-the v2 `default` option. Argparse 2's absent values become `undefined` instead of
+the modern `default` option. Modern argparse's absent values become `undefined` instead of
 `null`; Mammoth's truthiness checks support both. See the
 [v1-to-v2 migration guide](https://github.com/nodeca/argparse/blob/2.0.1/doc/migrate_v1_to_v2.md).
-Argparse 3's additional help/parser changes are unnecessary for this fix.
+The October 29 refresh selects argparse 3.0.4 with the same adapter and real CLI controls.
 Real DOCX tests require the Mammoth backend, compare text and image bytes, run
 conversion/error cases under `--throw-deprecation`, and verify first/repeated
 patch application plus version/partial-patch rejection. Do not accept npm's
 suggested Mammoth downgrade or restore sprintf-js.
+
+The original DOCX 9.5.3 generator needed a compatibility patch because its bundled
+browser helper read Node's experimental localStorage getter. The October 29
+upgrade retires that patch after proving pristine DOCX 9.15.0 avoids the access.
+Fresh ESM/CommonJS processes still generate real documents without warnings or
+browser-storage access; the Mammoth migration fixture also rejects parent-process
+runtime warnings.
 
 The [additional regression baseline](../../tests/fixtures/security/dependency-advisories-2026-10-06.json)
 records the five advisory ranges with official links. The historical October 2

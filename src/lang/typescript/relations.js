@@ -1,6 +1,11 @@
-import { prepareTypeScriptBabelSyntax } from './syntax-context.js';
+import { projectJsTsCallArguments } from '../js-ts/call-arguments.js';
+import { collectCallLiteralEvidence } from '../js-ts/literal.js';
+import { collectConstantReferences } from '../js-ts/constant-references.js';
+import { createReturnCallEvidence } from '../js-ts/return-call-evidence.js';
+import { recordJsTsImportBindings } from '../js-ts/import-bindings.js';
+import { prepareTypeScriptBabelSyntax, ownsTypeScriptBabelSyntaxText } from './syntax-context.js';
 import { collectImportsFromAst } from '../javascript.js';
-import { findCLikeBodyBounds } from '../clike.js';
+import { findTypeScriptBodyBounds } from './brace-bounds.js';
 import {
   buildCallDetail,
   formatJsTsCallArg,
@@ -34,20 +39,6 @@ const getLastDottedSegment = (raw) => {
   if (!end) return '';
   const idx = raw.lastIndexOf('.', end - 1);
   return raw.slice(idx + 1, end);
-};
-
-const getMemberName = (node) => resolveAstMemberName(node, { includeTsQualifiedName: true });
-
-const getCalleeName = (callee) => {
-  if (!callee) return null;
-  if (callee.type === 'ChainExpression') return getCalleeName(callee.expression);
-  if (callee.type === 'OptionalCallExpression') return getCalleeName(callee.callee);
-  if (callee.type === 'Identifier') return callee.name;
-  if (callee.type === 'MemberExpression' || callee.type === 'OptionalMemberExpression') {
-    return getMemberName(callee);
-  }
-  if (callee.type === 'Super') return 'super';
-  return null;
 };
 
 function collectTypeScriptImportsFromNormalized(normalized) {
@@ -124,7 +115,7 @@ function collectTypeScriptCallsAndUsages(text, normalizedText = null) {
     const raw = match[1];
     if (!raw) continue;
     const base = getLastDottedSegment(raw);
-    if (!base || TS_CALL_KEYWORDS.has(base)) continue;
+    if (!base || raw === base && TS_CALL_KEYWORDS.has(base)) continue;
     calls.add(raw);
     if (base !== raw) calls.add(base);
     if (!match[0]) callRe.lastIndex += 1;
@@ -144,7 +135,7 @@ function collectTypeScriptCallsAndUsages(text, normalizedText = null) {
  * Build import/export/call/usage relations for TypeScript chunks.
  * @param {string} text
  * @param {Array<{start:number,end:number,name:string,kind:string,meta:Object}>|null} tsChunks
- * @returns {{imports:string[],exports:string[],calls:Array<[string,string]>,usages:string[]}}
+ * @returns {{imports:string[],exports:string[],calls:Array<[string,string]>,usages:string[],importBindings:Object|null}}
  */
 export function buildTypeScriptRelations(text, tsChunks, options = {}) {
   const normalizedText = stripTypeScriptComments(text);
@@ -153,8 +144,26 @@ export function buildTypeScriptRelations(text, tsChunks, options = {}) {
   const calls = [];
   const callDetails = [];
   const usages = new Set();
+  const importBindings = Object.create(null);
 
   const ast = prepareTypeScriptBabelSyntax(text, options);
+  const sourceOwned = ownsTypeScriptBabelSyntaxText(ast, text);
+  const returnEvidence = createReturnCallEvidence(ast, { sourceOwned });
+  const constants = collectConstantReferences(ast);
+  const getMemberName = (node) => resolveAstMemberName(node, { includeTsQualifiedName: true, constantKeys: constants.keys });
+
+  const getCalleeName = (callee) => {
+    if (!callee) return null;
+    if (callee.type === 'ChainExpression') return getCalleeName(callee.expression);
+    if (callee.type === 'OptionalCallExpression') return getCalleeName(callee.callee);
+    if (callee.type === 'Identifier') return constants.aliases.get(callee) || callee.name;
+    if (callee.type === 'MemberExpression' || callee.type === 'OptionalMemberExpression') {
+      return getMemberName(callee);
+    }
+    if (callee.type === 'Super') return 'super';
+    return null;
+  };
+
   const chunkRanges = Array.isArray(tsChunks)
     ? tsChunks
       .filter((chunk) => chunk && chunk.name && Number.isFinite(chunk.start) && Number.isFinite(chunk.end))
@@ -203,7 +212,7 @@ export function buildTypeScriptRelations(text, tsChunks, options = {}) {
     const calleeName = getCalleeName(node.callee);
     if (!calleeName) return;
     const base = getLastDottedSegment(calleeName);
-    if (!base || TS_CALL_KEYWORDS.has(base)) return;
+    if (!base || calleeName === base && TS_CALL_KEYWORDS.has(base)) return;
     const location = resolveCallLocation(node);
     const callerName = location ? resolveCallerName(location.start, location.end) : '(module)';
     const args = [];
@@ -216,25 +225,38 @@ export function buildTypeScriptRelations(text, tsChunks, options = {}) {
         if (value) args.push(value);
       }
     }
-    callDetails.push(buildCallDetail({ callerName, calleeName, args, location }));
-    calls.push([callerName, calleeName]);
+    const detail = buildCallDetail({ callerName, calleeName, args, location });
+    if (sourceOwned && !ast.errors?.length) {
+      detail.argLiterals = collectCallLiteralEvidence(node.arguments, text);
+      detail.arguments = projectJsTsCallArguments(node.arguments, text, 'typescript');
+    }
+    const returnedValue = returnEvidence.get(node);
+    if (returnedValue) detail.returnedValue = returnedValue;
+    const lexicalBinding = sourceOwned && !ast.errors?.length ? constants.callRoots.get(node) : null;
+    if (lexicalBinding?.root === calleeName.split(/::|\./u)[0]) detail.lexicalBinding = lexicalBinding;
+    if (node.type === 'NewExpression') detail.role = 'constructor';
+    callDetails.push(detail);
+    if (node.type !== 'NewExpression') calls.push([callerName, calleeName]);
   };
 
   const walk = (root) => {
     const seen = new Set();
-    const stack = [root];
+    const stack = [{ node: root, parent: null, returnOwner: null }];
     while (stack.length) {
-      const node = stack.pop();
+      const frame = stack.pop(), { node, parent } = frame;
       if (!node || typeof node !== 'object') continue;
       if (seen.has(node)) continue;
       seen.add(node);
       if (Array.isArray(node)) {
         for (let i = node.length - 1; i >= 0; i -= 1) {
-          stack.push(node[i]);
+          stack.push({ node: node[i], parent, returnOwner: frame.returnOwner });
         }
         continue;
       }
-      if (node.type === 'CallExpression' || node.type === 'OptionalCallExpression') {
+      const returnOwner = returnEvidence.enter(node, parent, frame.returnOwner);
+      recordJsTsImportBindings(node, parent, importBindings, sourceOwned && !ast.errors?.length);
+      if (node.type === 'CallExpression' || node.type === 'OptionalCallExpression'
+        || node.type === 'NewExpression' && returnEvidence.get(node)) {
         recordCall(node);
       }
       if (node.type === 'Identifier' && !TS_USAGE_SKIP.has(node.name)) {
@@ -245,7 +267,7 @@ export function buildTypeScriptRelations(text, tsChunks, options = {}) {
         if (WALK_SKIP_KEYS.has(key)) continue;
         const value = node[key];
         if (value && typeof value === 'object') {
-          stack.push(value);
+          stack.push({ node: value, parent: node, returnOwner });
         }
       }
     }
@@ -262,7 +284,7 @@ export function buildTypeScriptRelations(text, tsChunks, options = {}) {
     for (const chunk of tsChunks) {
       if (!chunk || !chunk.name || chunk.start == null || chunk.end == null) continue;
       if (!['MethodDeclaration', 'ConstructorDeclaration', 'FunctionDeclaration'].includes(chunk.kind)) continue;
-      const bounds = findCLikeBodyBounds(text, chunk.start);
+      const bounds = findTypeScriptBodyBounds(text, chunk.start);
       const scanStart = bounds.bodyStart > -1 && bounds.bodyStart < chunk.end
         ? bounds.bodyStart + 1
         : chunk.start;
@@ -281,6 +303,7 @@ export function buildTypeScriptRelations(text, tsChunks, options = {}) {
     exports: Array.from(exports),
     calls,
     callDetails,
-    usages: Array.from(usages)
+    usages: Array.from(usages),
+    importBindings: Object.keys(importBindings).length ? importBindings : null
   };
 }

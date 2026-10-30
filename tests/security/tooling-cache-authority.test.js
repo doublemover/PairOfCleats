@@ -103,7 +103,8 @@ try {
   await fs.utimes(path.join(ownedCache, firstCache), new Date('2001-01-01'), new Date('2001-01-01'));
   // A generated-looking filename with unowned content and a misplaced ownership
   // envelope are both unrelated files and must survive pruning.
-  snapshot[path.join(namespace, 'fixture-tooling-provider_lk3_0000000000000000000000000000000000000000.json')] = '{}';
+  const unownedCacheName = `fixture${firstCache.slice(firstCache.indexOf('-tooling-provider_'))}`;
+  snapshot[path.join(namespace, unownedCacheName)] = '{}';
   snapshot[path.join(namespace, 'misnamed.json')] = await fs.readFile(path.join(ownedCache, firstCache), 'utf8');
   for (const name of Object.keys(snapshot).filter((name) => !sentinels.includes(name))) {
     await fs.writeFile(path.join(sibling, name), snapshot[name]);

@@ -1,3 +1,4 @@
+import { setOwn } from '../shared/object-record.js';
 import { buildChunkId } from './chunk-id.js';
 import { buildSymbolIdentity } from './identity/symbol.js';
 import { collectDeclaredReturnTypes, pickDeclaredReturnType } from './metadata/docmeta.js';
@@ -70,7 +71,7 @@ const normalizeParamMap = (raw) => {
   const output = {};
   for (const [key, entries] of Object.entries(raw)) {
     const normalized = normalizeTypeEntries(entries);
-    if (normalized.length) output[key] = normalized;
+    if (normalized.length) setOwn(output,key,normalized);
   }
   return Object.keys(output).length ? output : null;
 };
@@ -81,12 +82,12 @@ const normalizeTypeMap = (raw) => {
   for (const [key, entries] of Object.entries(raw)) {
     if (Array.isArray(entries)) {
       const normalized = normalizeTypeEntries(entries);
-      if (normalized.length) output[key] = normalized;
+      if (normalized.length) setOwn(output,key,normalized);
       continue;
     }
     if (entries && typeof entries === 'object') {
       const normalized = normalizeParamMap(entries);
-      if (normalized) output[key] = normalized;
+      if (normalized) setOwn(output,key,normalized);
     }
   }
   return Object.keys(output).length ? output : null;
@@ -100,7 +101,7 @@ const buildDeclaredTypes = (docmeta) => {
     for (const [name, type] of Object.entries(docmeta.paramTypes)) {
       const normalized = normalizeString(type);
       if (!normalized) continue;
-      params[name] = [{ type: normalized, source: 'annotation', confidence: 0.95 }];
+      setOwn(params,name,[{ type: normalized, source: 'annotation', confidence: 0.95 }]);
     }
     if (Object.keys(params).length) declared.params = params;
   }
@@ -124,8 +125,8 @@ const splitToolingTypes = (raw) => {
     if (Array.isArray(entries)) {
       const toolingEntries = entries.filter((entry) => entry.source === 'tooling');
       const otherEntries = entries.filter((entry) => entry.source !== 'tooling');
-      if (toolingEntries.length) tooling[key] = toolingEntries;
-      if (otherEntries.length) remaining[key] = otherEntries;
+      if (toolingEntries.length) setOwn(tooling,key,toolingEntries);
+      if (otherEntries.length) setOwn(remaining,key,otherEntries);
       continue;
     }
     if (entries && typeof entries === 'object') {
@@ -135,11 +136,11 @@ const splitToolingTypes = (raw) => {
         if (!Array.isArray(list)) continue;
         const toolingEntries = list.filter((entry) => entry.source === 'tooling');
         const otherEntries = list.filter((entry) => entry.source !== 'tooling');
-        if (toolingEntries.length) toolingMap[param] = toolingEntries;
-        if (otherEntries.length) remainingMap[param] = otherEntries;
+        if (toolingEntries.length) setOwn(toolingMap,param,toolingEntries);
+        if (otherEntries.length) setOwn(remainingMap,param,otherEntries);
       }
-      if (Object.keys(toolingMap).length) tooling[key] = toolingMap;
-      if (Object.keys(remainingMap).length) remaining[key] = remainingMap;
+      if (Object.keys(toolingMap).length) setOwn(tooling,key,toolingMap);
+      if (Object.keys(remainingMap).length) setOwn(remaining,key,remainingMap);
     }
   }
   return {
@@ -212,8 +213,11 @@ export function buildMetaV2({ chunk, docmeta, toolInfo, analysisPolicy }) {
     file: normalizeString(chunk.file),
     fileHash: normalizeString(chunk.fileHash),
     fileHashAlgo: normalizeString(chunk.fileHashAlgo),
+    ...(chunk.recordSource ? { recordSource: chunk.recordSource } : {}),
     segment: segment
       ? {
+        ...(segment.contentView ? { contentView: segment.contentView } : {}),
+        ...(segment.contentOrigin ? { contentOrigin: segment.contentOrigin } : {}),
         segmentId: normalizeString(segment.segmentId),
         segmentUid: normalizeString(segment.segmentUid),
         virtualPath: normalizeString(segment.virtualPath),
@@ -274,6 +278,10 @@ export function buildMetaV2({ chunk, docmeta, toolInfo, analysisPolicy }) {
     returns: pickDeclaredReturnType(docmeta),
     controlFlow: docmeta?.controlFlow || null,
     dataflow: docmeta?.dataflow || null,
+    ...(chunk.sourceOutline || chunk.metaV2?.sourceOutline ? { sourceOutline: chunk.sourceOutline || chunk.metaV2.sourceOutline } : {}),
+    ...(docmeta?.flowEvidence ? { flowEvidence: docmeta.flowEvidence } : {}),
+    ...(docmeta?.javascriptDeclaration ? { javascriptDeclaration: docmeta.javascriptDeclaration } : {}),
+    ...Object.fromEntries(['throws', 'awaits', 'yields', 'returnsValue'].filter(field => docmeta?.[field] != null).map(field => [field, docmeta[field]])),
     dependencies: docmeta?.dependencies || null,
     relations: relations
       ? {

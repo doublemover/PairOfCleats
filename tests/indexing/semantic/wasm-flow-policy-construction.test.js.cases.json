@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["off", "deferred", "unsupported-target", "eager-budget", "granted-budget", "small-eager"]
+}

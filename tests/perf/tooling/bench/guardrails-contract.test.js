@@ -95,5 +95,23 @@ assert.equal(failing.status, 1, 'expected guardrails failure exit code');
 const failPayload = JSON.parse(String(failing.stdout || '{}'));
 assert.equal(failPayload.ok, false, 'expected failure payload');
 assert.ok(Array.isArray(failPayload.failedChecks) && failPayload.failedChecks.length > 0, 'expected failing checks');
+assert.deepEqual(failPayload.failedChecks.map(check => check.name), ['stage-duration-max']);
+assert.equal(failPayload.failedChecks[0].observed, 100);
+const run = extra => runNode([scriptPath, '--report', reportPath, '--json', ...extra],
+  'bench guardrail optional measurement contract', root, testEnv, { stdio: 'pipe', allowFailure: true });
+const single = run(['--max-stage-duration-ms', '120']);
+assert.equal(single.status, 0, single.stderr);
+assert.deepEqual(JSON.parse(single.stdout).checks.map(check => check.name), ['stage-duration-max']);
+await fs.writeFile(reportPath, '{}');
+const absent = run(['--max-stage-duration-ms', '120']);
+assert.equal(absent.status, 1);
+assert.equal(JSON.parse(absent.stdout).failedChecks[0].observed, null);
+const invalid = run(['--max-stage-duration-ms', 'abc']);
+assert.notEqual(invalid.status, 0);
+assert.match(invalid.stderr, /finite nonnegative/);
+await fs.writeFile(reportPath, JSON.stringify({ summary: { criticalPath: { scripts: [{ durationMs: 0 }] } } }));
+const zero = run(['--max-stage-duration-ms', '0']);
+assert.equal(zero.status, 0, zero.stderr);
+assert.equal(JSON.parse(zero.stdout).checks[0].observed, 0);
 
 console.log('bench guardrails contract test passed');

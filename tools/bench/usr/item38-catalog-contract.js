@@ -1,9 +1,11 @@
 #!/usr/bin/env node
 import { guardBootstrapEntry } from '../../../src/shared/bootstrap-readiness.js';
 await guardBootstrapEntry(import.meta.url);
-import crypto from 'node:crypto';
 const {
   ensureArray,
+  hashInputs,
+  USR_SOURCE_DIGEST_VERSION,
+  USR_SOURCE_DIGEST_FORMAT,
   parseBenchArgs,
   readJsonFileWithRaw,
   readJsonFromRoot,
@@ -15,17 +17,6 @@ const CONFIG_PATH = repoPath('docs', 'config', 'usr-guardrails', 'item-38-catalo
 const isObjectRecord = (value) => Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 const countMalformedRows = (rows) => rows.reduce((count, row) => (isObjectRecord(row) ? count : count + 1), 0);
 
-const hashInputs = (inputs) => {
-  const h = crypto.createHash('sha256');
-  for (const value of inputs) {
-    const chunk = String(value);
-    h.update(String(chunk.length));
-    h.update(':');
-    h.update(chunk);
-    h.update('|');
-  }
-  return h.digest('hex');
-};
 
 const main = async () => {
   const argv = parseBenchArgs();
@@ -66,14 +57,16 @@ const main = async () => {
       versionRows: countMalformedRows(versionRows),
       embeddingRows: countMalformedRows(embeddingRows)
     },
+    sourceDigestVersion: USR_SOURCE_DIGEST_VERSION,
+    sourceDigestFormat: USR_SOURCE_DIGEST_FORMAT,
     sourceDigest: hashInputs([
-      configRaw,
-      languageProfiles.raw,
-      frameworkProfiles.raw,
-      edgeCases.raw,
-      capabilityMatrix.raw,
-      versionPolicy.raw,
-      embeddingPolicy.raw
+      {role:'config',path:'docs/config/usr-guardrails/item-38-catalog-contract.json',value:configRaw},
+      {role:'languageProfiles',path:config.inputs.languageProfiles,value:languageProfiles.raw},
+      {role:'frameworkProfiles',path:config.inputs.frameworkProfiles,value:frameworkProfiles.raw},
+      {role:'frameworkEdgeCases',path:config.inputs.frameworkEdgeCases,value:edgeCases.raw},
+      {role:'capabilityMatrix',path:config.inputs.capabilityMatrix,value:capabilityMatrix.raw},
+      {role:'languageVersionPolicy',path:config.inputs.languageVersionPolicy,value:versionPolicy.raw},
+      {role:'languageEmbeddingPolicy',path:config.inputs.languageEmbeddingPolicy,value:embeddingPolicy.raw}
     ])
   };
 

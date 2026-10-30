@@ -17,7 +17,9 @@ const formatNode = (node) => {
 
 const formatEdge = (edge) => {
   const graph = edge?.graph ? `, ${edge.graph}` : '';
-  return `${formatRiskNodeRef(edge?.from)} -> ${formatRiskNodeRef(edge?.to)} (${edge?.edgeType || 'edge'}${graph})`;
+  const projection = edge?.importProjection;
+  const alias = projection ? ` [containing-file import: ${projection.fromFile} -> ${projection.toFile}; chunk:${projection.chunkUid} = ${projection.containingFile}]` : '';
+  return `${formatRiskNodeRef(edge?.from)} -> ${formatRiskNodeRef(edge?.to)} (${edge?.edgeType || 'edge'}${graph})${alias}`;
 };
 
 export const renderGraphContextPack = (pack) => {
@@ -61,9 +63,9 @@ export const renderGraphContextPack = (pack) => {
     lines.push('## Witness Paths');
     for (const path of paths) {
       const nodesText = Array.isArray(path?.nodes)
-        ? path.nodes.map(formatRef).join(' -> ')
+        ? path.nodes.map(formatRiskNodeRef).join(' -> ')
         : '';
-      lines.push(`- ${formatRef(path?.to)} (${path?.distance ?? 0}): ${nodesText}`);
+      lines.push(`- ${formatRiskNodeRef(path?.to)} (${path?.distance ?? 0}): ${nodesText}`);
     }
   }
 

@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["oversize-render", "cumulative-render", "reuse", "reuse-uncached", "generation", "scan-limit", "zero-negative", "failed-read", "racing-read", "encoding", "supplied-refusal", "invalid-cache", "output-controls"]
+}

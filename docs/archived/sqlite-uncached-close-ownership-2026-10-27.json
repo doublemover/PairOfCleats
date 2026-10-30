@@ -1,0 +1,376 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-10-27",
+  "sourceHead": "55d0daa9f9d078e81205dcc8ef5cac5aaa404643",
+  "sourceTree": "d63a8654df08c85b923069cac14d0f5bbfe4efed",
+  "branch": "codex/pr557-audit-repairs-20261012",
+  "runtime": {
+    "node": "v26.12.1",
+    "platform": "win32",
+    "arch": "x64",
+    "abi": "147",
+    "sqliteVersion": "13.0.3"
+  },
+  "issue": 1574,
+  "state": "open",
+  "qualificationComplete": false,
+  "repairs": [
+    "Uncached native close owner captured before initialization probes.",
+    "Original failed disposal outcome retained across repeated calls.",
+    "Original resource observations composed through shared storage failure owner.",
+    "Independent handles still close; explicit reconciliation stays with the original owner."
+  ],
+  "obsoleteCode": {
+    "baseline": "53f0e70d0324706f8ca586d02beb5e6afb727484",
+    "removed": [
+      "getSqliteChunkCount",
+      "sqliteChunkCountCache",
+      "sole buildLocalCacheKey import in cli-sqlite.js"
+    ],
+    "allTrackedReferences": [
+      "53f0e70d0324706f8ca586d02beb5e6afb727484:src/retrieval/cli-sqlite.js:16:const sqliteChunkCountCache = new Map();",
+      "53f0e70d0324706f8ca586d02beb5e6afb727484:src/retrieval/cli-sqlite.js:429:export async function getSqliteChunkCount(dbPath, mode) {",
+      "53f0e70d0324706f8ca586d02beb5e6afb727484:src/retrieval/cli-sqlite.js:448:    const cached = sqliteChunkCountCache.get(cacheKey);",
+      "53f0e70d0324706f8ca586d02beb5e6afb727484:src/retrieval/cli-sqlite.js:457:      sqliteChunkCountCache.set(cacheKey, { mtimeMs: stat.mtimeMs, count: manifestRow.count });",
+      "53f0e70d0324706f8ca586d02beb5e6afb727484:src/retrieval/cli-sqlite.js:462:    sqliteChunkCountCache.set(cacheKey, { mtimeMs: stat.mtimeMs, count });"
+    ],
+    "search": [
+      "git",
+      "grep",
+      "-n",
+      "-E",
+      "getSqliteChunkCount|sqliteChunkCountCache",
+      "53f0e70d0324706f8ca586d02beb5e6afb727484",
+      "--"
+    ],
+    "replacementOwner": "src/retrieval/cli/auto-sqlite.js:resolveIndexStats",
+    "replacementCoverage": "retrieval/backend/retrieval-auto-sqlite-resolve-index-stats-compressed-jsonl",
+    "testsRemoved": 0
+  },
+  "checks": {
+    "before": {
+      "total": 4,
+      "passed": 0,
+      "failed": 4,
+      "skipped": 0,
+      "durationMs": 1362
+    },
+    "firstAfter": {
+      "total": 4,
+      "passed": 4,
+      "failed": 0,
+      "skipped": 0,
+      "durationMs": 1425
+    },
+    "firstCohort": {
+      "total": 12,
+      "passed": 11,
+      "failed": 1,
+      "skipped": 0,
+      "durationMs": 5071
+    },
+    "finalCohort": {
+      "total": 12,
+      "passed": 12,
+      "failed": 0,
+      "skipped": 0,
+      "durationMs": 4959
+    },
+    "gate": {
+      "total": 40,
+      "passed": 40,
+      "failed": 0,
+      "skipped": 0,
+      "durationMs": 22017
+    },
+    "frontGateOriginal": [
+      {
+        "arguments": [
+          "run",
+          "config:budget"
+        ],
+        "exitCode": 0,
+        "executable": "npm.cmd",
+        "name": "config-budget",
+        "durationMs": 2122
+      },
+      {
+        "arguments": [
+          "run",
+          "env:check"
+        ],
+        "exitCode": 0,
+        "executable": "npm.cmd",
+        "name": "environment",
+        "durationMs": 1411
+      },
+      {
+        "arguments": [
+          "tools/docs/generated-surfaces.js",
+          "--check-freshness"
+        ],
+        "exitCode": 0,
+        "executable": "node",
+        "name": "generated",
+        "durationMs": 12572
+      },
+      {
+        "arguments": [
+          "tools/ci/check-command-surface.js"
+        ],
+        "exitCode": 0,
+        "executable": "node",
+        "name": "command-surface",
+        "durationMs": 2810
+      },
+      {
+        "arguments": [
+          "tests/ci/workflow-contract.test.js"
+        ],
+        "exitCode": 0,
+        "executable": "node",
+        "name": "workflow",
+        "durationMs": 259
+      },
+      {
+        "arguments": [
+          "tests/run.js",
+          "--lane",
+          "gate",
+          "--jobs",
+          "1",
+          "--timeout-ms",
+          "30000",
+          "--retries",
+          "0",
+          "--native-status-redo=false",
+          "--pairofcleats-threads",
+          "1",
+          "--json"
+        ],
+        "exitCode": 0,
+        "executable": "node",
+        "name": "gate-lane",
+        "durationMs": 22819
+      },
+      {
+        "arguments": [
+          "diff",
+          "--check"
+        ],
+        "exitCode": 2,
+        "executable": "git",
+        "name": "diff",
+        "durationMs": 68
+      }
+    ],
+    "diffRepair": {
+      "command": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "reason": "Removed the extra blank line left after deleting the obsolete probe; no behavior change.",
+      "exitCode": 0
+    },
+    "format": 0,
+    "effectiveFrontGate": [
+      {
+        "name": "config-budget",
+        "exitCode": 0
+      },
+      {
+        "name": "environment",
+        "exitCode": 0
+      },
+      {
+        "name": "generated",
+        "exitCode": 0
+      },
+      {
+        "name": "command-surface",
+        "exitCode": 0
+      },
+      {
+        "name": "workflow",
+        "exitCode": 0
+      },
+      {
+        "name": "gate-lane",
+        "exitCode": 0
+      },
+      {
+        "name": "diff",
+        "exitCode": 0,
+        "initialExitCode": 2,
+        "repairEvidence": ".tmp/tasks/sqlite-uncached-ownership-20261027/diff-repair.json"
+      }
+    ]
+  },
+  "qualifiedTests": [
+    {
+      "id": "indexing/contracts/index-format-cutover",
+      "status": "passed",
+      "durationMs": 1387,
+      "attempts": 1
+    },
+    {
+      "id": "retrieval/backend/retrieval-auto-sqlite-resolve-index-stats-compressed-jsonl",
+      "status": "passed",
+      "durationMs": 101,
+      "attempts": 1
+    },
+    {
+      "id": "retrieval/backend/sqlite-open-error-provenance",
+      "status": "passed",
+      "durationMs": 266,
+      "attempts": 1
+    },
+    {
+      "id": "retrieval/backend/sqlite-uncached-close-ownership/explicit-false",
+      "status": "passed",
+      "durationMs": 337,
+      "attempts": 1
+    },
+    {
+      "id": "retrieval/backend/sqlite-uncached-close-ownership/initialization-failure",
+      "status": "passed",
+      "durationMs": 294,
+      "attempts": 1
+    },
+    {
+      "id": "retrieval/backend/sqlite-uncached-close-ownership/native-observation",
+      "status": "passed",
+      "durationMs": 342,
+      "attempts": 1
+    },
+    {
+      "id": "retrieval/backend/sqlite-uncached-close-ownership/sticky-failure",
+      "status": "passed",
+      "durationMs": 356,
+      "attempts": 1
+    },
+    {
+      "id": "retrieval/cli/backend-lifecycle",
+      "status": "passed",
+      "durationMs": 618,
+      "attempts": 1
+    },
+    {
+      "id": "storage/sqlite/cache",
+      "status": "passed",
+      "durationMs": 171,
+      "attempts": 1
+    },
+    {
+      "id": "storage/sqlite/cache-failed-close-ownership",
+      "status": "passed",
+      "durationMs": 136,
+      "attempts": 1
+    },
+    {
+      "id": "storage/sqlite/cache-generation-tag",
+      "status": "passed",
+      "durationMs": 451,
+      "attempts": 1
+    },
+    {
+      "id": "storage/sqlite/reader-schema-mismatch",
+      "status": "passed",
+      "durationMs": 487,
+      "attempts": 1
+    }
+  ],
+  "commands": {
+    "reproduceFocused": [
+      "node",
+      "tests/run.js",
+      "--lane",
+      "all",
+      "--match",
+      "indexing/contracts/index-format-cutover",
+      "--match",
+      "retrieval/backend/retrieval-auto-sqlite-resolve-index-stats-compressed-jsonl",
+      "--match",
+      "retrieval/backend/sqlite-open-error-provenance",
+      "--match",
+      "retrieval/backend/sqlite-uncached-close-ownership/explicit-false",
+      "--match",
+      "retrieval/backend/sqlite-uncached-close-ownership/initialization-failure",
+      "--match",
+      "retrieval/backend/sqlite-uncached-close-ownership/native-observation",
+      "--match",
+      "retrieval/backend/sqlite-uncached-close-ownership/sticky-failure",
+      "--match",
+      "retrieval/cli/backend-lifecycle",
+      "--match",
+      "storage/sqlite/cache",
+      "--match",
+      "storage/sqlite/cache-failed-close-ownership",
+      "--match",
+      "storage/sqlite/cache-generation-tag",
+      "--match",
+      "storage/sqlite/reader-schema-mismatch",
+      "--jobs",
+      "1",
+      "--timeout-ms",
+      "30000",
+      "--retries",
+      "0",
+      "--native-status-redo=false",
+      "--pairofcleats-threads",
+      "1",
+      "--json"
+    ],
+    "executedFocused": [
+      "node",
+      "tests/run.js",
+      "--lane",
+      "all",
+      "--match",
+      "retrieval/backend/sqlite-uncached-close-ownership",
+      "--match",
+      "retrieval/cli/backend-lifecycle",
+      "--match",
+      "storage/sqlite/cache-generation-tag",
+      "--match",
+      "storage/sqlite/reader-schema-mismatch",
+      "--match",
+      "retrieval/backend/sqlite-open-error-provenance",
+      "--match",
+      "retrieval/backend/retrieval-auto-sqlite-resolve-index-stats-compressed-jsonl",
+      "--match",
+      "indexing/contracts/index-format-cutover",
+      "--match",
+      "storage/sqlite/cache-failed-close-ownership",
+      "--match",
+      "/^storage\\/sqlite\\/cache$/",
+      "--jobs",
+      "1",
+      "--timeout-ms",
+      "30000",
+      "--retries",
+      "0",
+      "--native-status-redo=false",
+      "--pairofcleats-threads",
+      "1",
+      "--json"
+    ]
+  },
+  "remaining": [
+    "Register custom backend roots with producer/publication identity and launch authority.",
+    "Adopt remaining reader/cache/builder/sidecar lifetimes through original owners.",
+    "Qualify category-specific outputs, multi-repository cleanup and remaining adapters."
+  ],
+  "scope": {
+    "editorWindowsLaunched": 0,
+    "symlinksCreated": 0,
+    "dependencyChanges": false,
+    "externalRoots": "Protected; deletion classification unchanged."
+  },
+  "historicalAuthorWorkspace": {
+    "task": ".tmp/tasks/sqlite-uncached-ownership-20261027/",
+    "logDir": "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793093391512-1h0u3y",
+    "availability": "Not present in clean checkouts."
+  }
+}

@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["generic-pending", "generic-unmarked", "generic-settled", "generic-frozen", "generic-falsey", "generic-metadata-error", "generic-handoff", "generic-release-getter", "generic-replacement", "composed-pending", "composed-unmarked", "composed-settled", "composed-frozen", "composed-falsey", "composed-metadata-error", "composed-revoked-result", "composed-replacement"]
+}

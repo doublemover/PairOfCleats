@@ -1,11 +1,17 @@
 import { readJsonFile, readJsonLinesArray, readJsonLinesArraySync, readJsonLinesIterator } from '../json.js';
 import { inflateColumnarRows } from '../columnar-rows.js';
+import { admitJsonArrayPayload } from '../payload-admission.js';
 import { createLoaderError, ensureOffsetsValid } from './shared.js';
-import { iterateBinaryColumnarJsonRows } from './core-binary-columnar.js';
+import { createRequire } from 'node:module';
 import {
   resolveBinaryColumnarSourcePart,
   resolveReadableArtifactPath
 } from './core-source-resolution.js';
+
+const require = createRequire(import.meta.url);
+let binaryRowReader;
+const iterateBinaryColumnarJsonRows = options =>
+  (binaryRowReader ||= require('./core-binary-columnar.js').iterateBinaryColumnarJsonRows)(options);
 
 const appendRows = (target, rows) => {
   for (let i = 0; i < rows.length; i += 1) {
@@ -17,10 +23,8 @@ const appendRows = (target, rows) => {
 const loadJsonArraySources = (sources, { baseName, maxBytes }) => {
   const out = [];
   for (const sourcePath of sources.paths) {
-    const payload = readJsonFile(sourcePath, { maxBytes });
-    if (!Array.isArray(payload)) {
-      throw createLoaderError('ERR_ARTIFACT_INVALID', `Invalid json payload for ${baseName}`);
-    }
+    const payload = admitJsonArrayPayload(readJsonFile(sourcePath, { maxBytes, containedRoot: sources.containedRoot }),
+      { artifact: baseName, sourcePath });
     appendRows(out, payload);
   }
   return out;
@@ -28,9 +32,10 @@ const loadJsonArraySources = (sources, { baseName, maxBytes }) => {
 
 const loadColumnarSources = (sources, { baseName, maxBytes }) => {
   const out = [];
-  for (const sourcePath of sources.paths) {
-    const payload = readJsonFile(sourcePath, { maxBytes });
-    const inflated = inflateColumnarRows(payload);
+  for (const [index, sourcePath] of sources.paths.entries()) {
+    const payload = readJsonFile(sourcePath, { maxBytes, containedRoot: sources.containedRoot });
+    const inflated = inflateColumnarRows(payload, { artifact: baseName, sourcePath,
+      expectedCount: sources.sourceParts?.[index]?.expectedCount });
     if (!inflated) {
       throw createLoaderError('ERR_ARTIFACT_INVALID', `Invalid columnar payload for ${baseName}`);
     }
@@ -94,9 +99,7 @@ const iterateBinaryColumnarRows = function* ({
       strict,
       enforceDataBudget: enforceBinaryDataBudget
     });
-    for (const row of rows) {
-      yield row;
-    }
+    yield* rows;
   }
 };
 
@@ -110,7 +113,10 @@ export const streamJsonlRowsFromSources = async function* (
     maxInFlight = 0,
     onBackpressure = null,
     onResume = null,
-    rowMapper = null
+    containedRoot = null,
+    rowMapper = null,
+    expectedCounts = null,
+    signal = null
   }
 ) {
   const hasOffsets = Array.isArray(offsetsPaths);
@@ -118,15 +124,17 @@ export const streamJsonlRowsFromSources = async function* (
     const partPath = paths[i];
     const offsetsPath = hasOffsets ? offsetsPaths[i] : null;
     if (offsetsPath) {
-      await ensureOffsetsValid(partPath, offsetsPath);
+      await ensureOffsetsValid(partPath, offsetsPath, { containedRoot, signal, expectedCount: expectedCounts?.[i] });
     }
     for await (const row of readJsonLinesIterator(partPath, {
       maxBytes,
+      containedRoot,
       requiredKeys,
       validationMode,
       maxInFlight,
       onBackpressure,
-      onResume
+      onResume,
+      signal
     })) {
       yield rowMapper ? rowMapper(row) : row;
     }
@@ -160,6 +168,7 @@ export const loadArrayPayloadFromSources = async (
   }
   return await readJsonLinesArray(sources.paths, {
     maxBytes,
+    containedRoot: sources.containedRoot,
     requiredKeys,
     validationMode,
     concurrency
@@ -194,6 +203,7 @@ export const loadArrayPayloadFromSourcesSync = (
   for (const partPath of sources.paths) {
     const part = readJsonLinesArraySync(partPath, {
       maxBytes,
+      containedRoot: sources.containedRoot,
       requiredKeys,
       validationMode
     });
@@ -220,7 +230,7 @@ export const loadManifestJsonObjectFromSources = ({
   if (sources.paths.length > 1 && strict) {
     throw createLoaderError('ERR_MANIFEST_SOURCE_AMBIGUOUS', `Ambiguous JSON sources for ${baseName}`);
   }
-  return readJsonFile(resolveReadableArtifactPath(sources.paths[0]), { maxBytes });
+  return readJsonFile(resolveReadableArtifactPath(sources.paths[0]), { maxBytes, containedRoot: sources.containedRoot });
 };
 
 export { iterateBinaryColumnarRows };

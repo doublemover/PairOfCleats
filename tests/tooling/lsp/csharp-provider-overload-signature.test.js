@@ -5,6 +5,7 @@ import path from 'node:path';
 import { runToolingProviders } from '../../../src/index/tooling/orchestrator.js';
 import { registerDefaultToolingProviders } from '../../../src/index/tooling/providers/index.js';
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
+import { grantFixtureRepositoryExecution } from '../../helpers/execution-authority.js';
 
 const root = process.cwd();
 const tempRoot = resolveTestCachePath(root, `csharp-provider-overload-${process.pid}-${Date.now()}`);
@@ -16,7 +17,9 @@ const serverPath = path.join(root, 'tests', 'fixtures', 'lsp', 'stub-lsp-server.
 registerDefaultToolingProviders();
 const docText = 'public class App { string Greet(string name, int count = 1) => name; }\n';
 const chunkUid = 'ck64:v1:test:src/App.cs:csharp-overload';
-const result = await runToolingProviders({
+const restoreExecution = grantFixtureRepositoryExecution(tempRoot);
+let result;
+try { result = await runToolingProviders({
   strict: true,
   repoRoot: tempRoot,
   buildRoot: tempRoot,
@@ -55,7 +58,7 @@ const result = await runToolingProviders({
     languageId: 'csharp'
   }],
   kinds: ['types']
-});
+}); } finally { restoreExecution(); }
 
 const hit = result.byChunkUid.get(chunkUid);
 assert.ok(hit, 'expected csharp dedicated provider hit');

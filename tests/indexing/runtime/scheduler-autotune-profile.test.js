@@ -9,6 +9,8 @@ import {
   loadSchedulerAutoTuneProfile,
   writeSchedulerAutoTuneProfile
 } from '../../../src/index/build/runtime/scheduler-autotune-profile.js';
+import { resolveSchedulerConfig } from '../../../src/index/build/runtime/scheduler.js';
+import { SCHEDULER_AUTOTUNE_PROFILE_VERSION } from '../../../src/index/build/runtime/scheduler-autotune-policy.js';
 
 applyTestEnv();
 
@@ -88,6 +90,44 @@ try {
   assert.ok(Number.isFinite(loaded.recommended.maxCpuTokens));
   assert.ok(Number.isFinite(loaded.recommended.maxIoTokens));
   assert.ok(Number.isFinite(loaded.recommended.maxMemoryTokens));
+
+  const envelope = cpu => ({ concurrency: { cpuConcurrency: { value: cpu }, ioConcurrency: { value: cpu },
+    totalMemBytes: 8 * 1024 ** 3 } });
+  const resolve = (overrides = {}) => resolveSchedulerConfig({ envelope: envelope(4), indexingConfig: {},
+    argv: {}, rawArgv: [], envConfig: {}, ...overrides });
+  const stats = { tokens: { cpu: { total: 6 }, io: { total: 6 }, mem: { total: 8 } },
+    utilization: { overall: 0.5, mem: 0.4 }, activity: { pending: 0, pendingBytes: 0 }, queues: {} };
+  const roundTrip = async (config) => {
+    await writeSchedulerAutoTuneProfile({ repoCacheRoot: tempRoot, schedulerConfig: config,
+      schedulerStats: stats, buildId: 'policy-round-trip' });
+    const profile = await loadSchedulerAutoTuneProfile({ repoCacheRoot: tempRoot });
+    assert.equal(profile.version, SCHEDULER_AUTOTUNE_PROFILE_VERSION);
+    return profile;
+  };
+  const automatic = resolve();
+  for (const override of [
+    { argv: { 'scheduler-max-cpu': 256 }, rawArgv: ['--scheduler-max-cpu=256'] },
+    { envConfig: { schedulerMaxCpuTokens: 256 } },
+    { indexingConfig: { scheduler: { maxCpuTokens: 256 } } }
+  ]) {
+    const selected = resolve(override), profile = await roundTrip(selected);
+    assert.equal(profile.recommended.maxCpuTokens, 256);
+    assert.equal(resolve({ autoTuneProfile: profile }).maxCpuTokens, automatic.maxCpuTokens,
+      'removing a one-off control cannot promote it into learned automatic authority');
+    assert.equal(resolve({ ...override, autoTuneProfile: profile }).autoTune.profileEligible, true);
+    assert.equal(resolve({ argv: { 'scheduler-max-cpu': 128 }, rawArgv: ['--scheduler-max-cpu', '128'],
+      autoTuneProfile: profile }).maxCpuTokens, 128);
+    assert.equal(resolve({ envConfig: { schedulerMaxCpuTokens: 256 }, autoTuneProfile: profile }).autoTune.profileEligible,
+      true, 'equivalent accepted explicit policy across config/CLI/env remains compatible');
+  }
+  const profile = await roundTrip(automatic);
+  profile.recommended.maxCpuTokens = 20;
+  assert.equal(resolve({ autoTuneProfile: profile }).maxCpuTokens, 20, 'legitimate same-policy learning remains reusable');
+  for (const cpu of [1, 16]) assert.equal(resolve({ envelope: envelope(cpu), autoTuneProfile: profile }).autoTune.profileEligible, false);
+  for (const generatedAt of ['invalid', new Date(Date.now() + 60000).toISOString(), new Date(Date.now() - 8 * 86400000).toISOString()]) {
+    assert.equal(resolve({ autoTuneProfile: { ...profile, generatedAt } }).autoTune.profileEligible, false);
+  }
+  assert.equal(resolve({ autoTuneProfile: { ...profile, version: 2 } }).autoTune.profileEligible, false);
 } finally {
   await fs.rm(tempRoot, { recursive: true, force: true });
 }

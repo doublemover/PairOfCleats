@@ -64,6 +64,7 @@ export const normalizeRiskSummary = (summary, flows = []) => {
     chunkUid: summary.chunkUid || null,
     file: summary.file || null,
     languageId: summary.languageId || null,
+    inputCoverage: summary.inputCoverage || null,
     symbol: summary.symbol && typeof summary.symbol === 'object'
       ? {
         name: summary.symbol.name || null,
@@ -101,6 +102,8 @@ export const normalizeRiskSummary = (summary, flows = []) => {
 };
 
 export const summarizeRiskStats = (stats) => ({
+  inputCoverage: stats?.inputCoverage || null,
+  droppedRecords: Array.isArray(stats?.droppedRecords) ? stats.droppedRecords : [],
   status: stats?.status || null,
   reason: stats?.reason || null,
   summaryOnly: stats?.effectiveConfig?.summaryOnly === true,

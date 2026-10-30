@@ -15,7 +15,7 @@ import {
   resolveGradientColor
 } from './colors.js';
 import {
-  stripAnsi,
+  displayWidth,
   formatCount,
   padLabel,
   padVisible
@@ -47,6 +47,13 @@ export const renderDisplay = ({
 }) => {
   if (!interactive || !canRender) return;
   const width = resolveWidth(term, stream);
+  if (state.renderWidth !== width) {
+    if (state.renderWidth && width < state.renderWidth) {
+      state.renderLines = state.renderFrame.reduce((rows, line) => rows + Math.max(1, Math.ceil(displayWidth(line) / Math.max(1, width))), 0);
+    }
+    state.renderFrame = [];
+    state.renderWidth = width;
+  }
   const { orderedTasks, displayTasks } = resolveOrderedDisplayTasks(state);
   const { tasksByMode, overallTask } = groupDisplayTasksByMode(orderedTasks);
   const overallOverride = computeOverallProgress({ overallTask, tasksByMode });
@@ -99,11 +106,17 @@ export const renderDisplay = ({
     messageTexts,
     statusWidth,
     layout
-  } = resolveDisplayLayout({ displayTasks, width, statusDone, statusFail });
+  } = resolveDisplayLayout({ displayTasks, width, statusDone, statusFail, detailPolicy: state.detailPolicy });
   const hueShiftVariants = new Set(['files', 'imports', 'artifacts', 'records', 'embeddings', 'shard']);
   const taskLines = displayTasks.map((task, index) => {
     const total = Number.isFinite(task.total) && task.total > 0 ? task.total : null;
     const current = Number.isFinite(task.current) ? task.current : 0;
+    if (layout.compact) {
+      const count = suffixes[index] || formatCount(current);
+      const status = task.status === 'failed' ? ' failed' : task.status === 'done' ? ' done' : '';
+      const labelBudget = Math.max(1, width - displayWidth(count + status) - 2);
+      return `${padLabel(taskLabels[index] || task.name, labelBudget)} ${count}${status}`;
+    }
     let pct = total ? current / total : 0;
     if (overallOverride !== null && task === overallTask) {
       pct = overallOverride;
@@ -147,7 +160,7 @@ export const renderDisplay = ({
     }
     const speedNormalized = rateMax > 0 ? Math.min(1, rawRate / rateMax) : 0;
     const waveSpeed = 0.25 + speedNormalized * 1.35;
-    const wavePhase = (now / 1000) * waveSpeed * Math.PI * 2;
+    const wavePhase = state.reducedMotion ? 0 : (now / 1000) * waveSpeed * Math.PI * 2;
     const wave = (Math.sin(wavePhase) + 1) / 2;
     const baseIndex = Math.round(6 + speedNormalized * 8);
     const waveSpan = 5 + Math.round(speedNormalized * 6);
@@ -166,7 +179,7 @@ export const renderDisplay = ({
     if (variant === 'files') {
       theme.edge = fill;
     }
-    const animateEdge = task.status === 'running' && variant === 'stage' && current > 0;
+    const animateEdge = !state.reducedMotion && task.status === 'running' && variant === 'stage' && current > 0;
     const animateIndex = animateEdge ? Math.floor(now / 320) : null;
     const fillGradient = hueShiftVariants.has(variant)
       ? (pos, count) => {
@@ -198,7 +211,7 @@ export const renderDisplay = ({
     const barSuffix = '';
     let label;
     if (timeText) {
-      const timeLen = stripAnsi(timeText).length;
+      const timeLen = displayWidth(timeText);
       if (labelWidth > timeLen) {
         const labelSpace = Math.max(1, labelWidth - timeLen);
         const baseLabel = padLabel(taskLabels[index] || task.name, labelSpace);

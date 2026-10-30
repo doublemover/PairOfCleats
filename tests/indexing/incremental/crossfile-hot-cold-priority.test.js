@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
+import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
@@ -23,7 +24,7 @@ await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(bundleDir, { recursive: true });
 
 const now = Date.now();
-const manifest = {
+const manifest = { artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
   bundleFormat: 'json',
   files: {
     'src/cold.js': {

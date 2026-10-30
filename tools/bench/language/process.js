@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+import { observedDiagnosticCost } from './diagnostic-replay.js';
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
@@ -18,6 +20,8 @@ import { exitLikeCommandResult } from '../../shared/cli-utils.js';
 import {
   BENCH_DIAGNOSTIC_STREAM_SCHEMA_VERSION,
   computeBenchProgressConfidence,
+  qualifyBenchProgressObservation,
+  admitBenchProgressScore,
   formatBenchProgressConfidence,
   buildBenchDiagnosticEventId,
   buildBenchDiagnosticSignature,
@@ -115,10 +119,7 @@ const resolveProgressConfidenceStreamPath = (logEntry) => {
   return `${target}${PROGRESS_CONFIDENCE_STREAM_SUFFIX}`;
 };
 
-const toFiniteNonNegative = (value) => {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
-};
+const toFiniteNonNegative = value => typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : null;
 
 const appendSample = (target, value, maxSize = MAX_PROGRESS_SAMPLES) => {
   if (!Array.isArray(target)) return;
@@ -417,7 +418,7 @@ const resolveQueueAgeMs = ({ message, event }) => {
   if (!text) return null;
   const match = text.match(/\bqueue(?:\s|-)?(?:age|delay|wait|dwell)\b[^0-9]{0,24}(\d+(?:\.\d+)?)\s*ms\b/i);
   if (!match) return null;
-  return toFiniteNonNegative(match[1]);
+  return toFiniteNonNegative(Number(match[1]));
 };
 
 const resolveInFlightCount = ({ message, event }) => {
@@ -438,9 +439,9 @@ const resolveInFlightCount = ({ message, event }) => {
   const text = String(message || '');
   if (!text) return null;
   const inFlightMatch = text.match(/\bin(?:\s|-)?flight\b[^0-9]{0,12}(\d+)\b/i);
-  if (inFlightMatch) return toFiniteNonNegative(inFlightMatch[1]);
+  if (inFlightMatch) return toFiniteNonNegative(Number(inFlightMatch[1]));
   const depthMatch = text.match(/\bqueue(?:\s|-)?depth\b[^0-9]{0,8}(\d+)\b/i);
-  if (depthMatch) return toFiniteNonNegative(depthMatch[1]);
+  if (depthMatch) return toFiniteNonNegative(Number(depthMatch[1]));
   return null;
 };
 
@@ -1358,6 +1359,7 @@ export const createProcessRunner = ({
     const schedulerEvents = [];
     const telemetryWriteQueues = new Map();
     const telemetryWriteFailures = new Map();
+    const diagnosticExecutionId = randomUUID();
     let diagnosticEventCount = 0;
     const diagnosticCountByType = new Map();
     const diagnosticCountBySeverity = new Map();
@@ -1378,6 +1380,10 @@ export const createProcessRunner = ({
       inFlightSamples: 0,
       stallEvents: 0,
       lastHeartbeatMs: null,
+      firstObservedAtMs: null,
+      lastObservedAtMs: null,
+      lastPhase: null,
+      lastTaskId: null,
       confidenceEvents: 0,
       lastScore: null,
       lastBucket: 'unknown',
@@ -1413,6 +1419,8 @@ export const createProcessRunner = ({
 
     const buildDiagnosticsSummary = () => ({
       schemaVersion: BENCH_DIAGNOSTIC_STREAM_SCHEMA_VERSION,
+      executionId: diagnosticExecutionId,
+      costScope: 'sum-observed-occurrence-deltas-not-wall-time',
       streamPaths: diagnosticStreams,
       eventCount: diagnosticEventCount,
       uniqueEventCount: diagnosticCountById.size,
@@ -1497,10 +1505,10 @@ export const createProcessRunner = ({
         progressConfidenceComponents.inFlightSpreadScore = null;
       }
 
-      const stallRate = progressConfidenceStats.heartbeatCount > 0
-        ? progressConfidenceStats.stallEvents / Math.max(1, progressConfidenceStats.heartbeatCount)
-        : (progressConfidenceStats.stallEvents > 0 ? 1 : 0);
-      progressConfidenceComponents.stallEventsScore = clamp01(1 - (stallRate / 0.18));
+      const opportunities = heartbeatIntervalsMs.filter(interval => interval > 0).length;
+      const stallRate = opportunities > 0 ? progressConfidenceStats.stallEvents / opportunities
+        : progressConfidenceStats.stallEvents > 0 ? 1 : null;
+      progressConfidenceComponents.stallEventsScore = stallRate === null ? null : clamp01(1 - (stallRate / 0.18));
     };
 
     const buildProgressConfidenceSnapshot = () => {
@@ -1515,13 +1523,16 @@ export const createProcessRunner = ({
         queueAgeScore: progressConfidenceComponents.queueAgeScore,
         inFlightSpreadScore: progressConfidenceComponents.inFlightSpreadScore,
         stallEventsScore: progressConfidenceComponents.stallEventsScore,
-        heartbeatSamples: heartbeatIntervalsMs.length,
+        heartbeatSamples: heartbeatIntervalsMs.filter(interval => interval > 0).length,
         queueSamples: queueAgeSamplesMs.length,
         inFlightSamples: inFlightSamples.length,
-        stallSamples: progressConfidenceStats.heartbeatCount
+        stallSamples: heartbeatIntervalsMs.filter(interval => interval > 0).length + progressConfidenceStats.stallEvents
       });
       return {
-        ...confidence,
+        ...qualifyBenchProgressObservation(confidence, { firstObservedAtMs: progressConfidenceStats.firstObservedAtMs,
+          lastObservedAtMs: progressConfidenceStats.lastObservedAtMs, phase: progressConfidenceStats.lastPhase,
+          taskId: progressConfidenceStats.lastTaskId, staleAfterMs: HEARTBEAT_STALL_THRESHOLD_MS }),
+        executionId: diagnosticExecutionId,
         streamPaths: progressConfidenceStreams,
         heartbeat: {
           count: progressConfidenceStats.heartbeatCount,
@@ -1560,8 +1571,8 @@ export const createProcessRunner = ({
     } = {}) => {
       const now = Date.now();
       const snapshot = buildProgressConfidenceSnapshot();
-      const score = Number(snapshot?.score);
-      const priorScore = Number(progressConfidenceStats.lastScore);
+      const score = admitBenchProgressScore(snapshot?.score);
+      const priorScore = admitBenchProgressScore(progressConfidenceStats.lastScore);
       const changed = Number.isFinite(score)
         && (!Number.isFinite(priorScore) || Math.abs(score - priorScore) >= PROGRESS_CONFIDENCE_EMIT_DELTA);
       const bucketChanged = snapshot?.bucket && snapshot.bucket !== progressConfidenceStats.lastBucket;
@@ -1583,6 +1594,12 @@ export const createProcessRunner = ({
         score: snapshot.score,
         bucket: snapshot.bucket,
         text: snapshot.text,
+        executionId: snapshot.executionId,
+        scope: snapshot.scope,
+        calibratedProbability: false,
+        coverage: snapshot.coverage,
+        observation: snapshot.observation,
+        sampleScore: snapshot.sampleScore,
         components: snapshot.components,
         samples: snapshot.samples,
         heartbeat: snapshot.heartbeat,
@@ -1601,7 +1618,7 @@ export const createProcessRunner = ({
         ? (snapshot.inFlight.max - snapshot.inFlight.min)
         : null;
       appendLog(
-        `[progress] confidence ${confidenceText} | ` +
+        `[progress] confidence ${confidenceText} (last-observed heuristic; age ${formatCompactDuration(snapshot.observation.ageMs)}) | ` +
         `hb ${formatCompactDuration(snapshot.heartbeat?.meanIntervalMs)} (p95 ${formatCompactDuration(snapshot.heartbeat?.p95IntervalMs)}) | ` +
         `queue p90 ${formatCompactDuration(snapshot.queueAge?.p90Ms)} | ` +
         `in-flight spread ${Number.isFinite(inFlightSpread) ? inFlightSpread.toFixed(1) : 'n/a'} | ` +
@@ -1649,6 +1666,12 @@ export const createProcessRunner = ({
         }
       }
 
+      if (hasHeartbeatSignal || Number.isFinite(queueAgeMs) || Number.isFinite(inFlight)) {
+        progressConfidenceStats.firstObservedAtMs ??= now;
+        progressConfidenceStats.lastObservedAtMs = now;
+        progressConfidenceStats.lastPhase = typeof event?.stage === 'string' ? event.stage : progressConfidenceStats.lastPhase;
+        progressConfidenceStats.lastTaskId = typeof event?.taskId === 'string' ? event.taskId : progressConfidenceStats.lastTaskId;
+      }
       emitProgressConfidenceSample({
         reason: hasHeartbeatSignal ? eventName : 'line',
         source,
@@ -1658,6 +1681,9 @@ export const createProcessRunner = ({
 
     const noteStallEvent = ({ source = 'stream', reason = 'stall-event' } = {}) => {
       progressConfidenceStats.stallEvents += 1;
+      const observedAt = Date.now();
+      progressConfidenceStats.firstObservedAtMs ??= observedAt;
+      progressConfidenceStats.lastObservedAtMs = observedAt;
       emitProgressConfidenceSample({
         reason,
         source,
@@ -1775,6 +1801,8 @@ export const createProcessRunner = ({
         ts: new Date().toISOString(),
         eventType,
         eventId,
+        executionId: diagnosticExecutionId,
+        costSemantics: 'occurrence-delta',
         occurrence,
         signature,
         label,
@@ -1795,11 +1823,11 @@ export const createProcessRunner = ({
         reuseSurface: toText(reuseSurface) || null,
         reuseSource: toText(reuseSource) || null,
         qualityImpact: toText(qualityImpact) || null,
-        timeCostMs: Number.isFinite(Number(timeCostMs)) ? Math.max(0, Math.floor(Number(timeCostMs))) : null,
-        requestedCount: Number.isFinite(Number(requestedCount)) ? Math.max(0, Math.floor(Number(requestedCount))) : null,
-        reusedCount: Number.isFinite(Number(reusedCount)) ? Math.max(0, Math.floor(Number(reusedCount))) : null,
-        fetchedCount: Number.isFinite(Number(fetchedCount)) ? Math.max(0, Math.floor(Number(fetchedCount))) : null,
-        chunkCount: Number.isFinite(Number(chunkCount)) ? Math.max(0, Math.floor(Number(chunkCount))) : null,
+        timeCostMs: observedDiagnosticCost(timeCostMs),
+        requestedCount: observedDiagnosticCost(requestedCount, { integer: true }),
+        reusedCount: observedDiagnosticCost(reusedCount, { integer: true }),
+        fetchedCount: observedDiagnosticCost(fetchedCount, { integer: true }),
+        chunkCount: observedDiagnosticCost(chunkCount, { integer: true }),
         timeoutKind: toText(timeoutKind) || null,
         phase: toText(phase) || null,
         resourceClass: toText(resourceClass) || null,

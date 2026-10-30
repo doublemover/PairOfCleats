@@ -1,8 +1,11 @@
 import crypto from 'node:crypto';
+import { pathToFileURL } from 'node:url';
 import fsSync from 'node:fs';
 import path from 'node:path';
+import { throwIfAborted } from '../../shared/abort.js';
+import { resolveRequestedAbortSignal } from './preflight/manager-state.js';
 import { collectLspTypes } from '../../integrations/tooling/providers/lsp.js';
-import { appendDiagnosticChecks, buildDuplicateChunkUidChecks, hashProviderConfig } from './provider-contract.js';
+import { appendDiagnosticChecks, buildDuplicateChunkUidChecks, hashProviderConfig, resolveRequestCacheGeneration } from './provider-contract.js';
 import { toPosix } from '../../shared/file-paths.js';
 import { writeToolingCacheJsonSync } from './cache-storage.js';
 import { runSyncCommandWithTimeout, toSyncCommandExitCode } from '../../shared/subprocess/sync-command.js';
@@ -16,7 +19,9 @@ import {
   resolveRuntimeCommandFromPreflight
 } from './preflight/command-profile-preflight.js';
 import { parseClikeSignature } from './signature-parse/clike.js';
-import { resolveCompileCommandsDir } from './compile-commands.js';
+import { admitCompilationDatabase, revalidateCompilationDatabase } from './compile-commands.js';
+import { observeStorageResource } from '../../shared/storage/failure-observation.js';
+import { addStorageFailureContext } from '../../shared/storage/operation-error.js';
 import { classifyLspDocumentPathPolicy } from '../../integrations/tooling/providers/lsp/path-policy.js';
 
 const CLANGD_BASE_EXTS = ['.c', '.h', '.cc', '.cpp', '.cxx', '.hpp', '.hh'];
@@ -424,18 +429,34 @@ const reduceClangdWeakCompileContextScope = ({
 const buildClangdRequestedCommand = ({ ctx, clangdConfig, compileCommandsDir }) => {
   const clangdArgs = ['--log=error', '--background-index=false'];
   if (compileCommandsDir) clangdArgs.push(`--compile-commands-dir=${compileCommandsDir}`);
-  return resolveProviderRequestedCommand({
+  const requested = resolveProviderRequestedCommand({
     providerId: 'clangd',
     toolingConfig: ctx?.toolingConfig || {},
     defaultCmd: 'clangd',
     defaultArgs: clangdArgs
   });
+  if (compileCommandsDir && !requested.args.some(value => /^--?compile-commands-dir(?:=|$)/.test(value))) {
+    return { ...requested, args: [...requested.args, `--compile-commands-dir=${compileCommandsDir}`] };
+  }
+  return requested;
 };
 
-const buildClangdCommandUnavailableCheck = () => ({
+const compilationContextCheck = admission => ({
+  name: 'clangd_compilation_context',
+  status: admission.counts.exact === admission.documents.length && admission.status === 'usable' ? 'ok' : 'warn',
+  message: `clangd compilation database=${admission.status}; exact=${admission.counts.exact}/${admission.documents.length}, ambiguous=${admission.counts.ambiguous}, unknown=${admission.counts.unknown}.`,
+  database: { status: admission.status, path: admission.selection.path, explicit: admission.explicit,
+    sha256: admission.sha256, totalEntries: admission.totalEntries, usableEntries: admission.usableEntries,
+    invalidEntries: admission.invalidEntries, sourcePathBudgetReached: admission.sourcePathBudgetReached },
+  coverage: admission.counts,
+  documents: admission.documents
+});
+
+const buildClangdCommandUnavailableCheck = ({ definitelyMissing = false } = {}) => ({
   name: 'clangd_command_unavailable',
   status: 'warn',
-  message: 'clangd command probe failed; attempting stdio initialization anyway.'
+  message: definitelyMissing ? 'clangd command is unavailable; skipping tooling-based types.'
+    : 'clangd command probe failed; attempting stdio initialization anyway.'
 });
 
 const resolveConfiguredFallbackFlags = (clangdConfig) => (
@@ -482,7 +503,8 @@ export const createClangdProvider = () => ({
   id: 'clangd',
   preflightId: 'clangd.workspace-model',
   preflightClass: 'workspace',
-  version: '2.0.0',
+  version: '3.0.0',
+  profileContractVersion: 1,
   label: 'clangd',
   priority: 20,
   languages: ['clike', 'c', 'cpp', 'objective-c', 'objective-cpp'],
@@ -498,9 +520,15 @@ export const createClangdProvider = () => ({
     supportsSymbolRef: false
   },
   getConfigHash(ctx) {
-    return hashProviderConfig({ clangd: ctx?.toolingConfig?.clangd || {} });
+    return hashProviderConfig({ clangd: ctx?.toolingConfig?.clangd || {}, compilationContextAdmission: 1 });
+  },
+  getPreflightKey(ctx, inputs) {
+    return hashProviderConfig({ documents: resolveClangdDocumentsAndTargets(inputs).docs
+      .map(doc => [doc.virtualPath, doc.containerPath || null, doc.docHash || null]) });
   },
   async preflight(ctx, inputs = {}) {
+    const abortSignal = resolveRequestedAbortSignal(ctx, inputs);
+    throwIfAborted(abortSignal);
     const log = typeof inputs?.log === 'function'
       ? inputs.log
       : (typeof ctx?.logger === 'function' ? ctx.logger : (() => {}));
@@ -514,18 +542,25 @@ export const createClangdProvider = () => ({
       };
     }
     const clangdConfig = inputs?.clangdConfig || ctx?.toolingConfig?.clangd || {};
-    const compileCommandsDir = resolveCompileCommandsDir(ctx.repoRoot, clangdConfig);
-    if (!compileCommandsDir && clangdConfig.requireCompilationDatabase === true) {
-      log('[index] clangd requires compile_commands.json; skipping tooling-based types.');
+    const compilationDatabase = await admitCompilationDatabase({ rootDir: ctx.repoRoot, config: clangdConfig, documents: docs, signal: abortSignal });
+    const compileCommandsDir = compilationDatabase.selection.dir;
+    if (['invalid-selection', 'conflicting-selection', 'wrong-kind', 'unreadable', 'malformed', 'over-budget'].includes(compilationDatabase.status)) {
+      return { state: 'blocked', reasonCode: 'clangd_compilation_database_unusable', blockProvider: true,
+        compileCommandsDir: null, compilationDatabase, checks: [compilationContextCheck(compilationDatabase)] };
+    }
+    if (compilationDatabase.counts.exact === 0 && clangdConfig.requireCompilationDatabase === true) {
+      log('[index] clangd requires usable exact compilation context for at least one selected document; skipping tooling-based types.');
       return {
         state: 'blocked',
         reasonCode: 'clangd_compile_commands_missing',
         blockProvider: true,
-        compileCommandsDir: null,
+        compileCommandsDir,
+        compilationDatabase,
+        checks: [compilationContextCheck(compilationDatabase)],
         check: {
           name: 'clangd_compile_commands_missing',
           status: 'warn',
-          message: 'clangd requires compile_commands.json; skipping tooling-based types.'
+          message: `clangd requires usable exact compilation context for at least one selected document; database=${compilationDatabase.status}, exact=0/${docs.length}.`
         }
       };
     }
@@ -535,33 +570,35 @@ export const createClangdProvider = () => ({
       compileCommandsDir
     });
     const commandPreflight = resolveCommandProfilePreflightResult({
+      signal: abortSignal,
       providerId: 'clangd',
       requestedCommand,
       ctx,
-      unavailableCheck: buildClangdCommandUnavailableCheck()
+      unavailableCheck: buildClangdCommandUnavailableCheck,
+      blockWhenDefinitelyMissing: true
     });
     if (commandPreflight.state !== 'ready') {
-      log('[index] clangd command probe failed; attempting stdio initialization.');
+      log(commandPreflight.blockProvider ? '[index] clangd command unavailable or invalid; skipping.'
+        : '[index] clangd command probe failed; attempting stdio initialization.');
       return {
         state: commandPreflight.state,
         reasonCode: commandPreflight.reasonCode,
         message: commandPreflight.message,
         blockProvider: commandPreflight.blockProvider === true,
         compileCommandsDir: compileCommandsDir || null,
+        compilationDatabase,
         requestedCommand: commandPreflight.requestedCommand,
         commandProfile: commandPreflight.commandProfile,
         ...(commandPreflight.check ? { check: commandPreflight.check } : {}),
-        ...(Array.isArray(commandPreflight.checks) && commandPreflight.checks.length
-          ? { checks: commandPreflight.checks }
-          : {})
+        checks: [compilationContextCheck(compilationDatabase), ...(commandPreflight.checks || [])]
       };
     }
     const configuredFallbackFlags = resolveConfiguredFallbackFlags(clangdConfig);
-    if (!compileCommandsDir
+    if (compilationDatabase.counts.exact === 0
       && clangdConfig.autoInferIncludeRoots === false
       && configuredFallbackFlags.length === 0) {
       const message = (
-        'clangd compile_commands.json missing and include-root inference is disabled; '
+        'clangd has no exact compilation context and include-root inference is disabled; '
         + 'workspace model may be partial.'
       );
       return {
@@ -569,10 +606,11 @@ export const createClangdProvider = () => ({
         reasonCode: 'clangd_compile_commands_missing_inference_disabled',
         message,
         blockProvider: false,
-        compileCommandsDir: null,
+        compileCommandsDir,
+        compilationDatabase,
         requestedCommand: commandPreflight.requestedCommand,
         commandProfile: commandPreflight.commandProfile,
-        checks: [{
+        checks: [compilationContextCheck(compilationDatabase), {
           name: 'clangd_compile_commands_missing_inference_disabled',
           status: 'warn',
           message
@@ -583,12 +621,16 @@ export const createClangdProvider = () => ({
       state: 'ready',
       blockProvider: false,
       compileCommandsDir: compileCommandsDir || null,
+      compilationDatabase,
+      checks: [compilationContextCheck(compilationDatabase)],
       check: null,
       requestedCommand: commandPreflight.requestedCommand,
       commandProfile: commandPreflight.commandProfile
     };
   },
   async run(ctx, inputs) {
+    const abortSignal = resolveRequestedAbortSignal(ctx, inputs);
+    throwIfAborted(abortSignal);
     const log = typeof ctx?.logger === 'function' ? ctx.logger : (() => {});
     const { docs, targets: resolvedTargets } = resolveClangdDocumentsAndTargets(inputs);
     let targets = resolvedTargets;
@@ -619,30 +661,52 @@ export const createClangdProvider = () => ({
     if (preflight?.blockProvider === true || preflight?.blockSourcekit === true) {
       return {
         ...(ctx.semanticLspSession ? { semanticFacts: ctx.semanticLspSession.output() } : {}),
-        provider: { id: 'clangd', version: '2.0.0', configHash: this.getConfigHash(ctx) },
+        provider: { id: 'clangd', version: this.version, configHash: this.getConfigHash(ctx) },
         byChunkUid: {},
         diagnostics: appendDiagnosticChecks(null, [...duplicateChecks, ...preflightChecks])
       };
     }
-    const compileCommandsDir = preflight?.compileCommandsDir || resolveCompileCommandsDir(ctx.repoRoot, clangdConfig);
-    let selectedDocs = docs;
     const checks = [...duplicateChecks, ...preflightChecks];
-    if (!compileCommandsDir) {
+    const compilationDatabase = preflight?.compilationDatabase || await admitCompilationDatabase({
+      rootDir: ctx.repoRoot, config: clangdConfig, documents: docs, signal: abortSignal
+    });
+    const contextIsCurrent = async () => {
+      try {
+        return await revalidateCompilationDatabase(compilationDatabase,
+          { rootDir: ctx.repoRoot, config: clangdConfig, documents: docs, signal: abortSignal });
+      } catch (error) {
+        observeStorageResource(error, { phase: 'clangd-compilation-context-revalidation' }).requireSettled();
+        throwIfAborted(abortSignal); return false;
+      }
+    };
+    if (!await contextIsCurrent()) {
+      checks.push({ name: 'clangd_compilation_context_changed', status: 'warn',
+        message: 'clangd compilation context changed after preflight; replan before provider dispatch.' });
+      return { provider: { id: 'clangd', version: this.version, configHash: this.getConfigHash(ctx) }, byChunkUid: {},
+        diagnostics: appendDiagnosticChecks(null, checks) };
+    }
+    if (!checks.some(check => check.name === 'clangd_compilation_context')) checks.push(compilationContextCheck(compilationDatabase));
+    const compileCommandsDir = compilationDatabase.selection.dir;
+    const contextByPath = new Map(compilationDatabase.documents.map(row => [row.virtualPath, row]));
+    const exactDocs = docs.filter(doc => contextByPath.get(doc.virtualPath)?.status === 'exact');
+    const weakDocs = docs.filter(doc => contextByPath.get(doc.virtualPath)?.status !== 'exact');
+    let selectedDocs = [...exactDocs, ...weakDocs];
+    if (weakDocs.length) {
       const maxDocsWithoutCompileCommands = Number.isFinite(Number(clangdConfig.maxDocsWithoutCompileCommands))
         ? Math.max(1, Math.floor(Number(clangdConfig.maxDocsWithoutCompileCommands)))
         : 128;
-      if (selectedDocs.length > maxDocsWithoutCompileCommands) {
+      if (weakDocs.length > maxDocsWithoutCompileCommands) {
         const scopeReduction = reduceClangdWeakCompileContextScope({
-          docs: selectedDocs,
+          docs: weakDocs,
           targets,
           maxDocs: maxDocsWithoutCompileCommands
         });
-        selectedDocs = scopeReduction.selectedDocs;
-        targets = scopeReduction.selectedTargets;
+        selectedDocs = [...exactDocs, ...scopeReduction.selectedDocs];
+        targets = filterTargetsForDocuments(targets, selectedDocs);
         checks.push({
           name: 'clangd_weak_compile_context_scope_reduced',
           status: 'warn',
-          message: `clangd reduced documentSymbol scope to ${selectedDocs.length}/${docs.length} files without compile_commands.json; dropped ${scopeReduction.droppedDocs} weak-context file(s) (${scopeReduction.droppedHeaders} headers, ${scopeReduction.droppedByTier['low-value']} low-value, ${scopeReduction.droppedByTier.secondary} secondary).`,
+          message: `clangd reduced documentSymbol scope to ${selectedDocs.length}/${docs.length} files; retained ${exactDocs.length} exact-context files and dropped ${scopeReduction.droppedDocs} weak-context file(s) (${scopeReduction.droppedHeaders} headers, ${scopeReduction.droppedByTier['low-value']} low-value, ${scopeReduction.droppedByTier.secondary} secondary).`,
           selectedDocs: selectedDocs.length,
           totalDocs: docs.length,
           droppedDocs: scopeReduction.droppedDocs,
@@ -651,17 +715,24 @@ export const createClangdProvider = () => ({
         });
         log(
           `[tooling] clangd limiting documentSymbol scope to ${selectedDocs.length}/${docs.length} files ` +
-          `(no compile_commands.json; dropped=${scopeReduction.droppedDocs}; ` +
+          `(exact=${exactDocs.length}; droppedWeak=${scopeReduction.droppedDocs}; ` +
           `headers=${scopeReduction.droppedHeaders}; lowValue=${scopeReduction.droppedByTier['low-value']}).`
         );
       }
     }
     if (!selectedDocs.length || (!targets.length && !ctx.semanticLspSession?.hasTargetedWork)) {
       return {
-        provider: { id: 'clangd', version: '2.0.0', configHash: this.getConfigHash(ctx) },
+        provider: { id: 'clangd', version: this.version, configHash: this.getConfigHash(ctx) },
         byChunkUid: {},
         diagnostics: appendDiagnosticChecks(null, checks)
       };
+    }
+    const currentRequestedCommand = buildClangdRequestedCommand({ ctx, clangdConfig, compileCommandsDir });
+    if (preflight?.requestedCommand && hashProviderConfig(preflight.requestedCommand) !== hashProviderConfig(currentRequestedCommand)) {
+      checks.push({ name: 'clangd_compilation_launch_changed', status: 'warn',
+        message: 'clangd launch/configuration changed after compilation-context admission; replan before dispatch.' });
+      return { provider: { id: 'clangd', version: this.version, configHash: this.getConfigHash(ctx) }, byChunkUid: {},
+        diagnostics: appendDiagnosticChecks(null, checks) };
     }
     const requestedCommand = preflight?.requestedCommand && typeof preflight.requestedCommand === 'object'
       ? preflight.requestedCommand
@@ -671,6 +742,7 @@ export const createClangdProvider = () => ({
         compileCommandsDir
       });
     const runtimeCommand = resolveRuntimeCommandFromPreflight({
+      signal: abortSignal,
       preflight,
       fallbackRequestedCommand: requestedCommand,
       providerId: 'clangd',
@@ -687,7 +759,7 @@ export const createClangdProvider = () => ({
     if (!resolvedCmd) {
       checks.push(...runtimeCommand.checks);
       return {
-        provider: { id: 'clangd', version: '2.0.0', configHash: this.getConfigHash(ctx) },
+        provider: { id: 'clangd', version: this.version, configHash: this.getConfigHash(ctx) },
         byChunkUid: {},
         diagnostics: appendDiagnosticChecks(null, checks)
       };
@@ -700,12 +772,13 @@ export const createClangdProvider = () => ({
     }
     const configuredFallbackFlags = resolveConfiguredFallbackFlags(clangdConfig);
     let inferredIncludeRoots = [];
-    if (!compileCommandsDir && clangdConfig.autoInferIncludeRoots !== false) {
+    const selectedWeakDocs = selectedDocs.filter(doc => contextByPath.get(doc.virtualPath)?.status !== 'exact');
+    if (selectedWeakDocs.length && clangdConfig.autoInferIncludeRoots !== false) {
       const maxDocsForIncludeInference = Number.isFinite(Number(clangdConfig.maxDocsForIncludeInference))
         ? Math.max(1, Math.floor(Number(clangdConfig.maxDocsForIncludeInference)))
         : 384;
-      if (selectedDocs.length <= maxDocsForIncludeInference) {
-        const includeHeaders = extractIncludeHeadersFromDocuments(selectedDocs);
+      if (selectedWeakDocs.length <= maxDocsForIncludeInference) {
+        const includeHeaders = extractIncludeHeadersFromDocuments(selectedWeakDocs);
         if (includeHeaders.length) {
           const trackedHeaders = listTrackedHeaderPaths(ctx.repoRoot, { cacheDir: ctx?.cache?.dir || null });
           inferredIncludeRoots = inferIncludeRootsFromHeaderPaths({
@@ -719,7 +792,7 @@ export const createClangdProvider = () => ({
         }
       } else {
         log(
-          `[tooling] clangd skipped include-root inference for ${selectedDocs.length} files ` +
+          `[tooling] clangd skipped include-root inference for ${selectedWeakDocs.length} weak-context files ` +
           `(limit ${maxDocsForIncludeInference}).`
         );
       }
@@ -755,7 +828,7 @@ export const createClangdProvider = () => ({
     );
     const hoverEnabled = clangdConfig.hoverEnabled === false
       ? false
-      : (compileCommandsDir ? true : clangdConfig.disableHoverWithoutCompileCommands === false);
+      : (exactDocs.length > 0 || clangdConfig.disableHoverWithoutCompileCommands === false);
     const signatureHelpEnabled = clangdConfig.signatureHelpEnabled === false
       || clangdConfig.signatureHelp === false
       ? false
@@ -764,20 +837,49 @@ export const createClangdProvider = () => ({
       ?? asFiniteNumber(runtimeConfig.signatureHelpTimeoutMs);
     const hoverMaxPerFile = Number.isFinite(Number(clangdConfig.hoverMaxPerFile))
       ? Math.max(0, Math.floor(Number(clangdConfig.hoverMaxPerFile)))
-      : (compileCommandsDir ? null : 8);
-    if (!compileCommandsDir && hoverEnabled === false && clangdConfig.hoverEnabled !== false) {
-      log('[tooling] clangd hover disabled without compile_commands.json (set tooling.clangd.disableHoverWithoutCompileCommands=false to override).');
+      : (exactDocs.length ? null : 8);
+    const documentRequestPolicies = Object.freeze(Object.fromEntries(selectedDocs.map(doc => {
+      const exact = contextByPath.get(doc.virtualPath)?.status === 'exact';
+      return [doc.virtualPath, Object.freeze({
+        hoverEnabled: clangdConfig.hoverEnabled !== false && (exact || clangdConfig.disableHoverWithoutCompileCommands === false),
+        hoverMaxPerFile: hoverMaxPerFile === 0 ? null : exact ? hoverMaxPerFile : hoverMaxPerFile ?? 8
+      })];
+    })));
+    // Exact compile commands belong to their physical source URI. A VFS copy
+    // cannot acquire exact command identity merely by sharing its basename.
+    const documentUris = Object.freeze(Object.fromEntries(exactDocs.map(doc => [doc.virtualPath,
+      pathToFileURL(path.resolve(ctx.repoRoot, doc.containerPath || doc.virtualPath)).href])));
+    checks.push({ name: 'clangd_compile_context_request_plan', status: selectedWeakDocs.length ? 'warn' : 'ok',
+      message: `clangd planned ${exactDocs.length} exact and ${selectedWeakDocs.length} weak-context documents.`,
+      selectedExact: exactDocs.length, selectedWeak: selectedWeakDocs.length,
+      droppedWeak: weakDocs.length - selectedWeakDocs.length,
+      documents: selectedDocs.map(doc => ({ virtualPath: doc.virtualPath,
+        context: contextByPath.get(doc.virtualPath)?.status === 'exact' ? 'exact'
+          : inferredIncludeRoots.length ? 'inferred' : contextByPath.get(doc.virtualPath)?.status || 'unknown',
+        ...documentRequestPolicies[doc.virtualPath] })) });
+    if (selectedWeakDocs.length && clangdConfig.hoverEnabled !== false && clangdConfig.disableHoverWithoutCompileCommands !== false) {
+      log('[tooling] clangd hover disabled for weak compilation context (set tooling.clangd.disableHoverWithoutCompileCommands=false to override).');
     }
     const clangdStderr = createClangdStderrFilter();
-    let result;
+    if (!await contextIsCurrent()) {
+      checks.push({ name: 'clangd_compilation_context_changed', status: 'warn',
+        message: 'clangd compilation context changed during planning; replan before provider dispatch.' });
+      return { provider: { id: 'clangd', version: this.version, configHash: this.getConfigHash(ctx) }, byChunkUid: {},
+        diagnostics: appendDiagnosticChecks(null, checks) };
+    }
+    let result, collectionError, collectionFailed = false;
     try {
       result = await collectLspTypes({
+        requestCacheGeneration: hashProviderConfig({ generation: resolveRequestCacheGeneration(ctx),
+          compilationDatabase: compilationDatabase.sha256, responses: compilationDatabase.responses,
+          documents: compilationDatabase.documents, sourcePaths: compilationDatabase.sourcePaths,
+          ...(compilationDatabase.counts.unknown || compilationDatabase.counts.ambiguous ? { unsealedAttempt: crypto.randomUUID() } : {}) }),
         semanticSession: ctx.semanticLspSession || null,
         ...runtimeConfig,
         rootDir: ctx.repoRoot,
         documents: selectedDocs,
         targets,
-        abortSignal: ctx?.abortSignal || null,
+        abortSignal,
         log,
         providerId: 'clangd',
         adaptiveDegradedHint: preflight?.state === 'degraded',
@@ -790,21 +892,34 @@ export const createClangdProvider = () => ({
         signatureHelpEnabled,
         ...(Number.isFinite(signatureHelpTimeoutMs) ? { signatureHelpTimeoutMs } : {}),
         hoverMaxPerFile,
+        documentRequestPolicies,
+        documentUris,
         hoverConcurrency: clangdConfig.hoverConcurrency,
         cacheRoot: ctx?.cache?.dir || null,
         stderrFilter: clangdStderr.filter,
         parseSignature,
         strict: ctx?.strict !== false,
         vfsRoot: ctx?.buildRoot || ctx.repoRoot,
+        storageContext: ctx.storageContext || null,
         vfsTokenMode: ctx?.toolingConfig?.vfs?.tokenMode,
         vfsIoBatching: ctx?.toolingConfig?.vfs?.ioBatching,
         vfsColdStartCache: ctx?.toolingConfig?.vfs?.coldStartCache,
         indexDir: ctx?.buildRoot || null,
         initializationOptions
       });
+    } catch (error) {
+      collectionFailed = true;
+      const observation = observeStorageResource(error, { phase: 'clangd-collection' });
+      collectionError = observation.isSettled() ? error : observation.retain();
+      throw collectionError;
     } finally {
-      clangdStderr.flush(log);
+      try { clangdStderr.flush(log); }
+      catch (cleanup) {
+        if (collectionFailed) throw addStorageFailureContext(collectionError, {}, cleanup, { secondaryPresent: true });
+        throw cleanup;
+      }
     }
+    throwIfAborted(abortSignal);
     const diagnostics = appendDiagnosticChecks(
       result.diagnosticsCount ? { diagnosticsCount: result.diagnosticsCount } : null,
       [...checks, ...(Array.isArray(result.checks) ? result.checks : [])]
@@ -818,7 +933,7 @@ export const createClangdProvider = () => ({
       cwd: ctx?.repoRoot || process.cwd()
     });
     return {
-      provider: { id: 'clangd', version: '2.0.0', configHash: this.getConfigHash(ctx) },
+      provider: { id: 'clangd', version: this.version, configHash: this.getConfigHash(ctx) },
       byChunkUid: result.byChunkUid,
       diagnostics: result.runtime
         ? { ...(diagnostics || {}), runtime: result.runtime }

@@ -3,6 +3,16 @@ import { log, logLine } from '../../../../shared/progress-runtime.js';
 import { coerceUnitFraction } from '../../../../shared/number-coerce.js';
 import { runWithHangProbe } from '../hang-probe.js';
 
+export const resolveCheckpointCpuEvidence = ({platform=process.platform,loadAvg,cpuCount,processBusyPct}) => {
+  const oneMinuteLoad=platform!=='win32' && Array.isArray(loadAvg) && Number.isFinite(loadAvg[0]) ? loadAvg[0] : null;
+  const normalizedLoad=oneMinuteLoad!=null && Number.isFinite(cpuCount) && cpuCount>0
+    ? Math.max(0,Math.min(1,oneMinuteLoad/cpuCount)) : null;
+  const busyPct=normalizedLoad!=null ? Math.round(normalizedLoad*1000)/10
+    : Number.isFinite(processBusyPct) ? Math.max(0,Math.min(100,Math.round(processBusyPct*10)/10)) : null;
+  return {oneMinuteLoad,normalizedLoad,busyPct,method:normalizedLoad!=null?'host-load-average'
+    : busyPct!=null?'process-cpu-delta':'unavailable'};
+};
+
 const STATE_WRITE_TIMEOUT_WARNING_DEFAULT_MS = 10000;
 const STATE_WRITE_CONTINUE_DEFAULT_MS = 5000;
 const CHECKPOINT_VOLATILE_QUEUE_FIELDS = new Set([
@@ -152,17 +162,9 @@ export const createPipelineCheckpointController = ({
     const cpuCount = Array.isArray(runtime?.cpuList) && runtime.cpuList.length
       ? runtime.cpuList.length
       : hostCpuCount;
-    const loadAvg = typeof os.loadavg === 'function' ? os.loadavg() : null;
-    const oneMinuteLoad = Array.isArray(loadAvg) && Number.isFinite(loadAvg[0]) ? loadAvg[0] : null;
-    const normalizedCpuLoad = Number.isFinite(oneMinuteLoad) && Number.isFinite(cpuCount) && cpuCount > 0
-      ? Math.max(0, Math.min(1, oneMinuteLoad / cpuCount))
-      : null;
+    const loadAvg = process.platform !== 'win32' && typeof os.loadavg === 'function' ? os.loadavg() : null;
     const processBusyPct = resolveProcessBusyPct(cpuCount);
-    const resolvedBusyPct = Number.isFinite(normalizedCpuLoad)
-      ? Math.max(0, Math.min(100, Math.round(normalizedCpuLoad * 1000) / 10))
-      : (Number.isFinite(processBusyPct)
-        ? Math.max(0, Math.min(100, Math.round(processBusyPct * 10) / 10))
-        : null);
+    const cpuEvidence=resolveCheckpointCpuEvidence({loadAvg,cpuCount,processBusyPct});
     const totalMem = Number(os.totalmem()) || 0;
     const freeMem = Number(os.freemem()) || 0;
     const memoryUtilization = totalMem > 0
@@ -172,9 +174,10 @@ export const createPipelineCheckpointController = ({
       scheduler: schedulerStats,
       cpu: {
         cores: Number.isFinite(cpuCount) ? cpuCount : null,
-        loadAvg1m: oneMinuteLoad,
-        normalizedLoad: normalizedCpuLoad,
-        busyPct: resolvedBusyPct
+        loadAvg1m: cpuEvidence.oneMinuteLoad,
+        normalizedLoad: cpuEvidence.normalizedLoad,
+        busyPct: cpuEvidence.busyPct,
+        method: cpuEvidence.method
       },
       memory: {
         totalBytes: totalMem > 0 ? totalMem : null,

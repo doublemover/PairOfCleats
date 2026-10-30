@@ -55,6 +55,7 @@ export const createStubPdfExtractionEnv = ({
     }
   },
   extraEnv: {
+    PAIROFCLEATS_TRUSTED_CONFIG: null,
     PAIROFCLEATS_WORKER_POOL: 'off',
     PAIROFCLEATS_TEST_STUB_PDF_EXTRACT: '1',
     ...extraEnv

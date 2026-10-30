@@ -3,7 +3,7 @@ import {
   snapshotTrackedSubprocesses
 } from '../../../../../shared/subprocess/snapshot.js';
 
-const STALL_DIAGNOSTIC_QUEUE_NAMES = Object.freeze(['stage1.cpu', 'stage1.io', 'stage1.postings']);
+const STALL_DIAGNOSTIC_QUEUE_NAMES = Object.freeze(['stage1.cpu', 'stage1.io', 'stage1.proc', 'stage1.postings']);
 
 /**
  * Normalize optional duration-like values to non-negative millisecond numbers.
@@ -70,18 +70,21 @@ export const collectStage1StalledFiles = (
 
   /** @type {object[]} */
   const topByElapsedAsc = [];
+  const compareRank = (left,right) => (left.elapsedMs || 0) - (right.elapsedMs || 0)
+    || (Number.isFinite(right.orderIndex) ? right.orderIndex : Number.MAX_SAFE_INTEGER)
+      - (Number.isFinite(left.orderIndex) ? left.orderIndex : Number.MAX_SAFE_INTEGER);
   for (const value of inFlightFiles.values()) {
     const summary = toStage1StallFileSummary(value, nowMs);
     if (!summary) continue;
     if (topByElapsedAsc.length < maxResults) {
       topByElapsedAsc.push(summary);
-      topByElapsedAsc.sort((left, right) => (left.elapsedMs || 0) - (right.elapsedMs || 0));
+      topByElapsedAsc.sort(compareRank);
       continue;
     }
     const smallest = topByElapsedAsc[0];
-    if ((summary.elapsedMs || 0) <= (smallest?.elapsedMs || 0)) continue;
+    if (compareRank(summary,smallest) <= 0) continue;
     topByElapsedAsc[0] = summary;
-    topByElapsedAsc.sort((left, right) => (left.elapsedMs || 0) - (right.elapsedMs || 0));
+    topByElapsedAsc.sort(compareRank);
   }
 
   return topByElapsedAsc
@@ -141,6 +144,8 @@ export const buildStage1SchedulerStallSnapshot = (runtime) => {
       surface: queue.surface || null,
       pending: Number(queue.pending) || 0,
       running: Number(queue.running) || 0,
+      suspendedCpu: Number(queue.suspendedCpu) || 0,
+      activeComputeRunning: Number(queue.activeComputeRunning) || 0,
       runnable: Number.isFinite(queue.runnable) ? queue.runnable : null,
       blocked: Number.isFinite(queue.blocked) ? queue.blocked : null,
       blockedBy: { ...(queue.blockedBy || {}) },
@@ -232,6 +237,7 @@ export const formatStage1SchedulerStallSummary = (snapshot) => {
       .filter(([, count]) => count > 0)
       .map(([reason, count]) => `${reason}:${count}`).join(',');
     return `${name}=r${queue.running}/p${queue.pending}${admission}`
+      + (queue.suspendedCpu ? `/suspended${queue.suspendedCpu}` : '')
       + `/wait${Math.round((queue.oldestWaitMs || 0) / 1000)}s`
       + (blockers ? `(${blockers})` : '');
   };
@@ -241,6 +247,7 @@ export const formatStage1SchedulerStallSummary = (snapshot) => {
       : 'parse=n/a',
     formatQueue('stage1.cpu'),
     formatQueue('stage1.io'),
+    formatQueue('stage1.proc'),
     formatQueue('stage1.postings')
   ].join(' ');
 };
@@ -285,7 +292,7 @@ export const buildStage1ProcessingStallSnapshot = ({
   stage1OwnershipPrefix = '',
   runtime = null
 } = {}) => {
-  const resolvedIdleMs = Number.isFinite(Number(idleMs))
+  const resolvedIdleMs = idleMs != null && Number.isFinite(Number(idleMs))
     ? clampDurationMs(idleMs)
     : Math.max(0, nowMs - (Number(lastProgressAt) || nowMs));
   const orderedPending = getOrderedPendingCount();

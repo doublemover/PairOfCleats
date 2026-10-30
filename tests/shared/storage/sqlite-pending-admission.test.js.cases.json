@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["target", "child", "inherited", "observer-child", "blocked-after-settlement", "settled-diagnostic", "overflow", "pending-result", "pending-child-result", "settled-result", "observer-result", "queued-before-failure"]
+}

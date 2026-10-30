@@ -77,6 +77,7 @@ const buildCallSitesFixture = async ({
     const result = runNode(
       [
         BUILD_INDEX,
+        '--json',
         '--scm-provider',
         'none',
         '--stub-embeddings',

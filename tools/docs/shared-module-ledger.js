@@ -5,7 +5,7 @@ import { createCli } from '../../src/shared/cli.js';
 import { isDirectExecution } from '../../src/shared/direct-execution.js';
 import { toPosix } from '../../src/shared/file-paths.js';
 import { writeStableGeneratedJsonReport, writeTextIfChanged } from '../shared/generated-report.js';
-import { listFilesRecursive } from '../shared/fs-utils.js';
+import { createScopedFileInventory } from '../shared/file-inventory.js';
 
 const DEFAULT_JSON = 'docs/tooling/shared-module-ledger.json';
 const DEFAULT_MARKDOWN = 'docs/tooling/shared-module-ledger.md';
@@ -13,8 +13,7 @@ const SHARED_ROOTS = ['src/shared', 'tools/shared'];
 const BENCHMARK_SCAN_ROOT = 'benchmarks/queries';
 const BENCHMARK_SCAN_FILES = ['benchmarks/repos.json'];
 const CODE_SCAN_ROOTS = ['src', 'tools', 'bin', 'tests', 'extensions', 'sublime', BENCHMARK_SCAN_ROOT];
-const CONSUMER_SCAN_ROOTS = ['src', 'tools', 'bin', 'extensions', 'sublime'];
-const CODE_SCAN_EXTENSIONS = new Set(['.js', '.mjs', '.cjs', '.json', '.md', '.ps1', '.txt']);
+const CONSUMER_SCAN_ROOTS = ['src', 'tools', 'bin', 'tests', 'extensions', 'sublime'];
 const MODULE_SCAN_EXTENSIONS = new Set(['.js', '.mjs', '.cjs']);
 const MODULE_EXTENSIONS = ['.js', '.mjs', '.cjs', '.json'];
 const DUPLICATE_STEM_STOP_WORDS = new Set(['index', 'readme', 'config', 'constants', 'types']);
@@ -253,19 +252,8 @@ const parseArgs = () => createCli({
   .strictOptions()
   .parse();
 
-const listFiles = async (root, relativeDir) => {
-  const targetDir = path.join(root, relativeDir);
-  const entries = await listFilesRecursive(targetDir, {
-    baseDir: root,
-    sortEntries: true,
-    include: ({ relPath }) => !EXCLUDED_SCAN_PREFIXES.some((prefix) => relPath === prefix || relPath.startsWith(`${prefix}/`))
-  });
-  return entries.map((entry) => toPosix(entry.relPath));
-};
-
 const matchesRoot = (relPath, root) => relPath === root || relPath.startsWith(`${root}/`);
 
-const isCodeLikeFile = (relPath) => CODE_SCAN_EXTENSIONS.has(path.extname(relPath).toLowerCase());
 
 const classifyH30Issue = (relPath) => {
   const normalized = toPosix(relPath);
@@ -321,11 +309,11 @@ const classifyH30Issue = (relPath) => {
 
 const uniqueSorted = (values) => Array.from(new Set(values)).sort((a, b) => a.localeCompare(b));
 
-const collectFilesForExtensions = async (root, extensions, relativeDirs = CODE_SCAN_ROOTS) => {
+const collectFilesForExtensions = async (inventory, extensions, relativeDirs = CODE_SCAN_ROOTS) => {
   const files = [];
   for (const relativeDir of relativeDirs) {
     try {
-      files.push(...(await listFiles(root, relativeDir)).filter((file) => extensions.has(path.extname(file).toLowerCase())));
+      files.push(...inventory.under(relativeDir).filter((file) => extensions.has(path.extname(file).toLowerCase())));
     } catch {}
   }
   return uniqueSorted(files);
@@ -412,27 +400,27 @@ const collectConsumerMap = async (root, sharedFiles, codeFiles) => {
   };
 };
 
-const scanRootsForIssue = async (root, issueConfig) => {
+const scanRootsForIssue = async (inventory, issueConfig) => {
   const files = [];
   for (const relativeDir of issueConfig.roots || []) {
     try {
-      files.push(...(await listFiles(root, relativeDir)).filter(isCodeLikeFile));
+      files.push(...inventory.under(relativeDir));
     } catch {}
   }
   for (const relativeFile of issueConfig.files || []) {
     try {
-      await fsPromises.access(path.join(root, relativeFile));
-      if (isCodeLikeFile(relativeFile)) files.push(toPosix(relativeFile));
+      if (inventory.has(relativeFile)) files.push(toPosix(relativeFile));
     } catch {}
   }
   return uniqueSorted(files);
 };
 
-const buildScanLedger = async (root, issueMap) => {
+const buildScanLedger = async (inventory, issueMap) => {
   const issues = [];
-  const scopeGaps = [];
+  const scopeGaps = [], coveredFiles = new Set();
   for (const [issueId, issueConfig] of Object.entries(issueMap)) {
-    const files = await scanRootsForIssue(root, issueConfig);
+    const files = await scanRootsForIssue(inventory, issueConfig);
+    for (const file of files) coveredFiles.add(file);
     const emptyRoots = [];
     for (const relativeDir of issueConfig.roots || []) {
       const matched = files.some((file) => matchesRoot(file, relativeDir));
@@ -455,7 +443,7 @@ const buildScanLedger = async (root, issueMap) => {
       fileCount: files.length
     });
   }
-  return { issues, scopeGaps };
+  return { issues, scopeGaps, coveredFiles: uniqueSorted([...coveredFiles]) };
 };
 
 const collectDuplicateSeeds = (codeFiles, sharedFiles, h31PrimaryByFile) => {
@@ -562,17 +550,32 @@ const renderMarkdown = (report) => {
   return `${lines.join('\n')}\n`;
 };
 
+/** Recompute coverage from independent expected/admitted lists, rather than
+ * trusting a generated empty gaps array or a truncated display sample. */
+export const sharedModuleScanCoverageErrors = report => {
+  const scope = report?.scanLedger?.h31?.repoCoverage;
+  if (!Array.isArray(scope?.expectedFiles) || !Array.isArray(scope?.scannedFiles)) return ['complete expected/scanned file inventories are required'];
+  const scanned = new Set(scope.scannedFiles);
+  return scope.expectedFiles.filter(file => !scanned.has(file)).map(file => `unscanned H31 file: ${file}`);
+};
+
 export const buildSharedModuleLedger = async (root) => {
   const resolvedRoot = path.resolve(root);
-  const sharedFiles = uniqueSorted((await Promise.all(SHARED_ROOTS.map((relativeDir) => listFiles(resolvedRoot, relativeDir)))).flat());
-  const coverageFiles = await collectFilesForExtensions(resolvedRoot, CODE_SCAN_EXTENSIONS);
-  for (const relativeFile of BENCHMARK_SCAN_FILES) {
-    if (!coverageFiles.includes(relativeFile)) {
-      coverageFiles.push(relativeFile);
-    }
+  for (const relative of SHARED_ROOTS) {
+    const stat = await fsPromises.stat(path.join(resolvedRoot, relative));
+    if (!stat.isDirectory()) throw new Error(`Shared module root is not a directory: ${relative}`);
   }
-  coverageFiles.sort((a, b) => a.localeCompare(b));
-  const moduleFiles = await collectFilesForExtensions(resolvedRoot, MODULE_SCAN_EXTENSIONS, CONSUMER_SCAN_ROOTS);
+  const issueScopes = [...Object.values(H31_ISSUES), ...Object.values(H32_ISSUES)];
+  const inventory = await createScopedFileInventory(resolvedRoot,
+    [...SHARED_ROOTS, ...CODE_SCAN_ROOTS, ...CONSUMER_SCAN_ROOTS, ...issueScopes.flatMap(issue => issue.roots || [])], {
+      files: issueScopes.flatMap(issue => issue.files || []),
+      include: ({ relPath }) => !EXCLUDED_SCAN_PREFIXES.some(prefix => relPath === prefix || relPath.startsWith(prefix + '/'))
+    });
+  const sharedFiles = uniqueSorted(SHARED_ROOTS.flatMap(relativeDir => inventory.under(relativeDir)));
+  // Complete file accounting is independent of import-parser applicability.
+  const coverageFiles = uniqueSorted([...CODE_SCAN_ROOTS.flatMap(scope => inventory.under(scope)),
+    ...BENCHMARK_SCAN_FILES.filter(file => inventory.has(file))]);
+  const moduleFiles = await collectFilesForExtensions(inventory, MODULE_SCAN_EXTENSIONS, CONSUMER_SCAN_ROOTS);
   const consumerScanFiles = uniqueSorted([
     ...moduleFiles,
     ...sharedFiles.filter((file) => MODULE_EXTENSIONS.includes(path.extname(file).toLowerCase()))
@@ -586,13 +589,11 @@ export const buildSharedModuleLedger = async (root) => {
   const duplicateSharedOwnership = [];
 
   const consumerMap = await collectConsumerMap(resolvedRoot, sharedFiles, consumerScanFiles);
-  const h31Ledger = await buildScanLedger(resolvedRoot, H31_ISSUES);
-  const h32Ledger = await buildScanLedger(resolvedRoot, H32_ISSUES);
-  const h31CoverageIssue = h31Ledger.issues.find((issue) => issue.issueId === '421');
-  const scanCoverageFiles = h31CoverageIssue?.sampleFiles
-    ? coverageFiles
-    : (h31CoverageIssue?.matchedFiles || []);
-  const unscannedH31Files = coverageFiles.filter((file) => !scanCoverageFiles.includes(file));
+  const h31Ledger = await buildScanLedger(inventory, H31_ISSUES);
+  const h32Ledger = await buildScanLedger(inventory, H32_ISSUES);
+  const scanCoverageFiles = h31Ledger.coveredFiles;
+  const scanCoverageSet = new Set(scanCoverageFiles);
+  const unscannedH31Files = coverageFiles.filter((file) => !scanCoverageSet.has(file));
 
   const h31PrimaryByFile = {};
   for (const issue of h31Ledger.issues) {
@@ -653,6 +654,8 @@ export const buildSharedModuleLedger = async (root) => {
       sharedFiles: censusEntries
     },
     consumerMap: {
+      scope: { roots: CONSUMER_SCAN_ROOTS, parsedExtensions: [...MODULE_SCAN_EXTENSIONS].sort(),
+        applicability: 'JavaScript imports only; other source files remain in scan accounting' },
       edgeCount: Object.values(consumerMap.bySharedFile).reduce((sum, importers) => sum + importers.length, 0),
       bySharedFile: Object.fromEntries(
         Object.entries(consumerMap.bySharedFile).map(([file, importers]) => [file, {
@@ -677,6 +680,8 @@ export const buildSharedModuleLedger = async (root) => {
         issues: h31Ledger.issues,
         repoCoverage: {
           roots: CODE_SCAN_ROOTS,
+          expectedFiles: coverageFiles,
+          exclusions: { prefixes: EXCLUDED_SCAN_PREFIXES, reason: 'Dependencies, generated results and runtime caches are outside source review.' },
           scannedFiles: scanCoverageFiles,
           unscannedFiles: unscannedH31Files
         }

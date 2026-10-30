@@ -1,12 +1,15 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSubprocess } from '../../src/shared/subprocess/runner.js';
+import { isRuntimeExecutionBinding } from '../../src/shared/runtime-envelope/execution-binding.js';
 
 const DEFAULT_MAX_OUTPUT_BYTES = 256 * 1024;
 const MIN_MAX_OUTPUT_BYTES = 1024;
 const MAX_MAX_OUTPUT_BYTES = 8 * 1024 * 1024;
 
 const toFiniteInt = (value) => {
+  if (value == null || (typeof value === 'string' && !value.trim())) return null;
+  if (typeof value !== 'number' && typeof value !== 'string') return null;
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) return null;
   return Math.floor(parsed);
@@ -147,6 +150,7 @@ export const runLoggedSubprocess = async ({
   maxOutputBytes = null,
   timeoutMs = null,
   onWriteError = null,
+  onRuntimeBinding = null,
   spawnSubprocessImpl = null
 } = {}) => {
   const runSubprocess = typeof spawnSubprocessImpl === 'function'
@@ -171,6 +175,18 @@ export const runLoggedSubprocess = async ({
     outputMode: 'string',
     maxOutputBytes: policy.maxOutputBytes
   };
+  if (typeof onRuntimeBinding === 'function') {
+    baseOptions.stdio = [...(useLog ? ['ignore', 'pipe', 'pipe'] : ['inherit', 'inherit', 'inherit']), 'ipc'];
+    baseOptions.onSpawn = child => {
+      const onMessage = binding => {
+        if (isRuntimeExecutionBinding(binding) && binding.pid === child.pid) {
+          try { onRuntimeBinding(binding); } catch { /* Passive progress cannot fail an owned child. */ }
+        }
+      };
+      child.on('message', onMessage);
+      child.once('close', () => child.off('message', onMessage));
+    };
+  }
   if (signal) {
     baseOptions.signal = signal;
   }

@@ -1,3 +1,4 @@
+import { resolveCrossFileFidelity } from '../cross-file-fidelity.js';
 import { getToolingConfig } from '../../shared/dict-utils.js';
 import {
   buildCrossFileFingerprint,
@@ -7,6 +8,8 @@ import {
   writeCrossFileInferenceCache
 } from './cache.js';
 import { runCrossFilePropagation } from './propagation.js';
+import { collectCrossFileSourceInputs } from './source-inputs.js';
+import { throwIfAborted } from '../../shared/abort.js';
 
 const EMPTY_CROSS_FILE_STATS = Object.freeze({
   linkedCalls: 0,
@@ -30,6 +33,7 @@ const EMPTY_CROSS_FILE_STATS = Object.freeze({
  * @returns {number}
  */
 const normalizeConfigInteger = ({ value, fallback, min }) => {
+  if (value == null || (typeof value === 'string' && !value.trim())) return fallback;
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) return fallback;
   return Math.max(min, Math.floor(parsed));
@@ -96,6 +100,7 @@ const resolveCacheContext = ({
   enableRiskCorrelation,
   useTooling,
   fileRelations,
+  fidelity,
   inferenceLite,
   inferenceLiteHighSignalOnly
 }) => {
@@ -113,6 +118,7 @@ const resolveCacheContext = ({
       enableRiskCorrelation,
       useTooling,
       fileRelations,
+      fidelity,
       inferenceLite,
       inferenceLiteHighSignalOnly
     })
@@ -148,6 +154,7 @@ const resolveCacheContext = ({
 export async function applyCrossFileInference({
   rootDir,
   buildRoot,
+  storageContext = null,
   cacheRoot = null,
   cacheEnabled = true,
   chunks,
@@ -159,9 +166,11 @@ export async function applyCrossFileInference({
   fileRelations = null,
   crossFileCacheMaxBytes = DEFAULT_CROSS_FILE_CACHE_MAX_BYTES,
   inferenceLite = false,
+  fidelity = resolveCrossFileFidelity(),
   inferenceLiteHighSignalOnly = true,
   symbolicTypeGraphs = [],
-  abortSignal = null
+  abortSignal = null,
+  onProgress = null
 }) {
   if (!enabled) {
     return { ...EMPTY_CROSS_FILE_STATS };
@@ -176,6 +185,7 @@ export async function applyCrossFileInference({
     enableRiskCorrelation,
     useTooling,
     fileRelations,
+    fidelity,
     inferenceLite,
     inferenceLiteHighSignalOnly
   });
@@ -184,52 +194,68 @@ export async function applyCrossFileInference({
   const symbolicMode = toolingPropagationOptions.toolingConfig?.typescript?.typeRepresentation === 'symbolic'
     || symbolicTypeGraphs.length > 0;
   // The existing fingerprint does not own all compiler/config/ambient reads.
-  // Keep durable graph publication; recompute symbolic providers until replay
+  // Keep durable graph publication; recompute tooling providers until replay
   // has a complete live context identity, rather than accepting stale facts.
-  const cachedStats = symbolicMode ? null : await readCrossFileInferenceCache({
-    cachePath: cacheContext.cachePath,
-    chunks,
-    crossFileFingerprint: cacheContext.crossFileFingerprint,
-    log,
-    requireComplete: true
-  });
-  if (cachedStats) {
-    return withCacheMetadata({
-      stats: cachedStats,
+  const toolingReplayUnqualified = useTooling === true || symbolicMode;
+  const sourceReplayUnqualified = enableTypeInference && !collectCrossFileSourceInputs(chunks).qualified;
+  const replayUnqualified = toolingReplayUnqualified || sourceReplayUnqualified;
+  let observedCompletedChunks = 0;
+  const reportProgress = async event => {
+    if (!onProgress) return;
+    await onProgress({ fingerprint: cacheContext.crossFileFingerprint,
+      totalChunks: chunks.length, fidelity, ...event });
+  };
+  // A required start receipt must succeed before any mutable propagation work.
+  await reportProgress({ status: 'running', observedCompletedChunks });
+  try {
+    throwIfAborted(abortSignal);
+    const cachedStats = replayUnqualified ? null : await readCrossFileInferenceCache({
+      cachePath: cacheContext.cachePath,
+      chunks,
       crossFileFingerprint: cacheContext.crossFileFingerprint,
-      cacheHit: true
+      log,
+      requireComplete: true
     });
+    if (cachedStats) {
+      observedCompletedChunks = chunks.length;
+      await reportProgress({ status: 'done', observedCompletedChunks, cacheHit: true, stats: cachedStats });
+      throwIfAborted(abortSignal);
+      return withCacheMetadata({ stats: cachedStats,
+        crossFileFingerprint: cacheContext.crossFileFingerprint, cacheHit: true });
+    }
+
+    const stats = await runCrossFilePropagation({
+      rootDir, buildRoot, storageContext, chunks, log, useTooling, enableTypeInference,
+      enableRiskCorrelation, fileRelations, fidelity, inferenceLite,
+      inferenceLiteHighSignalOnly, symbolicTypeGraphs, abortSignal,
+      onProgress: async progress => {
+        observedCompletedChunks = progress.observedCompletedChunks;
+        await reportProgress({ status: 'running', ...progress });
+      },
+      ...toolingPropagationOptions
+    });
+    throwIfAborted(abortSignal);
+    if (!replayUnqualified) await writeCrossFileInferenceCache({
+      cacheDir: cacheContext.cacheDir,
+      cachePath: cacheContext.cachePath,
+      chunks,
+      crossFileFingerprint: cacheContext.crossFileFingerprint,
+      stats,
+      maxBytes: crossFileCacheMaxBytes,
+      log
+    });
+    observedCompletedChunks = chunks.length;
+    await reportProgress({ status: 'done', observedCompletedChunks, cacheHit: false, stats });
+    throwIfAborted(abortSignal);
+    return withCacheMetadata({ stats, crossFileFingerprint: cacheContext.crossFileFingerprint, cacheHit: false });
+  } catch (error) {
+    try {
+      await reportProgress({ status: 'failed', observedCompletedChunks,
+        canceled: abortSignal?.aborted === true || error?.name === 'AbortError',
+        errorCode: typeof error?.code === 'string' ? error.code : error?.name || 'Error' });
+    } catch (checkpointError) {
+      if (error && typeof error === 'object' && Object.isExtensible(error)) error.checkpointError = checkpointError;
+    }
+    throw error;
   }
-
-  const stats = await runCrossFilePropagation({
-    rootDir,
-    buildRoot,
-    chunks,
-    log,
-    useTooling,
-    enableTypeInference,
-    enableRiskCorrelation,
-    fileRelations,
-    inferenceLite,
-    inferenceLiteHighSignalOnly,
-    symbolicTypeGraphs,
-    abortSignal,
-    ...toolingPropagationOptions
-  });
-
-  if (!symbolicMode) await writeCrossFileInferenceCache({
-    cacheDir: cacheContext.cacheDir,
-    cachePath: cacheContext.cachePath,
-    chunks,
-    crossFileFingerprint: cacheContext.crossFileFingerprint,
-    stats,
-    maxBytes: crossFileCacheMaxBytes,
-    log
-  });
-
-  return withCacheMetadata({
-    stats,
-    crossFileFingerprint: cacheContext.crossFileFingerprint,
-    cacheHit: false
-  });
 }

@@ -66,6 +66,12 @@ const parseIndexRows = (text, indexPath) => {
       invalidRows += 1;
       continue;
     }
+    if (rows.has(row.virtualPath)) {
+      const previous = rows.get(row.virtualPath);
+      throw Object.assign(new Error(
+        `[tree-sitter:schedule] duplicate virtualPath ${row.virtualPath} in ${indexPath}: ${previous.grammarKey} and ${row.grammarKey} (line ${lineNumber + 1})`
+      ), { code: 'ERR_TREE_SITTER_INDEX_DUPLICATE' });
+    }
     rows.set(row.virtualPath, row);
   }
   if (invalidRows > 0) {
@@ -133,6 +139,12 @@ export const loadIndexEntries = async ({ grammarKeys, paths, abortSignal = null 
     if (!(rows instanceof Map)) continue;
     for (const [virtualPath, row] of rows.entries()) {
       throwIfAborted(effectiveAbortSignal);
+      if (index.has(virtualPath)) {
+        const previous = index.get(virtualPath);
+        throw Object.assign(new Error(
+          `[tree-sitter:schedule] duplicate virtualPath ${virtualPath}: ${previous.grammarKey} (${paths.resultsIndexPathForGrammarKey(previous.grammarKey)}) and ${row.grammarKey} (${paths.resultsIndexPathForGrammarKey(row.grammarKey)})`
+        ), { code: 'ERR_TREE_SITTER_INDEX_DUPLICATE' });
+      }
       index.set(virtualPath, row);
     }
   }

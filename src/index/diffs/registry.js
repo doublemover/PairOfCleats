@@ -5,12 +5,15 @@ import { sha1 } from '../../shared/hash.js';
 import { parseIndexRef, redactIndexRefForPersistence } from '../index-ref.js';
 import {
   assertNoAbsolutePathLeak,
+  assertRegistryDirectory,
+  assertRegistryEntryIds,
   deepCloneRegistryJson,
   ensureRegistryId,
   isRegistryObject,
   normalizeRegistryRelativePath,
   readRegistryJsonObject,
   registryInvalidRequest,
+  resolveRegistryChildDirectory,
   withRegistryLock,
   writeRegistryStableJson
 } from '../registry-support.js';
@@ -20,9 +23,15 @@ const DIFF_ID_RE = /^diff_[A-Za-z0-9._-]+$/;
 
 const invalidRequest = registryInvalidRequest;
 const isObject = isRegistryObject;
-const resolveDiffsRoot = (repoCacheRoot) => path.join(repoCacheRoot, DIFFS_DIR);
+const resolveDiffsRoot = (repoCacheRoot) => {
+  const root = path.join(repoCacheRoot, DIFFS_DIR);
+  assertRegistryDirectory(root);
+  return root;
+};
 const resolveManifestPath = (repoCacheRoot) => path.join(resolveDiffsRoot(repoCacheRoot), 'manifest.json');
-const resolveDiffDir = (repoCacheRoot, diffId) => path.join(resolveDiffsRoot(repoCacheRoot), diffId);
+export const resolveDiffDir = (repoCacheRoot, diffId) => (
+  resolveRegistryChildDirectory(resolveDiffsRoot(repoCacheRoot), diffId, DIFF_ID_RE)
+);
 const resolveInputsPath = (repoCacheRoot, diffId) => path.join(resolveDiffDir(repoCacheRoot, diffId), 'inputs.json');
 const resolveSummaryPath = (repoCacheRoot, diffId) => path.join(resolveDiffDir(repoCacheRoot, diffId), 'summary.json');
 
@@ -135,9 +144,14 @@ export const createEmptyDiffsManifest = () => ({
   diffs: {}
 });
 
-export const loadDiffsManifest = (repoCacheRoot) => (
-  readRegistryJsonObject(resolveManifestPath(repoCacheRoot), createEmptyDiffsManifest())
-);
+const validateManifestEntries = (repoCacheRoot, manifest) => {
+  assertRegistryEntryIds(manifest.diffs, 'id', DIFF_ID_RE,
+    diffId => resolveDiffDir(repoCacheRoot, diffId));
+  return manifest;
+};
+
+export const loadDiffsManifest = (repoCacheRoot) => validateManifestEntries(repoCacheRoot,
+  readRegistryJsonObject(resolveManifestPath(repoCacheRoot), createEmptyDiffsManifest()));
 
 export const loadDiffInputs = (repoCacheRoot, diffId) => {
   ensureDiffId(diffId);
@@ -156,6 +170,7 @@ export const writeDiffsManifest = async (repoCacheRoot, manifest, options = {}) 
   const sanitized = sanitizeDiffManifest(manifest, {
     persistUnsafe: options.persistUnsafe === true
   });
+  validateManifestEntries(repoCacheRoot, sanitized);
   return withIndexLock(repoCacheRoot, options, async () => {
     const manifestPath = resolveManifestPath(repoCacheRoot);
     await fsPromises.mkdir(path.dirname(manifestPath), { recursive: true });

@@ -4,8 +4,13 @@ import { getToolVersion, resolveToolRoot } from '../shared/dict-utils.js';
 import { FLOW_METRICS_INTERVAL_MS, SUPERVISOR_PROTOCOL } from './supervisor/constants.js';
 import { createJobController } from './supervisor/jobs.js';
 import { createEventLogRecorder, createFlowController } from './supervisor/protocol-flow.js';
-import { normalizeLineBreaks, sleep } from './supervisor/request-utils.js';
+import { normalizeLineBreaks } from './supervisor/request-utils.js';
 import { createCli } from '../../src/shared/cli.js';
+import { assertTuiControlReason } from '../../src/contracts/validators/tui-request.js';
+import { createTuiArtifactRegistry } from './operator/artifact-registry.js';
+import { drainTuiBackendReaders, disposeTuiSessionSlot } from './operator/backend-reader-drain.js';
+import { createSupervisorOutput } from './supervisor/output.js';
+import { createSupervisorShutdown } from './supervisor/shutdown.js';
 
 createCli({
   scriptName: 'pairofcleats tui supervisor',
@@ -67,6 +72,8 @@ const eventLogRecorder = createEventLogRecorder({
   root: ROOT
 });
 
+const output = createSupervisorOutput({ onFailure: () => { void shutdown('stdout_failed', 1); } });
+
 const {
   emit,
   emitLog,
@@ -77,7 +84,8 @@ const {
 } = createFlowController({
   runId,
   nextSeq,
-  eventLogRecorder
+  eventLogRecorder,
+  output
 });
 
 const buildSessionDescriptor = () => ({
@@ -89,8 +97,12 @@ const buildSessionDescriptor = () => ({
   controllable: true
 });
 
+let artifactRegistry = createTuiArtifactRegistry();
+
 const {
   startJob,
+  startOperation,
+  rejectSearchOperation,
   cancelJob,
   failJobInvalidRequest
 } = createJobController({
@@ -99,10 +111,97 @@ const {
   root: ROOT,
   emit,
   emitLog,
-  buildFlowSnapshot
+  buildFlowSnapshot,
+  beginArtifactJob: id => /^[a-zA-Z0-9_-]{1,128}$/.test(id) ? artifactRegistry.beginJob(id) : null,
+  captureArtifactInventory: input => artifactRegistry.capture(input),
+  assertWorkAdmission: ({ kind, method }) => {
+    output.assertWritable();
+    if (kind === 'operation' && ['status', 'readiness', 'describe', 'services', 'stop-service'].includes(method)) return;
+    indexWorkflows?.assertCacheAdmission();
+  }
 });
 
 let runtimeMetricsTimer = null;
+let settingsSession = null;
+let settingsModules = null;
+const runSettings = async (request, { signal }) => {
+  settingsModules ||= Promise.all([import('./operator/settings.js'),
+    import('../../src/contracts/validators/tui-settings.js')]);
+  const [settings, contracts] = await settingsModules;
+  contracts.assertTuiSettingsRequest('dispatch', request);
+  contracts.assertTuiSettingsRequest(request.method, request.params);
+  if (signal.aborted) throw Object.assign(new Error('Cancelled.'), { code: 'ABORT_ERR' });
+  settingsSession ||= settings.createTuiSettingsSession({ toolRoot: ROOT });
+  const methods = { select: 'selectScope', inspect: 'inspectConfig', preview: 'preview', commit: 'commit', cancel: 'cancel' };
+  return settingsSession[methods[request.method]](request.params, { signal });
+};
+
+let searchSession = null;
+let searchModules = null;
+const runSearch = async (request, context) => {
+  const { signal } = context;
+  searchModules ||= Promise.all([import('./operator/search.js'),
+    import('../../src/contracts/validators/tui-search.js')]);
+  const [search, contracts] = await searchModules;
+  contracts.assertTuiSearchRequest('dispatch', request);
+  contracts.assertTuiSearchRequest(request.method, request.params);
+  if (signal.aborted) throw Object.assign(new Error('Cancelled.'), { code: 'ABORT_ERR' });
+  searchSession ||= search.createTuiSearchSession({ toolRoot: ROOT });
+  const methods = { describe: 'describe', status: 'status', readiness: 'readiness', query: 'query', continue: 'continueSearch', source: 'source', open: 'open' };
+  return searchSession[methods[request.method]](request.params, context);
+};
+
+let artifactActions = null, artifactModules = null;
+const runArtifact = async (request, context) => {
+  artifactModules ||= Promise.all([import('./operator/artifacts.js'),
+    import('../../src/contracts/validators/tui-artifact.js')]);
+  const [actions, contracts] = await artifactModules;
+  contracts.assertTuiArtifactRequest('dispatch', request);
+  contracts.assertTuiArtifactRequest(request.method, request.params);
+  if (context.signal.aborted) throw Object.assign(new Error('Cancelled.'), { code: 'ABORT_ERR' });
+  artifactActions ||= actions.createTuiArtifactActions({ registry: artifactRegistry, toolRoot: ROOT });
+  return artifactActions.execute(request.method, request.params, context);
+};
+
+let indexWorkflows = null, workflowModules = null;
+const drainBackendReaders = input => drainTuiBackendReaders({ ...input, jobs: state.jobs,
+  closeSearch: () => disposeTuiSessionSlot({ current: () => searchSession, replace: value => { searchSession = value; } }),
+  closeArtifactActions: () => disposeTuiSessionSlot({ current: () => artifactActions, replace: value => { artifactActions = value; } }),
+  resetArtifactRegistry: async () => {
+    await artifactRegistry.dispose();
+    artifactRegistry = createTuiArtifactRegistry();
+    return artifactRegistry;
+  } });
+let recordings = null, recordingModules = null;
+const runRecording = async (request, context) => {
+  recordingModules ||= Promise.all([import('./operator/recordings.js'),
+    import('../../src/contracts/validators/tui-recording.js')]);
+  const [owner, contracts] = await recordingModules;
+  contracts.assertTuiRecordingRequest('dispatch', request);
+  contracts.assertTuiRecordingRequest(request.method, request.params);
+  if (context.signal.aborted) throw Object.assign(new Error('Cancelled.'), { code: 'ABORT_ERR' });
+  recordings ||= owner.createTuiRecordings();
+  return recordings[request.method](request.params, context);
+};
+const runWorkflow = async (request, context) => {
+  workflowModules ||= Promise.all([import('./operator/index-workflows.js'),
+    import('./operator/settings.js'), import('../../src/contracts/validators/tui-workflow.js')]);
+  const [workflows, settings, contracts] = await workflowModules;
+  contracts.assertTuiWorkflowRequest('dispatch', request);
+  contracts.assertTuiWorkflowRequest(request.method, request.params);
+  if (context.signal.aborted) throw Object.assign(new Error('Cancelled.'), { code: 'ABORT_ERR' });
+  settingsSession ||= settings.createTuiSettingsSession({ toolRoot: ROOT });
+  if (request.method === 'select') {
+    await indexWorkflows?.reset();
+    return settingsSession.selectScope(request.params, context);
+  }
+  indexWorkflows ||= workflows.createTuiIndexWorkflows({ scopes: settingsSession, startJob, toolRoot: ROOT,
+    getJob, cancelJob,
+    drainLocalReaders: drainBackendReaders,
+    // Enabled only together with actual canonical SQLite/LMDB closure hooks.
+    backendDelegationEnabled: true });
+  return indexWorkflows[request.method](request.params, context);
+};
 
 /**
  * Gracefully cancel all jobs and terminate supervisor process.
@@ -111,26 +210,11 @@ let runtimeMetricsTimer = null;
  * @param {number} [exitCode=0]
  * @returns {Promise<void>}
  */
-const shutdown = async (reason = 'shutdown', exitCode = 0) => {
-  if (state.shuttingDown) return;
-  state.shuttingDown = true;
-  if (runtimeMetricsTimer) {
-    clearInterval(runtimeMetricsTimer);
-  }
-  state.shutdownStartedAt = Date.now();
-  emitLog(null, 'info', 'supervisor shutdown requested', { reason });
-  for (const job of state.jobs.values()) {
-    cancelJob(job.id, reason);
-  }
-  const timeoutMs = 10_000;
-  while (Date.now() - state.shutdownStartedAt < timeoutMs) {
-    const active = Array.from(state.jobs.values()).some((job) => !job.finalized);
-    if (!active) break;
-    await sleep(50);
-  }
-  eventLogRecorder?.finalize(reason);
-  process.exit(exitCode);
-};
+const shutdown = createSupervisorShutdown({ state, cancelJob, output, recorder: eventLogRecorder, emitLog,
+  stopMetrics: () => { if (runtimeMetricsTimer) clearInterval(runtimeMetricsTimer); },
+  closeOwners: () => ({ settings: () => settingsSession?.dispose(), workflows: () => indexWorkflows?.dispose(),
+    recordings: () => recordings?.dispose(), search: () => searchSession?.dispose(),
+    artifacts: () => artifactRegistry.dispose(), artifactActions: () => artifactActions?.dispose() }) });
 
 /**
  * Route one parsed supervisor request message.
@@ -170,9 +254,58 @@ const handleRequest = async (request) => {
     } catch (error) {
       const jobId = typeof request.jobId === 'string' ? request.jobId : null;
       emitLog(jobId, 'error', error?.message || String(error));
-      if (jobId && state.jobs.has(jobId)) {
+      if (jobId && state.jobs.has(jobId)
+        && !['ERR_TUI_JOB_EXISTS', 'ERR_TUI_SHUTTING_DOWN'].includes(error?.code)) {
         failJobInvalidRequest(jobId, error);
       }
+    }
+    return;
+  }
+  if (op === 'settings:run') {
+    try {
+      await startOperation({ jobId: request.jobId, method: request.method }, context => runSettings(request, context),
+        { isCommitted: data => data?.saved === true || (request.method === 'select' && typeof data?.id === 'string') });
+    } catch {
+      // Never persist unvalidated input or raw parser/subprocess error messages.
+      emitLog(null, 'error', 'Settings request was not admitted.');
+    }
+    return;
+  }
+  if (op === 'search:run') {
+    try {
+      await startOperation({ jobId: request.jobId, method: request.method }, context => runSearch(request, context),
+        { title: 'Search', isCommitted: data => data?.opened === true, failureProjection: 'search' });
+    } catch (error) {
+      rejectSearchOperation(request.jobId, error);
+      emitLog(null, 'error', 'Search request was not admitted.');
+    }
+    return;
+  }
+  if (op === 'artifact:run') {
+    try {
+      await startOperation({ jobId: request.jobId, method: request.method }, context => runArtifact(request, context),
+        { title: 'Artifact', isCommitted: data => data?.opened === true || data?.copied === true || data?.exported === true });
+    } catch {
+      emitLog(null, 'error', 'Artifact request was not admitted.');
+    }
+    return;
+  }
+  if (op === 'workflow:run') {
+    try {
+      await startOperation({ jobId: request.jobId, method: request.method }, context => runWorkflow(request, context),
+        { title: 'Index workflow', isCommitted: data => data?.launched === true || typeof data?.id === 'string'
+          || data?.nativePageCommitted === true || data?.discarded === true || data?.stopRequested === true });
+    } catch {
+      emitLog(null, 'error', 'Workflow request was not admitted.');
+    }
+    return;
+  }
+  if (op === 'recording:run') {
+    try {
+      await startOperation({ jobId: request.jobId, method: request.method }, context => runRecording(request, context),
+        { title: 'Saved session', isCommitted: () => false });
+    } catch {
+      emitLog(null, 'error', 'Recording request was not admitted.');
     }
     return;
   }
@@ -182,11 +315,19 @@ const handleRequest = async (request) => {
       emitLog(null, 'error', 'job:cancel missing jobId');
       return;
     }
-    cancelJob(jobId, request.reason || 'cancel_requested');
+    try { cancelJob(jobId, request.reason === undefined ? 'cancel_requested' : request.reason); }
+    catch (error) {
+      if (error.code !== 'ERR_TUI_CANCEL_REASON') throw error;
+      emitLog(jobId, 'error', 'Cancellation request was not admitted.', { code: error.code });
+    }
     return;
   }
   if (op === 'shutdown') {
-    await shutdown(request.reason || 'shutdown', 0);
+    try { await shutdown(request.reason === undefined ? 'shutdown' : request.reason, 0); }
+    catch (error) {
+      if (error.code !== 'ERR_TUI_CANCEL_REASON') throw error;
+      emitLog(null, 'error', 'Shutdown request was not admitted.', { code: error.code });
+    }
     return;
   }
   emitLog(null, 'error', `unknown op: ${op}`);
@@ -233,15 +374,16 @@ process.stdin.setEncoding('utf8');
 process.stdin.on('data', consumeStdinChunk);
 
 process.stdin.on('end', () => {
-  shutdown('stdin_closed', 0).catch(() => process.exit(0));
+  void shutdown('stdin_closed', 0);
 });
+process.stdin.on('error', () => { void shutdown('stdin_failed', 1); });
 
 process.on('SIGINT', () => {
-  shutdown('sigint', 130).catch(() => process.exit(130));
+  void shutdown('sigint', 130);
 });
 
 process.on('SIGTERM', () => {
-  shutdown('sigterm', 130).catch(() => process.exit(130));
+  void shutdown('sigterm', 130);
 });
 
 emitHello({ supervisorVersion, session: buildSessionDescriptor() });

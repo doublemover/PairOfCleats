@@ -58,6 +58,13 @@ are the installed CLI equivalents. `extensions-verify --no-load` checks artifact
 integrity without executing native code. The setup command also checks extension
 readiness using this same trusted configuration and registration.
 
+The default verifier also checks integrity without loading native code. Its JSON
+`verification` result includes `ok`, `present`, `state`, `reason` and a
+`verificationLevel`; an existing file with a missing or mismatched approved hash
+fails verification. Runtime calls revalidate policy, registration and current
+bytes even on an already loaded connection. Changed binary bytes require a new
+connection. Failed load attempts can be retried after repairing configuration.
+
 ## Configuration
 
 - Default provider: sqlite-vec (`vec0` module).
@@ -90,6 +97,9 @@ If code and prose share the same SQLite db path, the ANN table is scoped per mod
 - Incremental SQLite updates delete and reinsert ANN rows for changed chunks.
 - When the extension is unavailable, incremental updates proceed without the
   ANN table and emit a warning (ANN falls back to JS until rebuilt).
+- A newly created or recreated ANN table backfills unchanged base-vector rows.
+  An unreadable replacement vector artifact fails before changing existing rows;
+  only a validated empty artifact can intentionally replace them with zero rows.
 
 ## Search
 ```

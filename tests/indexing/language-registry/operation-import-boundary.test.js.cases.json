@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["cold-registry", "prose", "javascript", "typescript", "config", "load-failure"]
+}

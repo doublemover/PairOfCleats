@@ -3,7 +3,7 @@ import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
 
-import { writeBundleFile } from '../../../../src/shared/bundle-io.js';
+import { writeIncrementalBundleSnapshot } from '../../../../src/index/build/incremental/bundle-snapshot.js';
 import { buildDatabaseFromBundles } from '../../../../src/storage/sqlite/build/from-bundles.js';
 import { resolveTestCachePath } from '../../../helpers/test-cache.js';
 
@@ -42,23 +42,20 @@ export async function setupIncrementalBundleDatabase({
   const manifest = { artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION, files: {} };
   for (let i = 0; i < files.length; i += 1) {
     const file = files[i];
-    const bundleName = `bundle-${i}.json`;
-    await writeBundleFile({
-      bundlePath: path.join(bundleDir, bundleName),
-      bundle: {
+    const entry = { hash: `hash-${i}`, mtimeMs: 1000 + i, size: 10 + i };
+    const snapshot = await writeIncrementalBundleSnapshot({ bundleDir, relKey: file, entry,
+      bundles: [{ file, hash: entry.hash, size: entry.size,
         chunks: buildIncrementalChunks({
           file,
           suffix: `v1-${i}`,
           chunksPerFile
         })
-      },
+      }],
       format: 'json'
     });
     manifest.files[file] = {
-      hash: `hash-${i}`,
-      mtimeMs: 1000 + i,
-      size: 10 + i,
-      bundles: [bundleName]
+      ...entry,
+      ...snapshot
     };
   }
 
@@ -91,27 +88,24 @@ export async function addChangedBundle({
   files,
   manifest,
   changedFileIndex,
-  changedBundleName = 'bundle-changed.json',
   suffix = 'v2'
 }) {
   const updatedManifest = { artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION, files: { ...manifest.files } };
   const changedFile = files[changedFileIndex];
-  await writeBundleFile({
-    bundlePath: path.join(bundleDir, changedBundleName),
-    bundle: {
+  const entry = { ...updatedManifest.files[changedFile], hash: 'hash-changed', mtimeMs: 9999 };
+  const snapshot = await writeIncrementalBundleSnapshot({ bundleDir, relKey: changedFile, entry,
+    bundles: [{ file: changedFile, hash: entry.hash, size: entry.size,
       chunks: buildIncrementalChunks({
         file: changedFile,
         suffix,
         chunksPerFile
       })
-    },
+    }],
     format: 'json'
   });
   updatedManifest.files[changedFile] = {
-    ...updatedManifest.files[changedFile],
-    hash: 'hash-changed',
-    mtimeMs: 9999,
-    bundles: [changedBundleName]
+    ...entry,
+    ...snapshot
   };
 
   return { changedFile, updatedManifest };

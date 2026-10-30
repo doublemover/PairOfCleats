@@ -6,7 +6,7 @@
 
 Default output path:
 
-- `.c8/coverage-<runId>.json`
+- `.tmp/dev/tests/coverage/coverage-<runId>.json`
 
 Schema contract:
 
@@ -15,10 +15,22 @@ Schema contract:
 - `runId: <string>`
 - `pathPolicy: "repo-relative-posix"`
 - `kind: "v8-range-summary"`
+- `sourceIdentityVersion: 1`
+- `sourcePlatform: <Node platform>`
 - `summary: { files, coveredRanges, totalRanges }`
 - `entries[]: { path, coveredRanges, totalRanges }`
 
-Paths are normalized to repo-relative POSIX form and entries are sorted by path.
+Paths are repository-relative and entries are sorted by path. Only actual native
+separators become `/`: a literal backslash in a POSIX filename remains filename
+data. URL decoding precedes physical containment/relative-path admission. Summary
+merging preserves admitted keys exactly and retains additive range totals.
+
+Historical schema-1 artifacts without the source identity fields remain readable
+as historical reports, but merging or qualifying them rejects with
+`ERR_COVERAGE_SOURCE_IDENTITY`: lost physical filename identity cannot be recovered.
+Those operations also reject a different source platform rather than reinterpreting
+its filenames under the current filesystem. Fresh coverage captures emit both
+identity fields; the artifact schema version and range accounting remain unchanged.
 
 Merge semantics (`--coverage-merge`):
 

@@ -1,9 +1,10 @@
 import { compareGraphEdges } from '../graph/ordering.js';
-import { buildGraphNodeIndex } from '../graph/indexes.js';
+import { resolveGraphNodeIndexes } from '../graph/prepared-node-indexes.js';
 import { createWorkBudget } from '../graph/work-budget.js';
-import { normalizeLimit, normalizeOptionalLimit } from '../shared/limits.js';
+import { normalizeLimit as normalizeLimitValue, normalizeOptionalLimit as normalizeOptionalLimitValue } from '../shared/limits.js';
 import { compareStrings } from '../shared/sort.js';
 import { createTruncationRecorder } from '../shared/truncation.js';
+import { throwIfAborted } from '../shared/abort.js';
 
 const DEFAULT_MAX_PER_HIT = 4;
 const DEFAULT_MAX_TOTAL = 40;
@@ -11,7 +12,8 @@ const DEFAULT_MAX_REASONS = 3;
 
 const REASON_PRIORITY_ORDER = ['call', 'usage', 'export', 'import', 'nameFallback'];
 const REASON_PRIORITY = new Map(REASON_PRIORITY_ORDER.map((reason, index) => [reason, index]));
-const GRAPH_INDEX_CACHE = new WeakMap();
+const normalizeLimit = (value, fallback) => value == null ? fallback : normalizeLimitValue(value, fallback);
+const normalizeOptionalLimit = value => value == null ? null : normalizeOptionalLimitValue(value);
 
 const resolvePriority = (reasonType) => (
   REASON_PRIORITY.has(reasonType) ? REASON_PRIORITY.get(reasonType) : REASON_PRIORITY_ORDER.length + 1
@@ -62,16 +64,7 @@ const buildNameRef = (name) => ({
 });
 
 const resolveGraphIndexes = (graphRelations) => {
-  if (!graphRelations || typeof graphRelations !== 'object') return null;
-  const cached = GRAPH_INDEX_CACHE.get(graphRelations);
-  if (cached) return cached;
-  const next = {
-    callGraph: buildGraphNodeIndex(graphRelations.callGraph),
-    usageGraph: buildGraphNodeIndex(graphRelations.usageGraph),
-    importGraph: buildGraphNodeIndex(graphRelations.importGraph)
-  };
-  GRAPH_INDEX_CACHE.set(graphRelations, next);
-  return next;
+  return resolveGraphNodeIndexes(graphRelations);
 };
 
 const collectEdges = ({
@@ -116,32 +109,35 @@ const collectEdges = ({
 
 const resolveChunkUid = (chunk) => chunk?.chunkUid || chunk?.metaV2?.chunkUid || null;
 
+const fillChunkLookups = (chunkMeta, { byName, byFile, byDocId, byChunkUid }) => {
+  if (!Array.isArray(chunkMeta)) return;
+  for (let index = 0; index < chunkMeta.length; index += 1) {
+    const chunk = chunkMeta[index];
+    if (!chunk) continue;
+    const docId = chunk.id != null ? chunk.id : index;
+    byDocId?.set(docId, chunk);
+    const chunkUid = resolveChunkUid(chunk);
+    if (chunkUid) byChunkUid?.set(chunkUid, docId);
+    if (byName && chunk.name) {
+      const list = byName.get(chunk.name) || [];
+      list.push(docId);
+      byName.set(chunk.name, list);
+    }
+    if (byFile && chunk.file) {
+      const list = byFile.get(chunk.file) || [];
+      list.push(docId);
+      byFile.set(chunk.file, list);
+    }
+  }
+};
+
 export function buildContextIndex({ chunkMeta, repoMap }) {
   const byName = new Map();
   const byFile = new Map();
   const byDocId = new Map();
   const byChunkUid = new Map();
 
-  if (Array.isArray(chunkMeta)) {
-    for (let index = 0; index < chunkMeta.length; index += 1) {
-      const chunk = chunkMeta[index];
-      if (!chunk) continue;
-      const docId = chunk.id != null ? chunk.id : index;
-      byDocId.set(docId, chunk);
-      const chunkUid = resolveChunkUid(chunk);
-      if (chunkUid) byChunkUid.set(chunkUid, docId);
-      if (chunk.name) {
-        const list = byName.get(chunk.name) || [];
-        list.push(docId);
-        byName.set(chunk.name, list);
-      }
-      if (chunk.file) {
-        const list = byFile.get(chunk.file) || [];
-        list.push(docId);
-        byFile.set(chunk.file, list);
-      }
-    }
-  }
+  fillChunkLookups(chunkMeta, { byName, byFile, byDocId, byChunkUid });
 
   for (const [key, list] of byName.entries()) {
     byName.set(key, dedupeSort(list));
@@ -169,7 +165,7 @@ export function buildContextIndex({ chunkMeta, repoMap }) {
 
 const serializeMap = (map) => {
   if (!map || typeof map.entries !== 'function') return {};
-  const out = {};
+  const out = Object.create(null);
   for (const [key, value] of map.entries()) {
     out[key] = Array.isArray(value) ? value : Array.from(value || []);
   }
@@ -204,14 +200,20 @@ export function hydrateContextIndex(raw) {
   };
 }
 
-const ensureChunkLookups = (contextIndex, chunkMeta) => {
+export const ensureChunkLookups = (contextIndex, chunkMeta) => {
   if (contextIndex.byDocId && contextIndex.byChunkUid) return contextIndex;
-  const next = buildContextIndex({ chunkMeta, repoMap: contextIndex.repoMap || null });
-  contextIndex.byDocId = next.byDocId;
-  contextIndex.byChunkUid = next.byChunkUid;
-  if (!contextIndex.byName) contextIndex.byName = next.byName;
-  if (!contextIndex.byFile) contextIndex.byFile = next.byFile;
-  if (!contextIndex.repoMapByName) contextIndex.repoMapByName = next.repoMapByName;
+  const missing = {};
+  if (!contextIndex.byDocId) missing.byDocId = contextIndex.byDocId = new Map();
+  if (!contextIndex.byChunkUid) missing.byChunkUid = contextIndex.byChunkUid = new Map();
+  fillChunkLookups(chunkMeta, missing);
+  // Persisted name/file/repo maps retain their admitted identity and ordering.
+  // Non-hydrated partial callers still receive the legacy missing families.
+  if (!contextIndex.byName || !contextIndex.byFile || !contextIndex.repoMapByName) {
+    const names = buildContextIndex({ chunkMeta, repoMap: contextIndex.repoMap || null });
+    contextIndex.byName ||= names.byName;
+    contextIndex.byFile ||= names.byFile;
+    contextIndex.repoMapByName ||= names.repoMapByName;
+  }
   return contextIndex;
 };
 
@@ -223,8 +225,11 @@ export function expandContext({
   graphRelations,
   options = {},
   allowedIds = null,
-  contextIndex = null
+  contextIndex = null,
+  signal = null,
+  now = () => performance.now()
 }) {
+  throwIfAborted(signal);
   if (!Array.isArray(hits) || !hits.length || !Array.isArray(chunkMeta)) {
     return { contextHits: [], stats: { added: 0, workUnitsUsed: 0, truncation: null } };
   }
@@ -238,6 +243,9 @@ export function expandContext({
 
   const caps = resolveContextCaps({ options, maxPerHit, maxTotal });
 
+  const preparationStarted = performance.now();
+  const suppliedLookups = Boolean(contextIndex?.byDocId && contextIndex?.byChunkUid && contextIndex?.byName
+    && contextIndex?.byFile && contextIndex?.repoMapByName);
   const resolvedIndex = ensureChunkLookups(
     contextIndex || buildContextIndex({ chunkMeta, repoMap }),
     chunkMeta
@@ -252,8 +260,11 @@ export function expandContext({
 
   const workBudget = createWorkBudget({
     maxWorkUnits: caps.maxWorkUnits,
-    maxWallClockMs: caps.maxWallClockMs
+    maxWallClockMs: caps.maxWallClockMs,
+    checkEvery: 16,
+    now
   });
+  const work = { edgeVisits: 0, candidateAttempts: 0, candidateVisits: 0, nameBucketVisits: 0 };
 
   const stopForBudget = (state) => {
     if (!state?.stop || !state.reason) return false;
@@ -306,6 +317,7 @@ export function expandContext({
         limit: maxTotal,
         observed: contextHits.length
       });
+      halted = true;
       return false;
     }
     if (perHitState.added >= maxPerHit) {
@@ -314,6 +326,7 @@ export function expandContext({
         observed: perHitState.added,
         at: { node: String(sourceId) }
       });
+      perHitState.capped = true;
       return false;
     }
 
@@ -329,8 +342,7 @@ export function expandContext({
       reasons: includeReasons ? [] : null
     };
     if (includeReasons) {
-      entry.reasons.push({ reason, priority, sourceId });
-      entry.hit.context.reasons = [{ reason, sourceId, priority }];
+      addReason(entry, reason, priority, sourceId);
     }
 
     candidateMap.set(docId, entry);
@@ -373,15 +385,14 @@ export function expandContext({
   };
 
   const graphIndexes = resolveGraphIndexes(graphRelations);
+  const preparation = { contextIndex: suppliedLookups ? 'supplied' : 'built-or-completed',
+    availableChunkRows: chunkMeta.length, scannedChunkRows: suppliedLookups ? 0 : chunkMeta.length,
+    elapsedMs: Math.max(0, performance.now() - preparationStarted) };
 
   let halted = false;
 
   for (const hit of hits) {
     if (halted) break;
-    if (contextHits.length >= maxTotal) {
-      recordTruncation('maxTotal', { limit: maxTotal, observed: contextHits.length });
-      break;
-    }
     const sourceId = hit?.id;
     const sourceChunk = byDocId.get(sourceId);
     if (!sourceChunk) continue;
@@ -389,27 +400,34 @@ export function expandContext({
     const sourceChunkUid = resolveChunkUid(sourceChunk);
     const sourceFile = sourceChunk.file || null;
 
-    const consumeWork = () => {
+    const consumeWork = (kind = 'edge') => {
+      throwIfAborted(signal);
+      if (kind === 'candidate') work.candidateAttempts++;
+      if (caps.maxWorkUnits === 0 || caps.maxWallClockMs === 0) {
+        recordTruncation(caps.maxWorkUnits === 0 ? 'maxWorkUnits' : 'maxWallClockMs', { limit: 0, observed: 0 });
+        halted = true; return true;
+      }
       const state = workBudget.consume(1);
       if (stopForBudget(state)) {
         halted = true;
         return true;
       }
+      if (kind === 'candidate') work.candidateVisits++;
+      else if (kind === 'name-bucket') work.nameBucketVisits++;
+      else work.edgeVisits++;
       return false;
     };
 
     const handleEdges = (edges, reasonType, detailResolver, resolveTargets) => {
       for (const edge of edges) {
-        if (halted) break;
-        if (contextHits.length >= maxTotal) break;
-        if (perHitState.added >= maxPerHit) break;
+        if (halted || perHitState.capped) break;
         if (consumeWork()) break;
         const detail = detailResolver(edge);
         const reason = formatReason(reasonType, detail);
         const targets = resolveTargets(edge);
         for (const docId of targets) {
-          if (halted) break;
-          if (perHitState.added >= maxPerHit || contextHits.length >= maxTotal) break;
+          if (halted || perHitState.capped) break;
+          if (consumeWork('candidate')) break;
           registerCandidate(docId, reasonType, reason, sourceId, perHitState);
         }
       }
@@ -520,18 +538,23 @@ export function expandContext({
         toRefBuilder: (name) => buildNameRef(name)
       });
       for (const edge of edges) {
-        if (halted) break;
-        if (contextHits.length >= maxTotal) break;
-        if (perHitState.added >= maxPerHit) break;
+        if (halted || perHitState.capped) break;
         if (consumeWork()) break;
         const name = edge?.to?.targetName;
         if (!name) continue;
         const ids = byName.get(name) || [];
         if (ids.length) {
           const reason = formatReason('call', name);
+          let seen = 0;
           for (const id of ids) {
-            if (halted) break;
-            if (perHitState.added >= maxPerHit || contextHits.length >= maxTotal) break;
+            if (halted || perHitState.capped) break;
+            if (consumeWork('candidate')) break;
+            if (primaryIds.has(id) || (allowedIds && !allowedIds.has(id)) || !byDocId.has(id)) continue;
+            if (caps.maxNameCandidates != null && seen >= caps.maxNameCandidates) {
+              recordTruncation('maxNameCandidates', { limit: caps.maxNameCandidates, observed: seen + 1 });
+              break;
+            }
+            seen += 1;
             registerCandidate(id, 'call', reason, sourceId, perHitState);
           }
           continue;
@@ -540,22 +563,23 @@ export function expandContext({
         if (!files.length) continue;
         const reason = formatReason('nameFallback', name);
         let seen = 0;
+        let nameCapped = false;
         for (const file of files) {
+          if (halted || perHitState.capped || consumeWork('name-bucket')) break;
           const fileIds = resolveDocIdsByFile(file);
           for (const id of fileIds) {
-            if (halted) break;
-            if (perHitState.added >= maxPerHit || contextHits.length >= maxTotal) break;
+            if (halted || perHitState.capped) break;
+            if (consumeWork('candidate')) break;
+            if (primaryIds.has(id) || (allowedIds && !allowedIds.has(id)) || !byDocId.has(id)) continue;
+            if (caps.maxNameCandidates != null && seen >= caps.maxNameCandidates) {
+              recordTruncation('maxNameCandidates', { limit: caps.maxNameCandidates, observed: seen + 1 });
+              nameCapped = true;
+              break;
+            }
             registerCandidate(id, 'nameFallback', reason, sourceId, perHitState);
             seen += 1;
-            if (caps.maxNameCandidates != null && seen >= caps.maxNameCandidates) break;
           }
-          if (caps.maxNameCandidates != null && seen >= caps.maxNameCandidates) break;
-        }
-        if (caps.maxNameCandidates != null && seen >= caps.maxNameCandidates) {
-          recordTruncation('maxNameCandidates', {
-            limit: caps.maxNameCandidates,
-            observed: seen
-          });
+          if (nameCapped || halted || perHitState.capped) break;
         }
       }
     }
@@ -616,6 +640,8 @@ export function expandContext({
     contextHits,
     stats: {
       added: contextHits.length,
+      ...work,
+      preparation,
       workUnitsUsed: workBudget.getUsed(),
       truncation: truncation.list.length ? truncation.list : null
     }

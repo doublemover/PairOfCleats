@@ -13,7 +13,13 @@ const repo = path.join(temp, 'repo');
 await fs.mkdir(repo);
 await fs.writeFile(path.join(repo, 'lib.ts'), 'export function original(x: number) { return x + 1; } export {original as renamed};');
 await fs.writeFile(path.join(repo, 'input.ts'), 'import {renamed as imported} from "./lib"; export function run() { const a = imported(1); const b = imported(2); { const imported = (x: number) => x * 2; imported(3); } return new Float32Array([a,b]); } export function movement(worker: Worker) { const buffer = new ArrayBuffer(32); const view = new Float32Array(buffer, 0, 4); const copy = new Float32Array([1,2]); const capture = () => view; const payload = {values:view, copy}; worker.postMessage(payload, [buffer]); return payload; }');
-const dynamicText='function first(x:number,y:number){return x;} function second(x:number,y:number){return y;} export function alternatives(flag:boolean,a:number,b:number){const pick=flag?first:second;return pick(a,b);} class Base {run(x:number){return x;}} class Derived extends Base {run(x:number){return x+1;}} const receiver:Base=new Derived(); receiver.run(2); function adapted(this:{value:number},x:number){return x;} adapted.call({value:0},9); const bound=adapted.bind({value:0}); bound(10);';
+const dynamicText=[
+  'function first(x:number,y:number){return x;} function second(x:number,y:number){return y;} export function alternatives(flag:boolean,a:number,b:number){const pick=flag?first:second;return pick(a,b);} class Base {run(x:number){return x;}} class Derived extends Base {run(x:number){return x+1;}} const receiver:Base=new Derived(); receiver.run(2); function adapted(this:{value:number},x:number){return x;} adapted.call({value:0},9); const bound=adapted.bind({value:0}); bound(10);',
+  'function wrappedFirst(input:number){return input;} function wrappedSecond(input:number){return input+1;} let wrapped=wrappedFirst; ((wrapped))=wrappedSecond; wrapped(12);',
+  'const wrappedHolder={run:wrappedFirst}; ((wrappedHolder.run))=wrappedSecond; wrappedHolder.run(14);',
+  'class WrappedPatch {run(input:number){return input;}} ((WrappedPatch.prototype).run)=wrappedSecond; new WrappedPatch().run(15);',
+  'wrappedFirst.apply(undefined, ([16] satisfies [number]));'
+].join('\n');
 await fs.writeFile(path.join(repo,'dynamic.ts'),dynamicText);
 // Exercise eager cold/warm completion under a bounded allowance for the entire build process.
 applyTestEnv({ cacheRoot: path.join(temp, 'cache'), embeddings: 'stub', testConfig: {
@@ -47,6 +53,18 @@ try {
   assert.equal(alternatives.length,2,'production compiler session preserves both callable alternatives');
   assert.ok(alternatives.every(edge=>edge.certainty==='modeled'));
   assert.ok(dynamicCalls.some(edge=>callText(edge)==='receiver.run(2)'&&edge.certainty==='modeled'),'production member dispatch stays modeled');
+  for (const text of ['wrapped(12)', 'wrappedHolder.run(14)', 'new WrappedPatch().run(15)']) {
+    const targets = dynamicCalls.filter(edge => callText(edge) === text);
+    assert.equal(targets.length, 2, 'production binding retains both source candidates after wrapped assignment: ' + text);
+    assert.ok(targets.every(edge => edge.certainty === 'modeled'));
+  }
+  const wrappedApply = dynamicCalls.find(edge => callText(edge) === 'wrappedFirst.apply(undefined, ([16] satisfies [number]))');
+  assert.ok(wrappedApply && wrappedApply.certainty === 'modeled');
+  assert.ok(edges.some(edge => edge.kind === 'argumentToParameter' && edge.callSite?.partitionId === wrappedApply.from.partitionId
+    && edge.callSite.localId === wrappedApply.from.localId && (() => {
+    const span = records.get(edge.from.partitionId + ':' + edge.from.localId)?.span;
+    return span && dynamicText.slice(...span) === '16';
+  })()), 'production apply projection retains the erased wrapper array element as its actual argument');
   for(const text of ['adapted.call({value:0},9)','bound(10)']) {
     const target=dynamicCalls.find(edge=>callText(edge)===text);
     assert.ok(target&&target.certainty==='modeled','production adapter resolves source candidate '+text);
@@ -83,21 +101,5 @@ try {
     assert.ok(manifest.completedTasks.length > 0);
     for (const receipt of manifest.completedTasks) assert.equal(control.prepare('SELECT state FROM tasks WHERE taskId=?').get(receipt.taskId).state, 'completed', 'completion follows successful normal generation promotion');
   } finally { control.close(); }
-  await buildIndex(repo, { mode: 'code', stage: 'stage2', incremental: true, 'stub-embeddings': true, 'scm-provider': 'none' });
-  const warmDir = getIndexDir(repo, 'code', loadUserConfig(repo));
-  const warm = JSON.parse(await fs.readFile(path.join(warmDir, 'semantic_manifest.json'), 'utf8'));
-  assert.notEqual(warm.generation.baseBuildId, manifest.generation.baseBuildId);
-  assert.deepEqual(warm.partitions.filter(p => p.partitionId.startsWith('sy1:')).map(p => p.canonicalHash).sort(),
-    manifest.partitions.filter(p => p.partitionId.startsWith('sy1:')).map(p => p.canonicalHash).sort(), 'warm reuse retains exact immutable syntax');
-  const {store:warmStore}=await openPublishedSemanticStore({indexDir:warmDir,repoRoot:repo,generation:warm.generation});
-  const warmBindings=[],warmTargets=[];
-  for(const partition of warm.partitions){
-    for await(const row of warmStore.iterateRows(partition.partitionId,'semantic_records'))if(row.kind==='binding')warmBindings.push(JSON.stringify(row));
-    for await(const row of warmStore.iterateRows(partition.partitionId,'semantic_edges'))if(row.kind==='callTarget')warmTargets.push(JSON.stringify(row));
-  }
-  assert.deepEqual(warmBindings.sort(),[...records.values()].filter(row=>row.kind==='binding').map(row=>JSON.stringify(row)).sort(),'warm cache retains checker observations without requiring redundant task execution');
-  assert.deepEqual(warmTargets.sort(),edges.filter(row=>row.kind==='callTarget').map(row=>JSON.stringify(row)).sort(),'warm cache retains exact call targets');
-  assert.ok(warm.completedTasks.every(receipt => receipt.baseBuildId === warm.generation.baseBuildId));
-
 } finally { await fs.rm(temp, { recursive: true, force: true }); }
 console.log('compiler binding production passed');

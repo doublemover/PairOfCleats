@@ -1,7 +1,9 @@
 import { rankLanceDb } from '../../lancedb.js';
 import { ANN_PROVIDER_IDS } from '../types.js';
 import { canRunAnnQuery, isAnnProviderAvailable } from '../utils.js';
+import { throwIfAborted } from '../../../shared/abort.js';
 
+/** @returns {import('../types.js').AnnProvider} */
 export function createLanceDbAnnProvider({
   lancedbConfig,
   lanceAnnState,
@@ -19,12 +21,15 @@ export function createLanceDbAnnProvider({
 
   return {
     id: ANN_PROVIDER_IDS.LANCEDB,
+    capabilities: Object.freeze({ predicate: 'partitioned-candidate-id-pushdown', exhaustiveStored: false,
+      progressiveEffort: true, cancellation: 'between-native-partitions-and-materialized-row-groups', scoreSpace: 'metadata-declared-distance' }),
     isAvailable: ({ idx, mode, embedding }) => isAnnProviderAvailable({
       embedding,
       enabled: isEnabled,
       backendReady: isBackendReady(idx, mode)
     }),
     query: async ({ idx, mode, embedding, topN, candidateSet, signal, budget }) => {
+      throwIfAborted(signal);
       const resolvedTopN = resolveTopN(topN, budget);
       if (!canRunAnnQuery({
         signal,
@@ -40,9 +45,10 @@ export function createLanceDbAnnProvider({
         queryEmbedding: embedding,
         topN: resolvedTopN,
         candidateSet,
-        config: lancedbConfig
+        config: lancedbConfig,
+        signal
       });
-      if (signal?.aborted) return [];
+      throwIfAborted(signal);
       if (hits.length && lanceAnnUsed && mode in lanceAnnUsed) {
         lanceAnnUsed[mode] = true;
       }

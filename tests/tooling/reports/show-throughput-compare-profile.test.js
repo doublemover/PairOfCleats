@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
+import { THROUGHPUT_COMPARISON_VERSION } from '../../../tools/reports/show-throughput/result-contract.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import {
@@ -36,6 +37,25 @@ try {
   assert.equal(output.includes('Compare Overview'), true, output);
   assert.equal(output.includes('javascript:'), true, output);
   assert.equal(output.includes('50.0 vs 25.0'), true, output);
+  const compareArgs = ['--root', absoluteCurrentResults, '--profile', 'compare', '--compare', absoluteBaselineResults];
+  const json = runShowThroughputReport([...compareArgs, '--json']);
+  assert.equal(json.status, 0, json.stderr || json.stdout);
+  const comparison = JSON.parse(json.stdout).comparison;
+  assert.equal(comparison.schemaVersion, THROUGHPUT_COMPARISON_VERSION);
+  assert.equal(comparison.state, 'comparable-inputs');
+  assert.equal(comparison.rows[0].currentChunks, 50);
+  assert.equal(comparison.rows[0].baselineChunks, 25);
+  assert.equal(comparison.rows[0].deltaChunksPct, 1);
+  assert.equal(comparison.rows[0].deltaBuildPct, -0.5);
+  const csv = runShowThroughputReport([...compareArgs, '--csv']);
+  assert.equal(csv.status, 0, csv.stderr || csv.stdout);
+  assert.match(csv.stdout, /currentChunks,baselineChunks,deltaChunksPct/);
+  assert.match(csv.stdout, /javascript,50,25,1,100,200,-0.5/);
+  for (const format of ['--json', '--csv']) {
+    const missing = runShowThroughputReport(['--root', absoluteCurrentResults, '--profile', 'compare', format], { allowFailure: true });
+    assert.notEqual(missing.status, 0);
+    assert.match(missing.stderr, /--compare is required/);
+  }
 
   const compareFamilyRoot = path.join(tempRoot, 'family');
   const siblingCurrentResults = await writeShowThroughputPayload(path.join(compareFamilyRoot, 'current'), {

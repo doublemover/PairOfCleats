@@ -1,0 +1,63 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import { makeTempDir, rmDirRecursive } from '../../helpers/temp.js';
+import { buildCacheIdentity, resolveGlobalChunkCacheDir, resolveCacheDir, writeCacheIndex,
+  withEmbeddingCacheReadLock } from '../../../tools/build/embeddings/cache.js';
+import { readEmbeddingIndex, appendEmbeddingIndexDelta } from '../../../tools/build/embeddings/cache/index-log.js';
+import { createCacheIndex } from '../../../tools/build/embeddings/cache/index-state.js';
+import { inspectEmbeddingStorageProfile } from '../../../tools/storage/embedding-adapter.js';
+import { runNode } from '../../helpers/run-node.js';
+import { applyTestEnv } from '../../helpers/test-env.js';
+
+const temporary = await makeTempDir('poc-storage-embedding-delta-');
+try {
+  const { identity, key } = buildCacheIdentity({ provider: 'stub', modelId: 'storage-fixture', dims: 2, stub: true });
+  const global = resolveGlobalChunkCacheDir(temporary, identity);
+  const files = resolveCacheDir(temporary, identity, 'code');
+  const chunkKey = 'a'.repeat(40);
+  const fileKey = 'b'.repeat(40);
+  for (const [directory, entryKey, extra] of [[global, chunkKey, {}],
+    [files, fileKey, { chunkReferences: { schemaVersion: 1, identityKey: key, keys: [chunkKey] } }]]) {
+    await writeCacheIndex(directory, createCacheIndex(key));
+    await fs.mkdir(path.join(directory, 'shards'), { recursive: true });
+    await fs.writeFile(path.join(directory, 'shards', 'shard-00000.bin'), Buffer.alloc(8));
+    await withEmbeddingCacheReadLock(directory, async () => {
+      const index = await readEmbeddingIndex(directory, key, { forUpdate: true });
+      assert.equal(index.journal?.version, 1, 'the canonical initial checkpoint must establish its journal generation');
+      index.entries[entryKey] = { key: entryKey, shard: 'shard-00000.bin', offset: 0, length: 4, storageEpoch: 0, ...extra };
+      index.shards['shard-00000.bin'] = { sizeBytes: 8 };
+      await appendEmbeddingIndexDelta(directory, index, { keys: [entryKey] });
+    });
+  }
+  const checkpoint = JSON.parse(await fs.readFile(path.join(files, 'cache.index.json'), 'utf8'));
+  assert.equal(Object.keys(checkpoint.entries).length, 0, 'fixture entry exists only in the committed delta');
+  const before = await fs.readdir(temporary, { recursive: true });
+  const inventory = await inspectEmbeddingStorageProfile({ cacheRoot: temporary, identity });
+  const fileIndex = inventory.indexes.find(index => index.directory === files);
+  assert.equal(fileIndex.entries, 1, 'canonical owner includes delta-only pointers');
+  assert.equal(inventory.references.protectedChunkKeys, 1, 'delta-only file references protect immutable chunks');
+  assert.equal(inventory.protectedMetadata.includes('cache.index.delta'), true);
+  assert.equal(inventory.cleanupAuthority, false);
+  assert.deepEqual(await fs.readdir(temporary, { recursive: true }), before, 'inventory does not create locks or compatibility roots');
+  const requestFile = path.join(temporary, 'profile-request.json');
+  const repo = path.join(temporary, 'inspection-repo');
+  const home = path.join(temporary, 'inspection-home');
+  await fs.mkdir(repo);
+  await fs.writeFile(requestFile, JSON.stringify({ schemaVersion: 1, kind: 'embedding-storage-profile-request', identity }));
+  const beforeCli = await fs.readdir(temporary, { recursive: true });
+  const cli = runNode(['tools/storage/cli.js', 'inspect', '--repo', repo, '--home', home, '--category', 'embedding-profiles',
+    '--path', temporary, '--plan', requestFile, '--json'], 'actual storage embedding category inventory', process.cwd(),
+  applyTestEnv({ syncProcess: false }), { stdio: 'pipe', allowFailure: true, timeoutMs: 10000 });
+  assert.equal(cli.status, 0, cli.stderr || cli.stdout);
+  const inspected = JSON.parse(cli.stdout);
+  assert.equal(inspected.logicalEntryCount, inventory.logicalEntryCount);
+  assert.equal(inspected.references.protectedChunkKeys, 1);
+  assert.equal(inspected.deletionAuthority, false);
+  assert.deepEqual(await fs.readdir(temporary, { recursive: true }), beforeCli, 'actual read-only category CLI creates no home or metadata directories');
+  await fs.appendFile(path.join(files, 'cache.index.delta'), Buffer.from([1]));
+  const incomplete = await inspectEmbeddingStorageProfile({ cacheRoot: temporary, identity });
+  assert.equal(incomplete.complete, false);
+  assert.equal(incomplete.references.complete, false, 'unreadable reference authority never becomes disposable');
+} finally { await rmDirRecursive(temporary); }
+console.log('embedding delta reference inventory passed');

@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["zero-current", "zero-baseline", "both-zero", "current-null", "current-missing", "current-string", "current-boolean", "current-negative", "current-nan", "baseline-null", "baseline-string", "mixed-baselines", "zero-mixed-baselines", "no-baseline", "missing-current-stage", "missing-baseline-stage", "missing-current-mode", "producer-unknown-zero", "finite-observation", "feature-unknown", "feature-matched-scope", "throughput-zero-summary", "stale-derived-summary", "bounded-exclusions", "summary"]
+}

@@ -180,6 +180,7 @@ for (const markdownPath of ['walkthroughs/first-search.md', 'walkthroughs/operat
 const settings = contract?.settings?.vscode || {};
 const keyMap = {
   cliPathKey: 'pairofcleats',
+  nodePathKey: 'pairofcleats',
   cliArgsKey: 'pairofcleats',
   apiServerUrlKey: 'pairofcleats',
   apiTimeoutKey: 'pairofcleats',
@@ -285,7 +286,7 @@ for (const entry of [
   'extension/analysis-renderers.js',
   'extension/windows-cmd.js',
   'extension/windows-cmd-core.cjs',
-  'extension/README.md',
+  'extension/readme.md',
   'extension/walkthroughs/first-search.md',
   'extension/walkthroughs/operations.md'
 ]) {

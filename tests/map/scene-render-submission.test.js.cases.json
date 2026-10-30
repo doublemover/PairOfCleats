@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["captured-operation", "generation-change", "native-failure", "observer-lifetime", "retirement-during-render", "noop-submission", "controls-loop"]
+}

@@ -1,11 +1,14 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
+import { INDEX_VALIDATE_OPTIONS, assertIndexValidationFlags } from '../../src/shared/index-tool-options.js';
 import { createCli } from '../../src/shared/cli.js';
 import { isDirectExecution } from '../../src/shared/direct-execution.js';
 import { hasChunkMetaArtifactsSync } from '../../src/shared/artifact-io/chunk-meta-presence.js';
 import { getIndexDir, resolveRepoConfig } from '../shared/dict-utils.js';
+import { captureSelectedModeRoots } from '../../src/shared/indexing/selected-mode-roots.js';
 import { validateIndexArtifacts } from '../../src/index/validate.js';
+import { captureValidationSelection } from '../../src/index/validate/selection.js';
 
 /**
  * Coarse index-mode readiness check used for default mode selection.
@@ -27,9 +30,11 @@ const hasIndexMeta = (dir) => {
  * @param {object} userConfig
  * @returns {string[]}
  */
-const resolveAvailableModes = (root, userConfig) => {
+const resolveAvailableModes = (root, userConfig, indexRoot = null, capturedModes = null) => {
+  const selection = capturedModes || captureSelectedModeRoots({ root, userConfig, indexRoot });
+  if (selection.modes.length || selection.source === 'published-mode-roots') return selection.modes;
   const modes = ['code', 'prose', 'extracted-prose', 'records'];
-  return modes.filter((mode) => hasIndexMeta(getIndexDir(root, mode, userConfig)));
+  return modes.filter((mode) => hasIndexMeta(getIndexDir(root, mode, userConfig, indexRoot ? { indexRoot } : {})));
 };
 
 /**
@@ -40,13 +45,13 @@ const resolveAvailableModes = (root, userConfig) => {
  * @param {object} userConfig
  * @returns {string[]}
  */
-const parseModes = (raw, root, userConfig) => {
+export const parseModes = (raw, root, userConfig, indexRoot = null, capturedModes = null) => {
   const tokens = String(raw || '')
     .split(/[,\s]+/)
     .map((token) => token.trim())
     .filter(Boolean);
   if (!tokens.length) {
-    const available = resolveAvailableModes(root, userConfig);
+    const available = resolveAvailableModes(root, userConfig, indexRoot, capturedModes);
     return available.length ? available : ['code', 'prose', 'extracted-prose', 'records'];
   }
   const allowed = new Set(['code', 'prose', 'extracted-prose', 'records', 'all']);
@@ -63,25 +68,20 @@ const parseModes = (raw, root, userConfig) => {
 async function runCli() {
   const argv = createCli({
     scriptName: 'index-validate',
-    options: {
-      json: { type: 'boolean', default: false },
-      repo: { type: 'string' },
-      mode: { type: 'string' },
-      'index-root': { type: 'string' },
-      strict: { type: 'boolean', describe: 'Validate strict contracts (default unless --non-strict).' },
-      'non-strict': { type: 'boolean', default: false }
-    }
+    options: INDEX_VALIDATE_OPTIONS
   }).strictOptions().parse();
 
   const { repoRoot: root, userConfig } = resolveRepoConfig(argv.repo);
   const indexRoot = argv['index-root'] ? path.resolve(argv['index-root']) : null;
-  const modes = parseModes(argv.mode, root, userConfig);
-  if (argv.strict && argv['non-strict']) {
-    throw new Error('Choose either --strict or --non-strict, not both.');
-  }
+  // Reject an invalid explicit mode before inspecting publication state.
+  const explicitModes = typeof argv.mode === 'string' && argv.mode.trim()
+    ? parseModes(argv.mode, root, userConfig, indexRoot) : null;
+  const capturedModes = captureSelectedModeRoots({ root, userConfig, indexRoot });
+  const modes = explicitModes || parseModes(argv.mode, root, userConfig, indexRoot, capturedModes);
+  assertIndexValidationFlags(argv);
   const strict = argv['non-strict'] ? false : argv.strict !== false;
-  const report = await validateIndexArtifacts({ root, indexRoot, modes, strict });
-
+  const selection = captureValidationSelection({ root, userConfig, indexRoot, modes, strict, capturedModes });
+  const report = await validateIndexArtifacts({ root, userConfig, indexRoot, modes, strict, selection });
   if (argv.json) {
     console.log(JSON.stringify(report, null, 2));
     process.exit(report.ok ? 0 : 1);
@@ -96,11 +96,12 @@ async function runCli() {
       console.error(`- ${mode}: missing (no report entry)`);
       continue;
     }
-    const status = entry.ok ? 'ok' : 'missing';
+    const status = entry.state === 'unverified' ? 'unverified' : entry.ok ? 'ok' : entry.state || 'invalid';
     console.error(`- ${mode}: ${status} (${entry.path})`);
     if (entry.missing.length) {
       console.error(`  - missing: ${entry.missing.join(', ')}`);
     }
+    if (entry.invalid?.length) console.error(`  - invalid: ${entry.invalid.join(', ')}`);
     if (entry.warnings.length) {
       console.error(`  - optional: ${entry.warnings.join(', ')}`);
     }

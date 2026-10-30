@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "cases": [
+    "build-search",
+    "validate-published",
+    "search-published",
+    "watch-cancel",
+    "build-cancel",
+    "preview-cancel",
+    "workspace",
+    "snapshot",
+    "snapshot-create",
+    "snapshot-list-populated",
+    "snapshot-show",
+    "snapshot-freeze",
+    "snapshot-remove",
+    "snapshot-prune",
+    "snapshot-gc",
+    "report",
+    "stats",
+    "stats-conflict",
+    "missing-model",
+    "invalid-provider",
+    "stale"
+  ]
+}

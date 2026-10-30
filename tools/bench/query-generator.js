@@ -2,6 +2,8 @@
 import { guardBootstrapEntry } from '../../src/shared/bootstrap-readiness.js';
 await guardBootstrapEntry(import.meta.url);
 import path from 'node:path';
+import { QUERY_GENERATION_SEMANTICS_VERSION, queryLiteral, queryAnd, queryOr, queryNot,
+  serializeGeneratedQuery, admitGeneratedQuery } from './query-expression.js';
 const { default: seedrandom } = await import('seedrandom');
 const { createCli } = await import('../../src/shared/cli.js');
 const { loadChunkMeta } = await import('../../src/shared/artifact-io/loaders.js');
@@ -184,13 +186,6 @@ export const normalizeIntentWeights = ({
   return merged;
 };
 
-const formatQueryValue = (value) => {
-  if (!value) return null;
-  const cleaned = String(value).replace(/\s+/g, ' ').trim();
-  if (!cleaned) return null;
-  const escaped = cleaned.replace(/[\\"]/g, '\\$&');
-  return /\s/.test(escaped) ? `"${escaped}"` : escaped;
-};
 const tokensFromDoc = (text) => {
   if (!text) return [];
   return text
@@ -283,7 +278,7 @@ const pickOr = (list, rng, fallback = null) => {
 };
 
 const maybeJoin = (...parts) => {
-  const values = parts.map((entry) => String(entry || '').trim()).filter(Boolean);
+  const values = parts.filter(entry => entry != null).map(entry => queryLiteral(entry).value);
   return values.length ? values.join(' ') : null;
 };
 
@@ -301,46 +296,46 @@ const buildIntentStrategies = ({ candidates, languageFamily, rng }) => {
   return {
     symbol: {
       standard: [
-        () => formatQueryValue(pickOr(names, rng)),
-        () => formatQueryValue(maybeJoin(pickOr(names, rng), pickOr(kinds, rng))),
-        () => formatQueryValue(maybeJoin(pickOr(names, rng), pickOr(typeTokens, rng)))
+        () => queryLiteral(pickOr(names, rng)),
+        () => queryLiteral(maybeJoin(pickOr(names, rng), pickOr(kinds, rng))),
+        () => queryLiteral(maybeJoin(pickOr(names, rng), pickOr(typeTokens, rng)))
       ],
       adversarial: [
-        () => formatQueryValue(`${pickOr(names, rng)} -${pickOr(riskTags, rng)}`),
-        () => formatQueryValue(maybeJoin(pickOr(names, rng), pickOr(names, rng)))
+        () => queryAnd(queryLiteral(pickOr(names, rng)), queryNot(queryLiteral(pickOr(riskTags, rng)))),
+        () => queryLiteral(maybeJoin(pickOr(names, rng), pickOr(names, rng)))
       ]
     },
     type: {
       standard: [
-        () => formatQueryValue(pickOr(returnTypes, rng)),
-        () => formatQueryValue(maybeJoin('type', pickOr(typeTokens, rng))),
-        () => formatQueryValue(maybeJoin(pickOr(typeTokens, rng), pickOr(kinds, rng)))
+        () => queryLiteral(pickOr(returnTypes, rng)),
+        () => queryLiteral(maybeJoin('type', pickOr(typeTokens, rng))),
+        () => queryLiteral(maybeJoin(pickOr(typeTokens, rng), pickOr(kinds, rng)))
       ],
       adversarial: [
-        () => formatQueryValue(`"${pickOr(typeTokens, rng)}" -deprecated`),
-        () => formatQueryValue(maybeJoin(pickOr(typeTokens, rng), pickOr(riskTags, rng)))
+        () => queryAnd(queryLiteral(pickOr(typeTokens, rng), { phrase: true }), queryNot(queryLiteral('deprecated'))),
+        () => queryLiteral(maybeJoin(pickOr(typeTokens, rng), pickOr(riskTags, rng)))
       ]
     },
     api: {
       standard: [
-        () => formatQueryValue(pickOr(signatures, rng)),
-        () => formatQueryValue(maybeJoin(pickOr(names, rng), pickOr(apiHints, rng))),
-        () => formatQueryValue(maybeJoin(pickOr(apiHints, rng), pickOr(docs, rng)))
+        () => queryLiteral(pickOr(signatures, rng)),
+        () => queryLiteral(maybeJoin(pickOr(names, rng), pickOr(apiHints, rng))),
+        () => queryLiteral(maybeJoin(pickOr(apiHints, rng), pickOr(docs, rng)))
       ],
       adversarial: [
-        () => formatQueryValue(`"${pickOr(signatures, rng)}" -legacy`),
-        () => formatQueryValue(maybeJoin(pickOr(apiHints, rng), 'OR', pickOr(names, rng)))
+        () => queryAnd(queryLiteral(pickOr(signatures, rng), { phrase: true }), queryNot(queryLiteral('legacy'))),
+        () => queryOr(queryLiteral(pickOr(apiHints, rng)), queryLiteral(pickOr(names, rng)))
       ]
     },
     behavior: {
       standard: [
-        () => formatQueryValue(maybeJoin(pickOr(behaviorHints, rng), pickOr(docs, rng))),
-        () => formatQueryValue(maybeJoin(pickOr(riskTags, rng), pickOr(behaviorHints, rng))),
-        () => formatQueryValue(pickOr(docs, rng))
+        () => queryLiteral(maybeJoin(pickOr(behaviorHints, rng), pickOr(docs, rng))),
+        () => queryLiteral(maybeJoin(pickOr(riskTags, rng), pickOr(behaviorHints, rng))),
+        () => queryLiteral(pickOr(docs, rng))
       ],
       adversarial: [
-        () => formatQueryValue(`"${pickOr(behaviorHints, rng)} ${pickOr(docs, rng)}" -todo`),
-        () => formatQueryValue(maybeJoin(pickOr(riskTags, rng), '-', pickOr(riskTags, rng)))
+        () => queryAnd(queryLiteral(maybeJoin(pickOr(behaviorHints, rng), pickOr(docs, rng)), { phrase: true }), queryNot(queryLiteral('todo'))),
+        () => queryAnd(queryLiteral(pickOr(riskTags, rng)), queryNot(queryLiteral(pickOr(riskTags, rng))))
       ]
     }
   };
@@ -354,16 +349,18 @@ export const generateWeightedQuerySet = ({
   intentWeights = null,
   adversarialRatio = 0.15
 } = {}) => {
+  const queryCount = resolveCount(count);
   const list = Array.isArray(chunks) ? chunks : [];
   if (!list.length) {
     return {
       languageFamily: 'general',
       intentWeights: normalizeIntentWeights({ languageFamily: 'general', override: intentWeights }),
       intentPlan: {},
-      querySet: []
+      querySet: [],
+      generation: { schemaVersion: QUERY_GENERATION_SEMANTICS_VERSION, requestedCount: queryCount,
+        emittedCount: 0, complete: false, rejections: { count: 0, reasons: {}, samples: [] } }
     };
   }
-  const queryCount = Math.max(10, Math.min(200, Number(count) || 50));
   const resolvedSeed = String(seed || sha1(`bench-query-generator:${queryCount}:${list.length}`));
   const rng = seedrandom(resolvedSeed);
   const candidates = collectCandidates(list);
@@ -386,6 +383,7 @@ export const generateWeightedQuerySet = ({
   });
   const seenQueries = new Set();
   const querySet = [];
+  const rejections = { count: 0, reasons: {}, samples: [] };
   const normalizedAdversarialRatio = Math.max(0, Math.min(0.5, Number(adversarialRatio) || 0));
 
   const tryPushQuery = (intentClass, variant) => {
@@ -394,11 +392,26 @@ export const generateWeightedQuerySet = ({
     const attempts = Math.max(8, strategies.length * 3);
     for (let index = 0; index < attempts; index += 1) {
       const strategy = pickOr(strategies, rng);
-      const query = typeof strategy === 'function' ? strategy() : null;
-      if (!query || seenQueries.has(query)) continue;
+      if (typeof strategy !== 'function') continue;
+      let admitted;
+      try {
+        const expression = strategy();
+        if (seenQueries.has(serializeGeneratedQuery(expression))) continue;
+        admitted = admitGeneratedQuery(expression);
+      }
+      catch (error) {
+        if (error.code !== 'ERR_BENCH_QUERY_LITERAL') throw error;
+        rejections.count++;
+        rejections.reasons[error.code] = (rejections.reasons[error.code] || 0) + 1;
+        if (rejections.samples.length < 16) rejections.samples.push({ intentClass, variant, code: error.code });
+        continue;
+      }
+      const { query, queryShape } = admitted;
+      if (seenQueries.has(query)) continue;
       seenQueries.add(query);
       querySet.push({
         query,
+        queryShape,
         intentClass,
         variant,
         weight: normalizedWeights[intentClass]
@@ -434,11 +447,13 @@ export const generateWeightedQuerySet = ({
     languageFamily: resolvedFamily,
     intentWeights: normalizedWeights,
     intentPlan,
-    querySet: querySet.slice(0, queryCount)
+    querySet: querySet.slice(0, queryCount),
+    generation: { schemaVersion: QUERY_GENERATION_SEMANTICS_VERSION, requestedCount: queryCount,
+      emittedCount: querySet.length, complete: querySet.length === queryCount, rejections }
   };
 };
 
-const resolveCount = (value) => Math.max(10, Math.min(200, Number(value) || 50));
+const resolveCount = (value) => Math.floor(Math.max(10, Math.min(200, Number(value) || 50)));
 
 const formatIntentWeightsHeader = (intentWeights = {}) => QUERY_INTENT_CLASSES
   .map((intentClass) => `${intentClass}=${(Number(intentWeights[intentClass]) || 0).toFixed(3)}`)
@@ -451,13 +466,17 @@ const buildPayload = ({
   mode,
   languageFamily,
   intentWeights,
-  querySet
+  querySet,
+  generation
 }) => {
   const intentCounts = Object.fromEntries(
     QUERY_INTENT_CLASSES.map((intentClass) => [intentClass, 0])
   );
   const variantCounts = { standard: 0, adversarial: 0 };
+  const shapeCounts = {};
   for (const entry of querySet) {
+    const shapeClass = entry.queryShape.observedClass;
+    shapeCounts[shapeClass] = (shapeCounts[shapeClass] || 0) + 1;
     const intentClass = entry?.intentClass;
     if (QUERY_INTENT_CLASSES.includes(intentClass)) {
       intentCounts[intentClass] += 1;
@@ -466,6 +485,10 @@ const buildPayload = ({
     else variantCounts.standard += 1;
   }
   return {
+    schemaVersion: QUERY_GENERATION_SEMANTICS_VERSION,
+    kind: 'bench-query-workload',
+    querySemantics: { parser: 'production-boolean-grammar', validation: 'exact-ast', shapeCounts },
+    generation,
     generatedAt,
     seed,
     indexDir,
@@ -527,7 +550,8 @@ export const runQueryGeneratorCli = async (rawArgs = process.argv.slice(2)) => {
     mode,
     languageFamily: result.languageFamily,
     intentWeights: result.intentWeights,
-    querySet: result.querySet
+    querySet: result.querySet,
+    generation: result.generation
   });
 
   if (argv.json) {
@@ -542,6 +566,9 @@ export const runQueryGeneratorCli = async (rawArgs = process.argv.slice(2)) => {
     : path.join(root, 'benchmarks', 'queries', `generated-${mode}.txt`);
   const lines = [
     '# Generated by bench-query-generator',
+    `# query-semantics-version: ${payload.schemaVersion}`,
+    `# query-shapes: ${JSON.stringify(payload.querySemantics.shapeCounts)}`,
+    `# generation: ${payload.generation.emittedCount}/${payload.generation.requestedCount}`,
     `# seed: ${seed}`,
     `# mode: ${mode}`,
     `# language-family: ${payload.languageFamily}`,

@@ -1,5 +1,7 @@
 import crypto from 'node:crypto';
+import { projectDiagnosticEnvironment } from '../../../src/shared/diagnostic-environment.js';
 import { log, logError } from '../../../src/shared/progress-runtime.js';
+import { observedDiagnosticCost } from './diagnostic-replay.js';
 import {
   normalizeReuseSource,
   normalizeReuseSurface,
@@ -7,17 +9,7 @@ import {
   resolveScmFallbackCause
 } from '../../../src/shared/reuse-diagnostics.js';
 
-const ENV_METADATA_KEYS = Object.freeze([
-  'NODE_OPTIONS',
-  'ORG_GRADLE_DAEMON',
-  'GRADLE_OPTS',
-  'PAIROFCLEATS_TESTING',
-  'PAIROFCLEATS_TEST_CONFIG',
-  'PAIROFCLEATS_CACHE_ROOT',
-  'PAIROFCLEATS_CRASH_LOG_ANNOUNCE'
-]);
-
-export const BENCH_DIAGNOSTIC_STREAM_SCHEMA_VERSION = 2;
+export { BENCH_DIAGNOSTIC_STREAM_SCHEMA_VERSION } from './diagnostic-contract.js';
 export const BENCH_DIAGNOSTIC_EVENT_TYPES = Object.freeze([
   'parser_crash',
   'scm_timeout',
@@ -56,7 +48,7 @@ export const BENCH_DIAGNOSTIC_MATERIAL_PARITY_EVENT_TYPES = Object.freeze([
   'provider_circuit_breaker',
   'provider_degraded_mode_entered'
 ]);
-export const BENCH_PROGRESS_CONFIDENCE_SCHEMA_VERSION = 1;
+export const BENCH_PROGRESS_CONFIDENCE_SCHEMA_VERSION = 2;
 export const BENCH_PROGRESS_CONFIDENCE_THRESHOLDS = Object.freeze({
   high: 0.75,
   medium: 0.5
@@ -344,11 +336,11 @@ const buildDiagnosticSignal = ({
     reuseSurface: normalizeReuseSurface(reuseSurface),
     reuseSource: normalizeReuseSource(reuseSource),
     qualityImpact: String(qualityImpact || '').trim().toLowerCase() || null,
-    timeCostMs: toNonNegativeCount(timeCostMs),
-    requestedCount: toNonNegativeCount(requestedCount),
-    reusedCount: toNonNegativeCount(reusedCount),
-    fetchedCount: toNonNegativeCount(fetchedCount),
-    chunkCount: toNonNegativeCount(chunkCount),
+    timeCostMs: observedDiagnosticCost(timeCostMs),
+    requestedCount: observedDiagnosticCost(requestedCount, { integer: true }),
+    reusedCount: observedDiagnosticCost(reusedCount, { integer: true }),
+    fetchedCount: observedDiagnosticCost(fetchedCount, { integer: true }),
+    chunkCount: observedDiagnosticCost(chunkCount, { integer: true }),
     timeoutKind: String(timeoutKind || '').trim() || null,
     phase: String(phase || '').trim() || null,
     resourceClass: String(resourceClass || '').trim() || null,
@@ -824,40 +816,31 @@ export const normalizeBenchDiagnosticText = (value, { maxLength = 160 } = {}) =>
   return text.length <= limit ? text : text.slice(0, limit);
 };
 
+export const admitBenchProgressScore = value => typeof value === 'number' && Number.isFinite(value) ? Math.max(0, Math.min(1, value)) : null;
+
 export const classifyBenchProgressConfidence = (value) => {
-  if (value == null || value === '') return 'unknown';
-  const score = Number(value);
-  if (!Number.isFinite(score)) return 'unknown';
+  const score = admitBenchProgressScore(value);
+  if (score === null) return 'unknown';
   if (score >= BENCH_PROGRESS_CONFIDENCE_THRESHOLDS.high) return 'high';
   if (score >= BENCH_PROGRESS_CONFIDENCE_THRESHOLDS.medium) return 'medium';
   return 'low';
 };
 
 export const formatBenchProgressConfidence = (value) => {
-  if (value == null || value === '') return 'unknown';
-  const score = Number(value);
-  if (!Number.isFinite(score)) return 'unknown';
+  const score = admitBenchProgressScore(value);
+  if (score === null) return 'unknown';
   const bucket = classifyBenchProgressConfidence(score);
   return `${bucket} ${(Math.max(0, Math.min(1, score)) * 100).toFixed(1)}%`;
 };
 
 const clamp01 = (value) => Math.max(0, Math.min(1, Number(value) || 0));
 
-const toSafeSampleCount = (value) => {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : 0;
-};
-
-const resolveComponentScore = (value) => {
-  if (value == null || value === '') return null;
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed)) return null;
-  return clamp01(parsed);
-};
+const toSafeSampleCount = value => Number.isSafeInteger(value) && value > 0 ? value : 0;
+const resolveComponentScore = admitBenchProgressScore;
 
 /**
  * Combine normalized UB-098 confidence components into one stable score.
- * Missing components are omitted from weighting so partial telemetry remains useful.
+ * Only components with enough actual samples enter weighting; partial telemetry remains explicit.
  */
 export const computeBenchProgressConfidence = ({
   heartbeatRegularityScore,
@@ -896,10 +879,15 @@ export const computeBenchProgressConfidence = ({
     }
   ];
 
+  const minimumSamples = { heartbeatRegularity: 1, queueAge: 2, inFlightSpread: 2, stallEvents: 1 };
+  for (const entry of componentInputs) {
+    entry.minimumSamples = minimumSamples[entry.key];
+    entry.eligible = entry.score !== null && entry.samples >= entry.minimumSamples;
+  }
   let weightedSum = 0;
   let weightSum = 0;
   for (const entry of componentInputs) {
-    if (!Number.isFinite(entry.score)) continue;
+    if (!entry.eligible) continue;
     weightedSum += entry.score * entry.weight;
     weightSum += entry.weight;
   }
@@ -910,13 +898,21 @@ export const computeBenchProgressConfidence = ({
     score,
     bucket,
     text: formatBenchProgressConfidence(score),
+    scope: 'observed-progress-heuristic',
+    calibratedProbability: false,
+    coverage: { state: weightSum > 0 ? 'observed' : 'insufficient',
+      eligibleComponents: componentInputs.filter(entry => entry.eligible).map(entry => entry.key),
+      activeWeight: weightSum, requiredComponents: componentInputs.length },
     components: Object.fromEntries(
       componentInputs.map((entry) => [
         entry.key,
         {
-          score: entry.score,
+          score: entry.eligible ? entry.score : null,
+          observedScore: entry.score,
           weight: entry.weight,
-          samples: entry.samples
+          samples: entry.samples,
+          minimumSamples: entry.minimumSamples,
+          eligible: entry.eligible
         }
       ])
     ),
@@ -927,6 +923,23 @@ export const computeBenchProgressConfidence = ({
       stallEvents: toSafeSampleCount(stallSamples)
     }
   };
+};
+
+/** Last-observed snapshot only. No timer or watchdog policy is created here. */
+export const qualifyBenchProgressObservation = (confidence, { nowMs = Date.now(), firstObservedAtMs = null,
+  lastObservedAtMs = null, phase = null, taskId = null, staleAfterMs = 30000 } = {}) => {
+  if (typeof staleAfterMs !== 'number' || !Number.isFinite(staleAfterMs) || staleAfterMs <= 0) throw new TypeError('Confidence freshness requires a positive finite snapshot allowance.');
+  const time = value => typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : null;
+  const first = time(firstObservedAtMs), last = time(lastObservedAtMs), now = time(nowMs);
+  const ageMs = last !== null && now !== null && now >= last ? now - last : null;
+  const sampleScore = admitBenchProgressScore(confidence?.score);
+  const state = sampleScore === null ? 'insufficient' : ageMs === null ? 'unknown' : ageMs >= staleAfterMs ? 'stale' : 'observed';
+  const score = state === 'observed' ? sampleScore : null;
+  return { ...confidence, sampleScore, score, bucket: classifyBenchProgressConfidence(score), text: formatBenchProgressConfidence(score),
+    observation: { state, view: 'last-observed-snapshot', snapshotAtMs: now, firstObservedAtMs: first,
+      lastObservedAtMs: last, ageMs, staleAfterMs, window: 'process-observation-bounds-with-trailing-component-samples',
+      lastContext: { phase: typeof phase === 'string' ? phase.slice(0, 256) : null,
+        taskId: typeof taskId === 'string' ? taskId.slice(0, 256) : null } } };
 };
 
 export const buildBenchDiagnosticSignature = ({
@@ -978,16 +991,11 @@ export const buildBenchDiagnosticEventId = ({ eventType, signature } = {}) => {
 };
 
 export const buildBenchEnvironmentMetadata = (env = process.env) => {
-  const selected = {};
-  for (const [key, value] of Object.entries(env || {})) {
-    const includeKey = ENV_METADATA_KEYS.includes(key) || key.startsWith('PAIROFCLEATS_');
-    if (!includeKey) continue;
-    if (value == null || value === '') continue;
-    selected[key] = String(value);
-  }
+  const { projectionVersion, selected } = projectDiagnosticEnvironment(env);
   const fingerprint = crypto
-    .createHash('sha1')
+    .createHash('sha256')
     .update(JSON.stringify({
+      projectionVersion,
       platform: process.platform,
       arch: process.arch,
       nodeVersion: process.version,
@@ -995,11 +1003,12 @@ export const buildBenchEnvironmentMetadata = (env = process.env) => {
     }))
     .digest('hex');
   return {
+    projectionVersion,
     platform: process.platform,
     arch: process.arch,
     nodeVersion: process.version,
     selected,
-    fingerprint: `sha1:${fingerprint}`
+    fingerprint: `sha256:${fingerprint}`
   };
 };
 

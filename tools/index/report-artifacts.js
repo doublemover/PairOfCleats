@@ -1,16 +1,18 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import { readRuntimeReceipt, listRuntimeReceipts, formatRuntimeReceiptSummary } from '../../src/shared/runtime-envelope/read-receipt.js';
-import { getRepoCacheRoot, getIndexDir } from '../../src/shared/repo-paths.js';
+import { resolveRepoCacheRootPath, getIndexDir } from '../../src/shared/repo-paths.js';
 import path from 'node:path';
+import { INDEX_REPORT_OPTIONS } from '../../src/shared/index-tool-options.js';
 import { createCli } from '../../src/shared/cli.js';
 import { formatBytes } from '../../src/shared/disk-space.js';
 import { getStatus } from '../../src/integrations/core/status.js';
-import { validateIndexArtifacts } from '../../src/index/validate.js';
+import { captureIndexStatusPlan } from '../../src/integrations/core/status-plan.js';
 import { loadJsonArrayArtifactRows } from '../../src/shared/artifact-io/loaders.js';
 import { readJsonFileSyncSafe } from '../../src/shared/file-read.js';
 import { getMetricsDir, resolveRepoConfig } from '../shared/dict-utils.js';
 import { buildScanProfile } from './report-artifacts/scan-profile.js';
+import { buildObservedThroughput } from './report-artifacts/scan-observations.js';
 import {
   buildIndexingSummaryFromFeatureMetrics,
   buildIndexingSummaryFromThroughput,
@@ -22,22 +24,10 @@ import {
   sumKindsByPattern,
   sumKindCounts
 } from '../reports/show-throughput/ast-summary.js';
-import { resolveBuildRootFromSqliteArtifacts } from '../reports/show-throughput/build-root.js';
 
 const argv = createCli({
   scriptName: 'report-artifacts',
-  options: {
-    json: { type: 'boolean', default: false },
-    all: { type: 'boolean', default: false },
-    repo: { type: 'string' },
-    runtime: { type: 'boolean', default: false },
-    'index-root': { type: 'string' },
-    build: { type: 'string' },
-    attempt: { type: 'string' },
-    mode: { type: 'string' },
-    explain: { type: 'string' },
-    'redact-paths': { type: 'boolean', default: false }
-  }
+  options: INDEX_REPORT_OPTIONS
 }).parse();
 
 // Explicit roots are forensic reads: do not reload current config first.
@@ -48,7 +38,7 @@ if (argv.runtime || argv['index-root'] || argv.build || argv.attempt || argv.exp
     runtimeReport = { schemaVersion: 1, receipts: [await readRuntimeReceipt({ ...options, buildRoot: argv['index-root'] })], truncated: false };
   } else {
     const { repoRoot, userConfig: config } = resolveRepoConfig(argv.repo);
-    const repoCacheRoot = getRepoCacheRoot(repoRoot, config);
+    const repoCacheRoot = resolveRepoCacheRootPath(repoRoot, config);
     if (argv.build) {
       if (!/^[^\\/]+$/u.test(argv.build) || argv.build === '.' || argv.build === '..') throw new Error('Invalid --build identifier.');
       runtimeReport = { schemaVersion: 1, receipts: [await readRuntimeReceipt({ ...options, buildRoot: path.join(repoCacheRoot, 'builds', argv.build), selection: 'explicit-build-id' })], truncated: false };
@@ -68,7 +58,8 @@ if (argv.runtime || argv['index-root'] || argv.build || argv.attempt || argv.exp
 
 const { repoRoot: root, userConfig } = resolveRepoConfig(argv.repo);
 const metricsDir = getMetricsDir(root, userConfig);
-const status = await getStatus({ repoRoot: root, includeAll: argv.all });
+const plan = captureIndexStatusPlan({ root, userConfig });
+const status = await getStatus({ repoRoot: root, includeAll: argv.all, userConfig, plan });
 
 const readJson = (targetPath) => {
   return readJsonFileSyncSafe(targetPath, null);
@@ -80,12 +71,24 @@ const indexMetrics = {
   extractedProse: readJson(path.join(metricsDir, 'index-extracted-prose.json')),
   records: readJson(path.join(metricsDir, 'index-records.json'))
 };
+for (const [key, mode] of Object.entries({ code: 'code', prose: 'prose', extractedProse: 'extracted-prose', records: 'records' })) {
+  const selected = status.repo?.indexDirs?.[mode];
+  if (status.health?.modes?.[mode]?.selected === false || !selected || typeof indexMetrics[key]?.indexDir !== 'string'
+    || path.resolve(indexMetrics[key].indexDir) !== path.resolve(selected)) indexMetrics[key] = null;
+}
 const lmdbMetrics = {
   code: readJson(path.join(metricsDir, 'lmdb-code.json')),
   prose: readJson(path.join(metricsDir, 'lmdb-prose.json'))
 };
-const featureMetrics = readJson(path.join(metricsDir, 'feature-metrics-run.json'))
+for (const mode of ['code', 'prose']) {
+  if (status.health?.modes?.[mode]?.selected === false || !status.repo?.indexDirs?.[mode] || typeof lmdbMetrics[mode]?.indexDir !== 'string'
+    || path.resolve(lmdbMetrics[mode].indexDir) !== path.resolve(status.repo.indexDirs[mode])) lmdbMetrics[mode] = null;
+}
+let featureMetrics = readJson(path.join(metricsDir, 'feature-metrics-run.json'))
   || readJson(path.join(metricsDir, 'feature-metrics.json'));
+const selectedBuildRoots = [...new Set(Object.values(status.repo?.indexDirs || {}).map(directory => path.dirname(directory)))];
+if (selectedBuildRoots.length !== 1 || typeof featureMetrics?.buildRoot !== 'string'
+  || path.resolve(featureMetrics.buildRoot) !== path.resolve(selectedBuildRoots[0])) featureMetrics = null;
 
 const ANALYSIS_SCHEMA_VERSION = 1;
 const ANALYSIS_MODE_KEYS = ['code', 'prose', 'extracted-prose', 'records'];
@@ -106,31 +109,7 @@ const KIND_FUNCTION_PATTERNS = [
 ];
 const KIND_IMPORT_PATTERNS = ['import', 'include', 'require'];
 
-const resolveBuildRootFromStatus = (artifactReport) => {
-  const repo = artifactReport?.repo || {};
-  const sqliteBuildRoot = resolveBuildRootFromSqliteArtifacts(artifactReport, { requireExisting: false });
-  if (sqliteBuildRoot && fs.existsSync(sqliteBuildRoot)) return sqliteBuildRoot;
-  const cacheRoot = typeof repo?.cacheRoot === 'string' ? repo.cacheRoot : '';
-  if (!cacheRoot) return null;
-  const buildsRoot = path.join(cacheRoot, 'builds');
-  if (!fs.existsSync(buildsRoot)) return null;
-  const buildDirs = fs.readdirSync(buildsRoot, { withFileTypes: true })
-    .filter((entry) => entry.isDirectory())
-    .map((entry) => path.join(buildsRoot, entry.name))
-    .sort((a, b) => b.localeCompare(a));
-  return buildDirs[0] || null;
-};
-
-const resolveModeIndexDir = ({ artifactReport, buildRoot, modeKey }) => {
-  const candidates = [
-    buildRoot ? path.join(buildRoot, `index-${modeKey}`) : null,
-    artifactReport?.repo?.cacheRoot ? path.join(artifactReport.repo.cacheRoot, `index-${modeKey}`) : null
-  ].filter(Boolean);
-  for (const candidate of candidates) {
-    if (fs.existsSync(candidate)) return candidate;
-  }
-  return null;
-};
+const resolveModeIndexDir = ({ artifactReport, modeKey }) => artifactReport?.repo?.indexDirs?.[modeKey] || null;
 
 const readArtifactMetaCount = (indexDir, baseName) => {
   if (!indexDir) return null;
@@ -215,15 +194,18 @@ const buildModeAnalysis = async ({ artifactReport, buildRoot, buildState, modeKe
 };
 
 const buildAnalysis = async ({ artifactReport, indexingSummary }) => {
-  const buildRoot = resolveBuildRootFromStatus(artifactReport);
-  const buildState = buildRoot ? readJson(path.join(buildRoot, 'build_state.json')) : null;
-  if (!buildRoot && !artifactReport?.repo?.cacheRoot) return null;
+  const roots = [...new Set(Object.values(artifactReport?.repo?.indexDirs || {}).map(directory => path.dirname(directory)))];
+  if (!roots.length) return null;
+  const buildRoot = roots.length === 1 ? roots[0] : null;
   const modes = {};
   const totals = createAstGraphTotals();
   for (const modeKey of ANALYSIS_MODE_KEYS) {
+    const modeDir = resolveModeIndexDir({ artifactReport, modeKey });
+    const modeRoot = modeDir ? path.dirname(modeDir) : null;
+    const buildState = modeRoot ? readJson(path.join(modeRoot, 'build_state.json')) : null;
     const modeAnalysis = await buildModeAnalysis({
       artifactReport,
-      buildRoot,
+      buildRoot: modeRoot,
       buildState,
       modeKey,
       indexingSummary
@@ -242,36 +224,7 @@ const buildAnalysis = async ({ artifactReport, indexingSummary }) => {
   };
 };
 
-const computeRate = (count, ms) => {
-  const total = Number(count);
-  const elapsed = Number(ms);
-  if (!Number.isFinite(total) || !Number.isFinite(elapsed) || elapsed <= 0) return null;
-  return total / (elapsed / 1000);
-};
-
-const buildThroughput = (mode, metrics, bytes) => {
-  if (!metrics) return null;
-  const totalMs = Number(metrics?.timings?.totalMs);
-  const writeMs = Number(metrics?.timings?.writeMs);
-  const files = Number(metrics?.files?.candidates);
-  const chunks = Number(metrics?.chunks?.total);
-  const tokens = Number(metrics?.tokens?.total);
-  const payload = {
-    mode,
-    totalMs: Number.isFinite(totalMs) ? totalMs : null,
-    writeMs: Number.isFinite(writeMs) ? writeMs : null,
-    files: Number.isFinite(files) ? files : null,
-    chunks: Number.isFinite(chunks) ? chunks : null,
-    tokens: Number.isFinite(tokens) ? tokens : null,
-    bytes: Number.isFinite(Number(bytes)) ? Number(bytes) : null
-  };
-  payload.filesPerSec = computeRate(payload.files, payload.totalMs);
-  payload.chunksPerSec = computeRate(payload.chunks, payload.totalMs);
-  payload.tokensPerSec = computeRate(payload.tokens, payload.totalMs);
-  payload.bytesPerSec = computeRate(payload.bytes, payload.totalMs);
-  payload.writeBytesPerSec = computeRate(payload.bytes, payload.writeMs);
-  return payload;
-};
+const buildThroughput = buildObservedThroughput;
 
 const throughput = {
   code: buildThroughput('code', indexMetrics.code, status.repo?.artifacts?.indexCode),
@@ -284,11 +237,7 @@ const throughput = {
   }
 };
 
-const corruption = await validateIndexArtifacts({
-  root,
-  userConfig,
-  modes: ['code', 'prose', 'extracted-prose', 'records']
-});
+const corruption = status.corruption;
 const scanProfile = buildScanProfile({
   artifactReport: status,
   indexMetrics,
@@ -332,6 +281,19 @@ const lmdbCode = repo.lmdb?.code;
 const lmdbProse = repo.lmdb?.prose;
 
 console.error('Repo artifacts');
+for (const [mode, coverage] of Object.entries(status.coverage?.modes || {})) {
+  console.error(`- ${mode} coverage: ${coverage.status}; scanned ${coverage.files?.scanned ?? 'unknown'}, skipped ${coverage.files?.skipped ?? 'unknown'}, chunks ${coverage.chunks ?? 'unknown'}; recorded ${coverage.generatedAt || 'unknown'}`);
+  if (coverage.provenance?.head) console.error(`  indexed revision: ${JSON.stringify(coverage.provenance.head)}`);
+  console.error(`  revision comparison: ${coverage.revisionComparison}`);
+  if (coverage.files?.skippedByReason) console.error(`  skipped reasons: ${JSON.stringify(coverage.files.skippedByReason)}`);
+}
+console.error(`- working-tree freshness: bounded indexed-file comparison and new-file discovery (${status.coverage?.discovery?.status || 'unknown'})`);
+for (const [mode, coverage] of Object.entries(status.coverage?.modes || {})) {
+  const comparison = coverage.workingTree;
+  if (!comparison) continue;
+  console.error(`  ${mode}: ${comparison.status}; ${comparison.unchanged} unchanged; changed ${JSON.stringify(comparison.changed)}; missing ${JSON.stringify(comparison.missing)}; added ${JSON.stringify(comparison.added)}; unknown ${JSON.stringify(comparison.unknown)}${comparison.truncated ? '; truncated' : ''}`);
+}
+if (status.coverage?.watcher) console.error(`- watcher (last recorded): ${status.coverage.watcher.consistency}; backlog ${status.coverage.watcher.backlogDepth ?? 'unknown'}; process ${status.coverage.watcher.processStatus}; recorded ${status.coverage.watcher.recordedAt || 'unknown'}`);
 console.error(`- cache root: ${formatBytes(repo.totalBytes)} (${repoCacheRoot})`);
 if (repoRoot) {
   console.error(`- repo root: ${repoRoot}`);

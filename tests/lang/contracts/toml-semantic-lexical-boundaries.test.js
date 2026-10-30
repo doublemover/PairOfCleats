@@ -6,6 +6,8 @@ import { chunkIniToml, createTomlChunker } from '../../../src/index/chunking/for
 import { smartChunk } from '../../../src/index/chunking/dispatch.js';
 import { collectLanguageImports } from '../../../src/index/language-registry/registry.js';
 import { buildConfigFileAdapters } from '../../../src/index/language-registry/adapters/config-files.js';
+import { quotedToml as quoted } from '../../fixtures/formats/toml-quoted.js';
+import { sourceSections } from '../helpers/source-sections.js';
 
 const vendor = createRequire(import.meta.url)('smol-toml');
 const forbidden = () => { throw Error('Excluded file/reference loading or serialization'); };
@@ -15,7 +17,7 @@ const text = ['description = """', '😀 documentation only', '[dependencies]',
   'include = [', ' "real.toml",', ' "comma,name.toml",', ']', '[dependencies]',
   'actual = { path = "../real" }', 'registry_only = "1.0"'].join('\r\n');
 const model = parseTomlStructure(text);
-assert.equal(model.parser, 'smol-toml-values+lexical');
+assert.equal(model.parser, 'smol-toml-values+lexical', JSON.stringify({ reason: model.reason, metrics: model.metrics }));
 assert.equal(model.coverage, 'partial');
 assert.equal(model.rangeSource, 'application-utf16-lexer');
 assert.equal(parseTomlStructure(text), model);
@@ -29,7 +31,7 @@ assert.equal(text.slice(model.importEntries[0].keyRange.start, model.importEntri
 assert.equal(text.slice(model.importEntries[0].start, model.importEntries[0].end), 'include = [\r\n "real.toml",\r\n "comma,name.toml",\r\n]');
 assert.deepEqual(collectTomlImports(text), ['real.toml', 'comma,name.toml', '../real']);
 assert.deepEqual(collectLanguageImports({ text, ext: '.toml', relPath: 'Cargo.toml', mode: 'code' }), collectTomlImports(text).sort());
-const chunks = smartChunk({ text, ext: '.toml', relPath: 'Cargo.toml', mode: 'code' });
+const chunks = sourceSections(text, smartChunk({ text, ext: '.toml', relPath: 'Cargo.toml', mode: 'code' }));
 assert.deepEqual(chunks.map((entry) => entry.name), ['tool.poc', 'dependencies']);
 assert.ok(chunks.every((entry) => entry.meta.parser === model.parser && entry.meta.parserCoverage === 'partial'
   && entry.meta.astRange === undefined && entry.meta.rangeSource === 'application-utf16-lexer'));
@@ -38,18 +40,18 @@ assert.equal(chunks[0].end, chunks[1].start);
 const tomlAdapter = buildConfigFileAdapters().find((adapter) => adapter.id === 'toml');
 assert.deepEqual(tomlAdapter.buildRelations({ text, options: {} }).imports, collectTomlImports(text).sort());
 
-const quoted = ['"in\\u0063lude" = "escaped.toml"', '"literal.dot".includes = ["dotted.toml"]',
-  '"" = "empty key"', 'count = 9223372036854775807', 'date = 1979-05-27T07:32:00Z',
-  '["tool.poc"."😀"]', "'include' = 'unicode.toml'", '[dependencies."quoted.crate"]',
-  'path = "../quoted"', 'version = "1.0"'].join('\n');
-const quotedModel = parseTomlStructure(quoted);
+// Content/range assertions have a controlled clock; the identical input's
+// unchanged production 30 ms bound is exercised serially by toml-cold-budget.
+const quotedParser = createTomlStructureParser({ now: () => 0 });
+const quotedModel = quotedParser(quoted);
 assert.equal(quotedModel.reason, null);
 assert.deepEqual(quotedModel.importEntries.map((entry) => entry.value), ['escaped.toml', 'dotted.toml', 'unicode.toml', '../quoted']);
 assert.equal(quoted.slice(quotedModel.importEntries[0].keyRange.start, quotedModel.importEntries[0].keyRange.end), '"in\\u0063lude"');
 assert.deepEqual(quotedModel.headings[0].path, ['tool.poc', '😀']);
 assert.deepEqual(quotedModel.headings[1].path, ['dependencies', 'quoted.crate']);
 assert.equal(quoted.slice(quotedModel.headings[0].start, quotedModel.headings[0].end), '["tool.poc"."😀"]');
-assert.deepEqual(collectTomlImports(quoted), ['escaped.toml', 'dotted.toml', 'unicode.toml', '../quoted']);
+assert.deepEqual(createTomlImportCollector({ parseStructure: quotedParser })(quoted),
+  ['escaped.toml', 'dotted.toml', 'unicode.toml', '../quoted']);
 
 const arrays = ['[[plugins]]', 'include = "first.toml"', '[plugins.settings]', 'source = "first.source"',
   '[[plugins.children]]', 'include = "first-child.toml"', '[[plugins.children]]', 'include = "second-child.toml"',

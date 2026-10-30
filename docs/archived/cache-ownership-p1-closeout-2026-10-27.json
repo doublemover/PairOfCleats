@@ -1,0 +1,298 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-10-27",
+  "sourceHead": "1f7579910e9699e85323c817ffabfa9dc5554b9d",
+  "sourceTree": "2c4ba7e322f208ad9b90b53e50f98ce350ff6d41",
+  "branch": "codex/pr557-audit-repairs-20261012",
+  "platform": "win32",
+  "arch": "x64",
+  "node": "v26.12.1",
+  "issues": [
+    {
+      "number": 1582,
+      "closedAt": "2026-10-27T07:06:31Z",
+      "qualifiedTests": [
+        "embeddings/cache/batched-physical-storage",
+        "embeddings/cache/filename-and-rotation-ownership",
+        "embeddings/runner/chunk-meta-inline-text",
+        "embeddings/runner/cross-file-chunk-dedupe-map",
+        "indexing/embeddings/chunk-input-channel-identity",
+        "indexing/embeddings/embedding-text-kv-cache",
+        "indexing/embeddings/global-chunk-cache-key",
+        "indexing/embeddings/prior-chunk-partial-reuse",
+        "indexing/embeddings/build/chunk-channel-cache-routes/cross-file",
+        "indexing/embeddings/build/chunk-channel-cache-routes/global",
+        "indexing/embeddings/build/chunk-channel-cache-routes/prior-file"
+      ],
+      "state": "closed",
+      "stateReason": "completed",
+      "sourceHead": "1f7579910e9699e85323c817ffabfa9dc5554b9d",
+      "qualificationOnly": true
+    },
+    {
+      "number": 1746,
+      "closedAt": "2026-10-27T07:06:43Z",
+      "qualifiedTests": [
+        "perf/bench/vfs-io-ownership"
+      ],
+      "state": "closed",
+      "stateReason": "completed",
+      "sourceHead": "1f7579910e9699e85323c817ffabfa9dc5554b9d",
+      "qualificationOnly": true
+    }
+  ],
+  "currentCounts": {
+    "open": 723,
+    "qualificationPending": 462,
+    "partialFollowup": 147,
+    "implementationStatusUnresolved": 114
+  },
+  "liveCensus": {
+    "open": 723,
+    "checkedAt": "2026-10-27T07:07:43.188Z",
+    "newOrUnexpectedRemovedIssues": []
+  },
+  "dependencies": {
+    "changed": false,
+    "verification": "Earlier clean required native/patch verification; current readiness passes."
+  },
+  "policy": {
+    "jobs": 1,
+    "indexingThreads": 1,
+    "timeoutMs": 30000,
+    "retries": 0,
+    "nativeStatusRedo": false,
+    "launch": "Task child omits only the inherited missing trusted-config selector; user/global settings unchanged."
+  },
+  "uniqueAffectedFixtures": 12,
+  "finalObservations": [
+    {
+      "id": "embeddings/cache/batched-physical-storage",
+      "status": "passed",
+      "durationMs": 362,
+      "attempts": 1,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false
+    },
+    {
+      "id": "embeddings/cache/filename-and-rotation-ownership",
+      "status": "passed",
+      "durationMs": 421,
+      "attempts": 1,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false
+    },
+    {
+      "id": "embeddings/runner/chunk-meta-inline-text",
+      "status": "passed",
+      "durationMs": 1330,
+      "attempts": 1,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false
+    },
+    {
+      "id": "embeddings/runner/cross-file-chunk-dedupe-map",
+      "status": "passed",
+      "durationMs": 1027,
+      "attempts": 1,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false
+    },
+    {
+      "id": "indexing/embeddings/chunk-input-channel-identity",
+      "status": "passed",
+      "durationMs": 331,
+      "attempts": 1,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false
+    },
+    {
+      "id": "indexing/embeddings/embedding-text-kv-cache",
+      "status": "passed",
+      "durationMs": 1174,
+      "attempts": 1,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false
+    },
+    {
+      "id": "indexing/embeddings/global-chunk-cache-key",
+      "status": "passed",
+      "durationMs": 463,
+      "attempts": 1,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false
+    },
+    {
+      "id": "indexing/embeddings/prior-chunk-partial-reuse",
+      "status": "passed",
+      "durationMs": 64,
+      "attempts": 1,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false
+    },
+    {
+      "id": "perf/bench/vfs-io-ownership",
+      "status": "passed",
+      "durationMs": 3227,
+      "attempts": 1,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false
+    },
+    {
+      "id": "indexing/embeddings/build/chunk-channel-cache-routes/cross-file",
+      "status": "passed",
+      "durationMs": 1949,
+      "attempts": 1,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false
+    },
+    {
+      "id": "indexing/embeddings/build/chunk-channel-cache-routes/global",
+      "status": "passed",
+      "durationMs": 7346,
+      "attempts": 1,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false
+    },
+    {
+      "id": "indexing/embeddings/build/chunk-channel-cache-routes/prior-file",
+      "status": "passed",
+      "durationMs": 6225,
+      "attempts": 1,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false
+    }
+  ],
+  "frontGate": [
+    {
+      "arguments": [
+        "run",
+        "config:budget"
+      ],
+      "name": "config-budget",
+      "durationMs": 1979,
+      "executable": "npm.cmd",
+      "exitCode": 0
+    },
+    {
+      "arguments": [
+        "run",
+        "env:check"
+      ],
+      "name": "environment",
+      "durationMs": 1203,
+      "executable": "npm.cmd",
+      "exitCode": 0
+    },
+    {
+      "arguments": [
+        "tools/docs/generated-surfaces.js",
+        "--check-freshness"
+      ],
+      "name": "generated",
+      "durationMs": 10670,
+      "executable": "node",
+      "exitCode": 0
+    },
+    {
+      "arguments": [
+        "tools/ci/check-command-surface.js"
+      ],
+      "name": "command-surface",
+      "durationMs": 2735,
+      "executable": "node",
+      "exitCode": 0
+    },
+    {
+      "arguments": [
+        "tests/ci/workflow-contract.test.js"
+      ],
+      "name": "workflow",
+      "durationMs": 222,
+      "executable": "node",
+      "exitCode": 0
+    },
+    {
+      "arguments": [
+        "tests/run.js",
+        "--lane",
+        "gate",
+        "--jobs",
+        "1",
+        "--timeout-ms",
+        "30000",
+        "--retries",
+        "0",
+        "--native-status-redo=false",
+        "--pairofcleats-threads",
+        "1",
+        "--json"
+      ],
+      "name": "gate-lane",
+      "durationMs": 22447,
+      "executable": "node",
+      "exitCode": 0
+    },
+    {
+      "arguments": [
+        "diff",
+        "--check"
+      ],
+      "name": "diff",
+      "durationMs": 88,
+      "executable": "git",
+      "exitCode": 0
+    }
+  ],
+  "gateLane": {
+    "total": 40,
+    "passed": 40,
+    "failed": 0,
+    "skipped": 0,
+    "durationMs": 21732
+  },
+  "encoderControl": {
+    "scope": "Original ambiguous delimiter substituted only in shared encoder; version and all other production routes unchanged. Original source restored byte-for-byte.",
+    "summary": {
+      "total": 1,
+      "passed": 0,
+      "failed": 1,
+      "skipped": 0,
+      "durationMs": 1913
+    },
+    "assertion": "cross-file quantizedCode ordinal 1"
+  },
+  "rawReceipts": {
+    "historicalAuthorWorkspace": true,
+    "cleanCheckoutAvailability": false,
+    "taskDirectory": ".tmp/tasks/p1-cache-ownership-20261027/",
+    "logs": [
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793084592993-tnrvxc\\embeddings_cache_batched-physical-storage.attempt-1.log",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793084592993-tnrvxc\\embeddings_cache_filename-and-rotation-ownership.attempt-1.log",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793084592993-tnrvxc\\embeddings_runner_chunk-meta-inline-text.attempt-1.log",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793084592993-tnrvxc\\embeddings_runner_cross-file-chunk-dedupe-map.attempt-1.log",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793084592993-tnrvxc\\indexing_embeddings_chunk-input-channel-identity.attempt-1.log",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793084592993-tnrvxc\\indexing_embeddings_embedding-text-kv-cache.attempt-1.log",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793084592993-tnrvxc\\indexing_embeddings_global-chunk-cache-key.attempt-1.log",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793084592993-tnrvxc\\indexing_embeddings_prior-chunk-partial-reuse.attempt-1.log",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793084592993-tnrvxc\\perf_bench_vfs-io-ownership.attempt-1.log",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793084646759-xae5d9\\indexing_embeddings_build_chunk-channel-cache-routes_cross-file.attempt-1.log",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793084646759-xae5d9\\indexing_embeddings_build_chunk-channel-cache-routes_global.attempt-1.log",
+      "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793084646759-xae5d9\\indexing_embeddings_build_chunk-channel-cache-routes_prior-file.attempt-1.log"
+    ]
+  },
+  "initialFailures": "Fixture construction/authority/codec expectations corrected through existing full-index, versioned-cache-path and validity-mask contracts; failed receipts retained.",
+  "remaining": "Backend cleanup #1574, common lifecycle policy #1267, full Windows and other-platform/model/performance/release qualification."
+}

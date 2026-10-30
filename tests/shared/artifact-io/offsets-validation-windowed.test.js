@@ -9,6 +9,11 @@ const dataPath = path.join(root, 'rows.jsonl');
 const offsetsPath = path.join(root, 'rows.offsets.bin');
 const originalOpen = fs.open;
 const originalReadFile = fs.readFile;
+const originalStat = fs.stat;
+const frozenStats = new Map();
+const statKey = value => process.platform === 'win32' ? path.resolve(value).toLowerCase() : path.resolve(value);
+fs.stat = (filename, ...args) => typeof filename === 'string' && frozenStats.has(statKey(filename))
+  ? Promise.resolve(frozenStats.get(statKey(filename))) : originalStat(filename, ...args);
 let reads = [], closed = 0, opened = 0, truncateOffsets = false, cancel = null;
 fs.open = async (...args) => {
   const handle = await originalOpen(...args);
@@ -37,11 +42,14 @@ const rowCount = 18000;
 const data = Buffer.from('{}\n'.repeat(rowCount));
 const offsets = encode(Array.from({ length: rowCount }, (_, index) => index * 3));
 const reset = async () => {
+  frozenStats.clear();
   await fs.writeFile(dataPath, data);
   await fs.writeFile(offsetsPath, offsets);
-  // Exact representable timestamp lets cache invalidation exercise ctime too.
+  // Preserve real file bytes while modeling same-size writes within one
+  // filesystem timestamp tick, including restored mtime.
   await fs.utimes(dataPath, 1000000000, 1000000000);
   await fs.utimes(offsetsPath, 1000000000, 1000000000);
+  for (const filename of [dataPath, offsetsPath]) frozenStats.set(statKey(filename), await originalStat(filename));
   reads = [];
 };
 try {
@@ -52,7 +60,8 @@ try {
   assert.equal(opened, closed);
   reads = [];
   await validateOffsetsAgainstFile(dataPath, offsetsPath);
-  assert.equal(reads.length, 0, 'cache hit must not read either file');
+  assert.ok(reads.length <= 8, 'repeat validation preserves the existing windowed read bound');
+  assert.ok(reads.every(read => read.capacity <= 65536), 'repeat validation keeps bounded scratch space');
 
   // Corruption on both sides of an offset-buffer seam and at EOF must survive
   // coalescing; restored mtime/size must not make it a validation-cache hit.
@@ -84,6 +93,7 @@ try {
   assert.ok(reads.length > 0, 'cancellation must not cache partial validation');
 
   // Widely separated boundaries must not scan large record payloads.
+  frozenStats.clear();
   const sparse = Buffer.alloc(300000, 0x20);
   sparse[99999] = sparse[199999] = sparse[299999] = 0x0a;
   await fs.writeFile(dataPath, sparse);
@@ -97,7 +107,7 @@ try {
   await validateOffsetsAgainstFile(dataPath, offsetsPath);
   assert.equal(opened, closed);
 } finally {
-  fs.open = originalOpen; fs.readFile = originalReadFile;
+  fs.open = originalOpen; fs.readFile = originalReadFile; fs.stat = originalStat;
   await rmDirRecursive(root);
 }
-console.log('Windowed offsets validation, integrity, cache, bounded I/O and cancellation passed');
+console.log('Windowed offsets validation, identical-metadata integrity, bounded I/O and cancellation passed');

@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { guardBootstrapEntry } from '../../src/shared/bootstrap-readiness.js';
 await guardBootstrapEntry(import.meta.url);
+const { resolveDevelopmentArtifactPath } = await import('../shared/dev-artifacts.js');
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -17,8 +18,27 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '.
 const DEFAULT_DIAGNOSTICS = path.join(ROOT, '.diagnostics');
 const DEFAULT_LOG_DIR = path.join(ROOT, '.testLogs');
 const DEFAULT_JUNIT = path.join(DEFAULT_LOG_DIR, 'junit.xml');
-const DEFAULT_CACHE_ROOT = path.join(ROOT, '.ci-cache', 'pairofcleats');
-const DEFAULT_HOME_ROOT = path.join(ROOT, '.ci-home', 'pairofcleats');
+const DEFAULT_CACHE_ROOT = resolveDevelopmentArtifactPath(ROOT, 'ci-cache', 'pairofcleats');
+const DEFAULT_HOME_ROOT = resolveDevelopmentArtifactPath(ROOT, 'ci-home', 'pairofcleats');
+const SERIAL_RUNTIME_BUDGET_IDS = ['tooling/reports/summary/report', 'perf/parsers/toml-cold-budget',
+  'perf/parsers/jinja-cold-budget', 'perf/parsers/xml-cold-budget', 'indexing/semantic/compiler-single-cpu-lifecycle',
+  'map/member-join-work-consumer/measure', 'retrieval/backend/fts-cooperative-timing-consumer',
+  ...['render', 'graph-skewed', 'graph-skewed-independent', 'map-large', 'memory-transient', 'vfs-ascii',
+    'vfs-many-persisted-1', 'vfs-many-persisted-2', 'vfs-many-persisted-3',
+    'vfs-many-hot-1', 'vfs-many-hot-2', 'vfs-many-hot-3', 'vfs-budget',
+    'sqlite-wide-a', 'sqlite-wide-b', 'sqlite-wide-c1', 'sqlite-wide-c2']
+    .map(id => `perf/bench/representative-workload-consumers/${id}`),
+  ...['results', 'publication'].map(id => `perf/bench/selected-cohort-generation-consumer/${id}`),
+  'smoke/baseline-negative/missing', 'smoke/baseline-negative/corrupt',
+  'smoke/baseline-negative/incomplete', 'smoke/baseline-negative/legacy'];
+const SERIAL_ANN_GENERATION_IDS = ['retrieval/ann/generation-publication',
+  'retrieval/ann/generation-rebuild-failure', 'retrieval/ann/generation-lmdb'];
+const SERIAL_NATIVE_LIFECYCLE_IDS = ['storage/sqlite/build/cancellation'];
+const API_CONTRACT_IDS = ['services/api/router-contract-matrix', 'services/api/core',
+  'services/api/repo-authorization', 'services/api/server-stream', 'services/api/search-contract-matrix',
+  'services/api/federated-search-validation-matrix', 'services/api/federated-filter-enumeration',
+  'services/api/search-stream-outcomes', 'services/api/graph-evidence-pages'];
+const exactSelectors = ids => ids.flatMap(id => ['--match', `/^${id.replaceAll('/', '\\/')}$/`]);
 const LSP_FIXTURE_BIN = path.join(ROOT, 'tests', 'fixtures', 'lsp', 'bin');
 
 const npmCommand = process.platform === 'win32' ? 'cmd' : 'npm';
@@ -74,17 +94,15 @@ export const __applySuiteToolingPathEntriesForTests = (env, repoRoot, userConfig
 
 const renderCommand = (command, args) => [command, ...args].join(' ');
 const SCRIPT_COVERAGE_GROUPS = Object.freeze([
-  'core',
   'storage',
-  'indexing',
-  'language',
-  'benchmarks',
-  'search',
-  'embeddings',
-  'services',
   'fixtures',
   'tools'
 ]);
+// These canonical owners were previously reachable only through redundant
+// script wrappers. API replacements already belong to their dedicated cohort.
+const RETIRED_DELEGATION_OWNER_IDS = ['smoke/tantivy', 'smoke/e2e', 'smoke/baseline',
+  'services/mcp/tools-list', 'services/mcp/schema', 'services/mcp/robustness',
+  'tooling/fixtures/fixture-eval'];
 const buildUsrGateSteps = (diagnosticsDir) => USR_GUARDRAIL_GATES.map((gate) => ({
   label: gate.label,
   command: process.execPath,
@@ -149,7 +167,7 @@ const ensureDir = async (dir) => {
 const main = async () => {
   const argv = parseArgs();
   const mode = argv.mode;
-  const baseLane = argv.lane || (mode === 'nightly' ? 'ci' : 'ci-lite');
+  const baseLane = argv.lane || (mode === 'nightly' ? 'all' : 'ci-lite');
   const baseEnv = buildSuiteEnv(mode);
   const userConfig = loadUserConfig(ROOT);
   __applySuiteToolingPathEntriesForTests(baseEnv, ROOT, userConfig);
@@ -295,9 +313,18 @@ const main = async () => {
         baseLane,
         '--exclude',
         'services/api/',
-        ...(mode === 'nightly' ? ['--lane', 'storage', '--lane', 'perf'] : []),
+        ...(mode === 'nightly' ? ['--exclude',
+          `/^tooling\\/script-coverage\\/(${SCRIPT_COVERAGE_GROUPS.join('|')})\\//`,
+          '--exclude', '/^services\\/soak\\/operational-recovery$/',
+          ...RETIRED_DELEGATION_OWNER_IDS.flatMap(id => ['--exclude', `/^${id.replaceAll('/', '\\/')}$/`])] : []),
+        ...SERIAL_RUNTIME_BUDGET_IDS.flatMap(id => ['--exclude', `/^${id.replaceAll('/', '\\/')}$/`]),
+        ...SERIAL_ANN_GENERATION_IDS.flatMap(id => ['--exclude', `/^${id.replaceAll('/', '\\/')}$/`]),
+        ...SERIAL_NATIVE_LIFECYCLE_IDS.flatMap(id => ['--exclude', `/^${id.replaceAll('/', '\\/')}$/`]),
         '--timeout-ms',
-        '600000',
+        mode === 'nightly' ? '30000' : '600000',
+        '--retries',
+        '0',
+        '--native-status-redo=false',
         '--junit',
         junitPath,
         '--report-file',
@@ -315,6 +342,35 @@ const main = async () => {
         '--log-dir',
         logDir
       ]
+    },
+    {
+      label: 'Serial runtime budgets',
+      command: process.execPath,
+      args: ['tests/run.js', '--lane', 'all', ...exactSelectors(SERIAL_RUNTIME_BUDGET_IDS),
+        '--jobs', '1', '--pairofcleats-threads', '1', '--timeout-ms', '30000', '--retries', '0',
+        '--native-status-redo=false', '--report-file', path.join(diagnosticsDir, 'serial-runtime-budgets.json')]
+    },
+    {
+      label: 'Serial ANN generation',
+      command: process.execPath,
+      args: ['tests/run.js', '--lane', 'all', ...exactSelectors(SERIAL_ANN_GENERATION_IDS),
+        '--jobs', '1', '--pairofcleats-threads', '1', '--timeout-ms', '30000', '--retries', '0',
+        '--native-status-redo=false', '--report-file', path.join(diagnosticsDir, 'serial-ann-generation.json')]
+    },
+    {
+      label: 'Serial native lifecycle',
+      command: process.execPath,
+      args: ['tests/run.js', '--lane', 'all', ...exactSelectors(SERIAL_NATIVE_LIFECYCLE_IDS),
+        '--jobs', '1', '--pairofcleats-threads', '1', '--timeout-ms', '30000', '--retries', '0',
+        '--native-status-redo=false', '--report-file', path.join(diagnosticsDir, 'serial-native-lifecycle.json')]
+    },
+    {
+      label: 'API contract cohort',
+      command: process.execPath,
+      args: ['tests/run.js', '--lane', 'all', ...(mode === 'nightly'
+        ? ['--match', '/^services\\/api\\//'] : exactSelectors(API_CONTRACT_IDS)),
+      '--jobs', '1', '--pairofcleats-threads', '1', '--timeout-ms', '30000', '--retries', '0',
+      '--native-status-redo=false', '--report-file', path.join(diagnosticsDir, 'api-contracts.json')]
     },
     {
       label: 'Import resolution SLO gate',
@@ -357,11 +413,13 @@ const main = async () => {
         args: [
           'tests/run.js',
           '--lane',
-          'ci-long',
+          'all',
           '--match',
           'services/soak/operational-recovery',
+          '--jobs', '1', '--pairofcleats-threads', '1',
           '--timeout-ms',
-          '600000',
+          '30000',
+          '--retries', '0', '--native-status-redo=false',
           '--log-dir',
           logDir
         ]
@@ -384,10 +442,21 @@ const main = async () => {
       }]
       : []),
     ...(mode === 'nightly'
+      ? [{
+        label: 'Retained canonical fixture owners',
+        command: process.execPath,
+        args: ['tests/run.js', '--lane', 'all', ...exactSelectors(RETIRED_DELEGATION_OWNER_IDS),
+          '--jobs', '1', '--pairofcleats-threads', '1', '--timeout-ms', '30000',
+          '--retries', '0', '--native-status-redo=false']
+      }]
+      : []),
+    ...(mode === 'nightly'
       ? SCRIPT_COVERAGE_GROUPS.map((group) => ({
         label: `Script coverage (${group})`,
         command: process.execPath,
-        args: [`tests/tooling/script-coverage/script-coverage-${group}.test.js`]
+        args: ['tests/run.js', '--lane', 'all', '--match', `/^tooling\\/script-coverage\\/${group}\\//`,
+          '--jobs', '1', '--pairofcleats-threads', '1', '--timeout-ms', '30000',
+          '--retries', '0', '--native-status-redo=false']
       }))
       : [])
   ];

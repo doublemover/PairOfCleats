@@ -137,8 +137,10 @@ export function probeCommand(cmd, args = ['--version'], options = {}) {
   try {
     const result = runCommand(cmd, args, {
       encoding: 'utf8',
-      stdio: 'ignore',
+      stdio: 'pipe',
       ...options,
+      maxOutputBytes: Number.isFinite(Number(options.maxOutputBytes)) ? Number(options.maxOutputBytes)
+        : Number.isFinite(Number(options.maxBuffer)) ? Number(options.maxBuffer) : 16 * 1024,
       timeoutMs
     });
     const outcome = pickProbeOutcomeFromExit(result);
@@ -153,16 +155,18 @@ export function probeCommand(cmd, args = ['--version'], options = {}) {
     };
   } catch (error) {
     const result = error?.result || null;
-    const errorCode = typeof error?.code === 'string'
-      ? error.code
-      : (typeof result?.errorCode === 'string' ? result.errorCode : null);
+    const errorCode = [error?.cause?.code, result?.errorCode, error?.code]
+      .find(value => typeof value === 'string' && value.length) ?? null;
+    const status = Number.isInteger(result?.exitCode) ? result.exitCode
+      : Number.isInteger(result?.status) ? result.status : null;
     const outcome = error?.name === 'SubprocessTimeoutError' || errorCode === 'ETIMEDOUT'
       ? 'timeout'
-      : (errorCode === 'ENOENT' ? 'missing' : 'spawn_error');
+      : errorCode === 'ENOENT' ? 'missing' : result?.signal ? 'terminated'
+        : status !== null && status !== 0 ? pickProbeOutcomeFromExit({ ...result, status }) : 'spawn_error';
     return {
       ok: false,
       outcome,
-      status: Number.isInteger(result?.status) ? Number(result.status) : null,
+      status,
       signal: typeof result?.signal === 'string' ? result.signal : null,
       errorCode,
       stdout: typeof result?.stdout === 'string' ? result.stdout : '',

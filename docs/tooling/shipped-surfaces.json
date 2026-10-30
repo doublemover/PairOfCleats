@@ -10,7 +10,7 @@
       "publishBoundary": "repo-package",
       "versionSource": "package.json#version",
       "runtimeTargets": [
-        "node>=26.0.0 <27"
+        "node>=26.12.1 <27"
       ],
       "platforms": [
         "windows",
@@ -103,7 +103,7 @@
       "publishBoundary": "repo-package",
       "versionSource": "package.json#version",
       "runtimeTargets": [
-        "node>=26.0.0 <27"
+        "node>=26.12.1 <27"
       ],
       "platforms": [
         "windows",
@@ -176,7 +176,7 @@
       "publishBoundary": "repo-package",
       "versionSource": "package.json#version",
       "runtimeTargets": [
-        "node>=26.0.0 <27"
+        "node>=26.12.1 <27"
       ],
       "platforms": [
         "windows",
@@ -248,7 +248,7 @@
       "publishBoundary": "repo-package",
       "versionSource": "package.json#version",
       "runtimeTargets": [
-        "node>=26.0.0 <27"
+        "node>=26.12.1 <27"
       ],
       "platforms": [
         "windows",
@@ -296,7 +296,7 @@
       "publishBoundary": "vsix-artifact",
       "versionSource": "extensions/vscode/package.json#version",
       "runtimeTargets": [
-        "node>=26.0.0 <27",
+        "node>=26.12.1 <27",
         "vscode-extension-host"
       ],
       "platforms": [
@@ -344,7 +344,7 @@
           {
             "id": "vscode.install.unpack",
             "phase": "install",
-            "label": "editor archive unpack verification (vscode)",
+            "label": "VSIX archive verification; official host qualification required",
             "command": [
               "$NODE",
               "tools/release/verify-surface.js",
@@ -386,9 +386,9 @@
           "tools/package-sublime.js"
         ],
         "outputs": [
-          "dist/sublime/pairofcleats.sublime-package",
-          "dist/sublime/pairofcleats.sublime-package.sha256",
-          "dist/sublime/pairofcleats.sublime-package.manifest.json"
+          "dist/sublime/PairOfCleats.sublime-package",
+          "dist/sublime/PairOfCleats.sublime-package.sha256",
+          "dist/sublime/PairOfCleats.sublime-package.manifest.json"
         ]
       },
       "install": {
@@ -411,15 +411,15 @@
               "--smoke"
             ],
             "artifacts": [
-              "dist/sublime/pairofcleats.sublime-package",
-              "dist/sublime/pairofcleats.sublime-package.sha256",
-              "dist/sublime/pairofcleats.sublime-package.manifest.json"
+              "dist/sublime/PairOfCleats.sublime-package",
+              "dist/sublime/PairOfCleats.sublime-package.sha256",
+              "dist/sublime/PairOfCleats.sublime-package.manifest.json"
             ]
           },
           {
             "id": "sublime.install.unpack",
             "phase": "install",
-            "label": "editor archive unpack verification (sublime)",
+            "label": "Sublime archive verification; supported host qualification required",
             "command": [
               "$NODE",
               "tools/release/verify-surface.js",
@@ -447,7 +447,7 @@
       "versionSource": "package.json#version",
       "runtimeTargets": [
         "rust-target-artifact",
-        "node>=26.0.0 <27"
+        "node>=26.12.1 <27"
       ],
       "platforms": [
         "windows",

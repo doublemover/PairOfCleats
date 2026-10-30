@@ -17,7 +17,7 @@ const text = ['notes: |', '  😀 text only', '  include: "block.fake"', 'quoted
   '  include: quoted.fake', '  last"', 'include: ["real.yaml", "comma,name.yaml"]',
   '"im\\u0070ort": "escaped.yaml"'].join('\r\n');
 const model = parseYamlStructure(text);
-assert.equal(model.parser, 'yaml-syntax-nodes');
+assert.equal(model.parser, 'yaml-syntax-nodes', JSON.stringify({ reason: model.reason, metrics: model.metrics }));
 assert.equal(model.coverage, 'partial');
 assert.equal(model.rangeSource, 'vendor-utf16-node');
 assert.equal(parseYamlStructure(text), model);
@@ -39,13 +39,24 @@ assert.equal(chunks[3].meta.keyRange.start, text.indexOf('"im\\u0070ort"'));
 const adapter = buildConfigFileAdapters().find((entry) => entry.id === 'yaml');
 assert.deepEqual(adapter.buildRelations({ text, options: {} }).imports, collectYamlImports(text).sort());
 
-const workflow = ['notes: |', '  jobs:', '  fake:', '    runs-on: inert', 'jobs:',
-  '  real:', '    runs-on: inert', 'env:', '  ALSO_NOT_A_JOB: inert'].join('\n');
+const workflow = ['permissions: read-all', 'notes: |', '  jobs:', '  fake:', '    runs-on: inert', 'jobs:',
+  '  real:', '    runs-on: inert', 'env:', '  ALSO_NOT_A_JOB: inert', 'defaults:', '  run: {shell: bash}', 'concurrency: workflow-only'].join('\n');
 const workflowChunks = chunkYaml(workflow, '.github/workflows/inert.yaml', {});
 assert.deepEqual(workflowChunks.map((entry) => entry.name), ['real']);
 assert.equal(workflowChunks[0].meta.format, 'github-actions');
-assert.equal(workflowChunks[0].start, workflow.indexOf('  real:'));
+assert.equal(workflowChunks[0].start, 0, 'the workflow envelope retains notes before the first job');
+assert.equal(workflowChunks.at(-1).end, workflow.length, 'the workflow envelope retains its suffix');
+assert.equal(workflowChunks[0].meta.keyRange.start, workflow.indexOf('real:'));
 assert.equal(workflow.slice(workflowChunks[0].meta.keyRange.start, workflowChunks[0].meta.keyRange.end), 'real');
+assert.equal(workflow.slice(workflowChunks[0].meta.valueRange.start, workflowChunks[0].meta.valueRange.end).trim(), 'runs-on: inert');
+const shiftedGlobals = ['env:', '  BEFORE: inert', 'defaults:', '  run: {shell: bash}',
+  'notes: |', '  jobs:', '  fake:', '    runs-on: inert', 'jobs:', '  real:', '    runs-on: inert',
+  'permissions: read-all', 'concurrency: workflow-only'].join('\n');
+const shiftedChunks = chunkYaml(shiftedGlobals, '.github/workflows/inert.yaml', {});
+assert.deepEqual(shiftedChunks.map(row => row.name), ['real']);
+assert.equal(shiftedChunks[0].start, 0); assert.equal(shiftedChunks[0].end, shiftedGlobals.length);
+assert.equal(shiftedGlobals.slice(shiftedChunks[0].meta.keyRange.start, shiftedChunks[0].meta.keyRange.end), 'real');
+assert.equal(shiftedGlobals.slice(shiftedChunks[0].meta.valueRange.start, shiftedChunks[0].meta.valueRange.end).trim(), 'runs-on: inert');
 assert.deepEqual(chunkYaml(workflow, 'ordinary.yaml', {}).map((entry) => entry.name), ['root'], 'default root policy is unchanged');
 assert.equal(chunkYaml(text, 'ordinary.yaml', { yamlChunking: { mode: 'top-level', maxBytes: 1 } })[0].name, 'root');
 assert.equal(chunkYaml(text, 'ordinary.yaml', { yamlChunking: { mode: 'auto', maxBytes: 1 } })[0].name, 'root');

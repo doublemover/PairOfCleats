@@ -4,7 +4,7 @@
   "reviewDate": "2026-03-25",
   "scope": "Primary ownership for root-level src/shared helpers and root contracts assigned to #410 in the shared-module ledger.",
   "summary": {
-    "ownedFileCount": 78,
+    "ownedFileCount": 204,
     "overallAssessment": "The root shared surface is mostly useful, but it is still carrying too many neighboring responsibilities in a few high-consumer files. The biggest remaining cleanup opportunities are env/runtime policy composition, numeric normalization overlap, keeping the new helper leaf splits from collapsing back into broad buckets, and continuing the metrics and ops family deflation work.",
     "clusterFindings": [
       {
@@ -98,12 +98,34 @@
         "action": "keep",
         "reason": "New narrow shared helpers like search-request.js and repo-paths.js should stay explicit and should not be reabsorbed into broad root utility modules."
       }
-    ]
+    ],
+    "originalReviewedFileCount": 78
   },
   "entries": [
     {
-      "path": "src/shared/auto-policy/build.js",
+      "path": "src/shared/application-parser-loader.js",
+      "consumerCount": 8,
+      "classifications": [
+        "keep",
+        "document"
+      ],
+      "consumerNotes": "Static ownership census confirms 8 direct consumers, including src/shared/dockerfile-ast.js, src/shared/graphql-ast.js, src/shared/handlebars-ast.js. This inventory review is not a behavioral qualification receipt.",
+      "recommendation": "Retain this format-specific parser/structure owner and its active producer consumers. Keep language contracts and native activation checks; no absence of imports or replacement proof supports deletion.",
+      "inventoryReviewDate": "2026-10-18"
+    },
+    {
+      "path": "src/shared/argument-positions.js",
       "consumerCount": 3,
+      "classifications": [
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Static production imports: src/index/semantic/compiler-boundary-flow.js, src/lang/js-ts/call-arguments.js, src/lang/tree-sitter/call-arguments.js.",
+      "recommendation": "Keep spread expansion and argument lower bounds in one parser-neutral projection; preserve bounded retained nodes."
+    },
+    {
+      "path": "src/shared/auto-policy/build.js",
+      "consumerCount": 4,
       "classifications": [
         "keep",
         "document",
@@ -114,7 +136,7 @@
     },
     {
       "path": "src/shared/auto-policy/profile.js",
-      "consumerCount": 2,
+      "consumerCount": 3,
       "classifications": [
         "keep",
         "document",
@@ -135,8 +157,29 @@
       "recommendation": "Keep this responsibility narrow and avoid recreating the old root auto-policy facade."
     },
     {
+      "path": "src/shared/binary-target.js",
+      "consumerCount": 2,
+      "classifications": [
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Static production imports: tools/setup/windows-capability.js, tools/tui/install-generation.js.",
+      "recommendation": "Keep header and architecture admission distinct from executable runtime qualification."
+    },
+    {
+      "path": "src/shared/bootstrap-readiness.js",
+      "consumerCount": 99,
+      "classifications": [
+        "keep",
+        "document"
+      ],
+      "consumerNotes": "Static ownership census confirms 89 direct consumers, including bin/pairofcleats-tui.js, bin/pairofcleats.js, tools/api/server.js. This inventory review is not a behavioral qualification receipt.",
+      "recommendation": "Retain the launch authority, preparation or verified-tool owner. Preserve fail-closed admission and real native activation; fixture success does not certify every platform/provider.",
+      "inventoryReviewDate": "2026-10-18"
+    },
+    {
       "path": "src/shared/bundle-io-checksum.js",
-      "consumerCount": 5,
+      "consumerCount": 6,
       "classifications": [
         "keep",
         "document",
@@ -147,7 +190,7 @@
     },
     {
       "path": "src/shared/bundle-io-constants.js",
-      "consumerCount": 8,
+      "consumerCount": 12,
       "classifications": [
         "keep",
         "document",
@@ -158,7 +201,7 @@
     },
     {
       "path": "src/shared/bundle-io-paths.js",
-      "consumerCount": 18,
+      "consumerCount": 23,
       "classifications": [
         "keep",
         "document",
@@ -179,8 +222,30 @@
       "recommendation": "Keep ownership explicit and update this review entry with a narrower recommendation when the module is next touched."
     },
     {
+      "path": "src/shared/bundle-source-key.js",
+      "consumerCount": 11,
+      "classifications": [
+        "keep",
+        "document"
+      ],
+      "consumerNotes": "Static ownership census confirms 8 direct consumers, including src/index/build/incremental/bundle-snapshot.js, src/index/build/incremental/manifest-codec.js, src/index/build/incremental/paths.js. This inventory review is not a behavioral qualification receipt.",
+      "recommendation": "Retain the active storage/identity owner. Preserve containment, format checks and cache admission; path-only diagnostics must not acquire data-access leases. Keep cleanup and corruption regressions.",
+      "inventoryReviewDate": "2026-10-18"
+    },
+    {
+      "path": "src/shared/cache-deletion.js",
+      "consumerCount": 11,
+      "classifications": [
+        "keep",
+        "document"
+      ],
+      "consumerNotes": "Static ownership census confirms 3 direct consumers, including tools/index/cache-gc.js, tools/index/clean-artifacts.js, tools/tooling/uninstall.js. This inventory review is not a behavioral qualification receipt.",
+      "recommendation": "Retain the active storage/identity owner. Preserve containment, format checks and cache admission; path-only diagnostics must not acquire data-access leases. Keep cleanup and corruption regressions.",
+      "inventoryReviewDate": "2026-10-18"
+    },
+    {
       "path": "src/shared/cli-option-sets.js",
-      "consumerCount": 5,
+      "consumerCount": 11,
       "classifications": [
         "keep",
         "document",
@@ -191,7 +256,7 @@
     },
     {
       "path": "src/shared/cli-option-validators.js",
-      "consumerCount": 1,
+      "consumerCount": 4,
       "classifications": [
         "keep",
         "document",
@@ -224,7 +289,7 @@
     },
     {
       "path": "src/shared/command-registry-query.js",
-      "consumerCount": 6,
+      "consumerCount": 8,
       "classifications": [
         "keep",
         "document",
@@ -234,14 +299,46 @@
       "recommendation": "Keep ownership explicit and update this review entry with a narrower recommendation when the module is next touched."
     },
     {
+      "path": "src/shared/config-authority.js",
+      "consumerCount": 23,
+      "classifications": [
+        "keep",
+        "document"
+      ],
+      "consumerNotes": "Static ownership census confirms 9 direct consumers, including src/index/tooling/command-resolver.js, src/index/tooling/lsp-provider/normalize.js, src/index/tooling/typescript/load.js. This inventory review is not a behavioral qualification receipt.",
+      "recommendation": "Retain the launch authority, preparation or verified-tool owner. Preserve fail-closed admission and real native activation; fixture success does not certify every platform/provider.",
+      "inventoryReviewDate": "2026-10-18"
+    },
+    {
       "path": "src/shared/config.js",
-      "consumerCount": 9,
+      "consumerCount": 12,
       "classifications": [
         "keep",
         "document"
       ],
       "consumerNotes": "Used mainly by runtime configuration assembly and a few build-time filters as a plain-object and recursive-merge utility.",
       "recommendation": "Keep this module tiny and focused on config-shape primitives; do not let it absorb generic merge or coercion helpers."
+    },
+    {
+      "path": "src/shared/contained-file-resource.js",
+      "consumerCount": 35,
+      "classifications": [
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Static production imports: src/index/build/artifacts/writers/semantic/query-index.js, src/index/build/stage-output.js, src/index/semantic/disk-writes.js, src/index/tooling/command-probe-persistent-cache.js, src/lang/tree-sitter/chunking.js, src/lang/tree-sitter/leaf-product.js, src/lang/tree-sitter/native-artifact-identity.js, src/shared/artifact-io/binary-columnar.js, src/shared/artifact-io/json/fallback.js, src/shared/artifact-io/loaders/binary-columnar.js, src/shared/artifact-io/loaders/core-binary-columnar-checksum.js, src/shared/artifact-io/loaders/minhash.js, src/shared/artifact-io/loaders/per-file.js, src/shared/artifact-io/loaders/token-postings.js, src/shared/artifact-io/offsets.js, src/shared/artifact-io/varint.js, src/shared/artifact-io/with-opened-readers.js, src/shared/bundle-io/patch.js, src/shared/contained-file.js, src/shared/dense-vector-binary.js, src/shared/dense-vector-stream.js, src/shared/file-read-resource.js, src/shared/file-read.js, src/shared/hash.js, src/shared/io/append-writer.js, src/shared/io/atomic-write.js, src/shared/io/directory-sync.js, src/shared/io/persistence-helpers.js, src/shared/io/replace-dir.js, src/shared/json-stream/streams.js, src/shared/locks/file-lock-release-reader.js, src/shared/onnx-model-install.js, tools/build/embeddings/cache.js, tools/build/embeddings/cache/index-log.js, tools/build/embeddings/cache/physical-storage.js.",
+      "recommendation": "Retain exact descriptor sessions and lazy iterator ownership; failed closure must not be replayed as a successful read."
+    },
+    {
+      "path": "src/shared/contained-file.js",
+      "consumerCount": 171,
+      "classifications": [
+        "keep",
+        "document"
+      ],
+      "consumerNotes": "Static ownership census confirms 27 direct consumers, including src/context-pack/excerpt-cache.js, src/index/build/file-processor.js, src/index/build/file-processor/pre-cpu-content.js. This inventory review is not a behavioral qualification receipt.",
+      "recommendation": "Retain the active storage/identity owner. Preserve containment, format checks and cache admission; path-only diagnostics must not acquire data-access leases. Keep cleanup and corruption regressions.",
+      "inventoryReviewDate": "2026-10-18"
     },
     {
       "path": "src/shared/context-pack-request.js",
@@ -256,7 +353,7 @@
     },
     {
       "path": "src/shared/dense-vector-binary.js",
-      "consumerCount": 1,
+      "consumerCount": 3,
       "classifications": [
         "keep",
         "document",
@@ -267,7 +364,7 @@
     },
     {
       "path": "src/shared/dense-vector-meta.js",
-      "consumerCount": 2,
+      "consumerCount": 6,
       "classifications": [
         "keep",
         "document",
@@ -277,8 +374,60 @@
       "recommendation": "Keep ownership explicit and update this review entry with a narrower recommendation when the module is next touched."
     },
     {
+      "path": "src/shared/dense-vector-stream.js",
+      "consumerCount": 3,
+      "classifications": [
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Static production imports: src/storage/sqlite/utils.js, tools/build/embeddings/sqlite-dense.js, tools/build/embeddings/vector-source-binary.js.",
+      "recommendation": "Keep bounded immutable windows and original ordinals, including explicitly absent rows."
+    },
+    {
+      "path": "src/shared/dense-vector-validity.js",
+      "consumerCount": 10,
+      "classifications": [
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Static production imports: src/index/build/artifacts-write/index.js, src/retrieval/pipeline/count-aware-ann.js, src/retrieval/rankers.js, src/shared/dense-vector-artifacts.js, src/shared/dense-vector-binary.js, src/shared/dense-vector-meta.js, src/shared/dense-vector-stream.js, src/storage/sqlite/build/from-artifacts/vector-ingest.js, tools/build/embeddings/vector-source.js, tools/build/lmdb-index.js.",
+      "recommendation": "Keep row-presence encoding canonical across ingestion, hydration and ranking."
+    },
+    {
+      "path": "src/shared/diagnostic-environment.js",
+      "consumerCount": 1,
+      "classifications": [
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Static production imports: tools/bench/language/logging.js.",
+      "recommendation": "Keep diagnostic allowlisting separate from execution environment inheritance; exclude opaque credential-bearing values."
+    },
+    {
+      "path": "src/shared/diagnostic-text.js",
+      "consumerCount": 21,
+      "classifications": [
+        "keep",
+        "document"
+      ],
+      "consumerNotes": "Static ownership census confirms 9 direct consumers, including src/index/build/runtime/receipt.js, src/index/scm/metadata-diagnostics.js, src/index/tooling/command-resolver.js. This inventory review is not a behavioral qualification receipt.",
+      "recommendation": "Retain this active shared owner and its narrow imports. Keep behavior acceptance separate from this ownership inventory; unresolved test and platform qualifications are recorded in the October 18 deep audit.",
+      "inventoryReviewDate": "2026-10-18"
+    },
+    {
+      "path": "src/shared/dictionary-identifiers.js",
+      "consumerCount": 3,
+      "classifications": [
+        "keep",
+        "document"
+      ],
+      "consumerNotes": "Static ownership census confirms 3 direct consumers, including src/integrations/inference-history/lexical-analyzer.js, src/integrations/inference-history/lexical-vocabulary.js, tools/dicts/generate-repo-dict.js. This inventory review is not a behavioral qualification receipt.",
+      "recommendation": "Retain this active shared owner and its narrow imports. Keep behavior acceptance separate from this ownership inventory; unresolved test and platform qualifications are recorded in the October 18 deep audit.",
+      "inventoryReviewDate": "2026-10-18"
+    },
+    {
       "path": "src/shared/direct-execution.js",
-      "consumerCount": 33,
+      "consumerCount": 65,
       "classifications": [
         "keep",
         "document",
@@ -289,7 +438,7 @@
     },
     {
       "path": "src/shared/disk-space.js",
-      "consumerCount": 14,
+      "consumerCount": 13,
       "classifications": [
         "keep",
         "document",
@@ -297,6 +446,58 @@
       ],
       "consumerNotes": "Artifact writers and index-space checks use this for free-space enforcement and size estimation before expensive writes.",
       "recommendation": "Keep the module, but document that it is the canonical disk-capacity helper and avoid duplicating byte-formatting and size-estimation logic elsewhere."
+    },
+    {
+      "path": "src/shared/dockerfile-ast.js",
+      "consumerCount": 3,
+      "classifications": [
+        "keep",
+        "document"
+      ],
+      "consumerNotes": "Static ownership census confirms 3 direct consumers, including src/index/chunking/dispatch/heuristic-chunkers.js, src/index/language-registry/adapters/heuristic.js, src/index/language-registry/import-collectors/dockerfile.js. This inventory review is not a behavioral qualification receipt.",
+      "recommendation": "Retain this format-specific parser/structure owner and its active producer consumers. Keep language contracts and native activation checks; no absence of imports or replacement proof supports deletion.",
+      "inventoryReviewDate": "2026-10-18"
+    },
+    {
+      "path": "src/shared/effective-cpu.js",
+      "consumerCount": 5,
+      "classifications": [
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Static production imports: src/lang/tree-sitter/worker.js, src/shared/auto-policy/profile.js, src/shared/runtime-envelope/resolve-current-process-envelope.js, src/shared/threads.js, tools/setup/bootstrap-tasks.js.",
+      "recommendation": "Keep available process parallelism as admission evidence and machine CPU count as diagnostic context."
+    },
+    {
+      "path": "src/shared/effective-memory.js",
+      "consumerCount": 19,
+      "classifications": [
+        "keep",
+        "document"
+      ],
+      "consumerNotes": "Static ownership census confirms 12 direct consumers, including src/index/build/runtime/runtime.js, src/index/build/runtime/workers.js, src/index/build/workers/config.js. This inventory review is not a behavioral qualification receipt.",
+      "recommendation": "Retain this active shared owner and its narrow imports. Keep behavior acceptance separate from this ownership inventory; unresolved test and platform qualifications are recorded in the October 18 deep audit.",
+      "inventoryReviewDate": "2026-10-18"
+    },
+    {
+      "path": "src/shared/embedding-acquisition-plan.js",
+      "consumerCount": 2,
+      "classifications": [
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Static production imports: src/shared/embedding-artifact-identity.js, src/shared/embedding-model-loading.js.",
+      "recommendation": "Keep loader selection shared between setup and runtime so downloaded components match actual acquisition."
+    },
+    {
+      "path": "src/shared/embedding-acquisition-receipt.js",
+      "consumerCount": 4,
+      "classifications": [
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Static production imports: src/shared/embedding-artifact-identity.js, src/shared/embedding-model-loading.js, src/shared/embedding-model-prefetch.js, tools/setup/model-readiness.js.",
+      "recommendation": "Retain exact precision, revision and bounded component-path checks; installation presence is not runtime byte verification."
     },
     {
       "path": "src/shared/embedding-adapter-helpers.js",
@@ -310,6 +511,211 @@
       "recommendation": "Keep ownership explicit and update this review entry with a narrower recommendation when the module is next touched."
     },
     {
+      "path": "src/shared/embedding-artifact-identity.js",
+      "consumerCount": 15,
+      "classifications": [
+        "keep",
+        "document"
+      ],
+      "consumerNotes": "Static ownership census confirms 6 direct consumers, including src/index/build/runtime/embeddings.js, src/retrieval/cli/run-search-session/embedding-cache.js, src/shared/embedding-adapter.js. This inventory review is not a behavioral qualification receipt.",
+      "recommendation": "Retain the shared embedding policy/identity owner. Build and query consumers must resolve the same intent and preserve digest/revision rejection; stub integration does not qualify real model execution.",
+      "inventoryReviewDate": "2026-10-18"
+    },
+    {
+      "path": "src/shared/embedding-artifact-lease.js",
+      "consumerCount": 8,
+      "classifications": [
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Static production imports: src/index/build/runtime/embeddings.js, src/retrieval/cli/run-search-session/embedding-cache.js, src/retrieval/rerankers/onnx-cross-encoder.js, src/shared/embedding-adapter.js, src/shared/embedding-provider-adapters.js, src/shared/onnx-embeddings.js, tools/bench/embeddings/onnx-profile-experiment.js, tools/build/embeddings/runner.js.",
+      "recommendation": "Coalesce only concurrent byte verification; do not add a persistent mutable-path digest cache."
+    },
+    {
+      "path": "src/shared/embedding-batch-plan.js",
+      "consumerCount": 3,
+      "classifications": [
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Static production imports: src/shared/embedding-batches.js, src/shared/embedding-inline-batcher.js, tools/build/embeddings/batch-plan.js.",
+      "recommendation": "Keep deterministic token packing independent of source ownership and provider execution."
+    },
+    {
+      "path": "src/shared/embedding-batches.js",
+      "consumerCount": 2,
+      "classifications": [
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Static production imports: src/shared/embedding-inline-batcher.js, tools/build/embeddings/embed.js.",
+      "recommendation": "Preserve vector-count validation and per-batch completion telemetry across inline and deferred consumers."
+    },
+    {
+      "path": "src/shared/embedding-cache-failure-inspection.js",
+      "consumerCount": 3,
+      "classifications": [
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Static production imports: src/index/build/runtime/daemon-session.js, src/shared/embedding-cache-lifetime.js, src/shared/embedding-failure-diagnostics.js.",
+      "recommendation": "Retain one-time diagnostics without invoking lazy stack accessors or manufacturing cleanup authority."
+    },
+    {
+      "path": "src/shared/embedding-cache-lifetime.js",
+      "consumerCount": 17,
+      "classifications": [
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Static production imports: src/index/build/runtime/daemon-session.js, src/retrieval/embedding.js, src/retrieval/rerankers/failure-inspection.js, src/shared/embedding-adapter-helpers.js, src/shared/embedding-adapter.js, src/shared/embedding-deferred-adapter.js, src/shared/embedding-failure-diagnostics.js, src/shared/embedding-model-loading.js, src/shared/embedding-model-prefetch.js, src/shared/embedding-prepared.js, src/shared/embedding-provider-adapters.js, src/shared/embedding-transformers-resources.js, src/shared/onnx-embeddings/cache-lifetime.js, src/shared/onnx-embeddings/resource-lifetime.js, src/shared/onnx-embeddings/tensor-lifetime.js, src/shared/onnx-model-install.js, tools/bench/embeddings/onnx-profile-experiment.js.",
+      "recommendation": "Keep original resource observers and exact cache lease owners; diagnostic markers cannot prove native closure."
+    },
+    {
+      "path": "src/shared/embedding-chunk-input.js",
+      "consumerCount": 5,
+      "classifications": [
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Static production imports: tools/build/embeddings/cache.js, tools/build/embeddings/cache/file-references.js, tools/build/embeddings/prior-chunk-reuse.js, tools/build/embeddings/runner.js, tools/build/embeddings/runner/cache-only.js.",
+      "recommendation": "Keep source and documentation channels byte-framed identically for cache identity and provider input."
+    },
+    {
+      "path": "src/shared/embedding-deferred-adapter.js",
+      "consumerCount": 2,
+      "classifications": [
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Static production imports: src/shared/embedding-adapter.js, src/shared/onnx-embeddings.js.",
+      "recommendation": "Retain synchronous construction with awaited acquisition owned by the returned lease."
+    },
+    {
+      "path": "src/shared/embedding-dense-contract.js",
+      "consumerCount": 6,
+      "classifications": [
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Static production imports: src/shared/embedding-identity.js, src/shared/embedding-input-format.js, src/shared/embedding-model-profile.js, src/shared/embedding-provider-adapters.js, src/shared/onnx-embeddings.js, tools/bench/embeddings/onnx-profile-experiment.js.",
+      "recommendation": "Keep model-specific dense encoding contracts explicit; unknown models need qualification rather than guessed pooling."
+    },
+    {
+      "path": "src/shared/embedding-execution-plan.js",
+      "consumerCount": 5,
+      "classifications": [
+        "keep",
+        "document"
+      ],
+      "consumerNotes": "Static ownership census confirms 5 direct consumers, including src/index/build/indexer/embedding-queue.js, src/integrations/core/build-index/stages.js, tools/build/embeddings/cli.js. This inventory review is not a behavioral qualification receipt.",
+      "recommendation": "Retain the shared embedding policy/identity owner. Build and query consumers must resolve the same intent and preserve digest/revision rejection; stub integration does not qualify real model execution.",
+      "inventoryReviewDate": "2026-10-18"
+    },
+    {
+      "path": "src/shared/embedding-failure-diagnostics.js",
+      "consumerCount": 5,
+      "classifications": [
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Static production imports: src/shared/embedding-adapter-helpers.js, src/shared/embedding-transformers-resources.js, src/shared/onnx-embeddings.js, src/shared/onnx-embeddings/cache-lifetime.js, src/shared/onnx-embeddings/resource-lifetime.js.",
+      "recommendation": "Keep descriptor projection separate from unforgeable producer ownership fields."
+    },
+    {
+      "path": "src/shared/embedding-generation.js",
+      "consumerCount": 4,
+      "classifications": [
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Static production imports: src/index/validate/embeddings.js, src/retrieval/cli/ann-backends.js, src/retrieval/index-hydration.js, tools/build/embeddings/runner.js.",
+      "recommendation": "Preserve exact vector ordinals and source inputs in both bounded async generation and small synchronous compatibility calls."
+    },
+    {
+      "path": "src/shared/embedding-inline-batcher.js",
+      "consumerCount": 2,
+      "classifications": [
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Static production imports: src/index/build/file-processor/embeddings.js, src/index/build/runtime/embeddings.js.",
+      "recommendation": "Keep token admission, exact-text deduplication and single-provider execution under the runtime owner."
+    },
+    {
+      "path": "src/shared/embedding-intent.js",
+      "consumerCount": 8,
+      "classifications": [
+        "keep",
+        "document"
+      ],
+      "consumerNotes": "Static ownership census confirms 7 direct consumers, including src/index/build/runtime/embeddings.js, src/index/build/runtime/runtime.js, src/integrations/core/embeddings.js. This inventory review is not a behavioral qualification receipt.",
+      "recommendation": "Retain the shared embedding policy/identity owner. Build and query consumers must resolve the same intent and preserve digest/revision rejection; stub integration does not qualify real model execution.",
+      "inventoryReviewDate": "2026-10-18"
+    },
+    {
+      "path": "src/shared/embedding-model-loading.js",
+      "consumerCount": 3,
+      "classifications": [
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Static production imports: src/shared/embedding-adapter.js, src/shared/embedding-model-prefetch.js, tools/setup/model-readiness.js.",
+      "recommendation": "Keep the loader's qualified component closure shared with setup and leave returned resource lifetime with callers."
+    },
+    {
+      "path": "src/shared/embedding-model-prefetch.js",
+      "consumerCount": 1,
+      "classifications": [
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Static production imports: tools/download/models.js.",
+      "recommendation": "Retain the actual download consumer's shared loader and cleanup owner instead of a separate prefetch implementation."
+    },
+    {
+      "path": "src/shared/embedding-model-profile.js",
+      "consumerCount": 13,
+      "classifications": [
+        "keep",
+        "document"
+      ],
+      "consumerNotes": "Static ownership census confirms 10 direct consumers, including src/index/build/runtime/embeddings.js, src/integrations/inference-history/embedding-runtime.js, src/retrieval/embedding.js. This inventory review is not a behavioral qualification receipt.",
+      "recommendation": "Retain the shared embedding policy/identity owner. Build and query consumers must resolve the same intent and preserve digest/revision rejection; stub integration does not qualify real model execution.",
+      "inventoryReviewDate": "2026-10-18"
+    },
+    {
+      "path": "src/shared/embedding-output-admission.js",
+      "consumerCount": 3,
+      "classifications": [
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Static production imports: src/shared/embedding-model-profile.js, src/shared/embedding-utils.js, src/shared/onnx-embeddings/output.js.",
+      "recommendation": "Validate tensor shape and the exact view length before pooling or conversion; diagnostics must omit submitted text."
+    },
+    {
+      "path": "src/shared/embedding-postprocess.js",
+      "consumerCount": 2,
+      "classifications": [
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Static production imports: src/index/build/file-processor/embeddings.js, tools/build/embeddings/embed.js.",
+      "recommendation": "Keep input channels read-only and each returned channel's byte storage independent."
+    },
+    {
+      "path": "src/shared/embedding-prepared.js",
+      "consumerCount": 4,
+      "classifications": [
+        "keep",
+        "document"
+      ],
+      "consumerNotes": "Static ownership census confirms 3 direct consumers, including src/integrations/inference-history/embedding-runtime.js, src/shared/embedding-adapter.js, tools/history/eg2-qualify-run.js. This inventory review is not a behavioral qualification receipt.",
+      "recommendation": "Retain the shared embedding policy/identity owner. Build and query consumers must resolve the same intent and preserve digest/revision rejection; stub integration does not qualify real model execution.",
+      "inventoryReviewDate": "2026-10-18"
+    },
+    {
       "path": "src/shared/embedding-provider-adapters.js",
       "consumerCount": 1,
       "classifications": [
@@ -321,8 +727,18 @@
       "recommendation": "Keep ownership explicit and update this review entry with a narrower recommendation when the module is next touched."
     },
     {
+      "path": "src/shared/embedding-quantization-spec.js",
+      "consumerCount": 25,
+      "classifications": [
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Static production imports: src/index/build/artifacts-write/index.js, src/index/build/file-processor/embeddings.js, src/index/build/indexer/steps/postings.js, src/index/build/postings/dense-vectors.js, src/index/build/postings/index.js, src/index/build/runtime/embeddings.js, src/index/build/workers/indexer-worker.js, src/index/build/workers/protocol.js, src/shared/dense-vector-artifacts.js, src/shared/dense-vector-binary.js, src/shared/dense-vector-meta.js, src/shared/dense-vector-stream.js, src/shared/embedding-postprocess.js, src/shared/embeddings-cache/format.js, tools/build/embeddings/cache/file-references.js, tools/build/embeddings/embed.js, tools/build/embeddings/hnsw.js, tools/build/embeddings/lancedb-arrow.js, tools/build/embeddings/lancedb.js, tools/build/embeddings/quantized-channels.js, tools/build/embeddings/runner.js, tools/build/embeddings/runner/cache-only.js, tools/build/embeddings/vector-source-binary.js, tools/build/embeddings/vector-source.js, tools/build/lmdb-index.js.",
+      "recommendation": "Keep scalar range admission and codec identity shared by inline, deferred and persisted vectors."
+    },
+    {
       "path": "src/shared/embedding-quantization.js",
-      "consumerCount": 1,
+      "consumerCount": 2,
       "classifications": [
         "keep",
         "document",
@@ -332,8 +748,28 @@
       "recommendation": "Keep ownership explicit and update this review entry with a narrower recommendation when the module is next touched."
     },
     {
+      "path": "src/shared/embedding-selection-snapshot.js",
+      "consumerCount": 8,
+      "classifications": [
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Static production imports: src/shared/embedding-adapter.js, src/shared/embedding-artifact-lease.js, src/shared/embedding-deferred-adapter.js, src/shared/embedding-model-loading.js, src/shared/embedding-prepared.js, src/shared/embedding-provider-adapters.js, src/shared/onnx-embeddings.js, tools/bench/embeddings/onnx-profile-experiment.js.",
+      "recommendation": "Capture caller-owned metadata before asynchronous acquisition; retain signals and resource identities as borrowed owners."
+    },
+    {
+      "path": "src/shared/embedding-transformers-resources.js",
+      "consumerCount": 5,
+      "classifications": [
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Static production imports: src/shared/embedding-model-loading.js, src/shared/embedding-model-prefetch.js, src/shared/embedding-prepared.js, src/shared/embedding-provider-adapters.js, src/shared/onnx-embeddings/tensor-lifetime.js.",
+      "recommendation": "Keep native failure provenance bound to actual constructor resources, never copied causal fields."
+    },
+    {
       "path": "src/shared/embedding-vector-utils.js",
-      "consumerCount": 1,
+      "consumerCount": 3,
       "classifications": [
         "keep",
         "document",
@@ -344,7 +780,7 @@
     },
     {
       "path": "src/shared/env-path.js",
-      "consumerCount": 4,
+      "consumerCount": 6,
       "classifications": [
         "keep",
         "document",
@@ -355,7 +791,7 @@
     },
     {
       "path": "src/shared/env.js",
-      "consumerCount": 42,
+      "consumerCount": 5,
       "classifications": [
         "split",
         "document",
@@ -377,7 +813,7 @@
     },
     {
       "path": "src/shared/env/core.js",
-      "consumerCount": 5,
+      "consumerCount": 6,
       "classifications": [
         "keep",
         "document",
@@ -388,7 +824,7 @@
     },
     {
       "path": "src/shared/env/runtime.js",
-      "consumerCount": 3,
+      "consumerCount": 56,
       "classifications": [
         "keep",
         "document",
@@ -399,7 +835,7 @@
     },
     {
       "path": "src/shared/env/testing.js",
-      "consumerCount": 19,
+      "consumerCount": 22,
       "classifications": [
         "keep",
         "document",
@@ -410,7 +846,7 @@
     },
     {
       "path": "src/shared/env/tui.js",
-      "consumerCount": 2,
+      "consumerCount": 5,
       "classifications": [
         "keep",
         "document",
@@ -421,7 +857,7 @@
     },
     {
       "path": "src/shared/error-codes.js",
-      "consumerCount": 45,
+      "consumerCount": 64,
       "classifications": [
         "split",
         "document",
@@ -431,8 +867,19 @@
       "recommendation": "Keep the error code registry centralized, but split heuristic hint resolution from the canonical code constants and payload builder so machine contracts stay clean."
     },
     {
+      "path": "src/shared/extraction-quality.js",
+      "consumerCount": 3,
+      "classifications": [
+        "keep",
+        "document"
+      ],
+      "consumerNotes": "Static ownership census confirms 3 direct consumers, including tools/bench/language/quality-summary.js, tools/bench/language/verdict.js, tools/index/report-artifacts/scan-profile.js. This inventory review is not a behavioral qualification receipt.",
+      "recommendation": "Retain this active shared owner and its narrow imports. Keep behavior acceptance separate from this ownership inventory; unresolved test and platform qualifications are recorded in the October 18 deep audit.",
+      "inventoryReviewDate": "2026-10-18"
+    },
+    {
       "path": "src/shared/file-paths.js",
-      "consumerCount": 10,
+      "consumerCount": 185,
       "classifications": [
         "keep",
         "document",
@@ -442,8 +889,18 @@
       "recommendation": "Keep this helper narrowly scoped and prefer direct imports here over rebuilding broader mixed-responsibility utility buckets."
     },
     {
+      "path": "src/shared/file-read-resource.js",
+      "consumerCount": 9,
+      "classifications": [
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Static production imports: src/shared/artifact-io/chunk-meta-presence.js, src/shared/file-read.js, src/shared/json-file.js, src/shared/jsonc.js, src/shared/locks/file-lock-info.js, src/workspace/manifest.js, tools/dict-utils/config.js, tools/setup/first-search-plan.js, tools/workspace/author.js.",
+      "recommendation": "Keep JSON text conversion after confirmed descriptor closure; the reader grants no mutation or category authority."
+    },
+    {
       "path": "src/shared/file-read.js",
-      "consumerCount": 14,
+      "consumerCount": 26,
       "classifications": [
         "keep",
         "document",
@@ -451,6 +908,82 @@
       ],
       "consumerNotes": "Narrow shared helper promoted out of broader shared surfaces during the hard-cutover cleanup to make ownership and reuse explicit.",
       "recommendation": "Keep this helper narrowly scoped and prefer direct imports here over rebuilding broader mixed-responsibility utility buckets."
+    },
+    {
+      "path": "src/shared/filename-key.js",
+      "consumerCount": 2,
+      "classifications": [
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Static production imports: src/index/build/stage-checkpoints/sidecar.js, src/index/build/tree-sitter-scheduler/paths.js.",
+      "recommendation": "Retain exact raw identity when filename spellings change; avoid short-token collisions."
+    },
+    {
+      "path": "src/shared/generated-artifact-cache.js",
+      "consumerCount": 16,
+      "classifications": [
+        "keep",
+        "document"
+      ],
+      "consumerNotes": "Static ownership census confirms 15 direct consumers, including src/index/build/import-resolution-cache.js, src/index/build/runtime/learned-auto-profile.js, src/index/build/runtime/scheduler-autotune-profile.js. This inventory review is not a behavioral qualification receipt.",
+      "recommendation": "Retain the active storage/identity owner. Preserve containment, format checks and cache admission; path-only diagnostics must not acquire data-access leases. Keep cleanup and corruption regressions.",
+      "inventoryReviewDate": "2026-10-18"
+    },
+    {
+      "path": "src/shared/generated-artifact-core.js",
+      "consumerCount": 16,
+      "classifications": [
+        "keep",
+        "document"
+      ],
+      "consumerNotes": "Static ownership census confirms 17 direct consumers, including src/index/build/artifacts-write/family-dispatch.js, src/index/build/artifacts-write/index.js, src/index/build/artifacts/checksums.js. This inventory review is not a behavioral qualification receipt.",
+      "recommendation": "Retain the active storage/identity owner. Preserve containment, format checks and cache admission; path-only diagnostics must not acquire data-access leases. Keep cleanup and corruption regressions.",
+      "inventoryReviewDate": "2026-10-18"
+    },
+    {
+      "path": "src/shared/generated-artifact-prefix.js",
+      "consumerCount": 2,
+      "classifications": [
+        "keep",
+        "document"
+      ],
+      "consumerNotes": "Static ownership census confirms 2 direct consumers, including src/shared/generated-artifact-cache.js, src/shared/generated-artifact-core.js. This inventory review is not a behavioral qualification receipt.",
+      "recommendation": "Retain the active storage/identity owner. Preserve containment, format checks and cache admission; path-only diagnostics must not acquire data-access leases. Keep cleanup and corruption regressions.",
+      "inventoryReviewDate": "2026-10-18"
+    },
+    {
+      "path": "src/shared/generated-artifact.js",
+      "consumerCount": 6,
+      "classifications": [
+        "keep",
+        "document"
+      ],
+      "consumerNotes": "Static ownership census confirms 5 direct consumers, including src/index/build/discover.js, src/index/build/file-processor/pre-cpu-content.js, src/index/build/runtime/hash.js. This inventory review is not a behavioral qualification receipt.",
+      "recommendation": "Retain the active storage/identity owner. Preserve containment, format checks and cache admission; path-only diagnostics must not acquire data-access leases. Keep cleanup and corruption regressions.",
+      "inventoryReviewDate": "2026-10-18"
+    },
+    {
+      "path": "src/shared/graphql-ast.js",
+      "consumerCount": 3,
+      "classifications": [
+        "keep",
+        "document"
+      ],
+      "consumerNotes": "Static ownership census confirms 3 direct consumers, including src/index/chunking/dispatch/schema-chunkers.js, src/index/language-registry/adapters/heuristic.js, src/index/language-registry/import-collectors/graphql.js. This inventory review is not a behavioral qualification receipt.",
+      "recommendation": "Retain this format-specific parser/structure owner and its active producer consumers. Keep language contracts and native activation checks; no absence of imports or replacement proof supports deletion.",
+      "inventoryReviewDate": "2026-10-18"
+    },
+    {
+      "path": "src/shared/handlebars-ast.js",
+      "consumerCount": 4,
+      "classifications": [
+        "keep",
+        "document"
+      ],
+      "consumerNotes": "Static ownership census confirms 3 direct consumers, including src/index/chunking/dispatch/heuristic-chunkers.js, src/index/language-registry/adapters/heuristic.js, src/index/language-registry/import-collectors/handlebars.js. This inventory review is not a behavioral qualification receipt.",
+      "recommendation": "Retain this format-specific parser/structure owner and its active producer consumers. Keep language contracts and native activation checks; no absence of imports or replacement proof supports deletion.",
+      "inventoryReviewDate": "2026-10-18"
     },
     {
       "path": "src/shared/identity.js",
@@ -464,6 +997,17 @@
       "recommendation": "Keep the module, but document the intended boundary between chunk identity, symbol identity, and artifact-row normalization to avoid ad hoc helpers elsewhere."
     },
     {
+      "path": "src/shared/index-format-error.js",
+      "consumerCount": 14,
+      "classifications": [
+        "keep",
+        "document"
+      ],
+      "consumerNotes": "Static ownership census confirms 15 direct consumers, including bin/pairofcleats.js, src/integrations/mcp/protocol.js, src/integrations/tooling/runtime-evidence.js. This inventory review is not a behavioral qualification receipt.",
+      "recommendation": "Retain this active shared owner and its narrow imports. Keep behavior acceptance separate from this ownership inventory; unresolved test and platform qualifications are recorded in the October 18 deep audit.",
+      "inventoryReviewDate": "2026-10-18"
+    },
+    {
       "path": "src/shared/index-state-utils.js",
       "consumerCount": 3,
       "classifications": [
@@ -473,6 +1017,26 @@
       ],
       "consumerNotes": "Narrow shared helper promoted out of broader shared surfaces during the hard-cutover cleanup to make ownership and reuse explicit.",
       "recommendation": "Keep this helper narrowly scoped and prefer direct imports here over rebuilding broader mixed-responsibility utility buckets."
+    },
+    {
+      "path": "src/shared/index-tool-options.js",
+      "consumerCount": 9,
+      "classifications": [
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Static production imports: tools/docs/recipes/contracts.js, tools/index-snapshot.js, tools/index/recover.js, tools/index/report-artifacts.js, tools/index/stats.js, tools/index/validate.js, tools/tui/operator/index-catalog.js, tools/tui/operator/index-workflows.js, tools/workspace/build.js.",
+      "recommendation": "Keep typed operator forms and CLI declarations aligned without expanding the public option surface implicitly."
+    },
+    {
+      "path": "src/shared/interval-index.js",
+      "consumerCount": 1,
+      "classifications": [
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Static production imports: src/index/build/file-processor/chunk.js.",
+      "recommendation": "Keep interval lookup invocation-owned and preserve original input ordering."
     },
     {
       "path": "src/shared/invariants.js",
@@ -486,7 +1050,7 @@
     },
     {
       "path": "src/shared/iterables.js",
-      "consumerCount": 37,
+      "consumerCount": 36,
       "classifications": [
         "keep",
         "document"
@@ -495,8 +1059,19 @@
       "recommendation": "Keep this as the canonical iterable-to-array normalization surface and avoid adding unrelated collection transforms."
     },
     {
+      "path": "src/shared/jinja-template-structure.js",
+      "consumerCount": 3,
+      "classifications": [
+        "keep",
+        "document"
+      ],
+      "consumerNotes": "Static ownership census confirms 3 direct consumers, including src/index/chunking/dispatch/heuristic-chunkers.js, src/index/language-registry/adapters/heuristic.js, src/index/language-registry/import-collectors/jinja.js. This inventory review is not a behavioral qualification receipt.",
+      "recommendation": "Retain this format-specific parser/structure owner and its active producer consumers. Keep language contracts and native activation checks; no absence of imports or replacement proof supports deletion.",
+      "inventoryReviewDate": "2026-10-18"
+    },
+    {
       "path": "src/shared/json-file.js",
-      "consumerCount": 18,
+      "consumerCount": 38,
       "classifications": [
         "keep",
         "document",
@@ -506,8 +1081,30 @@
       "recommendation": "Keep this helper narrowly scoped and prefer direct imports here over rebuilding broader mixed-responsibility utility buckets."
     },
     {
+      "path": "src/shared/json-reference-policy.js",
+      "consumerCount": 2,
+      "classifications": [
+        "keep",
+        "document"
+      ],
+      "consumerNotes": "Static ownership census confirms 2 direct consumers, including src/index/language-registry/import-collectors/json.js, src/shared/jsonc-structure.js. This inventory review is not a behavioral qualification receipt.",
+      "recommendation": "Retain this active shared owner and its narrow imports. Keep behavior acceptance separate from this ownership inventory; unresolved test and platform qualifications are recorded in the October 18 deep audit.",
+      "inventoryReviewDate": "2026-10-18"
+    },
+    {
+      "path": "src/shared/jsonc-structure.js",
+      "consumerCount": 3,
+      "classifications": [
+        "keep",
+        "document"
+      ],
+      "consumerNotes": "Static ownership census confirms 2 direct consumers, including src/index/chunking/formats/json.js, src/index/language-registry/import-collectors/json.js. This inventory review is not a behavioral qualification receipt.",
+      "recommendation": "Retain this format-specific parser/structure owner and its active producer consumers. Keep language contracts and native activation checks; no absence of imports or replacement proof supports deletion.",
+      "inventoryReviewDate": "2026-10-18"
+    },
+    {
       "path": "src/shared/jsonrpc.js",
-      "consumerCount": 5,
+      "consumerCount": 7,
       "classifications": [
         "keep",
         "document",
@@ -540,7 +1137,7 @@
     },
     {
       "path": "src/shared/kill-tree/windows.js",
-      "consumerCount": 1,
+      "consumerCount": 2,
       "classifications": [
         "keep",
         "document",
@@ -551,7 +1148,7 @@
     },
     {
       "path": "src/shared/limits.js",
-      "consumerCount": 40,
+      "consumerCount": 43,
       "classifications": [
         "merge",
         "document",
@@ -562,7 +1159,7 @@
     },
     {
       "path": "src/shared/lines.js",
-      "consumerCount": 31,
+      "consumerCount": 39,
       "classifications": [
         "keep",
         "document"
@@ -592,8 +1189,101 @@
       "recommendation": "Keep it focused on warn-once semantics and document it as the preferred duplicate-warning suppressor."
     },
     {
+      "path": "src/shared/managed-clangd.js",
+      "consumerCount": 3,
+      "classifications": [
+        "keep",
+        "document"
+      ],
+      "consumerNotes": "Static ownership census confirms 3 direct consumers, including src/shared/tooling-bin-dirs.js, tools/tooling/install-clangd.js, tools/tooling/utils.js. This inventory review is not a behavioral qualification receipt.",
+      "recommendation": "Retain the launch authority, preparation or verified-tool owner. Preserve fail-closed admission and real native activation; fixture success does not certify every platform/provider.",
+      "inventoryReviewDate": "2026-10-18"
+    },
+    {
+      "path": "src/shared/managed-go.js",
+      "consumerCount": 4,
+      "classifications": [
+        "keep",
+        "document"
+      ],
+      "consumerNotes": "Static ownership census confirms 4 direct consumers, including src/shared/toolchain-env.js, src/shared/tooling-bin-dirs.js, tools/tooling/install-go-sdk.js. This inventory review is not a behavioral qualification receipt.",
+      "recommendation": "Retain the launch authority, preparation or verified-tool owner. Preserve fail-closed admission and real native activation; fixture success does not certify every platform/provider.",
+      "inventoryReviewDate": "2026-10-18"
+    },
+    {
+      "path": "src/shared/managed-installation-contract.js",
+      "consumerCount": 3,
+      "classifications": [
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Static production imports: src/shared/managed-installation-retain.js, src/shared/managed-installation.js, tools/tooling/managed-install.js.",
+      "recommendation": "Keep strict descriptor and receipt shapes; a valid hash cannot qualify unknown retention semantics."
+    },
+    {
+      "path": "src/shared/managed-installation-retain.js",
+      "consumerCount": 1,
+      "classifications": [
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Static production imports: src/shared/managed-installation.js.",
+      "recommendation": "Retain exact installation bytes and category ownership through actual child settlement; inspection alone must not launch probes."
+    },
+    {
+      "path": "src/shared/managed-installation.js",
+      "consumerCount": 9,
+      "classifications": [
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Static production imports: src/experimental/structural/execution.js, src/index/tooling/dotnet-runtime.js, src/index/tooling/managed-command-lifetime.js, tools/tooling/managed-install.js, tools/tooling/operational-execution.js, tools/tooling/owned-detect.js, tools/tooling/provisioning-lifetime.js, tools/tooling/provisioning-plan.js, tools/tooling/utils.js.",
+      "recommendation": "Keep selection metadata separate from protocol and project readiness; retain the existing lifetime export seam."
+    },
+    {
+      "path": "src/shared/managed-lua.js",
+      "consumerCount": 3,
+      "classifications": [
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Static production imports: src/shared/tooling-bin-dirs.js, tools/tooling/install-lua-language-server.js, tools/tooling/utils.js.",
+      "recommendation": "Keep Lua selection metadata separate from protocol readiness and executable qualification."
+    },
+    {
+      "path": "src/shared/managed-ruby.js",
+      "consumerCount": 1,
+      "classifications": [
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Static production imports: src/shared/toolchain-env.js.",
+      "recommendation": "Bind only the selected launcher to its actual managed gem repository; avoid ambient environment discovery."
+    },
+    {
+      "path": "src/shared/managed-tool-file.js",
+      "consumerCount": 6,
+      "classifications": [
+        "keep",
+        "document"
+      ],
+      "consumerNotes": "Static ownership census confirms 3 direct consumers, including src/shared/managed-clangd.js, src/shared/managed-go.js, tools/tooling/install-clangd.js. This inventory review is not a behavioral qualification receipt.",
+      "recommendation": "Retain the launch authority, preparation or verified-tool owner. Preserve fail-closed admission and real native activation; fixture success does not certify every platform/provider.",
+      "inventoryReviewDate": "2026-10-18"
+    },
+    {
+      "path": "src/shared/merge-disk.js",
+      "consumerCount": 4,
+      "classifications": [
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Static production imports: src/index/build/artifacts/graph-relations.js, src/index/build/artifacts/helpers.js, src/shared/json-stream/jsonl-sharded.js, src/shared/merge.js.",
+      "recommendation": "Retain coexistence credits for old and replacement bytes until confirmed publication and recovery inventory settlement."
+    },
+    {
       "path": "src/shared/merge.js",
-      "consumerCount": 16,
+      "consumerCount": 19,
       "classifications": [
         "split",
         "document",
@@ -604,7 +1294,7 @@
     },
     {
       "path": "src/shared/metrics/core.js",
-      "consumerCount": 15,
+      "consumerCount": 16,
       "classifications": [
         "keep",
         "document",
@@ -612,6 +1302,27 @@
       ],
       "consumerNotes": "Shared metric registry core extracted from the former root metrics monolith.",
       "recommendation": "Keep the registry stable here and add metric-family growth around it rather than rebuilding a wide root metrics bucket."
+    },
+    {
+      "path": "src/shared/min-heap.js",
+      "consumerCount": 4,
+      "classifications": [
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Static production imports: src/graph/neighborhood.js, src/retrieval/evaluation/vector-oracle.js, src/retrieval/federation/merge.js, tools/triage/history.js.",
+      "recommendation": "Keep the small request-owned heap and require stable tie-breaking in the caller comparator."
+    },
+    {
+      "path": "src/shared/mustache-structure.js",
+      "consumerCount": 4,
+      "classifications": [
+        "keep",
+        "document"
+      ],
+      "consumerNotes": "Static ownership census confirms 3 direct consumers, including src/index/chunking/dispatch/heuristic-chunkers.js, src/index/language-registry/adapters/heuristic.js, src/index/language-registry/import-collectors/mustache.js. This inventory review is not a behavioral qualification receipt.",
+      "recommendation": "Retain this format-specific parser/structure owner and its active producer consumers. Keep language contracts and native activation checks; no absence of imports or replacement proof supports deletion.",
+      "inventoryReviewDate": "2026-10-18"
     },
     {
       "path": "src/shared/native-accel.js",
@@ -624,8 +1335,19 @@
       "recommendation": "Keep the deterministic contract, but document that this is a feasibility and ABI decision module rather than a general runtime helper."
     },
     {
+      "path": "src/shared/native-package-probe.js",
+      "consumerCount": 3,
+      "classifications": [
+        "keep",
+        "document"
+      ],
+      "consumerNotes": "Static ownership census confirms 3 direct consumers, including src/shared/bootstrap-readiness.js, tools/setup/rebuild-native-sqlite.js, tools/setup/rebuild-native.js. This inventory review is not a behavioral qualification receipt.",
+      "recommendation": "Retain the launch authority, preparation or verified-tool owner. Preserve fail-closed admission and real native activation; fixture success does not certify every platform/provider.",
+      "inventoryReviewDate": "2026-10-18"
+    },
+    {
       "path": "src/shared/number-coerce.js",
-      "consumerCount": 33,
+      "consumerCount": 37,
       "classifications": [
         "keep",
         "merge",
@@ -636,8 +1358,18 @@
       "recommendation": "Make this the primary numeric coercion surface and absorb or re-export overlapping limits.js helpers from here."
     },
     {
+      "path": "src/shared/object-record.js",
+      "consumerCount": 22,
+      "classifications": [
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Static production imports: src/index/build/feature-metrics.js, src/index/build/perf-profile.js, src/index/build/postings/token-field.js, src/index/build/runtime/queues.js, src/index/build/stage-checkpoints.js, src/index/diffs/events.js, src/index/metadata-v2.js, src/index/tooling/signature-parse/clike.js, src/index/tooling/signature-parse/elixir.js, src/index/tooling/signature-parse/go.js, src/index/tooling/signature-parse/kotlin.js, src/index/tooling/signature-parse/lua.js, src/index/tooling/signature-parse/php.js, src/index/tooling/signature-parse/python.js, src/index/tooling/signature-parse/ruby.js, src/index/tooling/signature-parse/rust.js, src/index/tooling/signature-parse/swift.js, src/index/tooling/signature-parse/zig.js, src/integrations/tooling/providers/lsp/hover-types/payload-policy.js, src/integrations/tooling/providers/lsp/semantic-signals.js, tools/index/report-artifacts/scan-profile.js, tools/ingest/shared.js.",
+      "recommendation": "Keep own-data handling for arbitrary keys, including __proto__, instead of unsafe property assignment."
+    },
+    {
       "path": "src/shared/observability.js",
-      "consumerCount": 13,
+      "consumerCount": 20,
       "classifications": [
         "keep",
         "document",
@@ -645,6 +1377,36 @@
       ],
       "consumerNotes": "Core API, search, build-index integration, and router flows use it for correlation envelopes and observability propagation.",
       "recommendation": "Keep this boundary distinct from metrics.js; it should continue to own correlation envelopes, context propagation, and transport headers."
+    },
+    {
+      "path": "src/shared/onnx-artifact-closure.js",
+      "consumerCount": 3,
+      "classifications": [
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Static production imports: src/retrieval/rerankers/onnx-cross-encoder.js, src/shared/embedding-acquisition-receipt.js, src/shared/onnx-model-install.js.",
+      "recommendation": "Keep bounded protobuf metadata traversal and exact selected external-data closure; never load tensor payloads merely to discover paths."
+    },
+    {
+      "path": "src/shared/onnx-installation.js",
+      "consumerCount": 6,
+      "classifications": [
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Static production imports: src/retrieval/rerankers/onnx-cross-encoder.js, src/shared/embedding-acquisition-receipt.js, src/shared/embedding-artifact-identity.js, src/shared/onnx-artifact-closure.js, src/shared/onnx-embeddings/config.js, src/shared/onnx-model-install.js.",
+      "recommendation": "Keep exact selector and installation receipt admission separate from executable runtime qualification."
+    },
+    {
+      "path": "src/shared/onnx-model-install.js",
+      "consumerCount": 1,
+      "classifications": [
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Static production imports: tools/download/models.js.",
+      "recommendation": "Retain immutable closed generations and shared atomic publication; active readers must keep prior complete installations."
     },
     {
       "path": "src/shared/ops/failure-injection.js",
@@ -670,7 +1432,7 @@
     },
     {
       "path": "src/shared/ops/resource-visibility.js",
-      "consumerCount": 3,
+      "consumerCount": 5,
       "classifications": [
         "keep",
         "document",
@@ -681,7 +1443,7 @@
     },
     {
       "path": "src/shared/optional-deps.js",
-      "consumerCount": 17,
+      "consumerCount": 18,
       "classifications": [
         "keep",
         "document",
@@ -701,8 +1463,18 @@
       "recommendation": "Keep it as the higher-level ordering surface above sort.js, and document that compareStrings remains the low-level primitive comparator."
     },
     {
+      "path": "src/shared/packed-postings-write.js",
+      "consumerCount": 1,
+      "classifications": [
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Static production imports: src/index/build/artifacts/token-postings.js.",
+      "recommendation": "Keep packed bytes and offsets unchanged while streaming through bounded durable writes."
+    },
+    {
       "path": "src/shared/path-normalize.js",
-      "consumerCount": 34,
+      "consumerCount": 33,
       "classifications": [
         "keep",
         "document",
@@ -710,6 +1482,16 @@
       ],
       "consumerNotes": "Context-pack, graph, incremental indexing, and repo-path handling use this heavily for repo-relative and platform-safe path normalization.",
       "recommendation": "Keep it as the canonical repo/path normalization layer; document the boundary against env-path.js and files.js to prevent duplicate path helpers."
+    },
+    {
+      "path": "src/shared/posting-order.js",
+      "consumerCount": 7,
+      "classifications": [
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Static production imports: src/retrieval/bm25-wand.js, src/retrieval/index-hydration.js, src/retrieval/lmdb-helpers.js, src/retrieval/pipeline/eligibility-plan.js, src/retrieval/rankers.js, src/retrieval/sqlite-helpers.js, src/shared/artifact-io/loaders/token-postings.js.",
+      "recommendation": "Retain private immutable-generation admission; serialized markers cannot establish sorted posting authority."
     },
     {
       "path": "src/shared/progress-events.js",
@@ -734,6 +1516,38 @@
       "recommendation": "Keep runtime progress and logging behavior in this leaf and resist rebuilding a single broad root progress utility."
     },
     {
+      "path": "src/shared/proto-structure.js",
+      "consumerCount": 3,
+      "classifications": [
+        "keep",
+        "document"
+      ],
+      "consumerNotes": "Static ownership census confirms 3 direct consumers, including src/index/chunking/dispatch/schema-chunkers.js, src/index/language-registry/adapters/heuristic.js, src/index/language-registry/import-collectors/proto.js. This inventory review is not a behavioral qualification receipt.",
+      "recommendation": "Retain this format-specific parser/structure owner and its active producer consumers. Keep language contracts and native activation checks; no absence of imports or replacement proof supports deletion.",
+      "inventoryReviewDate": "2026-10-18"
+    },
+    {
+      "path": "src/shared/provider-thread-observation.js",
+      "consumerCount": 2,
+      "classifications": [
+        "keep",
+        "document"
+      ],
+      "consumerNotes": "Static ownership census confirms 1 direct consumers, including tools/bench/embeddings/embedding-batch-throughput.js. This inventory review is not a behavioral qualification receipt.",
+      "recommendation": "Retain this active shared owner and its narrow imports. Keep behavior acceptance separate from this ownership inventory; unresolved test and platform qualifications are recorded in the October 18 deep audit.",
+      "inventoryReviewDate": "2026-10-18"
+    },
+    {
+      "path": "src/shared/python-stdlib.js",
+      "consumerCount": 1,
+      "classifications": [
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Static production imports: src/index/build/file-processor/meta.js.",
+      "recommendation": "Keep standard-library classification in one language-specific table rather than diverging provider heuristics."
+    },
+    {
       "path": "src/shared/repo-cache-config.js",
       "consumerCount": 4,
       "classifications": [
@@ -745,8 +1559,18 @@
       "recommendation": "Keep this helper narrowly scoped and prefer direct imports here over rebuilding broader mixed-responsibility utility buckets."
     },
     {
+      "path": "src/shared/repo-cache-retirement.js",
+      "consumerCount": 1,
+      "classifications": [
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Static production imports: src/shared/repo-cache-config.js.",
+      "recommendation": "Keep service retirement receipts attached to existing cache/close owners; do not create a replacement native handle registry."
+    },
+    {
       "path": "src/shared/repo-paths.js",
-      "consumerCount": 17,
+      "consumerCount": 36,
       "classifications": [
         "keep",
         "document",
@@ -768,7 +1592,7 @@
     },
     {
       "path": "src/shared/risk-explain-model.js",
-      "consumerCount": 2,
+      "consumerCount": 3,
       "classifications": [
         "keep",
         "document",
@@ -779,7 +1603,7 @@
     },
     {
       "path": "src/shared/risk-explain-summary.js",
-      "consumerCount": 3,
+      "consumerCount": 4,
       "classifications": [
         "keep",
         "document",
@@ -790,7 +1614,7 @@
     },
     {
       "path": "src/shared/runtime-capability-specs.js",
-      "consumerCount": 2,
+      "consumerCount": 3,
       "classifications": [
         "keep",
         "document",
@@ -801,18 +1625,29 @@
     },
     {
       "path": "src/shared/runtime-envelope/env-patch.js",
+      "consumerCount": 5,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Runtime-envelope leaf module extracted from the main facade so parsing, env patching, and resolution logic can evolve independently.",
+      "recommendation": "Keep resolveRuntimeEnvelope as the public facade and let these internals own the detailed runtime-resolution behavior."
+    },
+    {
+      "path": "src/shared/runtime-envelope/observe.js",
       "consumerCount": 4,
       "classifications": [
         "keep",
-        "document",
-        "test"
+        "document"
       ],
-      "consumerNotes": "Runtime-envelope leaf module extracted from the main facade so parsing, env patching, and resolution logic can evolve independently.",
-      "recommendation": "Keep resolveRuntimeEnvelope as the public facade and let these internals own the detailed runtime-resolution behavior."
+      "consumerNotes": "Static ownership census confirms 4 direct consumers, including src/index/build/workers/indexer-process-child.js, src/shared/runtime-envelope/receipt.js, src/shared/runtime-envelope/resolve-current-process-envelope.js. This inventory review is not a behavioral qualification receipt.",
+      "recommendation": "Retain this active shared owner and its narrow imports. Keep behavior acceptance separate from this ownership inventory; unresolved test and platform qualifications are recorded in the October 18 deep audit.",
+      "inventoryReviewDate": "2026-10-18"
     },
     {
       "path": "src/shared/runtime-envelope/parse.js",
-      "consumerCount": 1,
+      "consumerCount": 2,
       "classifications": [
         "keep",
         "document",
@@ -822,8 +1657,41 @@
       "recommendation": "Keep resolveRuntimeEnvelope as the public facade and let these internals own the detailed runtime-resolution behavior."
     },
     {
+      "path": "src/shared/runtime-envelope/preview.js",
+      "consumerCount": 1,
+      "classifications": [
+        "keep",
+        "document"
+      ],
+      "consumerNotes": "Static ownership census confirms 1 direct consumers, including tools/config/dump.js. This inventory review is not a behavioral qualification receipt.",
+      "recommendation": "Retain this active shared owner and its narrow imports. Keep behavior acceptance separate from this ownership inventory; unresolved test and platform qualifications are recorded in the October 18 deep audit.",
+      "inventoryReviewDate": "2026-10-18"
+    },
+    {
+      "path": "src/shared/runtime-envelope/read-receipt.js",
+      "consumerCount": 7,
+      "classifications": [
+        "keep",
+        "document"
+      ],
+      "consumerNotes": "Static ownership census confirms 5 direct consumers, including src/index/build/runtime/receipt.js, src/index/build/runtime/runtime.js, src/integrations/core/status.js. This inventory review is not a behavioral qualification receipt.",
+      "recommendation": "Retain this active shared owner and its narrow imports. Keep behavior acceptance separate from this ownership inventory; unresolved test and platform qualifications are recorded in the October 18 deep audit.",
+      "inventoryReviewDate": "2026-10-18"
+    },
+    {
+      "path": "src/shared/runtime-envelope/receipt.js",
+      "consumerCount": 14,
+      "classifications": [
+        "keep",
+        "document"
+      ],
+      "consumerNotes": "Static ownership census confirms 8 direct consumers, including src/index/build/build-state.js, src/index/build/build-state/runtime.js, src/index/build/build-state/store.js. This inventory review is not a behavioral qualification receipt.",
+      "recommendation": "Retain this active shared owner and its narrow imports. Keep behavior acceptance separate from this ownership inventory; unresolved test and platform qualifications are recorded in the October 18 deep audit.",
+      "inventoryReviewDate": "2026-10-18"
+    },
+    {
       "path": "src/shared/runtime-envelope/resolve-current-process-envelope.js",
-      "consumerCount": 3,
+      "consumerCount": 6,
       "classifications": [
         "keep",
         "document",
@@ -834,7 +1702,7 @@
     },
     {
       "path": "src/shared/runtime-envelope/resolve.js",
-      "consumerCount": 6,
+      "consumerCount": 5,
       "classifications": [
         "keep",
         "document",
@@ -844,8 +1712,18 @@
       "recommendation": "Keep resolveRuntimeEnvelope as the public facade and let these internals own the detailed runtime-resolution behavior."
     },
     {
+      "path": "src/shared/search-request-schema.js",
+      "consumerCount": 2,
+      "classifications": [
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Static production imports: src/integrations/mcp/defs.js, tools/api/validation.js.",
+      "recommendation": "Keep shared value domains fresh per consumer while preserving intentional HTTP/MCP envelope differences."
+    },
+    {
       "path": "src/shared/search-request.js",
-      "consumerCount": 6,
+      "consumerCount": 11,
       "classifications": [
         "keep",
         "document",
@@ -856,7 +1734,7 @@
     },
     {
       "path": "src/shared/sort.js",
-      "consumerCount": 37,
+      "consumerCount": 38,
       "classifications": [
         "keep",
         "document"
@@ -874,6 +1752,369 @@
       ],
       "consumerNotes": "Ledger-owned shared module in src/shared/root with 1 direct consumer(s).",
       "recommendation": "Keep ownership explicit and update this review entry with a narrower recommendation when the module is next touched."
+    },
+    {
+      "path": "src/shared/storage/access.js",
+      "consumerCount": 12,
+      "classifications": [
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Static production imports: src/shared/storage/cleanup.js, src/shared/storage/dictionary-adapter.js, src/shared/storage/migration-plan.js, src/shared/storage/migration.js, src/shared/storage/operator.js, src/shared/storage/repo-cleanup.js, tools/build/embeddings/cache/profile-inventory.js, tools/build/embeddings/cache/profile-retention.js, tools/index/cache-gc.js, tools/storage/category-inventory.js, tools/storage/managed-receipt-inventory.js, tools/tooling/managed-install.js.",
+      "recommendation": "Reuse repository admission/exclusion for adopted assets; read-only diagnosis must not reap or create leases."
+    },
+    {
+      "path": "src/shared/storage/admission.js",
+      "consumerCount": 2,
+      "classifications": [
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Static production imports: src/shared/storage/managed-child-session.js, tools/tooling/install-storage.js.",
+      "recommendation": "Keep cooperative write estimates distinct from actual disk allocation and unrelated application capacity."
+    },
+    {
+      "path": "src/shared/storage/authority.js",
+      "consumerCount": 3,
+      "classifications": [
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Static production imports: src/shared/storage/cleanup.js, src/shared/storage/migration-plan.js, src/shared/storage/migration.js.",
+      "recommendation": "Retain root-object and marker continuity between preview and execution; serialized path strings cannot grant deletion authority."
+    },
+    {
+      "path": "src/shared/storage/catalog.js",
+      "consumerCount": 3,
+      "classifications": [
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Static production imports: src/shared/storage/operator.js, tools/storage/cli.js, tools/storage/embedding-adapter.js.",
+      "recommendation": "Keep known category and legacy locations explicit; avoid whole-disk discovery or implicit adoption."
+    },
+    {
+      "path": "src/shared/storage/child-environment.js",
+      "consumerCount": 5,
+      "classifications": [
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Static production imports: src/shared/storage/managed-child-session.js, src/shared/toolchain-env.js, tools/tooling/install-receipts.js, tools/tooling/install.js, tools/tooling/operational-storage.js.",
+      "recommendation": "Keep child write contracts registry-driven; launcher basename guesses cannot grant storage admission."
+    },
+    {
+      "path": "src/shared/storage/cleanup.js",
+      "consumerCount": 3,
+      "classifications": [
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Static production imports: tools/cache/clear-cache.js, tools/storage/cli.js, tools/tui/operator/storage.js.",
+      "recommendation": "Retain producer-marked ordinary-file cleanup with launch-supplied roots and revalidated plans."
+    },
+    {
+      "path": "src/shared/storage/configuration.js",
+      "consumerCount": 1,
+      "classifications": [
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Static production imports: src/shared/storage/operator.js.",
+      "recommendation": "Keep empty-location selection separate from migration and deletion authority."
+    },
+    {
+      "path": "src/shared/storage/destination.js",
+      "consumerCount": 2,
+      "classifications": [
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Static production imports: src/shared/storage/admission.js, tools/storage/cli.js.",
+      "recommendation": "Keep free-space observation and reversible probing separate from adoption, allocation and ownership markers."
+    },
+    {
+      "path": "src/shared/storage/dictionary-access.js",
+      "consumerCount": 3,
+      "classifications": [
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Static production imports: src/shared/dictionary-wordlists.js, tools/dict-utils/paths/dictionaries.js, tools/download/dictionary-write-session.js.",
+      "recommendation": "Retain dictionary read leases under the canonical coordination root for the actual registered storage selection."
+    },
+    {
+      "path": "src/shared/storage/dictionary-adapter.js",
+      "consumerCount": 2,
+      "classifications": [
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Static production imports: tools/storage/category-inventory.js, tools/storage/cli.js.",
+      "recommendation": "Keep complete durable dictionary namespaces in migration manifests; migration authority must not become cleanup authority."
+    },
+    {
+      "path": "src/shared/storage/directory.js",
+      "consumerCount": 12,
+      "classifications": [
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Static production imports: src/integrations/core/build-index/recovery-candidates.js, src/shared/io/replace-dir.js, src/shared/storage/access.js, src/shared/storage/admission.js, src/shared/storage/configuration.js, src/shared/storage/inventory.js, src/shared/storage/migration.js, src/shared/storage/repo-cleanup.js, tools/build/embeddings/cache/physical-storage.js, tools/build/embeddings/cache/profile-inventory.js, tools/index/clean-artifacts.js, tools/tooling/managed-install.js.",
+      "recommendation": "Retain actual directory descriptors and bounded enumeration; the owner does not grant path mutation or parent discovery."
+    },
+    {
+      "path": "src/shared/storage/failure-observation.js",
+      "consumerCount": 114,
+      "classifications": [
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Static production imports: src/context-pack/excerpt-cache.js, src/context-pack/semantic.js, src/context-pack/task-policy.js, src/graph/retained-evidence-pages.js, src/index/build/artifact-publication.js, src/index/build/artifacts/writers/semantic/query-index.js, src/index/build/preprocess.js, src/index/build/stage-provenance.js, src/index/build/stage-reuse.js, src/index/semantic/build-frontier.js, src/index/semantic/capsules/finite-may-check.js, src/index/semantic/compiler-boundary-authority.js, src/index/semantic/compiler-summary-admission.js, src/index/semantic/compiler-summary-manifest.js, src/index/semantic/compiler-type-facts.js, src/index/semantic/disk-writes.js, src/index/semantic/lsp-evidence.js, src/index/semantic/native-task-authority.js, src/index/semantic/runtime/adapters/cpu-profile.js, src/index/semantic/runtime/verified-reads.js, src/index/tooling/binary-utils.js, src/index/tooling/command-probe-persistent-cache.js, src/index/tooling/source-linked-evidence.js, src/index/tooling/source-linked-input.js, src/index/tooling/source-linked-report.js, src/integrations/core/build-index/index.js, src/integrations/core/build-index/recovery-candidates.js, src/retrieval/cli/run-search-session/cache-policy.js, src/retrieval/cli/run-search-session/persist.js, src/retrieval/federation/coordinator.js, src/retrieval/pipeline/provider-failure.js, src/retrieval/query-cache-touches.js, src/semantic/artifact-store.js, src/semantic/detail.js, src/semantic/explain-enrichment.js, src/semantic/manifest-reader.js, src/semantic/operation-fingerprint.js, src/semantic/source-references.js, src/semantic/symbolic-type-store.js, src/shared/artifact-io/binary-columnar.js, src/shared/artifact-io/chunk-meta-presence.js, src/shared/artifact-io/json/fallback.js, src/shared/artifact-io/loaders/per-file.js, src/shared/artifact-io/with-opened-readers.js, src/shared/bundle-io/patch.js, src/shared/cache-deletion.js, src/shared/cache/repo-access-delegation-guard.js, src/shared/contained-file-resource.js, src/shared/dense-vector-binary.js, src/shared/embedding-artifact-identity.js, src/shared/file-read.js, src/shared/generated-artifact.js, src/shared/io/append-writer.js, src/shared/io/atomic-write.js, src/shared/io/directory-sync.js, src/shared/io/persistence-helpers.js, src/shared/io/remove-path-with-retry.js, src/shared/io/replace-dir.js, src/shared/io/replace-file.js, src/shared/json-stream/streams.js, src/shared/locks/file-lock-info.js, src/shared/locks/file-lock-owner.js, src/shared/locks/file-lock-release.js, src/shared/locks/file-lock-stale.js, src/shared/locks/file-lock.js, src/shared/onnx-embeddings/config.js, src/shared/onnx-installation.js, src/shared/repo-cache-retirement.js, src/shared/storage/access.js, src/shared/storage/admission.js, src/shared/storage/cleanup.js, src/shared/storage/configuration.js, src/shared/storage/inventory.js, src/shared/storage/locator-read.js, src/shared/storage/migration-plan.js, src/shared/storage/operator.js, src/shared/storage/probe-policy-read.js, src/shared/storage/repo-cleanup.js, src/shared/storage/repo-protection.js, src/shared/storage/root-availability.js, src/storage/sqlite/utils.js, src/workspace/config.js, src/workspace/manifest.js, tools/api/router/request-helpers.js, tools/api/router/request-lifetime.js, tools/bench/language-repos/lifecycle.js, tools/build/embeddings/cache-flush.js, tools/build/embeddings/cache/physical-storage.js, tools/build/embeddings/cache/text-database-lifetime.js, tools/build/embeddings/pipeline.js, tools/build/embeddings/runner.js, tools/build/embeddings/runner/cache-only.js, tools/build/embeddings/text-kv-cache.js, tools/build/embeddings/writer-queue.js, tools/config/effective.js, tools/dict-utils/config.js, tools/download/dictionary-reuse.js, tools/index/clean-artifacts.js, tools/index/recover.js, tools/reports/report-code-map.js, tools/setup/first-search-plan.js, tools/setup/first-search-suggestion.js, tools/setup/model-readiness.js, tools/storage/category-inventory.js, tools/storage/cli.js, tools/storage/embedding-adapter.js, tools/storage/managed-receipt-inventory.js, tools/tooling/provisioning-failure.js, tools/triage/context-pack.js, tools/triage/history.js, tools/tui/build-support.js, tools/workspace/author.js, tools/workspace/build.js, tools/workspace/cli-lifecycle.js.",
+      "recommendation": "Capture actual original observers before classification; diagnostics cannot settle resources."
+    },
+    {
+      "path": "src/shared/storage/inventory.js",
+      "consumerCount": 15,
+      "classifications": [
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Static production imports: src/shared/storage/admission.js, src/shared/storage/cleanup.js, src/shared/storage/configuration.js, src/shared/storage/dictionary-adapter.js, src/shared/storage/migration-plan.js, src/shared/storage/migration.js, src/shared/storage/operator.js, src/shared/storage/repo-protection.js, src/shared/storage/transfer.js, tools/build/embeddings/cache/profile-inventory.js, tools/download/dictionary-reuse.js, tools/storage/category-inventory.js, tools/storage/embedding-adapter.js, tools/storage/managed-receipt-inventory.js, tools/tooling/managed-install.js.",
+      "recommendation": "Keep read-only bounded accounting and represent unknown allocated/reclaimable bytes as unknown."
+    },
+    {
+      "path": "src/shared/storage/layout.js",
+      "consumerCount": 15,
+      "classifications": [
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Static production imports: src/index/tooling/dotnet-runtime.js, src/index/tooling/managed-command-lifetime.js, src/shared/managed-installation-retain.js, src/shared/storage/locator-contract.js, src/shared/storage/migration-plan.js, src/shared/storage/selected-layout.js, src/shared/storage/state.js, src/shared/toolchain-env.js, tools/setup/windows-capability.js, tools/storage/cli.js, tools/tooling/install-storage.js, tools/tooling/install.js, tools/tooling/managed-install.js, tools/tooling/operational-storage.js, tools/tui/operator/storage.js.",
+      "recommendation": "Keep path resolution pure and preserve category/version contracts independently of filesystem operations."
+    },
+    {
+      "path": "src/shared/storage/locator-contract.js",
+      "consumerCount": 4,
+      "classifications": [
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Static production imports: src/shared/storage/locator-read.js, src/shared/storage/locator.js, src/shared/storage/migration.js, src/shared/storage/selected-layout.js.",
+      "recommendation": "Retain strict locator shapes so unknown ownership fields cannot disappear during cutover or rollback."
+    },
+    {
+      "path": "src/shared/storage/locator-read.js",
+      "consumerCount": 7,
+      "classifications": [
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Static production imports: src/index/build/storage-session.js, src/shared/cache-roots.js, src/shared/storage/child-environment.js, src/shared/storage/locator.js, tools/storage/cli.js, tools/tooling/operational-storage.js, tools/tui/operator/storage.js.",
+      "recommendation": "Keep verified machine selection reading separate from writers and runtime admission."
+    },
+    {
+      "path": "src/shared/storage/locator.js",
+      "consumerCount": 3,
+      "classifications": [
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Static production imports: src/shared/storage/configuration.js, src/shared/storage/migration-plan.js, src/shared/storage/migration.js.",
+      "recommendation": "Retain expected-prior-hash publication under the existing locator lock."
+    },
+    {
+      "path": "src/shared/storage/managed-child-session.js",
+      "consumerCount": 2,
+      "classifications": [
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Static production imports: tools/tooling/install-execution.js, tools/tooling/operational-storage.js.",
+      "recommendation": "Keep preparation through actual child settlement under one owner; timeout/TTL cannot prove stopped writes."
+    },
+    {
+      "path": "src/shared/storage/migration-plan.js",
+      "consumerCount": 5,
+      "classifications": [
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Static production imports: src/shared/storage/configuration.js, src/shared/storage/dictionary-adapter.js, src/shared/storage/migration.js, src/shared/storage/probe-policy.js, tools/storage/cli.js.",
+      "recommendation": "Keep bounded read-only manifests and owner proofs separate from apply-time mutation authority."
+    },
+    {
+      "path": "src/shared/storage/migration.js",
+      "consumerCount": 1,
+      "classifications": [
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Static production imports: tools/storage/cli.js.",
+      "recommendation": "Retain copy/verify/publish/select ordering and rollback ownership; source bytes and failed staging remain preserved."
+    },
+    {
+      "path": "src/shared/storage/operation-error.js",
+      "consumerCount": 88,
+      "classifications": [
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Static production imports: src/graph/retained-evidence-pages.js, src/graph/store.js, src/index/build/artifact-publication.js, src/index/build/artifacts/field-postings-shards.js, src/index/build/artifacts/writers/chunk-meta/writer.js, src/index/build/artifacts/writers/semantic/query-index.js, src/index/build/graph-capability.js, src/index/build/runtime/embeddings.js, src/index/build/runtime/failure.js, src/index/semantic/disk-writes.js, src/index/semantic/lsp-evidence.js, src/index/semantic/native-task-authority.js, src/index/semantic/runtime/close-resources.js, src/index/semantic/runtime/import.js, src/index/semantic/runtime/ownership.js, src/index/semantic/runtime/verified-reads.js, src/index/tooling/source-linked-evidence.js, src/index/tooling/source-linked-input.js, src/index/tooling/source-linked-report.js, src/integrations/core/build-index/recovery-candidates.js, src/integrations/core/build-index/recovery-context.js, src/integrations/core/build-index/recovery.js, src/integrations/tooling/lsp/client.js, src/integrations/tooling/providers/lsp/hover-types/concurrency.js, src/retrieval/cli/search-runner.js, src/semantic/artifact-store.js, src/semantic/detail.js, src/semantic/manifest-reader.js, src/semantic/reader-lifetime.js, src/semantic/symbolic-type-store.js, src/shared/artifact-io/compression.js, src/shared/artifact-io/json/read-jsonl-stream.js, src/shared/artifact-io/limits.js, src/shared/artifact-io/loaders/core-binary-columnar-checksum.js, src/shared/artifact-io/loaders/core-binary-columnar-json-rows.js, src/shared/artifact-io/with-opened-readers.js, src/shared/concurrency/run-with-queue.js, src/shared/contained-file-resource.js, src/shared/contained-file.js, src/shared/io/append-writer.js, src/shared/io/atomic-write.js, src/shared/io/persistence-helpers.js, src/shared/io/replace-dir.js, src/shared/json-stream/consume-rows.js, src/shared/json-stream/json-writers.js, src/shared/json-stream/jsonl-batch.js, src/shared/json-stream/jsonl-sharded.js, src/shared/json-stream/jsonl-write.js, src/shared/json-stream/offsets.js, src/shared/json-stream/streams.js, src/shared/locks/file-lock-release.js, src/shared/locks/file-lock-stale.js, src/shared/onnx-model-install.js, src/shared/repo-cache-config.js, src/shared/repo-cache-retirement.js, src/shared/storage/admission.js, src/shared/storage/child-environment.js, src/shared/storage/configuration.js, src/shared/storage/destination.js, src/shared/storage/directory.js, src/shared/storage/failure-observation.js, src/shared/storage/migration.js, src/shared/storage/operation-lock.js, src/shared/storage/probe-policy.js, src/shared/storage/transfer.js, src/workspace/config.js, src/workspace/manifest.js, tools/api/router/close.js, tools/build/embeddings/backend-publication.js, tools/build/embeddings/cache/settle-consumers.js, tools/build/embeddings/pipeline.js, tools/build/embeddings/runner.js, tools/build/lmdb-index.js, tools/setup/first-search-plan.js, tools/setup/windows-capability.js, tools/setup/windows-prerequisite-plan.js, tools/storage/cli.js, tools/tooling/install-go-sdk.js, tools/tooling/install-receipts.js, tools/tooling/install-shared.js, tools/tooling/install-storage.js, tools/tooling/install.js, tools/tooling/managed-install.js, tools/tooling/official-release-download.js, tools/tooling/owned-detect.js, tools/tooling/receipt-resource-owner.js, tools/tui/install-generation.js, tools/workspace/build.js.",
+      "recommendation": "Keep original failure/resource identity while attaching independent blockers; diagnostics grant no deletion authority."
+    },
+    {
+      "path": "src/shared/storage/operation-lock.js",
+      "consumerCount": 3,
+      "classifications": [
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Static production imports: src/shared/storage/configuration.js, src/shared/storage/migration.js, src/shared/storage/probe-policy.js.",
+      "recommendation": "Keep coordinator-lock cleanup independent of actual child and native resource settlement."
+    },
+    {
+      "path": "src/shared/storage/operator.js",
+      "consumerCount": 2,
+      "classifications": [
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Static production imports: tools/storage/cli.js, tools/tui/operator/storage.js.",
+      "recommendation": "Keep cheap root metadata inspection separate from explicitly requested bounded exact inventory."
+    },
+    {
+      "path": "src/shared/storage/policy.js",
+      "consumerCount": 2,
+      "classifications": [
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Static production imports: src/shared/storage/cleanup.js, tools/build/embeddings/cache/profile-inventory.js.",
+      "recommendation": "Keep category lifecycle and quota planning pure; unknown inventory/allocation must never become zero."
+    },
+    {
+      "path": "src/shared/storage/probe-policy-read.js",
+      "consumerCount": 4,
+      "classifications": [
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Static production imports: src/index/tooling/command-probe-persistent-cache.js, src/shared/storage/operator.js, src/shared/storage/probe-policy.js, tools/storage/category-inventory.js.",
+      "recommendation": "Retain invalid-policy admission failure without eviction or silent cache reuse."
+    },
+    {
+      "path": "src/shared/storage/probe-policy.js",
+      "consumerCount": 1,
+      "classifications": [
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Static production imports: tools/storage/cli.js.",
+      "recommendation": "Keep policy preview/apply bound to selected machine/category/repository and exact approved plan identity."
+    },
+    {
+      "path": "src/shared/storage/repo-cleanup.js",
+      "consumerCount": 2,
+      "classifications": [
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Static production imports: tools/bench/language-repos/lifecycle.js, tools/index/clean-artifacts.js.",
+      "recommendation": "Retain exclusion plus producer and retention proof for exact targets; do not recursively collect unqualified roots."
+    },
+    {
+      "path": "src/shared/storage/repo-protection.js",
+      "consumerCount": 2,
+      "classifications": [
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Static production imports: src/shared/storage/repo-cleanup.js, tools/index/cache-gc.js.",
+      "recommendation": "Keep whole-repository disposal restricted to fully proven derived sets; age, force and names are insufficient."
+    },
+    {
+      "path": "src/shared/storage/root-availability.js",
+      "consumerCount": 2,
+      "classifications": [
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Static production imports: src/shared/storage/inventory.js, src/shared/storage/operator.js.",
+      "recommendation": "Distinguish missing entries from unavailable drives/shares; root probing conveys no writable-space or deletion authority."
+    },
+    {
+      "path": "src/shared/storage/selected-layout.js",
+      "consumerCount": 4,
+      "classifications": [
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Static production imports: src/shared/storage/child-environment.js, tools/storage/cli.js, tools/tooling/operational-storage.js, tools/tui/operator/storage.js.",
+      "recommendation": "Keep locator overlays pure and preserve explicit launch/environment/machine precedence."
+    },
+    {
+      "path": "src/shared/storage/session.js",
+      "consumerCount": 17,
+      "classifications": [
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Static production imports: src/experimental/structural/execution.js, src/index/build/runtime/storage.js, src/index/build/storage-session.js, src/index/tooling/managed-command-lifetime.js, src/retrieval/rerankers/onnx-cross-encoder.js, src/shared/managed-installation-retain.js, src/shared/storage/destination.js, src/shared/storage/managed-child-session.js, tools/build/embeddings/cache/profile-access.js, tools/build/embeddings/cache/shard-handles.js, tools/build/embeddings/cache/text-database-lifetime.js, tools/download/dictionary-write-session.js, tools/setup/windows-capability.js, tools/tooling/install-storage.js, tools/tooling/managed-install.js, tools/tooling/managed-verification.js, tools/tooling/owned-detect.js.",
+      "recommendation": "Retain producer-bound release failures and independent blockers; copied serialized handles cannot settle sessions."
+    },
+    {
+      "path": "src/shared/storage/state.js",
+      "consumerCount": 1,
+      "classifications": [
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Static production imports: tools/analysis/map-viewer-preferences.js.",
+      "recommendation": "Keep durable application state separate from disposable caches and require authenticated repository identity."
+    },
+    {
+      "path": "src/shared/storage/transfer.js",
+      "consumerCount": 4,
+      "classifications": [
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Static production imports: src/shared/storage/dictionary-adapter.js, src/shared/storage/migration-plan.js, src/shared/storage/migration.js, tools/tooling/managed-install.js.",
+      "recommendation": "Keep bounded streaming verification/copy under the original contained descriptor and transfer session."
+    },
+    {
+      "path": "src/shared/symbolic-types.js",
+      "consumerCount": 13,
+      "classifications": [
+        "keep",
+        "document"
+      ],
+      "consumerNotes": "Static ownership census confirms 13 direct consumers, including src/index/build/artifacts/writers/chunk-meta/shared.js, src/index/build/artifacts/writers/symbolic-types.js, src/index/build/indexer/steps/relations/cross-file-runner.js. This inventory review is not a behavioral qualification receipt.",
+      "recommendation": "Retain this active shared owner and its narrow imports. Keep behavior acceptance separate from this ownership inventory; unresolved test and platform qualifications are recorded in the October 18 deep audit.",
+      "inventoryReviewDate": "2026-10-18"
+    },
+    {
+      "path": "src/shared/system-cache-alias.js",
+      "consumerCount": 2,
+      "classifications": [
+        "keep",
+        "document"
+      ],
+      "consumerNotes": "Static ownership census confirms 2 direct consumers, including src/index/tooling/cache-storage.js, src/shared/cache-deletion.js. This inventory review is not a behavioral qualification receipt.",
+      "recommendation": "Retain the active storage/identity owner. Preserve containment, format checks and cache admission; path-only diagnostics must not acquire data-access leases. Keep cleanup and corruption regressions.",
+      "inventoryReviewDate": "2026-10-18"
+    },
+    {
+      "path": "src/shared/text-analyzer.js",
+      "consumerCount": 7,
+      "classifications": [
+        "keep",
+        "document"
+      ],
+      "consumerNotes": "Static ownership census confirms 3 direct consumers, including src/index/build/file-processor/process-chunks/token-flow.js, src/index/build/indexer/signatures.js, src/retrieval/query.js. This inventory review is not a behavioral qualification receipt.",
+      "recommendation": "Retain this active shared owner and its narrow imports. Keep behavior acceptance separate from this ownership inventory; unresolved test and platform qualifications are recorded in the October 18 deep audit.",
+      "inventoryReviewDate": "2026-10-18"
     },
     {
       "path": "src/shared/time-format.js",
@@ -898,7 +2139,7 @@
     },
     {
       "path": "src/shared/tokenize-dictionary.js",
-      "consumerCount": 1,
+      "consumerCount": 2,
       "classifications": [
         "keep",
         "document",
@@ -909,7 +2150,7 @@
     },
     {
       "path": "src/shared/tokenize-identifiers.js",
-      "consumerCount": 1,
+      "consumerCount": 5,
       "classifications": [
         "keep",
         "document",
@@ -930,8 +2171,19 @@
       "recommendation": "Keep ownership explicit and update this review entry with a narrower recommendation when the module is next touched."
     },
     {
+      "path": "src/shared/toml-structure.js",
+      "consumerCount": 2,
+      "classifications": [
+        "keep",
+        "document"
+      ],
+      "consumerNotes": "Static ownership census confirms 2 direct consumers, including src/index/chunking/formats/ini-toml.js, src/index/language-registry/import-collectors/toml.js. This inventory review is not a behavioral qualification receipt.",
+      "recommendation": "Retain this format-specific parser/structure owner and its active producer consumers. Keep language contracts and native activation checks; no absence of imports or replacement proof supports deletion.",
+      "inventoryReviewDate": "2026-10-18"
+    },
+    {
       "path": "src/shared/toolchain-env.js",
-      "consumerCount": 5,
+      "consumerCount": 13,
       "classifications": [
         "keep",
         "document",
@@ -950,6 +2202,115 @@
       ],
       "consumerNotes": "Ledger-owned shared module in src/shared/root with 1 direct consumer(s).",
       "recommendation": "Keep ownership explicit and update this review entry with a narrower recommendation when the module is next touched."
+    },
+    {
+      "path": "src/shared/unicode-chunks.js",
+      "consumerCount": 1,
+      "classifications": [
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Static production imports: tools/tui/supervisor/protocol-flow.js.",
+      "recommendation": "Keep UTF-16 chunk boundaries from splitting valid surrogate pairs in terminal protocol output."
+    },
+    {
+      "path": "src/shared/workspace-execution-authority.js",
+      "consumerCount": 2,
+      "classifications": [
+        "keep",
+        "document"
+      ],
+      "consumerNotes": "Static ownership census confirms 9 direct consumers, including src/index/tooling/command-resolver.js, src/index/tooling/dedicated-lsp-provider.js, src/index/tooling/doctor.js. This inventory review is not a behavioral qualification receipt.",
+      "recommendation": "Retain the launch authority, preparation or verified-tool owner. Preserve fail-closed admission and real native activation; fixture success does not certify every platform/provider.",
+      "inventoryReviewDate": "2026-10-18"
+    },
+    {
+      "path": "src/shared/xml-references.js",
+      "consumerCount": 1,
+      "classifications": [
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Static production imports: src/shared/xml-structure.js.",
+      "recommendation": "Keep namespace scope on the bounded parser stack and retain ranges/values without external entity authority."
+    },
+    {
+      "path": "src/shared/xml-structure.js",
+      "consumerCount": 2,
+      "classifications": [
+        "keep",
+        "document"
+      ],
+      "consumerNotes": "Static ownership census confirms 2 direct consumers, including src/index/chunking/formats/xml.js, src/index/language-registry/import-collectors/xml.js. This inventory review is not a behavioral qualification receipt.",
+      "recommendation": "Retain this format-specific parser/structure owner and its active producer consumers. Keep language contracts and native activation checks; no absence of imports or replacement proof supports deletion.",
+      "inventoryReviewDate": "2026-10-18"
+    },
+    {
+      "path": "src/shared/yaml-structure.js",
+      "consumerCount": 2,
+      "classifications": [
+        "keep",
+        "document"
+      ],
+      "consumerNotes": "Static ownership census confirms 2 direct consumers, including src/index/chunking/formats/yaml.js, src/index/language-registry/import-collectors/yaml.js. This inventory review is not a behavioral qualification receipt.",
+      "recommendation": "Retain this format-specific parser/structure owner and its active producer consumers. Keep language contracts and native activation checks; no absence of imports or replacement proof supports deletion.",
+      "inventoryReviewDate": "2026-10-18"
     }
-  ]
+  ],
+  "inventoryReconciliation": {
+    "date": "2026-10-18",
+    "scope": "Current ownership and static consumer census only. Original reviewDate and prior recommendations remain historical; behavior and platform acceptance are recorded separately.",
+    "addedPaths": [
+      "src/shared/application-parser-loader.js",
+      "src/shared/bootstrap-readiness.js",
+      "src/shared/bundle-source-key.js",
+      "src/shared/cache-deletion.js",
+      "src/shared/config-authority.js",
+      "src/shared/contained-file.js",
+      "src/shared/diagnostic-text.js",
+      "src/shared/dictionary-identifiers.js",
+      "src/shared/dockerfile-ast.js",
+      "src/shared/effective-memory.js",
+      "src/shared/embedding-artifact-identity.js",
+      "src/shared/embedding-execution-plan.js",
+      "src/shared/embedding-intent.js",
+      "src/shared/embedding-model-profile.js",
+      "src/shared/embedding-prepared.js",
+      "src/shared/extraction-quality.js",
+      "src/shared/generated-artifact-cache.js",
+      "src/shared/generated-artifact-core.js",
+      "src/shared/generated-artifact-prefix.js",
+      "src/shared/generated-artifact.js",
+      "src/shared/graphql-ast.js",
+      "src/shared/handlebars-ast.js",
+      "src/shared/index-format-error.js",
+      "src/shared/jinja-template-structure.js",
+      "src/shared/json-reference-policy.js",
+      "src/shared/jsonc-structure.js",
+      "src/shared/managed-clangd.js",
+      "src/shared/managed-go.js",
+      "src/shared/managed-tool-file.js",
+      "src/shared/mustache-structure.js",
+      "src/shared/native-package-probe.js",
+      "src/shared/proto-structure.js",
+      "src/shared/provider-thread-observation.js",
+      "src/shared/runtime-envelope/observe.js",
+      "src/shared/runtime-envelope/preview.js",
+      "src/shared/runtime-envelope/read-receipt.js",
+      "src/shared/runtime-envelope/receipt.js",
+      "src/shared/symbolic-types.js",
+      "src/shared/system-cache-alias.js",
+      "src/shared/text-analyzer.js",
+      "src/shared/toml-structure.js",
+      "src/shared/workspace-execution-authority.js",
+      "src/shared/xml-structure.js",
+      "src/shared/yaml-structure.js"
+    ]
+  },
+  "inventoryReview": {
+    "date": "2026-10-24",
+    "scope": "Current file ownership, exported boundaries and production-consumer inventory; not runtime or platform qualification.",
+    "newlyReviewedFiles": 82,
+    "evidence": "tools/docs/shared-module-ledger.js and current source declarations; dynamic preload ownership inspected separately."
+  }
 }

@@ -1,6 +1,10 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createAbortError } from '../abort.js';
+import { observeStorageResource } from '../storage/failure-observation.js';
+import { readLockRecord, readFileLockFailureCode } from './file-lock-info.js';
+import { isFileLockPublicationPending, publishFileLock } from './file-lock-publication.js';
+export { isFileLockPublicationSession, isFileLockPublicationPending } from './file-lock-publication.js';
 import {
   createLockPayload,
   createStaleRemovalFailureError,
@@ -48,13 +52,14 @@ export {
  *  staleMs?:number,
  *  metadata?:object|null,
  *  forceStaleCleanup?:boolean,
+ *  createParent?:boolean,
  *  timeoutBehavior?:'null'|'throw',
  *  timeoutMessage?:string,
  *  invalidLockGraceMs?:number,
  *  signal?:AbortSignal|null,
- *  staleRemovalImpl?:(input:{lockPath:string,info:object|null,staleMs:number})=>Promise<{removed:boolean,removalMode:'owner'|'force'|'owner-fallback-force'}>,
+ *  staleRemovalImpl?:(input:{lockPath:string,info:object|null,staleMs:number,expectedIdentity:object})=>Promise<{removed:boolean,removalMode:'owner'|'force'|'owner-fallback-force'}>,
  *  onStale?:(info:{lockPath:string,info:object|null,pid:number|null,reason:'stale'|'dead-pid',removalMode?:'owner'|'force'|'owner-fallback-force'})=>void,
- *  onBusy?:(info:{lockPath:string,info:object|null,pid:number|null,reason?:'parent_missing',retries?:number})=>void
+ *  onBusy?:(info:{lockPath:string,info:object|null,pid:number|null,reason?:'parent_missing'|'publication-pending',retries?:number})=>void
  * }} input
  * @returns {Promise<{lockPath:string,payload:object,diagnostics:{parentMissingRetries:number},release:(opts?:{force?:boolean})=>Promise<boolean>}|null>}
  */
@@ -65,6 +70,7 @@ export const acquireFileLock = async ({
   staleMs = DEFAULT_FILE_LOCK_STALE_MS,
   metadata = null,
   forceStaleCleanup = false,
+  createParent = true,
   timeoutBehavior = 'null',
   timeoutMessage = 'Lock timeout.',
   invalidLockGraceMs = null,
@@ -89,40 +95,46 @@ export const acquireFileLock = async ({
 
   while (true) {
     if (lockSignal?.aborted) throw createAbortError();
+    if (isFileLockPublicationPending(lockPath)) {
+      if (deadline != null && Date.now() < deadline) { await sleepWithAbort(resolvedPollMs, lockSignal); continue; }
+      safeInvokeHook(onBusy, { lockPath, info: null, pid: process.pid, reason: 'publication-pending' });
+      if (timeoutBehavior === 'throw') throw new Error(timeoutMessage || 'Lock timeout.');
+      return null;
+    }
     const payload = createLockPayload(metadata);
+    const expectedOwner = { lockId: payload.lockId, pid: payload.pid, startedAt: payload.startedAt };
+    const contents = JSON.stringify(payload);
+    const persisted = typeof contents === 'string' ? JSON.parse(contents) : null;
+    if (!persisted || Array.isArray(persisted) || persisted.lockId !== expectedOwner.lockId
+      || persisted.pid !== expectedOwner.pid || persisted.startedAt !== expectedOwner.startedAt) {
+      throw new TypeError('File lock metadata must preserve its generated owner identity.');
+    }
+    let opened = false;
     try {
       const handle = await fs.open(lockPath, 'wx');
-      let closed = false;
-      const closeHandle = async () => {
-        if (closed) return;
-        closed = true;
-        await handle.close();
-      };
-      try {
-        await handle.writeFile(JSON.stringify(payload));
-        await closeHandle();
-      } catch (writeError) {
-        try {
-          await closeHandle();
-        } catch {}
-        await fs.rm(lockPath, { force: true }).catch(() => {});
-        throw writeError;
-      }
-      return {
-        lockPath,
-        payload,
-        diagnostics: {
-          parentMissingRetries
-        },
-        release: async (options = {}) => {
-          const info = await readLockInfo(lockPath);
-          if (!info || info.lockId !== payload.lockId) return false;
-          await fs.rm(lockPath, { force: true });
-          return true;
-        }
-      };
+      opened = true;
+      return await publishFileLock({ handle, lockPath, payload: persisted, contents, diagnostics: { parentMissingRetries } });
     } catch (err) {
-      if (err?.code === 'ENOENT') {
+      if (opened) throw err;
+      const observation = observeStorageResource(err, { phase: 'file-lock-open' });
+      observation.requireSettled();
+      let code, syscall;
+      try { code = observation.primary.code; syscall = observation.primary.syscall; }
+      catch (inspection) { throw observation.retain(inspection, { inspectionPresent: true }); }
+      observation.requireSettled();
+      // Windows can retain a delete-pending file object until another native
+      // handle closes. CREATE_NEW reports EPERM (not EEXIST) during that gap.
+      // Keep the existing acquisition bound; persistent denial still throws
+      // the original filesystem error and never enters stale-owner cleanup.
+      if (process.platform === 'win32' && code === 'EPERM' && syscall === 'open'
+        && deadline != null && Date.now() < deadline) {
+        await sleepWithAbort(resolvedPollMs, lockSignal);
+        continue;
+      }
+      if (code === 'ENOENT') {
+        // A generation-scoped follow-up writer may borrow an admitted parent,
+        // but must not recreate a retired generation during lock acquisition.
+        if (!createParent) throw err;
         parentMissingRetries += 1;
         incrementParentMissingRetriesMetric();
         let parentReady = false;
@@ -130,7 +142,15 @@ export const acquireFileLock = async ({
           await fs.mkdir(path.dirname(lockPath), { recursive: true });
           parentReady = true;
         } catch (mkdirErr) {
-          if (mkdirErr?.code !== 'ENOENT' && mkdirErr?.code !== 'ENOTDIR') {
+          const mkdirObservation = observeStorageResource(mkdirErr, { phase: 'file-lock-parent-create' });
+          let mkdirCode;
+          try {
+            mkdirObservation.requireSettled();
+            try { mkdirCode = mkdirObservation.primary.code; }
+            catch (inspection) { throw mkdirObservation.retain(inspection, { inspectionPresent: true }); }
+            mkdirObservation.requireSettled();
+          } catch (pending) { throw observation.retain(pending, { inspectionPresent: true }); }
+          if (mkdirCode !== 'ENOENT' && mkdirCode !== 'ENOTDIR') {
             throw err;
           }
         }
@@ -156,8 +176,22 @@ export const acquireFileLock = async ({
         }
         return null;
       }
-      if (err?.code !== 'EEXIST') throw err;
-      const info = await readLockInfo(lockPath);
+      if (code !== 'EEXIST') throw err;
+      let record;
+      try { record = await readLockRecord(lockPath); }
+      catch (readError) {
+        // A publishing/retiring owner may change its record during the
+        // verified read. Only a fully settled read may become contention;
+        // the existing deadline bounds re-observation and no stale-removal
+        // authority is inferred from this incomplete snapshot.
+        const readCode = readFileLockFailureCode(readError);
+        if (readCode !== 'ENOENT' && readCode !== 'ERR_FILE_CHANGED') throw readError;
+        if (deadline != null && Date.now() < deadline) { await sleepWithAbort(resolvedPollMs, lockSignal); continue; }
+        safeInvokeHook(onBusy, { lockPath, info: null, pid: null });
+        if (timeoutBehavior === 'throw') throw new Error(timeoutMessage || 'Lock timeout.');
+        return null;
+      }
+      const info = record.value;
       const cleanupState = await shouldCleanupStaleLock({
         lockPath,
         info,
@@ -170,7 +204,8 @@ export const acquireFileLock = async ({
           const { removed, removalMode } = await staleRemovalImpl({
             lockPath,
             info,
-            staleMs: resolvedStaleMs
+            staleMs: resolvedStaleMs,
+            expectedIdentity: record.identity
           });
           if (!removed) {
             if (deadline != null && Date.now() < deadline) {
@@ -232,6 +267,8 @@ export const acquireFileLock = async ({
 /**
  * Acquire a lock, run work, then release lock.
  * Returns null if lock couldn't be acquired.
+ * Original worker resource prerequisites gate metadata release. Unknown work
+ * retains the actual published session for explicit recovery; work is not replayed.
  * @param {object} options
  * @param {(lock:{lockPath:string,payload:object,release:(opts?:{force?:boolean})=>Promise<boolean>})=>Promise<any>} worker
  */
@@ -239,13 +276,21 @@ export const withFileLock = async (options, worker) => {
   const lock = await acquireFileLock(options);
   if (!lock) return null;
   let workerResult;
+  let workerPrerequisite = null;
   let workerError = null;
+  let workerFailed = false;
   try {
     workerResult = await worker(lock);
+    const observation = observeStorageResource(workerResult, { phase: 'file-lock-worker-result' });
+    observation.requireSettled();
+    if (observation.hasResourceObservation) workerPrerequisite = observation.retain();
   } catch (error) {
+    workerFailed = true;
     workerError = error;
   }
-  await releaseFileLockOrThrow(lock, { workerError });
-  if (workerError) throw workerError;
+  // The release owner rechecks after metadata/method inspection and keeps this
+  // original prerequisite through actual unlink, even for a fulfilled worker.
+  await releaseFileLockOrThrow(lock, { workerError: workerFailed ? workerError : workerPrerequisite });
+  if (workerFailed) throw workerError;
   return workerResult;
 };

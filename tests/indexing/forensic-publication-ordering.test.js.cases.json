@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "cases": [
+    "same-key-pending", "different-keys-serial", "different-kinds", "snapshot",
+    "optional-first-required", "required-first-optional", "failed-index-dedup", "flush-barrier", "close-barrier",
+    "close-after-failure", "pending-error", "replaced-observer", "revoked-success", "warning-failure",
+    "warning-pending", "pending-budget", "payload-budget", "late-intake"
+  ]
+}

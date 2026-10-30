@@ -1,4 +1,5 @@
 import { createRequire } from 'node:module';
+import { createSqlRelationEvidence, noteSqlRelationCoverage, projectSqlRelationEvidence, sqlPhysicalUsageDisplays } from './relation-evidence.js';
 import { SQL_PARSER_DIALECTS } from './constants.js';
 import { collectSqlImports } from './imports.js';
 
@@ -6,22 +7,7 @@ const require = createRequire(import.meta.url);
 
 let sqlParserInstance = null;
 let sqlParserLoadFailed = false;
-
-/**
- * Remove dialect-specific identifier quoting wrappers.
- * @param {string} raw
- * @returns {string}
- */
-function normalizeSqlIdentifier(raw) {
-  if (!raw) return '';
-  let out = '';
-  const value = String(raw);
-  for (let i = 0; i < value.length; i += 1) {
-    const ch = value[i];
-    if (ch !== '"' && ch !== '`' && ch !== '[' && ch !== ']') out += ch;
-  }
-  return out.trim();
-}
+let sqlParserVersion = null;
 
 /**
  * Lazily load `node-sql-parser` once per process.
@@ -38,93 +24,28 @@ function getSqlParser(log) {
     const mod = require('node-sql-parser');
     const Parser = mod.Parser || mod.default?.Parser || mod.default || mod;
     sqlParserInstance = new Parser();
+    sqlParserVersion = require('node-sql-parser/package.json').version;
   } catch (err) {
     sqlParserLoadFailed = true;
+    sqlParserInstance = null; sqlParserVersion = null;
     if (log) log(`SQL parser unavailable; falling back to heuristic SQL handling. ${err?.message || err}`);
   }
   return sqlParserInstance;
 }
 
-/**
- * Traverse parser AST and collect table usage identifiers.
- * @param {object} root
- * @param {Set<string>} tables
- * @returns {void}
- */
-function collectSqlTablesFromAst(root, tables) {
-  if (!root) return;
-
-  const stack = [root];
-  const seen = typeof WeakSet !== 'undefined' ? new WeakSet() : null;
-
-  while (stack.length) {
-    const node = stack.pop();
-    if (!node || typeof node !== 'object') continue;
-
-    if (seen) {
-      if (seen.has(node)) continue;
-      seen.add(node);
-    }
-
-    if (Array.isArray(node)) {
-      for (let i = node.length - 1; i >= 0; i -= 1) {
-        stack.push(node[i]);
-      }
-      continue;
-    }
-
-    if (typeof node.table === 'string') {
-      const cleaned = normalizeSqlIdentifier(node.table);
-      if (cleaned) tables.add(cleaned);
-    } else if (node.table && typeof node.table === 'object') {
-      if (typeof node.table.table === 'string') {
-        const cleaned = normalizeSqlIdentifier(node.table.table);
-        if (cleaned) tables.add(cleaned);
-      }
-      if (typeof node.table.name === 'string') {
-        const cleaned = normalizeSqlIdentifier(node.table.name);
-        if (cleaned) tables.add(cleaned);
-      }
-    }
-
-    if (Array.isArray(node.tableList)) {
-      for (const entry of node.tableList) {
-        const cleaned = normalizeSqlIdentifier(entry);
-        if (cleaned) tables.add(cleaned);
-      }
-    }
-
-    for (const key in node) {
-      if (!Object.prototype.hasOwnProperty.call(node, key)) continue;
-      const value = node[key];
-      if (value && typeof value === 'object') stack.push(value);
-    }
-  }
-}
-
-/**
- * Parse SQL text and collect table usages through parser AST traversal.
- * Parse errors degrade to an empty usage set.
- *
- * @param {string} text
- * @param {string} dialect
- * @param {(line:string)=>void} [log]
- * @returns {string[]}
- */
-function collectSqlParserUsages(text, dialect, log) {
+/** Parse once and retain qualification even when no usages are admitted. */
+function collectSqlParserEvidence(text, dialect, log) {
+  const admitted = text.length <= 512 * 1024;
+  const evidence = createSqlRelationEvidence(text, dialect, null, admitted);
+  if (!admitted) { noteSqlRelationCoverage(evidence, 'source_budget'); return evidence; }
   const parser = getSqlParser(log);
-  if (!parser) return [];
-
-  const tables = new Set();
+  evidence.parserVersion = sqlParserVersion;
+  if (!parser) { noteSqlRelationCoverage(evidence, 'parser_unavailable'); return evidence; }
   const dialectKey = SQL_PARSER_DIALECTS[dialect] || null;
-  try {
-    const ast = parser.astify(text, dialectKey ? { database: dialectKey } : undefined);
-    collectSqlTablesFromAst(ast, tables);
-  } catch {
-    return [];
-  }
-
-  return Array.from(tables);
+  let ast;
+  try { ast = parser.astify(text, { ...(dialectKey ? { database: dialectKey } : {}), parseOptions: { includeLocations: true } }); }
+  catch { noteSqlRelationCoverage(evidence, 'parser_failed'); return evidence; }
+  return projectSqlRelationEvidence(ast, evidence, text);
 }
 
 /**
@@ -137,7 +58,7 @@ function collectSqlParserUsages(text, dialect, log) {
 export function buildSqlRelations(text, sqlChunks, options = {}) {
   const exports = new Set();
   const usages = new Set();
-  const imports = collectSqlImports(text);
+  const imports = collectSqlImports(text, options);
 
   if (Array.isArray(sqlChunks)) {
     for (const chunk of sqlChunks) {
@@ -146,7 +67,8 @@ export function buildSqlRelations(text, sqlChunks, options = {}) {
     }
   }
 
-  const parsedUsages = collectSqlParserUsages(text, options.dialect || 'generic', options.log);
+  const sqlRelationEvidence = collectSqlParserEvidence(text, options.dialect || 'generic', options.log);
+  const parsedUsages = sqlPhysicalUsageDisplays(sqlRelationEvidence);
   for (const entry of parsedUsages) {
     if (entry) usages.add(entry);
   }
@@ -156,6 +78,7 @@ export function buildSqlRelations(text, sqlChunks, options = {}) {
     exports: Array.from(exports),
     calls: [],
     usages: Array.from(usages),
-    importLinks: imports.slice()
+    importLinks: imports.slice(),
+    sqlRelationEvidence
   };
 }

@@ -28,6 +28,7 @@ import {
 } from '../index/constants.js';
 import { summarizeControlFlow } from './flow.js';
 import { buildTreeSitterChunks } from './tree-sitter.js';
+import { syntaxRelationsForChunks } from './tree-sitter/call-facts.js';
 import path from 'node:path';
 
 /**
@@ -38,6 +39,8 @@ import path from 'node:path';
 const OBJC_HEADER_EXTENSIONS = new Set(['.h', '.hh', '.hpp', '.hxx']);
 const OBJC_HEADER_MARKER_RE = /(^\s*@(?:interface|implementation|protocol|property|class|end)\b)|(^\s*[+-]\s*\([^)]*\)\s*[A-Za-z_][A-Za-z0-9_:]*)/m;
 const OBJC_FRAMEWORK_IMPORT_RE = /^\s*#\s*import\s*[<"](?:Foundation|UIKit|AppKit|Core[A-Za-z0-9_]+)\//m;
+// Match the registered C/C++/Objective-C native declaration producers.
+const CLIKE_DOC_OPTIONS = { linePrefixes: ['///', '//'], blockStarts: ['/**'] };
 
 function isObjcContext(ext, text = '') {
   const normalizedExt = String(ext || '').trim().toLowerCase();
@@ -65,8 +68,8 @@ function normalizeCLikeFuncName(raw) {
  * @param {number} start
  * @returns {{bodyStart:number,bodyEnd:number}}
  */
-export function findCLikeBodyBounds(text, start) {
-  return findBraceDelimitedBodyBounds(text, start, { charLiterals: true });
+export function findCLikeBodyBounds(text, start, options = {}) {
+  return findBraceDelimitedBodyBounds(text, start, { charLiterals: true, ...options });
 }
 
 function findObjcEnd(text, start) {
@@ -334,7 +337,7 @@ export function buildCLikeChunks(text, ext, options = {}) {
         endLine,
         signature,
         modifiers: extractCLikeModifiers(signature),
-        docstring: extractDocComment(lines, docLine),
+        docstring: extractDocComment(lines, docLine, CLIKE_DOC_OPTIONS),
         conforms: extractObjcConforms(signature)
       }
     }, true);
@@ -362,7 +365,7 @@ export function buildCLikeChunks(text, ext, options = {}) {
           startLine,
           endLine,
           signature,
-          docstring: extractDocComment(lines, docLine),
+          docstring: extractDocComment(lines, docLine, CLIKE_DOC_OPTIONS),
           conforms: extractObjcConforms(signature)
         }
       }, true);
@@ -414,7 +417,7 @@ export function buildCLikeChunks(text, ext, options = {}) {
           signature,
           params: extractObjcParams(signature),
           returns: extractObjcReturns(signature),
-          docstring: extractDocComment(lines, docLine),
+          docstring: extractDocComment(lines, docLine, CLIKE_DOC_OPTIONS),
           attributes: collectAttributes(lines, i, signature),
           modifiers
         }
@@ -462,7 +465,7 @@ export function buildCLikeChunks(text, ext, options = {}) {
         params: extractCLikeParams(signature),
         returns,
         modifiers: extractCLikeModifiers(signature),
-        docstring: extractDocComment(lines, docLine)
+        docstring: extractDocComment(lines, docLine, CLIKE_DOC_OPTIONS)
       }
     });
     attachCachedBodyBounds(decls[decls.length - 1]?.meta, bounds);
@@ -492,26 +495,38 @@ export function buildCLikeRelations(text, relPath, options = {}) {
   const calls = [];
   const callPairs = new Set();
   const usages = new Set();
-  const clikeChunks = Array.isArray(relPath) ? relPath : null;
   const ext = String(typeof relPath === 'string'
     ? path.extname(relPath)
     : (typeof options?.ext === 'string' ? options.ext : '')).trim().toLowerCase();
   const keywordSets = resolveCLikeKeywordSets(ext, text);
+  // Keep the legacy path overload explicit: a path is never silently treated
+  // as declaration data. Registry callers provide their already prepared rows.
+  const clikeChunks = Array.isArray(relPath) ? relPath
+    : typeof relPath === 'string' ? buildCLikeChunks(text, ext, options) : null;
+  const nativeChunks = (Array.isArray(clikeChunks) ? clikeChunks : []).filter(chunk => Array.isArray(chunk.meta?.syntaxCalls));
+  const native = syntaxRelationsForChunks(nativeChunks);
+  let heuristicCalls = false;
+  const addCall = (caller, callee) => {
+    const pairKey = `${caller}\u0000${callee}`;
+    if (callPairs.has(pairKey)) return;
+    callPairs.add(pairKey); calls.push([caller, callee]);
+  };
+  for (const [caller, callee] of native.calls) addCall(caller, callee);
+  for (const usage of native.usages) usages.add(usage);
   if (Array.isArray(clikeChunks)) {
     for (const chunk of clikeChunks) {
       if (!chunk || !chunk.name || chunk.start == null || chunk.end == null) continue;
       if (CLIKE_EXPORT_KINDS.has(chunk.kind)) exports.add(chunk.name);
       if (!CLIKE_CALLABLE_KINDS.has(chunk.kind)) continue;
+      if (chunk.meta?.bodyless) continue;
       const bounds = resolveChunkBodyBounds(text, chunk);
       const scanStart = bounds.bodyStart > -1 && bounds.bodyStart < chunk.end ? bounds.bodyStart + 1 : chunk.start;
       const scanEnd = bounds.bodyEnd > scanStart && bounds.bodyEnd <= chunk.end ? bounds.bodyEnd : chunk.end;
       const slice = text.slice(scanStart, scanEnd);
       const { calls: chunkCalls, usages: chunkUsages } = collectCLikeCallsAndUsages(slice, keywordSets);
-      for (const callee of chunkCalls) {
-        const pairKey = `${chunk.name}\u0000${callee}`;
-        if (callPairs.has(pairKey)) continue;
-        callPairs.add(pairKey);
-        calls.push([chunk.name, callee]);
+      if (!Array.isArray(chunk.meta?.syntaxCalls)) {
+        heuristicCalls = true;
+        for (const callee of chunkCalls) addCall(chunk.name, callee);
       }
       for (const usage of chunkUsages) usages.add(usage);
     }
@@ -520,6 +535,8 @@ export function buildCLikeRelations(text, relPath, options = {}) {
     imports,
     exports: Array.from(exports),
     calls,
+    ...(nativeChunks.length ? { callDetails: native.callDetails, callOwnership: native.callOwnership } : {}),
+    ...(heuristicCalls ? { callCoverage: 'partial-heuristic-callable-bodies' } : {}),
     usages: Array.from(usages)
   };
 }

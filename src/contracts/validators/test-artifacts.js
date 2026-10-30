@@ -15,11 +15,11 @@ const ajv = createAjv({
   dialect: '2020'
 });
 
-const VALIDATE_TEST_COVERAGE = compileSchema(ajv, TEST_COVERAGE_ARTIFACT_SCHEMA);
-const VALIDATE_TEST_COVERAGE_POLICY_REPORT = compileSchema(ajv, TEST_COVERAGE_POLICY_REPORT_SCHEMA);
-const VALIDATE_TEST_TIMINGS = compileSchema(ajv, TEST_TIMINGS_ARTIFACT_SCHEMA);
-const VALIDATE_TEST_PROFILE = compileSchema(ajv, TEST_PROFILE_ARTIFACT_SCHEMA);
-const VALIDATE_TEST_STABILITY = compileSchema(ajv, TEST_STABILITY_ARTIFACT_SCHEMA);
+const VALIDATE_TEST_COVERAGE = compileSchema(ajv, TEST_COVERAGE_ARTIFACT_SCHEMA, { lazy: true });
+const VALIDATE_TEST_COVERAGE_POLICY_REPORT = compileSchema(ajv, TEST_COVERAGE_POLICY_REPORT_SCHEMA, { lazy: true });
+const VALIDATE_TEST_TIMINGS = compileSchema(ajv, TEST_TIMINGS_ARTIFACT_SCHEMA, { lazy: true });
+const VALIDATE_TEST_PROFILE = compileSchema(ajv, TEST_PROFILE_ARTIFACT_SCHEMA, { lazy: true });
+const VALIDATE_TEST_STABILITY = compileSchema(ajv, TEST_STABILITY_ARTIFACT_SCHEMA, { lazy: true });
 
 export const validateTestCoverageArtifact = (payload) => (
   toValidationResult(VALIDATE_TEST_COVERAGE, payload)

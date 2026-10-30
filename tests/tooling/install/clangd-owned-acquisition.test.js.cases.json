@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["registry", "publication", "download-index", "download-archive", "pending-probe", "frozen-probe", "missing-receipt", "wrong-version", "abort-download", "abort-probe", "probe-success", "probe-pending", "probe-cancellation"]
+}

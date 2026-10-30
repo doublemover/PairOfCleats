@@ -11,13 +11,15 @@ import { copyFixtureToTemp } from '../fixtures.js';
 const require = createRequire(import.meta.url);
 const extensionPath = path.resolve('extensions/vscode/extension.js');
 
-function createFakeConfiguration(values, globalValues = {}) {
+function createFakeConfiguration(values, globalValues = {}, workspaceValues = values) {
+  const properties = require('../../../extensions/vscode/package.json').contributes.configuration.properties;
   return {
     get(key) {
-      return values[key];
+      return Object.hasOwn(workspaceValues, key) ? workspaceValues[key] : globalValues[key] ?? values[key];
     },
     inspect(key) {
-      return { globalValue: globalValues[key], workspaceValue: values[key] };
+      return { defaultValue: properties[`pairofcleats.${key}`]?.default,
+        globalValue: globalValues[key], workspaceValue: workspaceValues[key] };
     }
   };
 }
@@ -74,8 +76,13 @@ function loadExtensionWithMocks({ fakeVscode, fakeChildProcess }) {
   }
 }
 
-function createFakeSpawn(spawnCalls, queuedResults, killCalls) {
+function createFakeSpawn(spawnCalls, queuedResults, killCalls, nodeProbeCalls, nodeProbeResult) {
   return {
+    spawnSync(command, args, options) {
+      nodeProbeCalls.push({ command, args, options });
+      return typeof nodeProbeResult === 'function' ? nodeProbeResult(command, args, options)
+        : nodeProbeResult || { status: 0, stdout: JSON.stringify({ version: '26.12.1', execPath: process.execPath }), stderr: '' };
+    },
     spawn(command, args, options) {
       const result = queuedResults.shift();
       if (result?.throw) {
@@ -104,6 +111,7 @@ function createFakeSpawn(spawnCalls, queuedResults, killCalls) {
         if (result.stderr) child.stderr.emit('data', Buffer.from(result.stderr));
         if (result.error) {
           child.emit('error', result.error);
+          if (!result.retainAfterError) child.emit('close', result.code ?? null);
           return;
         }
         if (!result.persistent) {
@@ -217,6 +225,8 @@ function createFakeFetch(fetchCalls, queuedFetchResults, implementation = null) 
     return {
       ok: result?.ok ?? (status >= 200 && status < 300),
       status,
+      headers: new Headers(result?.headers),
+      body: new Response(responseText).body,
       async text() {
         return responseText;
       }
@@ -231,6 +241,7 @@ export function createVsCodeRuntimeHarness({
   activeEditor = null,
   configValues = {},
   globalConfigValues = {},
+  nodeProbeResult = null,
   isTrusted = true,
   workspaceState = {},
   fetchImpl = null
@@ -267,14 +278,17 @@ export function createVsCodeRuntimeHarness({
     env: {},
     ...configValues
   };
+  const explicitWorkspaceConfig = { ...configValues };
   const workspaceStateStore = new Map(Object.entries(workspaceState));
   const outputEvents = [];
+  const progressEvents = [];
   const errorMessages = [];
   const infoMessages = [];
   const openExternalCalls = [];
   const registeredCommands = new Map();
   const executeCommandCalls = [];
   const spawnCalls = [];
+  const nodeProbeCalls = [];
   const killCalls = [];
   const queuedResults = [];
   const fetchCalls = [];
@@ -296,6 +310,8 @@ export function createVsCodeRuntimeHarness({
   const clipboardWrites = [];
   const editorHandlers = [];
   const workspaceHandlers = [];
+  const fileSystemWatchers = [];
+  const documentHandlers = new Map();
   const originalFetch = globalThis.fetch;
   const fakeFetch = createFakeFetch(fetchCalls, queuedFetchResults, fetchImpl);
   globalThis.fetch = fakeFetch;
@@ -341,16 +357,43 @@ export function createVsCodeRuntimeHarness({
         }) || null;
       },
       getConfiguration() {
-        return createFakeConfiguration(normalizedConfig, globalConfigValues);
+        return createFakeConfiguration(normalizedConfig, globalConfigValues, explicitWorkspaceConfig);
       },
+      textDocuments: [],
       async openTextDocument(uri) {
-        const document = { uri };
+        const existing = uri?.fsPath ? this.textDocuments.find(document => document.uri?.fsPath === uri.fsPath) : null;
+        let text = typeof uri?.content === 'string' ? uri.content : '';
+        if (!existing && uri?.scheme === 'file' && fs.existsSync(uri.fsPath)) {
+          text = fs.readFileSync(uri.fsPath, 'utf8').replace(/^\ufeff/, '').replace(/\r\n/g, '\n');
+        }
+        const document = existing || { uri, version: 1, isDirty: false,
+          getText() { return text; },
+          positionAt(offset) {
+            const before = text.slice(0, Math.min(text.length, Math.max(0, offset)));
+            const lines = before.split('\n');
+            return new fakeVscode.Position(lines.length - 1, lines[lines.length - 1].length);
+          },
+          offsetAt(position) {
+            const lines = text.split('\n');
+            return lines.slice(0, position.line).reduce((size, line) => size + line.length + 1, 0) + position.character;
+          } };
+        if (!existing && uri?.fsPath) this.textDocuments.push(document);
         openedDocuments.push(document);
         return document;
       },
       onDidChangeWorkspaceFolders(handler) {
         workspaceHandlers.push(handler);
         return { dispose() {} };
+      },
+      createFileSystemWatcher(pattern) {
+        const listeners = new Map();
+        const watcher = { pattern, disposed: false, dispose() { this.disposed = true; listeners.clear(); } };
+        for (const event of ['onDidCreate', 'onDidChange', 'onDidDelete']) {
+          const handlers = new Set(); listeners.set(event, handlers);
+          watcher[event] = handler => { handlers.add(handler); return { dispose: () => handlers.delete(handler) }; };
+        }
+        watcher.fire = (event, uri) => { for (const handler of listeners.get(event) || []) handler(uri); };
+        fileSystemWatchers.push(watcher); return watcher;
       }
     },
     window: {
@@ -362,7 +405,7 @@ export function createVsCodeRuntimeHarness({
             return { dispose() {} };
           }
         };
-        return task({}, token);
+        return task({ report: value => progressEvents.push(value) }, token);
       },
       async showInputBox() {
         return inputQueue.shift();
@@ -643,12 +686,22 @@ export function createVsCodeRuntimeHarness({
     TextEditorRevealType: { InCenter: 1 }
   };
 
+  for (const event of ['onDidChangeTextDocument', 'onDidSaveTextDocument', 'onDidCloseTextDocument', 'onDidChangeConfiguration']) {
+    const handlers = new Set();
+    documentHandlers.set(event, handlers);
+    fakeVscode.workspace[event] = (handler) => {
+      handlers.add(handler);
+      return { dispose: () => handlers.delete(handler) };
+    };
+  }
   const extension = loadExtensionWithMocks({
     fakeVscode,
-    fakeChildProcess: createFakeSpawn(spawnCalls, queuedResults, killCalls)
+    fakeChildProcess: createFakeSpawn(spawnCalls, queuedResults, killCalls, nodeProbeCalls, nodeProbeResult)
   });
 
+  const globalStorageRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'poc-vscode-owned-storage-'));
   const context = {
+    globalStorageUri: normalizeFileUri(globalStorageRoot),
     subscriptions: [],
     workspaceState: {
       get(key, fallback) {
@@ -665,6 +718,7 @@ export function createVsCodeRuntimeHarness({
     fakeVscode,
     context,
     outputEvents,
+    progressEvents,
     errorMessages,
     infoMessages,
     openExternalCalls,
@@ -672,6 +726,7 @@ export function createVsCodeRuntimeHarness({
     registeredCommands,
     executeCommandCalls,
     spawnCalls,
+    nodeProbeCalls,
     killCalls,
     queuedResults,
     fetchCalls,
@@ -693,6 +748,7 @@ export function createVsCodeRuntimeHarness({
     workspaceStateStore,
     restoreGlobals() {
       globalThis.fetch = originalFetch;
+      fs.rmSync(globalStorageRoot, { recursive: true, force: true });
     },
     activate() {
       extension.activate(context);
@@ -706,6 +762,18 @@ export function createVsCodeRuntimeHarness({
       fakeVscode.window.activeTextEditor = normalizedEditor;
       for (const handler of editorHandlers) handler(normalizedEditor);
     },
+    setConfiguration(values) {
+      Object.assign(normalizedConfig, values);
+      Object.assign(explicitWorkspaceConfig, values);
+      for (const handler of documentHandlers.get('onDidChangeConfiguration')) handler({ affectsConfiguration: () => true });
+    },
+    setGlobalConfiguration(values) {
+      Object.assign(globalConfigValues, values);
+      for (const handler of documentHandlers.get('onDidChangeConfiguration')) handler({ affectsConfiguration: () => true });
+    },
+    fireDocumentEvent(event, document) {
+      for (const handler of documentHandlers.get(event) || []) handler(event === 'onDidChangeTextDocument' ? { document } : document);
+    },
     setActiveFile(filePath) {
       const nextEditor = filePath
         ? normalizeEditor({ document: { uri: normalizeFileUri(path.resolve(filePath)) } }, decorationApplications)
@@ -713,12 +781,18 @@ export function createVsCodeRuntimeHarness({
       this.setActiveEditor(nextEditor);
     },
     setWorkspaceFolders(folders) {
+      const previous = fakeVscode.workspace.workspaceFolders;
       fakeVscode.workspace.workspaceFolders = buildWorkspaceFolders(folders);
+      const before = new Set(previous.map(folder => folder.uri.toString()));
+      const after = new Set(fakeVscode.workspace.workspaceFolders.map(folder => folder.uri.toString()));
       const event = {
-        added: fakeVscode.workspace.workspaceFolders,
-        removed: []
+        added: fakeVscode.workspace.workspaceFolders.filter(folder => !before.has(folder.uri.toString())),
+        removed: previous.filter(folder => !after.has(folder.uri.toString()))
       };
       for (const handler of workspaceHandlers) handler(event);
+    },
+    fireIndexPublication(event = 'onDidChange', uri = null) {
+      for (const watcher of fileSystemWatchers) watcher.fire(event, uri);
     },
     async runCommand(commandId, ...args) {
       const handler = registeredCommands.get(commandId);

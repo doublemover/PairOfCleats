@@ -42,16 +42,23 @@ const cases = [
   ['visibility', 'visibility_behavior.py']
 ];
 
+const failures = [];
 for (const [label, scriptName] of cases) {
   const helper = path.join(root, 'tests', 'helpers', 'sublime', scriptName);
   const result = spawnSync(python, [helper], {
     cwd: root,
-    encoding: 'utf8'
+    windowsHide: true, encoding: 'utf8'
   });
 
   if (result.stdout) console.error(result.stdout);
   if (result.stderr) console.error(result.stderr);
-  assert.equal(result.status, 0, `sublime ${label} behavior helper failed`);
+  try {
+    assert.equal(result.status, 0, `sublime ${label} behavior helper failed`);
+  } catch (error) {
+    failures.push(result.error ? new AggregateError([error, result.error],
+      `sublime ${label} helper did not complete`, { cause: error }) : error);
+  }
 }
+if (failures.length) throw new AggregateError(failures, 'Sublime behavior helpers failed');
 
 console.log('sublime behavior contract matrix test passed');

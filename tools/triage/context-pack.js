@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import fsPromises from 'node:fs/promises';
+import { getRecordPackages } from '../../src/integrations/triage/record-utils.js';
 import path from 'node:path';
 import { createCli } from '../../src/shared/cli.js';
 import { search } from '../../src/integrations/core/search.js';
@@ -7,6 +7,12 @@ import { getRepoCacheRoot, getRuntimeConfig, getTriageConfig, resolveRepoConfig,
 import { setEmbeddingsEnv } from '../../src/shared/env/runtime.js';
 import { writeJsonFileResolved } from '../../src/shared/json-file.js';
 import { resolveRecordPathSafe } from './context-pack-paths.js';
+import { buildTriageHistorySelection } from './history-selection.js';
+import { loadTriageRecordSnapshot } from './record-snapshot.js';
+import { describeStorageFailure } from '../../src/shared/storage/failure-observation.js';
+import { projectTriageEvidence } from './evidence.js';
+import { TRIAGE_EVIDENCE_VERSION } from '../../src/contracts/triage-evidence.js';
+import { parseTriageHistoryCursor } from '../../src/contracts/validators/triage-history.js';
 
 const argv = createCli({
   scriptName: 'triage-context-pack',
@@ -15,7 +21,8 @@ const argv = createCli({
     ann: { type: 'boolean' },
     repo: { type: 'string' },
     record: { type: 'string' },
-    out: { type: 'string' }
+    out: { type: 'string' },
+    'history-after': { type: 'string', description: 'JSON exact-history continuation from the preceding context pack.' }
   }
 }).parse();
 const rawArgs = process.argv.slice(2);
@@ -24,7 +31,7 @@ const annFlagPresent = rawArgs.includes('--ann') || rawArgs.includes('--no-ann')
 const { repoRoot, userConfig } = resolveRepoConfig(argv.repo);
 const recordId = String(argv.record || '').trim();
 if (!recordId) {
-  console.error('usage: node tools/triage/context-pack.js --record <recordId> [--repo <path>] [--out <file>] [--no-ann] [--stub-embeddings]');
+  console.error('usage: node tools/triage/context-pack.js --record <recordId> [--repo <path>] [--out <file>] [--history-after <json>] [--no-ann] [--stub-embeddings]');
   process.exit(1);
 }
 
@@ -33,7 +40,8 @@ const baseEnv = resolveRuntimeEnv(runtimeConfig, process.env);
 const triageConfig = getTriageConfig(repoRoot, userConfig);
 const repoCacheRoot = getRepoCacheRoot(repoRoot, userConfig);
 const recordsDir = triageConfig.recordsDir;
-const finding = await loadRecord(recordsDir, recordId);
+const findingSnapshot = await loadRecord(recordsDir, recordId);
+const finding = findingSnapshot?.record;
 
 if (!finding) {
   console.error(`Finding record not found: ${recordId}`);
@@ -53,12 +61,19 @@ const maxEvidencePerQuery = Number.isFinite(Number(contextPackConfig.maxEvidence
 const warnings = [];
 const indexCache = new Map();
 const sqliteCache = new Map();
-const history = await buildHistory({
+let historyCursor = null;
+if (argv['history-after'] !== undefined) {
+  historyCursor = parseTriageHistoryCursor(argv['history-after']);
+}
+const { history, historySelection } = await buildTriageHistorySelection({
   recordsDir,
+  repoRoot,
   recordId,
   finding,
+  findingObservation: findingSnapshot.observation,
   maxHistory,
-  warnings
+  warnings,
+  cursor: historyCursor
 });
 
 const repoEvidence = await buildRepoEvidence({
@@ -69,10 +84,12 @@ const repoEvidence = await buildRepoEvidence({
 });
 
 const pack = {
+  evidenceVersion: TRIAGE_EVIDENCE_VERSION,
   recordId,
   generatedAt: new Date().toISOString(),
   finding,
   history,
+  historySelection,
   repoEvidence,
   warnings: warnings.length ? warnings : undefined
 };
@@ -81,53 +98,14 @@ await writeJsonFileResolved(outPath, pack);
 
 console.log(JSON.stringify({
   outPath,
+  evidenceVersion: TRIAGE_EVIDENCE_VERSION,
+  searchedRepository: repoEvidence.repository,
   historyCount: history.length,
+  historyState: historySelection.coverage.state,
+  exactHistoryContinuation: historySelection.continuationState,
   evidenceQueries: repoEvidence.queries.length,
   warnings: warnings.length ? warnings : undefined
 }, null, 2));
-
-/**
- * Build related historical triage records using deterministic query passes.
- *
- * First pass includes service/env route filters, then a relaxed decision-only
- * pass fills remaining slots up to `maxHistory`.
- *
- * @param {object} input
- * @returns {Promise<object[]>}
- */
-async function buildHistory({ recordsDir, recordId, finding, maxHistory, warnings }) {
-  const vulnId = finding?.vuln?.cve || finding?.vuln?.vulnId || null;
-  const packageName = finding?.package?.name || null;
-  const manifestName = finding?.package?.manifestPath
-    ? path.basename(finding.package.manifestPath)
-    : null;
-  const candidates = await loadHistoryCandidates({
-    recordsDir,
-    recordId,
-    finding,
-    vulnId,
-    packageName,
-    manifestName,
-    warnings
-  });
-  if (!candidates.length) return [];
-
-  const routeScoped = [];
-  const relaxed = [];
-  for (const candidate of candidates) {
-    if (candidate.routeMatch) {
-      routeScoped.push(candidate);
-    } else {
-      relaxed.push(candidate);
-    }
-  }
-
-  routeScoped.sort(compareHistoryCandidate);
-  relaxed.sort(compareHistoryCandidate);
-  return [...routeScoped, ...relaxed]
-    .slice(0, maxHistory)
-    .map((candidate) => candidate.record);
-}
 
 /**
  * Build per-query repository evidence hits across supported retrieval modes.
@@ -147,44 +125,43 @@ async function buildRepoEvidence({ repoRoot, finding, maxEvidencePerQuery, warni
         metaFilters: [],
         top: maxEvidencePerQuery
       });
-      if (!result.ok) {
-        warnings.push({ step: 'evidence-search', mode, query, error: result.error });
-      }
-      const hits = Array.isArray(result.payload?.[mode]) ? result.payload[mode] : [];
-      results.push({
-        query,
-        mode,
-        hits: hits.slice(0, maxEvidencePerQuery).map(pickEvidenceHit)
+      const evidence = projectTriageEvidence({ repoRoot, query, mode, result, limit: maxEvidencePerQuery });
+      if (evidence.status === 'unavailable') warnings.push({
+        step: 'evidence-search', mode, query, repository: evidence.repository,
+        code: evidence.diagnostic.code, error: evidence.diagnostic.message
       });
+      results.push(evidence);
     }
   }
-  return { queries: results };
+  return { schemaVersion: TRIAGE_EVIDENCE_VERSION,
+    repository: { root: path.resolve(repoRoot), identityKind: 'search-root-path' }, queries: results };
 }
 
 function buildEvidenceQueries(finding) {
   const queries = new Set();
   const vulnId = finding?.vuln?.cve || finding?.vuln?.vulnId;
   if (vulnId) queries.add(vulnId);
-  const packageName = finding?.package?.name;
-  if (packageName) queries.add(packageName);
+  for (const pkg of getRecordPackages(finding)) {
+    if (pkg.name) queries.add(pkg.name);
+    for (const alias of [pkg.importName, pkg.module, pkg.moduleName]) {
+      if (typeof alias === 'string' && alias.trim()) queries.add(alias);
+    }
+    if (pkg.name?.includes('/')) queries.add(pkg.name.split('/').pop());
+    if (pkg.manifestPath) queries.add(path.basename(pkg.manifestPath));
+  }
   const importName = pickImportName(finding);
   if (importName) queries.add(importName);
-  if (!importName && packageName && packageName.includes('/')) {
-    const unscoped = packageName.split('/').pop();
-    if (unscoped && unscoped !== packageName) queries.add(unscoped);
-  }
-  const manifestPath = finding?.package?.manifestPath;
-  if (manifestPath) queries.add(path.basename(manifestPath));
   const exposureEndpoint = finding?.exposure?.publicEndpoint;
   if (exposureEndpoint) queries.add(exposureEndpoint);
   return Array.from(queries).filter(Boolean);
 }
 
 function pickImportName(finding) {
+  const legacyPackage = Array.isArray(finding?.packages) ? null : finding?.package;
   const candidates = [
-    finding?.package?.importName,
-    finding?.package?.module,
-    finding?.package?.moduleName,
+    legacyPackage?.importName,
+    legacyPackage?.module,
+    legacyPackage?.moduleName,
     finding?.importName,
     finding?.import,
     finding?.module
@@ -192,136 +169,15 @@ function pickImportName(finding) {
   return candidates.find((value) => typeof value === 'string' && value.trim());
 }
 
-function pickEvidenceHit(hit) {
-  return {
-    file: hit.file,
-    kind: hit.kind,
-    name: hit.name,
-    headline: hit.headline,
-    score: hit.score,
-    scoreType: hit.scoreType,
-    scoreBreakdown: hit.scoreBreakdown || null,
-    snippet: buildSnippet(hit)
-  };
-}
-
-function buildSnippet(hit) {
-  const parts = [];
-  if (hit.headline) parts.push(hit.headline);
-  if (Array.isArray(hit.preContext)) parts.push(...hit.preContext);
-  if (Array.isArray(hit.postContext)) parts.push(...hit.postContext);
-  const raw = parts.join(' ').replace(/\s+/g, ' ').trim();
-  if (!raw) return '';
-  return raw.length > 240 ? `${raw.slice(0, 237)}...` : raw;
-}
-
-function extractRecordId(hit) {
-  if (hit?.docmeta?.record?.recordId) return hit.docmeta.record.recordId;
-  if (hit?.file) return path.basename(hit.file, path.extname(hit.file));
-  return null;
-}
-
-async function loadHistoryCandidates({ recordsDir, recordId, finding, vulnId, packageName, manifestName, warnings }) {
-  let entries;
-  try {
-    entries = await fsPromises.readdir(recordsDir, { withFileTypes: true });
-  } catch (err) {
-    warnings.push({ step: 'history-scan', error: err?.message || 'failed to read records directory' });
-    return [];
-  }
-
-  const candidates = await Promise.all(entries
-    .filter((entry) => entry.isFile() && path.extname(entry.name) === '.json')
-    .map(async (entry) => {
-      const filePath = path.join(recordsDir, entry.name);
-      const record = await loadJsonFile(filePath);
-      if (!record || record.recordType !== 'decision' || record.recordId === recordId) return null;
-      const candidate = scoreHistoryCandidate({
-        record,
-        recordId,
-        finding,
-        vulnId,
-        packageName,
-        manifestName
-      });
-      return candidate?.score > 0 ? candidate : null;
-    }));
-
-  return candidates.filter(Boolean);
-}
-
-function scoreHistoryCandidate({ record, recordId, finding, vulnId, packageName, manifestName }) {
-  let score = 0;
-  const decisionFindingId = record?.decision?.findingRecordId || null;
-  const recordVulnId = record?.vuln?.cve || record?.vuln?.vulnId || null;
-  const recordPackageName = record?.package?.name || null;
-  const recordManifestName = record?.package?.manifestPath
-    ? path.basename(record.package.manifestPath)
-    : null;
-  const serviceMatch = valuesEqual(record?.service, finding?.service);
-  const envMatch = valuesEqual(record?.env, finding?.env);
-
-  if (decisionFindingId && decisionFindingId === recordId) score += 8;
-  if (vulnId && valuesEqual(recordVulnId, vulnId)) score += 4;
-  if (packageName && valuesEqual(recordPackageName, packageName)) score += 3;
-  if (manifestName && valuesEqual(recordManifestName, manifestName)) score += 2;
-  if (serviceMatch) score += 1;
-  if (envMatch) score += 1;
-
-  if (score <= 0) return null;
-
-  return {
-    record,
-    score,
-    routeMatch: matchesRoute(record, finding),
-    timestamp: parseHistoryTimestamp(record)
-  };
-}
-
-function matchesRoute(record, finding) {
-  let constrained = false;
-  if (finding?.service) {
-    constrained = true;
-    if (!valuesEqual(record?.service, finding.service)) return false;
-  }
-  if (finding?.env) {
-    constrained = true;
-    if (!valuesEqual(record?.env, finding.env)) return false;
-  }
-  return constrained;
-}
-
-function compareHistoryCandidate(left, right) {
-  return (
-    (right.score - left.score)
-    || (right.timestamp - left.timestamp)
-    || String(left.record?.recordId || '').localeCompare(String(right.record?.recordId || ''))
-  );
-}
-
-function parseHistoryTimestamp(record) {
-  const value = record?.updatedAt || record?.createdAt || null;
-  const timestamp = Date.parse(value || '');
-  return Number.isFinite(timestamp) ? timestamp : 0;
-}
-
-function valuesEqual(left, right) {
-  if (!left || !right) return false;
-  return String(left).trim() === String(right).trim();
-}
-
 async function loadRecord(recordsDir, recordId) {
   const filePath = resolveRecordPathSafe(recordsDir, recordId);
   if (!filePath) return null;
-  return loadJsonFile(filePath);
-}
-
-async function loadJsonFile(filePath) {
   try {
-    const raw = await fsPromises.readFile(filePath, 'utf8');
-    return JSON.parse(raw);
-  } catch {
-    return null;
+    return await loadTriageRecordSnapshot(recordsDir, recordId, { recordType: 'finding' });
+  } catch (error) {
+    const diagnostic = describeStorageFailure(error, { phase: 'triage-finding-read', defaultCode: 'ERR_TRIAGE_FINDING_READ' });
+    if (diagnostic.code === 'ENOENT') return null;
+    throw error;
   }
 }
 
@@ -344,6 +200,7 @@ async function runSearchJson({ repoRoot, query, mode, metaFilters, top }) {
     const payload = await withSearchEnv(async () => await search(repoRoot, {
       query,
       args,
+      argsMode: 'complete',
       emitOutput: false,
       exitOnError: false,
       indexCache,
@@ -351,7 +208,9 @@ async function runSearchJson({ repoRoot, query, mode, metaFilters, top }) {
     }));
     return { ok: true, payload };
   } catch (err) {
-    return { ok: false, error: err?.message || 'search failed', payload: null };
+    const diagnostic = describeStorageFailure(err, { phase: 'triage-evidence-search',
+      defaultCode: 'ERR_TRIAGE_EVIDENCE_SEARCH', defaultMessage: 'Search unavailable.' });
+    return { ok: false, code: diagnostic.code, error: diagnostic.message, payload: null };
   }
 }
 

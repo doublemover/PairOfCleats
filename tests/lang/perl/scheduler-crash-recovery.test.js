@@ -74,7 +74,7 @@ try {
   assert.ok(crashSummary.parserCrashEvents.length >= 1, 'expected at least one parser crash event');
 
   await fs.access(scheduler.crashForensicsBundlePath);
-  await fs.access(path.join(repoCacheRoot, 'logs', 'index-crash-forensics-index.json'));
+  await fs.access(path.join(crashLogger.paths.directory, 'index-crash-forensics-index.json'));
   const durableCrashPath = scheduler.durableCrashForensicsBundlePath;
   if (durableCrashPath) {
     await fs.access(durableCrashPath);

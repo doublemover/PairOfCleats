@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
+import { quantizeEmbeddingVector } from '../../../src/shared/embedding-quantization.js';
 
 import { getBitmapSize, isRoaringAvailable } from '../../../src/retrieval/bitmap.js';
 import { buildFilterIndex } from '../../../src/retrieval/filter-index.js';
@@ -36,7 +37,7 @@ const baseIndex = () => ({
       [0.2, 0.2],
       [0.9, 0.9],
       [0.3, 0.3]
-    ]
+    ].map(vector => quantizeEmbeddingVector(vector))
   },
   minhash: { signatures: [] }
 });

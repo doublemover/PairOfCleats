@@ -8,12 +8,19 @@ import Database from 'better-sqlite3';
 import { incrementalUpdateDatabase } from '../../../../src/storage/sqlite/build/incremental-update.js';
 import { CREATE_TABLES_BASE_SQL, SCHEMA_VERSION } from '../../../../src/storage/sqlite/schema.js';
 import { prepareIsolatedTestCacheDir } from '../../../helpers/test-cache.js';
+import { writeIncrementalBundleSnapshot } from '../../../../src/index/build/incremental/bundle-snapshot.js';
+import { sqliteBundleIdentity } from '../../../../src/storage/sqlite/bundle-identity.js';
 
 const { dir: tempRoot } = await prepareIsolatedTestCacheDir('sqlite-incremental-handle-lifecycle');
-const manifestEntry = { bundles: ['unused.json'], hash: 'current', mtimeMs: 123, size: 10 };
+const selectedEntry = { hash: 'current', mtimeMs: 123, size: 10 };
+const manifestEntry = { ...selectedEntry, ...await writeIncrementalBundleSnapshot({ bundleDir: tempRoot,
+  relKey: 'sample.js', entry: selectedEntry, bundles: [{ file: 'sample.js', ...selectedEntry, chunks: [] }] }) };
+const contains = (value, expected) => value === expected || Boolean(value && typeof value === 'object'
+  && (contains(value.cause, expected) || value instanceof AggregateError && value.errors.some(error => contains(error, expected))));
 
 const runCase = async ({ name, failureAt = null, baselineHash = null, schemaVersion = SCHEMA_VERSION,
-  missingTable = false, closeFailure = false, checkpointFailure = false, buildPragmas = false }) => {
+  missingTable = false, closeFailure = false, checkpointFailure = false, buildPragmas = false, cancelAfterManifest = false }) => {
+  const controller = new AbortController();
   const outPath = path.join(tempRoot, `${name}.db`);
   const writer = new Database(outPath);
   try {
@@ -21,14 +28,15 @@ const runCase = async ({ name, failureAt = null, baselineHash = null, schemaVers
     writer.pragma(`user_version = ${schemaVersion}`);
     writeSqliteIndexFormat(writer);
     writer.prepare(
-      'INSERT INTO file_manifest (mode, file, hash, mtimeMs, size, chunk_count) VALUES (?, ?, ?, ?, ?, ?)'
-    ).run('code', 'sample.js', baselineHash, 123, 10, 0);
+      'INSERT INTO file_manifest (mode, file, hash, mtimeMs, size, chunk_count, bundle_hash) VALUES (?, ?, ?, ?, ?, ?, ?)'
+    ).run('code', 'sample.js', baselineHash, 123, 10, 0, sqliteBundleIdentity(manifestEntry));
     if (missingTable) writer.exec('DROP TABLE dense_vectors');
   } finally {
     writer.close();
   }
 
-  const failure = new Error(`injected ${failureAt} failure`);
+  const failure = Object.freeze(new Error(`injected ${failureAt} failure`));
+  const cleanupFailure = Object.freeze(new Error('injected close failure'));
   const handles = [];
   const closeCounts = new Map();
   let failureInjected = false;
@@ -59,13 +67,14 @@ const runCase = async ({ name, failureAt = null, baselineHash = null, schemaVers
     };
     db.prepare = (sql, ...args) => {
       if (sql === "SELECT name FROM sqlite_master WHERE type='table'") inject('schema');
-      if (sql.startsWith('SELECT file, hash, mtimeMs, size FROM file_manifest')) inject('planner');
+      if (sql.startsWith('SELECT file, hash, mtimeMs, size, bundle_hash FROM file_manifest')) inject('planner');
       const statement = prepare(sql, ...args);
       if (sql.startsWith('UPDATE file_manifest SET hash')) {
         const run = statement.run.bind(statement);
         statement.run = (...values) => {
           manifestWrites += 1;
           const result = run(...values);
+          if (cancelAfterManifest) controller.abort();
           // Fail after a real write inside the existing transaction to prove
           // that lifecycle cleanup does not change rollback semantics.
           inject('manifest-only');
@@ -88,7 +97,7 @@ const runCase = async ({ name, failureAt = null, baselineHash = null, schemaVers
     db.close = () => {
       closeCounts.set(db, (closeCounts.get(db) || 0) + 1);
       close();
-      if (closeFailure) throw new Error('injected close failure');
+      if (closeFailure) throw cleanupFailure;
     };
     return db;
   }
@@ -105,11 +114,18 @@ const runCase = async ({ name, failureAt = null, baselineHash = null, schemaVers
       emitOutput: false,
       validateMode: 'off',
       expectedDense: null,
-      buildPragmas
+      buildPragmas,
+      signal: cancelAfterManifest ? controller.signal : null
     });
     if (failureAt) {
-      await assert.rejects(update, (error) => error === failure, `${name}: preserve the original failure`);
+      await assert.rejects(update, (error) => closeFailure
+        ? contains(error, failure) && contains(error, cleanupFailure) && error.cacheOwnershipReleased() === false
+        : error === failure, `${name}: preserve the original failure and exact native cleanup cause`);
       assert.equal(failureInjected, true, `${name}: failure injection must be reached`);
+    } else if (cancelAfterManifest) {
+      await assert.rejects(update, { code: 'ABORT_ERR' });
+      assert.equal(manifestWrites, 1);
+      assert.equal(rollbackObserved, true, 'cancellation after a real manifest write must roll back before close');
     } else if (schemaVersion !== SCHEMA_VERSION) {
       await assert.rejects(update, { code: 'ERR_INDEX_FORMAT_UNSUPPORTED' });
     } else {
@@ -152,6 +168,7 @@ try {
   }
   await runCase({ name: 'cleanup-errors', failureAt: 'planner', checkpointFailure: true, closeFailure: true });
   await runCase({ name: 'restore-after-failure', failureAt: 'planner', buildPragmas: true });
+  await runCase({ name: 'cancel-manifest', cancelAfterManifest: true });
   const manifestOnly = await runCase({ name: 'manifest-success' });
   assert.equal(manifestOnly.used, true);
   assert.equal(manifestOnly.manifestUpdates, 1);

@@ -41,6 +41,10 @@ triaged quickly.
 - Explicit `AND`, `OR`, or parentheses request Boolean matching for the complete
   query, including its implicit conjunctions. Use `cache AND refresh` to require
   both terms for sparse and ANN results alike.
+- `alpha OR NOT gamma` also admits rows without `alpha` when they lack `gamma`;
+  `NOT gamma` searches the selected mode's complement. Sparse ranking retains
+  those eligible rows with zero lexical score after positive matches. Independent
+  file/language/metadata filters still apply to every result.
 - Quoted phrases, `NOT`/`-` exclusions, and structured file/language/metadata filters
   remain hard constraints for ANN results. Free text never bypasses those filters.
 - With `--stats` or `--explain`, the `rank` entry in `stats.pipeline` includes
@@ -49,6 +53,11 @@ triaged quickly.
 
 Query-result cache keys are versioned for these semantics; old cached zero-result
 responses are not reused after the change.
+
+SQLite FTS applies Boolean exclusions and exact literal-phrase eligibility before
+its bounded candidate limit, so ineligible high-ranking matches cannot crowd out
+eligible results later in the same list. Missing literal phrase evidence remains
+ineligible; a healthy FTS result does not require a sparse-backend fallback.
 
 ## File Filter Prefilter (Substring/Regex)
 
@@ -147,7 +156,7 @@ pairofcleats search --repo . --mode code --calls fetch --json
 
 Use the exact recorded type expression. A `boolean` filter does not also match a promise, array, union, alias, or a type merely containing that word. Inter-token whitespace is ignored; identifier case and literal contents remain significant. This is not an assignability or structural-equivalence query.
 
-`--top` sets a page size per selected mode. Repeat the same filters with `--cursor <nextCursor>` from the `pagination` object until `hasMore` is false. Matching is exhaustive over the indexed metadata and does not invoke vectors or models. The cursor is tied to that generation; if indexing changes, restart or select the original `--as-of` generation. Recorded compiler returns take precedence; declared returns remain eligible when compiler returns are unavailable. Unknown/unrecorded facts are not inferred. Relation-name filters retain their provider's coverage limits. Federated enumeration is not yet available.
+`--top` sets a page size per selected mode. Repeat the same filters with `--cursor <nextCursor>` from the `pagination` object until `hasMore` is false. Matching is exhaustive over the indexed metadata and does not invoke vectors or models. The cursor is tied to that generation; if indexing changes, restart or select the original `--as-of` generation. Recorded compiler returns take precedence; declared returns remain eligible when compiler returns are unavailable. Unknown/unrecorded facts are not inferred. Relation-name filters retain their provider's coverage limits. For `--workspace`, pages traverse eligible repository/mode pairs in stable order. Follow `pagination.nextCursor` even after an empty page if `hasMore` is true. Changes to membership, filters, or indexed generations require restarting. Check `meta.completeness.unavailable` for excluded or missing modes.
 
 HTTP GET/POST, MCP `search` and the evidence workspace accept the same queryless
 filter request and continuation. For example, send `{ "returnType": "boolean",
@@ -209,3 +218,62 @@ Missing providers and unsupported domains retain coverage/frontiers; no universa
 runtime-value enumeration is asserted.
 
 Readable output includes bounded source excerpts with line numbers and lightweight syntax colors. Use `--plain` for plain text. `NO_COLOR`, non-TTY output and `TERM=dumb` also disable styling. Excerpts show the current working-tree source, which may differ from the indexed generation.
+
+### Empty-result guidance
+
+Empty results include `retrieval.emptyResults` diagnostics in JSON and actionable guidance in human output. Guidance distinguishes query/filter combinations, metadata enumeration, and recorded backend fallback. It never infers a stale index from an empty result. Use `pairofcleats index report` for recorded coverage, skipped-file reasons, revision comparison, and saved watcher backlog. A dirty working tree remains unverified; matching clean revisions do not prove current filesystem contents were indexed.
+
+### Relative ranking adjustments and final explanations
+
+Dense-only ranking retains raw higher-is-better provider similarity. For a
+positive metadata/phrase factor, nonnegative scores multiply by that factor;
+negative scores divide by it. A common positive factor preserves strict ordering
+and a promotion cannot lower a candidate's score. Neutral factors preserve the
+exact raw score. A zero factor is the limiting finite demotion for a negative
+score. This is relative score adjustment, not cross-provider calibration or a
+claim that different metrics have equal numeric scales. Raw provider similarity
+remains in ANN evidence; symbol/phrase explanations show the actual contribution.
+
+Every retained `scoreBreakdown.selected` describes the emitted final score/type,
+including graph adjustment, model reranking and rounded federated reciprocal rank.
+`selected.sources` retains at most three named input pairs (`graph`, `model`,
+`federation`), while existing graph, sparse and ANN components remain intact.
+Normal explanation budgets still apply; searches without explanations do not
+allocate them. Local and federated result-key version 8 prevents prior ranking or
+stale explanation payloads from satisfying these changed result semantics.
+
+An opted-in count-aware ANN deadline belongs to the planner, independently of
+caller cancellation. Both provider and stored-vector routes honor caller abort
+first, then report internal deadline exhaustion as incomplete/unknown recall.
+Already-scored stored coordinates are reported; incomplete scans are never exact.
+Original pending resources remain terminal and cannot become fallback success.
+
+Tantivy declares Boolean-universe completion separately from native positive
+scoring. Pure complements and OR-complement branches complete only over the
+already admitted mode/filter IDs, using bounded top-k retention and cancellation
+checks; the completion row count is recorded. Ordinary positive queries retain
+native overfetch without a complement scan. A compatible native method shape,
+index open and query are separate admission steps. Native open/query exceptions
+are provider failures, successful empty arrays remain healthy empty results, and
+caller abort remains terminal. The shared sparse policy controls any ANN fallback;
+a forced sparse-only failure is actionable instead of a false no-match response.
+Optional-native execution remains separate from deterministic adapter qualification.
+
+### Result-cache execution admission
+
+Per-mode execution receipts distinguish requested/effective routes from whether
+an individual query returned hits. Transient sparse/ANN failure, relevant cooldown
+fallback, internal work exhaustion, graph truncation and reranker fallback/pending
+work make that result non-reusable by the ordinary result cache. The current
+request can still receive the supported fallback, with `retrieval.fidelity` and
+bounded diagnostics recording the partial execution. A later request re-executes
+under the existing provider recovery policy; cache access never extends recovery
+indefinitely. Healthy completed execution, including valid empty results and
+qualified healthy fallbacks, remains cacheable. Completion here describes owned
+execution, not certified approximate-nearest-neighbor recall.
+
+Admission requires version-1 per-mode execution metadata in addition to source
+and query identity. Legacy, missing, wrong-mode, malformed and partial receipts
+are rejected before any cache touch. Healthy hits retain their original execution
+facts. Existing immutable payload, lock, cancellation and touch-publication owners
+remain in charge of publication; this adds no degraded-cache TTL or public knob.

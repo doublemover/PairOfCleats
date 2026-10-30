@@ -1,10 +1,18 @@
 import crypto from 'node:crypto';
-import { createLspClient } from '../../lsp/client.js';
+import { isAbortError, raceAbort, throwIfAborted } from '../../../../shared/abort.js';
+import { createRetainedLspClient } from '../../lsp/managed-client.js';
+import { normalizeManagedRuntimeCommands } from '../../../../index/tooling/managed-command-lifetime.js';
 import { createToolingGuard, createToolingLifecycleHealth } from '../shared.js';
 import { coercePositiveInt } from '../../../../shared/number-coerce.js';
 import { createTimeoutError, runWithTimeout } from '../../../../shared/promise-timeout.js';
 import { sleep } from '../../../../shared/sleep.js';
 import { stableStringify } from '../../../../shared/stable-json.js';
+import { currentRunResourceScope } from '../../../../shared/lifecycle/run-scope.js';
+import { retainRunSession } from './run-ownership.js';
+import { createVfsMaterializationSession } from '../../../../index/tooling/vfs/disk.js';
+import { LSP_SHORT_QUARANTINE_MS, LSP_EXTENDED_QUARANTINE_MS } from './health-policy.js';
+import { describeStorageFailure } from '../../../../shared/storage/failure-observation.js';
+import { readErrorDataProperty } from '../../../../shared/error-data.js';
 
 const DEFAULT_IDLE_TIMEOUT_MS = 1_500;
 const DEFAULT_MAX_LIFETIME_MS = 10 * 60_000;
@@ -13,6 +21,11 @@ const DEFAULT_DISPOSE_TIMEOUT_MS = 8_000;
 const DEFAULT_KILL_TIMEOUT_MS = 4_000;
 const DEFAULT_MAX_SESSION_ENTRIES = 64;
 const DEFAULT_DRAIN_TIMEOUT_MS = 20_000;
+// Node's original DOMException name getter reads its private WeakMap and brand
+// checks the receiver, without consulting receiver properties or coercion.
+// https://github.com/nodejs/node/blob/v26.13.0/lib/internal/per_context/domexception.js
+const nativeDomExceptionName = typeof DOMException === 'function'
+  ? Object.getOwnPropertyDescriptor(DOMException.prototype, 'name')?.get : null;
 const SESSION_STATE = Object.freeze({
   NEW: 'new',
   INITIALIZING: 'initializing',
@@ -24,13 +37,19 @@ const SESSION_STATE = Object.freeze({
 const sessions = new Map();
 const sessionHealthRecords = new Map();
 const disposalBarriers = new Map();
+const unconfirmedDisposals = new Map();
 const creationBarriers = new Map();
 const sessionPoolMetrics = {
   cleanupPassFailures: 0,
   disposalFailures: 0,
   creationBarrierFailures: 0,
   queueBarrierFailures: 0,
-  maxSessionEvictions: 0
+  maxSessionEvictions: 0,
+  admissionWaiters: 0,
+  leaseQueueWaiters: 0,
+  admissionHighWater: 0,
+  admissionWaitMs: 0,
+  admissionCancelled: 0
 };
 let cleanupTimer = null;
 let cleanupPassQueue = Promise.resolve();
@@ -38,14 +57,13 @@ let exitCleanupInstalled = false;
 let beforeExitCleanupPromise = null;
 let drainSessionPoolPromise = null;
 const activeDisposals = new Set();
+const disposalWorkBySession = new WeakMap(), nativeDisposalBySession = new WeakMap();
 const testHooks = {
   disposeDelayMs: 0,
   shortQuarantineMs: null,
   extendedQuarantineMs: null
 };
 
-const DEFAULT_SHORT_QUARANTINE_MS = 15_000;
-const DEFAULT_EXTENDED_QUARANTINE_MS = 60_000;
 const QUARANTINE_LEVEL = Object.freeze({
   SHORT: 'short',
   EXTENDED: 'extended'
@@ -68,11 +86,11 @@ const normalizeArgs = (value) => (
 );
 
 const resolveShortQuarantineMs = () => (
-  toPositiveInt(testHooks.shortQuarantineMs, DEFAULT_SHORT_QUARANTINE_MS, 100)
+  toPositiveInt(testHooks.shortQuarantineMs, LSP_SHORT_QUARANTINE_MS, 100)
 );
 
 const resolveExtendedQuarantineMs = () => (
-  toPositiveInt(testHooks.extendedQuarantineMs, DEFAULT_EXTENDED_QUARANTINE_MS, 100)
+  toPositiveInt(testHooks.extendedQuarantineMs, LSP_EXTENDED_QUARANTINE_MS, 100)
 );
 
 const createSessionHealthRecord = () => ({
@@ -234,12 +252,40 @@ const resolveQuarantineForFailure = (reason, lifecycleState, record = null) => {
 
 const emitPoolWarning = (log, message) => {
   if (typeof log === 'function') {
-    log(message);
+    try { Promise.resolve(log(message)).catch(() => {}); } catch { /* Diagnostics cannot replace disposal evidence. */ }
     return;
   }
   try {
     process.emitWarning(message, { code: 'LSP_SESSION_POOL_WARNING' });
   } catch {}
+};
+
+const poolFailureSnapshot = error => {
+  // Logging owns no settlement decision. Project only own string data without
+  // calling user getters/coercion; the exact rejection and its resource owner
+  // remain in the disposal barrier and public drain failures, unchanged.
+  const snapshot = Object.create(null);
+  try {
+    if (typeof error === 'string') snapshot.message = error.slice(0, 512);
+    else if (error !== null && ['object', 'function'].includes(typeof error)) {
+      for (const key of ['name', 'code', 'message']) {
+        const value = readErrorDataProperty(error, key);
+        if (typeof value === 'string') snapshot[key] = value.slice(0, 512);
+      }
+    }
+  } catch { /* Proxy descriptor inspection cannot replace the original cause. */ }
+  return snapshot;
+};
+const describePoolFailure = error => describeStorageFailure(poolFailureSnapshot(error),
+  { phase: 'lsp-pool-warning', defaultMessage: 'LSP operation failed.' }).message;
+const isPoolAbortError = error => {
+  const snapshot = poolFailureSnapshot(error);
+  if (isAbortError(snapshot)) return true;
+  if (nativeDomExceptionName && snapshot.name === undefined) {
+    try { return Reflect.apply(nativeDomExceptionName, error, []) === 'AbortError'; }
+    catch { /* A forged/proxied receiver cannot supply native abort identity. */ }
+  }
+  return false;
 };
 
 const resolveMaxSessionEntries = (value) => (
@@ -262,6 +308,8 @@ const buildSessionKey = ({
   providerId,
   workspaceKey,
   cmd,
+  toolingRoot,
+  managedRuntimeCommands,
   args,
   env,
   initializationOptions,
@@ -281,6 +329,8 @@ const buildSessionKey = ({
     providerId: String(providerId || ''),
     workspaceKey: String(workspaceKey || ''),
     cmd: String(cmd || ''),
+    toolingRoot: String(toolingRoot || ''),
+    managedRuntimeCommands: normalizeManagedRuntimeCommands(managedRuntimeCommands),
     args: normalizeArgs(args),
     envFingerprint: buildEnvFingerprint(env),
     initializationOptions: initializationOptions ?? null,
@@ -308,12 +358,36 @@ const createPendingBarrier = () => {
   return { promise, resolve, reject };
 };
 
+// Reserve under the existing key's creation owner, before publishing the
+// session to another admission. Cancellation withdraws only this queued turn.
+const reserveSessionTurn = (session, reused) => {
+  const previous = session.queue, barrier = createPendingBarrier(), resolve = barrier.resolve;
+  let released = false;
+  session.queuedTurns += 1;
+  barrier.resolve = () => {
+    if (released) return;
+    released = true; session.queuedTurns -= 1; resolve();
+  };
+  session.queue = barrier.promise;
+  return { session, reused, previous, barrier };
+};
+const withdrawSessionTurn = reservation => {
+  void reservation.previous.then(reservation.barrier.resolve, reservation.barrier.resolve);
+};
+const readMaterializationGeneration = options => {
+  const value = options.materializationGeneration;
+  if (value === null || value === undefined) return null;
+  if (typeof value !== 'string' || !/^[a-f0-9]{64}$/u.test(value)) throw new TypeError('LSP materialization generation requires its actual source digest.');
+  return value;
+};
+
 const awaitWithTimeout = async (promise, timeoutMs) => {
   const resolvedTimeoutMs = toPositiveInt(timeoutMs, DEFAULT_DISPOSE_TIMEOUT_MS, 100);
   let timeoutHandle = null;
   let timedOut = false;
+  let value;
   try {
-    await Promise.race([
+    value = await Promise.race([
       Promise.resolve(promise),
       new Promise((resolve) => {
         timeoutHandle = setTimeout(() => {
@@ -325,28 +399,20 @@ const awaitWithTimeout = async (promise, timeoutMs) => {
   } finally {
     if (timeoutHandle) clearTimeout(timeoutHandle);
   }
-  return { timedOut };
+  return { timedOut, value };
 };
 
 const trackDisposalPromise = (promise) => {
   if (!promise || typeof promise.then !== 'function') return Promise.resolve();
   activeDisposals.add(promise);
-  promise.finally(() => {
-    activeDisposals.delete(promise);
-  });
+  promise.then(() => activeDisposals.delete(promise), () => activeDisposals.delete(promise));
   return promise;
 };
 
 const killSessionClient = (session, { sync = false } = {}) => {
   if (!session || typeof session !== 'object') return;
-  try {
-    if (sync && session.client && typeof session.client.killSync === 'function') {
-      return session.client.killSync();
-    }
-    if (session.client && typeof session.client.kill === 'function') {
-      return session.client.kill();
-    }
-  } catch {}
+  if (sync && session.client && typeof session.client.killSync === 'function') return session.client.killSync();
+  if (session.client && typeof session.client.kill === 'function') return session.client.kill();
 };
 
 const disposeSessionClient = async (session) => {
@@ -356,48 +422,63 @@ const disposeSessionClient = async (session) => {
     return;
   }
   const runDispose = async () => {
-    session.disposed = true;
     session.state = SESSION_STATE.RETIRED;
+    session.materializations.retire();
     const delayMs = toNonNegativeInt(testHooks.disposeDelayMs, 0);
     if (delayMs > 0) {
       await sleep(delayMs);
     }
-    let shutdownTimedOut = false;
-    try {
-      if (session.client && typeof session.client.shutdownAndExit === 'function') {
-        const shutdownResult = await awaitWithTimeout(
-          session.client.shutdownAndExit(),
-          DEFAULT_DISPOSE_TIMEOUT_MS
-        );
-        shutdownTimedOut = shutdownResult.timedOut === true;
-      }
-    } catch {}
-    if (shutdownTimedOut) {
-      await awaitWithTimeout(
+    if (!session.nativeDisposalConfirmed) {
+      let shutdownError = null;
+      try {
+        if (session.client && typeof session.client.shutdownAndExit === 'function') {
+          await awaitWithTimeout(
+            session.client.shutdownAndExit(),
+            DEFAULT_DISPOSE_TIMEOUT_MS
+          );
+        }
+      } catch (error) { shutdownError = error; }
+      const outcome = await awaitWithTimeout(
         Promise.resolve(killSessionClient(session)),
         DEFAULT_KILL_TIMEOUT_MS
       );
-      return;
+      const confirmsExit = value => Array.isArray(value) ? value.length > 0 && value.every(confirmsExit)
+        : value?.exitObserved === true;
+      const resourceWait = typeof session.client?.waitForResourceSettlement === 'function'
+        ? await awaitWithTimeout(session.client.waitForResourceSettlement(), DEFAULT_KILL_TIMEOUT_MS)
+        : { timedOut: false };
+      // Ask the retained owner even on pending disposal so its exact delayed
+      // child-close notification can reconcile ownership without a pool lease.
+      await session.client?.releaseManagedInstallation?.();
+      const evidence = session.client?.getTerminationEvidence?.();
+      if (outcome.timedOut || resourceWait.timedOut || !(evidence ? (evidence.settled ?? evidence.exitObserved) === true : confirmsExit(outcome.value))) {
+        throw Object.assign(new Error('LSP disposal did not confirm child exit.'), {
+          code: 'ERR_LSP_DISPOSAL_UNCONFIRMED', termination: { timedOut: outcome.timedOut, ...evidence, result: outcome.value },
+          ...(shutdownError ? { cleanupErrors: [shutdownError] } : {})
+        });
+      }
+      session.nativeDisposalConfirmed = true;
     }
-    await awaitWithTimeout(
-      Promise.resolve(killSessionClient(session)),
-      DEFAULT_KILL_TIMEOUT_MS
-    );
+    session.materializations.releaseAfterClosure();
+    session.disposed = true;
+    unconfirmedDisposals.delete(session.key);
+    return { exitObserved: true };
   };
   session.disposePromise = runDispose();
-  session.disposed = true;
-  await session.disposePromise;
+  nativeDisposalBySession.set(session, session.disposePromise);
+  try { return await session.disposePromise; }
+  catch (error) { session.disposePromise = null; throw error; }
 };
 
-const awaitSessionDisposalBarrier = async (key) => {
+const awaitSessionDisposalBarrier = async (key, signal) => {
   const normalizedKey = String(key || '');
   if (!normalizedKey) return;
   const pending = disposalBarriers.get(normalizedKey);
   if (!pending) return;
-  await pending;
+  await raceAbort(signal, pending);
 };
 
-const withSessionCreationBarrier = async (key, operation) => {
+const withSessionCreationBarrier = async (key, operation, signal) => {
   const normalizedKey = String(key || '');
   if (typeof operation !== 'function') {
     throw new TypeError('withSessionCreationBarrier requires an operation function.');
@@ -406,15 +487,16 @@ const withSessionCreationBarrier = async (key, operation) => {
     return await operation();
   }
   while (true) {
+    throwIfAborted(signal);
     const pending = creationBarriers.get(normalizedKey);
     if (pending) {
-      await pending.catch((error) => {
+      await raceAbort(signal, pending.catch((error) => {
         sessionPoolMetrics.creationBarrierFailures += 1;
         emitPoolWarning(
           null,
-          `[tooling:lsp] session creation barrier failed for key=${normalizedKey}: ${error?.message || error}`
+          `[tooling:lsp] session creation barrier failed for key=${normalizedKey}: ${describePoolFailure(error)}`
         );
-      });
+      }));
       continue;
     }
     const barrier = createPendingBarrier();
@@ -438,16 +520,9 @@ const enqueueSessionDisposal = (session, {
   const previous = key ? disposalBarriers.get(key) : null;
   const run = async () => {
     if (previous) {
-      await previous.catch((error) => {
-        sessionPoolMetrics.disposalFailures += 1;
-        emitPoolWarning(
-          session?.options?.log,
-          `[tooling:lsp] prior disposal barrier failed for ${session?.lifecycleName || session?.key || 'session'}: ` +
-          `${error?.message || error}`
-        );
-      });
+      await previous.catch(() => {});
     }
-    if (killFirst) {
+    if (killFirst && !session.nativeDisposalConfirmed) {
       const killResult = await awaitWithTimeout(
         Promise.resolve(killSessionClient(session)),
         DEFAULT_KILL_TIMEOUT_MS
@@ -463,20 +538,27 @@ const enqueueSessionDisposal = (session, {
     await disposeSessionClient(session);
   };
   const tracked = trackDisposalPromise(run().catch((error) => {
-    sessionPoolMetrics.disposalFailures += 1;
+    if (!session.disposalFailureReported) {
+      session.disposalFailureReported = true;
+      sessionPoolMetrics.disposalFailures += 1;
+    }
+    unconfirmedDisposals.set(key, session);
     emitPoolWarning(
       session?.options?.log,
       `[tooling:lsp] session disposal failed for ${session?.lifecycleName || session?.key || 'session'}: ` +
-      `${error?.message || error}`
+      `${describePoolFailure(error)}`
     );
+    throw error;
   }));
+  tracked.catch(() => {});
+  disposalWorkBySession.set(session, tracked);
   if (key) {
     disposalBarriers.set(key, tracked);
-    tracked.finally(() => {
+    tracked.then(() => {
       if (disposalBarriers.get(key) === tracked) {
         disposalBarriers.delete(key);
       }
-    });
+    }, () => {});
   }
   return tracked;
 };
@@ -487,7 +569,7 @@ const evictIdleSessionsForCapacity = async ({ maxEntries, protectedKey = null } 
   for (const [key, session] of sessions.entries()) {
     if (sessions.size <= cap) break;
     if (!session || key === protectedKey) continue;
-    if (session.activeCount > 0) continue;
+    if (session.activeCount > 0 || session.queuedTurns > 0) continue;
     sessions.delete(key);
     sessionPoolMetrics.maxSessionEvictions += 1;
     await enqueueSessionDisposal(session, { killFirst: true });
@@ -609,7 +691,7 @@ const shouldInitializeSession = (session) => {
   return initializedGeneration !== transportGeneration || session.state !== SESSION_STATE.READY;
 };
 
-const createSession = (options) => {
+const createSession = async (options) => {
   const key = buildSessionKey(options);
   const now = Date.now();
   const healthRecord = options.healthRecord || getOrCreateSessionHealthRecord(key);
@@ -626,8 +708,11 @@ const createSession = (options) => {
     stderrFilter: typeof options.stderrFilter === 'function' ? options.stderrFilter : null,
     onStderrLine: typeof options.onStderrLine === 'function' ? options.onStderrLine : null
   };
-  const client = createLspClient({
+  const client = await createRetainedLspClient({
+    subprocessOwnershipId: `tooling-lsp-session:${crypto.randomUUID()}`,
     cmd: options.cmd,
+    toolingRoot: options.toolingRoot,
+    managedRuntimeCommands: options.managedRuntimeCommands,
     args: options.args,
     cwd: options.cwd,
     env: options.env,
@@ -667,15 +752,21 @@ const createSession = (options) => {
     breakerThreshold: options.breakerThreshold,
     log: options.log
   });
+  const readTermination = client.getTerminationEvidence;
+  const materializations = createVfsMaterializationSession({
+    isClosed: () => typeof readTermination === 'function' && readTermination.call(client)?.settled === true
+  });
   return {
     key,
     client,
+    materializations,
     guard,
     lifecycleHealth,
     queue: Promise.resolve(),
     createdAt: now,
     lastUsedAt: now,
     activeCount: 0,
+    queuedTurns: 0,
     reuseCount: 0,
     recycleCount: 0,
     idleTimeoutMs: toPositiveInt(options.sessionIdleTimeoutMs, DEFAULT_IDLE_TIMEOUT_MS, 1000),
@@ -737,9 +828,15 @@ const waitForAllSettledWithTimeout = async (promises, timeoutMs) => {
 };
 
 const hardKillSessionsSync = (sessionsToKill) => {
+  const failures = [];
   for (const session of sessionsToKill) {
-    killSessionClient(session, { sync: true });
+    try { killSessionClient(session, { sync: true }); } catch (error) {
+      failures.push(error);
+      unconfirmedDisposals.set(session.key, session);
+      emitPoolWarning(session?.options?.log, `LSP hard kill failed: ${describePoolFailure(error)}`);
+    }
   }
+  return failures;
 };
 
 const killAllSessionsNow = () => {
@@ -779,7 +876,7 @@ const runCleanupPass = async () => {
   const now = Date.now();
   const disposals = [];
   for (const [key, session] of sessions.entries()) {
-    if (!session || session.activeCount > 0) continue;
+    if (!session || session.activeCount > 0 || session.queuedTurns > 0) continue;
     refreshSessionState(session);
     if (session.state === SESSION_STATE.POISONED) {
       if (session.activeCount > 0 || sessions.get(key) !== session) continue;
@@ -810,7 +907,7 @@ const ensureCleanupTimer = () => {
         sessionPoolMetrics.cleanupPassFailures += 1;
         emitPoolWarning(
           null,
-          `[tooling:lsp] cleanup pass failed: ${error?.message || error}`
+          `[tooling:lsp] cleanup pass failed: ${describePoolFailure(error)}`
         );
       });
   }, DEFAULT_CLEANUP_INTERVAL_MS);
@@ -827,13 +924,15 @@ const ensureCleanupTimer = () => {
 };
 
 const getOrCreateSession = async (options) => {
+  const materializationGeneration = readMaterializationGeneration(options);
   const key = buildSessionKey(options);
   const healthRecord = getOrCreateSessionHealthRecord(key);
   return await withSessionCreationBarrier(key, async () => {
     if (drainSessionPoolPromise) {
-      await drainSessionPoolPromise.catch(() => {});
+      await raceAbort(options.abortSignal, drainSessionPoolPromise.catch(() => {}));
     }
-    await awaitSessionDisposalBarrier(key);
+    await awaitSessionDisposalBarrier(key, options.abortSignal);
+    throwIfAborted(options.abortSignal);
     const quarantineState = resolveQuarantineState(healthRecord);
     if (quarantineState.active) {
       const err = new Error(`LSP provider quarantined (${quarantineState.reasonCode || quarantineState.level || 'unknown'}).`);
@@ -845,16 +944,27 @@ const getOrCreateSession = async (options) => {
       beginRecoveryProbe(healthRecord);
     }
     const now = Date.now();
-    const existing = sessions.get(key);
+    let existing = sessions.get(key), generationRecycleCount = 0;
+    if (existing && !existing.disposed && (existing.options.materializationGeneration ?? null) !== materializationGeneration) {
+      // Holding this same creation barrier prevents later callers from joining
+      // the old epoch. Its already-reserved turns retain their FIFO order.
+      await raceAbort(options.abortSignal, existing.queue);
+      await awaitSessionDisposalBarrier(key, options.abortSignal);
+      throwIfAborted(options.abortSignal);
+      if (sessions.get(key) === existing) sessions.delete(key);
+      generationRecycleCount = existing.recycleCount + 1;
+      if (!existing.disposed) await raceAbort(options.abortSignal, enqueueSessionDisposal(existing));
+      existing = null;
+    }
     if (existing && !existing.disposed) {
       refreshSessionState(existing);
-      if (existing.state === SESSION_STATE.POISONED && existing.activeCount === 0) {
+      if (existing.state === SESSION_STATE.POISONED && existing.activeCount === 0 && existing.queuedTurns === 0) {
         sessions.delete(key);
         await enqueueSessionDisposal(existing, { killFirst: true });
       } else {
         const idleTimeoutMs = toPositiveInt(existing.idleTimeoutMs, DEFAULT_IDLE_TIMEOUT_MS, 1000);
         const idleExpired = (now - Number(existing.lastUsedAt || now)) >= idleTimeoutMs;
-        if ((shouldExpireForLifetime(existing, now) || idleExpired) && existing.activeCount === 0) {
+        if ((shouldExpireForLifetime(existing, now) || idleExpired) && existing.activeCount === 0 && existing.queuedTurns === 0) {
           sessions.delete(key);
           await enqueueSessionDisposal(existing, { killFirst: true });
         } else {
@@ -862,24 +972,80 @@ const getOrCreateSession = async (options) => {
           // Refresh insertion order so capacity eviction remains LRU-like.
           sessions.delete(key);
           sessions.set(key, existing);
-          return { session: existing, reused: true };
+          return reserveSessionTurn(existing, true);
         }
       }
     }
-    await awaitSessionDisposalBarrier(key);
+    await awaitSessionDisposalBarrier(key, options.abortSignal);
+    throwIfAborted(options.abortSignal);
     await evictIdleSessionsForCapacity({
       maxEntries: options?.sessionPoolMaxEntries,
       protectedKey: key
     });
-    const next = createSession({ ...options, healthRecord });
+    throwIfAborted(options.abortSignal);
+    // Lease-only closures/signals must not become idle pooled-session state.
+    const retainedOptions = { ...options, materializationGeneration, healthRecord };
+    for (const field of ['abortSignal', 'onNotification', 'onRequest', 'stderrFilter', 'onStderrLine']) delete retainedOptions[field];
+    const next = await createSession(retainedOptions);
+    next.recycleCount = generationRecycleCount;
+    const reservation = reserveSessionTurn(next, false);
     sessions.set(key, next);
-    await evictIdleSessionsForCapacity({
-      maxEntries: options?.sessionPoolMaxEntries,
-      protectedKey: key
-    });
+    try {
+      await evictIdleSessionsForCapacity({ maxEntries: options?.sessionPoolMaxEntries, protectedKey: key });
+    } catch (error) { withdrawSessionTurn(reservation); throw error; }
     ensureCleanupTimer();
-    return { session: next, reused: false };
-  });
+    return reservation;
+  }, options.abortSignal);
+};
+
+/** Cancellation withdraws a waiter, never the shared creation/disposal owner or
+ * an active predecessor. The small skipped barrier remains linked to prev.
+ */
+const retainPooledRunSession = (session, owner) => retainRunSession(session, owner, () => {
+  const existing = disposalWorkBySession.get(session) || nativeDisposalBySession.get(session);
+  if (existing) return existing;
+  if (sessions.get(session.key) === session) sessions.delete(session.key);
+  return enqueueSessionDisposal(session);
+});
+
+const acquireSessionTurn = async (options, owner) => {
+  const signal = options.abortSignal, startedAt = Date.now();
+  sessionPoolMetrics.admissionWaiters += 1;
+  sessionPoolMetrics.admissionHighWater = Math.max(sessionPoolMetrics.admissionHighWater, sessionPoolMetrics.admissionWaiters);
+  try {
+    throwIfAborted(signal);
+    // Install the wait observer before a creation callback can cancel its caller.
+    const create = async () => {
+      const resolved = await getOrCreateSession(options);
+      // Pin waiting consumers before the exclusive turn. Abort withdraws only
+      // the caller's wait; the original creation still joins its run's drain.
+      try { retainPooledRunSession(resolved.session, owner); }
+      catch (error) { withdrawSessionTurn(resolved); throw error; }
+      return resolved;
+    };
+    const creation = owner ? owner.track(create) : Promise.resolve().then(create);
+    let resolved;
+    try { resolved = await raceAbort(signal, creation); }
+    catch (error) { void creation.then(withdrawSessionTurn, () => {}); throw error; }
+    const prev = resolved.previous, barrier = resolved.barrier;
+    sessionPoolMetrics.leaseQueueWaiters += 1;
+    try {
+      throwIfAborted(signal);
+      await raceAbort(signal, prev);
+      throwIfAborted(signal);
+    } catch (error) {
+      // Resolving here directly would allow C to overtake the still-active A.
+      void prev.then(barrier.resolve, barrier.resolve);
+      throw error;
+    } finally { sessionPoolMetrics.leaseQueueWaiters -= 1; }
+    return { resolved, barrier };
+  } catch (error) {
+    if (isPoolAbortError(error)) sessionPoolMetrics.admissionCancelled += 1;
+    throw error;
+  } finally {
+    sessionPoolMetrics.admissionWaiters -= 1;
+    sessionPoolMetrics.admissionWaitMs += Math.max(0, Date.now() - startedAt);
+  }
 };
 
 /**
@@ -889,7 +1055,7 @@ const getOrCreateSession = async (options) => {
  * idle timers or process exit hooks to reap language-server subprocesses.
  *
  * @param {{timeoutMs?:number,killFirst?:boolean,log?:(line:string)=>void}} [options]
- * @returns {Promise<{status:'ok'|'timed_out',total:number,rejected:number,timedOut:boolean,timeoutMs:number}>}
+ * @returns {Promise<{status:'ok'|'failed'|'timed_out',total:number,rejected:number,timedOut:boolean,timeoutMs:number,failures:Array<unknown>}>}
  */
 export const drainLspSessionPool = async (options = {}) => {
   if (drainSessionPoolPromise) return drainSessionPoolPromise;
@@ -900,23 +1066,21 @@ export const drainLspSessionPool = async (options = {}) => {
   drainSessionPoolPromise = (async () => {
     clearCleanupTimer();
     await cleanupPassQueue.catch(() => {});
-    const liveSessions = Array.from(sessions.values());
+    const liveSessions = [...new Set([...sessions.values(), ...unconfirmedDisposals.values()])];
     sessions.clear();
     const disposalPromises = liveSessions.map((session) => enqueueSessionDisposal(session, { killFirst }));
     const pendingDisposals = Array.from(disposalBarriers.values());
     const pendingTrackedDisposals = Array.from(activeDisposals.values());
     const waited = await waitForAllSettledWithTimeout(
-      [...disposalPromises, ...pendingDisposals, ...pendingTrackedDisposals],
+      [...new Set([...disposalPromises, ...pendingDisposals, ...pendingTrackedDisposals])],
       timeoutMs
     );
     if (waited.timedOut) {
-      hardKillSessionsSync(liveSessions);
-      disposalBarriers.clear();
-      creationBarriers.clear();
+      const hardKillFailures = hardKillSessionsSync(liveSessions);
       if (log) {
-        log(
+        emitPoolWarning(log,
           `[tooling:lsp] session pool drain timed out after ${timeoutMs}ms; `
-          + `hard-killed ${liveSessions.length} session(s).`
+          + `attempted hard kill for ${liveSessions.length} session(s); exit remains unconfirmed.`
         );
       }
       return {
@@ -924,27 +1088,30 @@ export const drainLspSessionPool = async (options = {}) => {
         total: liveSessions.length,
         rejected: 0,
         timedOut: true,
-        timeoutMs
+        timeoutMs,
+        failures: Object.freeze([waited.error, ...hardKillFailures])
       };
     }
-    const rejected = waited.settled.filter((entry) => entry?.status === 'rejected').length;
+    // Retain the exact original rejection values already admitted by this
+    // bounded wait. Counts and warning callbacks cannot replace their causes.
+    const failures = Object.freeze(waited.settled.filter((entry) => entry?.status === 'rejected').map(entry => entry.reason));
+    const rejected = failures.length;
     if (!rejected && sessionPoolMetrics.disposalFailures === disposalFailuresBeforeDrain) {
       retireUnusedHealthySessionRecords();
     }
-    disposalBarriers.clear();
-    creationBarriers.clear();
     if (log) {
-      log(
+      emitPoolWarning(log,
         `[tooling:lsp] session pool drain complete: sessions=${liveSessions.length}, `
         + `rejected=${rejected}, timeoutMs=${timeoutMs}.`
       );
     }
     return {
-      status: 'ok',
+      status: rejected ? 'failed' : 'ok',
       total: liveSessions.length,
       rejected,
       timedOut: false,
-      timeoutMs
+      timeoutMs,
+      failures
     };
   })();
   try {
@@ -983,10 +1150,11 @@ export const drainLspSessionPool = async (options = {}) => {
  *   sessionIdleTimeoutMs?:number|null,
  *   sessionMaxLifetimeMs?:number|null,
  *   sessionPoolMaxEntries?:number|null,
- *   initializationOptions?:object|null
+ *   initializationOptions?:object|null,
+ *   abortSignal?:AbortSignal|null
  * }} options
  * @param {(lease:{
- *   client:ReturnType<typeof createLspClient>,
+ *   client:Awaited<ReturnType<typeof createRetainedLspClient>>,
  *   guard:ReturnType<typeof createToolingGuard>,
  *   lifecycleHealth:ReturnType<typeof createToolingLifecycleHealth>,
  *   pooled:boolean,
@@ -997,17 +1165,23 @@ export const drainLspSessionPool = async (options = {}) => {
  * }) => Promise<T>} fn
  * @returns {Promise<T>}
  */
-export const withLspSession = async (options, fn) => {
+const withLspSessionRun = async (options, fn, owner) => {
+  throwIfAborted(options?.abortSignal);
   const enabled = options?.enabled !== false;
   if (!enabled) {
-    const singleSession = createSession({
+    const singleSession = await createSession({
       ...options,
       providerId: options?.providerId || options?.cmd || 'lsp',
       workspaceKey: options?.workspaceKey || options?.repoRoot || options?.cwd || ''
     });
     try {
+      retainRunSession(singleSession, owner, () => nativeDisposalBySession.get(singleSession)
+        || disposeSessionClient(singleSession));
+      owner?.assertAccepting();
+      throwIfAborted(options?.abortSignal);
       return await fn({
         client: singleSession.client,
+        materializationSession: singleSession.materializations,
         guard: singleSession.guard,
         lifecycleHealth: singleSession.lifecycleHealth,
         pooled: false,
@@ -1021,25 +1195,19 @@ export const withLspSession = async (options, fn) => {
     }
   }
 
-  const resolved = await getOrCreateSession({
+  const { resolved, barrier } = await acquireSessionTurn({
     ...options,
     providerId: options?.providerId || options?.cmd || 'lsp',
     workspaceKey: options?.workspaceKey || options?.repoRoot || options?.cwd || '',
     args: normalizeArgs(options?.args),
     sessionPoolMaxEntries: options?.sessionPoolMaxEntries
-  });
+  }, owner);
   const session = resolved.session;
-  const prev = session.queue;
-  const barrier = createPendingBarrier();
-  session.queue = barrier.promise.catch((error) => {
-    sessionPoolMetrics.queueBarrierFailures += 1;
-    emitPoolWarning(
-      session?.options?.log,
-      `[tooling:lsp] queue barrier failed for ${session?.lifecycleName || session?.key || 'session'}: ` +
-      `${error?.message || error}`
-    );
-  });
-  await prev;
+  try {
+    owner?.assertAccepting();
+    throwIfAborted(options?.abortSignal);
+  }
+  catch (error) { sessionPoolMetrics.admissionCancelled += 1; barrier.resolve(); throw error; }
   refreshSessionState(session);
   if (sessions.get(session.key) !== session || session.disposed || session.state === SESSION_STATE.RETIRED) {
     barrier.resolve();
@@ -1078,6 +1246,7 @@ export const withLspSession = async (options, fn) => {
   try {
     const result = await fn({
       client: session.client,
+      materializationSession: session.materializations,
       guard: session.guard,
       lifecycleHealth: session.lifecycleHealth,
       pooled: true,
@@ -1121,7 +1290,7 @@ export const withLspSession = async (options, fn) => {
       session.recycleCount += 1;
       sessions.delete(session.key);
       disposalPromise = enqueueSessionDisposal(session, { killFirst: true });
-    } else if (shouldExpireForLifetime(session) && session.activeCount === 0) {
+    } else if (shouldExpireForLifetime(session) && session.activeCount === 0 && session.queuedTurns <= 1) {
       session.recycleCount += 1;
       sessions.delete(session.key);
       disposalPromise = enqueueSessionDisposal(session, { killFirst: true });
@@ -1129,11 +1298,10 @@ export const withLspSession = async (options, fn) => {
     barrier.resolve();
     if (disposalPromise) {
       void disposalPromise.catch((error) => {
-        sessionPoolMetrics.disposalFailures += 1;
         emitPoolWarning(
           session?.options?.log,
           `[tooling:lsp] lease-finalizer disposal failed for ${session?.lifecycleName || session?.key || 'session'}: ` +
-          `${error?.message || error}`
+          `${describePoolFailure(error)}`
         );
       });
     }
@@ -1143,6 +1311,11 @@ export const withLspSession = async (options, fn) => {
 /**
  * Test-only hooks for deterministic session-pool assertions.
  */
+export const withLspSession = (options, fn) => {
+  const owner = currentRunResourceScope();
+  return owner ? owner.track(() => withLspSessionRun(options, fn, owner)) : withLspSessionRun(options, fn, null);
+};
+
 export const __testLspSessionPool = {
   killAllNow() {
     killAllSessionsNow();
@@ -1168,6 +1341,11 @@ export const __testLspSessionPool = {
     sessionPoolMetrics.creationBarrierFailures = 0;
     sessionPoolMetrics.queueBarrierFailures = 0;
     sessionPoolMetrics.maxSessionEvictions = 0;
+    sessionPoolMetrics.admissionWaiters = 0;
+    sessionPoolMetrics.leaseQueueWaiters = 0;
+    sessionPoolMetrics.admissionHighWater = 0;
+    sessionPoolMetrics.admissionWaitMs = 0;
+    sessionPoolMetrics.admissionCancelled = 0;
   },
   getSize() {
     return sessions.size;
@@ -1176,8 +1354,8 @@ export const __testLspSessionPool = {
     testHooks.disposeDelayMs = toNonNegativeInt(value, 0);
   },
   setQuarantineDurations({ shortMs = null, extendedMs = null } = {}) {
-    testHooks.shortQuarantineMs = shortMs == null ? null : toPositiveInt(shortMs, DEFAULT_SHORT_QUARANTINE_MS, 100);
-    testHooks.extendedQuarantineMs = extendedMs == null ? null : toPositiveInt(extendedMs, DEFAULT_EXTENDED_QUARANTINE_MS, 100);
+    testHooks.shortQuarantineMs = shortMs == null ? null : toPositiveInt(shortMs, LSP_SHORT_QUARANTINE_MS, 100);
+    testHooks.extendedQuarantineMs = extendedMs == null ? null : toPositiveInt(extendedMs, LSP_EXTENDED_QUARANTINE_MS, 100);
   },
   getPendingDisposals() {
     return disposalBarriers.size;
@@ -1191,7 +1369,12 @@ export const __testLspSessionPool = {
       disposalFailures: Number(sessionPoolMetrics.disposalFailures) || 0,
       creationBarrierFailures: Number(sessionPoolMetrics.creationBarrierFailures) || 0,
       queueBarrierFailures: Number(sessionPoolMetrics.queueBarrierFailures) || 0,
-      maxSessionEvictions: Number(sessionPoolMetrics.maxSessionEvictions) || 0
+      maxSessionEvictions: Number(sessionPoolMetrics.maxSessionEvictions) || 0,
+      admissionWaiters: sessionPoolMetrics.admissionWaiters,
+      leaseQueueWaiters: sessionPoolMetrics.leaseQueueWaiters,
+      admissionHighWater: sessionPoolMetrics.admissionHighWater,
+      admissionWaitMs: sessionPoolMetrics.admissionWaitMs,
+      admissionCancelled: sessionPoolMetrics.admissionCancelled
     };
   },
   getHealthStateForKey(key) {

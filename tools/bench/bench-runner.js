@@ -4,9 +4,20 @@ await guardBootstrapEntry(import.meta.url);
 import path from 'node:path';
 import os from 'node:os';
 import { createHash } from 'node:crypto';
+import { isDirectExecution } from '../../src/shared/direct-execution.js';
 
+// Static imports link before the entry guard executes. Keep workload owners
+// behind verified readiness so incomplete checkouts receive the bootstrap
+// diagnostic before any of their dependency graphs are resolved.
+const { observeStorageResource } = await import('../../src/shared/storage/failure-observation.js');
+const { redactDiagnosticText } = await import('../../src/shared/diagnostic-text.js');
+const { resolveBenchRunnerWorkload, reobserveBenchSources, substituteBenchTokens, readBenchmarkExperiment, BENCH_REPORT_MAX_BYTES } = await import('./runner-workload.js');
+const { atomicWriteText } = await import('../../src/shared/io/atomic-write.js');
+const { BENCH_RUNNER_REPORT_VERSION } = await import('./runner-contract.js');
+const { classifyBenchOutcome, summarizeBenchOutcomes } = await import('./runner-outcome.js');
+const { collectUtilizationSamples, summarizeUtilization } = await import('./runner-utilization.js');
+const { captureArtifactTiming, qualifyAggregateWorkEstimate } = await import('./runner-timing.js');
 const { getEnvConfig } = await import('../../src/shared/env/runtime.js');
-const { writeJsonFileResolved } = await import('../../src/shared/json-file.js');
 const { spawnSubprocessSync } = await import('../../src/shared/subprocess/runner.js');
 const { parseTrailingJson } = await import('./output.js');
 const { resolveBenchSuite } = await import('./suites/sweet16.js');
@@ -95,14 +106,7 @@ const parseArgs = () => {
  * @param {Record<string, string>} tokens
  * @returns {string}
  */
-const substituteTokens = (value, tokens) => {
-  if (!tokens || typeof tokens !== 'object') return value;
-  let out = String(value);
-  for (const [key, replacement] of Object.entries(tokens)) {
-    out = out.split(`\${${key}}`).join(String(replacement ?? ''));
-  }
-  return out;
-};
+const substituteTokens = substituteBenchTokens;
 
 /**
  * Parse `key=value` metric pairs from a bench output line.
@@ -209,6 +213,7 @@ const resolvePercentile = (values, ratio) => {
 };
 
 const toFiniteNumber = (value) => {
+  if (value == null || typeof value === 'boolean' || typeof value === 'string' && !value.trim()) return null;
   const num = Number(value);
   return Number.isFinite(num) ? num : null;
 };
@@ -222,21 +227,6 @@ const resolveDeltaDurationMs = (entry) => {
   }
   const duration = toFiniteNumber(metrics.duration);
   return Number.isFinite(duration) ? duration : null;
-};
-
-const resolveSkipReason = (result) => {
-  const lines = `${result?.stdout || ''}\n${result?.stderr || ''}`
-    .split(/\r?\n/g)
-    .map((line) => line.trim())
-    .filter(Boolean);
-  const reason = lines.find((line) => /\bskipp(?:ed|ing)\b/i.test(line));
-  return reason || null;
-};
-
-const toPercent = (value, scale = 100) => {
-  const num = toFiniteNumber(value);
-  if (!Number.isFinite(num)) return null;
-  return Math.max(0, Math.min(100, num * scale));
 };
 
 /**
@@ -257,49 +247,6 @@ const resolveTraceEntries = (json) => {
     if (Array.isArray(entry) && entry.length) return entry;
   }
   return [];
-};
-
-const resolveUtilizationPct = (sample) => {
-  const direct = [
-    sample?.utilizationPct,
-    sample?.overallPct,
-    sample?.utilization?.overallPct,
-    sample?.utilization?.overall
-  ];
-  for (const value of direct) {
-    const asPercent = toPercent(value, Number(value) > 1 ? 1 : 100);
-    if (Number.isFinite(asPercent)) return asPercent;
-  }
-  const cpuUsed = toFiniteNumber(sample?.cpuUsed ?? sample?.tokensUsed?.cpu ?? sample?.used?.cpu);
-  const cpuTotal = toFiniteNumber(sample?.cpuTotal ?? sample?.tokensTotal?.cpu ?? sample?.limits?.cpu);
-  if (Number.isFinite(cpuUsed) && Number.isFinite(cpuTotal) && cpuTotal > 0) {
-    return Math.max(0, Math.min(100, (cpuUsed / cpuTotal) * 100));
-  }
-  return null;
-};
-
-/**
- * Build normalized utilization samples from scheduler traces.
- *
- * @param {{json:any,script:string}} input
- * @returns {Array<{script:string,sample:number,atMs:number|null,utilizationPct:number}>}
- */
-const collectUtilizationSamples = ({ json, script }) => {
-  const trace = resolveTraceEntries(json);
-  if (!trace.length) return [];
-  const out = [];
-  for (let index = 0; index < trace.length; index += 1) {
-    const sample = trace[index];
-    const utilizationPct = resolveUtilizationPct(sample);
-    if (!Number.isFinite(utilizationPct)) continue;
-    out.push({
-      script,
-      sample: index,
-      atMs: toFiniteNumber(sample?.atMs ?? sample?.timeMs ?? sample?.elapsedMs),
-      utilizationPct
-    });
-  }
-  return out;
 };
 
 /**
@@ -349,26 +296,28 @@ const resolveStageDurations = (json) => {
  * @param {{json:any,script:string,durationMs:number}} input
  * @returns {{script:string,totalMs:number,parseMs:number|null,inferMs:number|null,writeMs:number|null,overlapMs:number,overlapPct:number}|null}
  */
-const resolveStageOverlapRow = ({ json, script, durationMs }) => {
-  const totalMs = toFiniteNumber(json?.timings?.totalMs ?? json?.timings?.durationMs ?? durationMs);
+const resolveStageOverlapRow = ({ json, script }) => {
+  const totalMs = toFiniteNumber(json?.timings?.totalMs ?? json?.timings?.durationMs);
   const durations = resolveStageDurations(json);
-  const parseMs = toFiniteNumber(durations.parseMs);
-  const inferMs = toFiniteNumber(durations.inferMs);
-  const writeMs = toFiniteNumber(durations.writeMs);
+  const nonnegative = value => typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : null;
+  const parseMs = nonnegative(durations.parseMs);
+  const inferMs = nonnegative(durations.inferMs);
+  const writeMs = nonnegative(durations.writeMs);
   const stageSumMs = [parseMs, inferMs, writeMs]
-    .filter((value) => Number.isFinite(value))
+    .filter((value) => Number.isFinite(value) && value >= 0)
     .reduce((acc, value) => acc + value, 0);
-  if (!Number.isFinite(totalMs) || stageSumMs <= 0) return null;
+  if (!Number.isFinite(totalMs) || totalMs < 0 || stageSumMs <= 0) return null;
   const overlapMs = Math.max(0, stageSumMs - totalMs);
-  return {
+  return qualifyAggregateWorkEstimate({
     script,
     totalMs,
+    totalSource: 'producer-declared-same-payload-total',
     parseMs,
     inferMs,
     writeMs,
     overlapMs,
     overlapPct: (overlapMs / Math.max(1, stageSumMs)) * 100
-  };
+  });
 };
 
 /**
@@ -393,8 +342,9 @@ const resolveStageOverlapRow = ({ json, script, durationMs }) => {
 const runOne = ({ script, args, timeoutMs, tokens }) => {
   const absScript = path.isAbsolute(script) ? script : path.join(process.cwd(), script);
   const start = Date.now();
+  const elapsedStart = process.hrtime.bigint();
   let result = null;
-  let timedOut = false;
+  let timedOut = false, processFailure = null, processFailureReceipt = null;
   try {
     result = spawnSubprocessSync(
       process.execPath,
@@ -411,6 +361,11 @@ const runOne = ({ script, args, timeoutMs, tokens }) => {
       }
     );
   } catch (error) {
+    observeStorageResource(error, { phase: 'bench-child-settlement' }).requireSettled();
+    processFailure = typeof error?.code === 'string' ? error.code : 'SUBPROCESS_EXECUTION_FAILED';
+    processFailureReceipt = { kind: processFailure, name: typeof error.name === 'string' ? error.name : 'Error',
+      message: redactDiagnosticText(typeof error.message === 'string' ? error.message : 'Subprocess execution failed.', 4096),
+      code: typeof error.code === 'string' ? error.code : null };
     timedOut = error?.name === 'SubprocessTimeoutError'
       || error?.code === 'SUBPROCESS_TIMEOUT'
       || String(error?.result?.errorCode || '').toUpperCase() === 'ETIMEDOUT';
@@ -421,7 +376,7 @@ const runOne = ({ script, args, timeoutMs, tokens }) => {
       stderr: error?.message || String(error || '')
     };
   }
-  const durationMs = Date.now() - start;
+  const durationMs = Number(process.hrtime.bigint() - elapsedStart) / 1e6;
   const stdout = typeof result?.stdout === 'string' ? result.stdout : '';
   const stderr = typeof result?.stderr === 'string' ? result.stderr : '';
   const combined = `${stdout}\n${stderr}`;
@@ -432,11 +387,16 @@ const runOne = ({ script, args, timeoutMs, tokens }) => {
     script,
     absScript,
     startedAtMs: start,
-    endedAtMs: start + durationMs,
+    endedAtMs: Date.now(),
+    clockOrigin: 'unix-epoch-ms', elapsedClock: 'monotonic-hrtime',
     durationMs,
     exitCode,
     timedOut,
-    ok: exitCode === 0 && !timedOut,
+    signal: typeof result?.signal === 'string' ? result.signal : null,
+    processFailure,
+    processFailureReceipt,
+    outputCapture: result?.outputCapture || null,
+    ok: exitCode === 0 && !timedOut && !result?.signal && !processFailure,
     stdout,
     stderr,
     parsed,
@@ -447,11 +407,10 @@ const runOne = ({ script, args, timeoutMs, tokens }) => {
 /**
  * Run selected benchmark suite/scripts and emit summary report artifact.
  *
- * @returns {Promise<void>}
+ * @returns {Promise<{report:object|null,exitCode:number}>}
  */
-const main = async () => {
+export const runBenchRunner = async ({ argv = parseArgs(), resolveSuite = resolveBenchSuite, run = runOne } = {}) => {
   const envConfig = getEnvConfig(process.env);
-  const argv = parseArgs();
   if (argv.help) {
     const lines = [
       'bench-runner',
@@ -465,29 +424,24 @@ const main = async () => {
       '- Use --repo-root/--index-dir to populate suite placeholders.'
     ];
     console.log(lines.join('\n'));
-    return;
+    return { report: null, exitCode: 0 };
   }
 
-  const suiteEntries = argv.suite ? resolveBenchSuite(argv.suite) : null;
-  const tokens = {
-    repoRoot: argv.repoRoot ? path.resolve(argv.repoRoot) : '',
-    indexDir: argv.indexDir ? path.resolve(argv.indexDir) : ''
-  };
-  const entries = argv.scripts.length
-    ? argv.scripts.map((script) => ({ id: path.basename(script), script, args: [] }))
-    : (suiteEntries || []);
+  const prepared = resolveBenchRunnerWorkload({ argv, resolveSuite });
+  const { entries, tokens, suiteMode } = prepared;
+  const experiment = readBenchmarkExperiment();
+  if (experiment && experiment.workloadFingerprint !== prepared.receipt.fingerprint) throw new Error('Benchmark invocation resolved a different workload than its parent.');
   if (!entries.length) {
     console.error('bench-runner: no scripts selected (use --scripts or --suite).');
-    process.exit(2);
+    return { report: null, exitCode: 2 };
   }
 
   const results = [];
-  const suiteMode = Boolean(suiteEntries);
   for (const entry of entries) {
     if (!argv.quiet) {
       process.stderr.write(`[bench-runner] ${entry.script}\n`);
     }
-    const result = runOne({
+    const result = run({
       script: entry.script,
       args: entry.args,
       timeoutMs: argv.timeoutMs,
@@ -497,52 +451,22 @@ const main = async () => {
     result.args = Array.isArray(entry.args)
       ? entry.args.map((value) => substituteTokens(value, tokens))
       : [];
+    result.required = entry.allowSkip !== true;
     result.expect = entry.expect && typeof entry.expect === 'object'
       ? { ...entry.expect }
       : null;
 
-    const errors = [];
-    const expect = entry.expect && typeof entry.expect === 'object' ? entry.expect : null;
-    if (expect) {
-      if (expect.json === true && !result.json) {
-        errors.push('missing json output');
-      }
-      if (expect.baseline === true && !result.parsed?.baseline) {
-        errors.push('missing baseline bench line');
-      }
-      if (expect.current === true && !result.parsed?.current) {
-        errors.push('missing current bench line');
-      }
-      if (expect.delta === true && !result.parsed?.delta) {
-        errors.push('missing delta bench line');
-      }
-    }
-
-    const parsedOk = errors.length === 0;
-    if (suiteMode && expect && !parsedOk) {
-      const allowSkip = entry.allowSkip === true;
-      const combined = `${result.stdout}\n${result.stderr}`.toLowerCase();
-      const looksSkipped = combined.includes('skipping') || combined.includes('skipped');
-      if (allowSkip && looksSkipped) {
-        result.skipped = true;
-        result.skipReason = resolveSkipReason(result);
-      } else {
-        result.ok = false;
-      }
-    }
-    result.parsedOk = parsedOk;
-    if (errors.length) result.errors = errors;
+    Object.assign(result, classifyBenchOutcome({ result, id: result.id,
+      expect: result.expect, allowSkip: entry.allowSkip === true, suiteMode }));
     results.push(result);
   }
 
-  const summary = results.reduce((acc, entry) => {
-    const status = entry.timedOut ? 'timeout' : (entry.skipped ? 'skipped' : (entry.ok ? 'ok' : 'error'));
-    acc[status] = (acc[status] || 0) + 1;
-    return acc;
-  }, { ok: 0, error: 0, timeout: 0, skipped: 0 });
+  const summary = summarizeBenchOutcomes(results);
   const artifactDurations = [];
   const stageOverlapRows = [];
   const utilizationSamples = [];
+  const utilizationIntervalTotals = new Map();
+  let utilizationObserved = 0, utilizationValid = 0, utilizationUnavailable = 0;
   for (const entry of results) {
     const stageOverlapRow = resolveStageOverlapRow({
       json: entry?.json,
@@ -550,32 +474,28 @@ const main = async () => {
       durationMs: entry.durationMs
     });
     if (stageOverlapRow) stageOverlapRows.push(stageOverlapRow);
-    appendBoundedEntries(
-      utilizationSamples,
-      collectUtilizationSamples({ json: entry?.json, script: entry.script }),
-      MAX_UTILIZATION_SAMPLES
-    );
+    const utilization = collectUtilizationSamples({ trace: resolveTraceEntries(entry?.json), script: entry.script });
+    appendBoundedEntries(utilizationSamples, utilization.samples, MAX_UTILIZATION_SAMPLES);
+    utilizationObserved += utilization.observedCount;
+    utilizationValid += utilization.validCount;
+    utilizationUnavailable += utilization.unavailableCount;
+    // Online aggregates cover every admitted interval, independently of the
+    // bounded display suffix and script emission density/order.
+    for (const [scope, input] of Object.entries(utilization.intervalObservation.intervalsByScope)) {
+      const total = utilizationIntervalTotals.get(scope) || { observedIntervals: 0, coveredMs: 0, weightedPctMs: 0, scripts: 0 };
+      total.observedIntervals += input.observedIntervals; total.coveredMs += input.coveredMs; total.weightedPctMs += input.weightedPctMs;
+      total.scripts++;
+      utilizationIntervalTotals.set(scope, total);
+    }
     const artifacts = Array.isArray(entry?.json?.timings?.artifacts)
       ? entry.json.timings.artifacts
       : [];
     for (const artifact of artifacts) {
-      const durationMs = Number(artifact?.durationMs);
-      if (!Number.isFinite(durationMs) || durationMs < 0) continue;
-      const stallMs = toFiniteNumber(artifact?.stallMs ?? artifact?.queueDelayMs ?? artifact?.waitMs ?? durationMs);
-      const startedAtMs = toFiniteNumber(artifact?.startedAtMs ?? artifact?.startAtMs);
-      const endedAtMs = toFiniteNumber(artifact?.endedAtMs ?? artifact?.endAtMs)
-        ?? (Number.isFinite(startedAtMs) ? startedAtMs + durationMs : null);
-      artifactDurations.push({
-        script: entry.script,
-        path: typeof artifact?.path === 'string' ? artifact.path : null,
-        durationMs,
-        stallMs: Number.isFinite(stallMs) ? stallMs : durationMs,
-        startedAtMs,
-        endedAtMs
-      });
+      const timing = captureArtifactTiming(artifact, entry.script);
+      if (timing) artifactDurations.push(timing);
     }
   }
-  const artifactDurationValues = artifactDurations.map((entry) => entry.stallMs);
+  const artifactDurationValues = artifactDurations.map((entry) => entry.stallMs).filter(Number.isFinite);
   const artifactStallDurationMs = artifactDurationValues.length
     ? {
       count: artifactDurationValues.length,
@@ -591,6 +511,10 @@ const main = async () => {
     .map((entry) => ({
       script: entry.script,
       durationMs: entry.durationMs,
+      startedAtMs: entry.startedAtMs ?? null,
+      endedAtMs: entry.endedAtMs ?? null,
+      clockOrigin: entry.clockOrigin || null,
+      elapsedClock: entry.elapsedClock || null,
       ok: entry.ok
     }));
   const criticalPathArtifacts = artifactDurations
@@ -607,7 +531,7 @@ const main = async () => {
       durationMs: entry.durationMs
     })),
     ...artifactDurations
-      .filter((entry) => Number.isFinite(entry.endedAtMs))
+      .filter((entry) => entry.crossProcessOrder === 'available')
       .map((entry) => ({
         type: 'artifact',
         script: entry.script,
@@ -622,6 +546,7 @@ const main = async () => {
     .slice(-20);
   const overlapValues = stageOverlapRows.map((entry) => entry.overlapPct);
   const stageOverlap = {
+    kind: 'excess-aggregate-stage-work-estimate', observedOverlap: false,
     count: stageOverlapRows.length,
     avgPct: overlapValues.length
       ? overlapValues.reduce((acc, value) => acc + value, 0) / overlapValues.length
@@ -631,18 +556,9 @@ const main = async () => {
     maxPct: overlapValues.length ? Math.max(...overlapValues) : 0,
     rows: stageOverlapRows
   };
-  const utilizationValues = utilizationSamples.map((entry) => entry.utilizationPct);
-  const perCoreUtilization = {
-    sampleCount: utilizationSamples.length,
-    avgPct: utilizationValues.length
-      ? utilizationValues.reduce((acc, value) => acc + value, 0) / utilizationValues.length
-      : 0,
-    minPct: utilizationValues.length ? Math.min(...utilizationValues) : 0,
-    maxPct: utilizationValues.length ? Math.max(...utilizationValues) : 0,
-    p50Pct: utilizationValues.length ? resolvePercentile(utilizationValues, 0.5) : 0,
-    p95Pct: utilizationValues.length ? resolvePercentile(utilizationValues, 0.95) : 0,
-    timeline: utilizationSamples.slice(-512)
-  };
+  const perCoreUtilization = summarizeUtilization({ samples: utilizationSamples, observedCount: utilizationObserved,
+    validCount: utilizationValid, unavailableCount: utilizationUnavailable, percentile: resolvePercentile,
+    intervalObservations: [{ intervalsByScope: Object.fromEntries(utilizationIntervalTotals) }] });
   const triageHints = [];
   if ((summary.error || 0) > 0 || (summary.timeout || 0) > 0) {
     triageHints.push('One or more bench scripts failed or timed out; inspect stderr for first failing script.');
@@ -668,14 +584,20 @@ const main = async () => {
   summary.stageOverlap = stageOverlap;
   summary.perCoreUtilization = perCoreUtilization;
   summary.criticalPath = {
+    kind: 'completion-timeline', causalCriticalPath: false, clockOrigin: 'unix-epoch-ms',
+    unavailableCrossClockArtifacts: artifactDurations.filter(row => row.crossProcessOrder !== 'available'),
     scripts: criticalPathScripts,
     artifacts: criticalPathArtifacts,
     reconstructedTail: criticalPathSequence
   };
   summary.triageHints = triageHints;
 
-  const report = {
-    schemaVersion: 1,
+  let report = {
+    schemaVersion: BENCH_RUNNER_REPORT_VERSION,
+    experiment,
+    workload: prepared.receipt,
+    sourceValidation: reobserveBenchSources(prepared.receipt),
+    reportAdmission: { state: 'complete', maxBytes: experiment?.maxReportBytes || BENCH_REPORT_MAX_BYTES },
     generatedAt: new Date().toISOString(),
     runner: {
       cwd: process.cwd(),
@@ -711,7 +633,14 @@ const main = async () => {
       absScript: entry.absScript,
       args: entry.args || [],
       expect: entry.expect || null,
+      required: entry.required,
+      outputCapture: entry.outputCapture || null,
       ok: entry.ok,
+      status: entry.status,
+      processOk: entry.processOk,
+      signal: entry.signal,
+      processFailure: entry.processFailure,
+      processFailureReceipt: entry.processFailureReceipt || null,
       skipped: entry.skipped === true,
       skipReason: entry.skipReason || null,
       parsedOk: entry.parsedOk === true,
@@ -719,6 +648,10 @@ const main = async () => {
       timedOut: entry.timedOut,
       exitCode: entry.exitCode,
       durationMs: entry.durationMs,
+      startedAtMs: entry.startedAtMs ?? null,
+      endedAtMs: entry.endedAtMs ?? null,
+      clockOrigin: entry.clockOrigin || null,
+      elapsedClock: entry.elapsedClock || null,
       parsed: entry.parsed,
       json: entry.json,
       stdout: entry.stdout,
@@ -726,20 +659,36 @@ const main = async () => {
     }))
   };
 
+  const maxReportBytes = experiment?.maxReportBytes || BENCH_REPORT_MAX_BYTES;
+  let reportText = JSON.stringify(report, null, 2) + '\n';
+  if (Buffer.byteLength(reportText) > maxReportBytes) {
+    // Preserve actual per-script outcomes instead of substituting empty success
+    // or losing the failing report when diagnostic retention exceeds its bound.
+    report = { ...report, reportAdmission: { state: 'report-too-large', maxBytes: maxReportBytes,
+      observedBytes: Buffer.byteLength(reportText), omittedRawDiagnostics: true },
+    results: report.results.map(({ stdout, stderr, json, parsed, ...entry }) => ({ ...entry,
+      stdout: '', stderr: '', json: null, parsed: { baseline: null, current: null, delta: null },
+      stderrTail: typeof stderr === 'string' ? stderr.slice(-1024) : '',
+      stdoutTail: typeof stdout === 'string' ? stdout.slice(-512) : '' })) };
+    reportText = JSON.stringify(report, null, 2) + '\n';
+  }
+  if (Buffer.byteLength(reportText) > maxReportBytes) throw Object.assign(new Error('Benchmark terminal report exceeds its bounded allowance.'), { code: 'ERR_BENCH_REPORT_LIMIT' });
   if (argv.json) {
     const outPath = path.isAbsolute(argv.json) ? argv.json : path.join(process.cwd(), argv.json);
-    await writeJsonFileResolved(outPath, report, { trailingNewline: true });
+    await atomicWriteText(outPath, reportText, { createOnly: Boolean(experiment) });
   }
 
   if (!argv.quiet) {
-    process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
+    process.stdout.write(reportText);
   }
 
-  const hasFailures = (summary.error || 0) > 0 || (summary.timeout || 0) > 0;
-  process.exit(hasFailures ? 1 : 0);
+  const hasFailures = (summary.error || 0) > 0 || (summary.timeout || 0) > 0 || report.reportAdmission.state !== 'complete';
+  return { report, exitCode: hasFailures ? 1 : 0 };
 };
 
-main().catch((err) => {
-  console.error(err?.stack || err?.message || String(err));
-  process.exit(1);
-});
+if (isDirectExecution(import.meta.url)) {
+  runBenchRunner().then(({ exitCode }) => { process.exitCode = exitCode; }).catch((err) => {
+    console.error(err?.stack || err?.message || String(err));
+    process.exitCode = 1;
+  });
+}

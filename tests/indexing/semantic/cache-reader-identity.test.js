@@ -11,9 +11,10 @@ const fixture = await createSemanticCacheFixture();
 try {
   const file = await fixture.createFile();
   const generation = { baseBuildId: 'reader-warm', semanticRevision: 0 };
-  const options = { enabled: true, absPath: path.join(fixture.repoRoot, file.file), relKey: file.file,
+  const options = { repoRoot: fixture.repoRoot, enabled: true, absPath: path.join(fixture.repoRoot, file.file), relKey: file.file,
     fileStat: { size: file.bytes.length, mtimeMs: file.entry.mtimeMs }, manifest: fixture.manifest,
     bundleDir: fixture.bundleDir, semanticContext: {
+      repoRoot: fixture.repoRoot,
       buildRoot: path.join(fixture.root, 'reader-warm'), storage: { generation, relativePath: 'index-code/semantic' },
       dependencySignatures: fixture.dependencies, repositoryNamespace: fixture.repoRoot,
       diskAccount: createSemanticDiskAccount(16 * 1024 * 1024)

@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { validateIndexArtifacts } from '../../../src/index/validate.js';
+import { validateOrderingLedger } from '../../../src/index/validate/ordering-ledger.js';
 import { initBuildState, recordOrderingHash } from '../../../src/index/build/build-state.js';
 import { createBaseIndex, defaultUserConfig } from './helpers.js';
 
@@ -62,5 +63,19 @@ const strictReport = await validateIndexArtifacts({
 
 assert.ok(!strictReport.ok, 'expected ordering drift to fail when validateOrdering is true');
 assert.ok(strictReport.issues.some((issue) => issue.includes('ordering ledger mismatch')));
+
+for (const stageKey of ['stage2', 'stage2:code', 'stage1:code']) {
+  for (const orderingStrict of [true, false]) {
+    const report = { orderingDrift: [], issues: [], warnings: [], hints: [], issueDetails: [] };
+    const modeReport = { ok: true, missing: [], warnings: [] };
+    validateOrderingLedger({ orderingLedger: { stages: { [stageKey]: { artifacts: {} } } }, orderingStrict,
+      report, modeReport, mode: 'code', indexState: { stage: 'stage2' } });
+    const wrong = stageKey === 'stage1:code';
+    assert.equal(modeReport.ok, !(wrong && orderingStrict));
+    assert.equal(report.issues.length, wrong && orderingStrict ? 1 : 0);
+    assert.equal(report.warnings.length, wrong && !orderingStrict ? 1 : 0);
+    if (wrong) assert.match((orderingStrict ? report.issues : report.warnings)[0], /stage2.*code/);
+  }
+}
 
 console.log('ordering ledger validation tests passed');

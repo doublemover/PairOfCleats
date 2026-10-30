@@ -1,9 +1,7 @@
-import fs from 'node:fs/promises';
-import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { openSemanticCacheEntry, persistSemanticCacheEntry, relocateSemanticCacheEntry } from '../build/incremental/semantic-cache.js';
-import { resolveSemanticPartPath } from '../../semantic/artifact-store.js';
-import { semanticHash } from './identity.js';
+import { readRetainedSemanticSourceSnapshot } from '../../semantic/retained-source-snapshot.js';
+import { readRetainedEmbeddedSourceMap, assertRetainedEmbeddedSourceRange } from './embedded-map-read.js';
 const fail = message => Object.assign(new Error(message), { code: 'ERR_SEMANTIC_CACHE_INTEGRITY' });
 export const persistEmbeddedSemanticCacheEntries = async ({ entries = [], ...options }) => {
   const result = [];
@@ -27,16 +25,23 @@ export const relocateEmbeddedSemanticCacheEntries = async ({ entries = [], paren
 };
 
 export const validateEmbeddedCacheSource = async ({ opened, parentFacts, parentBytes, segmentUid, signal = null }) => {
+  if (!(parentBytes instanceof Uint8Array) || createHash('sha256').update(parentBytes).digest('hex') !== parentFacts.sourceHash) {
+    throw fail('Embedded cache parent bytes differ from their admitted source identity.');
+  }
   const text = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(parentBytes);
-  let source;
-  for await (const row of opened.store.iterateRows(opened.factsRef.syntaxPartitionId,'semantic_sources',{signal})) source = row;
-  if (!source?.mapping || source.mapping.parentSourceUnitId !== parentFacts.sourceUnitId) throw fail('Embedded cache belongs to another parent or duplicates a source.');
-  const mapBytes = await fs.readFile(await resolveSemanticPartPath(opened.root, source.mapping.mapRef)), map = JSON.parse(mapBytes.toString('utf8'));
-  if (createHash('sha256').update(mapBytes).digest('hex') !== path.basename(source.mapping.mapRef,'.json') || semanticHash('semantic.embedded-map.v1',map) !== source.mapping.identity
-      || map.parentByteHash !== parentFacts.sourceHash || map.parentSourceUnitId !== parentFacts.sourceUnitId || map.segmentUid !== segmentUid
-      || !Number.isSafeInteger(map.parentStart) || !Number.isSafeInteger(map.parentEnd) || map.parentStart < 0 || map.parentEnd > text.length || map.parentStart >= map.parentEnd) throw fail('Embedded source mapping identity/range mismatch.');
-  await opened.store.verifySource(source,{signal});
-  const local = await fs.readFile(await resolveSemanticPartPath(opened.root,'semantic-sources/' + source.byteHash + '.utf8'));
-  if (source.mapping.quality === 'exact' && Buffer.from(text.slice(map.parentStart,map.parentEnd),'utf8').compare(local) !== 0) throw fail('Embedded source differs from its exact parent slice.');
-  return source;
+  try {
+    const { source, text: localText } = await readRetainedSemanticSourceSnapshot({ store: opened.store,
+      partitionId: opened.factsRef.syntaxPartitionId, maxBytes: 64 * 1024 * 1024, signal });
+    const map = await readRetainedEmbeddedSourceMap({ store: opened.store, source, parentFacts, signal });
+    if (map.segmentUid !== segmentUid) throw fail('Embedded cache segment identity differs from its retained map.');
+    assertRetainedEmbeddedSourceRange({ map, source, localText, parentText: text,
+      parentSource: { repositoryNamespace: parentFacts.repositoryNamespace, sourceUnitId: parentFacts.sourceUnitId,
+        byteHash: parentFacts.sourceHash, textLength: text.length } });
+    return source;
+  } catch (error) {
+    if (['ERR_SEMANTIC_SOURCE_MISMATCH', 'ERR_EMBEDDED_SOURCE_MAP_CONTRACT', 'ERR_FILE_INTEGRITY'].includes(error.code)) {
+      throw Object.assign(fail('Embedded cache source/map qualification failed.'), { cause: error });
+    }
+    throw error;
+  }
 };

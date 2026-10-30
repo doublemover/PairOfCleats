@@ -1,3 +1,4 @@
+import { attachImportExtraction, createImportExtraction, importExtractionRuntimeVersions } from '../../../shared/import-extraction.js';
 import { sanitizeImportSpecifier } from '../../shared/import-specifier.js';
 import {
   createCommentAwareLineStripper,
@@ -272,15 +273,31 @@ export const createCollectorBudgetContext = ({
     sourceBudget,
     scanBudget,
     budget,
-    finalize() {
+    finalize({ entries = null, structure = null, initialization = null, parserLimits = null, parserIdentityKnown = false, parserIdentity = null, scope = collectorId, observedEntries = null } = {}) {
       if (finalized) return;
       finalized = true;
       const reasons = [];
+      if ((options?.abortSignal || options?.signal)?.aborted) reasons.push('cancelled');
       if (sourceBudget.truncated) reasons.push('source_bytes');
       if (scanBudget.linesExhausted) reasons.push('scan_lines');
       if (scanBudget.matchesExhausted) reasons.push('scan_matches');
       if (scanBudget.tokensExhausted) reasons.push('scan_tokens');
       if (scanBudget.timedOut) reasons.push('scan_time');
+      if (Array.isArray(entries)) {
+        const packageName = collectorId === 'yaml' ? 'yaml' : collectorId === 'toml' ? 'smol-toml'
+          : collectorId === 'imports:proto' ? 'protobufjs' : null;
+        const version = parserIdentity?.version ?? (parserIdentityKnown ? packageName ? importExtractionRuntimeVersions()[packageName] : 'builtin-1' : null);
+        attachImportExtraction(entries, createImportExtraction({ entries, text: source,
+          producerId: collectorId, scope: 'static-reference-subset:' + scope,
+          parser: structure ? { id: parserIdentity?.id || (parserIdentityKnown ? packageName || 'builtin-xml-reference-parser' : 'injected-parser-unqualified'),
+            version, available: initialization?.available ?? (/^parser-(?:unavailable|load-failed|unsupported)$/u.test(structure.reason || '')
+              ? false : structure.coverage === 'unavailable' ? null : true) } : null,
+          parserCoverage: structure?.coverage || null, parserReason: structure?.reason || null,
+          reasons: [...reasons, ...(Array.isArray(entries.coverage?.reasons) ? entries.coverage.reasons : []),
+            ...(Array.isArray(structure?.warningCodes) ? structure.warningCodes.slice(0, 8) : [])],
+          limits: budget, parserLimits, admittedLength: sourceBudget.source.length,
+          observedEntries: observedEntries ?? (Array.isArray(structure?.importEntries) ? structure.importEntries.length : null) }));
+      }
       if (!reasons.length) return;
       emitCollectorBudgetDiagnostic(options, {
         type: 'collector-scan-budget',
@@ -409,7 +426,8 @@ export const collectJvmStyleImports = (
   {
     precheckTokens = ['import', 'package', 'extends'],
     typeReferenceKeywords = ['extends'],
-    includePackageDeclarations = false
+    includePackageDeclarations = false,
+    nestedBlockComments = false
   } = {}
 ) => {
   const imports = new Set();
@@ -427,7 +445,9 @@ export const collectJvmStyleImports = (
     if (!token) return;
     imports.add(token);
   };
-  for (const line of lines) {
+  const stripComments = createCommentAwareLineStripper({ markers: ['//'], blockCommentPairs: [['/*','*/']], nestedBlockComments });
+  for (const rawLine of lines) {
+    const line = stripComments(rawLine);
     if (!shouldScanLine(line, precheck)) continue;
     const importMatch = line.match(/^\s*import\s+([^\s;]+)/);
     if (importMatch?.[1]) addImport(importMatch[1]);
@@ -448,21 +468,25 @@ export const collectJvmStyleImports = (
  * Collect `{{> partial}}` template partial references.
  *
  * @param {string} text
- * @param {{lineTokens?:string[]}} [options]
- * @returns {string[]}
+ * @param {{lineTokens?:string[],scanBudget?:object|null}} [options]
+ * @returns {Generator<string>}
  */
-export const collectTemplatePartialImports = (text, { lineTokens = ['{{>'] } = {}) => {
-  const imports = [];
+export function* scanTemplatePartialImports(text, { lineTokens = ['{{>'], scanBudget = null } = {}) {
   const lines = stripTemplateCommentBlocks(text).split('\n');
   const precheck = (value) => lineHasAny(value, lineTokens);
   for (const line of lines) {
+    if (scanBudget && !scanBudget.consumeTime()) return;
     if (!shouldScanLine(line, precheck)) continue;
-    const matches = line.matchAll(/\{\{>\s*(?:"([^"]+)"|'([^']+)'|([A-Za-z0-9_./-]+))/g);
+    // Only complete unescaped name tokens are supported by this fallback.
+    // A trailing comma/parenthesis is part of a literal, never cleanup syntax.
+    const matches = line.matchAll(/(?<!\\)\{\{>\s*(?:"([^"\\]*)"|'([^'\\]*)'|([A-Za-z0-9_./-]+))(?=\s|~?\}\})/g);
     for (const match of matches) {
-      const token = sanitizeCollectorImportToken(match[1] || match[2] || match[3]);
+      if (scanBudget && !scanBudget.consumeMatch()) return;
+      const token = sanitizeImportSpecifier(match[1] ?? match[2] ?? match[3], { literal: true });
       if (!token) continue;
-      imports.push(token);
+      yield token;
     }
   }
-  return imports;
-};
+}
+
+export const collectTemplatePartialImports = (text, options = {}) => [...scanTemplatePartialImports(text, options)];

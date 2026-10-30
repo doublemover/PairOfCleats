@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { guardBootstrapEntry } from '../../../src/shared/bootstrap-readiness.js';
 await guardBootstrapEntry(import.meta.url);
+const { resolveDevelopmentArtifactPath } = await import('../../shared/dev-artifacts.js');
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { performance } from 'node:perf_hooks';
@@ -22,7 +23,7 @@ const mode = ['baseline', 'current', 'compare'].includes(String(args.mode).toLow
   : 'compare';
 const benchRoot = args.root
   ? path.resolve(String(args.root))
-  : path.join(process.cwd(), '.benchCache', 'build-state-write');
+  : resolveDevelopmentArtifactPath(process.cwd(), 'bench-cache', 'build-state-write');
 const jsonOnly = Boolean(args.json);
 const outPath = args.out ? path.resolve(String(args.out)) : null;
 

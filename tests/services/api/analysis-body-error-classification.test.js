@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
+import { EventEmitter } from 'node:events';
 
 import {
   analysisErrorRoutes,
@@ -31,10 +32,11 @@ for (const testCase of cases) {
   const { capture, response } = createAnalysisErrorResponseCapture();
   let resolveRepoCalled = false;
   const err = new Error(`${testCase.name} parse failure`);
+  const req = new EventEmitter();
   if (testCase.errorCode) err.code = testCase.errorCode;
 
   const handled = await testCase.handler({
-    req: {},
+    req,
     res: response,
     corsHeaders: {},
     observability: null,
@@ -49,6 +51,8 @@ for (const testCase of cases) {
   });
 
   assert.equal(handled, true, `expected route to handle ${testCase.name}`);
+  assert.equal(req.listenerCount('error'), 0, 'body failures release request listeners');
+  assert.equal(response.listenerCount('close'), 0, 'body failures release response listeners');
   assert.equal(resolveRepoCalled, false, `expected parse failure to short-circuit repo resolution for ${testCase.name}`);
   assert.equal(capture.statusCode, testCase.expectedStatus, `unexpected status for ${testCase.name}`);
 

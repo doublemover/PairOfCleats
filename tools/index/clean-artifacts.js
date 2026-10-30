@@ -1,118 +1,87 @@
 #!/usr/bin/env node
-import fs from 'node:fs';
-import fsPromises from 'node:fs/promises';
+import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createCli } from '../../src/shared/cli.js';
 import { getEnvConfig } from '../../src/shared/env/runtime.js';
-import { isRootPath } from '../../src/shared/file-paths.js';
-import { isPathUnderDir } from '../../src/shared/path-normalize.js';
 import { assertSafeCacheDeletion } from '../../src/shared/cache-deletion.js';
 import { getCacheRootBase } from '../../src/shared/cache-roots.js';
-import {
-  getCacheRoot,
-  getRepoCacheRoot,
-  loadUserConfig,
-  resolveLmdbPaths,
-  resolveRepoConfig,
-  resolveSqlitePaths
-} from '../shared/dict-utils.js';
+import { resolveRepoCacheRootPath, resolvePath } from '../../src/shared/repo-paths.js';
+import { isPathWithinRoot } from '../../src/shared/file-paths.js';
+import { cleanupDerivedRepoArtifacts } from '../../src/shared/storage/repo-cleanup.js';
+import { withStorageDirectory } from '../../src/shared/storage/directory.js';
+import { describeStorageFailure } from '../../src/shared/storage/failure-observation.js';
+import { getCacheRoot, loadUserConfig, resolveRepoConfig } from '../shared/dict-utils.js';
 
-const argv = createCli({
-  scriptName: 'clean-artifacts',
-  options: {
-    all: { type: 'boolean', default: false },
-    'dry-run': { type: 'boolean', default: false },
-    'allow-unmarked-cache': { type: 'boolean', default: false },
-    repo: { type: 'string' }
-  }
-}).parse();
-
-const explicitRepoArg = typeof argv.repo === 'string' && argv.repo.trim().length > 0;
-const explicitRepoRoot = explicitRepoArg ? path.resolve(argv.repo) : null;
+const argv = createCli({ scriptName: 'clean-artifacts', options: {
+  all: { type: 'boolean', default: false }, 'dry-run': { type: 'boolean', default: false },
+  'allow-unmarked-cache': { type: 'boolean', default: false }, repo: { type: 'string' }
+} }).strictOptions().parse();
 const { repoRoot: inferredRoot, userConfig: inferredConfig } = resolveRepoConfig(argv.repo);
-const root = explicitRepoRoot || inferredRoot;
-const userConfig = explicitRepoRoot ? loadUserConfig(root) : inferredConfig;
-const envConfig = getEnvConfig();
-const cacheRoot = (userConfig.cache && userConfig.cache.root) || envConfig.cacheRoot || getCacheRoot();
-const repoCacheRoot = getRepoCacheRoot(root, userConfig);
-const defaultSqliteDir = path.join(repoCacheRoot, 'index-sqlite');
-const legacyRepoSqliteDir = path.join(root, 'index-sqlite');
-const defaultCodePath = path.join(defaultSqliteDir, 'index-code.db');
-const defaultProsePath = path.join(defaultSqliteDir, 'index-prose.db');
-const defaultLegacyPath = path.join(defaultSqliteDir, 'index.db');
-const sqlitePaths = resolveSqlitePaths(root, userConfig);
-const lmdbPaths = resolveLmdbPaths(root, userConfig);
-
-
+const root = typeof argv.repo === 'string' && argv.repo.trim() ? path.resolve(argv.repo) : inferredRoot;
+const userConfig = argv.repo ? loadUserConfig(root) : inferredConfig;
+const env = getEnvConfig();
+const cacheRoot = path.resolve(userConfig.cache?.root || env.cacheRoot || getCacheRoot());
+// Path selection grants no reader lease and never selects a mutable generation.
+const repoCacheRoot = resolveRepoCacheRootPath(root, { ...userConfig, cache: { ...userConfig.cache, root: cacheRoot } });
+const reposRoot = path.join(cacheRoot, 'repos');
+const authorityRoots = [getCacheRootBase(), getCacheRoot(), env.cacheRoot, cacheRoot].filter(Boolean);
 const targets = [];
-const repoCachesRoot = path.join(cacheRoot, 'repos');
-const primary = argv.all ? repoCachesRoot : repoCacheRoot;
-targets.push(primary);
-
-const base = argv.all ? path.resolve(repoCachesRoot) : path.resolve(repoCacheRoot);
-const sqliteFiles = [sqlitePaths.codePath, sqlitePaths.prosePath];
-const usesDefaultDir = sqlitePaths.codePath === defaultCodePath
-  && sqlitePaths.prosePath === defaultProsePath;
-
-if (usesDefaultDir) {
-  const anyExists = sqliteFiles.some((filePath) => fs.existsSync(filePath));
-  if (anyExists && !isPathUnderDir(base, path.resolve(defaultSqliteDir))) {
-    targets.push(defaultSqliteDir);
+let enumerationComplete = true;
+if (argv.all) {
+  let started = false;
+  try {
+    await withStorageDirectory(reposRoot, async directory => {
+      started = true;
+      for (let count = 0; ; count++) {
+        if (count === 10000) { enumerationComplete = false; break; }
+        const entry = await directory.read();
+        if (!entry) break;
+        targets.push(path.join(reposRoot, entry.name));
+      }
+    });
+  } catch (error) {
+    const diagnostic = describeStorageFailure(error, { phase: 'clean-artifacts-repositories' });
+    if (started || diagnostic.code !== 'ENOENT') throw error;
   }
-} else {
-  for (const filePath of sqliteFiles) {
-    if (!fs.existsSync(filePath)) continue;
-    if (!isPathUnderDir(base, path.resolve(filePath))) {
-      targets.push(filePath);
-    }
+} else targets.push(repoCacheRoot);
+const unique = [...new Set(targets)].sort();
+// Validate launch authority for the complete bounded selection before mutation.
+for (const target of unique) {
+  try { await fs.lstat(target); }
+  catch (error) {
+    if (describeStorageFailure(error, { phase: 'clean-artifacts-selection' }).code === 'ENOENT') continue;
+    throw error;
   }
+  assertSafeCacheDeletion(target, authorityRoots, {
+    allowUnmarked: argv['allow-unmarked-cache'] === true || argv['dry-run'] === true
+  });
 }
-
-if (fs.existsSync(sqlitePaths.legacyPath)) {
-  const legacyTarget = sqlitePaths.legacyPath === defaultLegacyPath ? defaultSqliteDir : sqlitePaths.legacyPath;
-  if (!isPathUnderDir(base, path.resolve(legacyTarget))) {
-    targets.push(legacyTarget);
-  }
+const outcomes = [];
+for (const target of unique) {
+  const outcome = await cleanupDerivedRepoArtifacts({ repoCacheRoot: target, cacheRoot,
+    authorityRoots, dryRun: argv['dry-run'] === true });
+  outcomes.push(outcome);
+  console.error(`${outcome.status}: ${target}${outcome.reason ? ` (${outcome.reason})` : ''}`);
 }
-
-if (fs.existsSync(legacyRepoSqliteDir) && !isPathUnderDir(base, path.resolve(legacyRepoSqliteDir))) {
-  targets.push(legacyRepoSqliteDir);
+// Configured native stores outside the canonical repo root need their category's
+// registered publication/retention owner. A path or marker cannot grant that.
+const custom = [];
+for (const [category, config, keys] of [
+  ['sqlite', userConfig.sqlite, ['dbDir', 'codeDbPath', 'proseDbPath', 'extractedProseDbPath', 'recordsDbPath']],
+  ['lmdb', userConfig.lmdb, ['dbDir', 'codeDbPath', 'proseDbPath']]
+]) for (const key of keys) {
+  if (typeof config?.[key] !== 'string' || !config[key]) continue;
+  const target = resolvePath(root, config[key]);
+  if (!unique.some(parent => isPathWithinRoot(target, parent))) custom.push({ category, target });
 }
-
-const lmdbDirs = [lmdbPaths.codePath, lmdbPaths.prosePath];
-for (const dir of lmdbDirs) {
-  if (!dir || !fs.existsSync(dir)) continue;
-  if (!isPathUnderDir(base, path.resolve(dir))) {
-    targets.push(dir);
-  }
+const legacy = path.join(root, 'index-sqlite');
+try { if ((await fs.lstat(legacy)).isDirectory()) custom.push({ category: 'legacy-sqlite', target: legacy }); }
+catch (error) { if (describeStorageFailure(error, { phase: 'clean-artifacts-legacy' }).code !== 'ENOENT') throw error; }
+for (const { category, target } of custom) {
+  console.error(`retained-protected: ${target} (${category} category cleanup owner required)`);
+  outcomes.push({ status: 'retained-protected', root: target, reason: 'backend-category-cleanup-unqualified' });
 }
-
-const uniqueTargets = Array.from(new Set(targets.map((target) => path.resolve(target))));
-const authorizedRoots = [getCacheRootBase(), getCacheRoot(), envConfig.cacheRoot, userConfig.cache?.root];
-const deletionPolicy = { allowUnmarked: argv['allow-unmarked-cache'] === true || argv['dry-run'] === true };
-// The fixed legacy directory is the only repository-local cleanup authority.
-authorizedRoots.push(legacyRepoSqliteDir);
-for (const target of uniqueTargets) {
-  if (fs.existsSync(target)) assertSafeCacheDeletion(target, authorizedRoots, deletionPolicy);
-}
-for (const target of uniqueTargets) {
-  if (!fs.existsSync(target)) {
-    console.error(`skip: ${target} (missing)`);
-    continue;
-  }
-  if (isRootPath(target)) {
-    console.error(`refusing to delete root path: ${target}`);
-    process.exit(1);
-  }
-
-  if (argv['dry-run']) {
-    console.error(`dry-run: would delete ${path.resolve(target)}`);
-    continue;
-  }
-
-  assertSafeCacheDeletion(target, authorizedRoots, deletionPolicy);
-  await fsPromises.rm(target, { recursive: true, force: true });
-  console.error(`deleted: ${path.resolve(target)}`);
-}
-
-console.error('\nCleanup complete.');
+const complete = enumerationComplete && outcomes.every(item => ['removed', 'missing', 'planned'].includes(item.status));
+console.error(`\nCleanup ${complete ? 'complete' : 'partial'}: ${outcomes.filter(item => item.removed).length} removed, `
+  + `${outcomes.filter(item => item.status === 'retained-protected').length} protected.`);
+if (!complete) process.exitCode = 1;

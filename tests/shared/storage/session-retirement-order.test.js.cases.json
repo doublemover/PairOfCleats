@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["leaf-failure", "sibling-failures", "pending-resource", "observer-error", "captured-observer", "partial-progress"]
+}

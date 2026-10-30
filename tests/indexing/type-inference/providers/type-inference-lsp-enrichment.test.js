@@ -4,6 +4,7 @@ import path from 'node:path';
 import { repoRoot } from '../../../helpers/root.js';
 import { applyTestEnv } from '../../../helpers/test-env.js';
 import { runNode } from '../../../helpers/run-node.js';
+import { grantFixtureRepositoryExecution } from '../../../helpers/execution-authority.js';
 
 import { resolveTestCachePath } from '../../../helpers/test-cache.js';
 import { loadCodeChunkArtifacts } from '../crossfile/artifact-fixture.js';
@@ -36,6 +37,8 @@ const testConfig = {
     typeInferenceCrossFile: true
   },
   tooling: {
+    clangd: { command: path.join(binRoot, process.platform === 'win32' ? 'clangd.cmd' : 'clangd'), args: [] },
+    sourcekit: { command: path.join(binRoot, process.platform === 'win32' ? 'sourcekit-lsp.cmd' : 'sourcekit-lsp'), args: [] },
     pyright: {
       command: pyrightStubCmd,
       args: ['--stdio']
@@ -49,22 +52,29 @@ for (const binName of ['clangd', 'sourcekit-lsp', 'pyright-langserver']) {
   } catch {}
 }
 
+const restoreExecution = grantFixtureRepositoryExecution(repoDir);
 const env = applyTestEnv({
   cacheRoot,
   embeddings: 'stub',
   testConfig,
   extraEnv: {
+    // applyTestEnv clears inherited repository grants. This positive fixture
+    // explicitly launches only its own disposable project as trusted.
+    PAIROFCLEATS_TRUSTED_REPOS: process.env.PAIROFCLEATS_TRUSTED_REPOS,
     PATH: `${binRoot}${path.delimiter}${process.env.PATH || ''}`
   }
 });
 
-const buildResult = runNode(
-  [path.join(root, 'build_index.js'), '--repo', repoDir, '--stub-embeddings', '--stage', 'stage2'],
-  'LSP enrichment build index',
-  repoDir,
-  env,
-  { encoding: 'utf8', stdio: 'pipe', allowFailure: true }
-);
+let buildResult;
+try {
+  buildResult = runNode(
+    [path.join(root, 'build_index.js'), '--repo', repoDir, '--stub-embeddings', '--stage', 'stage2'],
+    'LSP enrichment build index',
+    repoDir,
+    env,
+    { encoding: 'utf8', stdio: 'pipe', allowFailure: true }
+  );
+} finally { restoreExecution(); }
 
 if (buildResult.status !== 0) {
   console.error('LSP enrichment test failed: build_index error.');

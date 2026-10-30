@@ -1,3 +1,5 @@
+import { observeStorageResource, describeStorageFailure } from '../../../shared/storage/failure-observation.js';
+import { addStorageFailureContext } from '../../../shared/storage/operation-error.js';
 import { readRuntimeMemberBytes, readRuntimeMemberJson, openVerifiedRuntimeMember } from './verified-reads.js';
 import { withRuntimeDestinationWriter } from './ownership.js';
 import { closeRuntimeResources } from './close-resources.js';
@@ -68,9 +70,9 @@ export const verifyRuntimeFamily = async ({ destination, pointer = null, maxByte
   try {
     offsets = (await readRuntimeMemberBytes({ root, relativePath: manifest.evidence.offsetsPath,
       expectedHash: manifest.evidence.offsetsHash, expectedBytes: manifest.evidence.count * 8, maxBytes, signal })).buffer;
-  } catch (error) { await closeRuntimeResources([evidence], error); }
+  } catch (error) { await closeRuntimeResources([evidence], error, { hasOperationError: true }); }
   let queryIndex = null;
-  let verificationError = null;
+  let verificationError = null, verificationErrorPresent = false;
   const ids = new Set();
   let count = 0;
   try {
@@ -94,8 +96,8 @@ export const verifyRuntimeFamily = async ({ destination, pointer = null, maxByte
       if (count * 8 + 8 > offsets.length || offsets.readBigUInt64LE(count * 8) !== BigInt(line.start)) throw runtimeImportError('Runtime offset table mismatch.');
       count += 1;
     }
-  } catch (error) { verificationError = error; throw error; }
-  finally { await closeRuntimeResources([queryIndex, evidence], verificationError); }
+  } catch (error) { verificationErrorPresent = true; verificationError = error; throw error; }
+  finally { await closeRuntimeResources([queryIndex, evidence], verificationError, { hasOperationError: verificationErrorPresent }); }
   if (count !== manifest.evidence.count) throw runtimeImportError('Runtime evidence inventory count mismatch.');
   const expected = semanticHash('pairofcleats.runtime.family.v1', { ...manifest, generationId: null });
   if (expected !== manifest.generationId) throw runtimeImportError('Runtime family canonical identity mismatch.');
@@ -157,13 +159,14 @@ const importRuntimeEvidenceOwned = async ({ destination, capture: suppliedCaptur
     try { await handle.writeFile(bytes); await handle.sync(); } finally { await handle.close(); }
     return { path: name, hash: runtimeByteHash(bytes), byteLength: bytes.length };
   };
+  let importError, importFailed = false;
   try {
     const evidence = await fs.open(path.join(pending, 'evidence.jsonl'), 'wx');
     let offsets = null;
     const evidenceHash = createHash('sha256'), offsetsHash = createHash('sha256');
     const offset = Buffer.alloc(8), ids = new Set(), scriptHashes = new Map(), scriptConflicts = new Set(), coverage = [];
     let count = 0, byteLength = 0;
-    let projectionError = null;
+    let projectionError = null, projectionErrorPresent = false;
     try {
       offsets = await fs.open(path.join(pending, 'evidence.offsets'), 'wx');
       // Saved script metadata is projected before profiles, independently of caller input order.
@@ -201,8 +204,8 @@ const importRuntimeEvidenceOwned = async ({ destination, capture: suppliedCaptur
         }
       }
       await evidence.sync(); await offsets.sync();
-    } catch (error) { projectionError = error; throw error; }
-    finally { await closeRuntimeResources([evidence, offsets], projectionError); }
+    } catch (error) { projectionErrorPresent = true; projectionError = error; throw error; }
+    finally { await closeRuntimeResources([evidence, offsets], projectionError, { hasOperationError: projectionErrorPresent }); }
     if (coverage.some(row => row.status !== 'complete')) {
       if (capture.completion === 'complete') capture.completion = 'partial';
       capture.warnings = [...new Set([...capture.warnings, 'offline_projection_has_incomplete_coverage'])];
@@ -226,6 +229,17 @@ const importRuntimeEvidenceOwned = async ({ destination, capture: suppliedCaptur
     try { await fs.rename(pending, final); retained = true; }
     catch (error) {
       if (!['EEXIST', 'ENOTEMPTY', 'EPERM'].includes(error.code)) throw error;
+      if (error.code === 'EPERM') {
+        // Windows also reports EPERM for noncollision rename failures. Only an
+        // existing target can enter full immutable-family collision verification.
+        try { await fs.lstat(final); }
+        catch (probeError) {
+          const observed = observeStorageResource(probeError, { phase: 'runtime-family-collision-probe' });
+          observed.requireSettled();
+          if (describeStorageFailure(probeError, { phase: 'runtime-family-collision-probe' }).code === 'ENOENT') throw error;
+          throw addStorageFailureContext(error, {}, probeError, { secondaryPresent: true });
+        }
+      }
       await verifyRuntimeFamily({ destination, pointer, maxBytes: importOptions.maxDiskWorkingSetBytes, signal });
     }
     await verifyRuntimeFamily({ destination, pointer, maxBytes: importOptions.maxDiskWorkingSetBytes, signal });
@@ -258,11 +272,18 @@ const importRuntimeEvidenceOwned = async ({ destination, capture: suppliedCaptur
       if (!pointerPublished) account.release(pointerBytes.length);
     }
     return { executionAuthorized: false, pointer, capture, coverage, recordCount: count };
-  } finally {
-    await fs.rm(pending, { recursive: true, force: true });
+  } catch (error) { importFailed = true; importError = error; throw error; }
+  finally {
+    const cleanupErrors = [];
+    try { await fs.rm(pending, { recursive: true, force: true }); } catch (error) { cleanupErrors.push(error); }
     // Promotion relinquishes exclusive ownership: another publisher or pinned
     // reader may already use this family, even if this pointer step failed.
-    if (!retained) account.release(reserved);
+    try { if (!retained) account.release(reserved); } catch (error) { cleanupErrors.push(error); }
+    if (cleanupErrors.length) {
+      let failure = importFailed ? importError : cleanupErrors.shift();
+      for (const error of cleanupErrors) failure = addStorageFailureContext(failure, {}, error, { secondaryPresent: true });
+      throw failure;
+    }
   }
 };
 

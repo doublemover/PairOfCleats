@@ -1,3 +1,6 @@
+import { getOwn, setOwn } from '../../../src/shared/object-record.js';
+import { SCAN_PROFILE_SCHEMA_VERSION, SCAN_PROFILE_COVERAGE_VERSION, SCAN_PROFILE_MODES, isSupportedScanProfileVersion } from '../../../src/contracts/scan-profile.js';
+import { observedScanNumber, observedScanCount, observedScanRate, observedScanModes, summarizeScanObservations } from '../../index/report-artifacts/scan-observations.js';
 import { summarizeNumericDistribution } from '../../shared/numeric-distribution.js';
 
 export {
@@ -60,7 +63,7 @@ export const MODE_SHORT_LABEL = {
 };
 
 export const INDEXING_SCHEMA_VERSION = 1;
-export const SCAN_PROFILE_SCHEMA_VERSION = 1;
+export { SCAN_PROFILE_SCHEMA_VERSION };
 
 const THROUGHPUT_KEY_BY_MODE = {
   code: 'code',
@@ -69,10 +72,7 @@ const THROUGHPUT_KEY_BY_MODE = {
   records: 'records'
 };
 
-export const toFiniteOrNull = (value) => {
-  const n = Number(value);
-  return Number.isFinite(n) ? n : null;
-};
+export const toFiniteOrNull = observedScanNumber;
 
 export const createRateTotals = () => ({ files: 0, chunks: 0, tokens: 0, bytes: 0, totalMs: 0 });
 export const createModeTotals = () => ({ repos: 0, files: 0, lines: 0, bytes: 0, durationMs: 0 });
@@ -90,11 +90,7 @@ export const createModeTotalsMap = () => new Map(
   MODE_METRICS.map(([key]) => [key, createModeTotals()])
 );
 
-export const hasModeTotals = (totals) => (
-  Number.isFinite(totals?.lines) && totals.lines > 0
-) || (
-  Number.isFinite(totals?.files) && totals.files > 0
-);
+export const hasModeTotals = totals => observedScanCount(totals?.lines) !== null || observedScanCount(totals?.files) !== null;
 
 export const rateFromTotals = (totals, key) => {
   if (!Number.isFinite(totals.totalMs) || totals.totalMs <= 0) return null;
@@ -213,9 +209,9 @@ export const collectLanguageLines = (metrics, totals) => {
 };
 
 const buildModeIndexingSummary = (totals) => {
-  const files = toFiniteOrNull(totals?.count);
-  const lines = toFiniteOrNull(totals?.lines);
-  const bytes = toFiniteOrNull(totals?.bytes);
+  const files = observedScanCount(totals?.count);
+  const lines = observedScanCount(totals?.lines);
+  const bytes = observedScanCount(totals?.bytes);
   const durationMs = toFiniteOrNull(totals?.durationMs);
   const linesPerSec = (Number.isFinite(lines) && Number.isFinite(durationMs) && durationMs > 0)
     ? (lines / (durationMs / 1000))
@@ -229,13 +225,23 @@ const buildModeIndexingSummary = (totals) => {
   };
 };
 
+const summarizeIndexingModes = (modes, declared) => {
+  const observations = Object.fromEntries(Object.entries(modes).map(([mode, value]) => [mode, {
+    files: { candidates: value.files }, lines: { total: value.lines },
+    bytes: { source: value.bytes, artifact: value.bytes }, throughput: { totalMs: value.durationMs }
+  }]));
+  const summary = summarizeScanObservations(observations, declared);
+  return { totals: { files: summary.totals.files.candidates, lines: summary.totals.lines,
+    bytes: summary.totals.bytes.source, durationMs: summary.totals.durationMs, linesPerSec: summary.totals.linesPerSec },
+  coverage: summary.coverage };
+};
+
 export const buildIndexingSummaryFromFeatureMetrics = (
   metrics,
   { normalizeLanguageKeys = true } = {}
 ) => {
   if (!metrics || typeof metrics !== 'object') return null;
   const modes = {};
-  const totals = { files: 0, lines: 0, bytes: 0, durationMs: 0 };
   const languageLines = {};
   let hasData = false;
 
@@ -243,14 +249,10 @@ export const buildIndexingSummaryFromFeatureMetrics = (
     const modeEntry = metrics?.modes?.[modeKey];
     const modeTotals = buildModeIndexingSummary(modeEntry?.totals || null);
     modes[modeKey] = modeTotals;
-    if (Number.isFinite(modeTotals.files)) totals.files += modeTotals.files;
-    if (Number.isFinite(modeTotals.lines)) totals.lines += modeTotals.lines;
-    if (Number.isFinite(modeTotals.bytes)) totals.bytes += modeTotals.bytes;
-    if (Number.isFinite(modeTotals.durationMs)) totals.durationMs += modeTotals.durationMs;
     if (hasModeTotals(modeTotals)) hasData = true;
     const languages = modeEntry?.languages || {};
     for (const [language, bucket] of Object.entries(languages)) {
-      const lines = Number(bucket?.lines);
+      const lines = observedScanCount(bucket?.lines);
       if (!Number.isFinite(lines) || lines <= 0) continue;
       const normalizedLanguage = normalizeLanguageKeys
         ? normalizeMetricsLanguageKey(language)
@@ -260,46 +262,43 @@ export const buildIndexingSummaryFromFeatureMetrics = (
   }
 
   if (!hasData) return null;
-  const totalLinesPerSec = totals.durationMs > 0 ? (totals.lines / (totals.durationMs / 1000)) : null;
+  const observed = summarizeIndexingModes(modes, MODE_METRICS.map(([mode]) => mode).filter(mode => Object.hasOwn(metrics.modes || {}, mode)));
   return {
     schemaVersion: INDEXING_SCHEMA_VERSION,
     generatedAt: new Date().toISOString(),
     source: 'feature-metrics',
     modes,
-    totals: {
-      ...totals,
-      linesPerSec: totalLinesPerSec
-    },
+    totals: observed.totals,
+    coverage: observed.coverage,
     languageLines
   };
 };
 
 export const isValidScanProfile = (scanProfile) => {
   if (!scanProfile || typeof scanProfile !== 'object') return false;
-  if (scanProfile.schemaVersion !== SCAN_PROFILE_SCHEMA_VERSION) return false;
+  if (!isSupportedScanProfileVersion(scanProfile.schemaVersion)) return false;
+  if (scanProfile.schemaVersion === SCAN_PROFILE_SCHEMA_VERSION && (scanProfile.coverage?.version !== SCAN_PROFILE_COVERAGE_VERSION
+    || !Array.isArray(scanProfile.coverage.requiredModes) || scanProfile.coverage.requiredModes.length > 4
+    || !scanProfile.coverage.requiredModes.every(mode => SCAN_PROFILE_MODES.includes(mode))
+    || new Set(scanProfile.coverage.requiredModes).size !== scanProfile.coverage.requiredModes.length)) return false;
   const modes = scanProfile?.modes || {};
-  return MODE_METRICS.some(([modeKey]) => hasModeTotals({
-    files: toFiniteOrNull(modes?.[modeKey]?.files?.candidates),
-    lines: toFiniteOrNull(modes?.[modeKey]?.lines?.total)
-  }));
+  return observedScanModes(modes).length > 0;
 };
 
 export const buildIndexingSummaryFromScanProfile = (scanProfile) => {
   if (!isValidScanProfile(scanProfile)) return null;
   const modes = {};
-  const totals = { files: 0, lines: 0, bytes: 0, durationMs: 0 };
   const languageLines = {};
+  const observedProfiles = {};
   let hasData = false;
 
   for (const [modeKey] of MODE_METRICS) {
     const modeEntry = scanProfile?.modes?.[modeKey] || {};
-    const files = toFiniteOrNull(modeEntry?.files?.candidates);
-    const lines = toFiniteOrNull(modeEntry?.lines?.total);
-    const bytes = toFiniteOrNull(modeEntry?.bytes?.source ?? modeEntry?.bytes?.artifact);
-    const durationMs = toFiniteOrNull(modeEntry?.throughput?.totalMs ?? modeEntry?.timings?.totalMs);
-    const linesPerSec = (Number.isFinite(lines) && Number.isFinite(durationMs) && durationMs > 0)
-      ? (lines / (durationMs / 1000))
-      : null;
+    const files = observedScanCount(modeEntry?.files?.candidates);
+    const lines = observedScanCount(modeEntry?.lines?.total);
+    const bytes = observedScanCount(modeEntry?.bytes?.source ?? modeEntry?.bytes?.artifact);
+    const durationMs = observedScanNumber(modeEntry?.throughput?.totalMs) ?? observedScanNumber(modeEntry?.timings?.totalMs);
+    const linesPerSec = observedScanRate(lines, durationMs);
     const modeTotals = {
       files,
       lines,
@@ -308,22 +307,24 @@ export const buildIndexingSummaryFromScanProfile = (scanProfile) => {
       linesPerSec
     };
     modes[modeKey] = modeTotals;
-    if (Number.isFinite(files)) totals.files += files;
-    if (Number.isFinite(lines)) totals.lines += lines;
-    if (Number.isFinite(bytes)) totals.bytes += bytes;
-    if (Number.isFinite(durationMs)) totals.durationMs += durationMs;
-    if (hasModeTotals(modeTotals)) hasData = true;
+    observedProfiles[modeKey] = { ...modeEntry, files: { ...modeEntry.files, candidates: files },
+      lines: { ...modeEntry.lines, total: lines }, throughput: { ...modeEntry.throughput, totalMs: durationMs } };
+    if (observedScanModes({ [modeKey]: modeEntry }).length) hasData = true;
     const modeLanguageLines = modeEntry?.lines?.byLanguage || {};
     for (const [language, linesValue] of Object.entries(modeLanguageLines)) {
       const normalizedLanguage = normalizeMetricsLanguageKey(language);
-      const numericLines = Number(linesValue);
+      const numericLines = observedScanCount(linesValue);
       if (!Number.isFinite(numericLines) || numericLines <= 0) continue;
-      languageLines[normalizedLanguage] = (languageLines[normalizedLanguage] || 0) + numericLines;
+      setOwn(languageLines, normalizedLanguage, (getOwn(languageLines, normalizedLanguage) || 0) + numericLines);
     }
   }
 
   if (!hasData) return null;
-  const totalLinesPerSec = totals.durationMs > 0 ? (totals.lines / (totals.durationMs / 1000)) : null;
+  const declared = scanProfile.schemaVersion === SCAN_PROFILE_SCHEMA_VERSION && Array.isArray(scanProfile.coverage?.requiredModes)
+    ? scanProfile.coverage.requiredModes : observedScanModes(observedProfiles);
+  const summary = summarizeScanObservations(observedProfiles, declared);
+  const totals = { files: summary.totals.files.candidates, lines: summary.totals.lines,
+    bytes: summary.totals.bytes.source, durationMs: summary.totals.durationMs };
   return {
     schemaVersion: INDEXING_SCHEMA_VERSION,
     generatedAt: new Date().toISOString(),
@@ -331,8 +332,9 @@ export const buildIndexingSummaryFromScanProfile = (scanProfile) => {
     modes,
     totals: {
       ...totals,
-      linesPerSec: totalLinesPerSec
+      linesPerSec: summary.totals.linesPerSec
     },
+    coverage: { ...summary.coverage, sourceSchemaVersion: scanProfile.schemaVersion },
     languageLines
   };
 };
@@ -340,13 +342,12 @@ export const buildIndexingSummaryFromScanProfile = (scanProfile) => {
 export const buildIndexingSummaryFromThroughput = (throughput) => {
   if (!throughput || typeof throughput !== 'object') return null;
   const modes = {};
-  const totals = { files: 0, lines: 0, bytes: 0, durationMs: 0 };
   let hasData = false;
   for (const [modeKey] of MODE_METRICS) {
     const throughputKey = THROUGHPUT_KEY_BY_MODE[modeKey];
     const entry = throughput?.[throughputKey];
-    const files = toFiniteOrNull(entry?.files);
-    const bytes = toFiniteOrNull(entry?.bytes);
+    const files = observedScanCount(entry?.files);
+    const bytes = observedScanCount(entry?.bytes);
     const durationMs = toFiniteOrNull(entry?.totalMs);
     const modeTotals = {
       files,
@@ -356,21 +357,17 @@ export const buildIndexingSummaryFromThroughput = (throughput) => {
       linesPerSec: null
     };
     modes[modeKey] = modeTotals;
-    if (Number.isFinite(files)) totals.files += files;
-    if (Number.isFinite(bytes)) totals.bytes += bytes;
-    if (Number.isFinite(durationMs)) totals.durationMs += durationMs;
     if (hasModeTotals(modeTotals)) hasData = true;
   }
   if (!hasData) return null;
+  const observed = summarizeIndexingModes(modes, MODE_METRICS.filter(([mode]) => Object.hasOwn(throughput, THROUGHPUT_KEY_BY_MODE[mode])).map(([mode]) => mode));
   return {
     schemaVersion: INDEXING_SCHEMA_VERSION,
     generatedAt: new Date().toISOString(),
     source: 'throughput',
     modes,
-    totals: {
-      ...totals,
-      linesPerSec: null
-    },
+    totals: observed.totals,
+    coverage: observed.coverage,
     languageLines: {}
   };
 };

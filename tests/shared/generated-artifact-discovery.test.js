@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
 import { performance } from 'node:perf_hooks';
+import { createGeneratedArtifactPrefixObservation } from '../../src/shared/generated-artifact-observation.js';
 import {
   GENERATED_ARTIFACT_PREFIX_BYTES,
   classifyGeneratedArtifactPrefix,
@@ -45,7 +46,8 @@ let reads = 0;
 const reader = async (_root, _file, limit) => {
   reads += 1;
   assert.equal(limit, 8192);
-  return Buffer.from(prefix);
+  const bytes = Buffer.from(prefix);
+  return createGeneratedArtifactPrefixObservation({ bytes, sourceBytes: bytes.length });
 };
 const started = performance.now();
 for (let i = 0; i < 10000; i++) {

@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["ordinary-open", "open-observer-error", "open-original-capture", "retained-observer-error", "physical-observer-error"]
+}

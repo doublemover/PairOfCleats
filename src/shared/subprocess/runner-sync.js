@@ -9,7 +9,7 @@ import {
   coerceStdio,
   shouldCapture,
   buildResult,
-  trimOutput
+  createCollector
 } from './options.js';
 import { SubprocessError, SubprocessTimeoutError } from './errors.js';
 
@@ -51,6 +51,7 @@ export function spawnSubprocessSync(command, args, options = {}) {
     stdio,
     shell: false,
     detached,
+    windowsHide: true,
     windowsVerbatimArguments: options.windowsVerbatimArguments === true,
     input: options.input,
     timeout: hasTimeout
@@ -60,19 +61,20 @@ export function spawnSubprocessSync(command, args, options = {}) {
     maxBuffer: maxBufferBytes,
     encoding: captureStdout || captureStderr ? 'buffer' : undefined
   });
-  const stdout = captureStdout
-    ? trimOutput(result.stdout, maxOutputBytes, encoding, outputMode)
-    : undefined;
-  const stderr = captureStderr
-    ? trimOutput(result.stderr, maxOutputBytes, encoding, outputMode)
-    : undefined;
+  const stdoutCollector = createCollector({ enabled: captureStdout, maxOutputBytes, encoding });
+  const stderrCollector = createCollector({ enabled: captureStderr, maxOutputBytes, encoding });
+  if (result.stdout) stdoutCollector.push(result.stdout);
+  if (result.stderr) stderrCollector.push(result.stderr);
+  const stdout = stdoutCollector.toOutput(outputMode);
+  const stderr = stderrCollector.toOutput(outputMode);
   const normalized = buildResult({
     pid: result.pid ?? null,
     exitCode: result.status ?? null,
     signal: result.signal ?? null,
     startedAt,
     stdout,
-    stderr
+    stderr,
+    outputCapture: { stdout: stdoutCollector.stats(), stderr: stderrCollector.stats() }
   });
   if (result.error) {
     if (isSyncCommandTimedOut(result)) {

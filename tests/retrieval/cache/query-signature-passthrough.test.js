@@ -1,9 +1,13 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
+import { METADATA_PREDICATE_VERSION } from '../../../src/retrieval/effective-filter-facts.js';
+import { CONTEXT_EXPANSION_POLICY_VERSION } from '../../../src/retrieval/context-expansion-version.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 import { stableStringifyForSignature } from '../../../src/shared/stable-json.js';
 import { resolveQueryCacheLookup } from '../../../src/retrieval/cli/run-search-session/cache-policy.js';
+import { QUERY_PARSER_VERSION } from '../../../src/retrieval/query-plan-schema.js';
+import { QUERY_EMBEDDING_ADMISSION_VERSION } from '../../../src/shared/embedding-output-admission.js';
 
 applyTestEnv();
 
@@ -92,7 +96,17 @@ const lookup = await resolveQueryCacheLookup({
 });
 
 assert.equal(lookup.cacheHit, false);
-assert.equal(lookup.cacheSignature, stableStringifyForSignature(indexSignaturePayload));
+assert.equal(lookup.cacheSignature, stableStringifyForSignature({ index: indexSignaturePayload,
+  queryParserVersion: QUERY_PARSER_VERSION, metadataPredicateVersion: METADATA_PREDICATE_VERSION, effectivePlanIdentity: null,
+  contextExpansionPolicyVersion: CONTEXT_EXPANSION_POLICY_VERSION,
+  queryEmbeddingAdmissionVersion: QUERY_EMBEDDING_ADMISSION_VERSION }));
+assert.notEqual(lookup.cacheSignature, stableStringifyForSignature({ index: indexSignaturePayload,
+  queryParserVersion: QUERY_PARSER_VERSION, metadataPredicateVersion: METADATA_PREDICATE_VERSION, effectivePlanIdentity: null,
+  contextExpansionPolicyVersion: CONTEXT_EXPANSION_POLICY_VERSION }), 'prior query results cannot bypass vector admission');
+assert.notEqual(lookup.cacheSignature, stableStringifyForSignature({ index: indexSignaturePayload,
+  queryParserVersion: QUERY_PARSER_VERSION, metadataPredicateVersion: METADATA_PREDICATE_VERSION, effectivePlanIdentity: null,
+  queryEmbeddingAdmissionVersion: QUERY_EMBEDDING_ADMISSION_VERSION, contextExpansionPolicyVersion: 1 }),
+'prior context preparation cannot supply a new work receipt');
 assert.equal(typeof lookup.cacheKey, 'string');
 assert.ok(lookup.queryCachePath.endsWith('queryCache.json'));
 

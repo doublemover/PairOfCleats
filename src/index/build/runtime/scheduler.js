@@ -3,6 +3,9 @@ import {
   coercePositiveInt,
   coerceUnitFraction
 } from '../../../shared/number-coerce.js';
+import { stableStringify } from '../../../shared/stable-json.js';
+import { sha1 } from '../../../shared/hash.js';
+import { SCHEDULER_AUTOTUNE_PROFILE_VERSION } from './scheduler-autotune-policy.js';
 
 /**
  * Normalize permissive boolean input used by CLI/env flags.
@@ -499,48 +502,36 @@ export const resolveSchedulerConfig = ({
     fallback: true
   });
 
-  const autoTuneProfileState = autoTuneProfile && typeof autoTuneProfile === 'object'
-    ? autoTuneProfile
-    : null;
   const autoTuneConfig = schedulerConfig?.autoTune && typeof schedulerConfig.autoTune === 'object'
     ? schedulerConfig.autoTune
     : {};
   const autoTuneEnabled = autoTuneConfig.enabled !== false;
-  const autoTuneMaxCpu = autoTuneEnabled ? coercePositiveInt(autoTuneProfileState?.recommended?.maxCpuTokens) : null;
-  const autoTuneMaxIo = autoTuneEnabled ? coercePositiveInt(autoTuneProfileState?.recommended?.maxIoTokens) : null;
-  const autoTuneMaxMem = autoTuneEnabled ? coercePositiveInt(autoTuneProfileState?.recommended?.maxMemoryTokens) : null;
-  const maxCpuTokens = resolveNumber({
+  const cpuMaximum = {
     cliValue: argv?.['scheduler-max-cpu'] ?? argv?.schedulerMaxCpu,
     cliPresent: hasCliArg(rawArgv, '--scheduler-max-cpu'),
     envValue: envConfig?.schedulerMaxCpuTokens,
     configValue: schedulerConfig?.maxCpuTokens,
-    fallback: autoTuneMaxCpu != null
-      ? Math.max(cpuTokens, autoTuneMaxCpu)
-      : Math.max(cpuTokens, defaultCpu * 4),
+    fallback: Math.max(cpuTokens, defaultCpu * 4),
     allowZero: false
-  });
+  };
 
-  const maxIoTokens = resolveNumber({
+  const ioMaximum = {
     cliValue: argv?.['scheduler-max-io'] ?? argv?.schedulerMaxIo,
     cliPresent: hasCliArg(rawArgv, '--scheduler-max-io'),
     envValue: envConfig?.schedulerMaxIoTokens,
     configValue: schedulerConfig?.maxIoTokens,
-    fallback: autoTuneMaxIo != null
-      ? Math.max(ioTokens, autoTuneMaxIo)
-      : Math.max(ioTokens, defaultIo * 4),
+    fallback: Math.max(ioTokens, defaultIo * 4),
     allowZero: false
-  });
+  };
 
-  const maxMemoryTokens = resolveNumber({
+  const memoryMaximum = {
     cliValue: argv?.['scheduler-max-mem'] ?? argv?.schedulerMaxMem,
     cliPresent: hasCliArg(rawArgv, '--scheduler-max-mem'),
     envValue: envConfig?.schedulerMaxMemoryTokens,
     configValue: schedulerConfig?.maxMemoryTokens,
-    fallback: autoTuneMaxMem != null
-      ? Math.max(memoryTokens, autoTuneMaxMem)
-      : Math.max(memoryTokens, defaultMem * 4),
+    fallback: Math.max(memoryTokens, defaultMem * 4),
     allowZero: false
-  });
+  };
   const adaptiveTargetUtilization = coerceUnitFraction(
     envConfig?.schedulerTargetUtilization
       ?? schedulerConfig?.adaptiveTargetUtilization
@@ -595,8 +586,38 @@ export const resolveSchedulerConfig = ({
     schedulerConfig?.adaptiveSurfaces
   );
 
+  const controlled = option => (option.cliPresent && coercePositiveInt(option.cliValue) != null)
+    || coercePositiveInt(option.envValue) != null || coercePositiveInt(option.configValue) != null;
+  const maximums = { cpu: cpuMaximum, io: ioMaximum, mem: memoryMaximum };
+  const basePolicy = {
+    version: SCHEDULER_AUTOTUNE_PROFILE_VERSION,
+    cpu: defaultCpu, io: defaultIo,
+    totalMemBytes: Number.isFinite(totalMemBytes) ? totalMemBytes : null,
+    defaultMem, enabled, lowResourceMode, autoTuneEnabled, adaptive: adaptiveEnabled,
+    cpuTokens, ioTokens, memoryTokens,
+    maximums: Object.fromEntries(Object.entries(maximums).map(([name, option]) => [name,
+      { value: resolveNumber(option), controlled: controlled(option) }])),
+    adaptiveTargetUtilization, adaptiveStep, adaptiveMemoryReserveMb, adaptiveMemoryPerTokenMb,
+    starvationMs, queues, writeBackpressure, adaptiveSurfaces
+  };
+  const resourceIdentity = sha1(stableStringify(basePolicy));
+  const profileAgeMs = Date.now() - Date.parse(autoTuneProfile?.generatedAt || '');
+  const profileEligible = autoTuneProfile?.version === SCHEDULER_AUTOTUNE_PROFILE_VERSION
+    && autoTuneProfile.resourceIdentity === resourceIdentity && Number.isFinite(profileAgeMs)
+    && profileAgeMs >= 0 && profileAgeMs <= 7 * 24 * 60 * 60 * 1000;
+  const autoTuneProfileState = profileEligible ? autoTuneProfile : null;
+  const resolveMaximum = (name, option, initial) => {
+    const learned = autoTuneEnabled && profileEligible
+      ? coercePositiveInt(autoTuneProfileState?.recommended?.[name]) : null;
+    return resolveNumber({ ...option, fallback: learned == null ? option.fallback : Math.max(initial, learned) });
+  };
+  const maxCpuTokens = resolveMaximum('maxCpuTokens', cpuMaximum, cpuTokens);
+  const maxIoTokens = resolveMaximum('maxIoTokens', ioMaximum, ioTokens);
+  const maxMemoryTokens = resolveMaximum('maxMemoryTokens', memoryMaximum, memoryTokens);
+
   return {
     enabled,
+    resourceIdentity,
     lowResourceMode,
     cpuTokens: Math.max(1, cpuTokens || 1),
     ioTokens: Math.max(1, ioTokens || 1),
@@ -617,6 +638,9 @@ export const resolveSchedulerConfig = ({
     adaptiveSurfaces,
     autoTune: {
       enabled: autoTuneEnabled,
+      basePolicy,
+      profileEligible,
+      profileReason: profileEligible ? 'matching-resource-envelope' : autoTuneProfile ? 'stale-or-mismatched-resource-envelope' : 'absent',
       sourceBuildId: typeof autoTuneProfileState?.sourceBuildId === 'string'
         ? autoTuneProfileState.sourceBuildId
         : null

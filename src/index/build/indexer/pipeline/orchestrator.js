@@ -43,6 +43,7 @@ import { processFiles } from '../steps/process-files.js';
 import { postScanImports, preScanImports, runCrossFileInference } from '../steps/relations.js';
 import { writeIndexArtifactsForMode } from '../steps/write.js';
 import { runWithHangProbe } from '../hang-probe.js';
+import { prepareDocumentExtractionAdmission } from '../../../extractors/admission.js';
 
 export const runPipelineStageOrchestrator = async ({
   mode,
@@ -152,6 +153,7 @@ export const runPipelineStageOrchestrator = async ({
       + 'Enable inline/stub embeddings or service-mode embedding queueing and rebuild.'
     );
   }
+  await prepareDocumentExtractionAdmission(runtimeRef, mode);
   const tokenizationKey = buildTokenizationKey(runtimeRef, mode);
   const cacheSignature = buildIncrementalSignature(runtimeRef, mode, tokenizationKey);
   const dependencySignatures = buildDependencySignatures(runtimeRef, mode, tokenizationKey);
@@ -429,35 +431,16 @@ export const runPipelineStageOrchestrator = async ({
   let crossFileEnabled = false;
   let graphRelations = null;
   if (crossFileInferenceEnabled || importGraphEnabled) {
-    const relationsResult = await (runtimeRef.scheduler?.schedule
-      ? runtimeRef.scheduler.schedule(
-        SCHEDULER_QUEUE_NAMES.stage2Relations,
-        {
-          cpu: 1,
-          mem: 1,
-          signal: effectiveAbortSignal
-        },
-        () => runCrossFileInference({
-          runtime: runtimeRef,
-          mode,
-          state,
-          crashLogger,
-          featureMetrics,
-          relationsEnabled: importGraphEnabled,
-          crossFileInferenceEnabled,
-          abortSignal: effectiveAbortSignal
-        })
-      )
-      : runCrossFileInference({
-        runtime: runtimeRef,
-        mode,
-        state,
-        crashLogger,
-        featureMetrics,
-        relationsEnabled: importGraphEnabled,
-        crossFileInferenceEnabled,
-        abortSignal: effectiveAbortSignal
-      }));
+    const relationsResult = await runCrossFileInference({
+      runtime: runtimeRef,
+      mode,
+      state,
+      crashLogger,
+      featureMetrics,
+      relationsEnabled: importGraphEnabled,
+      crossFileInferenceEnabled,
+      abortSignal: effectiveAbortSignal
+    });
     crossFileEnabled = relationsResult?.crossFileEnabled === true;
     graphRelations = relationsResult?.graphRelations || null;
   } else if (tinyRepoFastPathActive) {

@@ -96,9 +96,12 @@ or build requirements. The interfaces and references are linked below.
 
 ## Quickstart
 
-The current install path is a source checkout with **Node.js 26.x**
-and npm. Native dependencies may require a C/C++ toolchain and Python 3 when
-compatible prebuilt binaries are unavailable.
+The current install path is a source checkout with **Node.js >=26.12.1 <27**
+(prefer the exact `.nvmrc` pin), npm and Git. **Python 3 and supported C/C++
+build tools are mandatory**, even when other packages have prebuilt binaries:
+bootstrap always rebuilds the required patched Perl parser from source. This
+also applies to sparse-search setup. Install the
+[platform prerequisites](docs/guides/bootstrap-prerequisites.md) before bootstrap.
 
 ```sh
 git clone https://github.com/doublemover/PairOfCleats.git
@@ -107,12 +110,15 @@ npm run bootstrap:ci
 ```
 
 Development dependencies are needed to apply the checkout's required patches.
+Bootstrap runs a dependency-free runtime/toolchain preflight before installation;
+missing prerequisites stop before npm downloads or replaces dependencies.
 The examples run the CLI directly, so you do not need a global command install.
 
 Normal CLI commands, test runs and benchmark entry points refuse to start when
-bootstrap is missing, incomplete or stale. Run `npm run bootstrap` from this
+bootstrap is missing, incomplete or stale. Run `npm run bootstrap:ci` from this
 checkout to install dependencies, apply required patches and rebuild/verify native
-modules; `npm run bootstrap:ci` performs the same steps with the pinned lockfile.
+modules using the pinned lockfile. Use `npm run bootstrap` only when intentionally
+changing dependency resolution.
 No command silently installs dependencies or substitutes a fallback for this gate.
 The saved verification evidence is checked against current setup inputs, runtime
 and dependency artifacts, followed by small SQLite-query and parser-activation
@@ -234,7 +240,7 @@ Search, graph tools and context packs can form a small investigation:
 
 Use [code maps](docs/guides/code-maps.md) to browse structure,
 [graph commands](docs/contracts/graph-tools-cli.md) for impact/context workflows,
-or [workspace setup](docs/specs/workspace-config.md) when the code spans repositories.
+or [workspace setup](docs/guides/workspaces.md) when the code spans repositories.
 The same index can support a human browsing interactively and a client asking
 for only the evidence it needs.
 
@@ -242,7 +248,7 @@ for only the evidence it needs.
 
 Language analysis has several layers: syntax structure, imports/relationships,
 types and navigation. Coverage varies by language, format and optional tooling;
-the [language-support record](docs/guides/language-toolchain-acceptance.md) explains
+the [language capability guide](docs/guides/language-capabilities.md) explains
 supported features and tested limits. Heuristic and syntax-only routes remain
 useful partial analysis. Indexed relationships can miss dynamic behavior, so
 impact and test suggestions are starting points for source review.
@@ -259,11 +265,13 @@ The CLI is the simplest place to start. Other interfaces have separate setup or
 build requirements:
 
 - [VS Code and Sublime Text](docs/guides/editor-integration.md)
-- [HTTP services](docs/guides/service-mode.md)
+- [HTTP API](docs/api/server.md)
+- [Queue-backed indexing service](docs/guides/service-mode.md)
 - [MCP](docs/guides/mcp.md)
 - [Interactive TUI](docs/guides/tui.md)
 
-For detail: [search behavior and output](docs/guides/search.md),
+Use the [documentation task index](docs/README.md) to find setup, configuration,
+workspaces, interfaces, upgrades and contributor evidence. For detail: [search behavior and output](docs/guides/search.md),
 [commands](docs/guides/commands.md), [configuration](docs/config/contract.md),
 [architecture](docs/guides/architecture.md) and
 [optional backends](docs/guides/external-backends.md).

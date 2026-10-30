@@ -1,11 +1,10 @@
-import fs from 'node:fs/promises';
-import path from 'node:path';
 import { ARTIFACT_SURFACE_VERSION } from '../../../contracts/versioning.js';
 import { createArtifactSemanticStore } from '../../../semantic/artifact-store.js';
 import { createSemanticFactsRef } from '../file-ref.js';
 import { schedulerAdmissionReason } from '../compiler-admission.js';
 import { collectStandaloneWasm } from './standalone.js';
 import { verifyWasmTaskAuthority } from './task-authority.js';
+import { readRetainedWasmSourceSnapshot } from '../../../semantic/retained-wasm-source-snapshot.js';
 /** The bounded decoder receives scheduler capacity, never a TypeScript Program grant. */
 export const prepareWasmTaskExecution = async ({state,runtime,selected}) => {
   const snapshot=runtime.scheduler.stats(), bytes=64*1024*1024;
@@ -22,15 +21,16 @@ export const prepareWasmTaskExecution = async ({state,runtime,selected}) => {
 };
 export const executeWasmTask = async ({state,runtime,item,signal}) => {
   const partitions=[];
+  const store=createArtifactSemanticStore({root:item.root,repoRoot:runtime.root,artifactSurfaceVersion:ARTIFACT_SURFACE_VERSION,generation:item.generation,partitions:item.syntaxPartitions});
   for(const [file,source] of item.sources) {
     const current=state.semanticFactsByFile.get(file);
     if(!item.task.sourceUnits.includes(source.sourceUnitId))continue;
-    const bytes=await fs.readFile(path.join(item.root,'semantic-sources',source.byteHash+'.utf8'));
-    const result=await collectStandaloneWasm({bytes,relPath:source.path,repositoryNamespace:source.repositoryNamespace,stagingRoot:item.root,storage:current.storage,diskAccount:state.semanticDiskAccount,policy:runtime.semanticPolicy,flowGranted:true,signal});
+    const captured=await readRetainedWasmSourceSnapshot({store,partitionId:current.syntaxPartitionId,source,signal});
+    const result=await collectStandaloneWasm({bytes:captured.bytes,relPath:captured.source.path,repositoryNamespace:captured.source.repositoryNamespace,stagingRoot:item.root,storage:current.storage,diskAccount:state.semanticDiskAccount,policy:runtime.semanticPolicy,flowGranted:true,signal});
     const facts=result.semanticFactsRef;
     if(facts.syntaxPartitionId!==current.syntaxPartitionId||facts.sourceHash!==current.sourceHash)throw new Error('Binary task changed its pinned syntax authority.');
     const additions=facts.partitions.filter(row=>row.partitionId!==facts.syntaxPartitionId);
-    state.semanticFactsByFile.set(file,createSemanticFactsRef({source,storage:current.storage,syntaxPartitionId:current.syntaxPartitionId,
+    state.semanticFactsByFile.set(file,createSemanticFactsRef({source:captured.source,storage:current.storage,syntaxPartitionId:current.syntaxPartitionId,
       partitions:[...current.partitions.filter(row=>!additions.some(next=>next.partitionId===row.partitionId)),...additions],coverage:[...current.coverage.filter(row=>row.phase!=='localFlow'),...facts.coverage.filter(row=>row.phase==='localFlow')]}));
     state.semanticEvidenceArtifacts ||= [];state.semanticEvidenceArtifacts.push(...result.semanticEvidenceArtifacts);partitions.push(...additions);
   }

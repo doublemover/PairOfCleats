@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["omitted-violation", "clean", "max-violations-only", "max-edges-only", "zero-details", "zero-work", "unknown-upstream"]
+}

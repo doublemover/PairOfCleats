@@ -1,4 +1,23 @@
 import os
+from . import operations, ui
+
+SELECTED_REPO_KEY = 'pairofcleats_selected_repo'
+_SELECTED_REPOS = {}
+
+
+def select_repo(window, root=None):
+    """A window-local choice never changes project settings or starts indexing."""
+    if not window:
+        return
+    if hasattr(window, 'settings'):
+        if root:
+            window.settings().set(SELECTED_REPO_KEY, os.path.abspath(root))
+        else:
+            window.settings().erase(SELECTED_REPO_KEY)
+    if root:
+        _SELECTED_REPOS[window.id()] = os.path.abspath(root)
+    else:
+        _SELECTED_REPOS.pop(window.id(), None)
 
 
 def _normalize_config_path(value):
@@ -50,13 +69,19 @@ def has_repo_root(window, path_hint=None, allow_fallback=True):
     return root is not None
 
 
-def resolve_repo_root_interactive(window, on_done, path_hint=None, allow_fallback=True, prompt='PairOfCleats repo'):
+def resolve_repo_root_interactive(window, on_done, path_hint=None, allow_fallback=True, prompt='PairOfCleats repo',
+                                  force_prompt=False):
+    scope = operations.capture(window)
+    callback = on_done
+    def on_done(root, reason):
+        if operations.is_current(scope):
+            callback(root, reason)
     resolution = _describe_repo_root(window, path_hint=path_hint, allow_fallback=allow_fallback)
+    repo_roots = resolution.get('repo_roots') or []
     selected_root = resolution.get('selected_root')
-    if selected_root:
+    if selected_root and not (force_prompt and len(repo_roots) > 1):
         on_done(selected_root, resolution.get('reason'))
         return
-    repo_roots = resolution.get('repo_roots') or []
     if len(repo_roots) <= 1 or window is None or not hasattr(window, 'show_quick_panel'):
         on_done(None, resolution.get('reason'))
         return
@@ -73,11 +98,29 @@ def resolve_repo_root_interactive(window, on_done, path_hint=None, allow_fallbac
             hint = 'active file'
         items.append([label, hint])
 
+    pending = [True]
     def on_select(index):
+        if not pending[0] or not operations.is_current(scope):
+            return
+        pending[0] = False
+        if type(index) is not int:
+            return
         if index < 0:
             on_done(None, 'Repo selection cancelled.')
             return
+        if index >= len(repo_roots):
+            return
         chosen = repo_roots[index]
+        current = _describe_repo_root(window, path_hint=path_hint, allow_fallback=allow_fallback)
+        if not any(os.path.normcase(entry['root']) == os.path.normcase(chosen['root'])
+                   for entry in current.get('repo_roots') or []):
+            on_done(None, 'Selected repository is no longer available. Choose a current repository.')
+            return
+        try:
+            select_repo(window, chosen.get('root'))
+        except Exception as error:
+            ui.show_error('PairOfCleats: repository selection save failed: ' + str(error))
+            return
         on_done(chosen.get('root'), 'Using selected repo: {0}'.format(chosen.get('root')))
 
     window.show_quick_panel(items, on_select)
@@ -115,9 +158,10 @@ def _describe_repo_root(window, path_hint=None, allow_fallback=True):
 
     def add_root(root, source):
         normalized = os.path.abspath(root)
-        if normalized in seen_roots:
+        identity = os.path.normcase(normalized)
+        if identity in seen_roots:
             return
-        seen_roots.add(normalized)
+        seen_roots.add(identity)
         repo_roots.append({'root': normalized, 'source': source})
 
     if hint_repo_root:
@@ -133,6 +177,14 @@ def _describe_repo_root(window, path_hint=None, allow_fallback=True):
 
     if hint_repo_root:
         return {'selected_root': hint_repo_root, 'reason': None, 'repo_roots': repo_roots}
+    selected = window.settings().get(SELECTED_REPO_KEY) if hasattr(window, 'settings') else _SELECTED_REPOS.get(window.id())
+    if selected:
+        match = next((entry for entry in repo_roots
+                      if os.path.normcase(entry['root']) == os.path.normcase(selected)), None)
+        if match:
+            return {'selected_root': match['root'], 'reason': 'Using selected repo: {0}'.format(match['root']),
+                    'repo_roots': repo_roots}
+        select_repo(window)
     if hint_root and not allow_fallback:
         return {
             'selected_root': None,
@@ -231,10 +283,12 @@ def resolve_path_within_repo(repo_root, value):
     try:
         repo_root_norm = os.path.normcase(os.path.abspath(repo_root))
         resolved_norm = os.path.normcase(os.path.abspath(resolved))
-        common = os.path.commonpath([repo_root_norm, resolved_norm])
+        # relpath is available in Sublime's Python 3.3. Check components rather
+        # than a string prefix, which would admit a sibling such as repo-other.
+        relative = os.path.relpath(resolved_norm, repo_root_norm)
     except Exception:
         return None
-    if common != repo_root_norm:
+    if relative == os.pardir or relative.startswith(os.pardir + os.sep) or os.path.isabs(relative):
         return None
     return resolved
 

@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["sticky-failure", "native-observation", "explicit-false", "initialization-failure"]
+}

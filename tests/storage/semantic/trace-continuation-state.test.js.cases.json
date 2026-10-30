@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["persistent-order", "forks", "byte-admission", "retention", "actual-pages", "actual-replay", "aggregate-services", "failed-publication", "state-frontier", "seed-refusal", "seed-refusal-service"]
+}

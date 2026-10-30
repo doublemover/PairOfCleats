@@ -13,7 +13,7 @@ const deferred = () => {
   const promise = new Promise((ok, fail) => { resolve = ok; reject = fail; });
   return { promise, resolve, reject };
 };
-const options = { modelId: 'mock-known-dimensions', provider: 'xenova', dims: 384 };
+const options = { modelId: 'mock-known-dimensions', provider: 'xenova', dims: 3 };
 let loads = 0;
 const load = deferred();
 const requested = deferred();
@@ -52,10 +52,13 @@ try {
   assert.equal(ready.effectiveSessionOptions, null);
   const cached = createEmbedder(options);
   assert.equal(cached.executionInfo().loaded, false, 'unknown artifact provenance cannot reuse a loaded adapter across attempts');
-  assert.notEqual(cached.executionInfo().modelArtifact.attempt, ready.modelArtifact.attempt);
+  assert.equal(cached.executionInfo().modelArtifact, null, 'a lazy wrapper has not acquired artifact authority');
   assert.equal(cached.executionInfo().observedDims, null, 'a fresh attempt has no fresh vector evidence');
   assert.equal(cached.executionInfo().inferenceSucceeded, false);
   assert.equal(loads, 1);
+  await cached.getChunkEmbedding('beta');
+  assert.equal(loads, 2, 'unknown artifact provenance requires a fresh actual load');
+  assert.notEqual(cached.executionInfo().modelArtifact.attempt, ready.modelArtifact.attempt);
   await Promise.all([embedder.dispose(), cached.dispose()]);
 } finally {
   __setTransformersModuleLoaderForTests(null);
@@ -85,7 +88,8 @@ try {
 __setTransformersModuleLoaderForTests(async () => ({ env: {}, pipeline: async () => async () => [[]] }));
 try {
   const empty = createEmbedder(options);
-  assert.equal((await empty.getChunkEmbedding('alpha')).length, 0);
+  await assert.rejects(empty.getChunkEmbedding('alpha'), { code: 'ERR_EMBEDDING_OUTPUT' },
+    'an empty provider row is rejected without manufacturing vector evidence');
   assert.equal(empty.executionInfo().loaded, true, 'load acknowledgement is distinct from inference output');
   assert.equal(empty.executionInfo().inferenceSucceeded, false);
   assert.equal(empty.executionInfo().observedDims, null);
@@ -109,10 +113,12 @@ __setAdapterFactoryForTests(() => ({
 }));
 try {
   const unsupported = createEmbedder(options);
-  assert.equal(unsupported.executionInfo().loaded, null, 'an unsupported observation remains unknown');
+  assert.equal(unsupported.executionInfo().loaded, false, 'a deferred lease has not acquired its adapter');
   assert.equal(getterReads, 0, 'executionInfo never accesses the loading getter');
   assert.equal(await unsupported.embedderPromise, 'acknowledged', 'explicit preload remains supported');
   assert.equal(getterReads, 1);
+  assert.equal(unsupported.executionInfo().loaded, null, 'an acquired adapter without an observation remains unknown');
+  assert.equal(unsupported.executionInfo().loading, null, 'an acquired adapter cannot inherit the deferred loading flag');
 } finally {
   __setAdapterFactoryForTests(null);
 }

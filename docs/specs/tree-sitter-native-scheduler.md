@@ -14,6 +14,17 @@ Run Stage1 code-mode tree-sitter chunking through a native scheduler-driven pipe
 - Parser pool lifecycle for scheduled grammar work.
 - Scheduler artifact contracts consumed by file processing.
 
+Wave ordering sorts admitted groups by wave, bucket and grammar key, including
+every same-wave group. Missing wave metadata defaults to one; supplied metadata
+must be positive safe integers. Sparse wave numbers do not create empty numeric
+iterations or change the number of admitted tasks.
+
+An errored parser task retains its scheduler admission when its original child
+cleanup is unconfirmed. The public failure remains observable, while CPU, I/O,
+memory, byte reservations and scheduler drain stay owned until the captured
+resource settlement confirms release. Replacing diagnostic fields cannot grant
+that authority or admit a replacement child.
+
 Out of scope:
 
 - Mixed native + WASM fallback runtime policy.

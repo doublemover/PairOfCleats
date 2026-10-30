@@ -2,10 +2,12 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { readJsonFile } from '../../shared/artifact-io/json.js';
-import { loadGraphRelationsSync, loadJsonArrayArtifactSync } from '../../shared/artifact-io/loaders.js';
+import { loadFileMetaRows, loadGraphRelationsSync, loadJsonArrayArtifactSync } from '../../shared/artifact-io/loaders.js';
+import { MAX_JSON_BYTES } from '../../shared/artifact-io/constants.js';
 import { mergeSortedRuns } from '../../shared/merge.js';
 import { compareWithAntisymmetryInvariant } from '../../shared/invariants.js';
-import { createJsonWriteStream, writeChunk } from '../../shared/json-stream/streams.js';
+import { writeChunk } from '../../shared/json-stream/streams.js';
+import { withMapJsonPublication } from './publication.js';
 import { stringifyJsonValue, writeJsonValue } from '../../shared/json-stream/encode.js';
 import { writeJsonLinesFile } from '../../shared/json-stream/jsonl-write.js';
 import { removePathWithRetry } from '../../shared/io/remove-path-with-retry.js';
@@ -59,6 +61,28 @@ export const hydrateChunkMeta = (chunks, fileMetaRaw) => {
   return chunks;
 };
 
+export const readMapFileMeta = async (dir, warnings, { strict = true } = {}) => {
+  const rows = [];
+  let bytes = 0;
+  try {
+    for await (const row of loadFileMetaRows(dir, { strict, maxBytes: MAX_JSON_BYTES })) {
+      // Retain only the inventory and hydration columns, with an aggregate bound
+      // across shards as well as the canonical loader's per-source bounds.
+      const item = { id: row.id, file: row.file, ext: row.ext || null };
+      bytes += Buffer.byteLength(JSON.stringify(item), 'utf8');
+      if (bytes > MAX_JSON_BYTES) throw Object.assign(new Error('Map file inventory exceeds byte budget'), {
+        code: 'ERR_ARTIFACT_TOO_LARGE'
+      });
+      rows.push(item);
+    }
+    return { rows, status: 'complete' };
+  } catch (error) {
+    if (strict && error.code !== 'ERR_MANIFEST_ENTRY_MISSING') throw error;
+    warnings.push(`file_meta inventory unavailable: ${error.message}`);
+    return { rows: [], status: 'unavailable' };
+  }
+};
+
 export const resolveJsonBytes = (value) => Buffer.byteLength(stringifyJsonValue(value), 'utf8');
 
 const createGuard = ({ label, maxBytes, optionName }) => {
@@ -101,8 +125,7 @@ export const writeMapJsonStream = async ({
   edges,
   guards = {}
 }) => {
-  const { stream, done } = createJsonWriteStream(filePath, { atomic: true });
-  try {
+  return withMapJsonPublication(filePath, async stream => {
     await writeChunk(stream, '{');
     let first = true;
     const writeField = async (key, value, writer) => {
@@ -150,13 +173,7 @@ export const writeMapJsonStream = async ({
       await writeField(key, mapBase[key]);
     }
     await writeChunk(stream, '}');
-    stream.end();
-    await done;
-  } catch (err) {
-    try { stream.destroy(err); } catch {}
-    try { await done; } catch {}
-    throw err;
-  }
+  });
 };
 
 export const createSpillSorter = ({ label, compare, maxInMemory = 5000, tempDir }) => {

@@ -10,6 +10,7 @@ import { redactAbsolutePaths, redactSearchResponseMetadata } from '../../../tool
 import { parseSseEvents } from '../../helpers/api-server.js';
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 import { withTemporaryEnv } from '../../helpers/test-env.js';
+import { normalizeIdentityPath } from '../../../src/workspace/identity.js';
 
 // Inspect decoded values: JSON escaping can hide Windows paths from substring checks.
 const assertNoAbsolutePaths = (value) => {
@@ -63,7 +64,7 @@ await withTemporaryEnv({
   PAIROFCLEATS_CACHE_ROOT: cacheRoot
 }, async () => {
   const localStatus = await status(repoRoot);
-  assert.equal(localStatus.repo.root, repoRoot, 'local core status must retain repository identity');
+  assert.equal(normalizeIdentityPath(localStatus.repo.root), normalizeIdentityPath(repoRoot), 'local core status must retain repository identity');
   const router = createApiRouter({
     host: '127.0.0.1',
     defaultRepo: repoRoot,

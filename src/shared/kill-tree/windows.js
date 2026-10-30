@@ -1,5 +1,6 @@
-import { runSyncCommandWithTimeout, toSyncCommandExitCode } from '../subprocess/sync-command.js';
+import { spawnSync } from 'node:child_process';
 import { scheduleUnrefTimer, wait } from './shared.js';
+import path from 'node:path';
 
 const DEFAULT_WINDOWS_TASKKILL_TIMEOUT_MS = 2000;
 const WINDOWS_DESCENDANT_DISCOVERY_TIMEOUT_MS = 2000;
@@ -7,25 +8,124 @@ const WINDOWS_DESCENDANT_KILL_LIMIT = 2048;
 const WINDOWS_TASKLIST_TIMEOUT_MS = 2000;
 const WINDOWS_DESCENDANT_KILL_BUDGET_MS = 4000;
 
-const parseWindowsPidList = (value) => {
-  const raw = String(value || '').trim();
-  if (!raw) return [];
-  try {
-    const parsed = JSON.parse(raw);
-    const list = Array.isArray(parsed) ? parsed : [parsed];
-    return list
-      .map((entry) => Number(entry))
-      .filter((entry) => Number.isFinite(entry) && entry > 0)
-      .map((entry) => Math.floor(entry));
-  } catch {
-    return [];
+// Native leaf helpers never launch application work. Bound them directly so a
+// stalled taskkill/snapshot cannot recursively enter the tree-cleanup owner.
+const runWindowsHelperSync = (command, args, { timeoutMs, ...options }) => {
+  try { return spawnSync(command, args, { ...options, timeout: timeoutMs }); }
+  catch (error) { return { pid: null, status: null, signal: null, stdout: '', stderr: '', error }; }
+};
+const toSyncCommandExitCode = result => Number.isFinite(result?.status) ? result.status : null;
+
+/** Node 26 supports 64-bit Windows; bind its native system helper, independently of PATH. */
+export const resolveWindowsPowerShellPath = (env = process.env) => {
+  const systemRoot = env.SystemRoot || env.SYSTEMROOT || env.windir || env.WINDIR;
+  if (typeof systemRoot !== 'string' || !/^[A-Za-z]:[\\/]/.test(systemRoot)) return null;
+  return path.win32.join(systemRoot, 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe');
+};
+
+// Toolhelp reads the native process snapshot without a WMI provider or C# compiler.
+// PROCESSENTRY32W layout: tlhelp32.h; reject anything except complete enumeration.
+export const WINDOWS_PROCESS_SNAPSHOT_SCRIPT = String.raw`$ErrorActionPreference = 'Stop'
+[Console]::Error.WriteLine('lineage:script-start')
+$clock = [Diagnostics.Stopwatch]::StartNew()
+if ([IntPtr]::Size -ne 8) { throw 'Process snapshot requires the supported 64-bit Windows runtime.' }
+$assembly = [AppDomain]::CurrentDomain.DefineDynamicAssembly([Reflection.AssemblyName]::new('PocProcessSnapshot'), [Reflection.Emit.AssemblyBuilderAccess]::Run)
+[Console]::Error.WriteLine('lineage:assembly-ready elapsedMs=' + $clock.ElapsedMilliseconds)
+$module = $assembly.DefineDynamicModule('Native')
+$builder = $module.DefineType('PocProcessSnapshot', [Reflection.TypeAttributes]'Public, Abstract, Sealed')
+$attributeType = [Runtime.InteropServices.DllImportAttribute]
+$constructor = $attributeType.GetConstructor([Type[]]@([string]))
+$fields = [Reflection.FieldInfo[]]@($attributeType.GetField('SetLastError'), $attributeType.GetField('ExactSpelling'))
+$attribute = [Reflection.Emit.CustomAttributeBuilder]::new($constructor, [object[]]@('kernel32.dll'), $fields, [object[]]@($true, $true))
+[Console]::Error.WriteLine('lineage:signature-ready elapsedMs=' + $clock.ElapsedMilliseconds)
+function Add-NativeMethod([string]$name, [Type]$returnType, [Type[]]$parameters) {
+  $method = $builder.DefineMethod($name, [Reflection.MethodAttributes]'Public, Static, PinvokeImpl', $returnType, $parameters)
+  $method.SetCustomAttribute($attribute)
+  $method.SetImplementationFlags([Reflection.MethodImplAttributes]::PreserveSig)
+}
+Add-NativeMethod 'CreateToolhelp32Snapshot' ([IntPtr]) ([Type[]]@([uint32], [uint32]))
+Add-NativeMethod 'Process32FirstW' ([bool]) ([Type[]]@([IntPtr], [IntPtr]))
+Add-NativeMethod 'Process32NextW' ([bool]) ([Type[]]@([IntPtr], [IntPtr]))
+Add-NativeMethod 'CloseHandle' ([bool]) ([Type[]]@([IntPtr]))
+$native = $builder.CreateType()
+[Console]::Error.WriteLine('lineage:interop-ready elapsedMs=' + $clock.ElapsedMilliseconds)
+$entrySize = 568
+$parentOffset = 32
+$buffer = [IntPtr]::Zero
+$snapshot = [IntPtr]::new(-1)
+$rows = [Text.StringBuilder]::new()
+try {
+  $buffer = [Runtime.InteropServices.Marshal]::AllocHGlobal($entrySize)
+  [Runtime.InteropServices.Marshal]::WriteInt32($buffer, $entrySize)
+  $snapshot = $native::CreateToolhelp32Snapshot(2, 0)
+  if ($snapshot -eq [IntPtr]::new(-1)) { throw [ComponentModel.Win32Exception]::new([Runtime.InteropServices.Marshal]::GetLastWin32Error()) }
+  [Console]::Error.WriteLine('lineage:snapshot-ready elapsedMs=' + $clock.ElapsedMilliseconds)
+  $more = $native::Process32FirstW($snapshot, $buffer)
+  while ($more) {
+    $processId = [int64][Runtime.InteropServices.Marshal]::ReadInt32($buffer, 8) -band 4294967295L
+    $parentId = [int64][Runtime.InteropServices.Marshal]::ReadInt32($buffer, $parentOffset) -band 4294967295L
+    [void]$rows.Append($processId).Append(' ').Append($parentId).AppendLine()
+    $more = $native::Process32NextW($snapshot, $buffer)
   }
+  $lastError = [Runtime.InteropServices.Marshal]::GetLastWin32Error()
+  if ($lastError -ne 18) { throw [ComponentModel.Win32Exception]::new($lastError) }
+} finally {
+  if ($buffer -ne [IntPtr]::Zero) { [Runtime.InteropServices.Marshal]::FreeHGlobal($buffer) }
+  if ($snapshot -ne [IntPtr]::new(-1)) {
+    if (!$native::CloseHandle($snapshot)) { throw [ComponentModel.Win32Exception]::new([Runtime.InteropServices.Marshal]::GetLastWin32Error()) }
+  }
+  [Console]::Error.WriteLine('lineage:resources-closed elapsedMs=' + $clock.ElapsedMilliseconds)
+}
+[Console]::Out.Write($rows.ToString())
+[Console]::Error.WriteLine('lineage:rows-written elapsedMs=' + $clock.ElapsedMilliseconds)
+`;
+
+/** Keep engine startup distinct from parsing/executing the larger native script.
+ * The fixed launcher reads a private stdin payload; no shell/PATH lookup occurs.
+ * This preserves the production deadline and makes pre-script stalls observable.
+ */
+export const createWindowsProcessSnapshotRequest = ({ env = process.env,
+  script = WINDOWS_PROCESS_SNAPSHOT_SCRIPT } = {}) => {
+  const command = resolveWindowsPowerShellPath(env);
+  if (!command) return null;
+  return { command, args: ['-NoProfile', '-NonInteractive', '-Command',
+    "[Console]::Error.WriteLine('lineage:engine-ready'); & ([ScriptBlock]::Create([Console]::In.ReadToEnd()))"],
+  options: { input: script, stdio: ['pipe', 'pipe', 'pipe'], encoding: 'utf8', windowsHide: true,
+    timeoutMs: WINDOWS_DESCENDANT_DISCOVERY_TIMEOUT_MS } };
+};
+
+/** Walk a complete lineage-only snapshot without per-process shell objects. */
+export const resolveWindowsDescendantPids = (value, rootPid) => {
+  const children = new Map(), processIds = new Set();
+  const raw = String(value || '').trim();
+  for (const line of raw ? raw.split(/\r?\n/) : []) {
+    const pair = /^(\d+) (\d+)$/.exec(line);
+    const pid = Number(pair?.[1]), parent = Number(pair?.[2]);
+    if (!pair || !Number.isSafeInteger(pid) || pid < 0 || pid > 0xffffffff
+      || !Number.isSafeInteger(parent) || parent < 0 || parent > 0xffffffff || processIds.has(pid)) {
+      throw Object.assign(new Error('Invalid Windows process lineage snapshot.'), { code: 'ERR_WINDOWS_PROCESS_SNAPSHOT' });
+    }
+    processIds.add(pid);
+    if (pid === 0) continue; // The native snapshot includes the system idle row.
+    if (!children.has(parent)) children.set(parent, []);
+    children.get(parent).push(pid);
+  }
+  const queue = [Number(rootPid)], seen = new Set(queue), descendants = [];
+  for (let index = 0; index < queue.length; index += 1) {
+    for (const pid of children.get(queue[index]) || []) {
+      if (seen.has(pid)) continue;
+      seen.add(pid);
+      descendants.push(pid);
+      queue.push(pid);
+    }
+  }
+  return descendants;
 };
 
 export const isWindowsPidAlive = (pid) => {
   const numericPid = Number(pid);
   if (!Number.isFinite(numericPid) || numericPid <= 0) return false;
-  const result = runSyncCommandWithTimeout(
+  const result = runWindowsHelperSync(
     'tasklist',
     ['/FI', `PID eq ${Math.floor(numericPid)}`, '/FO', 'CSV', '/NH'],
     {
@@ -45,48 +145,26 @@ export const isWindowsPidAlive = (pid) => {
 };
 
 const discoverWindowsDescendantPidsSync = (rootPid) => {
-  const script = [
-    '$ErrorActionPreference = "Stop"',
-    '$rootPid = [int]$env:POC_ROOT_PID',
-    '$children = @{}',
-    '$procs = Get-CimInstance Win32_Process | Select-Object ProcessId, ParentProcessId',
-    'foreach ($p in $procs) {',
-    '  $pp = [int]$p.ParentProcessId',
-    '  if (-not $children.ContainsKey($pp)) { $children[$pp] = New-Object System.Collections.Generic.List[int] }',
-    '  [void]$children[$pp].Add([int]$p.ProcessId)',
-    '}',
-    '$queue = New-Object System.Collections.Generic.Queue[int]',
-    '$seen = New-Object System.Collections.Generic.HashSet[int]',
-    '$out = New-Object System.Collections.Generic.List[int]',
-    '$queue.Enqueue($rootPid)',
-    '[void]$seen.Add($rootPid)',
-    'while ($queue.Count -gt 0) {',
-    '  $current = $queue.Dequeue()',
-    '  if (-not $children.ContainsKey($current)) { continue }',
-    '  foreach ($childPid in $children[$current]) {',
-    '    if ($childPid -le 0) { continue }',
-    '    if (-not $seen.Add($childPid)) { continue }',
-    '    [void]$out.Add($childPid)',
-    '    $queue.Enqueue($childPid)',
-    '  }',
-    '}',
-    '$out | ConvertTo-Json -Compress'
-  ].join('; ');
-  const result = runSyncCommandWithTimeout(
-    'powershell.exe',
-    ['-NoProfile', '-NonInteractive', '-Command', script],
-    {
-      stdio: ['ignore', 'pipe', 'ignore'],
-      encoding: 'utf8',
-      timeoutMs: WINDOWS_DESCENDANT_DISCOVERY_TIMEOUT_MS,
-      env: {
-        ...process.env,
-        POC_ROOT_PID: String(rootPid)
-      }
-    }
+  const startedAt = Date.now();
+  const request = createWindowsProcessSnapshotRequest();
+  if (!request) return { pids: [], diagnostic: { exitCode: null,
+    errorCode: 'ERR_WINDOWS_SYSTEM_ROOT', durationMs: 0, discoveredCount: 0, stderr: '' } };
+  const result = runWindowsHelperSync(
+    request.command, request.args, request.options
   );
-  if (toSyncCommandExitCode(result) !== 0) return [];
-  return parseWindowsPidList(result.stdout);
+  const exitCode = toSyncCommandExitCode(result);
+  let pids = [], parseError = null;
+  if (exitCode === 0 && !result?.error) {
+    try { pids = resolveWindowsDescendantPids(result.stdout, rootPid); }
+    catch (error) { parseError = error; }
+  }
+  return { pids, diagnostic: {
+    exitCode,
+    errorCode: result?.error?.code || parseError?.code || null,
+    durationMs: Date.now() - startedAt,
+    discoveredCount: pids.length,
+    stderr: String(result?.stderr || '').slice(-2048)
+  } };
 };
 
 const killWindowsOrphanDescendantsSync = (
@@ -99,9 +177,10 @@ const killWindowsOrphanDescendantsSync = (
   const resolvedBudgetMs = Number.isFinite(Number(budgetMs))
     ? Math.max(0, Math.floor(Number(budgetMs)))
     : WINDOWS_DESCENDANT_KILL_BUDGET_MS;
-  const descendants = discoverWindowsDescendantPidsSync(rootPid).slice(0, WINDOWS_DESCENDANT_KILL_LIMIT);
+  const discovery = discoverWindowsDescendantPidsSync(rootPid);
+  const descendants = discovery.pids.slice(0, WINDOWS_DESCENDANT_KILL_LIMIT);
   if (!descendants.length) {
-    return { attempted: false, terminatedCount: 0 };
+    return { attempted: false, terminatedCount: 0, discovery: discovery.diagnostic };
   }
   const startedAtMs = Date.now();
   let terminatedCount = 0;
@@ -111,7 +190,7 @@ const killWindowsOrphanDescendantsSync = (
     }
     if (!Number.isFinite(pid) || pid <= 0 || pid === rootPid) continue;
     try {
-      const result = runSyncCommandWithTimeout('taskkill', ['/PID', String(pid), '/T', '/F'], {
+      const result = runWindowsHelperSync('taskkill', ['/PID', String(pid), '/T', '/F'], {
         stdio: 'ignore',
         timeoutMs: DEFAULT_WINDOWS_TASKKILL_TIMEOUT_MS
       });
@@ -122,7 +201,8 @@ const killWindowsOrphanDescendantsSync = (
   }
   return {
     attempted: true,
-    terminatedCount
+    terminatedCount,
+    discovery: discovery.diagnostic
   };
 };
 
@@ -131,6 +211,7 @@ const applyWindowsFallbackKill = (pid, state) => {
   const fallback = killWindowsOrphanDescendantsSync(pid);
   state.fallbackAttempted = fallback.attempted;
   state.fallbackTerminated = fallback.terminatedCount;
+  state.fallbackDiscovery = fallback.discovery;
   if (fallback.terminatedCount > 0) {
     state.terminated = true;
     state.forced = true;
@@ -146,7 +227,7 @@ export const killWindowsTree = async (pid, { graceMs, awaitGrace = true }) => {
     fallbackTerminated: 0
   };
   try {
-    const graceful = runSyncCommandWithTimeout('taskkill', baseArgs, {
+    const graceful = runWindowsHelperSync('taskkill', baseArgs, {
       stdio: 'ignore',
       timeoutMs: DEFAULT_WINDOWS_TASKKILL_TIMEOUT_MS
     });
@@ -162,7 +243,7 @@ export const killWindowsTree = async (pid, { graceMs, awaitGrace = true }) => {
     if (graceMs > 0) {
       scheduleUnrefTimer(graceMs, () => {
         if (!isWindowsPidAlive(pid)) return;
-        runSyncCommandWithTimeout('taskkill', [...baseArgs, '/F'], {
+        runWindowsHelperSync('taskkill', [...baseArgs, '/F'], {
           stdio: 'ignore',
           timeoutMs: DEFAULT_WINDOWS_TASKKILL_TIMEOUT_MS
         });
@@ -170,7 +251,7 @@ export const killWindowsTree = async (pid, { graceMs, awaitGrace = true }) => {
       return { ...state, forced: false };
     }
     try {
-      const forcedKill = runSyncCommandWithTimeout('taskkill', [...baseArgs, '/F'], {
+      const forcedKill = runWindowsHelperSync('taskkill', [...baseArgs, '/F'], {
         stdio: 'ignore',
         timeoutMs: DEFAULT_WINDOWS_TASKKILL_TIMEOUT_MS
       });
@@ -182,7 +263,7 @@ export const killWindowsTree = async (pid, { graceMs, awaitGrace = true }) => {
     return state;
   }
   try {
-    const forcedKill = runSyncCommandWithTimeout('taskkill', [...baseArgs, '/F'], {
+    const forcedKill = runWindowsHelperSync('taskkill', [...baseArgs, '/F'], {
       stdio: 'ignore',
       timeoutMs: DEFAULT_WINDOWS_TASKKILL_TIMEOUT_MS
     });
@@ -204,7 +285,7 @@ export const killWindowsTreeSync = (pid) => {
     fallbackTerminated: 0
   };
   try {
-    const graceful = runSyncCommandWithTimeout('taskkill', baseArgs, {
+    const graceful = runWindowsHelperSync('taskkill', baseArgs, {
       stdio: 'ignore',
       timeoutMs: DEFAULT_WINDOWS_TASKKILL_TIMEOUT_MS
     });
@@ -216,7 +297,7 @@ export const killWindowsTreeSync = (pid) => {
     return { ...state, terminated: true, forced: false };
   }
   try {
-    const forcedKill = runSyncCommandWithTimeout('taskkill', [...baseArgs, '/F'], {
+    const forcedKill = runWindowsHelperSync('taskkill', [...baseArgs, '/F'], {
       stdio: 'ignore',
       timeoutMs: DEFAULT_WINDOWS_TASKKILL_TIMEOUT_MS
     });

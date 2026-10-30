@@ -15,6 +15,10 @@ try {
   const safe = quantizeEmbeddingVector([0, 0.5, -0.5], -1, 1, 256);
   assert.equal(safe.length, 3);
   assert.equal(warnings.length, 0, 'expected no warning for in-range values');
+  for (const quantize of [quantizeEmbeddingVector, quantizeEmbeddingVectorUint8]) {
+    assert.deepEqual(Array.from(quantize([-1, -0.9999, 0.9999, 1], -1, 1, 256)), [0, 0, 255, 255]);
+    assert.equal(warnings.length, 0, 'inclusive endpoints and rounding to an endpoint do not clamp out-of-range input');
+  }
 
   const clamped = quantizeEmbeddingVectorUint8([999, -999], -1, 1, 256);
   assert.equal(clamped.length, 2);

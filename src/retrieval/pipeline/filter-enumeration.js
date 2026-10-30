@@ -1,4 +1,5 @@
 import { resolveReturnTypeFacts } from '../output/filters/type-expression.js';
+import { METADATA_PREDICATE_VERSION } from '../effective-filter-facts.js';
 import { createHash } from 'node:crypto';
 import { stableStringify } from '../../shared/stable-json.js';
 import { createError, ERROR_CODES } from '../../shared/error-codes.js';
@@ -19,6 +20,9 @@ const metadataId = meta => {
   return metadataIds.get(meta);
 };
 const admitMatches = (key, ids) => {
+  const existing = matchesCache.get(key);
+  if (existing) { cachedBytes -= existing.byteLength; matchesCache.delete(key); }
+  if (ids.byteLength > CACHE_BYTES) return;
   while (matchesCache.size >= 32 || cachedBytes + ids.byteLength > CACHE_BYTES) {
     const oldest = matchesCache.keys().next().value;
     if (!oldest) break;
@@ -29,9 +33,23 @@ const admitMatches = (key, ids) => {
 
 /** A cursor is bound to both the indexed generation and the exact filters. */
 export function createFilterEnumeration({ cursor = null, filters, modes, generation, cacheDir = null }) {
-  const generationHash = digest(generation);
+  // Both loader and search-session constructors use this owner. Preserve
+  // selected roots and artifact signatures, while API-only invocation context
+  // cannot change cursor identity for a direct CLI over the same generation.
+  const hasSelectedRoots = generation?.generationByMode && Object.values(generation.generationByMode)
+    .every(info => info === null || typeof info?.canonicalIndexDir === 'string' && info.canonicalIndexDir.length > 0);
+  const cursorGeneration = hasSelectedRoots ? {
+    ...generation,
+    generationByMode: Object.fromEntries(Object.entries(generation.generationByMode)
+      .map(([mode, info]) => [mode, info ? {
+        buildId: info.buildId, artifactSurfaceVersion: info.artifactSurfaceVersion,
+        canonicalIndexDir: info.canonicalIndexDir
+      } : null]))
+  } : generation;
+  const generationHash = digest(cursorGeneration);
   const relativeTime = filters.modifiedSinceDays != null;
-  const requestHash = digest({ version: VERSION, filters: relativeTime ? { ...filters, modifiedAfter: null } : filters, modes });
+  const requestHash = digest({ version: VERSION, predicateVersion: METADATA_PREDICATE_VERSION,
+    filters: relativeTime ? { ...filters, modifiedAfter: null } : filters, modes });
   let modifiedAfter = relativeTime ? filters.modifiedAfter : null;
   let offsets = Object.fromEntries(modes.map((mode) => [mode, 0]));
   if (cursor != null) {
@@ -136,7 +154,7 @@ export async function enumerateFilterMatches({ meta, allowed, match = null, mode
   throwIfAborted?.();
   enumeration.byMode[mode] = { offset, total, matched: hits.length, cost: {
     scannedMetadata: scanned, hydratedHits: hits.length, yieldedCheckpoints: yielded, metadataRetainedRows: meta.length,
-    matchingRepresentation: cached ? 'warm' : diskPage ? 'persisted-seek' : matchesCache.has(key) ? 'admitted' : 'entry-byte-limit',
+    matchingRepresentation: cached ? 'warm' : diskPage ? diskPage.representation || 'persisted-seek' : matchesCache.has(key) ? 'admitted' : 'entry-byte-limit',
     cacheBytes: cachedBytes, persisted: saved, continuationReadBytes: diskPage?.readBytes || 0,
     startupWork: loadCost || { kind: 'caller-supplied-metadata', metadataLoadedRows: null }
   } };

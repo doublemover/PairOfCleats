@@ -4,9 +4,10 @@ import { ARTIFACT_SURFACE_VERSION } from '../../../../src/contracts/versioning.j
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { writeBundleFile } from '../../../../src/shared/bundle-io.js';
+import { writeIncrementalBundleSnapshot } from '../../../../src/index/build/incremental/bundle-snapshot.js';
 import { incrementalUpdateDatabase } from '../../../../src/storage/sqlite/build/incremental-update.js';
 import { CREATE_TABLES_BASE_SQL, SCHEMA_VERSION } from '../../../../src/storage/sqlite/schema.js';
+import { sqliteBundleIdentity } from '../../../../src/storage/sqlite/bundle-identity.js';
 
 import { resolveTestCachePath } from '../../../helpers/test-cache.js';
 
@@ -26,26 +27,10 @@ try {
 await fsPromises.rm(tempRoot, { recursive: true, force: true });
 await fsPromises.mkdir(bundleDir, { recursive: true });
 
-const db = new Database(dbPath);
-db.exec(CREATE_TABLES_BASE_SQL);
-db.exec('CREATE TABLE dense_vectors_ann (rowid INTEGER PRIMARY KEY, embedding BLOB)');
-db.pragma(`user_version = ${SCHEMA_VERSION}`);
-writeSqliteIndexFormat(db);
-const insertManifest = db.prepare(
-  'INSERT INTO file_manifest (mode, file, hash, mtimeMs, size, chunk_count) VALUES (?, ?, ?, ?, ?, ?)'
-);
-insertManifest.run('code', 'sample.txt', 'old-hash', 120, 5, 0);
-insertManifest.run('code', 'keep-1.txt', 'keep-1', 120, 1, 0);
-insertManifest.run('code', 'keep-2.txt', 'keep-2', 120, 1, 0);
-insertManifest.run('code', 'keep-3.txt', 'keep-3', 120, 1, 0);
-db.close();
-
-const bundleName = 'bundle.json';
-const bundlePath = path.join(bundleDir, bundleName);
-await writeBundleFile({
-  bundlePath,
+const selectedEntry = { mtimeMs: 123, size: 5, hash: 'abc' };
+const snapshot = await writeIncrementalBundleSnapshot({ bundleDir, relKey: 'sample.txt', entry: selectedEntry,
   format: 'json',
-  bundle: {
+  bundles: [{ file: 'sample.txt', hash: 'abc', size: 5,
     chunks: [
       {
         file: 'sample.txt',
@@ -55,22 +40,41 @@ await writeBundleFile({
         embedding: [0.1, 0.2]
       }
     ]
-  }
+  }]
 });
-
 const manifest = { artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
   files: {
     'sample.txt': {
-      bundles: [bundleName],
-      mtimeMs: 123,
-      size: 5,
-      hash: 'abc'
-    },
-    'keep-1.txt': { bundles: [bundleName], mtimeMs: 120, size: 1, hash: 'keep-1' },
-    'keep-2.txt': { bundles: [bundleName], mtimeMs: 120, size: 1, hash: 'keep-2' },
-    'keep-3.txt': { bundles: [bundleName], mtimeMs: 120, size: 1, hash: 'keep-3' }
+      ...selectedEntry,
+      ...snapshot
+    }
   }
 };
+for (const ordinal of [1, 2, 3]) {
+  const file = `keep-${ordinal}.txt`;
+  const entry = { mtimeMs: 120, size: 1, hash: `keep-${ordinal}` };
+  manifest.files[file] = { ...entry, ...await writeIncrementalBundleSnapshot({ bundleDir, relKey: file, entry,
+    bundles: [{ file, ...entry, chunks: [] }] }) };
+}
+const previousEntry = { mtimeMs: 120, size: 5, hash: 'old-hash' };
+const previousSnapshot = await writeIncrementalBundleSnapshot({ bundleDir, relKey: 'sample.txt', entry: previousEntry,
+  bundles: [{ file: 'sample.txt', ...previousEntry, chunks: [] }] });
+const db = new Database(dbPath);
+try {
+  db.exec(CREATE_TABLES_BASE_SQL);
+  db.exec('CREATE TABLE dense_vectors_ann (rowid INTEGER PRIMARY KEY, embedding BLOB)');
+  db.pragma(`user_version = ${SCHEMA_VERSION}`);
+  writeSqliteIndexFormat(db);
+  const insertManifest = db.prepare(
+    'INSERT INTO file_manifest (mode, file, hash, mtimeMs, size, chunk_count, bundle_hash) VALUES (?, ?, ?, ?, ?, ?, ?)'
+  );
+  insertManifest.run('code', 'sample.txt', previousEntry.hash, previousEntry.mtimeMs, previousEntry.size, 0,
+    sqliteBundleIdentity({ ...previousEntry, ...previousSnapshot }));
+  for (const ordinal of [1, 2, 3]) {
+    const file = `keep-${ordinal}.txt`, entry = manifest.files[file];
+    insertManifest.run('code', file, entry.hash, entry.mtimeMs, entry.size, 0, sqliteBundleIdentity(entry));
+  }
+} finally { db.close(); }
 
 const result = await incrementalUpdateDatabase({
   Database,

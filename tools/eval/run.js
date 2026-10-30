@@ -1,28 +1,28 @@
 #!/usr/bin/env node
+import { EVAL_OPTIONS } from '../shared/operator-cli-options.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import { createCli } from '../../src/shared/cli.js';
 import { createToolDisplay } from '../shared/cli-display.js';
 import { search as coreSearch } from '../../src/integrations/core/index.js';
 import { createSqliteDbCache } from '../../src/retrieval/sqlite-cache.js';
+import { resolveEvaluationCohorts, selectEvaluationCohort, judgmentsForCohort } from './cohorts.js';
 import { matchExpected, resolveMatchMode } from './match.js';
+import { collectExpectedJudgments, computeMRR, computeNDCG, computeRecallAtK } from './metrics.js';
+import { evaluateDatasetVectorReplay } from './vector-oracle.js';
+import { evaluateDatasetFusionReplay } from './fusion-replay.js';
+import { evaluateDatasetShadowRouting } from './shadow-routing.js';
+import { evaluateDatasetTaskSpans } from './task-spans.js';
+import { runEvaluationResourceScope } from './resource-scope.js';
+import { captureEvaluationDatasetCases } from './dataset-admission.js';
+import { createEvaluationDepthPlan, evaluationDepthCoverage } from './depth-plan.js';
+import { buildEvaluationSummary } from './summary.js';
+import { captureEvaluationSearchPlan } from './search-plan.js';
+import { captureLiveEvaluationInput, createRetrievalEvidenceRegistry } from '../shared/retrieval-execution-evidence.js';
 
 const argv = createCli({
   scriptName: 'eval-run',
-  options: {
-    repo: { type: 'string' },
-    dataset: { type: 'string' },
-    backend: { type: 'string', default: 'auto' },
-    top: { type: 'number', default: 10 },
-    limit: { type: 'number', default: 0 },
-    ann: { type: 'boolean' },
-    out: { type: 'string' },
-    pretty: { type: 'boolean', default: false },
-    'match-mode': { type: 'string' },
-    progress: { type: 'string', default: 'auto' },
-    verbose: { type: 'boolean', default: false },
-    quiet: { type: 'boolean', default: false }
-  },
+  options: EVAL_OPTIONS,
   aliases: { n: 'top' }
 }).parse();
 
@@ -46,7 +46,6 @@ const backend = argv.backend ? String(argv.backend) : 'auto';
 const topN = Math.max(1, parseInt(argv.top, 10) || 10);
 const limit = Math.max(0, parseInt(argv.limit, 10) || 0);
 const annFlag = typeof argv.ann === 'boolean' ? argv.ann : null;
-const ks = [1, 3, 5, 10].filter((k) => k <= Math.max(10, topN));
 const matchMode = (() => {
   try {
     return resolveMatchMode(argv['match-mode']);
@@ -54,68 +53,25 @@ const matchMode = (() => {
     fail(err?.message || 'Invalid match mode.', 2);
   }
 })();
+const evaluationPlan = createEvaluationDepthPlan(topN, matchMode);
+const ks = evaluationPlan.cutoffs;
 
 const loadDataset = () => {
   const raw = fs.readFileSync(datasetPath, 'utf8');
   const data = JSON.parse(raw);
-  if (!Array.isArray(data)) return [];
+  if (!Array.isArray(data)) throw Object.assign(new Error('Evaluation dataset must be an array of cases.'), { code: 'ERR_EVAL_DATASET' });
   return data;
 };
 
 const isMatch = (hit, expected) => matchExpected(hit, expected, matchMode);
 
-const computeRecallAtK = (ranks, totalRelevant, k) => {
-  if (!totalRelevant) return 0;
-  const found = ranks.filter((rank) => rank <= k).length;
-  return found / totalRelevant;
-};
-
-const computeMRR = (ranks) => {
-  if (!ranks.length) return 0;
-  return 1 / Math.min(...ranks);
-};
-
-const computeNDCG = (ranks, totalRelevant, k) => {
-  if (!totalRelevant) return 0;
-  const hits = ranks.filter((rank) => rank <= k).sort((a, b) => a - b);
-  if (!hits.length) return 0;
-  const dcg = hits.reduce((sum, rank) => sum + 1 / Math.log2(rank + 1), 0);
-  const idealCount = Math.min(totalRelevant, k);
-  let idcg = 0;
-  for (let i = 1; i <= idealCount; i += 1) {
-    idcg += 1 / Math.log2(i + 1);
-  }
-  return idcg ? dcg / idcg : 0;
-};
-
-const collectExpectedRanks = (hits, expectedItems, isMatchFn) => {
-  if (!Array.isArray(hits) || !Array.isArray(expectedItems) || !expectedItems.length) return [];
-  const ranks = [];
-  for (const expected of expectedItems) {
-    const index = hits.findIndex((hit) => isMatchFn(hit, expected));
-    if (index >= 0) ranks.push(index + 1);
-  }
-  return ranks;
-};
-
-const runSearch = async (query, mode) => {
-  const args = ['--json', '--repo', repoRoot, '-n', String(topN)];
-  if (mode && mode !== 'both') args.push('--mode', mode);
-  if (backend && backend !== 'auto') args.push('--backend', backend);
-  if (annFlag === true) args.push('--ann');
-  if (annFlag === false) args.push('--no-ann');
-
+const runSearch = async (request) => {
   const payload = await coreSearch(repoRoot, {
-    args,
-    query,
-    emitOutput: false,
-    exitOnError: false,
+    ...request,
     indexCache: evalCaches.indexCache,
     sqliteCache: evalCaches.sqliteCache
   });
-  if (mode === 'code') return payload.code || [];
-  if (mode === 'prose') return payload.prose || [];
-  return [...(payload.code || []), ...(payload.prose || [])];
+  return payload;
 };
 
 const evalCaches = {
@@ -123,96 +79,90 @@ const evalCaches = {
   sqliteCache: createSqliteDbCache()
 };
 
-const allCases = loadDataset();
-const cases = limit > 0 ? allCases.slice(0, limit) : allCases;
-if (!cases.length) {
-  fail(`No eval cases found at ${datasetPath}`);
-}
-
-const results = [];
-const queryTask = display.task('Queries', { total: cases.length, stage: 'queries' });
-let processedCases = 0;
-for (const entry of cases) {
-  const query = String(entry?.query || '').trim();
-  if (!query) continue;
-  const mode = entry.mode || 'both';
-  const silver = Array.isArray(entry.relevant)
-    ? entry.relevant
-    : (Array.isArray(entry.expect) ? entry.expect : []);
-  const gold = Array.isArray(entry.gold) ? entry.gold : [];
-
-  const hits = await runSearch(query, mode);
-  const ranks = collectExpectedRanks(hits, silver, isMatch);
-  const goldRanks = collectExpectedRanks(hits, gold, isMatch);
-
-  const metrics = {
-    recallAtK: Object.fromEntries(ks.map((k) => [k, computeRecallAtK(ranks, silver.length, k)])),
-    mrr: computeMRR(ranks),
-    ndcgAtK: Object.fromEntries(ks.map((k) => [k, computeNDCG(ranks, silver.length, k)]))
-  };
-  const goldMetrics = gold.length
-    ? {
-      recallAtK: Object.fromEntries(ks.map((k) => [k, computeRecallAtK(goldRanks, gold.length, k)])),
-      mrr: computeMRR(goldRanks),
-      ndcgAtK: Object.fromEntries(ks.map((k) => [k, computeNDCG(goldRanks, gold.length, k)]))
-    }
-    : null;
-
-  results.push({
-    query,
-    mode,
-    totals: {
-      relevant: silver.length,
-      gold: gold.length,
-      hits: hits.length
-    },
-    metrics,
-    goldMetrics
-  });
-  processedCases += 1;
-  queryTask.set(processedCases, cases.length);
-}
-
-const aggregate = (field) => {
-  if (!results.length) return 0;
-  const sum = results.reduce((acc, entry) => acc + (entry.metrics?.[field] || 0), 0);
-  return sum / results.length;
-};
-
-const aggregateMap = (key) => {
-  const totals = {};
-  if (!results.length) return totals;
-  for (const k of ks) {
-    const sum = results.reduce((acc, entry) => acc + (entry.metrics?.[key]?.[k] || 0), 0);
-    totals[k] = sum / results.length;
+const output = await runEvaluationResourceScope({ sqliteCache: evalCaches.sqliteCache, display }, async () => {
+  const allCases = loadDataset();
+  const cases = limit > 0 ? allCases.slice(0, limit) : allCases;
+  if (!cases.length) {
+    throw Object.assign(new Error(`No eval cases found at ${datasetPath}`), { code: 'ERR_EVAL_DATASET' });
   }
-  return totals;
-};
 
-const summary = {
-  cases: results.length,
-  recallAtK: aggregateMap('recallAtK'),
-  ndcgAtK: aggregateMap('ndcgAtK'),
-  mrr: aggregate('mrr')
-};
+  const capturedCases = captureEvaluationDatasetCases(cases).map(admitted => ({ ...admitted,
+    selection: resolveEvaluationCohorts(admitted.mode, [...admitted.silver, ...admitted.gold]) }));
+  const { cases: admittedCases, identity: evaluationInput } = captureLiveEvaluationInput(capturedCases, evaluationPlan, limit);
+  const searchPlan = await captureEvaluationSearchPlan({ repoRoot, cases: admittedCases, evaluationInput, topN, backend, annFlag });
+  const evidence = createRetrievalEvidenceRegistry();
+  const results = [];
+  const queryTask = display.task('Queries', { total: cases.length, stage: 'queries' });
+  let processedCases = 0;
+  for (const { entry, query, silver, gold, selection, caseId } of admittedCases) {
+    const payload = await runSearch(searchPlan.request(caseId));
+    const execution = evidence.observe(payload, selection.modes);
+    const cohorts = selection.modes.map(cohortMode => {
+      const hits = selectEvaluationCohort(payload, cohortMode);
+      const depthCoverage = evaluationDepthCoverage(hits, evaluationPlan);
+      const scopedSilver = judgmentsForCohort(silver, cohortMode), scopedGold = judgmentsForCohort(gold, cohortMode);
+      const silverJudgments = collectExpectedJudgments(hits, scopedSilver, isMatch, { mode: cohortMode });
+      const goldJudgments = collectExpectedJudgments(hits, scopedGold, isMatch, { mode: cohortMode });
+      const metric = ({ ranks, totalRelevant }) => totalRelevant ? {
+        recallAtK: Object.fromEntries(ks.map(k => [k, computeRecallAtK(ranks, totalRelevant, k)])),
+        mrr: computeMRR(ranks), ndcgAtK: Object.fromEntries(ks.map(k => [k, computeNDCG(ranks, totalRelevant, k)]))
+      } : null;
+      return { mode: cohortMode, depthCoverage,
+        totals: { relevant: silverJudgments.totalRelevant, gold: goldJudgments.totalRelevant, hits: hits.length },
+        metrics: metric(silverJudgments), goldMetrics: metric(goldJudgments) };
+    });
+    const macroMetrics = key => {
+      const observed = cohorts.map(row => row[key]).filter(Boolean);
+      if (!observed.length) return null;
+      const average = getter => observed.reduce((sum, row) => sum + getter(row), 0) / observed.length;
+      return { recallAtK: Object.fromEntries(ks.map(k => [k, average(row => row.recallAtK[k])])),
+        ndcgAtK: Object.fromEntries(ks.map(k => [k, average(row => row.ndcgAtK[k])])), mrr: average(row => row.mrr) };
+    };
+    const vectorOracleReplay = await evaluateDatasetVectorReplay({ entry, query, topN });
+    results.push({ query, caseId, execution, mode: selection.requestMode || 'default', cohorts,
+      ...(vectorOracleReplay ? { vectorOracleReplay } : {}),
+      totals: { relevant: cohorts.reduce((sum, row) => sum + row.totals.relevant, 0),
+        gold: cohorts.reduce((sum, row) => sum + row.totals.gold, 0), hits: cohorts.reduce((sum, row) => sum + row.totals.hits, 0) },
+      metrics: macroMetrics('metrics'), goldMetrics: macroMetrics('goldMetrics') });
+    processedCases += 1;
+    queryTask.set(processedCases, cases.length);
+  }
 
-const output = {
-  generatedAt: new Date().toISOString(),
-  repo: repoRoot,
-  dataset: datasetPath,
-  limit,
-  backend,
-  topN,
-  ann: annFlag,
-  ks,
-  summary,
-  results
-};
+  const summary = buildEvaluationSummary(results, evaluationPlan);
+
+  const report = {
+    schemaVersion: 3,
+    kind: 'live-judged-evaluation',
+    generatedAt: new Date().toISOString(),
+    repo: repoRoot,
+    dataset: datasetPath,
+    matchMode,
+    evaluationInput,
+    evaluationSearchPlan: searchPlan.receipt,
+    executionEvidence: evidence.snapshot(),
+    limit,
+    backend,
+    topN,
+    ann: annFlag,
+    ks,
+    evaluationPlan,
+    relevancePolicy: evaluationPlan.policy,
+    vectorEvaluationPolicy: 'independent-original-and-stored.v1;saved-stage-replay-separated',
+    summary,
+    results
+  };
+  const fusionReplay = await evaluateDatasetFusionReplay({ cases });
+  if (fusionReplay) report.fusionReplay = fusionReplay;
+  const shadowRouting = evaluateDatasetShadowRouting({ cases });
+  if (shadowRouting) report.shadowRouting = shadowRouting;
+  const taskSpanReplay = await evaluateDatasetTaskSpans({ cases });
+  if (taskSpanReplay) report.taskSpanReplay = taskSpanReplay;
+  return report;
+});
 
 if (argv.out) {
   fs.writeFileSync(path.resolve(argv.out), JSON.stringify(output, null, 2));
 }
 
 const payload = argv.pretty ? JSON.stringify(output, null, 2) : JSON.stringify(output);
-display.close();
 console.log(payload);

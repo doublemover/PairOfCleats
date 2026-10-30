@@ -1,3 +1,4 @@
+import { LSP_HIERARCHY_REQUEST_CLASSES } from './observation-methods.js';
 const hasProviderCapability = (value) => {
   if (value === true) return true;
   return Boolean(value && typeof value === 'object');
@@ -11,7 +12,8 @@ const CAPABILITY_KEYS = Object.freeze([
   'typeDefinition',
   'references',
   'semanticTokens',
-  'inlayHints'
+  'inlayHints',
+  ...LSP_HIERARCHY_REQUEST_CLASSES
 ]);
 
 const createCapabilityRecord = () => {
@@ -60,6 +62,8 @@ export const probeLspCapabilities = (initializeResult) => {
   mask.inlayHints = hasProviderCapability(capabilities?.inlayHintProvider)
     || hasProviderCapability(capabilities?.inlayHint)
     || hasProviderCapability(textDocument?.inlayHint);
+  for (const key of ['prepareCallHierarchy', 'incomingCalls', 'outgoingCalls']) mask[key] = hasProviderCapability(capabilities?.callHierarchyProvider);
+  for (const key of ['prepareTypeHierarchy', 'supertypes', 'subtypes']) mask[key] = hasProviderCapability(capabilities?.typeHierarchyProvider);
   return mask;
 };
 
@@ -73,7 +77,8 @@ export const buildLspCapabilityGate = ({
   typeDefinitionEnabled = true,
   referencesEnabled = true,
   semanticTokensEnabled = true,
-  inlayHintsEnabled = true
+  inlayHintsEnabled = true,
+  structuredRequestClasses = []
 }) => {
   const command = String(cmd || 'LSP provider');
   const mask = capabilityMask && typeof capabilityMask === 'object'
@@ -88,6 +93,7 @@ export const buildLspCapabilityGate = ({
   requested.references = collectTypes !== false && referencesEnabled !== false;
   requested.semanticTokens = collectTypes !== false && semanticTokensEnabled !== false;
   requested.inlayHints = collectTypes !== false && inlayHintsEnabled !== false;
+  for (const key of LSP_HIERARCHY_REQUEST_CLASSES) requested[key] = structuredRequestClasses.includes(key);
 
   const effective = createCapabilityRecord();
   const missing = [];
@@ -140,6 +146,10 @@ export const buildLspCapabilityGate = ({
   effective.inlayHints = requested.inlayHints && mask.inlayHints;
   if (requested.inlayHints && !mask.inlayHints) {
     addMissing('inlayHints', 'info', `${command} does not advertise textDocument/inlayHint.`);
+  }
+  for (const key of LSP_HIERARCHY_REQUEST_CLASSES) {
+    effective[key] = requested[key] && mask[key];
+    if (requested[key] && !mask[key]) addMissing(key, 'info', `${command} does not advertise the requested hierarchy capability.`);
   }
 
   return {

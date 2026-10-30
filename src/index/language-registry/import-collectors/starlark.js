@@ -1,3 +1,4 @@
+import { readQuotedLiteralEnd } from '../../../shared/quoted-literal.js';
 import {
   addCollectorImportEntry,
   collectorImportEntriesToSpecifiers,
@@ -7,6 +8,7 @@ import {
   lineHasAny
 } from './utils.js';
 import { readBalancedDelimitedBody } from './balanced.js';
+import { tokenizeStaticArguments, splitStaticArguments, staticKeywordArgument } from './static-arguments.js';
 
 const STARLARK_SOURCE_BUDGET = Object.freeze({
   maxChars: 524288
@@ -38,110 +40,20 @@ const skipWhitespace = (source, start) => {
 };
 
 const readFirstQuotedArgument = (args) => {
-  const source = String(args || '');
-  let index = skipWhitespace(source, 0);
-  if (index >= source.length) return '';
-  const quote = source[index];
-  if (quote !== '"' && quote !== "'") return '';
-  index += 1;
-  let value = '';
-  let escaped = false;
-  while (index < source.length) {
-    const char = source[index];
-    if (escaped) {
-      value += char;
-      escaped = false;
-      index += 1;
-      continue;
-    }
-    if (char === '\\') {
-      escaped = true;
-      index += 1;
-      continue;
-    }
-    if (char === quote) {
-      return value;
-    }
-    value += char;
-    index += 1;
-  }
-  return '';
+  const first = splitStaticArguments(tokenizeStaticArguments(String(args || '')))[0];
+  return first?.length === 1 && first[0].kind === 'string' ? first[0].value : '';
 };
 
-const createStarlarkScanState = () => ({
-  inComment: false,
-  inSingle: false,
-  inDouble: false,
-  inTripleSingle: false,
-  inTripleDouble: false,
-  escaped: false
-});
-
+const createStarlarkScanState = () => ({ inComment: false });
 const advanceIgnoredStarlarkSpan = (source, index, state) => {
   const char = source[index];
   if (state.inComment) {
-    if (char === '\n') state.inComment = false;
+    if (char === '\n' || char === '\r') state.inComment = false;
     return index + 1;
   }
-  if (state.inTripleSingle) {
-    if (source.startsWith("'''", index)) {
-      state.inTripleSingle = false;
-      return index + 3;
-    }
-    return index + 1;
-  }
-  if (state.inTripleDouble) {
-    if (source.startsWith('"""', index)) {
-      state.inTripleDouble = false;
-      return index + 3;
-    }
-    return index + 1;
-  }
-  if (state.inSingle) {
-    if (state.escaped) {
-      state.escaped = false;
-      return index + 1;
-    }
-    if (char === '\\') {
-      state.escaped = true;
-      return index + 1;
-    }
-    if (char === "'") state.inSingle = false;
-    return index + 1;
-  }
-  if (state.inDouble) {
-    if (state.escaped) {
-      state.escaped = false;
-      return index + 1;
-    }
-    if (char === '\\') {
-      state.escaped = true;
-      return index + 1;
-    }
-    if (char === '"') state.inDouble = false;
-    return index + 1;
-  }
-  if (char === '#') {
-    state.inComment = true;
-    return index + 1;
-  }
-  if (source.startsWith("'''", index)) {
-    state.inTripleSingle = true;
-    return index + 3;
-  }
-  if (source.startsWith('"""', index)) {
-    state.inTripleDouble = true;
-    return index + 3;
-  }
-  if (char === "'") {
-    state.inSingle = true;
-    return index + 1;
-  }
-  if (char === '"') {
-    state.inDouble = true;
-    return index + 1;
-  }
-  return index;
+  if (char === '#') { state.inComment = true; return index + 1; }
+  const literal = readQuotedLiteralEnd(source, index);
+  return literal ? literal.end : index;
 };
 
 const parseBalancedCallBody = (source, openIndex) => {
@@ -233,9 +145,9 @@ export const collectStarlarkImportEntries = (text, options = {}) => {
         continue;
       }
       if (call.callee === 'bazel_dep') {
-        const moduleDep = String(call.args || '').match(/\bname\s*=\s*['"]([^'"]+)['"]/);
-        if (!moduleDep?.[1]) continue;
-        const specifier = `@${moduleDep[1]}`;
+        const moduleDep = staticKeywordArgument(tokenizeStaticArguments(call.args),'name');
+        if (!moduleDep) continue;
+        const specifier = `@${moduleDep}`;
         addCollectorImportEntry(imports, specifier, {
           collectorHint: resolveStarlarkCollectorHint(specifier)
         });
@@ -250,8 +162,8 @@ export const collectStarlarkImportEntries = (text, options = {}) => {
         continue;
       }
       if (call.callee === 'local_path_override') {
-        const pathOverride = String(call.args || '').match(/\bpath\s*=\s*['"]([^'"]+)['"]/);
-        if (pathOverride?.[1]) addCollectorImportEntry(imports, pathOverride[1]);
+        const pathOverride = staticKeywordArgument(tokenizeStaticArguments(call.args),'path');
+        if (pathOverride) addCollectorImportEntry(imports,pathOverride);
       }
       if (scanBudget.exhausted) break;
     }

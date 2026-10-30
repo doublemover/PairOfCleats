@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["exact-route-drift", "similarity-is-not-lineage", "historical-facts", "byte-budget", "count-and-read-bounds", "disabled", "read-failure", "pending-error", "pending-result", "continuation", "stale-continuation", "scope-continuation", "cursor-negatives", "persisted", "legacy-renderer", "pending-scan-result", "directory-observer-change"]
+}

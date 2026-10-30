@@ -8,6 +8,10 @@
 `tools/analysis/context-pack.js`, `tools/api/router/analysis.js`, and `tools/mcp/tools/handlers/analysis.js`.
 **Authoritative schema:** `COMPOSITE_CONTEXT_PACK_SCHEMA` in `src/contracts/schemas/analysis/context-pack.js`.
 
+An unresolved or ambiguous envelope without a concrete typed identity emits
+`primary.ref: null`. A resolved chunk, symbol or file identity remains typed;
+unresolved seeds do not fabricate a chunk reference with a null UID.
+
 Evidence schema 2 distinguishes working-tree previews from indexed-source identity.
 Both direct and prefetched excerpts read bounded contained bytes and key caches by
 current content hash as well as generation. `sourceIdentity` reports the current
@@ -17,6 +21,14 @@ when source identity differs or is unavailable. Complete/strict evidence require
 matching indexed source identity; retained semantic source excerpts remain a
 separate verified path. Test suggestions observe a fresh working-tree inventory,
 pin graph generations, and replay identical truncation/coverage on warm cache hits.
+Graph inclusion flags select calls, usages and imports independently. Setting all
+three to false retains an empty graph slice and loads no graph-family artifacts;
+an explicit empty selection stays distinct from an unspecified graph selection
+in preparation, cache identity and traversal. Unspecified low-level selection
+continues to admit all available families. Test-suggestion node caps include
+changed seeds and newly discovered neighbors. Actual omissions report truncation
+and partial graph or explicit heuristic fidelity; reaching a cap with no omitted
+work remains complete.
 Each excerpt, range, and hash cache has an 8 MiB conservative retained-string
 allowance in addition to its entry cap; oversized entries bypass caching.
 Call-site hydration shares a request-scoped verified source snapshot, bounded to
@@ -148,7 +160,7 @@ are included only when requested and available.
 
 **Hard caps (must be enforced regardless of config):**
 - Graph traversal caps are resolved through `resolveGraphCliCapsAndFilters()` and `mergeCaps()`.
-- Output shaping caps (`maxBytes`, `maxTokens`, `maxTypeEntries`) are normalized before assembly.
+- Output shaping caps (`maxBytes`, `maxTokens`, `maxTypeEntries`) are normalized before assembly. `maxBytes` and `maxTokens` bound the primary source excerpt, not the serialized composite response. Graph nodes/edges and other evidence use their own caps. Exact duplicate type facts are removed before `maxTypeEntries` admission; distinct provider/confidence evidence remains separate.
 - Federated packs are bounded by `maxFederatedRepos`.
 
 ---
@@ -160,11 +172,11 @@ are included only when requested and available.
 - `seed`: the caller-provided seed, resolved or represented as a reference envelope.
 - `provenance`: generated time, index signature/compat key, caps used, repo, and index dir.
 - `primary`: resolved seed file/range/excerpt plus primary evidence/provenance.
-- `evidence`: strict-evidence policy, primary excerpt state, type-slice state, and completeness flag.
+- `evidence`: strict-evidence policy, primary excerpt state, type-slice state, optional semantic state, and completeness flag. Semantic inclusion must match the attached section and its status. Whole-response omission records `included=false`, `state=omitted`, truncation and the budget warning code; partial, unavailable or omitted semantic evidence cannot claim complete context.
 
 ### 3.2 Optional blocks
 
-- `graph`: `GRAPH_CONTEXT_PACK_SCHEMA` payload with graph nodes, edges, witness paths, truncation, warnings, and stats.
+- `graph`: `GRAPH_CONTEXT_PACK_SCHEMA` payload with graph nodes, edges, witness paths, truncation, warnings, and stats. Edge endpoints retain the recorded source direction even during an incoming walk; witness node order describes traversal separately. Reciprocal edges remain distinct, and call-site evidence uses the original caller/callee pair. CSR and object adjacency yield equivalent edges, callers and graph-derived test guidance without restoring duplicate adjacency into metadata nodes.
 - `types`: type facts when `includeTypes=true`.
 - `risk`: risk summary/flow/partial-flow slice when `includeRisk=true`.
 - `truncation`: pack-level truncation records.

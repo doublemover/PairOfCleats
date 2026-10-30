@@ -18,6 +18,7 @@ import {
 } from '../../../src/index/type-inference-crossfile/tooling.js';
 import { registerToolingProvider, TOOLING_PROVIDERS } from '../../../src/index/tooling/provider-registry.js';
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
+import { getToolingConfig } from '../../../src/shared/dict-utils.js';
 
 const root = process.cwd();
 const tempRoot = resolveTestCachePath(root, `tooling-runtime-contract-matrix-${process.pid}-${Date.now()}`);
@@ -331,6 +332,47 @@ const runToolingPassCases = async () => {
 
 
 
+const runPropagationDefaultsCases = async () => {
+  const caseRoot = path.join(tempRoot, 'propagation-defaults');
+  await fs.mkdir(path.join(caseRoot, 'src'), { recursive: true });
+  const text = 'function sample() { return 1; }\n';
+  await fs.writeFile(path.join(caseRoot, 'src/sample.js'), text);
+  const observed = [];
+  registerToolingProvider({ id: 'propagation-defaults-fixture', version: '1.0.0', kinds: ['types'],
+    capabilities: { supportsVirtualDocuments: true, supportsSegmentRouting: true },
+    getConfigHash: () => 'propagation-defaults-fixture-v1',
+    async run(ctx) {
+      observed.push([ctx.toolingConfig.timeoutMs, ctx.toolingConfig.maxRetries, ctx.toolingConfig.circuitBreakerThreshold]);
+      return { byChunkUid: { 'defaults-chunk': { payload: { returnType: 'number' } } } };
+    }
+  });
+  for (const [settings, expected] of [
+    [{}, [60000, 2, 3]],
+    [{ timeoutMs: 1500, maxRetries: 0, circuitBreakerThreshold: 1 }, [1500, 0, 1]]
+  ]) {
+    await fs.writeFile(path.join(caseRoot, '.pairofcleats.json'), JSON.stringify({ tooling: {
+      enabledTools: ['propagation-defaults-fixture'], cache: { enabled: false }, ...settings
+    } }));
+    if (!Object.hasOwn(settings, 'timeoutMs')) {
+      const config = getToolingConfig(caseRoot);
+      assert.deepEqual([config.timeoutMs, config.maxRetries, config.circuitBreakerThreshold], [null, null, null],
+        'the config owner uses internal null sentinels for omitted controls');
+    }
+    const chunks = [{ file: 'src/sample.js', name: 'sample', kind: 'function', lang: 'javascript',
+      chunkUid: 'defaults-chunk', start: 0, end: text.length, docmeta: {}, codeRelations: {} }];
+    const count = observed.length;
+    await applyCrossFileInference({ rootDir: caseRoot, buildRoot: caseRoot, chunks, enabled: true,
+      useTooling: true, cacheEnabled: false, log: () => {} });
+    assert.equal(observed.length, count + 1, 'the actual propagation pipeline invokes its selected provider');
+    assert.deepEqual(observed.at(-1), expected, 'unset/null controls preserve defaults and explicit controls remain exact');
+    assert.equal(chunks[0].docmeta.returnType, 'number', 'the selected provider still contributes meaningful output');
+  }
+  await fs.writeFile(path.join(caseRoot, '.pairofcleats.json'), JSON.stringify({ tooling: { timeoutMs: null } }));
+  await assert.rejects(applyCrossFileInference({ rootDir: caseRoot, buildRoot: caseRoot, chunks: [], enabled: true,
+    useTooling: true, cacheEnabled: false }), /Config errors.*[\s\S]*timeoutMs/,
+  'internal unset sentinels do not relax the public configuration schema');
+};
+
 const runDegradedWarningCases = async () => {
   assert.equal(__summarizeToolingDegradationWarningForTests([]), null);
   const summary = __summarizeToolingDegradationWarningForTests([
@@ -364,6 +406,14 @@ const runDegradedWarningCases = async () => {
     async run() { return { byChunkUid: { 'warning-chunk': { payload: { returnType: 'number' } } },
       diagnostics: { checks: [], fidelity: { state: 'healthy' } } }; }
   });
+  registerToolingProvider({
+    id: 'contributing-warning-fixture', version: '1.0.0', kinds: ['types'],
+    capabilities: { supportsVirtualDocuments: true, supportsSegmentRouting: true },
+    getConfigHash: () => 'contributing-warning-fixture-v1',
+    async run() { return { byChunkUid: { 'warning-chunk': { payload: { returnType: 'number' } } },
+      diagnostics: { checks: [{ name: 'partial_context', status: 'warn', message: 'Compilation context is partial.' }],
+        fidelity: { state: 'healthy' } } }; }
+  });
   const caseRoot = path.join(tempRoot, 'degraded-warnings');
   const source = 'function answer() { return 42; }\n';
   await fs.mkdir(path.join(caseRoot, 'src'), { recursive: true });
@@ -374,18 +424,19 @@ const runDegradedWarningCases = async () => {
   const logs = [];
   const stats = await runToolingPass({ rootDir: caseRoot, buildRoot: caseRoot, chunks,
     entryByUid: new Map(), log: line => logs.push(String(line)),
-    toolingConfig: { enabledTools: [...ids, 'healthy-warning-fixture'], cache: { enabled: false } },
+    toolingConfig: { enabledTools: [...ids, 'healthy-warning-fixture', 'contributing-warning-fixture'], cache: { enabled: false } },
     toolingTimeoutMs: 1000, toolingRetries: 0, toolingBreaker: 1, toolingLogDir: null,
     fileTextByFile: new Map([['src/sample.js', source]]) });
   assert.equal(chunks[0].docmeta.returnType, 'number', 'healthy enrichment must still contribute');
-  assert.equal(stats.toolingDegradedProviders, 4);
+  assert.equal(stats.toolingDegradedProviders, 5, 'useful contributions cannot erase an eligible context warning');
+  assert.equal(stats.toolingDegradedWarnings, 1);
   assert.equal(stats.toolingDegradedErrors, 48, 'presentation cannot erase underlying diagnostics');
   assert.equal(logs.filter(line => line.includes('[tooling] warning: reduced enrichment')).length, 1);
   assert.equal(logs.some(line => line.includes('error missing_optional_tool')), false);
   assert.equal(logs.some(line => line.includes('degraded mode active (fail-open)')), false);
   const diagnosticFile = path.join(__resolveDefaultToolingCacheDirForTests({ rootDir: caseRoot, buildRoot: caseRoot }), 'diagnostics', 'tooling.json');
   const snapshot = JSON.parse(await fs.readFile(diagnosticFile, 'utf8'));
-  assert.equal(snapshot.reportedProviderCount, 5);
+  assert.equal(snapshot.reportedProviderCount, 6);
   assert.equal(snapshot.truncated, false);
   const records = snapshot.providers;
   for (const id of ids) {
@@ -406,6 +457,7 @@ try {
   await runFailOpenRuntimeCase();
   await runBudgetCase();
   await runToolingPassCases();
+  await runPropagationDefaultsCases();
   await runDegradedWarningCases();
   console.log('tooling runtime contract matrix test passed');
 } finally {

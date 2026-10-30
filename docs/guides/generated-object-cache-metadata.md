@@ -42,11 +42,28 @@ cannot authorize omission of source paths, other files, or directories.
   cooldown, fingerprint, recovery, and degraded-state decisions.
 - Learned-auto, scheduler-autotune, tree-sitter adaptive, and embeddings-autotune
   profiles: metadata remains outside `profiles`, `entriesByGrammarKey`, and
-  `byIdentity`. Their normalizers, schema versions, limits, and write cadence are
-  unchanged. A skipped write does not retrofit an old file just to add provenance.
+  `byIdentity`. The provenance-marker pass itself leaves normalizers, schema
+  versions, limits and write cadence unchanged; later recommendation-policy
+  revisions are described below. A skipped write does not retrofit an old file
+  just to add provenance.
 - Enrichment state: markers are issued only when serializing, and recognized
   persistence metadata is removed when reading the complete operational object.
   Existing lock handling, unknown application fields, and extension data survive.
+
+## Recommendation profile compatibility
+
+The scheduler recommendation policy now uses profile version 3. Its resource
+identity binds accepted base controls and explicit CLI/environment maxima before
+learned recommendations are applied. A temporary explicit ceiling cannot become
+the default for a later automatic run. Version 2 recommendations remain on disk
+and are conservatively ignored; no user cache deletion is required.
+
+SQLite bundle-worker recommendations use schema `2.0.0`. Per-mode reuse binds
+the admitted CPU, configured/effective memory and any supplied descriptor bound;
+file-window concurrency does not create extra CPU capacity. Older worker
+recommendations do not acquire authority through missing resource identities.
+Normal execution can produce fresh compatible profiles through the existing
+atomic publication owner.
 
 ## Classifier and integration API
 
@@ -68,8 +85,12 @@ unknown families/fields, and duplicate keys visible in the prefix. A shared boun
 iterative validator checks every visible character and grammar state, so a cut tail
 cannot hide an earlier bad escape or syntax error. Only genuinely extendable tails
 are allowed at the byte cap, including partial strings, escapes, Unicode sequences,
-numbers, literals and containers. Short inputs must be complete JSON objects;
-nesting beyond 256 containers fails open.
+numbers, literals and containers. Complete observations, including EOF exactly at
+8 KiB, must be complete JSON objects; nesting beyond 256 containers fails open.
+The shared descriptor observation retains source extent/EOF. Full source Buffers
+preserve their extent before slicing; unknown custom-reader extents cannot grant
+omission. Warm bundle admission also checks the current policy dependency before
+returning cached source, independently of parse and lexical reuse.
 An unseen suffix of a large file cannot be validated from its prefix. Filesystem
 containment and index-admission wiring remain the caller's responsibilities.
 

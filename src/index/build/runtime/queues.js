@@ -1,3 +1,4 @@
+import { setOwn } from '../../../shared/object-record.js';
 import {
   coerceClampedFraction,
   coerceNonNegativeInt,
@@ -75,7 +76,7 @@ export const createRuntimeTelemetry = () => {
     for (const [name, value] of channels.entries()) {
       const bytes = Number(value?.bytes) || 0;
       const count = Number(value?.count) || 0;
-      out[name] = { bytes, count };
+      setOwn(out,name,{ bytes, count });
       total += bytes;
     }
     return { total, channels: out };
@@ -134,7 +135,7 @@ export const createRuntimeTelemetry = () => {
       const minMs = value?.minMs == null ? 0 : (Number(value.minMs) || 0);
       const maxMs = Number(value?.maxMs) || 0;
       const avgMs = count > 0 ? totalMs / count : 0;
-      out[name] = {
+      setOwn(out,name,{
         count,
         totalMs,
         minMs,
@@ -143,7 +144,7 @@ export const createRuntimeTelemetry = () => {
         bucketsMs: Array.isArray(value?.bucketsMs) ? value.bucketsMs.slice() : [],
         counts: Array.isArray(value?.counts) ? value.counts.slice() : [],
         overflow: Number(value?.overflow) || 0
-      };
+      });
     }
     return out;
   };

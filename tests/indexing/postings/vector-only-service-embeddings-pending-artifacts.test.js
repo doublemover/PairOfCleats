@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { runNode } from '../../helpers/run-node.js';
+import { resolveIndexDirFromBuildResult } from '../../helpers/index-build-output.js';
 
 import {
   createVectorOnlyBuildEnv,
@@ -48,7 +49,7 @@ await fs.rm(cacheRoot, { recursive: true, force: true });
 await fs.mkdir(cacheRoot, { recursive: true });
 
 const result = runNode(
-  [buildScript, '--repo', fixtureRoot, '--mode', 'code', '--progress', 'log'],
+  [buildScript, '--repo', fixtureRoot, '--mode', 'code', '--progress', 'log', '--json'],
   'vector-only service embeddings pending artifacts build index',
   fixtureRoot,
   env,
@@ -67,12 +68,8 @@ assert.equal(
   `expected service-mode build to queue embeddings:\n${output}`
 );
 
-const indexDirLine = output
-  .split(/\r?\n/)
-  .find((line) => line.startsWith('[init] code index dir: '));
-assert.ok(indexDirLine, `expected build output to include code index directory:\n${output}`);
-const codeDir = indexDirLine.slice('[init] code index dir: '.length).trim();
-assert.ok(codeDir, `expected parsed code index directory to be non-empty:\n${output}`);
+assert.equal(result.status, 0, output);
+const codeDir = resolveIndexDirFromBuildResult(fixtureRoot, {}, result);
 const statePath = path.join(codeDir, 'index_state.json');
 const state = JSON.parse(await fs.readFile(statePath, 'utf8'));
 

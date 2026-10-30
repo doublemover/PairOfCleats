@@ -1,59 +1,72 @@
 import path from 'node:path';
-import { createRequire } from 'node:module';
-import { readJsoncFile } from '../../../shared/jsonc.js';
+import fs from 'node:fs';
+import ts from 'typescript';
 import { sha1 } from '../../../shared/hash.js';
 import { isAbsolutePathNative, isRelativePathEscape } from '../../../shared/file-paths.js';
 import { escapeRegex } from '../../../shared/text/escape-regex.js';
 import { createFsMemo } from './fs-meta.js';
 import { resolveCandidate, resolveWithinRoot } from './lookup.js';
-import { sortStrings } from './path-utils.js';
 
-const requireFromImportResolution = createRequire(import.meta.url);
-
+// This identity participates in each importer's existing tsconfig fingerprint.
+export const TS_PATH_MAPPING_VERSION = 'typescript-paths-prefix-order-v2';
 const compileTsPattern = (pattern) => {
   if (!pattern) return null;
   const starCount = (pattern.match(/\*/g) || []).length;
+  if (starCount > 1) return null;
   const parts = pattern.split('*').map(escapeRegex);
-  const regex = new RegExp(`^${parts.join('(.+?)')}$`);
+  const regex = new RegExp(`^${parts.join('(.*?)')}$`);
   return { pattern, regex, starCount };
-};
-
-const matchTsPattern = (pattern, spec) => {
-  if (!pattern || !spec) return null;
-  const compiled = compileTsPattern(pattern);
-  if (!compiled) return null;
-  const match = spec.match(compiled.regex);
-  if (!match) return null;
-  return { captures: match.slice(1), starCount: compiled.starCount };
 };
 
 const applyTsTemplate = (template, captures) => {
   if (!template) return '';
-  let index = 0;
-  return template.replace(/\*/g, () => {
-    const value = captures[index] ?? '';
-    index += 1;
-    return value;
+  // TypeScript substitutes only a nonempty matched star. An exact or empty
+  // match leaves a replacement star literal; it cannot invent a directory hit.
+  return captures[0] ? template.replace('*', captures[0]) : template;
+};
+
+// Reuse TypeScript's config parser for ordered extends, declaration-relative
+// paths and package tsconfig entries. Disable source glob expansion: this owner
+// resolves configuration only, not a second repository discovery scan.
+export const loadTsConfigCompilerOptions = tsconfigPath => {
+  const dependencies = new Map();
+  let failed = false;
+  const parsed = ts.getParsedCommandLineOfConfigFile(tsconfigPath, {}, { ...ts.sys,
+    readDirectory: () => [],
+    readFile(file) {
+      const text = ts.sys.readFile(file);
+      dependencies.set(path.resolve(file), text == null ? null : sha1(text));
+      return text;
+    },
+    onUnRecoverableConfigFileDiagnostic() { failed = true; }
   });
+  if (!parsed || failed || parsed.errors.some(error => error.category === ts.DiagnosticCategory.Error
+    && error.code !== 18003)) return null;
+  return { compilerOptions: parsed.options, dependencies: [...dependencies].sort(([a],[b]) => a < b ? -1 : a > b ? 1 : 0) };
 };
 
 export const resolveTsConfigExtends = (baseDir, extendsValue) => {
-  if (!extendsValue || typeof extendsValue !== 'string') return null;
+  if (typeof extendsValue !== 'string' || !extendsValue.trim()) return null;
   const raw = extendsValue.trim();
-  if (!raw) return null;
-  if (isAbsolutePathNative(raw) || raw.startsWith('.')) {
-    const resolved = isAbsolutePathNative(raw) ? raw : path.resolve(baseDir, raw);
-    return resolved.endsWith('.json') ? resolved : `${resolved}.json`;
-  }
-  try {
-    return requireFromImportResolution.resolve(raw, { paths: [baseDir] });
-  } catch {}
-  if (!raw.endsWith('.json')) {
+  const asConfig = candidate => {
+    for (const file of [candidate, candidate + '.json', path.join(candidate, 'tsconfig.json')]) {
+      try { if (fs.statSync(file).isFile() && file.endsWith('.json')) return file; } catch {}
+    }
+    return null;
+  };
+  if (isAbsolutePathNative(raw) || raw.startsWith('.')) return asConfig(path.resolve(baseDir, raw));
+  for (let directory = path.resolve(baseDir);;) {
+    const candidate = path.join(directory, 'node_modules', raw);
     try {
-      return requireFromImportResolution.resolve(`${raw}.json`, { paths: [baseDir] });
+      const pkg = JSON.parse(fs.readFileSync(path.join(candidate, 'package.json'), 'utf8'));
+      if (typeof pkg.tsconfig === 'string') { const config = asConfig(path.resolve(candidate,pkg.tsconfig)); if (config) return config; }
     } catch {}
+    const config = asConfig(candidate);
+    if (config) return config;
+    const parent = path.dirname(directory);
+    if (parent === directory) return null;
+    directory = parent;
   }
-  return null;
 };
 
 export const createTsConfigLoader = ({ rootAbs, fileSet, fsMemo = null }) => {
@@ -66,69 +79,25 @@ export const createTsConfigLoader = ({ rootAbs, fileSet, fsMemo = null }) => {
     return rel === '' || (!isRelativePathEscape(rel) && !isAbsolutePathNative(rel));
   };
 
-  const loadConfig = (tsconfigPath, stack = new Set()) => {
-    if (!tsconfigPath || stack.has(tsconfigPath)) return null;
-    const stat = io.statSync(tsconfigPath);
-    if (!stat) return null;
-    const cacheKey = `${stat.mtimeMs}:${stat.size}`;
+  const loadConfig = tsconfigPath => {
+    if (!tsconfigPath) return null;
     const cached = tsconfigCache.get(tsconfigPath);
-    if (cached && cached.key === cacheKey) return cached.value;
-
-    stack.add(tsconfigPath);
-    let parsed;
-    try {
-      parsed = readJsoncFile(tsconfigPath);
-    } catch {
-      parsed = null;
-    }
-    const baseDir = path.dirname(tsconfigPath);
-    let baseConfig = null;
-    const extendsPath = resolveTsConfigExtends(baseDir, parsed?.extends);
-    if (extendsPath) {
-      baseConfig = loadConfig(extendsPath, stack);
-    }
-    stack.delete(tsconfigPath);
-
-    const compilerOptions = parsed?.compilerOptions && typeof parsed.compilerOptions === 'object'
-      ? parsed.compilerOptions
-      : {};
-    const baseCompiler = baseConfig?.compilerOptions || {};
-    const rawBaseUrl = typeof compilerOptions.baseUrl === 'string'
-      ? compilerOptions.baseUrl
-      : (typeof baseCompiler.baseUrl === 'string' ? baseCompiler.baseUrl : '');
-    const baseUrlAbs = rawBaseUrl
-      ? path.resolve(baseDir, rawBaseUrl)
-      : (baseConfig?.baseUrlAbs || baseDir);
-    const rawPaths = compilerOptions.paths && typeof compilerOptions.paths === 'object'
-      ? compilerOptions.paths
-      : null;
-    const basePaths = baseConfig?.paths || {};
-    const paths = rawPaths ? { ...basePaths, ...rawPaths } : basePaths;
-    const compiledPaths = Object.entries(paths).flatMap(([pattern, replacements]) => {
+    if (cached) return cached;
+    const loaded = loadTsConfigCompilerOptions(tsconfigPath);
+    if (!loaded) return null;
+    const compilerOptions = loaded.compilerOptions;
+    const baseUrlAbs = compilerOptions.baseUrl || compilerOptions.pathsBasePath || path.dirname(tsconfigPath);
+    const paths = compilerOptions.paths || {};
+    const compiledPaths = Object.entries(paths).flatMap(([pattern,replacements]) => {
       const compiled = compileTsPattern(pattern);
       if (!compiled) return [];
-      const list = Array.isArray(replacements) ? replacements : [replacements];
-      const filtered = list.filter((replacement) => typeof replacement === 'string');
-      if (!filtered.length) return [];
-      return [{
-        ...compiled,
-        replacements: filtered
-      }];
+      const filtered = (Array.isArray(replacements) ? replacements : [replacements]).filter(value => typeof value === 'string');
+      return filtered.length ? [{ ...compiled,replacements:filtered }] : [];
     });
-
-    const fingerprint = sha1(JSON.stringify({
-      baseUrlAbs,
-      paths
-    }));
-    const value = {
-      tsconfigPath,
-      compilerOptions,
-      baseUrlAbs,
-      paths,
-      compiledPaths,
-      fingerprint
-    };
-    tsconfigCache.set(tsconfigPath, { key: cacheKey, value });
+    const fingerprint = sha1(JSON.stringify({ pathMappingVersion: TS_PATH_MAPPING_VERSION,
+      baseUrlAbs, paths, dependencies:loaded.dependencies }));
+    const value = { tsconfigPath,compilerOptions,baseUrlAbs,paths,compiledPaths,fingerprint,pathMappingVersion:TS_PATH_MAPPING_VERSION };
+    tsconfigCache.set(tsconfigPath,value);
     return value;
   };
 
@@ -177,58 +146,36 @@ export const createTsConfigLoader = ({ rootAbs, fileSet, fsMemo = null }) => {
   return { resolveForFile };
 };
 
-export const resolveTsPaths = ({ spec, tsconfig, lookup }) => {
+export const resolveTsPaths = ({ spec,tsconfig,lookup }) => {
   if (!tsconfig?.paths || !spec) return null;
-  const compiled = Array.isArray(tsconfig.compiledPaths) ? tsconfig.compiledPaths : null;
-  const entries = compiled || Object.entries(tsconfig.paths);
-  if (!entries.length) return null;
-  let best = null;
-  for (const entry of entries) {
-    let pattern = null;
-    let replacements = null;
-    let captures = null;
-    let starCount = 0;
-    if (compiled) {
-      pattern = entry.pattern;
-      replacements = entry.replacements;
-      const match = spec.match(entry.regex);
-      if (!match) continue;
-      captures = match.slice(1);
-      starCount = entry.starCount || 0;
-    } else {
-      pattern = entry[0];
-      replacements = entry[1];
-      const match = matchTsPattern(pattern, spec);
-      if (!match) continue;
-      captures = match.captures;
-      starCount = match.starCount;
-    }
-    const list = Array.isArray(replacements) ? replacements : [replacements];
-    for (const replacement of list) {
-      if (typeof replacement !== 'string') continue;
-      const substituted = applyTsTemplate(replacement, captures);
-      const candidateAbs = path.resolve(tsconfig.baseUrlAbs, substituted);
-      const rel = resolveWithinRoot(lookup.rootAbs, candidateAbs);
-      if (!rel) continue;
-      const resolved = resolveCandidate(rel, lookup);
-      if (!resolved) continue;
-      const candidate = {
-        resolved,
-        pattern,
-        starCount,
-        pathLength: resolved.length
-      };
-      if (!best) {
-        best = candidate;
-        continue;
-      }
-      const order = (
-        candidate.starCount - best.starCount
-        || candidate.pathLength - best.pathLength
-        || sortStrings(candidate.resolved, best.resolved)
-      );
-      if (order < 0) best = candidate;
+  const compiled = Array.isArray(tsconfig.compiledPaths) ? tsconfig.compiledPaths
+    : Object.entries(tsconfig.paths).flatMap(([pattern,replacements]) => {
+      const entry=compileTsPattern(pattern);
+      return entry ? [{...entry,replacements:Array.isArray(replacements)?replacements:[replacements]}] : [];
+    });
+  let best=null;
+  for (const entry of compiled) {
+    const match=spec.match(entry.regex);
+    if (!match) continue;
+    const star=entry.pattern.indexOf('*');
+    const prefix=star<0?entry.pattern.length:star;
+    const exact=star<0;
+    // matchPatternOrExact/findBestPatternMatch in the installed compiler choose
+    // exact keys first, then the longest prefix. Equal prefixes keep key order;
+    // suffix matching is eligibility, not another specificity tie-breaker.
+    if (!best || (exact && !best.exact) || (exact===best.exact
+      && prefix>best.prefix)) {
+      best={entry,captures:match.slice(1),prefix,exact};
     }
   }
-  return best;
+  if (!best) return null;
+  for (const replacement of best.entry.replacements) {
+    if (typeof replacement!=='string') continue;
+    const candidateAbs=path.resolve(tsconfig.baseUrlAbs,applyTsTemplate(replacement,best.captures));
+    const rel=resolveWithinRoot(lookup.rootAbs,candidateAbs);
+    if (!rel) continue;
+    const resolved=resolveCandidate(rel,lookup);
+    if (resolved) return {resolved,pattern:best.entry.pattern,starCount:best.entry.starCount};
+  }
+  return null;
 };

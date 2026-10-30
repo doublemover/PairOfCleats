@@ -28,6 +28,14 @@ Emission forms (MUST support one of):
 Manifest inventory:
 - The artifact and its meta/parts MUST be listed in `pieces/manifest.json` (manifest-first).
 
+Collector append/finalize operations are serialized through one owned operation
+chain. Finalization stops new append admission and waits for previously accepted
+appends; a failed operation remains a failure. Every collector owns a unique
+spill directory, and cleanup removes only that directory. A shared empty spill
+parent may remain because another collector can begin using it concurrently.
+Scheduler result indexes reject duplicate virtual paths within one result and
+across grammar results, rather than silently replacing an earlier row.
+
 ---
 
 ### 1.1 Optional derived artifacts

@@ -1,45 +1,32 @@
 import util from 'node:util';
+import { isBuiltin } from 'node:module';
+import { isPythonStandardLibraryImport } from '../../../shared/python-stdlib.js';
 import { isGo, isJsLike } from '../../constants.js';
+import { mergeQualifiedFlowMeta } from './flow-meta.js';
 
 export const normalizeDocMeta = (docmeta) => (
   docmeta && typeof docmeta === 'object' && !Array.isArray(docmeta)
-    ? docmeta
+    ? { ...docmeta }
     : {}
 );
 
-export const mergeFlowMeta = (docmeta, flowMeta, { astDataflowEnabled, controlFlowEnabled }) => {
-  if (!flowMeta) return docmeta;
-  const output = normalizeDocMeta(docmeta);
-  if (controlFlowEnabled && flowMeta.controlFlow && output.controlFlow == null) {
-    output.controlFlow = flowMeta.controlFlow;
-  }
-  if (astDataflowEnabled) {
-    if (flowMeta.dataflow && output.dataflow == null) output.dataflow = flowMeta.dataflow;
-    if (flowMeta.throws && output.throws === undefined) output.throws = flowMeta.throws;
-    if (flowMeta.awaits && output.awaits === undefined) output.awaits = flowMeta.awaits;
-    if (typeof flowMeta.yields === 'boolean' && output.yields === undefined) output.yields = flowMeta.yields;
-    if (typeof flowMeta.returnsValue === 'boolean') {
-      const shouldOverride = output.returnsValue === undefined || (output.returnsValue === false && flowMeta.returnsValue);
-      if (shouldOverride) {
-        output.returnsValue = flowMeta.returnsValue;
-      }
-    }
-  }
-  return output;
-};
+export const mergeFlowMeta = mergeQualifiedFlowMeta;
 
 export const buildExternalDocs = (ext, imports) => {
   const externalDocs = new Set();
   if (!imports || !imports.length) return [];
-  const isPython = ext === '.py';
+  const isPython = ext === '.py' || ext === '.pyi';
   const isNode = isJsLike(ext);
   const isGoLang = isGo(ext);
   for (const mod of imports) {
+    if (typeof mod !== 'string' || !mod) continue;
     if (mod.startsWith('.')) continue;
     if (isPython) {
+      if (isPythonStandardLibraryImport(mod)) continue;
       const base = mod.split('.')[0];
       if (base) externalDocs.add(`https://pypi.org/project/${base}`);
     } else if (isNode) {
+      if (mod.startsWith('node:') || isBuiltin(mod)) continue;
       const encoded = mod
         .split('/')
         .map((segment) => encodeURIComponent(segment).replace(/%40/g, '@'))

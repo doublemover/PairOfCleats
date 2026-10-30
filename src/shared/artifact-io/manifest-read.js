@@ -1,3 +1,5 @@
+import { assertNoSymlinkPath } from '../contained-file.js';
+import { createRequire } from 'node:module';
 import { assertCurrentIndexFormat } from '../../contracts/index-format.js';
 import path from 'node:path';
 import { MAX_JSON_BYTES } from './constants.js';
@@ -8,6 +10,11 @@ import { getTestEnvConfig } from '../env/testing.js';
 import { logLine } from '../progress-runtime.js';
 
 const MIN_MANIFEST_BYTES = 64 * 1024;
+const require = createRequire(import.meta.url);
+let cachePathAccessOwner;
+// Admission remains synchronous and precedes the original manifest read.
+const retainCachePathAccess = dir =>
+  (cachePathAccessOwner ||= require('../cache/repo-access-reader.js').retainCachePathAccess)(dir);
 const warnedMissingCompat = new Set();
 const DEFAULT_STRICT_MANIFEST_RETRY_DELAYS_MS = Object.freeze([25, 50]);
 
@@ -56,14 +63,16 @@ export const assertPiecesManifestFormat = (dir, manifest, repoRoot = process.cwd
   return manifest;
 };
 
-export const loadPiecesManifest = (dir, { maxBytes = MAX_JSON_BYTES, strict = true, repoRoot = process.cwd() } = {}) => {
+const readPiecesManifest = (dir, { maxBytes = MAX_JSON_BYTES, strict = true, repoRoot = process.cwd() } = {}, fresh = false) => {
+  retainCachePathAccess(dir);
   const manifestPath = path.join(dir, 'pieces', 'manifest.json');
   if (!existsOrBak(manifestPath)) return assertPiecesManifestFormat(dir, null, repoRoot);
+  if (strict) assertNoSymlinkPath(dir, manifestPath, { allowMissing: true });
   const resolvedMaxBytes = resolveManifestMaxBytes(maxBytes, { strict });
   const cachePolicy = { maxBytes: resolvedMaxBytes, view: 'manifest', strict: Boolean(strict) };
-  const cached = readCache(manifestPath, cachePolicy);
+  const cached = fresh ? null : readCache(manifestPath, cachePolicy);
   if (cached) return assertPiecesManifestFormat(dir, cached, repoRoot);
-  const raw = readJsonFile(manifestPath, { maxBytes: resolvedMaxBytes });
+  const raw = readJsonFile(manifestPath, { maxBytes: resolvedMaxBytes, containedRoot: strict ? dir : null });
   const manifest = normalizeManifest(raw);
   assertPiecesManifestFormat(dir, manifest, repoRoot);
   if (!manifest && strict) {
@@ -71,11 +80,18 @@ export const loadPiecesManifest = (dir, { maxBytes = MAX_JSON_BYTES, strict = tr
     err.code = 'ERR_MANIFEST_INVALID';
     throw err;
   }
-  if (manifest) {
+  if (manifest && !fresh) {
     writeCache(manifestPath, manifest, cachePolicy);
   }
   return manifest;
 };
+
+export const loadPiecesManifest = (dir, options) => readPiecesManifest(dir, options);
+
+// A registration authority must come from this invocation's contained bytes.
+// Ordinary parsed memos retain their existing reuse; stat equality cannot certify
+// a current registration against a separately verified semantic payload.
+export const readFreshPiecesManifest = (dir, options) => readPiecesManifest(dir, options, true);
 
 export const resolvePiecesManifestReadPlan = ({
   manifest = null,
@@ -114,6 +130,7 @@ export const loadPiecesManifestWithReadPlan = async (
   dir,
   options = {}
 ) => {
+  retainCachePathAccess(dir);
   const plan = resolvePiecesManifestReadPlan(options);
   if (plan.manifest) return assertPiecesManifestFormat(dir, plan.manifest, options.repoRoot);
   const readManifest = typeof options.readManifest === 'function'

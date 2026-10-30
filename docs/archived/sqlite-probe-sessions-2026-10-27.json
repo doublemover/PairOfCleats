@@ -1,0 +1,875 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-10-27",
+  "sourceHead": "9285c466433548a5055b621adf299b1e16a95e9d",
+  "sourceTree": "82cfdc4a7932b6dd25ca458fe2e6ce09c87749bf",
+  "branch": "codex/pr557-audit-repairs-20261012",
+  "platform": "win32",
+  "arch": "x64",
+  "node": "v26.12.1",
+  "issues": {
+    "partial": [
+      1574
+    ]
+  },
+  "setup": {
+    "dependenciesChanged": false,
+    "nativeBinariesChanged": false,
+    "patchesChanged": false,
+    "bootstrapRerun": false
+  },
+  "before": {
+    "method": "Three child-only historical-owner substitutions from cbcd04966; one isolated historical swallow-close behavior in current admission reaches the intended native error. Checkout files were not reverted.",
+    "cases": [
+      {
+        "name": "probe-category-admission",
+        "exitCode": 1,
+        "signal": null,
+        "error": null,
+        "durationMs": 368,
+        "failure": [
+          "AssertionError [ERR_ASSERTION]: Missing expected exception.\r"
+        ],
+        "baseline": "cbcd0496650e6258b5eda3c160a9b6bfce8d68bd",
+        "priorSnippet": null,
+        "files": [
+          "src/storage/sqlite/build/runner/sqlite-probes.js",
+          "src/storage/sqlite/build/runner/build.js"
+        ],
+        "command": [
+          "C:\\nvm4w\\nodejs\\node.exe",
+          "--import",
+          "file:///C:/Users/sneak/Development/PairOfCleats/.tmp/tasks/sqlite-probe-sessions-20261027/before-probe-category-admission-hook.mjs",
+          "tests/shared/storage/sqlite-probe-lifetime.test.js"
+        ],
+        "receipt": ".tmp/tasks/sqlite-probe-sessions-20261027/before-probe-category-admission.json"
+      },
+      {
+        "name": "probe-resource-session",
+        "exitCode": 1,
+        "signal": null,
+        "error": null,
+        "durationMs": 335,
+        "failure": [
+          "AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:\r"
+        ],
+        "baseline": "cbcd0496650e6258b5eda3c160a9b6bfce8d68bd",
+        "priorSnippet": null,
+        "files": [
+          "src/storage/sqlite/build/runner/sqlite-probes.js",
+          "src/storage/sqlite/build/runner/build.js"
+        ],
+        "command": [
+          "C:\\nvm4w\\nodejs\\node.exe",
+          "--import",
+          "file:///C:/Users/sneak/Development/PairOfCleats/.tmp/tasks/sqlite-probe-sessions-20261027/before-probe-resource-session-hook.mjs",
+          "tests/shared/storage/sqlite-probe-lifetime.test.js"
+        ],
+        "receipt": ".tmp/tasks/sqlite-probe-sessions-20261027/before-probe-resource-session.json"
+      },
+      {
+        "name": "runner-pending-stage-preservation",
+        "exitCode": 1,
+        "signal": null,
+        "error": null,
+        "durationMs": 1335,
+        "failure": [
+          "AssertionError [ERR_ASSERTION]: the actual runner cannot delete staged database or sidecars after pending probe ownership\r",
+          "3 !== 0\r"
+        ],
+        "baseline": "cbcd0496650e6258b5eda3c160a9b6bfce8d68bd",
+        "priorSnippet": null,
+        "files": [
+          "src/storage/sqlite/build/runner/execution-orchestration.js"
+        ],
+        "command": [
+          "C:\\nvm4w\\nodejs\\node.exe",
+          "--import",
+          "file:///C:/Users/sneak/Development/PairOfCleats/.tmp/tasks/sqlite-probe-sessions-20261027/before-runner-pending-stage-preservation-hook.mjs",
+          "tests/storage/sqlite/probe-failure-preserves-staging.test.js"
+        ],
+        "receipt": ".tmp/tasks/sqlite-probe-sessions-20261027/before-runner-pending-stage-preservation.json"
+      },
+      {
+        "name": "probe-swallowed-close",
+        "exitCode": 1,
+        "signal": null,
+        "error": null,
+        "durationMs": 585,
+        "failure": [
+          "AssertionError [ERR_ASSERTION]: a query and failed native close preserve both exact original causes\r",
+          "  actual: AggregateError: original independent probe query remains pending\r",
+          "    [cause]: AggregateError: original independent probe query remains pending\r",
+          "      [cause]: Error: original independent probe query remains pending\r"
+        ],
+        "baseline": "cbcd0496650e6258b5eda3c160a9b6bfce8d68bd",
+        "priorSnippet": true,
+        "files": [
+          "src/storage/sqlite/build/runner/sqlite-probes.js"
+        ],
+        "command": [
+          "C:\\nvm4w\\nodejs\\node.exe",
+          "--import",
+          "file:///C:/Users/sneak/Development/PairOfCleats/.tmp/tasks/sqlite-probe-sessions-20261027/before-probe-swallowed-close-hook.mjs",
+          "tests/shared/storage/sqlite-probe-lifetime.test.js"
+        ],
+        "receipt": ".tmp/tasks/sqlite-probe-sessions-20261027/before-probe-swallowed-close.json"
+      }
+    ]
+  },
+  "checks": {
+    "focused": [
+      {
+        "summary": {
+          "total": 20,
+          "passed": 20,
+          "failed": 0,
+          "skipped": 0,
+          "durationMs": 16551
+        },
+        "tests": [
+          {
+            "id": "indexing/contracts/index-format-cutover",
+            "status": "passed",
+            "durationMs": 1370,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false,
+            "signal": null
+          },
+          {
+            "id": "shared/storage/sqlite-probe-lifetime/admission",
+            "status": "passed",
+            "durationMs": 492,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false,
+            "signal": null
+          },
+          {
+            "id": "shared/storage/sqlite-probe-lifetime/counts",
+            "status": "passed",
+            "durationMs": 587,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false,
+            "signal": null
+          },
+          {
+            "id": "shared/storage/sqlite-probe-lifetime/dense",
+            "status": "passed",
+            "durationMs": 569,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false,
+            "signal": null
+          },
+          {
+            "id": "shared/storage/sqlite-probe-lifetime/metadata",
+            "status": "passed",
+            "durationMs": 449,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false,
+            "signal": null
+          },
+          {
+            "id": "shared/storage/sqlite-probe-lifetime/mode",
+            "status": "passed",
+            "durationMs": 563,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false,
+            "signal": null
+          },
+          {
+            "id": "shared/storage/sqlite-probe-lifetime/pending",
+            "status": "passed",
+            "durationMs": 445,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false,
+            "signal": null
+          },
+          {
+            "id": "shared/storage/sqlite-probe-lifetime/runtime",
+            "status": "passed",
+            "durationMs": 559,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false,
+            "signal": null
+          },
+          {
+            "id": "shared/storage/sqlite-probe-lifetime/table",
+            "status": "passed",
+            "durationMs": 554,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false,
+            "signal": null
+          },
+          {
+            "id": "shared/storage/sqlite-probe-lifetime/vector",
+            "status": "passed",
+            "durationMs": 563,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false,
+            "signal": null
+          },
+          {
+            "id": "storage/sqlite/build/row-ledger",
+            "status": "passed",
+            "durationMs": 102,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false,
+            "signal": null
+          },
+          {
+            "id": "storage/sqlite/explicit-source-authority/historical-conflict",
+            "status": "passed",
+            "durationMs": 944,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false,
+            "signal": null
+          },
+          {
+            "id": "storage/sqlite/explicit-source-authority/native-detached",
+            "status": "passed",
+            "durationMs": 1338,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false,
+            "signal": null
+          },
+          {
+            "id": "storage/sqlite/explicit-source-authority/native-empty",
+            "status": "passed",
+            "durationMs": 1200,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false,
+            "signal": null
+          },
+          {
+            "id": "storage/sqlite/explicit-source-authority/native-external-output",
+            "status": "passed",
+            "durationMs": 1332,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false,
+            "signal": null
+          },
+          {
+            "id": "storage/sqlite/explicit-source-authority/native-known-output",
+            "status": "passed",
+            "durationMs": 1324,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false,
+            "signal": null
+          },
+          {
+            "id": "storage/sqlite/explicit-source-authority/no-current",
+            "status": "passed",
+            "durationMs": 938,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false,
+            "signal": null
+          },
+          {
+            "id": "storage/sqlite/explicit-source-authority/partial-current",
+            "status": "passed",
+            "durationMs": 952,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false,
+            "signal": null
+          },
+          {
+            "id": "storage/sqlite/probe-failure-preserves-staging",
+            "status": "passed",
+            "durationMs": 1148,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false,
+            "signal": null
+          },
+          {
+            "id": "storage/sqlite/runner-no-process-exit",
+            "status": "passed",
+            "durationMs": 1103,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false,
+            "signal": null
+          }
+        ]
+      },
+      {
+        "summary": {
+          "total": 8,
+          "passed": 8,
+          "failed": 0,
+          "skipped": 0,
+          "durationMs": 26030
+        },
+        "tests": [
+          {
+            "id": "storage/sqlite/batch-size-adaptive",
+            "status": "passed",
+            "durationMs": 278,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false,
+            "signal": null
+          },
+          {
+            "id": "storage/sqlite/build-root-active-generation-plan",
+            "status": "passed",
+            "durationMs": 271,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false,
+            "signal": null
+          },
+          {
+            "id": "storage/sqlite/build/cancellation",
+            "status": "passed",
+            "durationMs": 2966,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false,
+            "signal": null
+          },
+          {
+            "id": "storage/sqlite/build/existing-output-staging",
+            "status": "passed",
+            "durationMs": 1339,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false,
+            "signal": null
+          },
+          {
+            "id": "storage/sqlite/build/finalization-diagnostics",
+            "status": "passed",
+            "durationMs": 1176,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false,
+            "signal": null
+          },
+          {
+            "id": "storage/sqlite/build/incremental-runner-imports-contract",
+            "status": "passed",
+            "durationMs": 72,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false,
+            "signal": null
+          },
+          {
+            "id": "storage/sqlite/incremental-no-change",
+            "status": "passed",
+            "durationMs": 19538,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false,
+            "signal": null
+          },
+          {
+            "id": "storage/sqlite/zero-state-proof-admission",
+            "status": "passed",
+            "durationMs": 380,
+            "attempts": 1,
+            "exitCode": 0,
+            "timedOut": false,
+            "signal": null
+          }
+        ]
+      }
+    ],
+    "totalFocused": 28,
+    "gate": {
+      "summary": {
+        "total": 40,
+        "passed": 40,
+        "failed": 0,
+        "skipped": 0,
+        "durationMs": 21469
+      },
+      "tests": [
+        {
+          "id": "indexing/policy/hotpath-membership-guard",
+          "status": "passed",
+          "durationMs": 70,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/policy/module-cache-boundedness-contract",
+          "status": "passed",
+          "durationMs": 69,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/policy/generated-matrix",
+          "status": "passed",
+          "durationMs": 69,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/contracts/artifact-surface-version",
+          "status": "passed",
+          "durationMs": 68,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/contracts/n-minus-one-adapter",
+          "status": "passed",
+          "durationMs": 65,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/contracts/public-artifact-surface-doc",
+          "status": "passed",
+          "durationMs": 66,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/contracts/index-compatibility-key-generation",
+          "status": "passed",
+          "durationMs": 151,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/contracts/semver-policy-enforced",
+          "status": "passed",
+          "durationMs": 68,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/contracts/index-state-dense-sidecars-present",
+          "status": "passed",
+          "durationMs": 72,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "contracts/manifest-max-bytes-validation",
+          "status": "passed",
+          "durationMs": 148,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/policy/repo-inventory",
+          "status": "passed",
+          "durationMs": 1378,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/policy/shared-module-cycle-guard",
+          "status": "passed",
+          "durationMs": 222,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/contracts/loader-matrix-parity",
+          "status": "passed",
+          "durationMs": 198,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/policy/analysis-schema",
+          "status": "passed",
+          "durationMs": 267,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/contracts/snapshots",
+          "status": "passed",
+          "durationMs": 263,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/contracts/builds-current-repo-head-schema",
+          "status": "passed",
+          "durationMs": 256,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/contracts/call-sites-schema",
+          "status": "passed",
+          "durationMs": 261,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/contracts/diffs",
+          "status": "passed",
+          "durationMs": 246,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/contracts/additional-properties-policy",
+          "status": "passed",
+          "durationMs": 260,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/contracts/index-compatibility-key-enforced-on-load",
+          "status": "passed",
+          "durationMs": 468,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/contracts/schema-registry-single-source",
+          "status": "passed",
+          "durationMs": 237,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "tooling/api-contracts/caps",
+          "status": "passed",
+          "durationMs": 579,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "tooling/api-contracts/schema-validate",
+          "status": "passed",
+          "durationMs": 761,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "tooling/api-contracts/fail-on-warn",
+          "status": "passed",
+          "durationMs": 734,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "tooling/api-contracts/optional-params",
+          "status": "passed",
+          "durationMs": 734,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "tooling/api-contracts/large-call-sites",
+          "status": "passed",
+          "durationMs": 577,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/contracts/embedding-identity-gating-on-load",
+          "status": "passed",
+          "durationMs": 497,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "ci/capability-gate.smoke",
+          "status": "passed",
+          "durationMs": 749,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/contracts/index-compatibility-key-federation-block",
+          "status": "passed",
+          "durationMs": 1066,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/policy/stable-entrypoints",
+          "status": "passed",
+          "durationMs": 69,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/policy/optional-deps",
+          "status": "passed",
+          "durationMs": 1194,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/policy/analysis-gating",
+          "status": "passed",
+          "durationMs": 981,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "ci/tooling-doctor-gate.smoke",
+          "status": "passed",
+          "durationMs": 1058,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "tooling/api-contracts/basic",
+          "status": "passed",
+          "durationMs": 621,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "contracts/module-export-surface-compat",
+          "status": "passed",
+          "durationMs": 2373,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/contracts/semantic-foundations",
+          "status": "passed",
+          "durationMs": 1172,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/contracts/semantic-handoff-contracts",
+          "status": "passed",
+          "durationMs": 321,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/contracts/runtime-evidence",
+          "status": "passed",
+          "durationMs": 483,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/contracts/index-format-cutover",
+          "status": "passed",
+          "durationMs": 1314,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "ci/windows-authority-cohort",
+          "status": "passed",
+          "durationMs": 1250,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        }
+      ]
+    },
+    "frontGate": [
+      {
+        "durationMs": 2068,
+        "exitCode": 0,
+        "executable": "npm.cmd",
+        "arguments": [
+          "run",
+          "config:budget"
+        ],
+        "name": "config-budget"
+      },
+      {
+        "durationMs": 1235,
+        "exitCode": 0,
+        "executable": "npm.cmd",
+        "arguments": [
+          "run",
+          "env:check"
+        ],
+        "name": "environment"
+      },
+      {
+        "durationMs": 10289,
+        "exitCode": 0,
+        "executable": "node",
+        "arguments": [
+          "tools/docs/generated-surfaces.js",
+          "--check-freshness"
+        ],
+        "name": "generated"
+      },
+      {
+        "durationMs": 2629,
+        "exitCode": 0,
+        "executable": "node",
+        "arguments": [
+          "tools/ci/check-command-surface.js"
+        ],
+        "name": "command-surface"
+      },
+      {
+        "durationMs": 224,
+        "exitCode": 0,
+        "executable": "node",
+        "arguments": [
+          "tests/ci/workflow-contract.test.js"
+        ],
+        "name": "workflow"
+      },
+      {
+        "durationMs": 22195,
+        "exitCode": 0,
+        "executable": "node",
+        "arguments": [
+          "tests/run.js",
+          "--lane",
+          "gate",
+          "--jobs",
+          "1",
+          "--timeout-ms",
+          "30000",
+          "--retries",
+          "0",
+          "--native-status-redo=false",
+          "--pairofcleats-threads",
+          "1",
+          "--json"
+        ],
+        "name": "gate-lane"
+      },
+      {
+        "durationMs": 74,
+        "exitCode": 0,
+        "executable": "git",
+        "arguments": [
+          "diff",
+          "--check"
+        ],
+        "name": "diff"
+      }
+    ],
+    "format": true,
+    "workingAndStagedDiff": true,
+    "policy": {
+      "jobs": 1,
+      "threads": 1,
+      "timeoutMs": 30000,
+      "retries": 0,
+      "nativeStatusRedo": false
+    }
+  },
+  "coverage": {
+    "probes": "All five SQLite build count/table/vector probes plus runtime/pragma probing share the original synchronous SQLite owner before format/query access. Existing query-unavailable defaults and format rejection remain.",
+    "admission": "Actual launch-selected repo/resource/cache sessions precede native constructors; selection/row-ledger/runner dispatch receives the effective configuration.",
+    "failure": "Actual SQLite handles, original close capture under late method replacement, frozen query and native-close causes, original independent observer and metadata-only retry are exercised. Unknown ownership is never turned into an ordinary count/default.",
+    "staging": "Actual artifact-to-SQLite build reaches post-import read; known physical close does not authorize deleting database/sidecars when independent work remains pending. Prior runner attempts all three removals; repaired owner attempts zero.",
+    "maintenance": "Consolidated repeated probe lifetime code, retaining all five exports and their meaningful result contracts; no fixture assertions or obsolete-code coverage were removed."
+  },
+  "remaining": [
+    "Custom/external backend registration with producer/publication identity and explicit launch authority.",
+    "Validator, complete SQLite builder, sidecar and unadopted legacy-adapter native lifetimes.",
+    "Category-specific eligible backend deletion/requalification and all/multi-repo CLI/MCP acceptance."
+  ],
+  "limits": "Context-free and external target calls are not registered by this batch; canonical storage leases grant no deletion permission. Complete builder/validator/sidecar adoption is separate.",
+  "authority": "No user cache cleanup, GUI, WSL, elevation, physical links or security-setting/public-knob changes.",
+  "rawEvidence": "Historical author-workspace .tmp/.testLogs evidence is absent from clean checkouts; negative unknown-close controls manually close their actual test handles but do not forge protocol settlement."
+}

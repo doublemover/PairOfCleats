@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
+import { constants } from 'node:fs';
 import path from 'node:path';
 import {readCacheIndex,writeCacheEntries,readCacheEntries,encodeCacheEntryPayload,
   createShardAppendHandlePool,createCacheBatchReader,flushCacheIndex,resolveCacheShardPath} from '../../../tools/build/embeddings/cache.js';
-const parent=process.env.PAIROFCLEATS_VECTOR_CACHE_TEST_DIR||path.resolve('temp/tasks/retrieval-vector-cache');
+const parent=process.env.PAIROFCLEATS_VECTOR_CACHE_TEST_DIR||path.resolve('.tmp/tasks/retrieval-vector-cache');
 await fs.mkdir(parent,{recursive:true});const dir=await fs.mkdtemp(path.join(parent,'cache-'));
 await fs.writeFile(path.join(dir,'preserved-source.log'),'owner log');
 const index=await readCacheIndex(dir,'fixture');
@@ -21,7 +22,9 @@ const originalOpen=fs.open;
 let opens=0,reads=0;
 fs.open=async(...args)=>{
   const handle=await originalOpen(...args);
-  if(String(args[0]).includes(path.sep+'shards'+path.sep)&&args[1]==='r'){
+  const flags=args[1];
+  const readOnly=flags==='r'||typeof flags==='number'&&(flags&(constants.O_WRONLY|constants.O_RDWR))===constants.O_RDONLY;
+  if(String(args[0]).includes(path.sep+'shards'+path.sep)&&readOnly){
     opens++;const read=handle.read.bind(handle);handle.read=(...parameters)=>{reads++;return read(...parameters);};
   }
   return handle;

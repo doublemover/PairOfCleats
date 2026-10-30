@@ -3,14 +3,14 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { buildLocalCacheKey } from '../../src/shared/cache-key.js';
 import {
   __resolveSystemCacheAliasForTests,
   assertToolingCachePath, readToolingCacheEntry, removeToolingCacheEntry,
   writeToolingCacheJson, writeToolingCacheJsonSync
 } from '../../src/index/tooling/cache-storage.js';
 import {
-  writePersistentCommandProbeCache, readPersistentCommandProbeCache, invalidatePersistentCommandProbeCache
+  writePersistentCommandProbeCache, readPersistentCommandProbeCache, invalidatePersistentCommandProbeCache,
+  createCommandProbeCacheKey
 } from '../../src/index/tooling/command-probe-persistent-cache.js';
 import {
   buildWorkspaceCommandPreflightFingerprint, readWorkspaceCommandPreflightCacheHit,
@@ -86,10 +86,6 @@ try {
   assert.equal(__resolveSystemCacheAliasForTests('/various/cache', systemAlias), '/various/cache', 'prefix boundary is exact');
 
   const unrelated = ['unrelated.json', `${'0'.repeat(40)}.json`];
-  for (const name of unrelated) {
-    fs.writeFileSync(path.join(probes, name), JSON.stringify({ sentinel: name }));
-    fs.utimesSync(path.join(probes, name), ancient, ancient);
-  }
   const assertUnrelated = () => {
     for (const name of unrelated) {
       assert.equal(fs.readFileSync(path.join(probes, name), 'utf8'), JSON.stringify({ sentinel: name }));
@@ -99,27 +95,32 @@ try {
   assert.equal(readPersistentCommandProbeCache(inputs)?.ok, true, 'normal persistent cache reuse');
   const firstFile = readProbeFiles().find((name) => !unrelated.includes(name));
   const template = JSON.parse(fs.readFileSync(path.join(probes, firstFile), 'utf8'));
+  fs.writeFileSync(path.join(probes, firstFile), JSON.stringify({ ...template, createdAt: ancient.toISOString() }));
   fs.utimesSync(path.join(probes, firstFile), ancient, ancient);
   assert.equal(writePersistentCommandProbeCache({ ...inputs, args: ['second'] }), true);
   assert.equal(fs.existsSync(path.join(probes, firstFile)), false, 'old owned probe entry pruned');
-  assertUnrelated();
   // Exercise entry-cap pruning with complete producer-shaped records, without
   // launching commands or relying on hundreds of separately spawned tests.
   for (let index = 0; index < 257; index += 1) {
     const payload = { ...template, args: [`capacity-${index}`] };
-    const key = buildLocalCacheKey({ namespace: 'tooling-command-probe', version: 'tcp2', payload: {
-      schemaVersion: payload.schemaVersion, providerId: payload.providerId,
-      commandPath: payload.command.path, cwd: payload.cwd, args: payload.args,
-      size: payload.command.size, mtimeMs: payload.command.mtimeMs
-    } });
+    const key = createCommandProbeCacheKey(payload);
     fs.writeFileSync(path.join(probes, `${key.digest}.json`), JSON.stringify(payload));
   }
   assert.equal(writePersistentCommandProbeCache({ ...inputs, args: ['third'] }), true);
-  assert.equal(readProbeFiles().length, unrelated.length + 256);
-  assertUnrelated();
+  assert.equal(readProbeFiles().length, 256);
   const thirdArgs = { ...inputs, args: ['third'] };
   assert.equal(invalidatePersistentCommandProbeCache(thirdArgs), true);
   assert.equal(readPersistentCommandProbeCache(thirdArgs), null);
+
+  for (const name of unrelated) {
+    fs.writeFileSync(path.join(probes, name), JSON.stringify({ sentinel: name }));
+    fs.utimesSync(path.join(probes, name), ancient, ancient);
+  }
+  const beforeBlockedWrite = readProbeFiles().map(name => [name, fs.readFileSync(path.join(probes, name), 'utf8')]);
+  assert.equal(writePersistentCommandProbeCache({ ...inputs, args: ['unknown-inventory'] }), false,
+    'unknown content blocks write/eviction admission without granting deletion authority');
+  assert.deepEqual(readProbeFiles().map(name => [name, fs.readFileSync(path.join(probes, name), 'utf8')]), beforeBlockedWrite);
+  assertUnrelated();
 
   // Unrelated content at an exact generated name is neither replaced nor
   // removed by invalidation, and symlinks/hardlinks are never cache entries.

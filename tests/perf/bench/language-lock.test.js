@@ -2,6 +2,8 @@
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
+import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import { runNode } from '../../helpers/run-node.js';
 import { getRepoCacheRoot } from '../../../tools/shared/dict-utils.js';
 
@@ -82,6 +84,23 @@ if (task.skipReason !== 'lock') {
   console.error(`Expected skipReason=lock, got ${task.skipReason}`);
   process.exit(1);
 }
+
+// Retain the original dry-run control, then exercise actual finalization with
+// cleanup enabled. A normal lock refusal must never acquire deletion authority.
+execFileSync('git', ['init', '--quiet', repoPath], { stdio: 'pipe' });
+const sentinel = path.join(repoCacheRoot, 'original-cache-sentinel.txt');
+await fsPromises.writeFile(sentinel, 'live-owner-cache');
+const lockBefore = await fsPromises.readFile(path.join(lockDir, 'index.lock'), 'utf8');
+const normal = runNode([scriptPath, '--config', configPath, '--root', reposRoot, '--cache-root', cacheRoot,
+  '--results', resultsRoot, '--no-clone', '--no-provision', '--lock-mode', 'fail-fast', '--json'],
+'bench language live lock with cleanup enabled', root, process.env,
+{ stdio: 'pipe', encoding: 'utf8', allowFailure: true, timeoutMs: 25000 });
+const actual = JSON.parse(normal.stdout || '{}');
+const skipped = actual.tasks?.[0];
+assert.equal(skipped?.skipReason, 'lock', normal.stderr);
+assert.equal(skipped.cacheCleanup?.status, 'not-owned');
+assert.equal(await fsPromises.readFile(sentinel, 'utf8'), 'live-owner-cache');
+assert.equal(await fsPromises.readFile(path.join(lockDir, 'index.lock'), 'utf8'), lockBefore);
 
 console.log('bench-language lock test passed');
 

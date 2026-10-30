@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["mutable", "frozen", "callable", "captured-callback", "admission-inspection", "marker-getter"]
+}

@@ -10,6 +10,7 @@ import {
 import { readSignatureLines } from './shared/signature-lines.js';
 import { buildHeuristicDataflow, hasReturnValue, summarizeControlFlow } from './flow.js';
 import { buildTreeSitterChunks } from './tree-sitter.js';
+import { readStaticShellWord } from './shared/shell-word.js';
 
 /**
  * Shell (lite) language chunking and relations.
@@ -88,22 +89,36 @@ function stripShellComments(text) {
 function collectShellCallsAndUsages(text) {
   const calls = new Set();
   const usages = new Set();
-  const normalized = stripShellComments(text).replace(/\\\n/g, ' ');
-  const callRe = /(?:^|[;&|]\s*|&&\s*|\|\|\s*)\s*([A-Za-z_][A-Za-z0-9_-]*)/gm;
-  let match;
-  while ((match = callRe.exec(normalized)) !== null) {
-    const name = match[1];
-    if (!name || SHELL_CALL_KEYWORDS.has(name)) continue;
-    calls.add(name);
-    if (!match[0]) callRe.lastIndex += 1;
-  }
-  const usageRe = /\b([A-Za-z_][A-Za-z0-9_-]*)\b/g;
-  while ((match = usageRe.exec(normalized)) !== null) {
-    const name = match[1];
-    if (!name || name.length < 2) continue;
-    if (SHELL_USAGE_SKIP.has(name)) continue;
-    usages.add(name);
-    if (!match[0]) usageRe.lastIndex += 1;
+  const heredocs=[];
+  for(const line of String(text || '').replace(/\\\r?\n/g,'').split(/\r\n|\n|\r/u)) {
+    if(heredocs.length) {
+      const current=heredocs[0], candidate=current.stripTabs ? line.replace(/^\t+/,'') : line;
+      if(candidate === current.delimiter) heredocs.shift();
+      continue;
+    }
+    let command=true,index=0;
+    while(index<line.length) {
+      const char=line[index];
+      if(/\s/u.test(char)) {index++;continue;}
+      if(char === '#') break;
+      if(';&|{}'.includes(char)) {command=true;index++;continue;}
+      const redirection=line.slice(index).match(/^(?:\d+)?(<<-?|>>?|<)/u);
+      if(redirection) {
+        index+=redirection[0].length;
+        const target=readStaticShellWord(line,index);
+        if(!target) break;
+        if(redirection[1].startsWith('<<')) heredocs.push({delimiter:target.value,stripTabs:redirection[1] === '<<-'});
+        index=target.end;continue;
+      }
+      const word=readStaticShellWord(line,index);
+      if(!word) {index++;command=false;continue;}
+      index=word.end;
+      if(command && /^[A-Za-z_][A-Za-z0-9_]*=/u.test(word.value)) continue;
+      if(command && ['if','then','elif','else','do','while','until','!'].includes(word.value)) continue;
+      if(command && /^[A-Za-z_][A-Za-z0-9_-]*$/u.test(word.value) && !SHELL_CALL_KEYWORDS.has(word.value)) calls.add(word.value);
+      if(!SHELL_USAGE_SKIP.has(word.value) && /^[A-Za-z_][A-Za-z0-9_-]*$/u.test(word.value)) usages.add(word.value);
+      command=false;
+    }
   }
   return { calls: Array.from(calls), usages: Array.from(usages) };
 }
@@ -122,10 +137,7 @@ export function collectShellImports(text) {
     if (!trimmed || trimmed.startsWith('#')) continue;
     const match = trimmed.match(/^(?:source|\.)\s+(.+)$/);
     if (!match) continue;
-    let target = match[1].trim();
-    if (!target) continue;
-    target = target.replace(/^[\"']/, '').replace(/[\"']$/, '');
-    target = target.split(/\s+/)[0];
+    const target = readStaticShellWord(match[1])?.value;
     if (target) imports.add(target);
   }
   return Array.from(imports);
@@ -139,7 +151,12 @@ export function collectShellImports(text) {
  */
 export function buildShellChunks(text, options = {}) {
   const treeChunks = buildTreeSitterChunks({ text, languageId: 'shell', options });
-  if (treeChunks && treeChunks.length) return treeChunks;
+  if (treeChunks && treeChunks.length) {
+    const ext = String(options.ext || '').toLowerCase();
+    return treeChunks.map(chunk => ({...chunk,meta:{...chunk.meta,shellSyntaxDialect:'bash',
+      ...(['.zsh','.ksh'].includes(ext) ? { shellDialectCoverage:'unsupported-dialect-bash-syntax-subset',
+        syntaxCallCoverage:'partial-bash-grammar-for-unsupported-shell-dialect' } : {})}}));
+  }
   const lineIndex = buildLineIndex(text);
   const lines = text.split('\n');
   const decls = [];

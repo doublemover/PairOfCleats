@@ -68,10 +68,7 @@ try {
   const state = { enabled: true, bundleDir: fixture.bundleDir, bundleFormat: 'json',
     manifest: { ...fixture.manifest, files: {} }, readHashCache: new Map() };
   const sourcePath = path.join(fixture.repoRoot, completed.file);
-  // The fixture has synthetic stat/hash fields; align its source stat to exercise
-  // the normal cached read, which still rehashes exact semantic source bytes.
-  await fs.utimes(sourcePath, new Date(), new Date(completed.entry.mtimeMs));
-  const fileStat = { ...(await fs.stat(sourcePath)), mtimeMs: completed.entry.mtimeMs };
+  const fileStat = await fs.stat(sourcePath);
   const pendingPath = path.join(fixture.repoRoot, 'pending.js');
   await fs.writeFile(pendingPath, 'unfinished();');
   const richerPrior = { ...receipt.manifestEntry, completionKey: 'f'.repeat(64) };

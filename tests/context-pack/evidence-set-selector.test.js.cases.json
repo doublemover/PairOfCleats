@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["top-k", "mmr", "role-coverage", "facility-location", "empty-facility", "relevance-wins", "ties", "low-budget", "zero", "missing-roles", "empty-similarity", "pair-cap", "work-cap", "deadline", "measurement-cap", "non-additive-cost", "cancellation", "unknown-failure", "invalid-policy"]
+}

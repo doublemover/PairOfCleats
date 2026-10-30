@@ -9,6 +9,9 @@ import { pickMinLimit, resolveFileCaps } from './read.js';
 import { stripFileRelations } from './relations.js';
 import { log } from '../../../shared/progress-runtime.js';
 import { buildPostingsPayloadMetadata } from '../postings-payload.js';
+import { admitDocumentExtractionReceipt } from '../../extractors/receipt.js';
+import { resolveLintPolicy, isReusableLintOutcome } from '../../lint-policy.js';
+import { isJsLike } from '../../constants.js';
 
 /**
  * Rehydrate a cached per-file bundle when structural and cap invariants still
@@ -37,9 +40,25 @@ export function reuseCachedBundle({
   fileStart,
   knownLines,
   fileLanguageId,
-  mode = null
+  mode = null,
+  documentExtractionAdmission = null,
+  root = null, lintEnabled = false, lintPolicy = null
 }) {
   if (!cachedBundle || !Array.isArray(cachedBundle.chunks)) return { result: null, skip: null };
+  if (lintEnabled && mode === 'code' && isJsLike(ext)) {
+    try {
+      const policy = resolveLintPolicy(root, lintPolicy), receipt = cachedBundle.lintOutcome;
+      if (!isReusableLintOutcome(receipt, policy) || receipt.source.path !== relKey.split('\\').join('/')
+        || cachedBundle.chunks.some(chunk => chunk?.docmeta?.lintOutcome?.source?.hash !== receipt.source.hash
+          || !isReusableLintOutcome(chunk.docmeta.lintOutcome, policy, receipt.source))) return { result: null, skip: null };
+    } catch { return { result: null, skip: null }; }
+  }
+  const document = mode === 'extracted-prose' && ['.pdf', '.docx'].includes(ext);
+  const extraction = document && documentExtractionAdmission ? admitDocumentExtractionReceipt({
+    receipt: cachedBundle.documentExtraction, sourceHash: cachedBundle.hash, sourceSize: fileStat.size,
+    admission: documentExtractionAdmission
+  }) : null;
+  if (document && !extraction) return { result: null, skip: null };
   const hasValidChunks = cachedBundle.chunks.every((chunk) => {
     if (!chunk || typeof chunk !== 'object') return false;
     const start = Number(chunk.start);
@@ -111,6 +130,7 @@ export function reuseCachedBundle({
     ? cachedBundle.encodingConfidence
     : (Number.isFinite(cachedEntry?.encodingConfidence) ? cachedEntry.encodingConfidence : null);
   const fileInfo = {
+    ...(extraction ? { extraction } : {}),
     size: fileStat.size,
     hash: resolvedHash,
     hashAlgo: resolvedHashAlgo,
@@ -138,7 +158,9 @@ export function reuseCachedBundle({
     encodingConfidence: resolvedEncodingConfidence
   } : null;
   const fileRelations = cachedBundle.fileRelations || null;
-  if (!fileRelations && !cachedEntry?.completionKey) return { result: null, skip: null };
+  // Admitted PDF/DOCX receipts carry their complete extracted content/provenance;
+  // those producers do not emit a source-code relation graph.
+  if (!document && !fileRelations && !cachedEntry?.completionKey) return { result: null, skip: null };
   const vfsManifestRows = Array.isArray(cachedBundle.vfsManifestRows)
     ? cachedBundle.vfsManifestRows
     : null;

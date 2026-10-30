@@ -1,9 +1,11 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
+import { ToolSchema } from '@modelcontextprotocol/sdk/types.js';
 import { getToolDefs } from '../../../src/integrations/mcp/defs.js';
 import { TOOL_HANDLERS } from '../../../tools/mcp/tools.js';
 
 const defs = getToolDefs('test-model');
+for (const definition of defs) ToolSchema.parse(definition);
 const defNames = new Set(defs.map((entry) => entry.name));
 const handlerNames = new Set(TOOL_HANDLERS.keys());
 

@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
+import assert from 'node:assert/strict';
+import { getRepoCacheRoot } from '../../../../tools/shared/dict-utils.js';
 import { buildEmbeddingIdentity, buildEmbeddingIdentityKey } from '../../../../src/shared/embedding-identity.js';
 import { applyTestEnv } from '../../../helpers/test-env.js';
 import { runNode as runNodeSync } from '../../../helpers/run-node.js';
@@ -79,11 +81,15 @@ const assertNoStubCacheArtifacts = async () => {
   }
 };
 
-runNode('build_index', [path.join(root, 'build_index.js'), '--stub-embeddings', '--stage', 'stage3', '--mode', 'code', '--repo', repoRoot]);
-runNode('build_embeddings', [path.join(root, 'tools', 'build/embeddings.js'), '--stub-embeddings', '--mode', 'code', '--repo', repoRoot]);
+runNode('build_index', [path.join(root, 'build_index.js'), '--stub-embeddings', '--stage', 'stage2', '--mode', 'code', '--repo', repoRoot]);
+const builds = path.join(getRepoCacheRoot(repoRoot), 'builds');
+const generations = (await fsPromises.readdir(builds, { withFileTypes: true })).filter(entry => entry.isDirectory());
+assert.equal(generations.length, 1, 'the fresh Stage2 producer supplies one explicit generation');
+const indexRoot = path.join(builds, generations[0].name);
+runNode('build_embeddings', [path.join(root, 'tools', 'build/embeddings.js'), '--index-root', indexRoot, '--stub-embeddings', '--mode', 'code', '--repo', repoRoot]);
 await assertNoStubCacheArtifacts();
 
-runNode('build_embeddings cached', [path.join(root, 'tools', 'build/embeddings.js'), '--stub-embeddings', '--mode', 'code', '--repo', repoRoot]);
+runNode('build_embeddings cached', [path.join(root, 'tools', 'build/embeddings.js'), '--index-root', indexRoot, '--stub-embeddings', '--mode', 'code', '--repo', repoRoot]);
 await assertNoStubCacheArtifacts();
 
 const onnxBase = buildEmbeddingIdentity({

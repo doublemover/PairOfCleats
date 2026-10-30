@@ -1,0 +1,11 @@
+# Local literal expression ownership
+
+The existing local type-inference entry point requires a complete lexical literal envelope before assigning a scalar or container fact. A quoted comparison, array/property read, constructor-result property or other trailing expression cannot inherit the initial literal's type. Grouping delegates to its contained expression. Python grouping differs from a comma-bearing/empty tuple, and dictionary versus set literals retain their own lexical role.
+
+Quote-owned comment masking preserves URLs, hashes, escaped quotes and comma markers inside literals. Python `#` and C-style line/block comment handling stay separate; Python floor division is not a comment. Array element inference and top-level object-key projection share bounded quote/nesting inspection, so nested object keys cannot become keys of the enclosing object. Primitive keyword spelling is case-sensitive; a binding named `TRUE` or Python `true` can receive its actual known alias type instead of an unrelated Boolean guess.
+
+Inspection is bounded to the existing 65,536-character/128-nesting scale. Unsupported or unclosed input supplies no speculative literal fact, while explicit annotations remain a separate owner. This is a lexical heuristic, without a complete expression parser, regex/template-substitution grammar, scope proof or runtime execution. Complete `new` and builtin-looking Python constructor calls retain their existing heuristic status; constructor return replacement, builtin shadowing, bare Python tuples, lambda ambiguity and arbitrary expression typing are not proved here. Source-order alias confidence and shape/element allowances remain unchanged.
+
+The shared type-analysis producer identity must advance because persisted default/local/field facts and their downstream alias candidates change. Shared canonical type-text rules, provider caches and source chunking do not change.
+
+Authored actual local-enrichment and cross-file projection regressions inspect full literal/unsupported expression boundaries, quoted comments/escapes, container elements/top-level keys, Python grouping/set/tuple roles and case-distinct source bindings. All are **UNVALIDATED**; no tests, syntax, lint, format, bootstrap, compiler/native/source execution or benchmark was run.

@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["function", "arrow", "fragment", "callback", "map", "unicode", "tsx-function", "tsx-generic", "cache-reuse", "extra-isolation", "markup-edit", "malformed"]
+}

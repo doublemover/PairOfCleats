@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["memory", "sqlite", "lmdb", "memory-faults", "sqlite-faults", "lmdb-faults"]
+}

@@ -1,10 +1,17 @@
+import { findDeclarationBoundary } from './shared/declaration-boundary.js';
 export function findBraceDelimitedBodyBounds(text, start, {
   charLiterals = false,
-  tripleDoubleStrings = false
+  tripleDoubleStrings = false,
+  rustLifetimes = false,
+  ecmaScriptLineTerminators = false
 } = {}) {
+  const boundary = findDeclarationBoundary(text, start, { charLiterals, tripleDoubleStrings, rustLifetimes, ecmaScriptLineTerminators });
+  if (boundary.bodyStart < 0) return { bodyStart: -1, bodyEnd: -1 };
+  start = boundary.bodyStart;
   let inLineComment = false;
   let inBlockComment = false;
   let inString = false;
+  let stringQuote = '"';
   let inTripleString = false;
   let inChar = false;
   let braceDepth = 0;
@@ -13,7 +20,7 @@ export function findBraceDelimitedBodyBounds(text, start, {
     const ch = text[i];
     const next = text[i + 1];
     if (inLineComment) {
-      if (ch === '\n') inLineComment = false;
+      if (ch === '\n' || ecmaScriptLineTerminators && (ch === '\r' || ch === '\u2028' || ch === '\u2029')) inLineComment = false;
       continue;
     }
     if (inBlockComment) {
@@ -36,7 +43,7 @@ export function findBraceDelimitedBodyBounds(text, start, {
         i += 1;
         continue;
       }
-      if (ch === '"') inString = false;
+      if (ch === stringQuote) inString = false;
       continue;
     }
     if (inChar) {
@@ -57,7 +64,8 @@ export function findBraceDelimitedBodyBounds(text, start, {
       i += 1;
       continue;
     }
-    if (ch === '"') {
+    if (ch === '"' || ch === '`') {
+      stringQuote = ch;
       if (tripleDoubleStrings && text.startsWith('"""', i)) {
         inString = true;
         inTripleString = true;
@@ -67,7 +75,7 @@ export function findBraceDelimitedBodyBounds(text, start, {
       }
       continue;
     }
-    if (charLiterals && ch === '\'') {
+    if (charLiterals && ch === '\'' && !(rustLifetimes && /^'[A-Za-z_]\w*(?![\w'])/.test(text.slice(i)))) {
       inChar = true;
       continue;
     }

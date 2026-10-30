@@ -32,7 +32,8 @@ Primary modules:
 * `src/shared/json-stream/streams.js`
   * `createJsonWriteStream(filePath, options)` returns `{ stream, getBytesWritten, checksumAlgo, getChecksum, done }`.
   * Compression pipelines count bytes after gzip/zstd and before the file stream.
-  * Atomic writes use temp files and `replaceFile()` after stream completion.
+  * Atomic writes seal their private temp file, close all output streams, await the internal `settleBeforePublish` capability when supplied, then call `replaceFile()`. Cancellation before commit rejects and removes only the private temporary output.
+  * Standalone zstd batch writers supply owned codec teardown as that capability. Repeated close joins the same owner. Borrowed codecs remain owned by their enclosing scope; individual writers settle their submitted blocks and leases before publication without closing the shared pool.
 * `src/shared/json-stream/jsonl-sharded.js`
   * `writeJsonLinesSharded()` and `writeJsonLinesShardedAsync()` write into a sibling temp parts directory, record finalized shard sizes from `getBytesWritten()`, and swap the complete directory into place through `replaceDir()`.
 * `src/shared/io/replace-file.js`

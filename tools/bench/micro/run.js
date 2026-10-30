@@ -1,6 +1,14 @@
+import { createMicrobenchOptions } from '../../shared/operator-cli-options.js';
 import { guardBootstrapEntry } from '../../../src/shared/bootstrap-readiness.js';
 await guardBootstrapEntry(import.meta.url);
 import path from 'node:path';
+import os from 'node:os';
+import { compareSearchMicroBaseline } from './baseline.js';
+import { SEARCH_MICRO_REPORT_VERSION, captureMicroQuerySchedule } from './search-observation.js';
+import { captureSweepSource } from '../ab-sweep-source.js';
+import { readVerifiedContainedFile } from '../../../src/shared/contained-file.js';
+import { readQueryInputPlan } from '../../shared/query-file-utils.js';
+import { withMicrobenchCacheOwner } from './cache-owner.js';
 const { createCli } = await import('../../../src/shared/cli.js');
 const { createSqliteDbCache } = await import('../../../src/retrieval/sqlite-cache.js');
 const { parseCommaList } = await import('../../../src/shared/comma-list.js');
@@ -14,87 +22,7 @@ const defaultRepo = path.resolve(toolRoot, 'tests', 'fixtures', 'sample');
 const rawArgs = process.argv.slice(2);
 const argv = createCli({
   scriptName: 'pairofcleats bench micro',
-  options: {
-    repo: {
-      type: 'string',
-      describe: 'Repo root to benchmark',
-      default: defaultRepo
-    },
-    'repo-current': {
-      type: 'boolean',
-      describe: 'Use current working repo root instead of the fixture default',
-      default: false
-    },
-    mode: {
-      type: 'string',
-      describe: 'Index/search mode (code|prose)',
-      default: 'code'
-    },
-    query: {
-      type: 'string',
-      describe: 'Search query for microbench runs',
-      default: 'function'
-    },
-    backend: {
-      type: 'string',
-      describe: 'Search backend (memory|sqlite|sqlite-fts)',
-      default: 'memory'
-    },
-    'ann-backends': {
-      type: 'string',
-      describe: 'Comma-separated ANN backends for ann-backends component (sqlite-vector,lancedb,hnsw,js)',
-      default: 'sqlite-vector,lancedb'
-    },
-    runs: {
-      type: 'number',
-      describe: 'Warm run count per component',
-      default: 5
-    },
-    warmup: {
-      type: 'number',
-      describe: 'Warmup runs discarded before measuring warm stats',
-      default: 1
-    },
-    threads: {
-      type: 'number',
-      describe: 'Index build worker threads',
-      default: 0
-    },
-    build: {
-      type: 'boolean',
-      describe: 'Build indexes before search benchmarks',
-      default: true
-    },
-    clean: {
-      type: 'boolean',
-      describe: 'Clean repo cache before cold index build',
-      default: true
-    },
-    sqlite: {
-      type: 'boolean',
-      describe: 'Enable SQLite builds during index benchmark',
-      default: false
-    },
-    'stub-embeddings': {
-      type: 'boolean',
-      describe: 'Use stub embeddings for index build',
-      default: true
-    },
-    components: {
-      type: 'string',
-      describe: 'Comma-separated component list: index-build,sparse,dense,hybrid,ann-backends',
-      default: 'index-build,sparse,dense,hybrid'
-    },
-    json: {
-      type: 'boolean',
-      describe: 'Emit JSON output only',
-      default: false
-    },
-    out: {
-      type: 'string',
-      describe: 'Write JSON results to a file'
-    }
-  }
+  options: createMicrobenchOptions(defaultRepo)
 }).strictOptions().parse();
 
 // Reject invalid options and serve help before initializing the workflow runtime.
@@ -115,12 +43,25 @@ const annBackends = parseCommaList(argv['ann-backends']).map((entry) => entry.to
 const annBackendList = annBackends.length
   ? Array.from(new Set(annBackends))
   : ['sqlite-vector', 'lancedb'];
+const queryPlan = argv.queries ? await readQueryInputPlan(path.resolve(argv.queries), { explicit: true,
+  readFile: async file => (await readVerifiedContainedFile(path.dirname(file), file, { maxBytes: 4 * 1024 * 1024 })).buffer }) : null;
+const capturedSchedule = captureMicroQuerySchedule(argv.query, queryPlan?.cases.map(entry => entry.query));
+const querySchedule = capturedSchedule.queries;
+
+const cpus = os.cpus();
+const environment = { node: process.version, abi: process.versions.modules, platform: process.platform,
+  arch: process.arch, cpuModel: cpus[0]?.model || 'unknown', cpuCount: cpus.length };
 
 const results = {
+  env: environment,
+  codeProvenance: captureSweepSource(toolRoot),
   repoRoot,
   mode,
   query: argv.query,
   backend: argv.backend,
+  workMode: argv['work-mode'],
+  queryPlan,
+  querySchedule: capturedSchedule,
   annBackends: annBackendList,
   components: {}
 };
@@ -156,107 +97,122 @@ if (components.includes('index-build')) {
 const indexCache = new Map();
 const sqliteCache = createSqliteDbCache();
 
-if (components.includes('sparse')) {
-  log('\n[search-sparse]');
-  const bench = await runSearchBenchmark({
-    repoRoot,
-    query: argv.query,
-    mode,
-    backend: argv.backend,
-    ann: false,
-    scoreMode: 'sparse',
-    warmRuns,
-    warmupRuns,
-    indexCache,
-    sqliteCache
-  });
-  results.components['search-sparse'] = bench;
-  if (!argv.json) {
-    log(`cold: ${formatMs(bench.coldMs)}`);
-    log(`warm: ${formatStats(bench.warm)}`);
+await withMicrobenchCacheOwner(sqliteCache, async () => {
+  if (components.includes('sparse')) {
+    log('\n[search-sparse]');
+    const bench = await runSearchBenchmark({
+      repoRoot,
+      query: argv.query,
+      mode,
+      backend: argv.backend,
+      ann: false,
+      scoreMode: 'sparse',
+      workMode: argv['work-mode'],
+      quality: argv.quality,
+      querySchedule,
+      warmRuns,
+      warmupRuns,
+      indexCache,
+      sqliteCache
+    });
+    results.components['search-sparse'] = bench;
+    if (!argv.json) {
+      log(`initial (index handles cleared; other cache layers declared in receipt): ${formatMs(bench.initialMs)}`);
+      log(`warm: ${formatStats(bench.warm)}`);
+    }
   }
-}
 
-if (components.includes('dense')) {
-  log('\n[search-dense]');
-  const bench = await runSearchBenchmark({
-    repoRoot,
-    query: argv.query,
-    mode,
-    backend: argv.backend,
-    ann: true,
-    scoreMode: 'dense',
-    warmRuns,
-    warmupRuns,
-    indexCache,
-    sqliteCache
-  });
-  results.components['search-dense'] = bench;
-  if (!argv.json) {
-    log(`cold: ${formatMs(bench.coldMs)}`);
-    log(`warm: ${formatStats(bench.warm)}`);
-  }
-}
-
-if (components.includes('ann-backends') || components.includes('ann-backend')) {
-  log('\n[ann-backends]');
-  const backendResults = {};
-  for (const annBackend of annBackendList) {
-    log(`\n[ann-${annBackend}]`);
+  if (components.includes('dense')) {
+    log('\n[search-dense]');
     const bench = await runSearchBenchmark({
       repoRoot,
       query: argv.query,
       mode,
       backend: argv.backend,
       ann: true,
-      annBackend,
       scoreMode: 'dense',
+      workMode: argv['work-mode'],
+      quality: argv.quality,
+      querySchedule,
       warmRuns,
       warmupRuns,
       indexCache,
       sqliteCache
     });
-    backendResults[annBackend] = bench;
+    results.components['search-dense'] = bench;
     if (!argv.json) {
-      log(`cold: ${formatMs(bench.coldMs)}`);
+      log(`initial (index handles cleared; other cache layers declared in receipt): ${formatMs(bench.initialMs)}`);
       log(`warm: ${formatStats(bench.warm)}`);
     }
   }
-  const comparison = buildAnnBackendComparison(backendResults);
-  results.components['ann-backends'] = {
-    scoreMode: 'dense',
-    backends: backendResults,
-    comparison
+
+  if (components.includes('ann-backends') || components.includes('ann-backend')) {
+    log('\n[ann-backends]');
+    const backendResults = {};
+    for (const annBackend of annBackendList) {
+      log(`\n[ann-${annBackend}]`);
+      const bench = await runSearchBenchmark({
+        repoRoot,
+        query: argv.query,
+        mode,
+        backend: argv.backend,
+        ann: true,
+        annBackend,
+        scoreMode: 'dense',
+        workMode: argv['work-mode'],
+        quality: argv.quality,
+        querySchedule,
+        warmRuns,
+        warmupRuns,
+        indexCache,
+        sqliteCache
+      });
+      backendResults[annBackend] = bench;
+      if (!argv.json) {
+        log(`initial (index handles cleared; other cache layers declared in receipt): ${formatMs(bench.initialMs)}`);
+        log(`warm: ${formatStats(bench.warm)}`);
+      }
+    }
+    const comparison = buildAnnBackendComparison(backendResults);
+    results.components['ann-backends'] = {
+      scoreMode: 'dense',
+      backends: backendResults,
+      comparison
+    };
+    if (comparison?.summary) {
+      logCompare(`\n${comparison.summary}`);
+    }
+  }
+
+  if (components.includes('hybrid')) {
+    log('\n[search-hybrid]');
+    const bench = await runSearchBenchmark({
+      repoRoot,
+      query: argv.query,
+      mode,
+      backend: argv.backend,
+      ann: true,
+      scoreMode: 'hybrid',
+      workMode: argv['work-mode'],
+      quality: argv.quality,
+      querySchedule,
+      warmRuns,
+      warmupRuns,
+      indexCache,
+      sqliteCache
+    });
+    results.components['search-hybrid'] = bench;
+    if (!argv.json) {
+      log(`initial (index handles cleared; other cache layers declared in receipt): ${formatMs(bench.initialMs)}`);
+      log(`warm: ${formatStats(bench.warm)}`);
+    }
+  }
+
+  results.cache = {
+    sqliteEntries: sqliteCache.size()
   };
-  if (comparison?.summary) {
-    logCompare(`\n${comparison.summary}`);
-  }
-}
+});
 
-if (components.includes('hybrid')) {
-  log('\n[search-hybrid]');
-  const bench = await runSearchBenchmark({
-    repoRoot,
-    query: argv.query,
-    mode,
-    backend: argv.backend,
-    ann: true,
-    scoreMode: 'hybrid',
-    warmRuns,
-    warmupRuns,
-    indexCache,
-    sqliteCache
-  });
-  results.components['search-hybrid'] = bench;
-  if (!argv.json) {
-    log(`cold: ${formatMs(bench.coldMs)}`);
-    log(`warm: ${formatStats(bench.warm)}`);
-  }
-}
-
-results.cache = {
-  sqliteEntries: sqliteCache.size()
-};
 
 if (argv.out) {
   const outPath = path.resolve(argv.out);
@@ -329,10 +285,18 @@ function buildAnnBackendComparison(backends) {
   const sqlite = backends['sqlite-vector'] || backends.sqlite || null;
   const lancedb = backends.lancedb || null;
   if (!sqlite || !lancedb) return null;
-  const pickStat = (entry) => entry?.warm || null;
-  const sqliteWarm = pickStat(sqlite);
-  const lanceWarm = pickStat(lancedb);
-  if (!sqliteWarm || !lanceWarm) return null;
+  const report = entry => ({ schemaVersion: SEARCH_MICRO_REPORT_VERSION, kind: 'search-microbenchmark',
+    repoRoot: entry.repoRoot, mode: entry.mode, backend: entry.backend, workMode: entry.workMode,
+    querySchedule: entry.querySchedule, env: environment,
+    components: { 'search-dense': { samples: entry.warm.count, meanMs: entry.warm.mean,
+      p50Ms: entry.warm.p50, p95Ms: entry.warm.p95, p99Ms: entry.warm.p99,
+      totalTimeMs: entry.warm.mean * entry.warm.count, scoreMode: entry.scoreMode,
+      requestedBackend: entry.backend, requestedAnnBackend: entry.annBackend, work: entry.work } } });
+  const admission = compareSearchMicroBaseline(report(sqlite), report(lancedb), { variedAxis: 'ann-backend' });
+  const sqliteWarm = sqlite.warm, lanceWarm = lancedb.warm;
+  if (admission.state !== 'comparable') return { state: 'incomparable', sqlite: sqliteWarm, lancedb: lanceWarm,
+    ratio: { mean: null, p50: null }, admission,
+    summary: `Comparison unavailable: ${admission.differences.map(row => row.reason).join(', ')}` };
   const toFixed = (value) => (Number.isFinite(value) ? value.toFixed(1) : 'n/a');
   const ratio = (a, b) => (Number.isFinite(a) && Number.isFinite(b) && b > 0 ? a / b : null);
   const meanRatio = ratio(sqliteWarm.mean, lanceWarm.mean);
@@ -341,6 +305,8 @@ function buildAnnBackendComparison(backends) {
   const p50Text = p50Ratio ? `${p50Ratio.toFixed(2)}x` : 'n/a';
   const summary = `Comparison (sqlite-vector vs lancedb): mean ${toFixed(sqliteWarm.mean)}ms vs ${toFixed(lanceWarm.mean)}ms (${meanText}) | p50 ${toFixed(sqliteWarm.p50)}ms vs ${toFixed(lanceWarm.p50)}ms (${p50Text})`;
   return {
+    state: 'comparable',
+    admission,
     sqlite: sqliteWarm,
     lancedb: lanceWarm,
     ratio: { mean: meanRatio, p50: p50Ratio },

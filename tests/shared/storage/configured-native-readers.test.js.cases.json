@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["sqlite-directory", "sqlite-file", "lmdb-directory", "lmdb-file", "sidecars", "selection-change", "pending-close", "failed-open", "cache-reuse", "launch-homes", "unregistered", "publication-identity", "canonical-launch"]
+}

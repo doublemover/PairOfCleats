@@ -53,8 +53,8 @@ const readNumber = (text, start) => {
 /**
  * Recognize a valid object document or a prefix that could become one solely by
  * appending bytes. No parser recovery is allowed inside the visible prefix.
- * `complete` means the caller read fewer bytes than its cap, so truncation is not
- * an explanation for missing tokens. String indices are decoded UTF-16 indices,
+ * `complete` means the same read owner observed EOF, including exactly at its
+ * cap, so truncation cannot explain missing tokens. String indices are decoded UTF-16 indices,
  * independent of the caller's UTF-8 byte budget.
  */
 const isValidObjectPrefix = (text, complete) => {

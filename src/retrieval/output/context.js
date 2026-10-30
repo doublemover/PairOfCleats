@@ -6,7 +6,7 @@ export function cleanContext(lines) {
       const trimmed = line.trim();
       if (!trimmed) return false;
       if (trimmed.startsWith('```')) return false;
-      if (!/[a-zA-Z0-9]/.test(trimmed)) return false;
+      if (!/[\p{L}\p{N}]/u.test(trimmed)) return false;
       return true;
     })
     .map((line) => line.replace(/\s+/g, ' ').trim());

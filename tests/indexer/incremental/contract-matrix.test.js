@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { sha1 } from '../../../src/shared/hash.js';
 
 import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
 import { shouldReuseIncrementalIndex } from '../../../src/index/build/incremental.js';
@@ -49,10 +50,10 @@ const setup = async ({ source = 'export const a = 1;\n' } = {}) => {
 
 await setup();
 const stat = await fs.stat(fixtureFile);
-const entries = [{ rel: 'src/a.js', stat }];
+const entries = [{ rel: 'src/a.js', abs: fixtureFile, stat }];
 const manifest = { artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
   signatureVersion: SIGNATURE_VERSION,
-  files: { 'src/a.js': { size: stat.size, mtimeMs: stat.mtimeMs } }
+  files: { 'src/a.js': { size: stat.size, mtimeMs: stat.mtimeMs, hash: sha1(await fs.readFile(fixtureFile)) } }
 };
 
 assert.equal(await shouldReuseIncrementalIndex({ outDir, entries, manifest, stage: 'stage2' }), true);

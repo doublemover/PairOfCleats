@@ -3,6 +3,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import readline from 'node:readline';
+import { Socket } from 'node:net';
+import { createRequire } from 'node:module';
 import { spawn } from 'node:child_process';
 import { getTuiEnvConfig } from '../../../src/shared/env/tui.js';
 
@@ -15,17 +17,47 @@ const supervisor = spawn(process.execPath, [path.join(root, 'tools/tui/superviso
   { stdio: ['pipe', 'pipe', 'inherit'] });
 record({ proxy: process.pid, supervisor: supervisor.pid });
 let failed = false;
+let outputClosed = false;
+let helloForwarded = false, creditsObserved = 0, nativeReady = false;
 readline.createInterface({ input: supervisor.stdout }).on('line', line => {
-  process.stdout.write(line + '\n');
+  if (!outputClosed) process.stdout.write(line + '\n');
   const event = JSON.parse(line);
+  if (event.event === 'hello') helloForwarded = true;
   if (event.event === 'job:spawn') record({ job: event.pid, jobId: event.jobId });
   if (event.event === 'job:spawn' && mode === 'supervisor-error' && !failed) {
     failed = true;
     setTimeout(() => { supervisor.kill('SIGKILL'); process.exit(19); }, 300);
   }
+  if (event.event === 'job:spawn' && mode === 'event-transport-error' && !failed) {
+    failed = true;
+    setTimeout(() => {
+      record({ transport: 'event-eof-while-supervisor-alive' });
+      outputClosed = true;
+      process.stdout.end(() => {
+        if (!(process.stdout instanceof Socket)) throw new Error('Event EOF fixture requires the actual supervisor pipe.');
+        // Node replaces stdio _destroy with a no-op. Retire the original pipe
+        // through its real Socket owner while the supervisor stays alive.
+        process.stdout._destroy = Socket.prototype._destroy;
+        process.stdout.destroy();
+        if (process.platform === 'win32') createRequire(import.meta.url)(
+          path.join(fixtureRoot, 'stdout-close/build/Release/stdout_close.node')).closeOriginalStdout();
+        else fs.closeSync(1);
+        record({ transport: 'original-event-pipe-destroyed' });
+      });
+    }, 300);
+  }
 });
 readline.createInterface({ input: process.stdin }).on('line', line => {
   const request = JSON.parse(line);
+  // The first credit is the native startup grant. A later credit acknowledges
+  // actual consumed protocol frames, including the ordered hello handshake.
+  if (request.op === 'flow:credit') {
+    creditsObserved++;
+    if (helloForwarded && creditsObserved > 1 && !nativeReady) {
+      nativeReady = true; record({ nativeReady: true });
+    }
+  }
+  if (mode === 'interrupt' || mode === 'event-transport-error') record({ request: request.op });
   if (request.op === 'job:run') {
     delete request.argv;
     request.command = process.execPath;
@@ -35,5 +67,11 @@ readline.createInterface({ input: process.stdin }).on('line', line => {
       child.unref();setInterval(()=>process.stdout.write('owned job alive\\n'),50);`];
   }
   supervisor.stdin.write(JSON.stringify(request) + '\n');
-}).on('close', () => supervisor.stdin.end());
-supervisor.on('close', code => process.exit(code ?? 1));
+}).on('close', () => {
+  if (mode === 'interrupt' || mode === 'event-transport-error') record({ request: 'eof' });
+  if (mode !== 'shutdown-timeout') supervisor.stdin.end();
+});
+supervisor.on('close', code => {
+  if (mode === 'shutdown-partial-frame') process.stdout.write('{"event":', () => process.exit(code ?? 1));
+  else process.exit(mode === 'shutdown-error' ? 19 : code ?? 1);
+});

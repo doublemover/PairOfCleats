@@ -6,11 +6,10 @@ import {
   normalizeBundleFormat,
   resolveBundleFormatFromName
 } from '../../../src/shared/bundle-io-paths.js';
-import {
-  readBundleFile,
-  writeBundleFile
-} from '../../../src/shared/bundle-io.js';
+import { readBundleFile } from '../../../src/shared/bundle-io.js';
+import { writeIncrementalBundleSnapshot } from '../../../src/index/build/incremental/bundle-snapshot.js';
 import { getIncrementalPaths } from '../../../src/storage/sqlite/incremental.js';
+import { decodeIncrementalManifest, persistIncrementalManifest } from '../../../src/index/build/incremental/manifest-codec.js';
 import { getRepoCacheRoot } from '../../../tools/shared/dict-utils.js';
 import { setupIncrementalRepo } from '../../helpers/sqlite-incremental.js';
 
@@ -43,7 +42,7 @@ const repoCacheRoot = getRepoCacheRoot(repoRoot, userConfig);
 const incrementalPaths = getIncrementalPaths(repoCacheRoot, 'code');
 const manifestPath = incrementalPaths.manifestPath;
 const bundleDir = incrementalPaths.bundleDir;
-const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+const manifest = decodeIncrementalManifest(JSON.parse(fs.readFileSync(manifestPath, 'utf8')));
 const firstManifestFile = Object.keys(manifest.files || {})[0];
 assert.ok(firstManifestFile, 'expected at least one manifest file');
 const firstEntry = manifest.files[firstManifestFile];
@@ -72,24 +71,20 @@ const brokenChunk = {
 };
 const brokenBundle = {
   ...(sourceRead.bundle || {}),
-  file: firstManifestFile,
+  file: 'phantom/no-parent.js',
   chunks: [brokenChunk]
 };
 
-const sourceExt = path.extname(sourceBundleName) || '.json';
-const brokenBundleName = `broken-no-parent${sourceExt}`;
-const brokenBundlePath = path.join(bundleDir, brokenBundleName);
-await writeBundleFile({
-  bundlePath: brokenBundlePath,
-  bundle: brokenBundle,
-  format: resolveBundleFormatFromName(brokenBundleName, bundleFormat)
+const replacement = await writeIncrementalBundleSnapshot({
+  repoRoot, bundleDir, relKey: 'phantom/no-parent.js', entry: firstEntry,
+  bundles: [brokenBundle], format: bundleFormat
 });
 
 manifest.files['phantom/no-parent.js'] = {
   ...firstEntry,
-  bundles: [brokenBundleName]
+  ...replacement
 };
-fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
+await persistIncrementalManifest(manifestPath, manifest);
 
 const stage3Result = runCapture(
   [
@@ -100,6 +95,8 @@ const stage3Result = runCapture(
     'none',
     '--stage',
     'stage3',
+    '--progress',
+    'jsonl',
     '--mode',
     'code',
     '--repo',

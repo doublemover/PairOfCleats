@@ -1,4 +1,6 @@
 import { createHash } from 'node:crypto';
+import { types as utilTypes } from 'node:util';
+import { canonicalSemanticJson } from '../index/semantic/identity.js';
 import { compileSchema, createAjv } from './validation/ajv-factory.js';
 import { deserializeTypeIr } from '../index/tooling/typescript/type-ir/index.js';
 import { ToolingRequiredComputationError } from '../index/tooling/required-computation.js';
@@ -18,6 +20,68 @@ const assertShape = (name, value) => {
   if (!validators[name](value)) throw symbolicTypeError('symbolic_type_corrupt',
     `Invalid symbolic type ${name}: ${ajv.errorsText(validators[name].errors)}`);
   return value;
+};
+
+const passiveRecord = (value, fields) => {
+  if (!value || typeof value !== 'object' || utilTypes.isProxy(value) || Array.isArray(value)
+    || ![Object.prototype, null].includes(Object.getPrototypeOf(value))) {
+    throw symbolicTypeError('symbolic_type_corrupt', 'Symbolic graph records must be passive JSON objects.');
+  }
+  const keys = Reflect.ownKeys(value);
+  if (keys.length !== fields.length || keys.some(key => !fields.includes(key))) {
+    throw symbolicTypeError('symbolic_type_corrupt', 'Unexpected symbolic graph fields.');
+  }
+  const captured = {};
+  for (const key of fields) {
+    const descriptor = Object.getOwnPropertyDescriptor(value, key);
+    if (!descriptor?.enumerable || !Object.hasOwn(descriptor, 'value')) {
+      throw symbolicTypeError('symbolic_type_corrupt', 'Symbolic graph accessors are not admitted.');
+    }
+    captured[key] = descriptor.value;
+  }
+  return captured;
+};
+
+const passiveArray = (value, visit) => {
+  if (utilTypes.isProxy(value) || !Array.isArray(value)) throw symbolicTypeError('symbolic_type_corrupt', 'Symbolic graph array required.');
+  const length = Object.getOwnPropertyDescriptor(value, 'length')?.value;
+  if (!Number.isSafeInteger(length) || length > 100000) throw symbolicTypeError('symbolic_type_limit', 'Symbolic graph array exceeds its allowance.');
+  if (Reflect.ownKeys(value).length !== length + 1) throw symbolicTypeError('symbolic_type_corrupt', 'Sparse or decorated symbolic graph array.');
+  for (let index = 0; index < length; index++) {
+    const descriptor = Object.getOwnPropertyDescriptor(value, String(index));
+    if (!descriptor?.enumerable || !Object.hasOwn(descriptor, 'value')) throw symbolicTypeError('symbolic_type_corrupt', 'Symbolic graph array accessors are not admitted.');
+    visit(descriptor.value);
+  }
+};
+
+/** Capture bounded passive input before polling a caller signal or invoking an
+ * observer. Only the resulting privately owned entry can carry a cache receipt.
+ */
+const captureSymbolicGraph = raw => {
+  const graph = passiveRecord(raw, ['schemaVersion', 'domain', 'contextKey', 'rootIds', 'nodes']);
+  if (graph.schemaVersion !== 1 || graph.domain !== 'finite-string' || typeof graph.contextKey !== 'string'
+    || !graph.contextKey || graph.contextKey.length > 4096) throw symbolicTypeError('symbolic_type_corrupt', 'Invalid symbolic graph header.');
+  let references = 0;
+  const reference = id => {
+    if (typeof id !== 'string' || !/^tir1:[a-f0-9]{64}$/.test(id)) throw symbolicTypeError('symbolic_type_corrupt', 'Invalid symbolic graph reference.');
+    if (++references * 71 > SYMBOLIC_TYPE_GRAPH_MAX_BYTES) throw symbolicTypeError('symbolic_type_limit', 'Symbolic graph references exceed their byte allowance.');
+  };
+  passiveArray(graph.rootIds, reference);
+  passiveArray(graph.nodes, rawNode => {
+    if (utilTypes.isProxy(rawNode)) throw symbolicTypeError('symbolic_type_corrupt', 'Symbolic graph proxies are not admitted.');
+    const kind = Object.getOwnPropertyDescriptor(rawNode || {}, 'kind');
+    if (!kind || !Object.hasOwn(kind, 'value') || !['Literal', 'Union', 'Concat'].includes(kind.value)) throw symbolicTypeError('symbolic_type_corrupt', 'Invalid symbolic graph node.');
+    const node = passiveRecord(rawNode, kind.value === 'Literal' ? ['id', 'kind', 'value'] : ['id', 'kind', 'children']);
+    reference(node.id);
+    if (kind.value === 'Literal') {
+      if (typeof node.value !== 'string' || node.value.length > 1000000) throw symbolicTypeError('symbolic_type_limit', 'Symbolic literal exceeds its allowance.');
+    } else passiveArray(node.children, reference);
+  });
+  try {
+    return JSON.parse(canonicalSemanticJson(raw, { maxBytes: SYMBOLIC_TYPE_GRAPH_MAX_BYTES }));
+  } catch (error) {
+    throw symbolicTypeError(error?.code === 'ERR_SEMANTIC_JSON_BUDGET' ? 'symbolic_type_limit' : 'symbolic_type_corrupt', error.message);
+  }
 };
 
 /** Hash the canonical flat encoding incrementally, without copying the whole DAG. */
@@ -48,15 +112,12 @@ export const measureSymbolicTypeGraph = graph => {
   return { hash: hash.digest('hex'), bytes };
 };
 
-export const validateSymbolicTypeGraph = (entry, options = {}) => {
-  if (entry && validated.has(entry)) return entry;
+const validateOwnedSymbolicTypeGraph = (entry, options) => {
   assertShape('graphEntry', entry);
   const measured = measureSymbolicTypeGraph(entry.graph);
   if (entry.graphId !== 'stg1:' + measured.hash) throw symbolicTypeError('symbolic_type_corrupt', 'Symbolic graph content identity mismatch.');
-  try {
-    const hydrated = deserializeTypeIr(entry.graph, { ...options, contextKey: entry.graph.contextKey });
-    options.onHydrated?.(hydrated);
-  }
+  let hydrated;
+  try { hydrated = deserializeTypeIr(entry.graph, { ...options, contextKey: entry.graph.contextKey }); }
   catch (cause) {
     if (cause?.code !== 'ERR_TYPE_IR_INVALID') throw cause;
     throw symbolicTypeError('symbolic_type_corrupt', cause.message);
@@ -69,7 +130,20 @@ export const validateSymbolicTypeGraph = (entry, options = {}) => {
   }
   Object.freeze(entry.graph.rootIds); Object.freeze(entry.graph.nodes); Object.freeze(entry.graph); Object.freeze(entry);
   validated.set(entry, { ...measured, nodeIds });
+  options.onHydrated?.(hydrated);
   return entry;
+};
+export const validateSymbolicTypeGraph = (raw, options = {}) => {
+  if (raw && validated.has(raw)) return raw;
+  const entry = passiveRecord(raw, ['graphId', 'graph']);
+  if (typeof entry.graphId !== 'string' || !/^stg1:[a-f0-9]{64}$/.test(entry.graphId)) throw symbolicTypeError('symbolic_type_corrupt', 'Invalid symbolic graph identity.');
+  return validateOwnedSymbolicTypeGraph({ graphId: entry.graphId, graph: captureSymbolicGraph(entry.graph) }, options);
+};
+
+export const getSymbolicTypeGraphMeasurement = entry => {
+  const measured = validated.get(entry);
+  if (!measured) throw symbolicTypeError('symbolic_type_corrupt', 'Symbolic graph measurement requires an owned admitted entry.');
+  return Object.freeze({ hash: measured.hash, bytes: measured.bytes });
 };
 export const createSymbolicTypeGraph = (serialized, options = {}) => {
   if (typeof serialized === 'string' && Buffer.byteLength(serialized, 'utf8') > SYMBOLIC_TYPE_GRAPH_MAX_BYTES) {
@@ -78,8 +152,9 @@ export const createSymbolicTypeGraph = (serialized, options = {}) => {
   let graph;
   try { graph = typeof serialized === 'string' ? JSON.parse(serialized) : serialized; }
   catch { throw symbolicTypeError('symbolic_type_corrupt', 'Invalid symbolic graph JSON.'); }
-  const { hash } = measureSymbolicTypeGraph(graph);
-  return validateSymbolicTypeGraph({ graphId: 'stg1:' + hash, graph }, options);
+  const owned = captureSymbolicGraph(graph);
+  const { hash } = measureSymbolicTypeGraph(owned);
+  return validateOwnedSymbolicTypeGraph({ graphId: 'stg1:' + hash, graph: owned }, options);
 };
 export const mergeSymbolicTypeGraphs = (existing = [], incoming = []) => {
   if (!Array.isArray(existing) || !Array.isArray(incoming)) throw symbolicTypeError('symbolic_type_corrupt', 'Symbolic graphs must be an array.');

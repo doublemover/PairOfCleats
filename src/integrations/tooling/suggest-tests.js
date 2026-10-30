@@ -1,3 +1,6 @@
+import { performance } from 'node:perf_hooks';
+import { admitSuggestionWallClockMs } from '../../graph/suggest-tests-budget.js';
+import { SUGGEST_TESTS_OPTIONS } from './analysis-cli-options.js';
 import path from 'node:path';
 import { createCli } from '../../shared/cli.js';
 import { isDirectExecution } from '../../shared/direct-execution.js';
@@ -27,26 +30,13 @@ import {
  * @param {string[]} [rawArgs]
  * @returns {Promise<{ok:boolean,code?:string,payload?:object,message?:string}>}
  */
-export async function runSuggestTestsCli(rawArgs = process.argv.slice(2)) {
+export async function runSuggestTestsCli(rawArgs = process.argv.slice(2), runtime = null) {
+  const clock = runtime?.clock || (() => performance.now());
+  const requestedAt = clock();
   const cli = createCli({
     scriptName: 'suggest-tests',
     argv: ['node', 'suggest-tests', ...rawArgs],
-    options: {
-      repo: { type: 'string' },
-      changed: { type: 'array' },
-      changedFile: { type: 'string' },
-      max: { type: 'number' },
-      format: { type: 'string' },
-      json: { type: 'boolean', default: false },
-      testPattern: { type: 'array' },
-      maxDepth: { type: 'number' },
-      maxNodes: { type: 'number' },
-      maxEdges: { type: 'number' },
-      maxPaths: { type: 'number' },
-      maxCandidates: { type: 'number' },
-      maxWorkUnits: { type: 'number' },
-      maxWallClockMs: { type: 'number' }
-    },
+    options: SUGGEST_TESTS_OPTIONS,
     aliases: {
       'test-pattern': 'testPattern',
       'changed-file': 'changedFile'
@@ -75,10 +65,11 @@ export async function runSuggestTestsCli(rawArgs = process.argv.slice(2)) {
     maxPaths: normalizeOptionalNumber(argv.maxPaths),
     maxCandidates: normalizeOptionalNumber(argv.maxCandidates),
     maxWorkUnits: normalizeOptionalNumber(argv.maxWorkUnits),
-    maxWallClockMs: normalizeOptionalNumber(argv.maxWallClockMs),
+    maxWallClockMs: admitSuggestionWallClockMs(argv.maxWallClockMs),
     maxSuggestions: normalizeOptionalNumber(argv.max)
   };
   const caps = mergeCaps(baseCaps, capOverrides);
+  caps.maxWallClockMs = admitSuggestionWallClockMs(caps.maxWallClockMs);
 
   const graphInputs = await prepareGraphInputs({
     repoRoot,
@@ -103,7 +94,8 @@ export async function runSuggestTestsCli(rawArgs = process.argv.slice(2)) {
     indexCompatKey: graphInputs.indexCompatKey || null,
     indexSignature: graphInputs.indexSignature || null,
     repo: toPosix(path.relative(process.cwd(), repoRoot) || '.'),
-    indexDir: toPosix(path.relative(process.cwd(), indexDir) || '.')
+    indexDir: toPosix(path.relative(process.cwd(), indexDir) || '.'),
+    runtime: { ...runtime, clock, preparationElapsedMs: Math.max(0, clock() - requestedAt) }
   });
 
   const validation = validateSuggestTests(report);

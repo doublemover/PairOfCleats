@@ -1,4 +1,5 @@
 export class SubprocessError extends Error {
+  /** @param {string} message @param {import('./types.js').SubprocessResult} result @param {unknown} [cause] */
   constructor(message, result, cause) {
     super(message);
     this.name = 'SubprocessError';
@@ -9,6 +10,7 @@ export class SubprocessError extends Error {
 }
 
 export class SubprocessTimeoutError extends Error {
+  /** @param {string} message @param {import('./types.js').SubprocessResult} result */
   constructor(message, result) {
     super(message);
     this.name = 'SubprocessTimeoutError';
@@ -18,6 +20,7 @@ export class SubprocessTimeoutError extends Error {
 }
 
 export class SubprocessAbortError extends Error {
+  /** @param {string} message @param {import('./types.js').SubprocessResult} result */
   constructor(message, result) {
     super(message);
     this.name = 'AbortError';

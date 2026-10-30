@@ -230,7 +230,7 @@ await writeManifest(indexDir, [
   { name: 'call_sites', path: 'call_sites.jsonl', format: 'jsonl' }
 ]);
 
-const pack = assembleCompositeContextPack({
+const buildPack = indexDir => assembleCompositeContextPack({
   seed: { type: 'chunk', chunkUid: 'chunk-primary' },
   chunkMeta,
   repoRoot,
@@ -244,10 +244,12 @@ const pack = assembleCompositeContextPack({
   includeUsages: false,
   includeCallersCallees: false
 });
+const pack = buildPack(indexDir);
 
-assert.equal(pack.risk?.flows?.length, 5, 'expected maxFlows cap');
+assert.equal(pack.risk?.flows?.length, 4, 'complete hydrated evidence must also fit the unchanged total token allowance');
 assert.equal(pack.risk?.flows?.[0]?.flowId, flows[0].flowId, 'direct source/sink match should outrank indirect in-path match');
-assert.equal(pack.risk?.flows?.[1]?.flowId, flows[2].flowId, 'higher confidence direct flow should sort second');
+assert.deepEqual(pack.risk.flows.map(flow => flow.flowId), [flows[0], flows[3], flows[4], flows[5]].map(flow => flow.flowId));
+assert.ok(pack.risk.truncation.some(entry => entry.cap === 'maxRiskTokens' && entry.note.startsWith('Rank 3 risk flow omitted at hydrated evidence admission')));
 assert.equal(pack.risk?.flows?.some((flow) => flow.flowId === flows[6].flowId), false, 'expected oversized flow to be omitted by total budget');
 assert.ok(pack.risk?.caps?.hits?.includes('maxFlows'), 'expected maxFlows cap hit');
 assert.ok(pack.risk?.caps?.hits?.includes('maxStepsPerFlow'), 'expected maxStepsPerFlow cap hit');
@@ -264,9 +266,22 @@ assert.ok(
   'expected total budget truncation record'
 );
 assert.equal(pack.risk?.summary?.previewFlowIds?.[0], flows[0].flowId, 'expected previewFlowIds to follow ranked order');
-assert.equal(pack.risk?.flows?.[1]?.path?.truncatedSteps > 0, true, 'expected path steps to truncate');
-assert.equal(pack.risk?.flows?.[1]?.path?.callSiteIdsByStep?.[0]?.length, 3, 'expected call-site evidence per step to truncate');
-assert.equal(pack.risk?.flows?.[1]?.path?.watchByStep?.length, 8, 'expected watch windows to truncate with the path budget');
+// Qualify the same step/call-site truncation with enough remaining allowance
+// for the actual hydrated evidence, independently of aggregate overflow.
+const stepIndexDir = path.join(tempRoot, 'index-step-budget');
+await fs.cp(indexDir, stepIndexDir, { recursive: true });
+const stepFlow = structuredClone(flows[2]);
+stepFlow.path.callSiteIdsByStep = stepFlow.path.callSiteIdsByStep.map((ids, index) => index === 0 ? ids : ids.slice(0, 1));
+await writeJsonl(path.join(stepIndexDir, 'risk_flows.jsonl'), [stepFlow]);
+await writeJsonObjectFile(path.join(stepIndexDir, 'risk_interprocedural_stats.json'), {
+  fields: { ...baseStats, counts: { ...baseStats.counts, flowsEmitted: 1 } }
+});
+const stepPack = buildPack(stepIndexDir);
+assert.equal(stepPack.risk.flows.length, 1, 'the original positive flow fits when hydrated on its own');
+assert.equal(stepPack.risk.flows[0].flowId, flows[2].flowId);
+assert.equal(stepPack.risk.flows[0].path.truncatedSteps > 0, true, 'expected path steps to truncate');
+assert.equal(stepPack.risk.flows[0].path.callSiteIdsByStep[0].length, 3, 'expected call-site evidence per step to truncate');
+assert.equal(stepPack.risk.flows[0].path.watchByStep.length, 8, 'expected watch windows to truncate with the path budget');
 assert.equal(pack.risk?.flows?.[0]?.path?.watchByStep?.[0]?.calleeNormalized, 'callee1');
 assert.equal(pack.risk?.flows?.[0]?.rank, 2, 'expected emitted flow to retain original rank after higher-ranked omission');
 assert.equal(pack.risk?.flows?.[0]?.score?.seedRelevance, 3, 'expected direct flow seed relevance score');

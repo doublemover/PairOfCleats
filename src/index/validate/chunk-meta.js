@@ -1,3 +1,6 @@
+import { createSqliteCacheCloseOwner } from '../../retrieval/sqlite-cache-close-owner.js';
+import { addStorageFailureContext } from '../../shared/storage/operation-error.js';
+import { acquireNativeReaderStorage } from '../../shared/storage/native-reader.js';
 import path from 'node:path';
 import fs from 'node:fs';
 import { resolveSqlitePaths } from '../../shared/dict-utils.js';
@@ -5,7 +8,7 @@ import { MAX_JSON_BYTES } from '../../shared/artifact-io/constants.js';
 import { readJsonFile } from '../../shared/artifact-io/json.js';
 import { loadJsonArrayArtifact } from '../../shared/artifact-io/loaders/core.js';
 import { loadChunkMeta } from '../../shared/artifact-io/loaders/chunk-meta.js';
-import { addIssue } from './issues.js';
+import { addIssue, validationErrorMetadata } from './issues.js';
 import { validateSchema } from './schema.js';
 import { validateRiskInterproceduralArtifacts } from './risk-interprocedural.js';
 import {
@@ -121,6 +124,7 @@ export const loadAndValidateChunkMeta = async ({
   root,
   userConfig,
   indexRoot,
+  sqlitePath = null,
   sqliteEnabled,
   readJsonArtifact,
   shouldLoadOptional,
@@ -145,6 +149,10 @@ export const loadAndValidateChunkMeta = async ({
       maxBytes: chunkMetaMaxBytes
     });
   } catch (err) {
+    if (strict) {
+      addIssue(report, mode, `chunk_meta primary load failed (${err?.code || err?.message || err})`, 'Rebuild index artifacts for this mode.', 'issues', validationErrorMetadata(err, 'chunk_meta'));
+      modeReport.ok = false;
+    }
     const fallback = normalizeChunkMetaFallbackPayload(
       readChunkMetaFallbackPayload(dir, chunkMetaMaxBytes)
       || readJsonArtifact('chunk_meta', { required: false, allowOversize: true })
@@ -152,9 +160,9 @@ export const loadAndValidateChunkMeta = async ({
     if (fallback) {
       chunkMeta = fallback;
       modeReport.warnings.push('chunk_meta fallback parser used');
-      report.warnings.push(`[${mode}] chunk_meta fallback parser used`);
-    } else {
-      addIssue(report, mode, `chunk_meta load failed (${err?.code || err?.message || err})`, 'Rebuild index artifacts for this mode.');
+      addIssue(report, mode, 'chunk_meta fallback parser used', null, 'warnings', { artifact: 'chunk_meta', state: 'unverified', code: 'WARN_INDEX_FALLBACK_PARSER' });
+    } else if (!strict) {
+      addIssue(report, mode, `chunk_meta load failed (${err?.code || err?.message || err})`, 'Rebuild index artifacts for this mode.', 'issues', validationErrorMetadata(err, 'chunk_meta'));
       modeReport.ok = false;
     }
   }
@@ -209,8 +217,8 @@ export const loadAndValidateChunkMeta = async ({
     validateMetaV2Types(report, mode, chunkMeta);
     validateMetaV2Equivalence(report, mode, chunkMeta, { maxSamples: 25, maxErrors: 10 });
     if (sqliteEnabled && (mode === 'code' || mode === 'prose')) {
-      const sqlitePaths = resolveSqlitePaths(root, userConfig, indexRoot ? { indexRoot } : {});
-      const dbPath = mode === 'code' ? sqlitePaths.codePath : sqlitePaths.prosePath;
+      const sqlitePaths = sqlitePath ? null : resolveSqlitePaths(root, userConfig, indexRoot ? { indexRoot } : {});
+      const dbPath = sqlitePath || (mode === 'code' ? sqlitePaths.codePath : sqlitePaths.prosePath);
       if (dbPath && fs.existsSync(dbPath)) {
         let Database = null;
         try {
@@ -219,14 +227,23 @@ export const loadAndValidateChunkMeta = async ({
           addIssue(report, mode, 'sqlite parity check skipped: better-sqlite3 unavailable');
         }
         if (Database) {
-          const db = new Database(dbPath, { readonly: true });
+          let db = null, close = null, nativeClosed = false;
+          const storage = acquireNativeReaderStorage(dbPath, { repoRoot: root, userConfig }, () => nativeClosed);
+          storage?.start();
+          let primary, failed = false;
           try {
+            try { db = new Database(dbPath, { readonly: true }); }
+            catch (error) { storage?.failedOpen(error); throw error; }
+            close = createSqliteCacheCloseOwner(db, { canClose: () => true, onClosed: () => {},
+              onNativeClosed: () => { nativeClosed = true; storage?.releaseAfterClosure(); } });
             const rows = db.prepare(
               'SELECT id, chunk_id, metaV2_json FROM chunks WHERE mode = ? ORDER BY id LIMIT ?'
             ).all(mode, SQLITE_META_V2_PARITY_SAMPLE);
             validateSqliteMetaV2Parity(report, mode, chunkMeta, rows, { maxErrors: 10 });
-          } finally {
-            db.close();
+          } catch (error) { primary = db && storage ? storage.retainFailure(error) : error; failed = true; throw primary; }
+          finally {
+            try { close?.retire(); }
+            catch (cleanupError) { throw failed ? addStorageFailureContext(primary, {}, cleanupError, { secondaryPresent: true }) : cleanupError; }
           }
         }
       }

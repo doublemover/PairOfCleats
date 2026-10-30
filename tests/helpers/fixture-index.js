@@ -1,3 +1,4 @@
+import { readFixtureHealthSnapshot } from './fixture-health-snapshot.js';
 import { applyTestEnv, withTemporaryEnv } from './test-env.js';
 
 import fs from 'node:fs';
@@ -13,12 +14,9 @@ import {
   resolveSqlitePaths,
   toRealPathSync
 } from '../../tools/shared/dict-utils.js';
-import { hasIndexMeta } from '../../src/retrieval/cli/index-loader.js';
 import {
   MAX_JSON_BYTES,
-  loadChunkMeta,
-  loadJsonArrayArtifactSync,
-  readCompatibilityKey
+  loadJsonArrayArtifactSync
 } from '../../src/shared/artifact-io.js';
 import { runSearchCli } from '../../src/retrieval/cli.js';
 import { buildSearchCliArgs } from '../../tools/shared/search-cli-harness.js';
@@ -45,7 +43,7 @@ const ensureDir = async (dir) => {
 
 const FIXTURE_MODES = new Set(['code', 'prose', 'extracted-prose', 'records']);
 const DEFAULT_REQUIRED_MODES = Object.freeze(['code', 'prose', 'extracted-prose']);
-const FIXTURE_HEALTH_VERSION = 5;
+const FIXTURE_HEALTH_VERSION = 8;
 
 const resolveCacheName = (baseName, { cacheScope = 'isolated' } = {}) => {
   const MAX_CACHE_NAME_LENGTH = 64;
@@ -170,152 +168,6 @@ const createFixtureEnv = (cacheRoot, overrides = {}, { requireCodeRiskTags = fal
   });
 };
 
-const hasChunkMeta = (dir) => hasIndexMeta(dir);
-
-const hasRiskTags = (codeDir) => {
-  try {
-    const raw = loadJsonArrayArtifactSync(codeDir, 'chunk_meta', {
-      maxBytes: MAX_JSON_BYTES,
-      strict: false
-    });
-    return Array.isArray(raw) && raw.some((entry) => {
-      const risk = entry?.metaV2?.risk || entry?.docmeta?.risk || null;
-      if (!risk) return false;
-      if (Array.isArray(risk.tags) && risk.tags.length) return true;
-      if (Array.isArray(risk.flows) && risk.flows.length) return true;
-      return false;
-    });
-  } catch {
-    return false;
-  }
-};
-
-const hasRiskWatchByStep = (codeDir) => {
-  try {
-    const flowRows = loadJsonArrayArtifactSync(codeDir, 'risk_flows', {
-      maxBytes: MAX_JSON_BYTES,
-      strict: false
-    });
-    if (!Array.isArray(flowRows) || flowRows.length === 0) return false;
-    return flowRows.every((entry) => {
-      const callSiteSteps = Array.isArray(entry?.path?.callSiteIdsByStep) ? entry.path.callSiteIdsByStep : [];
-      const watchSteps = Array.isArray(entry?.path?.watchByStep) ? entry.path.watchByStep : null;
-      return Array.isArray(watchSteps) && watchSteps.length === callSiteSteps.length;
-    });
-  } catch {
-    return false;
-  }
-};
-
-const hasMissingSqlDialectMetadata = async (codeDir) => {
-  try {
-    const chunkMeta = await loadChunkMeta(codeDir, { strict: false });
-    if (!Array.isArray(chunkMeta) || chunkMeta.length === 0) return false;
-    const fileMeta = loadJsonArrayArtifactSync(codeDir, 'file_meta', {
-      maxBytes: MAX_JSON_BYTES,
-      strict: false
-    });
-    const fileById = new Map(
-      (Array.isArray(fileMeta) ? fileMeta : []).map((entry) => [entry.id, entry.file])
-    );
-    const isSqlFile = (file) => typeof file === 'string' && /\.(sql|psql|pgsql|mysql|sqlite)$/i.test(file);
-    const sqlFiles = new Set(
-      (Array.isArray(fileMeta) ? fileMeta : [])
-        .map((entry) => entry?.file)
-        .filter((file) => isSqlFile(file))
-    );
-    const sqlFilesWithChunks = new Set();
-    const expectedDialectByExt = new Map([
-      ['.psql', 'postgres'],
-      ['.pgsql', 'postgres'],
-      ['.mysql', 'mysql'],
-      ['.sqlite', 'sqlite']
-    ]);
-    for (const entry of chunkMeta) {
-      const filePath = entry?.file || fileById.get(entry?.fileId) || null;
-      const isSqlChunk = String(entry?.lang || '').toLowerCase() === 'sql' || isSqlFile(filePath);
-      if (!isSqlChunk) continue;
-      if (filePath) sqlFilesWithChunks.add(filePath);
-      const dialect = typeof entry?.docmeta?.dialect === 'string'
-        ? entry.docmeta.dialect.trim().toLowerCase()
-        : '';
-      if (!dialect) {
-        return true;
-      }
-      const expectedDialect = expectedDialectByExt.get(path.extname(String(filePath || '')).toLowerCase()) || null;
-      if (expectedDialect && dialect !== expectedDialect) return true;
-    }
-    for (const filePath of sqlFiles) {
-      if (!sqlFilesWithChunks.has(filePath)) return true;
-    }
-  } catch {}
-  return false;
-};
-
-const readIndexCompatibilityKey = (dir) => {
-  try {
-    return readCompatibilityKey(dir, { maxBytes: MAX_JSON_BYTES, strict: false }).key;
-  } catch {
-    return null;
-  }
-};
-
-/**
- * Determine cross-mode compatibility status for required fixture indexes.
- *
- * @param {{modeDirs:Record<string,string>,requiredModes:string[]}} input
- * @returns {{compatible:boolean,keyByMode:Record<string,string|null>,baseline:string|null}}
- */
-const getCompatibilityStatus = ({ modeDirs, requiredModes }) => {
-  if (!Array.isArray(requiredModes) || requiredModes.length === 0) {
-    return { compatible: false, keyByMode: {}, baseline: null };
-  }
-  const keyByMode = {};
-  const keys = [];
-  for (const mode of requiredModes) {
-    const dir = modeDirs?.[mode];
-    if (!dir || !hasChunkMeta(dir)) {
-      return { compatible: false, keyByMode: {}, baseline: null };
-    }
-    const key = readIndexCompatibilityKey(dir);
-    keyByMode[mode] = key || null;
-    keys.push(key);
-  }
-  const baseline = keys.find(Boolean) || null;
-  if (!baseline) {
-    const testing = process.env.PAIROFCLEATS_TESTING === '1' || process.env.PAIROFCLEATS_TESTING === 'true';
-    const allowMissing = testing
-      && process.env.PAIROFCLEATS_TEST_ALLOW_MISSING_COMPAT_KEY !== '0'
-      && process.env.PAIROFCLEATS_TEST_ALLOW_MISSING_COMPAT_KEY !== 'false';
-    return { compatible: allowMissing, keyByMode, baseline };
-  }
-  return {
-    compatible: keys.every((key) => !key || key === baseline),
-    keyByMode,
-    baseline
-  };
-};
-
-const hasChunkUids = async (dir) => {
-  try {
-    const chunkMeta = await loadChunkMeta(dir, { strict: false });
-    if (!Array.isArray(chunkMeta) || chunkMeta.length === 0) return false;
-    return chunkMeta.every((entry) => entry?.chunkUid || entry?.metaV2?.chunkUid);
-  } catch {
-    return false;
-  }
-};
-
-const hasMissingChunkUids = async ({ modeDirs, requiredModes }) => {
-  for (const mode of requiredModes) {
-    const dir = modeDirs?.[mode];
-    if (!dir || !await hasChunkUids(dir)) {
-      return true;
-    }
-  }
-  return false;
-};
-
 const readFixtureHealthStamp = async (stampPath) => {
   try {
     const raw = await fsPromises.readFile(stampPath, 'utf8');
@@ -339,6 +191,7 @@ const writeFixtureHealthStamp = async (
   {
     requiredModes,
     compatibilityKeyByMode,
+    authorityByMode,
     hasRiskTags,
     hasRiskWatchByStep,
     hasSqlDialectMetadata
@@ -348,6 +201,8 @@ const writeFixtureHealthStamp = async (
   const existingModes = Array.isArray(existing?.modes) ? existing.modes : [];
   const mergedModes = [...new Set([...existingModes, ...requiredModes])];
   const mergedCompatibility = { ...(existing?.compatibilityKeyByMode || {}) };
+  const sameCodeAuthority = Boolean(authorityByMode?.code
+    && existing?.authorityByMode?.code === authorityByMode.code);
   for (const mode of requiredModes) {
     mergedCompatibility[mode] = compatibilityKeyByMode?.[mode] || null;
   }
@@ -356,8 +211,9 @@ const writeFixtureHealthStamp = async (
     checkedAt: new Date().toISOString(),
     modes: mergedModes,
     compatibilityKeyByMode: mergedCompatibility,
-    hasRiskTags: Boolean(existing?.hasRiskTags || hasRiskTags),
-    hasRiskWatchByStep: Boolean(existing?.hasRiskWatchByStep || hasRiskWatchByStep),
+    authorityByMode: { ...(existing?.authorityByMode || {}), ...authorityByMode },
+    hasRiskTags: Boolean((sameCodeAuthority && existing?.hasRiskTags) || hasRiskTags),
+    hasRiskWatchByStep: Boolean((sameCodeAuthority && existing?.hasRiskWatchByStep) || hasRiskWatchByStep),
     hasSqlDialectMetadata: Boolean(hasSqlDialectMetadata)
   };
   await fsPromises.writeFile(stampPath, JSON.stringify(payload), 'utf8');
@@ -377,7 +233,8 @@ const canUseFixtureHealthStamp = (
     requireRiskTags,
     requireRiskWatchByStep,
     requireSqlDialectMetadata,
-    compatibilityKeyByMode
+    compatibilityKeyByMode,
+    authorityByMode
   }
 ) => {
   if (!stamp || typeof stamp !== 'object') return false;
@@ -389,6 +246,7 @@ const canUseFixtureHealthStamp = (
   if (requireSqlDialectMetadata && stamp.hasSqlDialectMetadata !== true) return false;
   const stampedKeys = stamp.compatibilityKeyByMode || {};
   for (const mode of requiredModes) {
+    if (!authorityByMode?.[mode] || stamp.authorityByMode?.[mode] !== authorityByMode[mode]) return false;
     if ((stampedKeys[mode] || null) !== (compatibilityKeyByMode?.[mode] || null)) {
       return false;
     }
@@ -460,10 +318,8 @@ export const ensureFixtureIndex = async ({
   });
   const evaluateFixtureState = async () => {
     const modeDirs = resolveModeDirs();
-    const compatibility = getCompatibilityStatus({
-      modeDirs,
-      requiredModes: normalizedRequiredModes
-    });
+    const snapshot = await readFixtureHealthSnapshot({ modeDirs, requiredModes: normalizedRequiredModes });
+    const { compatibility, authorityByMode } = snapshot;
     const compatibleIndexes = compatibility.compatible;
     const requireSqlDialectMetadata = normalizedRequiredModes.includes('code');
     if (!compatibleIndexes) {
@@ -482,6 +338,7 @@ export const ensureFixtureIndex = async ({
       requireRiskTags: requireCodeRiskTags,
       requireRiskWatchByStep: requireCodeRiskWatchByStep,
       requireSqlDialectMetadata,
+      authorityByMode,
       compatibilityKeyByMode: compatibility.keyByMode
     })) {
       return {
@@ -494,18 +351,14 @@ export const ensureFixtureIndex = async ({
         usedHealthStamp: true
       };
     }
-    const needsRiskTags = requireCodeRiskTags && !hasRiskTags(modeDirs.code);
-    const missingRiskWatchByStep = requireCodeRiskWatchByStep && !hasRiskWatchByStep(modeDirs.code);
-    const missingSqlDialects = requireSqlDialectMetadata
-      ? await hasMissingSqlDialectMetadata(modeDirs.code)
-      : false;
-    const missingChunkUids = await hasMissingChunkUids({
-      modeDirs,
-      requiredModes: normalizedRequiredModes
-    });
+    const needsRiskTags = requireCodeRiskTags && !snapshot.modes.code?.hasRiskTags;
+    const missingRiskWatchByStep = requireCodeRiskWatchByStep && !snapshot.modes.code?.hasRiskWatchByStep;
+    const missingSqlDialects = requireSqlDialectMetadata && snapshot.modes.code?.missingSqlDialects === true;
+    const missingChunkUids = normalizedRequiredModes.some(mode => !snapshot.modes[mode]?.hasChunkUids);
     if (!needsRiskTags && !missingRiskWatchByStep && !missingChunkUids && !missingSqlDialects) {
       await writeFixtureHealthStamp(healthStampPath, {
         requiredModes: normalizedRequiredModes,
+        authorityByMode,
         compatibilityKeyByMode: compatibility.keyByMode,
         hasRiskTags: requireCodeRiskTags,
         hasRiskWatchByStep: requireCodeRiskWatchByStep,

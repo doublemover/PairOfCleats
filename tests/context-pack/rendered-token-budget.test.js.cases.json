@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["ascii", "unicode", "long-identifiers", "crlf", "punctuation", "profiles", "special-tokens", "cache-content", "cache-profile", "cache-provenance", "exact-limit", "one-over", "reserved-over", "zero", "byte-limit", "unavailable", "integrity", "invalid-request", "cancelled", "receipt"]
+}

@@ -1,0 +1,662 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-10-29",
+  "kind": "serial-crash-log-latency-qualification",
+  "issue": 1315,
+  "state": "open",
+  "sourceParent": "5366b344d8c4a06a847ebbcf604c07ba93afae6e",
+  "implementationHead": "3b7d754ba02089e5866e3fad282b28ca5f476c76",
+  "branch": "codex/pr557-audit-repairs-20261012",
+  "sourceIdentity": "parent plus exact working-file SHA-256; receipt excludes itself",
+  "sourceFiles": [
+    {
+      "path": ".github/workflows/ci.yml",
+      "bytes": 55686,
+      "sha256": "b8d1ef37797a034c52567bb21c3fd73df47bdb4718e8b67c47ce6ffdcc570898"
+    },
+    {
+      "path": "docs/archived/crash-log-latency-qualification-2026-10-29.md",
+      "bytes": 3115,
+      "sha256": "b022de57bf34b76a3a9b7f010901bafe9afa19f4984820481395d8b6d7db1102"
+    },
+    {
+      "path": "docs/config/inventory.json",
+      "bytes": 302354,
+      "sha256": "bbbb7083abbae2e092b961b49eba43d85b539a2bfff89d9f49d3d991d966539a"
+    },
+    {
+      "path": "docs/config/inventory.md",
+      "bytes": 69087,
+      "sha256": "a2cabbf3572ac713abef2fede09e1099da83342c0db6ff8d8eea920cb8d05803"
+    },
+    {
+      "path": "docs/roadmap.md",
+      "bytes": 19594,
+      "sha256": "746cd39609fa4b5db66132c9ffc01b9016513bcd952dea87995522634f38a89c"
+    },
+    {
+      "path": "docs/testing/qualification-matrix.md",
+      "bytes": 91078,
+      "sha256": "288ac11e83419c39f9b7abcae3a0353dc166f6d6ea69e027f5a8d92ee527e0b3"
+    },
+    {
+      "path": "tests/ci/workflow-contract.test.js",
+      "bytes": 34318,
+      "sha256": "d34a50a45623e4a55d267702f92c5fb214d916d5482ba6b515b2293b8a5ee322"
+    },
+    {
+      "path": "tests/perf/crash-log-error-latency.test.js",
+      "bytes": 5070,
+      "sha256": "47cbe90b81d5ccd3c3e2482c432251e7b4b89ea79c6c9eb5c7a1fb9db33cf551"
+    },
+    {
+      "path": "tests/perf/crash-log-error-latency.test.js.cases.json",
+      "bytes": 63,
+      "sha256": "f13cabb30c726233c9713f56faad7b95a42e3edabc22d1d5d9c28112c107a473"
+    }
+  ],
+  "runtime": {
+    "node": "v26.13.0",
+    "abi": "147",
+    "platform": "win32",
+    "arch": "x64"
+  },
+  "report": {
+    "junit": null,
+    "logDir": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\crash-log-final-qualification-logs\\run-1793257112068-6ooyc0",
+    "summary": {
+      "durationMs": 5370,
+      "failed": 0,
+      "passed": 10,
+      "skipped": 0,
+      "total": 10
+    },
+    "tests": [
+      {
+        "attempts": 1,
+        "durationMs": 312,
+        "exitCode": 0,
+        "id": "indexing/crash-log-boundary-controls/before-open",
+        "lane": "integration",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\crash-log-final-qualification-logs\\run-1793257112068-6ooyc0\\indexing_crash-log-boundary-controls_before-open.attempt-1.log"
+        ],
+        "path": "indexing/crash-log-boundary-controls.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "indexing",
+          "integration"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 323,
+        "exitCode": 0,
+        "id": "indexing/crash-log-boundary-controls/bounded-existing-logs",
+        "lane": "integration",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\crash-log-final-qualification-logs\\run-1793257112068-6ooyc0\\indexing_crash-log-boundary-controls_bounded-existing-logs.attempt-1.log"
+        ],
+        "path": "indexing/crash-log-boundary-controls.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "indexing",
+          "integration"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 301,
+        "exitCode": 0,
+        "id": "indexing/crash-log-boundary-controls/latest-pointer-failure",
+        "lane": "integration",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\crash-log-final-qualification-logs\\run-1793257112068-6ooyc0\\indexing_crash-log-boundary-controls_latest-pointer-failure.attempt-1.log"
+        ],
+        "path": "indexing/crash-log-boundary-controls.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "indexing",
+          "integration"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 307,
+        "exitCode": 0,
+        "id": "indexing/crash-log-boundary-controls/pending-write-close",
+        "lane": "integration",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\crash-log-final-qualification-logs\\run-1793257112068-6ooyc0\\indexing_crash-log-boundary-controls_pending-write-close.attempt-1.log"
+        ],
+        "path": "indexing/crash-log-boundary-controls.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "indexing",
+          "integration"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 277,
+        "exitCode": 0,
+        "id": "indexing/crash-log-boundary-controls/terminal-disk-failure",
+        "lane": "integration",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\crash-log-final-qualification-logs\\run-1793257112068-6ooyc0\\indexing_crash-log-boundary-controls_terminal-disk-failure.attempt-1.log"
+        ],
+        "path": "indexing/crash-log-boundary-controls.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "indexing",
+          "integration"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 354,
+        "exitCode": 0,
+        "id": "indexing/crash-log-independent-sinks",
+        "lane": "integration",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\crash-log-final-qualification-logs\\run-1793257112068-6ooyc0\\indexing_crash-log-independent-sinks.attempt-1.log"
+        ],
+        "path": "indexing/crash-log-independent-sinks.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "indexing",
+          "integration"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 1072,
+        "exitCode": 0,
+        "id": "indexing/crash-log-state-write-contention",
+        "lane": "integration",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\crash-log-final-qualification-logs\\run-1793257112068-6ooyc0\\indexing_crash-log-state-write-contention.attempt-1.log"
+        ],
+        "path": "indexing/crash-log-state-write-contention.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "indexing",
+          "integration"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 573,
+        "exitCode": 0,
+        "id": "indexing/crash-log-terminal-ownership",
+        "lane": "integration",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\crash-log-final-qualification-logs\\run-1793257112068-6ooyc0\\indexing_crash-log-terminal-ownership.attempt-1.log"
+        ],
+        "path": "indexing/crash-log-terminal-ownership.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "indexing",
+          "integration"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 967,
+        "exitCode": 0,
+        "id": "perf/crash-log-error-latency/long-log",
+        "lane": "perf",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\crash-log-final-qualification-logs\\run-1793257112068-6ooyc0\\perf_crash-log-error-latency_long-log.attempt-1.log"
+        ],
+        "path": "perf/crash-log-error-latency.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "perf"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 871,
+        "exitCode": 0,
+        "id": "perf/crash-log-error-latency/small-log",
+        "lane": "perf",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\crash-log-final-qualification-logs\\run-1793257112068-6ooyc0\\perf_crash-log-error-latency_small-log.attempt-1.log"
+        ],
+        "path": "perf/crash-log-error-latency.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "perf"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      }
+    ]
+  },
+  "measurements": [
+    {
+      "measurement": "serial-crash-log-error-ms",
+      "selected": "long-log",
+      "node": "v26.13.0",
+      "abi": "147",
+      "platform": "win32",
+      "arch": "x64",
+      "warmups": 3,
+      "sampleCount": 20,
+      "logBytesPerSink": 2097152,
+      "appendSinks": 2,
+      "samples": [
+        {
+          "syncMs": 9.505999999999972,
+          "settledMs": 14.949099999999987,
+          "terminalSha256": "af0f67227378f0b6aacb9c7eb22e2069ce3e7bc5ec33da31c8fe08800cfe6abc"
+        },
+        {
+          "syncMs": 9.297699999999963,
+          "settledMs": 15.561599999999999,
+          "terminalSha256": "96c3add084ceee0f47cb2a8d85116672a5ca7118b3e3e674717156b050180e47"
+        },
+        {
+          "syncMs": 9.183799999999962,
+          "settledMs": 15.26279999999997,
+          "terminalSha256": "f71ec52ad143ca35e233f97e8e01990b4d4940983f0825093da744ce69b39024"
+        },
+        {
+          "syncMs": 9.818700000000035,
+          "settledMs": 15.474900000000048,
+          "terminalSha256": "56b26ee7430ed668bea67558efd64a3e877624e6bbbb545bb704a63a9a00131a"
+        },
+        {
+          "syncMs": 9.916299999999978,
+          "settledMs": 15.461999999999989,
+          "terminalSha256": "19a974c17565e0e36d7ca07407be149ec04894ef43849b495d18b31af55f0534"
+        },
+        {
+          "syncMs": 9.567900000000009,
+          "settledMs": 14.957299999999975,
+          "terminalSha256": "c7103bdc220c924b6db9bb1d67530d5e0768a086c636ed890db090402cd5bd1b"
+        },
+        {
+          "syncMs": 9.336900000000014,
+          "settledMs": 15.755999999999972,
+          "terminalSha256": "ca8080ad2e37b258debfd64ff68d961d43aabf8c93223f41b38af255f59317fe"
+        },
+        {
+          "syncMs": 10.431600000000003,
+          "settledMs": 16.77380000000005,
+          "terminalSha256": "2425dff5db9d5193c786d26ade6934909ce4336e1a69954a33ff069ca26dcaed"
+        },
+        {
+          "syncMs": 9.619100000000003,
+          "settledMs": 15.839799999999968,
+          "terminalSha256": "83268fd29b93b3568690c555bc3acafab12ac53a5b3a2be20475e70106eedae2"
+        },
+        {
+          "syncMs": 9.349000000000046,
+          "settledMs": 15.040200000000027,
+          "terminalSha256": "b0b56ce5b9bdf4329c009edc9652919101d5373c8031a7ac5252e606f294226d"
+        },
+        {
+          "syncMs": 9.85349999999994,
+          "settledMs": 15.118999999999915,
+          "terminalSha256": "51e600fad1130573b463341b7134acedc483bdd2dd27682d4ad79555b561a502"
+        },
+        {
+          "syncMs": 9.598999999999933,
+          "settledMs": 15.536399999999958,
+          "terminalSha256": "743cbcf99bae97cfffaa5f7bb5de3485689c2f5e0e85bb173ca5a28b1961309a"
+        },
+        {
+          "syncMs": 9.489199999999983,
+          "settledMs": 15.228599999999915,
+          "terminalSha256": "1a4d8a89565f8a0937e0646e4ad0d1b99a6b37d55c06766fab957f06358c8f71"
+        },
+        {
+          "syncMs": 9.373900000000049,
+          "settledMs": 15.101600000000076,
+          "terminalSha256": "aeefb791bc17d900ab73bf292330ec586a5056c3b763f45a56a744a26ab1294a"
+        },
+        {
+          "syncMs": 9.58680000000004,
+          "settledMs": 16.044700000000034,
+          "terminalSha256": "954a5b38cf88551dcb8d3dccb1dbc0030e4592d7a282b357f7a970d93956138d"
+        },
+        {
+          "syncMs": 9.619299999999953,
+          "settledMs": 15.694500000000062,
+          "terminalSha256": "aa30f912f73cff39e5514d072f2d0aa293098356233e7d0d9f8ecb68d70ff796"
+        },
+        {
+          "syncMs": 9.548900000000003,
+          "settledMs": 15.470299999999952,
+          "terminalSha256": "c17ccceb766d57d8b930a7de24cc4d4a6f50e193bfc5d8abbca09d2827e83b5c"
+        },
+        {
+          "syncMs": 9.804500000000075,
+          "settledMs": 16.49120000000005,
+          "terminalSha256": "a34b848dc2823064714e3507adba8adf8eda7322689c30ab1c74ae2640ee2fd1"
+        },
+        {
+          "syncMs": 9.565500000000043,
+          "settledMs": 15.574299999999994,
+          "terminalSha256": "07c4606610085d6f4f268fcb6e48dce706e363fb10d5ae824b4bfc39d76d9c40"
+        },
+        {
+          "syncMs": 9.80239999999992,
+          "settledMs": 16.166399999999953,
+          "terminalSha256": "9af742237ffd6c07c9436f161ea990f5a608a785f966559c6c5681ae6958d75b"
+        }
+      ],
+      "syncP95Ms": 9.916299999999978,
+      "settledP95Ms": 16.49120000000005,
+      "syncP95LimitMs": 250,
+      "settledP95LimitMs": 1000,
+      "scope": "warm local-filesystem terminal persistence; excludes logger construction and forensic bundle export",
+      "testId": "perf/crash-log-error-latency/long-log",
+      "log": {
+        "path": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\crash-log-final-qualification-logs\\run-1793257112068-6ooyc0\\perf_crash-log-error-latency_long-log.attempt-1.log",
+        "bytes": 3591,
+        "sha256": "a0c65b23465171b783cbb2284fe3f0d5961628877fb493380010c9a8d335c269"
+      }
+    },
+    {
+      "measurement": "serial-crash-log-error-ms",
+      "selected": "small-log",
+      "node": "v26.13.0",
+      "abi": "147",
+      "platform": "win32",
+      "arch": "x64",
+      "warmups": 3,
+      "sampleCount": 20,
+      "logBytesPerSink": 0,
+      "appendSinks": 2,
+      "samples": [
+        {
+          "syncMs": 9.631200000000035,
+          "settledMs": 15.194799999999987,
+          "terminalSha256": "08f38f84c478a521155ff086e8b5a94d2daf88221c4b9780c05c8d153dd08c4c"
+        },
+        {
+          "syncMs": 9.886400000000037,
+          "settledMs": 15.821000000000026,
+          "terminalSha256": "1f8c1303a4bd2d71c718a84b60ebd86e23b866582769d5ce4b0f1be4b7b7145a"
+        },
+        {
+          "syncMs": 10.368599999999958,
+          "settledMs": 15.833399999999983,
+          "terminalSha256": "fabdbee21e2403c5e7ad22163c1f771b461383d25318d60e8d914aa9176b5235"
+        },
+        {
+          "syncMs": 9.835499999999968,
+          "settledMs": 15.61099999999999,
+          "terminalSha256": "dbd87262b179aeb6b9756751f5190723ee3387bf6ab633c712388fd4d8eb1c7e"
+        },
+        {
+          "syncMs": 9.7577,
+          "settledMs": 15.732600000000048,
+          "terminalSha256": "75419a087ac2c91ece6e1a930b515fbc50a23ac353e397c3e760d5cb8ef8858f"
+        },
+        {
+          "syncMs": 9.94870000000003,
+          "settledMs": 15.939600000000041,
+          "terminalSha256": "80d7f8bd8dd401b955cd1c74a2c159c5ffbf444674388f5839b62551e27df06c"
+        },
+        {
+          "syncMs": 9.515199999999993,
+          "settledMs": 15.783599999999979,
+          "terminalSha256": "284fe6826799428221dd612df22e832083432d0cea7d05c5d6c280ecd7957f61"
+        },
+        {
+          "syncMs": 9.341000000000008,
+          "settledMs": 15.066100000000006,
+          "terminalSha256": "a08cacbf4c61f479475aa7ba8bb850080ea4f3a518df09614cfbbf320078e491"
+        },
+        {
+          "syncMs": 9.853500000000054,
+          "settledMs": 15.454300000000103,
+          "terminalSha256": "d5ef4c4d70882f9ad88be9c0cdb23c52a14342da966916266672dc6e466ed4e7"
+        },
+        {
+          "syncMs": 9.726400000000012,
+          "settledMs": 16.075500000000034,
+          "terminalSha256": "64e558fadb5d58f10fe9204cb5c0260d5229dbf6b33f857d5b4f7dea317f374c"
+        },
+        {
+          "syncMs": 9.982500000000073,
+          "settledMs": 15.826900000000023,
+          "terminalSha256": "62f35a7f7255b8a085364f7652bf72054b27b010c48b11f5ff282f19affc3bad"
+        },
+        {
+          "syncMs": 9.693099999999959,
+          "settledMs": 15.946500000000015,
+          "terminalSha256": "ecadf16b95699b92632e640d069e769decb0c61c2f9cd06d727f175b5989bdc1"
+        },
+        {
+          "syncMs": 9.714399999999955,
+          "settledMs": 15.214399999999955,
+          "terminalSha256": "4381d526002f6094b5e9b52a89c806dc5f6bb79c38db865826f97c31e02ee84c"
+        },
+        {
+          "syncMs": 10.143199999999979,
+          "settledMs": 16.118600000000015,
+          "terminalSha256": "1f15aebcfc72a33834485975b3e3a9a12a6156d84e6a455136b9db8535f11296"
+        },
+        {
+          "syncMs": 9.69259999999997,
+          "settledMs": 15.981800000000021,
+          "terminalSha256": "991e28f742e970ebc5cb3f104fdfee5f6454efaffddff5f20732ea855b78b082"
+        },
+        {
+          "syncMs": 10.323100000000068,
+          "settledMs": 16.060299999999984,
+          "terminalSha256": "b1e4e11a7d3510d99caacf4658a0a157870225e53f1b952a18a95624688e8353"
+        },
+        {
+          "syncMs": 9.893000000000029,
+          "settledMs": 15.206800000000044,
+          "terminalSha256": "cdf24ac663ccc3ad06b6ae9a1c0cc9e68363cb218b048755fdb854d36fb1577e"
+        },
+        {
+          "syncMs": 9.494100000000003,
+          "settledMs": 15.572499999999991,
+          "terminalSha256": "62c5424c0ddcc8a32340d29e8d76e2b5f163a24e5b05e2dfc1716edc37d1127e"
+        },
+        {
+          "syncMs": 9.59979999999996,
+          "settledMs": 15.620800000000031,
+          "terminalSha256": "feb3e82b3a1433927c1dcfbfd5822c198b5d8196137c7ea9c352dae8b69c359a"
+        },
+        {
+          "syncMs": 11.632400000000075,
+          "settledMs": 18.18220000000008,
+          "terminalSha256": "43ff203c5522b9643528726ffaeb081d548da27edc87354a4b3d3fc8a9625d76"
+        }
+      ],
+      "syncP95Ms": 10.368599999999958,
+      "settledP95Ms": 16.118600000000015,
+      "syncP95LimitMs": 250,
+      "settledP95LimitMs": 1000,
+      "scope": "warm local-filesystem terminal persistence; excludes logger construction and forensic bundle export",
+      "testId": "perf/crash-log-error-latency/small-log",
+      "log": {
+        "path": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\crash-log-final-qualification-logs\\run-1793257112068-6ooyc0\\perf_crash-log-error-latency_small-log.attempt-1.log",
+        "bytes": 3583,
+        "sha256": "0b64cd765a25abb4041b7a78040d446d2ea271555ec6b12cdc306cff31c0136c"
+      }
+    }
+  ],
+  "frontGate": {
+    "status": "passed",
+    "checks": [
+      {
+        "durationMs": 33227.0879,
+        "sha256": "7b6ecbaa588687ae9361de86fa1be71f8a1c8d6d560b8c05c3d4a36b41040e7a",
+        "name": "format",
+        "log": ".tmp/tasks/ci-and-p1-20261028/crash-latency-gate-format.log",
+        "exitCode": 0,
+        "command": "npm.cmd run format"
+      },
+      {
+        "durationMs": 1937.8047,
+        "sha256": "f043edbfe9c124df7382a258c37af590664650e6900a3a6b7740327033f42188",
+        "name": "config-budget",
+        "log": ".tmp/tasks/ci-and-p1-20261028/crash-latency-gate-config-budget.log",
+        "exitCode": 0,
+        "command": "npm.cmd run config:budget"
+      },
+      {
+        "durationMs": 1160.1964,
+        "sha256": "fdb1f3a0cc01d0aa4df797ea540d73ba56380464f88cea3f49dfa50bce41dc91",
+        "name": "env-check",
+        "log": ".tmp/tasks/ci-and-p1-20261028/crash-latency-gate-env-check.log",
+        "exitCode": 0,
+        "command": "npm.cmd run env:check"
+      },
+      {
+        "durationMs": 10662.2745,
+        "command": "node tools/docs/generated-surfaces.js --check-freshness",
+        "exitCode": 0,
+        "name": "generated-freshness",
+        "sha256": "486a1f76702c08378b565b632884d46fc5ffa16210f70a68304925fa5eb818f6",
+        "log": ".tmp/tasks/ci-and-p1-20261028/crash-latency-final-generated-freshness.log"
+      },
+      {
+        "durationMs": 2465.1739,
+        "command": "node tools/ci/check-command-surface.js",
+        "exitCode": 0,
+        "name": "command-surface",
+        "sha256": "f16d35826c0a50a9d9a491bc668b12374018822b83947643d1446cb031bc8577",
+        "log": ".tmp/tasks/ci-and-p1-20261028/crash-latency-final-command-surface.log"
+      },
+      {
+        "durationMs": 211.9243,
+        "command": "node tests/ci/workflow-contract.test.js",
+        "exitCode": 0,
+        "name": "workflow-contract",
+        "sha256": "185b68faaf1903b2526a655b3bf7c5363bb10d447dfdb9e32461d93af831d39f",
+        "log": ".tmp/tasks/ci-and-p1-20261028/crash-latency-final-workflow-contract.log"
+      },
+      {
+        "durationMs": 6089.446,
+        "command": "node tests/run.js --lane gate --timeout-ms 30000 --retries 0 --native-status-redo=false --report-file .tmp/tasks/ci-and-p1-20261028/crash-latency-gate.json --log-dir .tmp/tasks/ci-and-p1-20261028/crash-latency-gate-logs",
+        "exitCode": 0,
+        "name": "gate",
+        "sha256": "80da1b96463300aaded2894579ab53a7a15f0027494f8256221db445bcce10b6",
+        "log": ".tmp/tasks/ci-and-p1-20261028/crash-latency-final-gate.log"
+      },
+      {
+        "durationMs": 79.3452,
+        "command": "git diff --check",
+        "exitCode": 0,
+        "name": "diff-check",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "log": ".tmp/tasks/ci-and-p1-20261028/crash-latency-final-diff-check.log"
+      }
+    ]
+  },
+  "initialGateFailure": {
+    "status": "failed",
+    "checks": [
+      {
+        "durationMs": 33227.0879,
+        "sha256": "7b6ecbaa588687ae9361de86fa1be71f8a1c8d6d560b8c05c3d4a36b41040e7a",
+        "name": "format",
+        "log": ".tmp/tasks/ci-and-p1-20261028/crash-latency-gate-format.log",
+        "exitCode": 0,
+        "command": "npm.cmd run format"
+      },
+      {
+        "durationMs": 1937.8047,
+        "sha256": "f043edbfe9c124df7382a258c37af590664650e6900a3a6b7740327033f42188",
+        "name": "config-budget",
+        "log": ".tmp/tasks/ci-and-p1-20261028/crash-latency-gate-config-budget.log",
+        "exitCode": 0,
+        "command": "npm.cmd run config:budget"
+      },
+      {
+        "durationMs": 1160.1964,
+        "sha256": "fdb1f3a0cc01d0aa4df797ea540d73ba56380464f88cea3f49dfa50bce41dc91",
+        "name": "env-check",
+        "log": ".tmp/tasks/ci-and-p1-20261028/crash-latency-gate-env-check.log",
+        "exitCode": 0,
+        "command": "npm.cmd run env:check"
+      },
+      {
+        "durationMs": 10375.8087,
+        "sha256": "25d6dadaac2d35311cfa9fb05425457ae55be00309f1c422a4c1321e91ad0b2b",
+        "name": "generated-freshness",
+        "log": ".tmp/tasks/ci-and-p1-20261028/crash-latency-gate-generated-freshness.log",
+        "exitCode": 1,
+        "command": "node tools/docs/generated-surfaces.js --check-freshness"
+      }
+    ]
+  },
+  "gateRepair": "Active roadmap shortened under its unchanged 20000-byte CRLF contract; failed freshness rerun plus remaining checks passed. Previously passed format/config/environment retained.",
+  "coverage": {
+    "serial": true,
+    "jobs": 1,
+    "threads": 1,
+    "deadlineMs": 30000,
+    "retries": 0,
+    "nativeStatusRedo": false,
+    "publicSurfaceChange": false,
+    "productionSourceChange": false,
+    "newLocalSymlinks": false,
+    "localLinuxExecution": false,
+    "wholeSuitePassed": false
+  },
+  "remaining": [
+    "Hosted POSIX lifecycle/replacement execution of the ten-case group",
+    "Independent native-crash attribution, slow-volume/forensic-export and broad release acceptance retain their owners"
+  ],
+  "provenance": ".tmp and .testLogs paths identify historical author-workspace receipts; raw measured samples and source hashes are committed here."
+}

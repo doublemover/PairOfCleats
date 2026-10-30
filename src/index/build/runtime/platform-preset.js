@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { mergeConfig } from '../../../shared/config.js';
@@ -117,33 +118,23 @@ export const runStartupCalibrationProbe = async ({
     };
   }
   const probeDir = path.join(cacheRoot, 'runtime-calibration');
-  const probePath = path.join(probeDir, `probe-${process.pid}.tmp`);
+  const probePath = path.join(probeDir, `probe-${process.pid}-${randomUUID()}.tmp`);
   const probeBytes = 8 * 1024;
   const payload = Buffer.alloc(probeBytes, 97);
   const writeReadStart = Date.now();
+  let failure = null;
   try {
     await fs.mkdir(probeDir, { recursive: true });
     await fs.writeFile(probePath, payload);
     await fs.readFile(probePath);
-  } catch (err) {
-    return {
-      enabled: true,
-      probeBytes,
-      writeReadMs: Math.max(0, Date.now() - writeReadStart),
-      cleanupMs: 0,
-      error: err?.message || String(err)
-    };
-  }
-  const writeReadMs = Math.max(0, Date.now() - writeReadStart);
+  } catch (err) { failure = err; }
+  const writeReadMs = Math.max(0,Date.now()-writeReadStart);
   const cleanupStart = Date.now();
-  try {
-    await fs.unlink(probePath);
-  } catch {}
-  const cleanupMs = Math.max(0, Date.now() - cleanupStart);
-  return {
-    enabled: true,
-    probeBytes,
-    writeReadMs,
-    cleanupMs
-  };
+  let cleanupFailure = null;
+  try { await fs.unlink(probePath); }
+  catch (error) { if (error?.code !== 'ENOENT') cleanupFailure = error; }
+  return { enabled:true,probeBytes,writeReadMs,cleanupMs:Math.max(0,Date.now()-cleanupStart),
+    ...(failure ? { error:failure?.message || String(failure) } : {}),
+    ...(cleanupFailure ? { cleanupError:cleanupFailure?.message || String(cleanupFailure) } : {}) };
 };
+

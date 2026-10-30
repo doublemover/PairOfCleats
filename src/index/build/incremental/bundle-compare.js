@@ -1,8 +1,10 @@
 import { sha1 } from '../../../shared/hash.js';
+import { canonicalizeBundlePayloadForChecksum } from '../../../shared/bundle-checksum.js';
+import { stableStringify } from '../../../shared/stable-json.js';
 
 const buildStableJsonSignature = (value) => {
   try {
-    return JSON.stringify(value ?? null);
+    return stableStringify(canonicalizeBundlePayloadForChecksum(value,{typedArraysBeforeToJSON:true}));
   } catch {
     return '';
   }
@@ -10,17 +12,7 @@ const buildStableJsonSignature = (value) => {
 
 const buildBundleMetaReuseSignature = (metaV2) => {
   if (!metaV2 || typeof metaV2 !== 'object') return '';
-  const selected = {
-    chunkId: metaV2.chunkId ?? null,
-    file: metaV2.file ?? null,
-    range: metaV2.range ?? null,
-    lang: metaV2.lang ?? null,
-    ext: metaV2.ext ?? null,
-    types: metaV2.types ?? null,
-    relations: metaV2.relations ?? null,
-    segment: metaV2.segment ?? null
-  };
-  const payload = buildStableJsonSignature(selected);
+  const payload = buildStableJsonSignature(metaV2);
   return payload ? sha1(payload) : '';
 };
 
@@ -34,7 +26,9 @@ const buildChunkReuseSignature = (chunks) => (
       const hash = typeof chunk?.hash === 'string' ? chunk.hash : '';
       const textLength = typeof chunk?.text === 'string' ? chunk.text.length : 0;
       const metaSignature = buildBundleMetaReuseSignature(chunk?.metaV2);
-      return `${chunkId}:${docId}:${start}:${end}:${hash}:${textLength}:${metaSignature}`;
+      // Include every finalized serialized chunk field, including risk/docmeta
+      // and equal-length text edits. The prefix is diagnostic, not authority.
+      return JSON.stringify([chunkId,docId,start,end,hash,textLength,metaSignature,buildStableJsonSignature(chunk)]);
     }).join('|')
     : ''
 );
@@ -58,5 +52,8 @@ export const shouldReuseExistingBundle = (existingBundle, nextBundle) => {
   if ((existingBundle.encodingFallbackClass || null) !== (nextBundle.encodingFallbackClass || null)) return false;
   if ((existingBundle.encodingFallbackRisk || null) !== (nextBundle.encodingFallbackRisk || null)) return false;
   if ((existingBundle.encodingConfidence || null) !== (nextBundle.encodingConfidence || null)) return false;
+  for(const key of ['lexiconFilterStats','parseCheckpoint','lexicalCheckpoint','dependencySignatures','documentExtraction','lintOutcome']) {
+    if(buildStableJsonSignature(existingBundle[key]) !== buildStableJsonSignature(nextBundle[key])) return false;
+  }
   return true;
 };

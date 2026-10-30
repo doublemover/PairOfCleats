@@ -1,15 +1,17 @@
+import { readPreparedSemanticBatchEntry } from '../../../../semantic/prepared-batch.js';
 import { syncParentDirectory } from '../../../../../shared/io/persistence-helpers.js';
 import { retainSemanticSource } from '../../../../semantic/source-storage.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
-import { createJsonlBatchWriter } from '../../../../../shared/json-stream/jsonl-batch.js';
-import { validateOffsetsAgainstFile } from '../../../../../shared/artifact-io/offsets.js';
+import { createSemanticPartBuilders } from './part-builder.js';
 import { throwIfAborted } from '../../../../../shared/abort.js';
 import { canonicalSemanticJson, semanticHash } from '../../../../semantic/identity.js';
 import { validateSemanticRecord } from '../../../../../contracts/validators/semantic.js';
 import { assertSemanticEnvelope } from '../../../../../contracts/validators/semantic-envelopes.js';
 import { SEMANTIC_MEMBER_NAMES } from '../../../../../contracts/schemas/semantic-envelopes.js';
+import { observeStorageResource } from '../../../../../shared/storage/failure-observation.js';
+import { addStorageFailureContext } from '../../../../../shared/storage/operation-error.js';
 
 const MEMBERS = Object.freeze({
   lookup: 'semantic_lookup', node: 'semantic_records', operand: 'semantic_operands', edge: 'semantic_edges',
@@ -47,9 +49,9 @@ export const createSemanticDiskAccount = (limit) => {
  * owns promotion; this sink never changes a live pointer or overwrites a part.
  */
 export const createSemanticPartitionSink = async ({
-  stagingRoot, source, sourceBytes, partitionId, producerHash, contextHash = null, policyHash,
+  stagingRoot, source, sourceBytes, sourceCapability = null, partitionId, producerHash, contextHash = null, policyHash,
   structuralSlots = [], diskAccount, batchRows = 4096, batchBytes = 1048576,
-  signal = null, byteAdmission = null, scheduleIo = (fn) => fn()
+  signal = null, byteAdmission = null, scheduleIo = (fn) => fn(), metrics = {}
 }) => {
   assertSemanticEnvelope('source', source);
   if (!(sourceBytes instanceof Uint8Array)) throw new TypeError('Exact source bytes are required.');
@@ -60,6 +62,10 @@ export const createSemanticPartitionSink = async ({
   }
   await fs.mkdir(stagingRoot, { recursive: true });
   const directory = await fs.mkdtemp(path.toNamespacedPath(path.join(stagingRoot, 'semantic-part-')));
+  try { await syncParentDirectory(directory); } catch (error) {
+    try { await fs.rm(directory, { recursive: true, force: true }); } catch (cleanupError) { error.cleanupError = cleanupError; }
+    throw error;
+  }
   const prefix = path.basename(directory);
   const members = Object.fromEntries(SEMANTIC_MEMBER_NAMES.map((name) => [name, []]));
   const counts = Object.fromEntries(SEMANTIC_MEMBER_NAMES.map((name) => [name, 0]));
@@ -67,6 +73,7 @@ export const createSemanticPartitionSink = async ({
   let sequence = 0;
   let reserved = 0;
   let closed = false;
+  let failed = null;
   let busy = false;
   let maxLocalReference = -1;
   let edgeId = 0;
@@ -84,62 +91,18 @@ export const createSemanticPartitionSink = async ({
         'evidence', 'recordRef', 'scope']) inspectRef(row[key]);
     }
   };
-  const writePart = async (member, rows) => {
-    if (!rows.length) return;
-    throwIfAborted(signal);
-    const buffers = rows.map((row) => Buffer.from(canonicalSemanticJson(row), 'utf8'));
-    const bytes = buffers.reduce((sum, buffer) => sum + buffer.length + 1, 0);
-    const offsets = Buffer.alloc(rows.length * 8);
-    let offset = 0;
-    for (let i = 0; i < buffers.length; i += 1) {
-      offsets.writeBigUInt64LE(BigInt(offset), i * 8);
-      offset += buffers[i].length + 1;
-    }
-    reserve(bytes + offsets.length);
-    const filename = member + '-' + String(members[member].length).padStart(6, '0') + '.jsonl';
-    const filePath = path.join(directory, filename);
-    const offsetsPath = filePath + '.offsets';
-    const hash = createHash('sha256');
-    await scheduleIo(async () => {
-      const writer = createJsonlBatchWriter(filePath, { signal, compression: null, atomic: false });
-      try {
-        for (const buffer of buffers) {
-          throwIfAborted(signal);
-          await writer.writeLine(buffer, buffer.length + 1);
-          hash.update(buffer).update('\n');
-          hashes[member].update(buffer).update('\n');
-        }
-        await writer.close();
-      } catch (error) {
-        await writer.destroy(error);
-        throw error;
-      }
-      const offsetsHandle = await fs.open(offsetsPath, 'wx');
-      try { await offsetsHandle.writeFile(offsets); await offsetsHandle.sync(); }
-      finally { await offsetsHandle.close(); }
-      const dataHandle = await fs.open(filePath, 'r+');
-      try { await dataHandle.sync(); } finally { await dataHandle.close(); }
-      await syncParentDirectory(filePath);
-      await validateOffsetsAgainstFile(filePath, offsetsPath);
-    });
-    throwIfAborted(signal);
-    members[member].push({
-      path: prefix + '/' + filename, offsetsPath: prefix + '/' + filename + '.offsets',
-      hash: hash.digest('hex'), offsetsHash: createHash('sha256').update(offsets).digest('hex'),
-      count: rows.length, bytes, firstRow: counts[member]
-    });
-    counts[member] += rows.length;
-  };
+  const builders = createSemanticPartBuilders({ directory, prefix, members, counts, hashes, reserve,
+    batchRows, batchBytes, scheduleIo, signal, metrics });
   const abort = async () => {
     if (busy) throw fail('Await the active semantic sink operation before aborting.');
     if (closed) return;
-    closed = true;
+    await builders.closeForAbort();
     await fs.rm(directory, { recursive: true, force: true });
     diskAccount.release(reserved);
-    reserved = 0;
+    reserved = 0; closed = true;
   };
   const appendBatch = async (batch) => {
-    if (closed || busy) throw fail('Semantic sink is closed or already writing.');
+    if (closed || busy || failed) throw failed || fail('Semantic sink is closed or already writing.');
     throwIfAborted(signal);
     if (batch.partitionId !== partitionId || batch.sequence !== sequence
       || !Array.isArray(batch.rows) || batch.rows.length > batchRows || !batch.rows.length) {
@@ -147,41 +110,71 @@ export const createSemanticPartitionSink = async ({
     }
     // Check the complete bounded batch before any write. Long operands are rows,
     // never a reason to erase an argument list or truncate a source payload.
-    const measured = batch.rows.reduce((sum, entry) => sum + Buffer.byteLength(canonicalSemanticJson(entry)) + 1, 0);
+    const prepared = [];
+    let measured = 0;
+    for (const entry of batch.rows) {
+      const owned = readPreparedSemanticBatchEntry(entry);
+      if (owned) {
+        measured += owned.byteCount;
+        if (measured > batchBytes) throw fail('Semantic batch byte limit/count mismatch.');
+        prepared.push({ family: entry.family, row: entry.row, payload: Buffer.from(owned.rowJson, 'utf8') });
+        continue;
+      }
+      const descriptor = Object.getOwnPropertyDescriptor(entry, 'row');
+      if (!descriptor || !Object.hasOwn(descriptor, 'value')) throw fail('Semantic row getters are not JSON.');
+      const row = descriptor.value;
+      let payload = null;
+      const envelope = canonicalSemanticJson(entry, {
+        onObjectEncoded: (value, encoded) => { if (value === row) payload = Buffer.from(encoded, 'utf8'); }
+      });
+      measured += Buffer.byteLength(envelope) + 1;
+      if (measured > batchBytes) throw fail('Semantic batch byte limit/count mismatch.');
+      if (!payload) throw fail('Semantic batch row must be an explicit JSON object.');
+      prepared.push({ family: entry.family, row, payload });
+    }
     if (measured > batchBytes || batch.byteCount !== measured) throw fail('Semantic batch byte limit/count mismatch.');
     const groups = Object.fromEntries(Object.values(MEMBERS).map((name) => [name, []]));
     let nextNode = counts.semantic_records;
     let nextEdge = edgeId;
-    for (const { family, row } of batch.rows) {
+    for (const { family, row, payload } of prepared) {
       if (!Object.hasOwn(MEMBERS, family)) throw fail('Unsupported semantic row family: ' + family);
       const validation = validateSemanticRecord(family, row, { sourceLength: source.textLength, structuralSlots });
       if (!validation.ok) throw fail(validation.errors.join('; '));
       if (family === 'node' && row.id !== nextNode++) throw fail('Semantic nodes must have contiguous preorder IDs.');
       if (family === 'edge' && row.id !== nextEdge++) throw fail('Analysis edges must have contiguous IDs.');
-      groups[MEMBERS[family]].push(row);
+      groups[MEMBERS[family]].push(payload);
     }
-    for (const { family, row } of batch.rows) inspectReferences(family, row);
+    for (const { family, row } of prepared) inspectReferences(family, row);
     busy = true;
     let release = null;
     try {
       release = await byteAdmission?.acquire(measured, { signal });
-      for (const [member, rows] of Object.entries(groups)) await writePart(member, rows);
+      for (const [member, rows] of Object.entries(groups)) await builders.append(member, rows);
       edgeId = nextEdge;
-      sequence += 1;
+      sequence += 1; metrics.batchesAcknowledged = sequence;
     } catch (error) {
-      busy = false;
-      await abort();
+      busy = false; failed = error;
+      try { await abort(); } catch (cleanupError) {
+        try { if (error && typeof error === 'object') error.cleanupError = cleanupError; } catch {}
+      }
       throw error;
-    } finally { release?.(); busy = false; }
+    } finally {
+      busy = false;
+      try { release?.(); } catch (releaseError) {
+        if (!failed) throw releaseError;
+        try { failed.releaseError = releaseError; } catch {}
+      }
+    }
   };
   const finalizeSource = async () => {
-    if (closed || busy) throw fail('Semantic sink is closed or already writing.');
+    if (closed || busy || failed) throw failed || fail('Semantic sink is closed or already writing.');
     throwIfAborted(signal);
     if (maxLocalReference >= counts.semantic_records) throw fail('Dangling local semantic reference.');
     busy = true;
     try {
-      await retainSemanticSource({ root: stagingRoot, source, bytes: sourceBytes, diskAccount, signal });
-      await writePart('semantic_sources', [source]);
+      await retainSemanticSource({ root: stagingRoot, source, bytes: sourceBytes, sourceCapability, diskAccount, signal });
+      await builders.append('semantic_sources', [Buffer.from(canonicalSemanticJson(source), 'utf8')]);
+      await builders.finish();
       const memberHashes = Object.fromEntries(SEMANTIC_MEMBER_NAMES.map((name) => [name, hashes[name].digest('hex')]));
       const descriptor = {
         schemaVersion: 1, semanticSchemaVersion: 1, partitionId, sourceUnitId: source.sourceUnitId,
@@ -197,10 +190,23 @@ export const createSemanticPartitionSink = async ({
       closed = true;
       return descriptor;
     } catch (error) {
-      busy = false;
-      await abort();
+      busy = false; failed = error;
+      try { await abort(); } catch (cleanupError) {
+        try { if (error && typeof error === 'object') error.cleanupError = cleanupError; } catch {}
+      }
       throw error;
     } finally { busy = false; }
   };
   return { appendBatch, finalizeSource, abort };
+};
+
+/** Preserve the producer failure while still awaiting all owned cleanup. */
+export const abortSemanticPartitionOnFailure = async (sink, error) => {
+  const observation = observeStorageResource(error, { phase: 'semantic-partition-failure' });
+  const retained = observation.retain();
+  try { await sink?.abort(); } catch (cleanupError) {
+    throw addStorageFailureContext(retained, {}, cleanupError, { secondaryPresent: true });
+  }
+  observation.requireSettled();
+  throw error;
 };

@@ -19,13 +19,15 @@ const headingChunks = buildChunksFromLineHeadings(headingText, [
   { line: 1, title: 'one' },
   { line: 3, title: 'two' }
 ]);
-assert.equal(headingChunks.length, 2);
-assert.equal(headingChunks[0].name, 'one');
-assert.equal(headingChunks[0].kind, 'Section');
-assert.equal(headingChunks[0].meta.title, 'one');
-assert.equal(headingText.slice(headingChunks[0].start, headingChunks[0].end), '[one]\nvalue = 1\n');
-assert.equal(headingChunks[1].name, 'two');
-assert.equal(headingText.slice(headingChunks[1].start, headingChunks[1].end), '[two]\nvalue = 2');
+assert.equal(headingChunks.length, 3);
+assert.equal(headingChunks[0].name, 'preamble');
+assert.equal(headingText.slice(headingChunks[0].start, headingChunks[0].end), 'alpha\n');
+assert.equal(headingChunks[1].name, 'one');
+assert.equal(headingChunks[1].kind, 'Section');
+assert.equal(headingChunks[1].meta.title, 'one');
+assert.equal(headingText.slice(headingChunks[1].start, headingChunks[1].end), '[one]\nvalue = 1\n');
+assert.equal(headingChunks[2].name, 'two');
+assert.equal(headingText.slice(headingChunks[2].start, headingChunks[2].end), '[two]\nvalue = 2');
 assert.equal(buildChunksFromLineHeadings(headingText, []), null);
 
 const markdownText = [

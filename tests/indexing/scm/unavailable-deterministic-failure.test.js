@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
 import { assertScmProvider } from '../../../src/index/scm/provider.js';
+import { scmFileInventoryReceipt } from '../../../src/index/scm/file-inventory.js';
 
 const wrapped = assertScmProvider({
   name: 'jj',
@@ -25,8 +26,10 @@ const wrapped = assertScmProvider({
 });
 
 assert.deepEqual(wrapped.detect({ startPath: process.cwd() }), { ok: false });
-assert.deepEqual(await wrapped.listTrackedFiles({ repoRoot: '/repo' }), { ok: false, reason: 'unavailable' });
-assert.deepEqual(await wrapped.getChangedFiles({ repoRoot: '/repo' }), { ok: false, reason: 'unavailable' });
+assert.deepEqual(await wrapped.listTrackedFiles({ repoRoot: '/repo' }), { ok: false, reason: 'unavailable', complete: false,
+  inventory: scmFileInventoryReceipt({ provider: 'jj', operation: 'tracked', reason: 'provider-threw' }) });
+assert.deepEqual(await wrapped.getChangedFiles({ repoRoot: '/repo' }), { ok: false, reason: 'unavailable', complete: false,
+  inventory: scmFileInventoryReceipt({ provider: 'jj', operation: 'changed', reason: 'provider-threw' }) });
 const metaFailure = await wrapped.getFileMeta({ repoRoot: '/repo', filePosix: 'a.js' });
 assert.equal(metaFailure.ok, false);
 assert.equal(metaFailure.reason, 'unavailable');

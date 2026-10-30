@@ -255,6 +255,7 @@ export function createSchedulerCoreConfig(input = {}) {
       shutdown: 0,
       cleared: 0,
       abort: 0,
+      invalidRequest: 0,
       signalRequired: 0
     }
   };

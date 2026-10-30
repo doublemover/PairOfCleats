@@ -1,9 +1,20 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { hashManagedToolFile, readManagedToolText } from './managed-tool-file.js';
+import { createContainedFileResource } from './contained-file-resource.js';
+import { observeStorageResource } from './storage/failure-observation.js';
 
 export const CLANGD_RELEASE_INDEX_URL = 'https://api.github.com/repos/clangd/clangd/releases/latest';
 export const CLANGD_MAX_BINARY_BYTES = 512 * 1024 * 1024;
+export const CLANGD_MAX_DOWNLOAD_BYTES = 128 * 1024 * 1024;
+export const CLANGD_ARCHIVE_LIMITS = Object.freeze({
+  maxBytes: 768 * 1024 * 1024, maxEntryBytes: CLANGD_MAX_BINARY_BYTES, maxEntries: 20_000
+});
+// The compressed archive and extracted tree overlap within the same tooling
+// root. This is an enforced archive byte envelope, not a measured native peak.
+export const CLANGD_STORAGE_ESTIMATE = Object.freeze({ complete: true, basis: 'bounded-archive-owner-v1',
+  recipe: 'official-clangd-archive-v1', writes: Object.freeze([Object.freeze({ destination: 'artifacts',
+    requiredBytes: CLANGD_MAX_DOWNLOAD_BYTES + CLANGD_ARCHIVE_LIMITS.maxBytes + 32 * 1024 * 1024 })]) });
 export const resolveClangdArchiveTarget = ({ platform = process.platform, arch = process.arch } = {}) => {
   if (platform === 'darwin' && ['x64', 'arm64'].includes(arch)) return { platform, arch, assetPlatform: 'mac' };
   if (arch === 'x64' && ['linux', 'win32'].includes(platform)) {
@@ -14,12 +25,20 @@ export const resolveClangdArchiveTarget = ({ platform = process.platform, arch =
 
 /** Read binary headers only; no executable/library load. */
 export const hasClangdTargetHeader = (command, target) => {
+  const methods = { receiver: fs, close: fs.closeSync, stat: fs.fstatSync, read: fs.readSync };
   const fd = fs.openSync(command, fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW || 0));
-  try {
-    const stat = fs.fstatSync(fd);
+  return createContainedFileResource({ fd, sync: true, methods }).runSync(descriptor => {
+    const stat = descriptor.stat();
     if (!stat.isFile() || stat.size < 32 || stat.size > CLANGD_MAX_BINARY_BYTES) return false;
     const header = Buffer.alloc(4096);
-    const read = fs.readSync(fd, header, 0, header.length, 0);
+    let read = 0;
+    const wanted = Math.min(header.length, stat.size);
+    while (read < wanted) {
+      const progress = descriptor.read(header, read, wanted - read, read);
+      if (!Number.isSafeInteger(progress) || progress < 0 || progress > wanted - read) throw new Error('Invalid managed binary header read progress.');
+      if (!progress) break;
+      read += progress;
+    }
     if (target.platform === 'linux') {
       return read >= 20 && header.subarray(0, 4).equals(Buffer.from([0x7f, 0x45, 0x4c, 0x46]))
         && header[4] === 2 && header[5] === 1 && header.readUInt16LE(18) === 0x3e;
@@ -43,9 +62,7 @@ export const hasClangdTargetHeader = (command, target) => {
     if (!count || count > 8 || 8 + count * stride > read) return false;
     for (let i = 0; i < count; i += 1) if (readInt(8 + i * stride) === cpu) return true;
     return false;
-  } finally {
-    fs.closeSync(fd);
-  }
+  });
 };
 
 export const resolveManagedClangd = (toolingRoot, targetOptions = {}) => {
@@ -75,7 +92,8 @@ export const resolveManagedClangd = (toolingRoot, targetOptions = {}) => {
     if (!fs.lstatSync(resources).isDirectory() || !fs.readdirSync(resources).length
       || resourceRelative === '..' || resourceRelative.startsWith(`..${path.sep}`) || path.isAbsolute(resourceRelative)) return null;
     return { ...receipt, packageRoot, command, binDir: path.join(packageRoot, 'bin'), resourceDir: resources };
-  } catch {
+  } catch (error) {
+    observeStorageResource(error, { phase: 'managed-clangd-discovery' }).requireSettled();
     return null;
   }
 };

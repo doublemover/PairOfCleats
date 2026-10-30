@@ -4,7 +4,8 @@ import path from 'node:path';
 
 import { createCli } from '../../src/shared/cli.js';
 import { isDirectExecution } from '../../src/shared/direct-execution.js';
-import { buildCompositeContextPackPayload } from '../../src/integrations/tooling/context-pack.js';
+import { buildCompositeContextPackPayload, buildContextEvidenceControlComparison } from '../../src/integrations/tooling/context-pack.js';
+import { summarizeEvidenceControlComparison } from './evidence-controls.js';
 
 const average = (values) => {
   const list = values.filter((value) => Number.isFinite(value));
@@ -71,12 +72,17 @@ export const evaluateRiskPackDataset = async ({
 
   for (const caseDef of cases) {
     const startedAt = Date.now();
-    const payload = await buildCompositeContextPackPayload({
+    const request = {
       repoRoot: caseDef.repoPath,
       seed: caseDef.seed,
       hops: caseDef.hops,
       ...caseDef.request
-    });
+    };
+    const comparison = caseDef.evidenceControls === true ? await buildContextEvidenceControlComparison(request) : null;
+    const payload = comparison ? comparison[0].payload : await buildCompositeContextPackPayload(request);
+    const evidenceControls = comparison ? summarizeEvidenceControlComparison(comparison, {
+      goldChunkUids: caseDef.expected?.evidence?.goldChunkUids
+    }) : null;
     const elapsedMs = Number(payload?.stats?.timing?.elapsedMs ?? (Date.now() - startedAt));
     const peakRssMb = Number(payload?.stats?.memory?.peak?.rss ?? 0) / (1024 * 1024);
     const actualFlowIds = Array.isArray(payload?.risk?.flows) ? payload.risk.flows.map((flow) => flow.flowId) : [];
@@ -94,6 +100,7 @@ export const evaluateRiskPackDataset = async ({
       id: caseDef.id,
       repoAlias: caseDef.repoAlias,
       languageId: caseDef.languageId,
+      ...(evidenceControls ? { evidenceControls } : {}),
       elapsedMs,
       peakRssMb,
       summaryExact,

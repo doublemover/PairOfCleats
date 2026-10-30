@@ -1,0 +1,2 @@
+alpha               1 src/main.c       int alpha(void) { return 1; }
+beta                1 src/space%20%25%20file.c int beta(int value) { return value + 1; }

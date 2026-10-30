@@ -47,14 +47,12 @@ export function createPreCpuArtifactState({
   if (!fileTextCache?.get || !relKey) return artifacts;
   const cached = fileTextCache.get(relKey);
   if (typeof cached === 'string') {
-    artifacts.text = cached;
+    // Unversioned legacy text has no freshness evidence. Re-read the source.
     return artifacts;
   }
   if (!cached || typeof cached !== 'object') return artifacts;
-  const stale = (
-    (Number.isFinite(cached.size) && cached.size !== fileStat.size)
-    || (Number.isFinite(cached.mtimeMs) && cached.mtimeMs !== fileStat.mtimeMs)
-  );
+  const stale = !Number.isFinite(cached.size) || !Number.isFinite(cached.mtimeMs)
+    || cached.size !== fileStat?.size || cached.mtimeMs !== fileStat?.mtimeMs;
   if (stale) return artifacts;
   if (typeof cached.text === 'string') artifacts.text = cached.text;
   if (Buffer.isBuffer(cached.buffer)) artifacts.fileBuffer = cached.buffer;
@@ -89,9 +87,25 @@ export function applyCachedResultToArtifacts({
   artifacts,
   cachedResult
 }) {
+  const sameSource = typeof artifacts.fileHash === 'string'
+    && artifacts.fileHashAlgo === 'sha1'
+    && artifacts.fileHash === cachedResult?.fileHash
+    && Buffer.isBuffer(artifacts.fileBuffer) && Buffer.isBuffer(cachedResult?.buffer)
+    && artifacts.fileBuffer.equals(cachedResult.buffer);
+  if (!sameSource) {
+    // Text and encoding describe one admitted byte snapshot. A newer hash or
+    // missing byte admission cannot inherit decoded facts from a stat-only hit.
+    artifacts.text = null;
+    artifacts.fileEncoding = null;
+    artifacts.fileEncodingFallback = null;
+    artifacts.fileEncodingFallbackClass = null;
+    artifacts.fileEncodingFallbackRisk = null;
+    artifacts.fileEncodingConfidence = null;
+    artifacts.documentExtraction = null;
+  }
   artifacts.cachedBundle = cachedResult?.cachedBundle;
   artifacts.fileHash = cachedResult?.fileHash;
-  if (artifacts.fileHash) artifacts.fileHashAlgo = 'sha1';
+  artifacts.fileHashAlgo = artifacts.fileHash ? 'sha1' : null;
   artifacts.fileBuffer = cachedResult?.buffer;
   const cachedBundle = artifacts.cachedBundle;
   if (!cachedBundle || typeof cachedBundle !== 'object') return;

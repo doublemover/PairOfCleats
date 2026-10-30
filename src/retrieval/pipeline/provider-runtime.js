@@ -6,6 +6,8 @@ import {
   PROVIDER_RETRY_BASE_MS,
   PROVIDER_RETRY_MAX_MS
 } from './constants.js';
+import { throwIfAborted } from '../../shared/abort.js';
+import { observeRetrievalProviderFailure } from './provider-failure.js';
 
 const generationRuntimes = new WeakMap();
 export const getGenerationProviderRuntime = (index) => {
@@ -22,7 +24,7 @@ export const getGenerationProviderRuntime = (index) => {
  *   recordProviderFailure:(provider:object|null,mode:string,reason?:string,options?:{fromPreflight?:boolean})=>void,
  *   recordProviderSuccess:(provider:object|null,mode:string,options?:{latencyMs?:number|null})=>void,
  *   resolveAnnBackends:(providers:Map<string,object>,mode:string,baseOrder:string[],adaptiveEnabled:boolean)=>string[],
- *   ensureProviderPreflight:(provider:object|null,input:{idx:object,mode:string,embedding:number[]|null,signal:AbortSignal|undefined})=>Promise<boolean>
+ *   ensureProviderPreflight:(provider:object|null,input:{idx:object,mode:string,embedding:number[]|null,signal:AbortSignal|undefined,deadline?:AbortSignal|null})=>Promise<boolean>
  * }}
  */
 export const createProviderRuntime = () => {
@@ -109,10 +111,10 @@ export const createProviderRuntime = () => {
     state.preflight = true;
     state.preflightFailureUntil = 0;
     state.preflightCheckedAt = Date.now();
-    if (Number.isFinite(Number(latencyMs)) && Number(latencyMs) >= 0) {
-      const resolvedLatencyMs = Number(latencyMs);
-      const prev = Number.isFinite(Number(state.latencyEwmaMs))
-        ? Number(state.latencyEwmaMs)
+    if (typeof latencyMs === 'number' && Number.isFinite(latencyMs) && latencyMs >= 0) {
+      const resolvedLatencyMs = latencyMs;
+      const prev = state.latencySamples > 0 && Number.isFinite(state.latencyEwmaMs)
+        ? state.latencyEwmaMs
         : null;
       state.latencyEwmaMs = prev == null
         ? resolvedLatencyMs
@@ -127,8 +129,10 @@ export const createProviderRuntime = () => {
     const scored = base.map((backend, baseIndex) => {
       const provider = providers.get(backend);
       const state = getProviderModeState(provider, mode);
-      const hasLatency = Number.isFinite(Number(state?.latencyEwmaMs));
-      const latencyMs = hasLatency ? Number(state.latencyEwmaMs) : Number.POSITIVE_INFINITY;
+      const hasLatency = state?.latencySamples > 0 && Number.isFinite(state?.latencyEwmaMs);
+      // Prefer measured healthy providers; unknown providers retain their base
+      // order behind them. A health/preflight success is no timing observation.
+      const latencyMs = hasLatency ? state.latencyEwmaMs : Number.POSITIVE_INFINITY;
       const failures = Number.isFinite(Number(state?.failures))
         ? Math.max(0, Math.floor(Number(state.failures)))
         : 0;
@@ -158,7 +162,9 @@ export const createProviderRuntime = () => {
     return scored.map((entry) => entry.backend);
   };
 
-  const ensureProviderPreflight = async (provider, { idx, mode, embedding, signal } = {}) => {
+  const ensureProviderPreflight = async (provider, { idx, mode, embedding, signal, deadline = null } = {}) => {
+    throwIfAborted(signal);
+    throwIfAborted(deadline);
     if (!provider || typeof provider.preflight !== 'function') return true;
     const state = getProviderModeState(provider, mode);
     const now = Date.now();
@@ -194,13 +200,17 @@ export const createProviderRuntime = () => {
         state.preflightCheckedAt = 0;
       }
     }
+    const operationSignal = deadline ? signal ? AbortSignal.any([signal, deadline]) : deadline : signal;
     try {
+      throwIfAborted(signal); throwIfAborted(deadline);
       const result = await provider.preflight({
         idx,
         mode,
         embedding,
-        signal
+        signal: operationSignal
       });
+      throwIfAborted(signal);
+      throwIfAborted(deadline);
       const ok = result !== false;
       const checkedAt = Date.now();
       if (state) {
@@ -214,7 +224,16 @@ export const createProviderRuntime = () => {
       recordProviderSuccess(provider, mode);
       return ok;
     } catch (err) {
-      recordProviderFailure(provider, mode, err?.message || 'preflight failed', { fromPreflight: true });
+      const failure = observeRetrievalProviderFailure(err);
+      throwIfAborted(signal);
+      if (deadline?.aborted) throw err;
+      if (signal?.aborted || failure.abort) {
+        throwIfAborted(signal);
+        throw err;
+      }
+      try { recordProviderFailure(provider, mode, failure.message || 'preflight failed', { fromPreflight: true }); }
+      catch (inspection) { throw failure.retain(inspection, { inspectionPresent: true }); }
+      failure.requireSettled();
       return false;
     }
   };

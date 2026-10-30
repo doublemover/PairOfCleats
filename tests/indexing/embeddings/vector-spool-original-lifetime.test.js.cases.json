@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["healthy", "close-pending", "close-recovery", "unlink-recovery", "unknown-child", "replaced-file", "replaced-directory", "frozen-write", "falsey-write", "pending-write", "construction", "observer-retention", "deferred-original", "deferred-inspection", "unobserved-directory"]
+}

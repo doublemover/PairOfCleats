@@ -4,7 +4,7 @@ Status: historical tracking snapshot retained as written.
 
 The in-progress rows and Node 24.13.0 references below describe an earlier Phase 0
 checkpoint. They are not a current implementation queue or runtime requirement.
-The current checkout requires Node.js 24.15.0 or newer; `package.json` and `.nvmrc`
+The current checkout requires Node.js 26.x; `package.json` and `.nvmrc`
 define that baseline. Use the [current roadmap](../roadmap.md) for implemented work
 and deferred acceptance, and the [runner reference](test-runner-interface.md) for
 local test commands. Historical rows do not establish a current suite pass.

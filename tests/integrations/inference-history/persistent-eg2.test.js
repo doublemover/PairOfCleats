@@ -8,7 +8,7 @@ import { digest } from '../../../src/integrations/inference-history/common.js';
 import { projectArtifact } from '../../../src/integrations/inference-history/artifact-projection.js';
 import { createLocalSourceHistoryService } from '../../../src/integrations/inference-history/service.js';
 import { resolveArchiveEmbeddingOptions, ARCHIVE_EG2_QUERY_PREFIX, __setArchiveWorkerFactoryForTests } from '../../../src/integrations/inference-history/embedding-runtime.js';
-const base=process.env.PAIROFCLEATS_ARCHIVE_DISCOVERY_TEST_DIR||path.resolve('temp/tasks/archive-eg2-tests');
+const base=process.env.PAIROFCLEATS_ARCHIVE_DISCOVERY_TEST_DIR||path.resolve('.tmp/tasks/archive-eg2-tests');
 await fs.mkdir(base,{recursive:true});
 const root=await fs.realpath(await fs.mkdtemp(path.join(base,'persistent-eg2-')));
 const sources=path.join(root,'artifacts-0001.json');

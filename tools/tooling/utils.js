@@ -2,10 +2,11 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { canRunCommand, probeCommand } from '../shared/cli-utils.js';
+import { redactDiagnosticText } from '../../src/shared/diagnostic-text.js';
 import { LOCK_FILES, MANIFEST_FILES, SKIP_DIRS, SKIP_FILES } from '../../src/index/constants.js';
 import { findBinaryInDirs, findBinaryOnPath, splitPathEntries } from '../../src/index/tooling/binary-utils.js';
 import { isApplicationOwnedCommand, isRepoTrusted } from '../../src/shared/config-authority.js';
-import { validateResolvedToolingCommandLayout } from '../../src/index/tooling/command-resolver.js';
+import { isNonZeroToolingProbeSuccess, resolveNoProvisionToolingEnvironment, validateResolvedToolingCommandLayout } from '../../src/index/tooling/command-resolver.js';
 import { isPathWithinRoot, toPosix } from '../../src/shared/file-paths.js';
 import {
   resolveGlobalComposerBinDirs,
@@ -20,7 +21,18 @@ import {
   resolvePathEnvKey as resolveSharedPathEnvKey
 } from '../../src/shared/env-path.js';
 import { getToolingConfig, resolveToolRoot } from '../shared/dict-utils.js';
-import { resolveClangdArchiveTarget, resolveManagedClangd } from '../../src/shared/managed-clangd.js';
+import { CLANGD_STORAGE_ESTIMATE, CLANGD_RELEASE_INDEX_URL, CLANGD_MAX_DOWNLOAD_BYTES,
+  resolveClangdArchiveTarget, resolveManagedClangd } from '../../src/shared/managed-clangd.js';
+import { PHPACTOR_APPROVED_RELEASE } from './approved-artifacts.js';
+import { CSHARP_LS_VERSION } from './csharp-ls-recipe.js';
+import { resolveManagedLuaLanguageServer } from '../../src/shared/managed-lua.js';
+import { createToolProvisioningPlan, normalizeToolProvisioningDeclaration, verifyToolProvisioningPlan } from './provisioning-plan.js';
+import { resolveManagedToolInstallation } from '../../src/shared/managed-installation.js';
+import { AST_GREP_VERSION, identifyAstGrepVersion, resolveAstGrepManagedRecipe, verifyManagedAstGrep } from './managed-ast-grep.js';
+import { resolveOperationalManagedRecipe } from './operational-recipes.js';
+import { identifyOperationalTool, OPERATIONAL_TOOL_IDS, verifyManagedOperationalTool } from './operational-probes.js';
+import { resolveManagedDotnetSdkRecipe, verifyManagedDotnetSdk } from './managed-dotnet-sdk.js';
+import { createGoplsCacheRecipe, GOPLS_PACKAGE } from './gopls-recipe.js';
 
 const packageMetadata = JSON.parse(fs.readFileSync(new URL('../../package.json', import.meta.url), 'utf8'));
 
@@ -165,7 +177,7 @@ export function buildTestRuntimeEnv(baseEnv = process.env, overrides = null) {
   return env;
 }
 
-function resolveDetectArgCandidates(tool) {
+export function resolveDetectArgCandidates(tool) {
   const candidates = [];
   const seen = new Set();
   const addCandidate = (args) => {
@@ -183,21 +195,35 @@ function resolveDetectArgCandidates(tool) {
   return candidates;
 }
 
-function probeWithArgCandidates(cmd, argCandidates) {
+function probeWithArgCandidates(cmd, argCandidates, providerId, toolingRoot = null) {
   const attempts = [];
   for (const args of argCandidates) {
-    const probe = probeCommand(cmd, args, { timeoutMs: 4000, cwd: resolveToolRoot() });
+    const cwd = resolveToolRoot();
+    const probe = probeCommand(cmd, args, { timeoutMs: 4000, cwd,
+      env: resolveNoProvisionToolingEnvironment(process.env, { command: cmd, providerId, toolingRoot, cwd }) });
     attempts.push({
       args,
       outcome: probe.outcome,
       status: probe.status,
       signal: probe.signal,
-      errorCode: probe.errorCode
+      errorCode: probe.errorCode,
+      // Version/help probes may expose environment-derived values. Persist only
+      // bounded redacted excerpts; never raw command output in the tool report.
+      ...(probe.ok ? {} : { stdoutExcerpt: redactDiagnosticText(probe.stdout),
+        stderrExcerpt: redactDiagnosticText(probe.stderr) })
     });
-    if (probe.ok) {
+    const recognizedUsage = probe.outcome === 'nonzero' && isNonZeroToolingProbeSuccess({
+      providerId, command: cmd, stderr: probe.stderr, stdout: probe.stdout
+    });
+    const identified = providerId !== 'ast-grep' || identifyAstGrepVersion(probe.stdout) === AST_GREP_VERSION;
+    const operationalIdentity = OPERATIONAL_TOOL_IDS.has(providerId) ? identifyOperationalTool(providerId, probe) : null;
+    if (identified && (!OPERATIONAL_TOOL_IDS.has(providerId) || operationalIdentity) && (probe.ok || recognizedUsage)) {
       return {
         ok: true,
         outcome: 'ok',
+        ...(recognizedUsage ? { acceptance: 'recognized-transport-usage' } : {}),
+        ...(providerId === 'ast-grep' ? { identity: { family: 'ast-grep', version: AST_GREP_VERSION } } : {}),
+        ...(operationalIdentity ? { identity: operationalIdentity } : {}),
         attempts
       };
     }
@@ -214,7 +240,7 @@ function probeWithArgCandidates(cmd, argCandidates) {
   };
 }
 
-function applyToolLayoutValidation(tool, detectedPath, probe) {
+export function applyToolLayoutValidation(tool, detectedPath, probe) {
   let validation = validateResolvedToolingCommandLayout({
     providerId: tool?.id || tool?.detect?.cmd || '',
     resolvedCmd: detectedPath,
@@ -257,18 +283,22 @@ function applyToolLayoutValidation(tool, detectedPath, probe) {
   return probe;
 }
 
-async function scanRepo(root) {
+async function scanRepo(root, { signal = null } = {}) {
   const extCounts = new Map();
   const lowerNames = new Set();
   let workflowCount = 0;
   const visit = async (dir) => {
+    signal?.throwIfAborted();
     let entries;
     try {
       entries = await fsPromises.readdir(dir, { withFileTypes: true });
-    } catch {
+    } catch (error) {
+      if (signal?.aborted) throw error;
       return;
     }
+    signal?.throwIfAborted();
     for (const entry of entries) {
+      signal?.throwIfAborted();
       const abs = path.join(dir, entry.name);
       if (entry.isDirectory()) {
         if (SKIP_DIRS.has(entry.name)) continue;
@@ -332,8 +362,9 @@ function buildFormatHits(extCounts, lowerNames, workflowCount) {
   return hits;
 }
 
-export async function detectRepoLanguages(root) {
-  const { extCounts, lowerNames, workflowCount } = await scanRepo(root);
+export async function detectRepoLanguages(root, { signal = null } = {}) {
+  signal?.throwIfAborted();
+  const { extCounts, lowerNames, workflowCount } = await scanRepo(root, { signal });
   const languages = buildLangHits(extCounts);
   const formats = buildFormatHits(extCounts, lowerNames, workflowCount);
   return { languages, formats, extCounts };
@@ -348,15 +379,77 @@ export function getToolingRegistry(toolingRoot, repoRoot) {
   const localBinDirs = resolveLocalToolingBinDirs(absoluteToolingRoot);
   const [binDir, nodeBin, dotnetDir, composerBin] = localBinDirs;
   const nodeDir = path.join(absoluteToolingRoot, 'node');
-  const repoNodeBin = isRepoTrusted(repoRoot)
-    ? [path.join(repoRoot, 'node_modules', '.bin')] : [];
+  const repoNodeBinPath = typeof repoRoot === 'string' && repoRoot
+    ? path.join(repoRoot, 'node_modules', '.bin') : null;
+  const repoNodeBin = repoNodeBinPath && (isRepoTrusted(repoRoot)
+    || isApplicationOwnedCommand({ commandPath: repoNodeBinPath, repoRoot, toolRoot: implementationRoot }))
+    ? [repoNodeBinPath] : [];
   const gemsDir = path.join(absoluteToolingRoot, 'gems');
   const globalDotnetBins = resolveGlobalDotnetBinDirs();
   const globalGemBins = resolveGlobalGemBinDirs();
   const globalComposerBins = resolveGlobalComposerBinDirs();
   const globalPhpactorBins = resolveGlobalPhpactorBinDirs();
+  const astGrepRecipe = resolveAstGrepManagedRecipe();
 
   return [
+    {
+      id: 'ast-grep', version: AST_GREP_VERSION, label: 'ast-grep CLI', languages: [], capabilities: ['structural.ast-grep'],
+      detect: { cmd: 'ast-grep', args: ['--version'], binDirs: [nodeBin] },
+      install: astGrepRecipe ? { cache: astGrepRecipe } : {},
+      verifyManagedInstall: verifyManagedAstGrep,
+      provisioningBlocker: 'No approved official native ast-grep archive for this platform/architecture/libc; no WSL, container or package-manager changes were attempted.',
+      docs: 'https://ast-grep.github.io/guide/quick-start'
+    },
+    {
+      id: 'semgrep', label: 'Semgrep local structural engine', languages: [], capabilities: ['structural.semgrep'],
+      detect: { cmd: 'semgrep', args: ['--version'], binDirs: [binDir] },
+      prerequisites: [{ id: 'python3', command: 'python3', family: 'python3', kind: 'runtime', phase: 'launch', dependsOn: [] }],
+      install: {}, docs: 'https://semgrep.dev/docs/getting-started/quickstart',
+      provisioningBlocker: 'A qualified pinned Semgrep/Python virtual-environment recipe is required; local rules only, no cloud/login side effect.'
+    },
+    {
+      id: 'dotnet-sdk', label: 'Owned portable Microsoft .NET SDK', languages: [], capabilities: ['toolchain.dotnet'],
+      detect: { cmd: 'dotnet', args: ['--version'], binDirs: [] },
+      install: resolveManagedDotnetSdkRecipe() ? { cache: resolveManagedDotnetSdkRecipe() } : {},
+      verifyManagedInstall: verifyManagedDotnetSdk,
+      provisioningBlocker: 'Pinned portable .NET SDK ZIPs support Windows x64/ia32/arm64. Other operating systems need separately qualified native prerequisites; no package manager or machine-wide install is substituted.',
+      docs: 'https://learn.microsoft.com/dotnet/core/install/windows'
+    },
+    {
+      id: 'comby', label: 'Comby structural engine', languages: [], capabilities: ['structural.comby'],
+      detect: { cmd: 'comby', args: ['-version'], binDirs: [binDir] }, install: {},
+      docs: 'https://comby.dev/docs/get-started',
+      provisioningBlocker: process.platform === 'win32' ? 'No qualified native Windows recipe. WSL/container setup requires a separate explicit system choice.' : 'Select and approve an official platform archive/package recipe.'
+    },
+    ...[
+      ['graphviz', 'Graphviz SVG renderer', 'report.map.svg', ['-V']],
+      ['cargo', 'Rust Cargo build tool', 'tui.source-build', ['--version']],
+      ['cargo-cyclonedx', 'Cargo CycloneDX producer', 'release.sbom', ['cyclonedx', '--version']],
+      ['npm-sbom', 'npm CycloneDX producer', 'release.sbom', ['--version']],
+      ['git-lfs', 'Git LFS', 'benchmark.lfs', ['version']],
+      ['ripgrep', 'ripgrep accelerator', 'dictionary.scan.acceleration', ['--version']],
+      ['universal-ctags', 'Universal Ctags producer', 'ingest.ctags.execute', ['--version']],
+      ['gnu-global', 'GNU Global producer', 'ingest.gtags.execute', ['--version']],
+      ['scip', 'SCIP producer', 'ingest.scip.execute', ['--version']]
+    ].map(([id, label, capability, args]) => {
+      const managedRecipe = resolveOperationalManagedRecipe(id);
+      const blockers = {
+        graphviz: 'Official portable ZIP recipes cover Windows x64/ia32. Other targets require a separately reviewed platform package-manager action; DOT-only output requires no Graphviz.',
+        scip: 'The pinned official SCIP CLI supplies macOS/Linux x64/arm64 archives; upstream publishes no native Windows archive for this version. JSON file/stdin ingest requires no producer.',
+        'universal-ctags': 'Stable upstream Windows v6.1.0 assets publish no usable immutable digest. Prerelease assets are not selected implicitly; POSIX source builds require a separately bounded compiler recipe.',
+        'gnu-global': 'No approved portable native archive is declared; select a verified GNU Global installation or authorize a separate platform package action. File/stdin ingest requires no producer.',
+        'cargo-cyclonedx': 'The pinned native ZIP covers Windows x64. Other official archives use tar.xz, which the bounded extractor does not support; no external extractor or source build is substituted.',
+        'npm-sbom': 'Reuse the selected npm supplied by the supported Node bootstrap; tooling setup does not replace the bootstrap toolchain.',
+        cargo: 'Reuse an explicitly selected compatible Cargo toolchain. Native linker/SDK installation is a separate system prerequisite.',
+        'git-lfs': 'The pinned portable archives cover Windows x64/ia32/arm64 and macOS/Linux x64/arm64. Repository fetch/checkout and any Git filter/configuration change require a separately selected LFS workflow.'
+      };
+      return { id, label, languages: [], capabilities: [capability], consumerArgsPrefix: id === 'cargo-cyclonedx' ? ['cyclonedx'] : [],
+        ...(id === 'cargo-cyclonedx' ? { prerequisites: [{ id: 'cargo', command: 'cargo', family: 'cargo', versionRange: '>=1.85.0', kind: 'project-sdk', phase: 'launch', dependsOn: [] }] } : {}),
+        ...(id === 'git-lfs' ? { prerequisites: [{ id: 'git', command: 'git', family: 'git', kind: 'core-prerequisite', phase: 'launch', dependsOn: [] }] } : {}),
+        detect: { cmd: ({ graphviz: 'dot', ripgrep: 'rg', 'universal-ctags': 'ctags', 'gnu-global': 'global', 'npm-sbom': 'npm' })[id] || id, args, binDirs: [binDir] },
+        install: managedRecipe ? { cache: managedRecipe } : {}, verifyManagedInstall: verifyManagedOperationalTool,
+        provisioningBlocker: blockers[id] || 'No approved native archive is declared for this platform/architecture.' };
+    }),
     {
       id: 'tsserver',
       label: 'TypeScript server',
@@ -384,8 +477,10 @@ export function getToolingRegistry(toolingRoot, repoRoot) {
       label: 'clangd',
       languages: ['c', 'cpp', 'objc'],
       detect: { cmd: 'clangd', args: ['--version'], binDirs: [resolveManagedClangd(absoluteToolingRoot)?.binDir].filter(Boolean) },
-      install: resolveClangdArchiveTarget() ? { cache: { cmd: process.execPath,
-        args: [path.join(implementationRoot, 'tools/tooling/install-clangd.js'), '--scope', 'cache', '--tooling-root', absoluteToolingRoot] } }
+      install: resolveClangdArchiveTarget() ? { cache: { ownedAcquisition: 'official-clangd-archive',
+        storageEstimate: CLANGD_STORAGE_ESTIMATE,
+        releaseSelection: { indexUrl: CLANGD_RELEASE_INDEX_URL, channel: 'latest-stable', version: null },
+        maximumDownloadBytes: CLANGD_MAX_DOWNLOAD_BYTES } }
         : { manual: true },
       docs: TOOL_DOCS.clangd
     },
@@ -426,13 +521,18 @@ export function getToolingRegistry(toolingRoot, repoRoot) {
       languages: ['go'],
       detect: { cmd: 'gopls', args: ['version'], binDirs: [binDir] },
       install: {
-        cache: { cmd: 'go', args: ['install', 'golang.org/x/tools/gopls@latest'], env: { GOBIN: binDir }, requires: 'go' },
-        user: { cmd: 'go', args: ['install', 'golang.org/x/tools/gopls@latest'], requires: 'go' }
+        cache: createGoplsCacheRecipe(binDir),
+        user: { cmd: 'go', args: ['install', GOPLS_PACKAGE], requires: 'go', minimumGoVersion: 'go1.27.0' }
       },
       docs: TOOL_DOCS.gopls
     },
     {
       id: 'jdtls',
+      prerequisites: [
+        // Current JDT LS requires Java 21: https://github.com/eclipse-jdtls/eclipse.jdt.ls
+        { id: 'java', command: 'java', family: 'java', versionRange: '>=21.0.0', kind: 'runtime', phase: 'launch', dependsOn: [] },
+        { id: 'javac', command: 'javac', family: 'javac', versionRange: '>=21.0.0', kind: 'sdk-component', phase: 'launch', dependsOn: ['java'] }
+      ],
       label: 'jdtls',
       languages: ['java'],
       detect: { cmd: 'jdtls', args: ['--help'], binDirs: [binDir] },
@@ -443,6 +543,10 @@ export function getToolingRegistry(toolingRoot, repoRoot) {
     },
     {
       id: 'elixir-ls',
+      prerequisites: [
+        { id: 'elixir', command: 'elixir', family: 'elixir', kind: 'runtime', phase: 'launch', dependsOn: [] },
+        { id: 'mix', command: 'mix', family: 'mix', kind: 'package-manager', phase: 'launch', dependsOn: ['elixir'] }
+      ],
       label: 'elixir-ls',
       languages: ['elixir'],
       detect: { cmd: 'elixir-ls', args: ['--help'], binDirs: [binDir] },
@@ -453,6 +557,7 @@ export function getToolingRegistry(toolingRoot, repoRoot) {
     },
     {
       id: 'haskell-language-server',
+      prerequisites: [{ id: 'ghc', command: 'ghc', family: 'ghc', kind: 'project-sdk', phase: 'analysis', dependsOn: [] }],
       label: 'haskell-language-server',
       languages: ['haskell'],
       detect: { cmd: 'haskell-language-server', args: ['--version'], binDirs: [binDir] },
@@ -504,17 +609,24 @@ export function getToolingRegistry(toolingRoot, repoRoot) {
     },
     {
       id: 'csharp-ls',
+      // The pinned 0.28.0 fsproj targets net10.0. Launch needs the runtime;
+      // installation additionally needs the SDK, including on existing hosts.
+      prerequisites: [{ id: 'dotnet-runtime', command: 'dotnet', family: 'dotnet-runtime', versionRange: '>=10.0.0 <11.0.0',
+        requiredComponents: ['Microsoft.NETCore.App'], kind: 'runtime', phase: 'launch', dependsOn: [] }],
       label: 'C# LSP (Roslyn)',
       languages: ['csharp'],
       detect: { cmd: 'csharp-ls', args: ['--version'], binDirs: [dotnetDir, ...globalDotnetBins] },
       install: {
-        cache: { cmd: 'dotnet', args: ['tool', 'install', '--tool-path', dotnetDir, 'csharp-ls'], requires: 'dotnet' },
-        user: { cmd: 'dotnet', args: ['tool', 'install', '-g', 'csharp-ls'], requires: 'dotnet' }
+        cache: { cmd: 'dotnet', args: ['tool', 'install', '--tool-path', dotnetDir, 'csharp-ls', '--version', CSHARP_LS_VERSION], requires: 'dotnet',
+          prerequisites: [{ id: 'dotnet', command: 'dotnet', family: 'dotnet', versionRange: '>=10.0.0', kind: 'sdk', phase: 'install', dependsOn: [] }] },
+        user: { cmd: 'dotnet', args: ['tool', 'install', '-g', 'csharp-ls', '--version', CSHARP_LS_VERSION], requires: 'dotnet',
+          prerequisites: [{ id: 'dotnet', command: 'dotnet', family: 'dotnet', versionRange: '>=10.0.0', kind: 'sdk', phase: 'install', dependsOn: [] }] }
       },
       docs: TOOL_DOCS['csharp-ls']
     },
     {
       id: 'ruby-lsp',
+      prerequisites: [{ id: 'ruby', command: 'ruby', family: 'ruby', kind: 'runtime', phase: 'launch', dependsOn: [] }],
       label: 'Ruby LSP',
       languages: ['ruby'],
       detect: { cmd: 'ruby-lsp', args: ['--version'], binDirs: [binDir, ...globalGemBins] },
@@ -526,6 +638,7 @@ export function getToolingRegistry(toolingRoot, repoRoot) {
     },
     {
       id: 'solargraph',
+      prerequisites: [{ id: 'ruby', command: 'ruby', family: 'ruby', kind: 'runtime', phase: 'launch', dependsOn: [] }],
       label: 'Solargraph',
       languages: ['ruby'],
       detect: { cmd: 'solargraph', args: ['--version'], binDirs: [binDir, ...globalGemBins] },
@@ -537,19 +650,26 @@ export function getToolingRegistry(toolingRoot, repoRoot) {
     },
     {
       id: 'phpactor',
+      // https://phpactor.readthedocs.io/en/master/usage/standalone.html#requirements
+      prerequisites: [{ id: 'php', command: 'php', family: 'php', versionRange: '>=8.2.0', kind: 'runtime', phase: 'launch', dependsOn: [],
+        requiredComponents: ['json', 'mbstring', 'tokenizer', 'phar'] }],
       label: 'phpactor',
       languages: ['php'],
       detect: { cmd: 'phpactor', args: ['--version'], binDirs: [binDir, composerBin, ...globalComposerBins, ...globalPhpactorBins] },
       install: {
         manual: true,
+        platforms: ['linux', 'darwin'],
+        platformRequirement: 'PHP POSIX extension on Linux or macOS; Windows users must run this installation inside WSL.',
         cache: {
           cmd: process.execPath,
-          args: [path.join(implementationRoot, 'tools', 'tooling', 'install-phpactor-phar.js'), '--scope', 'cache', '--tooling-root', absoluteToolingRoot],
+          args: [path.join(implementationRoot, 'tools', 'tooling', 'install-phpactor-phar.js'), '--scope', 'cache', '--tooling-root', absoluteToolingRoot,
+            '--url', PHPACTOR_APPROVED_RELEASE.url, '--sha256', PHPACTOR_APPROVED_RELEASE.sha256],
           requires: 'php'
         },
         user: {
           cmd: process.execPath,
-          args: [path.join(implementationRoot, 'tools', 'tooling', 'install-phpactor-phar.js'), '--scope', 'user'],
+          args: [path.join(implementationRoot, 'tools', 'tooling', 'install-phpactor-phar.js'), '--scope', 'user',
+            '--url', PHPACTOR_APPROVED_RELEASE.url, '--sha256', PHPACTOR_APPROVED_RELEASE.sha256],
           requires: 'php'
         }
       },
@@ -570,7 +690,7 @@ export function getToolingRegistry(toolingRoot, repoRoot) {
       id: 'lua-language-server',
       label: 'lua-language-server',
       languages: ['lua'],
-      detect: { cmd: 'lua-language-server', args: ['-v'], binDirs: [binDir] },
+      detect: { cmd: 'lua-language-server', args: ['-v'], binDirs: [resolveManagedLuaLanguageServer(absoluteToolingRoot)?.binDir, binDir].filter(Boolean) },
       install: {
         cache: {
           cmd: process.execPath,
@@ -622,7 +742,14 @@ export function getToolingRegistry(toolingRoot, repoRoot) {
       },
       docs: TOOL_DOCS.sqls
     }
-  ].map((tool) => ({ ...tool, authorityRepoRoot: repoRoot }));
+  ].map(tool => {
+    const managed = resolveManagedToolInstallation(absoluteToolingRoot, tool.id);
+    return normalizeToolProvisioningDeclaration({ ...tool,
+      ...(managed ? { managedInstallation: managed, detect: { ...tool.detect, cmd: managed.command,
+        args: [...managed.args, ...(tool.detect?.args || [])],
+        binDirs: [managed.binDir, ...(tool.detect?.binDirs || [])] } } : {}),
+      authorityRepoRoot: repoRoot, toolingRoot: absoluteToolingRoot });
+  });
 }
 
 export const getToolProviderAliases = (toolId) => {
@@ -674,7 +801,8 @@ export function resolveToolsById(ids, toolingRoot, repoRoot, toolingConfig = nul
   return filterToolsByConfig(matched, toolingConfig);
 }
 
-export function detectTool(tool) {
+/** Location/trust selection only; runtime owners acquire installation leases before probes. */
+export function locateToolExecutable(tool) {
   if (!tool?.detect?.cmd) return { found: false, path: null, source: null, probe: null };
   const candidate = (path.isAbsolute(tool.detect.cmd) && fs.existsSync(tool.detect.cmd) ? tool.detect.cmd : null)
     || findBinaryInDirs(tool.detect.cmd, tool.detect.binDirs || [])
@@ -689,6 +817,12 @@ export function detectTool(tool) {
       return { found: false, path: null, source: 'blocked', probe: { ok: false, attempted: [] } };
     }
   }
+  return { found: Boolean(candidate), path: candidate || null, source: candidate ? 'located-without-probe' : null, probe: null };
+}
+
+export function detectTool(tool) {
+  const located = locateToolExecutable(tool);
+  if (located.source === 'blocked' || !tool?.detect?.cmd) return located;
   const detectCmd = String(tool?.detect?.cmd || '');
   const detectArgCandidates = resolveDetectArgCandidates(tool);
   const binDirs = tool.detect?.binDirs || [];
@@ -700,23 +834,26 @@ export function detectTool(tool) {
       return;
     }
     if (lastProbe.validationFailure && !probe.validationFailure) return;
+    // An absent bare-PATH fallback says nothing about the known executable's
+    // actual failure. Keep that stronger diagnostic (and all layout failures).
+    if (!probe.validationFailure && lastProbe.outcome !== 'missing' && probe.outcome === 'missing') return;
     lastProbe = probe;
   };
   const binPath = binDirs.length ? findBinaryInDirs(tool.detect.cmd, binDirs) : null;
   if (binPath) {
-    const probe = applyToolLayoutValidation(tool, binPath, probeWithArgCandidates(binPath, detectArgCandidates));
+    const probe = applyToolLayoutValidation(tool, binPath, probeWithArgCandidates(binPath, detectArgCandidates, tool.id, tool.toolingRoot));
     rememberProbe(probe);
     if (probe.ok === true) {
       return { found: true, path: binPath, source: 'cache', probe };
     }
   }
-  const probe = applyToolLayoutValidation(tool, tool.detect.cmd, probeWithArgCandidates(tool.detect.cmd, detectArgCandidates));
+  const probe = applyToolLayoutValidation(tool, tool.detect.cmd, probeWithArgCandidates(tool.detect.cmd, detectArgCandidates, tool.id, tool.toolingRoot));
   rememberProbe(probe);
   if (probe.ok === true) return { found: true, path: tool.detect.cmd, source: 'path', probe };
   const pathEntries = splitPathEntries(resolveEnvPath(process.env));
   const pathFound = findBinaryInDirs(detectCmd, pathEntries);
   if (pathFound) {
-    const pathProbe = applyToolLayoutValidation(tool, pathFound, probeWithArgCandidates(pathFound, detectArgCandidates));
+    const pathProbe = applyToolLayoutValidation(tool, pathFound, probeWithArgCandidates(pathFound, detectArgCandidates, tool.id, tool.toolingRoot));
     rememberProbe(pathProbe);
     if (pathProbe.ok === true) {
       return { found: true, path: pathFound, source: 'path', probe: pathProbe };
@@ -734,6 +871,7 @@ export function selectInstallPlan(tool, scope, allowFallback) {
   if (!allowFallback) return { scope: normalizedScope, plan: null };
   const fallbackScope = install.cache ? 'cache' : (install.user ? 'user' : (install.system ? 'system' : null));
   if (!fallbackScope) return { scope: normalizedScope, plan: null };
+  if (fallbackScope === 'system') return { scope: normalizedScope, plan: null, reason: 'System scope requires explicit selection and review.' };
   return { scope: fallbackScope, plan: install[fallbackScope], fallback: true };
 }
 
@@ -742,9 +880,11 @@ export function hasCommand(cmd) {
 }
 
 export async function buildToolingReport(root, languageOverride = null, options = {}) {
+  const signal = options.signal || null;
+  signal?.throwIfAborted();
   const toolingConfig = getToolingConfig(root);
   const skipScan = options.skipScan === true;
-  const detected = skipScan ? { languages: {}, formats: {} } : await detectRepoLanguages(root);
+  const detected = skipScan ? { languages: {}, formats: {} } : await detectRepoLanguages(root, { signal });
   const languages = detected.languages || {};
   const formats = detected.formats || {};
   const languageList = languageOverride && languageOverride.length
@@ -756,20 +896,42 @@ export async function buildToolingReport(root, languageOverride = null, options 
       return acc;
     }, {})
     : languages;
-  const tools = resolveToolsForLanguages(languageList, toolingConfig.dir, root, toolingConfig).map((tool) => {
-    const status = detectTool(tool);
-    return {
-      id: tool.id,
-      label: tool.label,
-      docs: tool.docs,
-      languages: tool.languages,
-      found: status.found,
-      source: status.source,
-      path: status.path,
-      probe: status.probe || null,
-      install: tool.install || {}
+  const tools = [];
+  if (options.skipToolDetection !== true) {
+    const detect = options.detectTool || (await import('./owned-detect.js')).detectToolOwned;
+    const environment = options.env || process.env;
+    const isAllowed = command => {
+      if (isRepoTrusted(root)) return true;
+      try {
+        const physical = fs.realpathSync(command);
+        return !isPathWithinRoot(physical, root) || isApplicationOwnedCommand({ commandPath: physical, repoRoot: root, toolRoot: resolveToolRoot() });
+      } catch { return false; }
     };
-  });
+    for (const tool of resolveToolsForLanguages(languageList, toolingConfig.dir, root, toolingConfig)) {
+      signal?.throwIfAborted();
+      const status = await detect(tool, { signal, env: environment });
+      signal?.throwIfAborted();
+      const provisioning = await verifyToolProvisioningPlan(createToolProvisioningPlan({ tool, selection: { scope: 'cache', plan: null },
+        env: environment, isAllowed, signal, ...(options.resolvePrerequisite ? { resolve: options.resolvePrerequisite } : {}) }),
+      { env: environment, signal, cwd: resolveToolRoot(), ...(options.probePrerequisite ? { probe: options.probePrerequisite } : {}) });
+      signal?.throwIfAborted();
+      const found = status.found === true && provisioning.state === 'requirements-verified';
+      tools.push({
+        id: tool.id,
+        label: tool.label,
+        docs: tool.docs,
+        languages: tool.languages,
+        found,
+        executableFound: status.found === true,
+        source: status.source,
+        path: status.path,
+        probe: status.probe || null,
+        provisioning,
+        readiness: { state: found ? 'executable-and-prerequisites-identified' : 'blocked', consumer: 'not-qualified' },
+        install: tool.install || {}
+      });
+    }
+  }
   return {
     root,
     toolingRoot: toolingConfig.dir,

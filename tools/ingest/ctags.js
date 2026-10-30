@@ -15,6 +15,7 @@ import {
   writeJsonLine
 } from './shared.js';
 import { runLineStreamingCommand } from './shared-runner.js';
+import { withOperationalTool } from '../tooling/operational-execution.js';
 
 const argv = createCli({
   scriptName: 'ctags-ingest',
@@ -25,7 +26,7 @@ const argv = createCli({
     json: { type: 'boolean', default: false },
     run: { type: 'boolean', default: false },
     interactive: { type: 'boolean', default: false },
-    ctags: { type: 'string', default: 'ctags' },
+    ctags: { type: 'string' },
     fields: { type: 'string' },
     args: { type: 'string' },
     'timeout-ms': { type: 'number' }
@@ -41,7 +42,7 @@ const metaPath = `${outputPath}.meta.json`;
 const inputPath = argv.input ? String(argv.input) : null;
 const runCtags = argv.run === true;
 const interactive = argv.interactive === true;
-const ctagsCmd = argv.ctags || 'ctags';
+const ctagsCmd = argv.ctags || null;
 const commandTimeoutMs = normalizeTimeoutMs(argv['timeout-ms']);
 
 const normalizePath = (value) => {
@@ -111,15 +112,17 @@ const ingestStream = async (stream) => {
 };
 
 const runCtagsCommand = async () => {
-  const args = ['--output-format=json', '--tag-relative=yes', '--recurse=yes'];
+  const suppliedArgs = argv.args ? splitCliArgs(argv.args) : [];
+  const marker = suppliedArgs.indexOf('--');
+  const optionArgs = marker < 0 ? suppliedArgs : suppliedArgs.slice(0, marker);
+  if (optionArgs.some(token => /^--(?:options|output-format|output-file|append|filter|interactive)(?:=|$)/.test(token)
+    || /^-[fo](?:.|$)/.test(token))) throw new Error('Ctags ingest owns JSON/stdout publication and disables ambient options files. Pass parser/selection options only.');
+  const args = ['--options=NONE', '--output-format=json', '--tag-relative=yes', '--recurse=yes', '-f', '-'];
   if (argv.fields) args.push(`--fields=${argv.fields}`);
-  if (argv.args) {
-    args.push(...splitCliArgs(argv.args));
-  }
+  args.push('--fields=+n', ...suppliedArgs);
   args.push(repoRoot);
-  await runLineStreamingCommand({
-    command: ctagsCmd,
-    args,
+  await withOperationalTool('universal-ctags', { repoRoot, commandOverride: ctagsCmd }, tool => tool.stream(runLineStreamingCommand, args, {
+    cwd: repoRoot,
     timeoutMs: commandTimeoutMs,
     onStdoutLine: async (line) => {
       const trimmed = line.trim();
@@ -134,7 +137,7 @@ const runCtagsCommand = async () => {
       await handleParsedEntry(parsed);
     },
     onStderrChunk: (chunk) => process.stderr.write(chunk)
-  });
+  }));
 };
 
 await withStagedIngestOutput(outputPath, async (stream) => {

@@ -4,6 +4,7 @@ import {
   resolveDenseVector
 } from '../index-loader.js';
 import { attachDenseVectorLoader } from '../ann-backends.js';
+import { assertRequiredRelationCoverage } from '../relation-readiness.js';
 
 export function applyFallbackIndexStates({
   idxCode,
@@ -48,14 +49,16 @@ export async function hydrateLoadedIndexes({
   runProse,
   runRecords,
   resolvedLoadExtractedProse,
-  resolveOptions
+  resolveOptions,
+  relationFilters = null
 }) {
   const relationLoadTasks = [];
-  const queueRelationLoad = ({ idx, mode, relation, loader }) => {
+  const queueRelationLoad = ({ idx, mode, relation, loader, options = {} }) => {
     relationLoadTasks.push(
-      loader(rootDir, userConfig, mode, { resolveOptions })
+      loader(rootDir, userConfig, mode, { resolveOptions, indexDir: idx.indexDir, ...options })
         .then((value) => {
           idx[relation] = value;
+          if (relation === 'fileRelations' && options.required) idx.fileRelationsReadiness = value.readiness;
         })
     );
   };
@@ -68,7 +71,8 @@ export async function hydrateLoadedIndexes({
   }) => {
     idx.denseVec = resolveDenseVector(idx, mode, resolvedDenseVectorMode);
     if (!idx.denseVec && idx?.state?.embeddings?.embeddingIdentity) {
-      idx.denseVec = { ...idx.state.embeddings.embeddingIdentity, vectors: null };
+      idx.denseVec = { ...idx.state.embeddings.embeddingIdentity,
+        embeddingGeneration: idx.state.embeddings.embeddingGeneration, vectors: null };
     }
     attachDenseVectorLoader({
       idx,
@@ -81,7 +85,18 @@ export async function hydrateLoadedIndexes({
       modelIdDefault
     });
     idx.indexDir = dir;
-    if (loadRelations && needsFileRelations && !idx.fileRelations) {
+    const demandedFields = [relationFilters?.importName && 'imports', relationFilters?.uses && 'usages'].filter(Boolean);
+    let inlineComplete = demandedFields.length > 0;
+    for (let id = 0; inlineComplete && id < (idx.chunkMeta?.length || 0); id++) {
+      const chunk = idx.chunkMeta[id];
+      inlineComplete = Boolean(chunk) && demandedFields.every(field => Array.isArray(chunk.codeRelations?.[field]));
+    }
+    if (demandedFields.length && inlineComplete) {
+      idx.fileRelationsReadiness = { state: 'complete-inline', mode, indexDir: dir };
+    } else if (demandedFields.length && idx.fileRelations?.readiness?.state !== 'complete') {
+      queueRelationLoad({ idx, mode, relation: 'fileRelations', loader: loadFileRelations,
+        options: { required: true, strict, indexDir: dir } });
+    } else if (loadRelations && needsFileRelations && !idx.fileRelations) {
       queueRelationLoad({ idx, mode, relation: 'fileRelations', loader: loadFileRelations });
     }
     if (loadRelations && needsRepoMap && !idx.repoMap) {
@@ -123,4 +138,10 @@ export async function hydrateLoadedIndexes({
   if (relationLoadTasks.length) {
     await Promise.all(relationLoadTasks);
   }
+  const fields = [relationFilters?.importName && 'imports', relationFilters?.uses && 'usages'].filter(Boolean);
+  for (const [enabled, idx, mode, indexDir] of [
+    [runCode, idxCode, 'code', codeIndexDir], [runProse, idxProse, 'prose', proseIndexDir],
+    [resolvedLoadExtractedProse, idxExtractedProse, 'extracted-prose', extractedProseDir],
+    [runRecords, idxRecords, 'records', recordsDir]
+  ]) if (enabled) assertRequiredRelationCoverage({ idx, fields, mode, indexDir });
 }

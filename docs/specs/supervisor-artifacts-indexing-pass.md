@@ -87,6 +87,11 @@ Discover:
   - code/prose/extracted-prose/records index dirs (`getIndexDir` semantics)
 - crash log:
   - `<repoCacheRoot>/logs/index-crash.log`
+  - Per-process attempt evidence under
+    `<repoCacheRoot>/logs/attempts/<buildId>/<attemptId>/<pid-uuid>/`.
+    Unique `*.terminal.json` records are immutable authority. The adjacent latest
+    terminal/state/log/trace files and root-level latest files are conveniences.
+    Consumers prefer terminal evidence over a potentially older phase snapshot.
 - build state:
   - `<buildRoot>/build_state.json` (if used)
 - preprocess outputs:
@@ -135,3 +140,40 @@ Discover:
   - `job:artifacts` emitted
   - artifact list includes index dir + preprocess + crash log (missing ok)
 - run a search and assert metrics artifacts discovered.
+
+## Crash evidence ownership
+
+The live crash log has one append owner per process; error handling queues
+through that owner and never replaces a path beneath its open descriptor. Every
+record carries attempt/process identity. A terminal error latches the first
+failure and persists an immutable record before later phase or file events can
+run. Later errors may add immutable history without erasing earlier evidence.
+
+An embeddings supervisor records actual nonzero exit, signal, spawn failure or
+cancellation, child PID, bounded separate output tails and redacted arguments.
+These observations do not imply a native crash. Parent/child runtime attempt
+identities and receipt paths bind the evidence to the failed attempt. Persistence
+errors are separate diagnostics and preserve the original subprocess failure.
+The CLI advertises a path only after the corresponding record has been written
+and its owner/attempt identity read back successfully.
+
+Redaction and event bounds apply before retaining ring events, state, traces or
+terminal payloads. Retention has a 32 MiB whole-bundle allowance, including its
+metadata and marker. It prioritizes state/terminal authority, records budget
+omissions explicitly and never copies an unbounded source merely to decide that
+it exceeded the allowance. Filesystem failures remain distinct from policy
+omissions. Workspace `.tmp` receipts are historical debugging evidence, not files
+promised in a clean checkout.
+
+In-process logging uses a scope per runtime, carrying its own destination,
+context, redaction policy and recent-event ring across async continuations.
+Text-mode rings obey the same count/UTF-8 byte limits and metadata redaction as
+structured output, and shrinking limits prunes retained events immediately.
+Scope close flushes and closes only internally owned transports; external
+streams and process stdout/stderr remain owned by their callers.
+
+Scheduler forensic persistence attempts local, durable and external sinks
+independently. A failed sink emits a degradation diagnostic and appears in the
+auditable `waitForPersistence()` result and summary. Failure in one destination
+cannot suppress the remaining evidence destinations or replace the parser's
+primary failure.

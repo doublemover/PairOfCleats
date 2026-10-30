@@ -140,8 +140,12 @@ assert.ok(stream && typeof stream === 'object', 'expected diagnostics stream sum
 assert.equal(stream.schemaVersion, BENCH_DIAGNOSTIC_STREAM_SCHEMA_VERSION, 'expected diagnostics stream schema');
 assert.equal(stream.fileCount, 2, 'expected both diagnostics streams to be scanned');
 assert.equal(stream.eventCount, 6, 'expected deduped event count across master and repo streams');
-assert.equal(stream.rawEventCount, 7, 'expected raw event count to include duplicate fallback event');
-assert.equal(stream.duplicateEventCount, 1, 'expected one duplicate event across the merged streams');
+assert.equal(stream.rawEventCount, 7, 'expected raw event count to include both fallback occurrences');
+assert.equal(stream.duplicateEventCount, 0, 'occurrences 1/2 are real observations, not transport duplicates');
+assert.equal(stream.occurrenceCount, 7);
+assert.equal(stream.repeatedFingerprintOccurrenceCount, 1);
+assert.equal(stream.identityCoverage.legacyOccurrences, 7);
+assert.equal(stream.unknownRepoCountsByType.parser_crash, 1, 'unlabeled master presence remains explicitly unknown');
 assert.equal(stream.uniqueEventCount, 6, 'expected unique event count across both streams');
 assert.equal(stream.malformedLines, 1, 'expected malformed master stream line to be tracked');
 assert.equal(stream.countScopes?.countsByType, 'event_presence', 'expected explicit event scope labeling');

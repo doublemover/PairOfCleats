@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["captured-move", "during-read", "mixed-roots", "strict-ledger", "capture-authority", "legacy-move", "invalid-selection"]
+}

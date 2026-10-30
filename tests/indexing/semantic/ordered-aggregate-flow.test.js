@@ -36,7 +36,8 @@ try {
     const excluded = ['nested', 'excluded', 'empty'].includes(name);
     const overwritten = ['changed', 'overwritten', 'overwrittenView'].includes(name);
     assert.equal(reaches, !excluded && !overwritten, name + ' aggregate retains only supported element inputs');
-    if (name !== 'outside' && !excluded && !overwritten) assert.ok(summaries.functions.get(key(owner.declaration)).dependencies.has(0));
+    if (name !== 'outside' && !excluded && !overwritten) assert.ok(summaries.functions.get(key(owner.declaration)).dependencies.has(0),
+      `${name} summary must retain its independently observed aggregate input`);
     if (reaches) {
       const reverse = await backends.trace(owner.returns[0], 'upstream');
       assert.ok(reverse.records.some(row => key(row.ref) === key(owner.parameters[0])));

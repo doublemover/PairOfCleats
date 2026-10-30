@@ -2,47 +2,27 @@
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
+import { INDEX_STATS_OPTIONS, INDEX_STATS_MODES, assertIndexStatsFlags } from '../../src/shared/index-tool-options.js';
 import { createCli } from '../../src/shared/cli.js';
-import { checksumFile } from '../../src/shared/hash.js';
+import { checksumFile, sha1File, sha256File } from '../../src/shared/hash.js';
 import { formatBytes } from '../../src/shared/disk-space.js';
-import { loadPiecesManifest } from '../../src/shared/artifact-io/manifest.js';
+import { loadPiecesManifest, resolveArtifactPresence } from '../../src/shared/artifact-io/manifest.js';
+import { loadJsonObjectArtifact } from '../../src/shared/artifact-io/loaders.js';
+import { resolveIndexArtifactPolicy } from '../../src/contracts/index-artifact-policy.js';
+import { resolveRequiredArtifactsForProfile } from '../../src/contracts/index-profile.js';
+import { accumulateManifestBytes, summarizeManifestBytes, buildPrefixedPieceStats, missingRequiredStatsFamilies } from './stats-artifacts.js';
+import { logicalPayloadRows, sumKnownCounts } from './stats-artifacts.js';
 import { fromPosix, isRelativePathEscape } from '../../src/shared/file-paths.js';
-import { getRepoId, loadUserConfig, resolveIndexRoot, resolveRepoRootArg } from '../shared/dict-utils.js';
+import { captureSelectedModeRoots } from '../../src/shared/indexing/selected-mode-roots.js';
+import { getRepoId, loadUserConfig, resolveRepoRootArg } from '../shared/dict-utils.js';
 
-const MODE_ORDER = ['code', 'prose', 'extracted-prose', 'records'];
+const MODE_ORDER = INDEX_STATS_MODES;
 const SCHEMA_VERSION = 1;
-const REQUIRED_VERIFY_FAMILIES = Object.freeze([
-  {
-    label: 'chunk_meta',
-    match: (piece) => String(piece?.name || '').startsWith('chunk_meta')
-  },
-  {
-    label: 'token_postings',
-    match: (piece) => String(piece?.name || '').startsWith('token_postings')
-  }
-]);
 
 const argv = createCli({
   scriptName: 'index-stats',
-  options: {
-    repo: { type: 'string' },
-    'index-dir': { type: 'string' },
-    mode: { type: 'string' },
-    json: { type: 'boolean', default: false },
-    verify: { type: 'boolean', default: false }
-  }
+  options: INDEX_STATS_OPTIONS
 }).parse();
-
-const normalizeMode = (value) => {
-  if (typeof value !== 'string') return null;
-  const mode = value.trim().toLowerCase();
-  return MODE_ORDER.includes(mode) ? mode : null;
-};
-
-const normalizeCount = (value) => {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? Math.max(0, Math.floor(parsed)) : null;
-};
 
 const parseChecksum = (value) => {
   if (typeof value !== 'string') return null;
@@ -76,16 +56,7 @@ const collectModeDirsFromRoot = (rootPath, modeFilter = null) => {
 };
 
 const selectModeDirs = () => {
-  const modeFilter = normalizeMode(argv.mode);
-  if (argv.mode && !modeFilter) {
-    throw new Error(`Invalid --mode ${argv.mode}. Use ${MODE_ORDER.join('|')}.`);
-  }
-  if (argv.repo && argv['index-dir']) {
-    throw new Error('Use either --repo or --index-dir, not both.');
-  }
-  if (!argv.repo && !argv['index-dir']) {
-    throw new Error('index stats requires --repo <path> or --index-dir <path>.');
-  }
+  const modeFilter = assertIndexStatsFlags(argv);
   if (argv['index-dir']) {
     const indexRoot = path.resolve(String(argv['index-dir']));
     const modes = collectModeDirsFromRoot(indexRoot, modeFilter);
@@ -104,18 +75,14 @@ const selectModeDirs = () => {
   // resolving to enclosing git/config roots.
   const repoRoot = resolveRepoRootArg(String(argv.repo));
   const userConfig = loadUserConfig(repoRoot);
-  const indexRoot = resolveIndexRoot(repoRoot, userConfig, {});
-  const modes = collectModeDirsFromRoot(indexRoot, modeFilter);
-  if (!modes.length) {
-    throw new Error(`No index directories found under ${indexRoot}.`);
-  }
-  return {
-    source: 'repo',
-    indexRoot,
-    repoRoot,
-    repoId: getRepoId(repoRoot),
-    modes
-  };
+  const selection = captureSelectedModeRoots({ root: repoRoot, userConfig });
+  const modes = selection.modes.filter(mode => !modeFilter || mode === modeFilter)
+    .map(mode => ({ mode, dir: path.join(selection.roots[mode], `index-${mode}`) }));
+  if (!modes.length) throw new Error('No selected index modes are published for this repository.');
+  const roots = new Set(modes.map(entry => path.dirname(entry.dir)));
+  return { source: selection.source, indexRoot: roots.size === 1 ? [...roots][0] : null,
+    repoRoot, repoId: getRepoId(repoRoot), modes };
+
 };
 
 const buildFamilyStats = (pieces, {
@@ -125,26 +92,8 @@ const buildFamilyStats = (pieces, {
   const nameSet = new Set(names);
   const selected = pieces.filter((piece) => nameSet.has(String(piece?.name || '')));
   const bytes = selected.reduce((sum, piece) => sum + (Number(piece?.bytes) || 0), 0);
-  const countCandidates = selected
-    .filter((piece) => !countFromName || piece.name === countFromName)
-    .map((piece) => normalizeCount(piece?.count))
-    .filter((value) => value != null);
   return {
-    rows: countCandidates.length ? Math.max(...countCandidates) : null,
-    bytes
-  };
-};
-
-const buildPrefixedPieceStats = (pieces, prefix) => {
-  const selected = pieces.filter((piece) => String(piece?.name || '').startsWith(prefix));
-  const bytes = selected.reduce((sum, piece) => sum + (Number(piece?.bytes) || 0), 0);
-  const rows = selected
-    .map((piece) => normalizeCount(piece?.count))
-    .filter((value) => value != null);
-  const parts = selected.filter((piece) => String(piece?.path || '').includes('.part-')).length;
-  return {
-    rows: rows.length ? Math.max(...rows) : null,
-    parts,
+    rows: logicalPayloadRows(selected, countFromName || names[0]),
     bytes
   };
 };
@@ -161,12 +110,12 @@ const buildEmbeddingStats = (pieces) => {
   ));
   const hnswPieces = pieces.filter((piece) => String(piece?.name || '').includes('hnsw'));
   const lancedbPieces = pieces.filter((piece) => String(piece?.name || '').includes('lancedb'));
-  const denseCountCandidates = densePieces
-    .map((piece) => normalizeCount(piece?.count))
-    .filter((value) => value != null);
   return {
     denseVectors: {
-      count: denseCountCandidates.length ? Math.max(...denseCountCandidates) : null,
+      // The primary vector payload owns this total. Binary metadata repeats it;
+      // doc/code channels have independent absence/cardinality and are not rows
+      // to add to, or a replacement maximum for, the primary payload.
+      count: logicalPayloadRows(densePieces, 'dense_vectors'),
       bytes: densePieces.reduce((sum, piece) => sum + (Number(piece?.bytes) || 0), 0)
     },
     hnsw: {
@@ -180,13 +129,16 @@ const buildEmbeddingStats = (pieces) => {
   };
 };
 
-const verifyManifestPieces = async (modeDir, pieces) => {
+const verifyManifestPieces = async (modeDir, pieces, profileId, manifest) => {
   const errors = [];
   const warnings = [];
-  for (const family of REQUIRED_VERIFY_FAMILIES) {
-    if (!pieces.some((piece) => family.match(piece))) {
-      errors.push(`${modeDir}: missing required artifact family ${family.label}`);
-    }
+  for (const family of missingRequiredStatsFamilies(pieces, profileId)) errors.push(`${modeDir}: missing required artifact family ${family}`);
+  for (const family of resolveRequiredArtifactsForProfile(profileId)) {
+    if (!pieces.some(piece => piece.name === family)) continue;
+    try {
+      const presence = resolveArtifactPresence(modeDir, family, { manifest, strict: true });
+      if (presence.error || presence.missingMeta || presence.missingPaths?.length) errors.push(`${modeDir}: incomplete required artifact family ${family}`);
+    } catch (error) { errors.push(`${modeDir}: invalid required artifact family ${family}: ${error.message}`); }
   }
   for (const piece of pieces) {
     const relPath = typeof piece?.path === 'string' ? piece.path : '';
@@ -211,20 +163,28 @@ const verifyManifestPieces = async (modeDir, pieces) => {
       errors.push(`${modeDir}: missing artifact ${relPath}`);
       continue;
     }
-    const expectedBytes = Number(piece?.bytes);
+    const expectedBytes = piece?.bytes == null ? null : Number(piece.bytes);
     if (Number.isFinite(expectedBytes) && expectedBytes !== stat.size) {
       errors.push(`${modeDir}: bytes mismatch for ${relPath} (expected ${expectedBytes}, found ${stat.size})`);
       warnings.push(`${modeDir}: bytes mismatch for ${relPath}`);
     }
     const parsedChecksum = parseChecksum(piece?.checksum);
+    if (piece?.checksum != null && (!parsedChecksum
+      || !['sha1', 'sha256', 'xxh64'].includes(parsedChecksum.algo)
+      || !(parsedChecksum.algo === 'sha1' ? /^[a-f0-9]{40}$/i : parsedChecksum.algo === 'sha256' ? /^[a-f0-9]{64}$/i : /^[a-f0-9]{16}$/i).test(parsedChecksum.value))) {
+      errors.push(`${modeDir}: malformed or unsupported checksum for ${relPath}`);
+      continue;
+    }
     if (parsedChecksum) {
       try {
-        const computed = await checksumFile(absolutePath);
-        if (computed?.algo !== parsedChecksum.algo || computed?.value !== parsedChecksum.value) {
-          warnings.push(`${modeDir}: checksum mismatch for ${relPath}`);
+        const computed = parsedChecksum.algo === 'sha1'
+          ? { algo: 'sha1', value: await sha1File(absolutePath) }
+          : parsedChecksum.algo === 'sha256' ? { algo: 'sha256', value: await sha256File(absolutePath) } : await checksumFile(absolutePath);
+        if (computed?.algo !== parsedChecksum.algo || computed?.value !== parsedChecksum.value.toLowerCase()) {
+          errors.push(`${modeDir}: checksum mismatch for ${relPath}`);
         }
       } catch {
-        warnings.push(`${modeDir}: failed to compute checksum for ${relPath}`);
+        errors.push(`${modeDir}: failed to compute checksum for ${relPath}`);
       }
     }
   }
@@ -232,8 +192,10 @@ const verifyManifestPieces = async (modeDir, pieces) => {
 };
 
 const aggregateTotals = (modeReports) => {
-  const totalChunkCount = modeReports.reduce((sum, mode) => sum + (mode.chunkMeta.rows || 0), 0);
-  const totalFileCount = modeReports.reduce((sum, mode) => sum + (mode.fileMeta.rows || 0), 0);
+  const chunkCounts = modeReports.map(mode => mode.chunkMeta.rows);
+  const chunkSum = chunkCounts.reduce((sum, count) => sum + count, 0);
+  const totalChunkCount = chunkCounts.every(count => Number.isSafeInteger(count) && count >= 0) && Number.isSafeInteger(chunkSum) ? chunkSum : null;
+  const totalFileCount = sumKnownCounts(modeReports.map(mode => mode.fileMeta.rows));
   const bytesByFamily = {
     chunks: modeReports.reduce((sum, mode) => sum + mode.chunkMeta.bytes, 0),
     postings: modeReports.reduce((sum, mode) => (
@@ -247,35 +209,36 @@ const aggregateTotals = (modeReports) => {
       sum + mode.embeddings.denseVectors.bytes + mode.embeddings.hnsw.bytes + mode.embeddings.lancedb.bytes
     ), 0)
   };
-  const totalBytes = Object.values(bytesByFamily).reduce((sum, value) => sum + value, 0);
+  const selectedFamilyBytes = Object.values(bytesByFamily).reduce((sum, value) => sum + value, 0);
+  const manifestBytes = summarizeManifestBytes(allPhysicalPieces);
   return {
     chunkCount: totalChunkCount,
     fileCount: totalFileCount,
     bytesByFamily,
-    totalBytes
+    selectedFamilyBytes,
+    totalBytes: manifestBytes.bytes,
+    manifestPieces: manifestBytes.pieces,
+    unknownPieceBytes: manifestBytes.unknownPieces
   };
 };
 
 const modeReports = [];
+const allPhysicalPieces = new Map();
 const verifyErrors = [];
 const verifyWarnings = [];
-let buildId = null;
-let compatibilityKey = null;
-let artifactSurfaceVersion = null;
-let manifestRepoId = null;
 
 const selected = selectModeDirs();
 for (const { mode, dir } of selected.modes) {
   const manifest = loadPiecesManifest(dir, { strict: true });
   const pieces = Array.isArray(manifest?.pieces) ? manifest.pieces : [];
-  if (!buildId && manifest?.buildId) buildId = manifest.buildId;
-  if (!compatibilityKey && manifest?.compatibilityKey) compatibilityKey = manifest.compatibilityKey;
-  if (!artifactSurfaceVersion && manifest?.artifactSurfaceVersion) artifactSurfaceVersion = manifest.artifactSurfaceVersion;
-  if (!manifestRepoId && manifest?.repoId) manifestRepoId = manifest.repoId;
+  accumulateManifestBytes(allPhysicalPieces, dir, pieces);
 
   const report = {
     mode,
     indexDir: dir,
+    provenance: { buildId: manifest.buildId || null, compatibilityKey: manifest.compatibilityKey || null,
+      artifactSurfaceVersion: manifest.artifactSurfaceVersion, repoId: manifest.repoId || null },
+    manifestBytes: summarizeManifestBytes(accumulateManifestBytes(new Map(), dir, pieces)),
     chunkMeta: buildChunkStats(pieces),
     tokenPostings: buildTokenStats(pieces),
     phraseNgrams: buildFamilyStats(pieces, { names: ['phrase_ngrams'], countFromName: 'phrase_ngrams' }),
@@ -290,7 +253,11 @@ for (const { mode, dir } of selected.modes) {
   };
 
   if (argv.verify === true) {
-    const verify = await verifyManifestPieces(dir, pieces);
+    const state = pieces.some(piece => piece.name === 'index_state')
+      ? await loadJsonObjectArtifact(dir, 'index_state', { manifest, strict: true, maxBytes: 8 * 1024 * 1024 }) : null;
+    const { profileId } = resolveIndexArtifactPolicy({ state, manifest,
+      resolvePresence: name => resolveArtifactPresence(dir, name, { manifest, strict: true }) });
+    const verify = await verifyManifestPieces(dir, pieces, profileId, manifest);
     verifyErrors.push(...verify.errors);
     verifyWarnings.push(...verify.warnings);
   }
@@ -303,6 +270,8 @@ const totals = aggregateTotals(modeReports);
 const modesPayload = {};
 for (const report of modeReports) {
   modesPayload[report.mode] = {
+    indexDir: report.indexDir,
+    provenance: report.provenance,
     chunkMeta: report.chunkMeta,
     tokenPostings: report.tokenPostings,
     phraseNgrams: report.phraseNgrams,
@@ -317,13 +286,20 @@ for (const report of modeReports) {
   };
 }
 
+const sharedIdentity = key => {
+  const values = new Set(modeReports.map(report => report.provenance[key]));
+  return values.size === 1 ? [...values][0] : null;
+};
+
 const payload = {
   schemaVersion: SCHEMA_VERSION,
-  repoId: selected.repoId || manifestRepoId || null,
-  buildId: buildId || null,
+  repoId: selected.repoId || sharedIdentity('repoId'),
+  buildId: sharedIdentity('buildId'),
   indexRoot: selected.indexRoot,
-  artifactSurfaceVersion: artifactSurfaceVersion || null,
-  compatibilityKey: compatibilityKey || null,
+  artifactSurfaceVersion: sharedIdentity('artifactSurfaceVersion'),
+  compatibilityKey: sharedIdentity('compatibilityKey'),
+  generationSelection: selected.source,
+  mixedGenerations: new Set(modeReports.map(report => report.provenance.buildId)).size > 1,
   modes: modesPayload,
   totals
 };
@@ -350,7 +326,7 @@ if (argv.json) {
       )}`
     );
   }
-  console.error(`total bytes: ${formatBytes(payload.totals.totalBytes)}`);
+  console.error(`total bytes: ${payload.totals.totalBytes == null ? 'unknown (manifest byte counts missing)' : formatBytes(payload.totals.totalBytes)}`);
   if (payload.verify) {
     console.error(`verify: ${payload.verify.ok ? 'ok' : 'errors'}`);
     for (const warning of payload.verify.warnings) console.error(`warn: ${warning}`);

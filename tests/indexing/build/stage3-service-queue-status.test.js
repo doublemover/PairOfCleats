@@ -4,11 +4,13 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { runEmbeddingsStage } from '../../../src/integrations/core/build-index/stages.js';
+import { getRepoCacheRoot } from '../../../src/shared/dict-utils.js';
 
 const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-stage3-service-queue-status-'));
 const repoRoot = path.join(tempRoot, 'repo');
 const queueDir = path.join(tempRoot, 'queue');
 const cacheRoot = path.join(tempRoot, 'cache');
+const userConfig = { cache: { root: cacheRoot } };
 await fs.mkdir(repoRoot, { recursive: true });
 await fs.mkdir(cacheRoot, { recursive: true });
 
@@ -23,13 +25,13 @@ const result = await runEmbeddingsStage({
     queueMaxQueued: 0,
     useStubEmbeddings: false
   },
-  userConfig: {},
+  userConfig,
   indexRoot: repoRoot,
   includeEmbeddings: false,
   overallProgressRef: { current: null },
   log: () => {},
   abortSignal: null,
-  repoCacheRoot: cacheRoot,
+  repoCacheRoot: getRepoCacheRoot(repoRoot, userConfig),
   runtimeEnv: process.env,
   recordIndexMetric: () => {},
   buildEmbeddingsPath: path.join(process.cwd(), 'bin', 'pairofcleats.js')

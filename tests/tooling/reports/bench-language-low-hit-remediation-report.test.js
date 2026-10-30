@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
+import { BENCH_REMEDIATION_VERSION } from '../../../src/contracts/benchmark-remediation.js';
 import path from 'node:path';
 import { ensureTestingEnv } from '../../helpers/test-env.js';
 import { buildReportOutput } from '../../../tools/bench/language/report.js';
@@ -82,7 +83,7 @@ const output = await buildReportOutput({
 });
 
 assert.ok(output.remediation && typeof output.remediation === 'object', 'missing remediation report');
-assert.equal(output.remediation.schemaVersion, 1, 'unexpected remediation schema version');
+assert.equal(output.remediation.schemaVersion, BENCH_REMEDIATION_VERSION, 'unexpected remediation schema version');
 assert.equal(output.remediation.reposConsidered, 3, 'expected three repos considered');
 assert.equal(output.remediation.lowHitCount, 2, 'expected two low-hit repos');
 
@@ -104,19 +105,19 @@ assert.equal(
 
 const suggestionIds = lowHit.rankedSuggestions.map((entry) => entry.suggestionId);
 assert.equal(
-  suggestionIds.includes('query.intent-weight-rebalance'),
+  suggestionIds.includes('workload.validate-expectations'),
   true,
-  'expected intent weight suggestion for low-hit repo'
+  'expected workload diagnostic for low-nonempty repo'
 );
 assert.equal(
-  suggestionIds.includes('tokenizer.language-family-pack'),
+  suggestionIds.includes('retrieval.inspect-source-coverage'),
   true,
-  'expected tokenizer suggestion for low-hit repo'
+  'expected source coverage hypothesis for low-nonempty repo'
 );
 assert.equal(
-  suggestionIds.includes('ranker.rerank-budget'),
+  suggestionIds.includes('query.inspect-parsing'),
   true,
-  'expected rerank budget suggestion for low-hit repo'
+  'expected query interpretation hypothesis for low-nonempty repo'
 );
 for (let index = 1; index < lowHit.rankedSuggestions.length; index += 1) {
   const prior = Number(lowHit.rankedSuggestions[index - 1].score) || 0;
@@ -140,4 +141,8 @@ assert.equal(
   'expected remediation loop to track generated suggestions'
 );
 
+assert.equal(lowHit.metric, 'nonempty-result-frequency');
+assert.equal(lowHit.missTaxonomyTop[0].total, 7);
+assert.equal(lowHit.missTaxonomyTop[0].zeroHit, 5);
+assert.ok(lowHit.rankedSuggestions.every(row => row.kind === 'diagnostic-hypothesis' && !row.loop.accepted));
 console.log('bench language low-hit remediation report test passed');

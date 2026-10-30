@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["initialization", "late-method", "unknown-close", "constructor-pending", "constructor-fatal", "artifact-primary", "bundle-primary"]
+}

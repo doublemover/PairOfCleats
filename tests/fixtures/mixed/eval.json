@@ -2,36 +2,76 @@
   {
     "query": "TaskRunner",
     "mode": "code",
-    "expect": [{ "file": "src/app.js", "name": "TaskRunner" }]
+    "expect": [
+      {
+        "file": "src/app.js",
+        "name": "TaskRunner",
+        "mode": "code"
+      }
+    ]
   },
   {
     "query": "legacyAdd",
     "mode": "code",
-    "expect": [{ "file": "src/app.js", "name": "legacyAdd" }]
+    "expect": [
+      {
+        "file": "src/app.js",
+        "name": "legacyAdd",
+        "mode": "code"
+      }
+    ]
   },
   {
     "query": "createWidget",
     "mode": "code",
-    "expect": [{ "file": "src/widget.js", "name": "createWidget" }]
+    "expect": [
+      {
+        "file": "src/widget.js",
+        "name": "createWidget",
+        "mode": "code"
+      }
+    ]
   },
   {
     "query": "server",
     "mode": "code",
-    "expect": [{ "file": "src/config.yml", "name": "server" }]
+    "expect": [
+      {
+        "file": "src/config.yml",
+        "name": "server",
+        "mode": "code"
+      }
+    ]
   },
   {
     "query": "deploying",
     "mode": "code",
-    "expect": [{ "file": "scripts/deploy.sh" }]
+    "expect": [
+      {
+        "file": "scripts/deploy.sh",
+        "mode": "code"
+      }
+    ]
   },
   {
     "query": "dashboard",
     "mode": "prose",
-    "expect": [{ "file": "docs/notes.md", "name": "Dashboard" }]
+    "expect": [
+      {
+        "file": "docs/notes.md",
+        "name": "Dashboard",
+        "mode": "prose"
+      }
+    ]
   },
   {
     "query": "layout",
     "mode": "code",
-    "expect": [{ "file": "templates/layout.html" }]
+    "expect": [
+      {
+        "file": "templates/layout.html",
+        "mode": "code"
+      }
+    ]
   }
 ]

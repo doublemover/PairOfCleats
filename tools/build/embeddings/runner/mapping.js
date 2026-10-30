@@ -41,9 +41,9 @@ import {
  * @typedef {object} IncrementalChunkMappingIndex
  * @property {Map<string,FileChunkMapping>} fileMappings
  * @property {Map<string,FileChunkMapping|null>} fileAliases
- * @property {Map<string,number>} globalChunkIdMap
+ * @property {Map<string,number|null>} globalChunkIdMap
  * @property {Map<string,number>} globalHintMap
- * @property {Map<string,number>} globalHintWithFileMap
+ * @property {Map<string,number|null>} globalHintWithFileMap
  * @property {Map<string,MappingEntry[]>} globalAnchorBuckets
  * @property {Map<string,MappingEntry[]>} globalSegmentBuckets
  */
@@ -61,11 +61,9 @@ import {
  * @returns {number|null}
  */
 export const toChunkIndex = (value) => {
-  if (value == null || value === '' || typeof value === 'boolean') return null;
+  if (value == null || typeof value === 'string' && !value.trim() || typeof value === 'boolean') return null;
   const numeric = Number(value);
-  if (!Number.isFinite(numeric)) return null;
-  const index = Math.floor(numeric);
-  return index >= 0 ? index : null;
+  return Number.isSafeInteger(numeric) && numeric >= 0 ? numeric : null;
 };
 
 /**
@@ -79,17 +77,10 @@ export const toUint8Vector = (value) => {
   if (!value || typeof value !== 'object') return null;
   if (value instanceof Uint8Array) return value;
   if (ArrayBuffer.isView(value) && value.BYTES_PER_ELEMENT === 1 && !(value instanceof DataView)) {
-    return new Uint8Array(value);
+    return value.every(item => Number.isInteger(item) && item >= 0 && item <= 255) ? new Uint8Array(value) : null;
   }
   if (Array.isArray(value)) {
-    const out = new Uint8Array(value.length);
-    for (let i = 0; i < value.length; i += 1) {
-      const numeric = Number(value[i]);
-      out[i] = Number.isFinite(numeric)
-        ? Math.max(0, Math.min(255, Math.floor(numeric)))
-        : 0;
-    }
-    return out;
+    return value.every(item => Number.isInteger(item) && item >= 0 && item <= 255) ? Uint8Array.from(value) : null;
   }
   return null;
 };
@@ -192,7 +183,7 @@ const resolveExplicitChunkId = (chunk) => normalizeMappingString(
  */
 const normalizeMappingPath = (value) => {
   const normalized = toPosix(value);
-  return normalizeMappingString(normalized);
+  return typeof normalized === 'string' ? normalized : '';
 };
 
 /**
@@ -202,6 +193,7 @@ const normalizeMappingPath = (value) => {
  * @returns {number|null}
  */
 const normalizeRangeBoundary = (value) => {
+  if (value == null || value === '' || typeof value === 'boolean') return null;
   const numeric = Number(value);
   if (!Number.isFinite(numeric)) return null;
   return Math.max(0, Math.floor(numeric));
@@ -243,6 +235,12 @@ const pushMappingBucket = (bucketMap, key, entry) => {
     bucketMap.set(key, []);
   }
   bucketMap.get(key).push(entry);
+};
+
+const registerUniqueMapping = (map, key, index) => {
+  if (key == null || key === '') return;
+  if (!map.has(key)) map.set(key, index);
+  else if (map.get(key) !== index) map.set(key, null);
 };
 
 /**
@@ -320,30 +318,18 @@ export const createIncrementalChunkMappingIndex = (chunksByFile) => {
       if (resolvedIndex == null) continue;
       const chunk = item?.chunk || null;
       const numericChunkId = toChunkIndex(chunk?.id);
-      if (numericChunkId != null && !mapping.chunkMap.has(numericChunkId)) {
-        mapping.chunkMap.set(numericChunkId, resolvedIndex);
-      }
+      if (numericChunkId != null) registerUniqueMapping(mapping.chunkMap, numericChunkId, resolvedIndex);
       mapping.fallbackIndices.push(resolvedIndex);
       const entry = buildMappingEntry({
         index: resolvedIndex,
         filePath: normalizedFile,
         chunk
       });
-      if (entry.chunkId && !mapping.chunkIdMap.has(entry.chunkId)) {
-        mapping.chunkIdMap.set(entry.chunkId, resolvedIndex);
-      }
-      if (entry.chunkId && !globalChunkIdMap.has(entry.chunkId)) {
-        globalChunkIdMap.set(entry.chunkId, resolvedIndex);
-      }
-      if (entry.hintWithFileKey && !mapping.hintWithFileMap.has(entry.hintWithFileKey)) {
-        mapping.hintWithFileMap.set(entry.hintWithFileKey, resolvedIndex);
-      }
-      if (entry.hintWithFileKey && !globalHintWithFileMap.has(entry.hintWithFileKey)) {
-        globalHintWithFileMap.set(entry.hintWithFileKey, resolvedIndex);
-      }
-      if (entry.hintKey && !mapping.hintMap.has(entry.hintKey)) {
-        mapping.hintMap.set(entry.hintKey, resolvedIndex);
-      }
+      registerUniqueMapping(mapping.chunkIdMap, entry.chunkId, resolvedIndex);
+      registerUniqueMapping(globalChunkIdMap, entry.chunkId, resolvedIndex);
+      registerUniqueMapping(mapping.hintWithFileMap, entry.hintWithFileKey, resolvedIndex);
+      registerUniqueMapping(globalHintWithFileMap, entry.hintWithFileKey, resolvedIndex);
+      registerUniqueMapping(mapping.hintMap, entry.hintKey, resolvedIndex);
       if (entry.hintKey && !globalHintMap.has(entry.hintKey)) {
         globalHintMap.set(entry.hintKey, resolvedIndex);
       }
@@ -453,7 +439,8 @@ const resolveNearestStructuralCandidate = ({
         score,
         penalty,
         boundaryDistance,
-        boundarySort
+        boundarySort,
+        ambiguous: false
       };
       continue;
     }
@@ -464,7 +451,8 @@ const resolveNearestStructuralCandidate = ({
           score,
           penalty,
           boundaryDistance,
-          boundarySort
+          boundarySort,
+          ambiguous: false
         };
       }
       continue;
@@ -476,20 +464,13 @@ const resolveNearestStructuralCandidate = ({
           score,
           penalty,
           boundaryDistance,
-          boundarySort
+          boundarySort,
+          ambiguous: false
         };
       }
       continue;
     }
-    if ((candidate?.index ?? Number.MAX_SAFE_INTEGER) < (best.candidate?.index ?? Number.MAX_SAFE_INTEGER)) {
-      best = {
-        candidate,
-        score,
-        penalty,
-        boundaryDistance,
-        boundarySort
-      };
-    }
+    if (candidate?.index !== best.candidate?.index) best.ambiguous = true;
   }
   if (!best || best.candidate?.index == null) {
     return { accepted: false, hasCandidates: false, vectorIndex: null };
@@ -499,7 +480,7 @@ const resolveNearestStructuralCandidate = ({
     ? best.boundaryDistance <= boundaryThreshold && best.penalty <= 256
     : best.penalty <= 128;
   return {
-    accepted,
+    accepted: accepted && !best.ambiguous,
     hasCandidates: true,
     vectorIndex: best.candidate.index,
     boundaryDistance: best.boundaryDistance,
@@ -532,13 +513,14 @@ export const resolveBundleChunkVectorIndex = ({
   const isVectorIndexInRange = (value) => {
     const index = toChunkIndex(value);
     if (index == null) return false;
+    if (vectorCount == null) return true;
     const count = Number(vectorCount);
-    if (Number.isFinite(count) && count >= 0) {
-      return index < Math.floor(count);
-    }
-    return true;
+    return Number.isSafeInteger(count) && count >= 0 && index < count;
   };
   const numericChunkId = toChunkIndex(chunk?.id);
+  const ambiguous = (map, key) => key != null && map?.has(key) && map.get(key) === null;
+  const refusedAmbiguity = () => ({ vectorIndex: null, reason: 'boundaryMismatch' });
+  if (ambiguous(fileMapping?.chunkMap, numericChunkId)) return refusedAmbiguity();
   if (numericChunkId != null && fileMapping?.chunkMap.has(numericChunkId)) {
     const chunkMapIndex = fileMapping.chunkMap.get(numericChunkId);
     if (isVectorIndexInRange(chunkMapIndex)) {
@@ -551,6 +533,7 @@ export const resolveBundleChunkVectorIndex = ({
 
   const stableChunkId = resolveExplicitChunkId(chunk);
   if (stableChunkId) {
+    if (ambiguous(fileMapping?.chunkIdMap, stableChunkId) || ambiguous(mappingIndex.globalChunkIdMap, stableChunkId)) return refusedAmbiguity();
     const localStableIdIndex = fileMapping?.chunkIdMap.get(stableChunkId);
     if (isVectorIndexInRange(localStableIdIndex)) {
       return { vectorIndex: localStableIdIndex, reason: null };
@@ -563,6 +546,7 @@ export const resolveBundleChunkVectorIndex = ({
 
   const hintWithFileKey = buildChunkMappingHintKey(chunk, { includeFile: true });
   if (hintWithFileKey) {
+    if (ambiguous(fileMapping?.hintWithFileMap, hintWithFileKey) || ambiguous(mappingIndex.globalHintWithFileMap, hintWithFileKey)) return refusedAmbiguity();
     const localHintWithFile = fileMapping?.hintWithFileMap.get(hintWithFileKey);
     if (isVectorIndexInRange(localHintWithFile)) {
       return { vectorIndex: localHintWithFile, reason: null };
@@ -574,14 +558,14 @@ export const resolveBundleChunkVectorIndex = ({
   }
 
   const hintKey = buildChunkMappingHintKey(chunk);
+  // Unscoped structure and numeric row IDs are not cross-file identities.
+  // Only unique stable IDs or file-qualified hints may recover a missing parent.
+  if (!fileMapping) return { vectorIndex: null, reason: 'missingParent' };
   if (hintKey) {
+    if (ambiguous(fileMapping?.hintMap, hintKey)) return refusedAmbiguity();
     const localHint = fileMapping?.hintMap.get(hintKey);
     if (isVectorIndexInRange(localHint)) {
       return { vectorIndex: localHint, reason: null };
-    }
-    const globalHint = mappingIndex.globalHintMap.get(hintKey);
-    if (isVectorIndexInRange(globalHint)) {
-      return { vectorIndex: globalHint, reason: null };
     }
   }
 
@@ -598,7 +582,8 @@ export const resolveBundleChunkVectorIndex = ({
       return { vectorIndex: localNearest.vectorIndex, reason: null };
     }
     sawStructuralCandidates = sawStructuralCandidates || localNearest.hasCandidates;
-    const globalCandidates = mappingIndex.globalAnchorBuckets.get(anchor);
+    const globalCandidates = mappingIndex.globalAnchorBuckets.get(anchor)
+      ?.filter(candidate => candidate.filePath === fileMapping.filePath);
     const globalNearest = resolveNearestStructuralCandidate({
       candidates: globalCandidates,
       chunk,
@@ -622,7 +607,8 @@ export const resolveBundleChunkVectorIndex = ({
       return { vectorIndex: localNearest.vectorIndex, reason: null };
     }
     sawStructuralCandidates = sawStructuralCandidates || localNearest.hasCandidates;
-    const globalCandidates = mappingIndex.globalSegmentBuckets.get(segmentUid);
+    const globalCandidates = mappingIndex.globalSegmentBuckets.get(segmentUid)
+      ?.filter(candidate => candidate.filePath === fileMapping.filePath);
     const globalNearest = resolveNearestStructuralCandidate({
       candidates: globalCandidates,
       chunk,
@@ -634,7 +620,8 @@ export const resolveBundleChunkVectorIndex = ({
     sawStructuralCandidates = sawStructuralCandidates || globalNearest.hasCandidates;
   }
 
-  if (fileMapping && fallbackState.cursor < fileMapping.fallbackIndices.length) {
+  const hasStructuralHints = Boolean(stableChunkId || hintWithFileKey || hintKey || anchor || segmentUid);
+  if (!hasStructuralHints && !sawStructuralCandidates && fallbackState.cursor < fileMapping.fallbackIndices.length) {
     while (fallbackState.cursor < fileMapping.fallbackIndices.length) {
       const fallbackIndex = fileMapping.fallbackIndices[fallbackState.cursor];
       fallbackState.cursor += 1;
@@ -643,14 +630,7 @@ export const resolveBundleChunkVectorIndex = ({
       }
     }
   }
-  if (isVectorIndexInRange(numericChunkId)) {
-    return {
-      vectorIndex: numericChunkId,
-      reason: null
-    };
-  }
 
-  const hasStructuralHints = Boolean(stableChunkId || hintWithFileKey || hintKey || anchor || segmentUid);
   if (sawStructuralCandidates) {
     return { vectorIndex: null, reason: 'boundaryMismatch' };
   }

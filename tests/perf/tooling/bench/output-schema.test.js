@@ -61,6 +61,10 @@ const runCase = async ({ name, lines, useJsonFile }) => {
     : JSON.parse(String(result.stdout || '{}'));
   const ok = validate(report);
   assert.ok(ok, ajv.errorsText(validate.errors, { separator: '\n' }));
+  assert.equal(validate({ ...report, schemaVersion: 1 }), false, 'legacy magnitude-based reports cannot claim corrected version 2 semantics');
+  const unqualified = structuredClone(report);
+  delete unqualified.summary.perCoreUtilization.scope;
+  assert.equal(validate(unqualified), false, 'measurement scope is required');
 };
 
 const matrix = [

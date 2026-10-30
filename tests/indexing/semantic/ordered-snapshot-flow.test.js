@@ -24,6 +24,15 @@ try {
     function dynamic(offset:number){const buffer=new Uint8Array([51]);const view=buffer.subarray(offset);return view[0];}
     function recovering(){const box={value:61};try{box.value=62;}catch{}return box.value;}
     function captured(){const buffer=new Uint8Array([71]);const read=()=>buffer[0];buffer[0]=72;return read();}
+    function objectView(){const buffer=new Uint8Array([81]);const before=buffer.slice();
+      const holder={view:buffer.subarray()};holder.view[0]=82;const after=buffer.slice();return [before[0],buffer[0],after[0]];}
+    function arrayView(){const buffer=new Uint8Array([91]);const holder=[buffer.subarray()];holder[0][0]=92;return buffer[0];}
+    function wrappedView(){const buffer=new Uint8Array([101,102]);
+      const holder=[((buffer.subarray(1).subarray(0) as Uint8Array))];holder[0][0]=103;return buffer[1];}
+    function sliceContainer(){const buffer=new Uint8Array([111]);const holder={copy:buffer.slice()};
+      holder.copy[0]=112;return buffer[0];}
+    function namedView(){const buffer=new Uint8Array([121]);const view=(buffer.subarray() as Uint8Array);
+      view[0]=122;return buffer[0];}
   ` }, {}, { withFlow: true });
   const doc = fixture.documents[0], flow = fixture.group.flowDocuments[0], { ts, sourceFile, expressionFor } = doc;
   const added = [];
@@ -55,6 +64,26 @@ try {
   assert.ok(await reaches(literal('escaped', 41), expression('escaped', 'buffer[0]', 1)), 'escape retains older may-alternatives');
   assert.ok(!flow.orderedAccesses.has(canonicalSemanticJson(expression('recovering', 'box.value', 0))), 'recovering exceptional paths retain conservative state');
   assert.ok(!flow.orderedAccesses.has(canonicalSemanticJson(expression('captured', 'buffer[0]', 1))), 'owner-local indexing retains nested capture escapes');
+  for (const [name, target] of [['objectView', 'buffer[0]'], ['arrayView', 'buffer[0]'], ['wrappedView', 'buffer[1]']]) {
+    assert.equal(flow.orderedAccesses.has(canonicalSemanticJson(expression(name, target))), false,
+      `${name}: a fresh container-held view revokes ordered backing-root eligibility`);
+  }
+  assert.ok(flow.orderedAccesses.has(canonicalSemanticJson(expression('sliceContainer', 'buffer[0]'))),
+    'an escaped independent slice copy cannot revoke its source allocation');
+  assert.ok(flow.orderedAccesses.has(canonicalSemanticJson(expression('namedView', 'buffer[0]'))),
+    'wrapped direct const aliases remain in the supported ordered subset');
+  assert.ok(await reaches(literal('namedView', 122), expression('namedView', 'buffer[0]')));
+  assert.ok(await reaches(literal('objectView', 81), expression('objectView', 'before[0]')));
+  assert.ok(!await reaches(literal('objectView', 82), expression('objectView', 'before[0]')),
+    'a snapshot before escape retains its independent history');
+  assert.equal(flow.orderedOperations.has(canonicalSemanticJson(expression('objectView', 'buffer.slice()', 1))), false,
+    'a snapshot after an unknown shared write cannot claim exact historical contents');
+  const coverage = await backends.artifact.getCoverage([flow.partition.partitionId]);
+  assert.deepEqual(await backends.sqlite.getCoverage([flow.partition.partitionId]), coverage);
+  assert.ok(coverage.some(row => row.state === 'partial' && row.reason.includes('ordered_storage_alias_escape_unresolved')),
+    'unsupported container aliases publish an explicit incomplete boundary rather than a closed negative');
+  await backends.trace(literal('arrayView', 92));
+  await backends.trace(literal('wrappedView', 103));
   const counts = { records: 0, edges: 0 };
   for (const partition of [...fixture.syntaxPartitions, ...added]) {
     for await (const _row of backends.artifact.iterateRows(partition.partitionId, 'semantic_records')) counts.records += 1;

@@ -1,0 +1,296 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-10-30",
+  "historicalAuthorWorkspace": true,
+  "publishedHead": "1708b2b4c40deace584e23e48bf1b47cad7fd4fd",
+  "previousLedger": "windows-source-cost-closeout-2026-10-30.json",
+  "previousClosures": 29,
+  "newClosures": [
+    {
+      "issue": 713,
+      "coverage": "Stable-generation and independently changing-generation comparisons now each pass three fresh actual six-query/two-model CLI lifetimes. Original descriptor observers verify once-per-model-generation corpus reads, exact bytes and confirmed close; complete matching results, logical registry retention and separate query-wall samples are published.",
+      "evidence": [
+        "windows-source-cost-closeout-2026-10-30.json"
+      ],
+      "state": "closed",
+      "stateReason": "completed",
+      "url": "https://github.com/doublemover/PairOfCleats/issues/713",
+      "updatedAt": "2026-10-30T09:49:52Z",
+      "resolutionReadbackVerified": true
+    },
+    {
+      "issue": 1102,
+      "coverage": "Three fresh locked-Piscina lifetimes now execute16 ordinary nonempty tasks across all four public facade families, then naturally cancel each family. Original Worker exit precedes peer admission and public settlement; healthy replacements preserve exact results, and all original handles/tokens/bytes settle. Raw cancellation/throughput/event-loop samples are published.",
+      "evidence": [
+        "windows-source-cost-closeout-2026-10-30.json"
+      ],
+      "state": "closed",
+      "stateReason": "completed",
+      "url": "https://github.com/doublemover/PairOfCleats/issues/1102",
+      "updatedAt": "2026-10-30T09:49:54Z",
+      "resolutionReadbackVerified": true
+    },
+    {
+      "issue": 1755,
+      "coverage": "Three escaped-source cost capsules pass the saved32/128/512-block LF/CRLF corpus, independent CPython import truth, actual lexical/registered scanner CPU/wall, separate sampled allocations and eight durable replay/publication/refresh phases per input. Expected progress is asserted; stderr is empty.",
+      "evidence": [
+        "windows-source-consumer-qualification-2026-10-30.json"
+      ],
+      "state": "closed",
+      "stateReason": "completed",
+      "url": "https://github.com/doublemover/PairOfCleats/issues/1755",
+      "updatedAt": "2026-10-30T09:49:55Z",
+      "resolutionReadbackVerified": true
+    },
+    {
+      "issue": 1756,
+      "coverage": "Three ASCII/mixed-Unicode source-cost capsules pass all12 shapes each, with independent CPython3.15/UCD17/NFKC import expectations, exact saved source hashes, separate scanner/heap observations and actual durable replay/partial refresh with stale-producer rejection.",
+      "evidence": [
+        "windows-source-consumer-qualification-2026-10-30.json"
+      ],
+      "state": "closed",
+      "stateReason": "completed",
+      "url": "https://github.com/doublemover/PairOfCleats/issues/1756",
+      "updatedAt": "2026-10-30T09:49:56Z",
+      "resolutionReadbackVerified": true
+    },
+    {
+      "issue": 1751,
+      "coverage": "The original four symbol/call producers and all five additional migrated families now have actual writer-to-stats CLI controls. JSON/sharded/columnar cases verify7 files,10 graph rows,3 phrases,4 chargrams, primary7 dense vectors versus separate9/2 channels, repeated metadata and unknown-count negatives. Earlier single/many-part CPU/work/allocation measurements remain published.",
+      "evidence": [
+        "windows-source-consumer-qualification-2026-10-30.json"
+      ],
+      "state": "closed",
+      "stateReason": "completed",
+      "url": "https://github.com/doublemover/PairOfCleats/issues/1751",
+      "updatedAt": "2026-10-30T09:49:58Z",
+      "resolutionReadbackVerified": true
+    },
+    {
+      "issue": 1502,
+      "coverage": "Actual YAML token-flow payloads, canonical UIDs, original-byte hashes and document envelopes now survive immutable bundle publication/readback across all24 native query/walk/disabled profiles. The original enabled-unavailable grammar control also checks actual persisted payload identity. Existing repeated native/canonical resource evidence is retained.",
+      "evidence": [
+        "windows-source-consumer-qualification-2026-10-30.json"
+      ],
+      "state": "closed",
+      "stateReason": "completed",
+      "url": "https://github.com/doublemover/PairOfCleats/issues/1502",
+      "updatedAt": "2026-10-30T09:49:59Z",
+      "resolutionReadbackVerified": true
+    },
+    {
+      "issue": 1758,
+      "coverage": "Actual CPython ranges and universal newline/Unicode witnesses now carry the original canonical chunk UIDs, file hash and byte size through production token/payload assembly and complete immutable bundle readback. All eight source variants pass; earlier checkpoint/scanner resource measurements retain their scopes.",
+      "evidence": [
+        "windows-source-consumer-qualification-2026-10-30.json"
+      ],
+      "state": "closed",
+      "stateReason": "completed",
+      "url": "https://github.com/doublemover/PairOfCleats/issues/1758",
+      "updatedAt": "2026-10-30T09:50:01Z",
+      "resolutionReadbackVerified": true
+    },
+    {
+      "issue": 1759,
+      "coverage": "The exact original cache-owner Git blob and repaired owner now pass three counterbalanced pairs on identical32-source/512-declaration native products. File admission, memory hits and persistent-memo hits retain exact content and immutable source files. Per-input priming respects the unchanged32MiB limit; raw latency/CPU and measured safety overhead are published alongside the earlier12 resource capsules.",
+      "evidence": [
+        "windows-source-consumer-qualification-2026-10-30.json"
+      ],
+      "state": "closed",
+      "stateReason": "completed",
+      "url": "https://github.com/doublemover/PairOfCleats/issues/1759",
+      "updatedAt": "2026-10-30T09:50:03Z",
+      "resolutionReadbackVerified": true
+    },
+    {
+      "issue": 1572,
+      "coverage": "All nine1/10/1,000-shard planning capsules pass, including exact independent canonical order/counts, physical backups, actual generic/file-meta count/offset rejection, cancellation and original close settlement. Indexed versus valid sequential lookup work, clean CPU/wall, sampled allocations and endpoint retention are published separately.",
+      "evidence": [
+        "windows-source-consumer-qualification-2026-10-30.json"
+      ],
+      "state": "closed",
+      "stateReason": "completed",
+      "url": "https://github.com/doublemover/PairOfCleats/issues/1572",
+      "updatedAt": "2026-10-30T09:50:04Z",
+      "resolutionReadbackVerified": true
+    },
+    {
+      "issue": 1553,
+      "coverage": "The four installed JS/TS CLI controls have passing published rechecks. The remaining ingestion gap now passes healthy-A, bad-B, combined, alias, foreign-generation, absent-target and unresolved-target cases through real JSON/JSONL loaders, streaming indexes and caller maps. Exact target joins/order/schema and zero-detail-cap warning failures are retained.",
+      "evidence": [
+        "windows-source-consumer-qualification-2026-10-30.json"
+      ],
+      "state": "closed",
+      "stateReason": "completed",
+      "url": "https://github.com/doublemover/PairOfCleats/issues/1553",
+      "updatedAt": "2026-10-30T09:50:06Z",
+      "resolutionReadbackVerified": true
+    },
+    {
+      "issue": 1385,
+      "coverage": "Six original saturation controls preserve all-log/no-log/mixed/coalesced/chunk admission, exact counters, credit resume and work observations. Actual lifecycle/chunk measurements pass, and the recorded flow/queue/constants/saturation owner blobs match the published candidate.",
+      "evidence": [
+        "windows-consumer-repair-wave-2026-10-30.json"
+      ],
+      "state": "closed",
+      "stateReason": "completed",
+      "url": "https://github.com/doublemover/PairOfCleats/issues/1385",
+      "updatedAt": "2026-10-30T09:50:08Z",
+      "resolutionReadbackVerified": true
+    },
+    {
+      "issue": 1386,
+      "coverage": "All156 recorded Rust tests pass, including the actual JavaScript producer through original reader/channel/reducer under pressure: two owning jobs, terminal success/failure, restarted identities, lifecycle-loss degradation and Unicode chunk resume. The earlier cleanup failure has a passing replacement; relevant current owner blobs match.",
+      "evidence": [
+        "windows-consumer-repair-wave-2026-10-30.json"
+      ],
+      "state": "closed",
+      "stateReason": "completed",
+      "url": "https://github.com/doublemover/PairOfCleats/issues/1386",
+      "updatedAt": "2026-10-30T09:50:09Z",
+      "resolutionReadbackVerified": true
+    },
+    {
+      "issue": 1389,
+      "coverage": "Rust156 includes original production-reader/channel latency, displayed/exported75ms, independent producer backlog42, event bursts, idle/reconnect and replay resets. Relevant main/transport/recording/ingress owner hashes match the published implementation.",
+      "evidence": [
+        "windows-consumer-repair-wave-2026-10-30.json"
+      ],
+      "state": "closed",
+      "stateReason": "completed",
+      "url": "https://github.com/doublemover/PairOfCleats/issues/1389",
+      "updatedAt": "2026-10-30T09:50:11Z",
+      "resolutionReadbackVerified": true
+    },
+    {
+      "issue": 1371,
+      "coverage": "Actual FPS/LOD launcher-browser controls verify the99-module closure and original rendered frames at desktop/narrow sizes. Route removal, MIME/hash, traversal/malformed/directory negatives and canonical Three rendering pass. This qualifies software-renderer behavior; it makes no hardware performance claim.",
+      "evidence": [
+        "windows-consumer-measurement-closeout-2026-10-29.json"
+      ],
+      "state": "closed",
+      "stateReason": "completed",
+      "url": "https://github.com/doublemover/PairOfCleats/issues/1371",
+      "updatedAt": "2026-10-30T09:50:12Z",
+      "resolutionReadbackVerified": true
+    },
+    {
+      "issue": 1547,
+      "coverage": "Both formerly unattributed valid-generation/unsupported-format cache-authority controls now have explicit passing source-bound receipts. Snapshot/detail/artifact/native-SQLite serving controls and unchanged physical-authority owners are backed by the recorded41/41 no-skip Windows authority run.",
+      "evidence": [
+        "windows-native-serving-closeout-2026-10-30.json"
+      ],
+      "state": "closed",
+      "stateReason": "completed",
+      "url": "https://github.com/doublemover/PairOfCleats/issues/1547",
+      "updatedAt": "2026-10-30T09:50:14Z",
+      "resolutionReadbackVerified": true
+    }
+  ],
+  "cumulativeClosures": [
+    713,
+    798,
+    985,
+    1033,
+    1076,
+    1102,
+    1371,
+    1374,
+    1375,
+    1385,
+    1386,
+    1389,
+    1437,
+    1477,
+    1483,
+    1493,
+    1501,
+    1502,
+    1547,
+    1553,
+    1565,
+    1572,
+    1577,
+    1578,
+    1586,
+    1702,
+    1747,
+    1748,
+    1750,
+    1751,
+    1752,
+    1753,
+    1754,
+    1755,
+    1756,
+    1757,
+    1758,
+    1759,
+    1760,
+    1761,
+    1762,
+    1763,
+    1764,
+    1766
+  ],
+  "counts": {
+    "p2p3Reports": 346,
+    "qualifiedClosures": 328,
+    "remaining": 12,
+    "editorExclusions": 6,
+    "programReports": 791,
+    "programClosed": 416,
+    "programOpen": 375
+  },
+  "remaining": [
+    1350,
+    1384,
+    1413,
+    1468,
+    1484,
+    1541,
+    1542,
+    1544,
+    1623,
+    1627,
+    1733,
+    1767
+  ],
+  "editorExclusions": [
+    762,
+    1290,
+    1291,
+    1292,
+    1378,
+    1543
+  ],
+  "validation": {
+    "publicationGate": ".testLogs/consumer-wave-next-20261030/source-batch-ready-gate.json",
+    "source": "1708b2b4c40deace584e23e48bf1b47cad7fd4fd",
+    "gateTests": 41,
+    "allCommandsPassed": true,
+    "drainRepeatability": {
+      "source": "1708b2b4c40deace584e23e48bf1b47cad7fd4fd",
+      "cases": [
+        {
+          "status": "PASS",
+          "durationMs": 29758,
+          "receipt": ".testLogs/consumer-wave-next-20261030/drain-repeat-1.json"
+        },
+        {
+          "status": "TIME",
+          "durationMs": 30280,
+          "receipt": ".testLogs/consumer-wave-next-20261030/drain-repeat-2.json"
+        }
+      ],
+      "thirdCase": "not run after failure",
+      "conclusion": "Original final assertions were reached; the deadline elapsed during final disposal. Native access violation or deadlock is not established. Detailed filesystem-observer overhead remains unmeasured."
+    }
+  },
+  "boundaries": [
+    "Earlier green observations retain their original source identity; no final-tree or new full-suite pass is claimed.",
+    "All P3 reports are closed; remaining targets are P2.",
+    "Editor and physical POSIX filename qualification remain outside the current Windows scope.",
+    "Model acquisition/reference implementation does not establish real M3/E5/EG2 runtime or retrieval quality."
+  ]
+}

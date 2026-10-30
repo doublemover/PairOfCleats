@@ -3,14 +3,14 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { exitLikeChildResult } from './postinstall-exit.js';
-import { applyPatches, exitPatchFailure } from './apply-patches.js';
+import { applyPatchesAsync, exitPatchFailure } from './apply-patches.js';
 
-function run() {
+async function run() {
   const cwd = process.cwd();
   const rebuildNativeScript = path.join(cwd, 'tools', 'setup', 'rebuild-native.js');
   let patchCount;
   try {
-    patchCount = applyPatches(cwd);
+    patchCount = await applyPatchesAsync(cwd);
   } catch (error) {
     exitPatchFailure(error);
     return;
@@ -35,4 +35,4 @@ function run() {
   exitLikeChildResult(rebuildResult);
 }
 
-run();
+await run();

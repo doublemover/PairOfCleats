@@ -5,7 +5,7 @@ import { fuseRankedHits } from '../../../src/retrieval/pipeline/fusion.js';
 import { runRankStage } from '../../../src/retrieval/pipeline/rank-stage.js';
 
 const fields = [
-  'idx', 'score', 'scoreType', 'sparseScore', 'annScore', 'annSource', 'sparseType', 'blendInfo'
+  'idx', 'score', 'scoreType', 'sparseScore', 'annScore', 'annSource', 'sparseType', 'annScoreSpace', 'blendInfo'
 ];
 const pool = createScoreBufferPool({ maxBuffers: 1, maxEntries: 128 });
 const buffer = pool.acquire({ fields, capacity: 128 });

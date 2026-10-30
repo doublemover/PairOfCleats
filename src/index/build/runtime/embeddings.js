@@ -1,15 +1,21 @@
-import { resolveEmbeddingArtifactIdentity } from '../../../shared/embedding-artifact-identity.js';
+import { embeddingArtifactReusable } from '../../../shared/embedding-artifact-identity.js';
+import { resolveEmbeddingArtifactIdentityAsync } from '../../../shared/embedding-artifact-lease.js';
 import fs from 'node:fs/promises';
 import { resolveEmbeddingIntent } from '../../../shared/embedding-intent.js';
 import { DEFAULT_MODEL_ID, getModelConfig } from '../../../shared/dict-utils.js';
 import { createEmbedder } from '../../embedding.js';
-import { resolveAutoEmbeddingBatchSize } from '../../../shared/embedding-batch.js';
+import { resolveAutoEmbeddingBatchSize, resolveEmbeddingsBatchTokenBudget } from '../../../shared/embedding-batch.js';
+import { closeInlineEmbeddingBatcher } from '../../../shared/embedding-inline-batcher.js';
 import { buildEmbeddingIdentity, buildEmbeddingIdentityKey } from '../../../shared/embedding-identity.js';
 import { resolveEmbeddingInputFormatting } from '../../../shared/embedding-input-format.js';
 import { resolveStubDims } from '../../../shared/embedding.js';
 import { resolveEmbeddingModelProfile, validateEmbeddingModelProfile } from '../../../shared/embedding-model-profile.js';
 import { normalizeEmbeddingProvider, resolveOnnxConfig, resolveOnnxModelPath } from '../../../shared/onnx-embeddings.js';
-import { resolveQuantizationParams } from '../../../storage/sqlite/quantization.js';
+import { resolveEmbeddingQuantizationSpec } from '../../../shared/embedding-quantization-spec.js';
+import { addStorageFailureContext, readStorageFailureContext } from '../../../shared/storage/operation-error.js';
+import { captureRuntimeFailureObservation, composeRuntimeTeardownFailures } from './failure.js';
+
+const runtimeClosed = () => Object.assign(new Error('Inline embedding runtime is closed.'), { code: 'ERR_EMBEDDING_RUNTIME_CLOSED' });
 
 /**
  * Resolve embedding runtime configuration and lazy embedding adapters.
@@ -49,7 +55,7 @@ export const resolveEmbeddingRuntime = async ({
   }
   const embeddingProvider = normalizeEmbeddingProvider(embeddingsConfig.provider, { strict: true });
   const embeddingOnnx = resolveOnnxConfig(embeddingsConfig.onnx || {}, rawEnv);
-  const quantization = resolveQuantizationParams(embeddingsConfig.quantization);
+  const quantization = resolveEmbeddingQuantizationSpec(embeddingsConfig.quantization);
   const embeddingNormalize = embeddingsConfig.normalize !== false;
   const embeddingQueueConfig = embeddingsConfig.queue || {};
   const embeddingCacheConfig = embeddingsConfig.cache || {};
@@ -90,7 +96,9 @@ export const resolveEmbeddingRuntime = async ({
   const modelConfig = getModelConfig(rootDir, userConfig);
   const modelId = argv.model || modelConfig.id || DEFAULT_MODEL_ID;
   const modelProfile = resolveEmbeddingModelProfile(modelId, embeddingsConfig.embeddinggemma2);
-  validateEmbeddingModelProfile(modelProfile, { provider: embeddingProvider, normalize: embeddingNormalize });
+  if (embeddingEnabled) {
+    validateEmbeddingModelProfile(modelProfile, { provider: embeddingProvider, normalize: embeddingNormalize });
+  }
   const embeddingInputFormatting = resolveEmbeddingInputFormatting(modelId);
   const modelsDir = modelConfig.dir;
   if (modelsDir && embeddingEnabled) {
@@ -99,12 +107,45 @@ export const resolveEmbeddingRuntime = async ({
     } catch {}
   }
 
-  const modelArtifact = embeddingEnabled ? resolveEmbeddingArtifactIdentity({
+  const modelArtifact = embeddingEnabled ? await resolveEmbeddingArtifactIdentityAsync({
     provider: embeddingProvider, modelId, modelsDir, rootDir, onnx: embeddingOnnx, modelProfile, stub: useStubEmbeddings
   }) : null;
+  if (embeddingEnabled && !embeddingArtifactReusable(modelArtifact)) {
+    throw Object.assign(new Error('Inline embeddings require verified model artifacts before cache/signature selection. Download/verify the selected model, then retry the build.'), {
+      code: 'ERR_EMBEDDING_ARTIFACT_UNVERIFIED'
+    });
+  }
   let observation = { state: 'not-started', provider: null, dims: null, device: null, dtype: null, observedAt: null, method: null };
   let embeddingIdentity = null;
   let embeddingIdentityKey = null;
+  const failureObservations = new WeakMap(), pendingFailures = new Map();
+  let failureOverflow = null;
+  const settled = captured => captured.observe() && readStorageFailureContext(captured.context)?.complete === true;
+  const rememberFailure = (error, gatesDispose = true) => {
+    const objectLike = error !== null && (typeof error === 'object' || typeof error === 'function');
+    let captured = objectLike && failureObservations.get(error);
+    if (!captured) {
+      captured = captureRuntimeFailureObservation(error);
+      if (objectLike) failureObservations.set(error, captured);
+    }
+    const existing = pendingFailures.get(error);
+    if (existing && gatesDispose) existing.gatesDispose = true;
+    if (!settled(captured) && !existing) {
+      if (pendingFailures.size < 128) pendingFailures.set(error, { captured, gatesDispose });
+      else failureOverflow ||= captureRuntimeFailureObservation(Object.assign(new Error(
+        'Inline embedding unresolved failure inventory exceeded its bounded allowance.', { cause: error }),
+      { code: 'ERR_EMBEDDING_RUNTIME_FAILURE_INVENTORY', cacheOwnershipPending: true, cacheOwnershipReleased: () => false }));
+    }
+    return captured;
+  };
+  const retainedFailures = ({ beforeDispose = false } = {}) => {
+    for (const [error, { captured }] of pendingFailures) if (settled(captured)) pendingFailures.delete(error);
+    return [...pendingFailures.values()].filter(({ captured, gatesDispose }) => {
+      if (!beforeDispose || gatesDispose) return true;
+      const context = readStorageFailureContext(captured.context);
+      return !context?.complete || context.inspectionObservations.some(item => !item.observe());
+    }).map(item => item.captured).concat(failureOverflow ? [failureOverflow] : []);
+  };
   let observationWrite = Promise.resolve();
   const publishObservation = (next) => {
     const write = observationWrite.then(async () => {
@@ -128,13 +169,71 @@ export const resolveEmbeddingRuntime = async ({
       embeddingIdentity = identity;
       embeddingIdentityKey = identityKey;
     });
-    observationWrite = write.catch(() => {});
+    // The queue may continue after a rejected notification, but its original
+    // independent resource observation survives through runtime close.
+    observationWrite = write.catch(error => { rememberFailure(error); });
     return write;
   };
-  let getChunkEmbedding = async () => [];
-  let getChunkEmbeddings = async () => [];
+  let closed = false;
+  let getChunkEmbedding = async () => { if (closed) throw runtimeClosed(); return []; };
+  let getChunkEmbeddings = async () => { if (closed) throw runtimeClosed(); return []; };
+  let embedder = null;
+  let closing = null;
+  let batcherClosed = false;
+  let workDrained = false;
+  let observationsDrained = false;
+  let embedderDisposed = false;
+  let disposeEmbedder = null;
+  let completelyClosed = false;
+  const operations = new Set();
+  const trackOperation = work => {
+    const tracked = Promise.resolve(work).catch(error => {
+      throw composeRuntimeTeardownFailures([rememberFailure(error)]);
+    });
+    operations.add(tracked);
+    tracked.then(() => operations.delete(tracked), () => operations.delete(tracked));
+    return tracked;
+  };
+  const closeEmbeddingRuntime = () => {
+    if (!closing) {
+      closed = true;
+      closing = (async () => {
+        const failures = [];
+        const closeStep = async (done, action, confirm, gatesDispose = true) => {
+          if (done) return;
+          try { await action(); confirm(); }
+          catch (error) { failures.push(rememberFailure(error, gatesDispose)); }
+        };
+        await closeStep(batcherClosed, () => closeInlineEmbeddingBatcher(getChunkEmbeddings), () => { batcherClosed = true; });
+        // A batcher failure cannot skip the runtime's original inference work.
+        await closeStep(workDrained, () => Promise.allSettled([...operations]), () => { workDrained = true; });
+        await closeStep(observationsDrained, () => observationWrite, () => { observationsDrained = true; });
+        // Rejected work may already have left operations. Its captured native
+        // or diagnostic child still prevents releasing the parent lease.
+        if (!retainedFailures({ beforeDispose: true }).length) await closeStep(embedderDisposed, async () => {
+          if (!disposeEmbedder && embedder) {
+            const owner = embedder, dispose = owner.dispose;
+            if (typeof dispose !== 'function') throw new TypeError('Inline embedder has no disposal control.');
+            disposeEmbedder = () => dispose.call(owner);
+          }
+          if (await disposeEmbedder?.() === false) throw Object.assign(new Error('Inline embedding disposal was explicitly unconfirmed.'),
+            { code: 'ERR_EMBEDDING_RUNTIME_DISPOSAL_UNCONFIRMED' });
+        }, () => { embedderDisposed = true; }, false);
+        for (const captured of retainedFailures()) if (!failures.includes(captured)) failures.push(captured);
+        if (failures.length) throw composeRuntimeTeardownFailures(failures);
+        completelyClosed = true;
+      })().catch(error => {
+        // Only a subsequent explicit close retries failed steps. Admissions stay
+        // closed, confirmed steps stay complete, and the original lease survives.
+        closing = null;
+        throw addStorageFailureContext(error, { cacheOwnershipPending: true,
+          cacheOwnershipReleased: () => completelyClosed, closeEmbeddingRuntime }, null,
+        { forceAggregate: true, nonEnumerable: ['closeEmbeddingRuntime'] });
+      });
+    }
+    return closing;
+  };
   if (embeddingEnabled) {
-    let embedder = null;
     const ensureEmbedder = () => {
       if (!embedder) {
         embedder = createEmbedder({
@@ -183,15 +282,30 @@ export const resolveEmbeddingRuntime = async ({
         }
         return result;
       } catch (error) {
-        await publishObservation({ state: 'failed', method: 'provider-request-failed', errorCode: String(error?.code || 'UNKNOWN') });
-        throw error;
+        const primary = rememberFailure(error);
+        try {
+          const code = primary.context.code;
+          await publishObservation({ state: 'failed', method: 'provider-request-failed', errorCode: typeof code === 'string' ? code : 'UNKNOWN' });
+        } catch (notificationError) {
+          throw composeRuntimeTeardownFailures([primary, rememberFailure(notificationError)]);
+        }
+        throw composeRuntimeTeardownFailures([primary]);
       }
     };
-    getChunkEmbedding = (text) => execute(text, false);
-    getChunkEmbeddings = (texts) => execute(texts, true);
+    const admit = (input, batch) => {
+      if (closed) return Promise.reject(runtimeClosed());
+      return trackOperation(execute(input, batch));
+    };
+    getChunkEmbedding = (text) => admit(text, false);
+    getChunkEmbeddings = (texts) => admit(texts, true);
+    getChunkEmbeddings.batchTokenBudget = resolveEmbeddingsBatchTokenBudget({ indexingConfig, embeddingBatchSize });
+    getChunkEmbeddings.estimateTokensBatch = texts => {
+      if (closed) return Promise.reject(runtimeClosed());
+      return trackOperation(Promise.resolve().then(() => ensureEmbedder().getChunkEmbeddings.estimateTokensBatch(texts)));
+    };
   }
 
-  const resolvedOnnxModelPath = embeddingProvider === 'onnx'
+  const resolvedOnnxModelPath = embeddingEnabled && embeddingProvider === 'onnx'
     ? resolveOnnxModelPath({
       rootDir,
       modelPath: embeddingOnnx.modelPath,
@@ -199,11 +313,7 @@ export const resolveEmbeddingRuntime = async ({
       modelId
     })
     : null;
-  const quantRange = quantization.maxVal - quantization.minVal;
-  const quantLevels = Number.isFinite(quantization.levels) ? quantization.levels : 256;
-  const denseScale = quantLevels > 1 && Number.isFinite(quantRange) && quantRange !== 0
-    ? quantRange / (quantLevels - 1)
-    : 2 / 255;
+  const denseScale = quantization.scale;
   embeddingIdentity = buildEmbeddingIdentity({
     modelProfile,
     modelArtifact,
@@ -219,7 +329,7 @@ export const resolveEmbeddingRuntime = async ({
     maxLength: null,
     inputFormatting: embeddingInputFormatting,
     quantization: {
-      version: 1,
+      version: quantization.version,
       minVal: quantization.minVal,
       maxVal: quantization.maxVal,
       levels: quantization.levels
@@ -229,6 +339,7 @@ export const resolveEmbeddingRuntime = async ({
       resolvedModelPath: resolvedOnnxModelPath
     } : null
   });
+  if (!embeddingEnabled) embeddingIdentity.modelArtifact = null;
   embeddingIdentityKey = buildEmbeddingIdentityKey(embeddingIdentity);
 
   return {
@@ -240,6 +351,7 @@ export const resolveEmbeddingRuntime = async ({
     embeddingProvider,
     embeddingOnnx,
     embeddingNormalize,
+    embeddingQuantization: quantization,
     embeddingInputFormatting,
     embeddingQueue: {
       dir: embeddingQueueDir || null,
@@ -256,6 +368,7 @@ export const resolveEmbeddingRuntime = async ({
     modelId,
     modelsDir,
     getChunkEmbedding,
-    getChunkEmbeddings
+    getChunkEmbeddings,
+    closeEmbeddingRuntime
   };
 };

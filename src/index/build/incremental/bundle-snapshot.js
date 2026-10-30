@@ -1,3 +1,4 @@
+import { writeParseCheckpointDescriptor } from './parse-checkpoint-descriptor.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
@@ -8,6 +9,7 @@ import { canonicalizeBundlePayloadForChecksum } from '../../../shared/bundle-che
 import { canonicalBundleSourceKey, normalizeBundleSourceKeys } from '../../../shared/bundle-source-key.js';
 import { throwIfAborted } from '../../../shared/abort.js';
 import { writeAccountedBundle } from './accounted-bundle.js';
+import { admitDocumentExtractionReceipt } from '../../extractors/receipt.js';
 
 const digest = (bundle, format) => createHash('sha256').update(JSON.stringify(
   canonicalizeBundlePayloadForChecksum(bundle, { typedArraysBeforeToJSON: format === 'json' })
@@ -15,6 +17,22 @@ const digest = (bundle, format) => createHash('sha256').update(JSON.stringify(
 const same = (left, right) => JSON.stringify(canonicalizeBundlePayloadForChecksum(left ?? null))
   === JSON.stringify(canonicalizeBundlePayloadForChecksum(right ?? null));
 const snapshotPattern = /^(resume|snapshot)-([a-f0-9]{64})\.(json|mpk)$/;
+
+/** Shared per-shard authority check for index replay and ordered SQLite decode.
+ * A shard's own checksum cannot substitute for its selected manifest identity. */
+export const validateIncrementalBundleShardAuthority = ({ relKey, sourceHash, sourceSize,
+  dependencySignatures, bundleName, part, index, count, format, bundle }) => {
+  const match = snapshotPattern.exec(bundleName || '');
+  const resolved = normalizeBundleFormat(format);
+  if (!match || path.basename(bundleName) !== bundleName || part?.name !== bundleName
+    || part.index !== index || part.count !== count || part.hash !== match[2]
+    || (resolved === 'json' ? 'json' : 'mpk') !== match[3]) return false;
+  return canonicalBundleSourceKey(bundle?.file) === canonicalBundleSourceKey(relKey)
+    && bundle.hash === sourceHash && bundle.size === sourceSize
+    && same(bundle.dependencySignatures, dependencySignatures)
+    && bundle.bundleShardIndex === index && bundle.bundleShardCount === count
+    && digest(bundle, resolved) === part.hash;
+};
 
 /** Admit all shards against one selected manifest entry, never just their own checksum. */
 export const readIncrementalBundleSnapshot = async ({ repoRoot = process.cwd(), bundleDir,
@@ -38,11 +56,12 @@ export const readIncrementalBundleSnapshot = async ({ repoRoot = process.cwd(), 
       const result = await readBundleFile(filename, { format, repoRoot });
       if (!result.ok) return null;
       const bundle = result.bundle;
-      if (canonicalBundleSourceKey(bundle.file) !== file || bundle.hash !== entry.hash
-        || bundle.size !== entry.size
-        || !same(bundle.dependencySignatures, entry.dependencySignatures)
-        || bundle.bundleShardIndex !== index || bundle.bundleShardCount !== names.length
-        || digest(bundle, format) !== part.hash) return null;
+      if (!validateIncrementalBundleShardAuthority({ relKey: file, sourceHash: entry.hash, sourceSize: entry.size,
+        dependencySignatures: entry.dependencySignatures, bundleName: name, part, index,
+        count: names.length, format, bundle })) return null;
+      if (bundle.documentExtraction && (index !== 0 || !admitDocumentExtractionReceipt({
+        receipt: bundle.documentExtraction, sourceHash: entry.hash, sourceSize: entry.size
+      }))) return null;
       shards.push({ bundleName: name, bundlePath: filename, bundleFormat: format, bundle });
     }
     const first = shards[0].bundle;
@@ -67,6 +86,9 @@ export const writeIncrementalBundleSnapshot = async ({ repoRoot = process.cwd(),
     throwIfAborted(signal);
     const bundle = normalizeBundleSourceKeys({ ...bundles[index], file,
       artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION, bundleShardIndex: index, bundleShardCount: bundles.length });
+    if (bundle.documentExtraction && (index !== 0 || !admitDocumentExtractionReceipt({
+      receipt: bundle.documentExtraction, sourceHash: bundle.hash, sourceSize: bundle.size
+    }))) throw new TypeError('Invalid document extraction receipt in bundle publication.');
     if (entry && (bundle.hash !== entry.hash || !same(bundle.dependencySignatures, entry.dependencySignatures))) {
       throw new TypeError('Replacement bundle differs from its selected source/dependency snapshot.');
     }
@@ -88,6 +110,10 @@ export const writeIncrementalBundleSnapshot = async ({ repoRoot = process.cwd(),
     }
     names.push(name); inventory.push({ name, hash, index, count: bundles.length });
   }
-  return { bundles: names, bundleInventory: inventory, bundleFormat: resolvedFormat,
+  const snapshot = { bundles: names, bundleInventory: inventory, bundleFormat: resolvedFormat,
     bundleChecksum: checksum || 'sha256:' + inventory[0].hash };
+  const parseCheckpointDescriptor = await writeParseCheckpointDescriptor({ bundleDir, relKey,
+    entry: { ...snapshot, hash: bundles[0].hash, dependencySignatures: bundles[0].dependencySignatures },
+    checkpoint: bundles[0].parseCheckpoint, diskAccount, signal });
+  return { ...snapshot, ...(parseCheckpointDescriptor ? { parseCheckpointDescriptor } : {}) };
 };

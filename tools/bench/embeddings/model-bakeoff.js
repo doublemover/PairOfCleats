@@ -2,6 +2,18 @@
 import { guardBootstrapEntry } from '../../../src/shared/bootstrap-readiness.js';
 await guardBootstrapEntry(import.meta.url);
 import crypto from 'node:crypto';
+import { evaluationFileIdentity, bakeoffGenerationIdentity, bakeoffGenerationObservation, matchEvaluatedBakeoffGeneration } from './evaluation-identity.js';
+import { assertEvaluationSearchPlan } from '../../eval/search-plan.js';
+import { withBakeoffCheckpoint } from './bakeoff-checkpoint.js';
+import { createBakeoffExecutionPolicy } from './bakeoff-execution-policy.js';
+import { runBakeoffBuildChild, runBakeoffJsonChild, runBakeoffPhase, persistBakeoffFailure, bakeoffPhaseFailureReceipt, BAKEOFF_PHASE_STATE_VERSION } from './bakeoff-phase.js';
+import { addStorageFailureContext } from '../../../src/shared/storage/operation-error.js';
+import { observeStorageResource } from '../../../src/shared/storage/failure-observation.js';
+import { throwIfAborted } from '../../../src/shared/abort.js';
+import { setTimeout as delay } from 'node:timers/promises';
+import { assertCompatibleEvaluationDepthPlans } from '../../eval/depth-plan.js';
+import { assertQualifiedEvaluationComparison } from '../../shared/retrieval-execution-evidence.js';
+import { stableStringify } from '../../../src/shared/stable-json.js';
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
@@ -12,10 +24,8 @@ const { getEnvConfig } = await import('../../../src/shared/env/runtime.js');
 const { resolveEmbeddingInputFormatting } = await import('../../../src/shared/embedding-input-format.js');
 const { hasChunkMetaArtifactsSync } = await import('../../../src/shared/artifact-io/chunk-meta-presence.js');
 const { readJsonFileSyncSafe } = await import('../../../src/shared/file-read.js');
-const { writeJsonFileResolved } = await import('../../../src/shared/json-file.js');
-const { sleep } = await import('../../../src/shared/sleep.js');
-const { spawnSubprocess, spawnSubprocessSync } = await import('../../../src/shared/subprocess/runner.js');
 const {
+  formatElapsed,
   resolveBakeoffFastPathDefaults,
   resolveBakeoffBuildPlan,
   resolveBakeoffCurrentBuildRoot,
@@ -226,36 +236,11 @@ const isIndexLockContentionMessage = (value) => (
   /index lock (held|unavailable)/i.test(String(value || ''))
 );
 
-const throwIfSubprocessFailed = (result, label) => {
-  if (result.exitCode === 0 && !result.signal) return;
-  const stderr = String(result.stderr || '').trim();
-  const suffix = stderr ? `\n${stderr}` : '';
-  const reason = result.signal
-    ? `signal=${result.signal}`
-    : `exit=${result.exitCode ?? 'unknown'}`;
-  throw new Error(`${label} failed (${reason})${suffix}`);
-};
-
-const runNode = async (args, env, label) => {
-  const result = await spawnSubprocess(process.execPath, args, {
-    cwd: root,
-    env,
-    stdio: streamChildOutputToStderr ? ['ignore', 'pipe', 'pipe'] : 'inherit',
-    captureStdout: false,
-    captureStderr: true,
-    maxOutputBytes: 32 * 1024,
-    outputMode: 'string',
-    onStdout: streamChildOutputToStderr
-      ? (chunk) => process.stderr.write(chunk)
-      : null,
-    onStderr: streamChildOutputToStderr
-      ? (chunk) => process.stderr.write(chunk)
-      : null,
-    rejectOnNonZeroExit: false
-  });
-  throwIfSubprocessFailed(result, label);
-  return result;
-};
+const runNode = (args, env, label, { signal, onProgress } = {}) => runBakeoffBuildChild({
+  args, env, cwd: root, label, signal, onProgress,
+  onStdout: chunk => { if (argv.quiet !== true) (streamChildOutputToStderr ? process.stderr : process.stdout).write(chunk); },
+  onDiagnostic: chunk => { if (argv.quiet !== true) process.stderr.write(chunk); }
+});
 
 /**
  * Run a node subprocess and retry only on index-lock contention failures.
@@ -273,11 +258,12 @@ const runNodeWithLockRetry = async (
   args,
   env,
   label,
-  { maxAttempts = 5, baseDelayMs = 5000 } = {}
+  { maxAttempts = 5, baseDelayMs = 5000, signal, onProgress } = {}
 ) => {
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     try {
-      return await runNode(args, env, label);
+      throwIfAborted(signal);
+      return await runNode(args, env, label, { signal, onProgress });
     } catch (err) {
       const message = err?.message || String(err);
       const retryable = isIndexLockContentionMessage(message);
@@ -287,57 +273,19 @@ const runNodeWithLockRetry = async (
         `[bakeoff] ${label}: index lock contention, retrying (${attempt}/${maxAttempts}) in ${delayMs}ms`,
         { kind: 'status', stage: 'bakeoff' }
       );
-      await sleep(delayMs);
+      await delay(delayMs, undefined, { signal });
     }
   }
   throw new Error(`${label} failed after retries.`);
 };
 
-const runJsonNode = (args, env, label) => {
-  const result = spawnSubprocessSync(process.execPath, args, {
-    cwd: root,
-    maxOutputBytes: 64 * 1024 * 1024,
-    env,
-    stdio: ['ignore', 'pipe', 'pipe'],
-    captureStdout: true,
-    captureStderr: true,
-    outputMode: 'string',
-    rejectOnNonZeroExit: false
-  });
-  throwIfSubprocessFailed(result, label);
-  const stdout = String(result.stdout || '{}').trim() || '{}';
-  try {
-    return JSON.parse(stdout);
-  } catch (err) {
-    throw new Error(`${label} returned invalid JSON: ${err?.message || err}`);
-  }
-};
+const runJsonNode = (args, env, label, phase = {}) => runBakeoffJsonChild({ args, env, cwd: root, label, ...phase });
 
-/**
- * Build an isolated per-model process environment for bakeoff runs.
- *
- * Each model gets a dedicated cache root while optionally sharing model/dictionary
- * directories to avoid redownloading artifacts across runs.
- *
- * @param {string} modelId
- * @returns {Record<string, string|undefined>}
- */
-const toModelEnv = (modelId) => {
-  const env = {
-    ...baseEnv,
-    PAIROFCLEATS_MODEL: modelId,
-    PAIROFCLEATS_CACHE_ROOT: modelCacheRoot(modelId)
-  };
-  if (sharedModelsDir) env.PAIROFCLEATS_MODELS_DIR = sharedModelsDir;
-  if (sharedDictDir) env.PAIROFCLEATS_DICT_DIR = sharedDictDir;
-  if (useStubEmbeddings) env.PAIROFCLEATS_EMBEDDINGS = 'stub';
-  if (heapMb > 0) env.PAIROFCLEATS_MAX_OLD_SPACE_MB = String(heapMb);
-  if (embeddingSampleFiles > 0) {
-    env.PAIROFCLEATS_EMBEDDINGS_SAMPLE_FILES = String(embeddingSampleFiles);
-    env.PAIROFCLEATS_EMBEDDINGS_SAMPLE_SEED = embeddingSampleSeed;
-  }
-  return env;
-};
+const executionPolicy = createBakeoffExecutionPolicy({ root, userConfig, baseEnv, mode,
+  embeddingSampleFiles, embeddingSampleSeed, stubRequested: useStubEmbeddings });
+const modelExecutionPlans = new Map(models.map(modelId => [modelId, executionPolicy.forModel({
+  modelId, cacheRoot: modelCacheRoot(modelId), sharedModelsDir, sharedDictDir, heapMb })]));
+const toModelEnv = modelId => modelExecutionPlans.get(modelId).env;
 
 const directorySizeBytes = async (dirPath) => {
   if (!dirPath || !fs.existsSync(dirPath)) return 0;
@@ -467,13 +415,13 @@ const sqliteArtifactsExist = (modelCacheRootPath, resolvedMode) => {
  * @param {{modelId:string,env:NodeJS.ProcessEnv,resolvedMode:string}} input
  * @returns {number}
  */
-const runIsolatedStage4 = async ({ modelId, env, resolvedMode }) => {
+const runIsolatedStage4 = async ({ modelId, env, resolvedMode, phase }) => {
   const stage4Modes = resolveBakeoffStage4Modes(resolvedMode);
   const startedAt = Date.now();
   for (const stageMode of stage4Modes) {
     const args = [buildIndexScript, '--stage', '4', '--repo', root, '--mode', stageMode];
     if (incremental) args.push('--incremental');
-    await runNodeWithLockRetry(args, env, `build sqlite (${modelId}:${stageMode})`);
+    await runNodeWithLockRetry(args, env, `build sqlite (${modelId}:${stageMode})`, phase);
   }
   return Date.now() - startedAt;
 };
@@ -506,6 +454,22 @@ if (runCompare && models.length > 1 && configCacheRoot && !buildIndex) {
   process.exit(1);
 }
 
+const evaluationInputIdentity = {
+  schema: 'bakeoff-evaluation.v3', repository: { root: toRealPathSync(root), repoId },
+  dataset: runEval ? evaluationFileIdentity(datasetPath, { canonicalJson: true }) : null,
+  queries: runCompare && queriesPath ? evaluationFileIdentity(queriesPath) : null,
+  policies: Object.fromEntries([...(runEval ? [evalScript,
+    path.join(toolRoot, 'tools', 'eval', 'metrics.js'), path.join(toolRoot, 'tools', 'eval', 'match.js'),
+    path.join(toolRoot, 'tools', 'eval', 'cohorts.js'), path.join(toolRoot, 'tools', 'eval', 'depth-plan.js'),
+    path.join(toolRoot, 'tools', 'eval', 'summary.js'), path.join(toolRoot, 'tools', 'eval', 'search-plan.js'),
+    path.join(toolRoot, 'tools', 'shared', 'retrieval-execution-evidence.js'),
+    path.join(toolRoot, 'tools', 'shared', 'retrieval-result-admission.js'),
+    path.join(toolRoot, 'tools', 'shared', 'retrieval-cohort-admission.js'),
+    path.join(toolRoot, 'src', 'retrieval', 'score-observation.js'), path.join(toolRoot, 'src', 'retrieval', 'hit-comparison.js')] : []), ...(runCompare ? [compareScript] : [])].map(file => [path.relative(toolRoot, file), evaluationFileIdentity(file)]))
+};
+const currentModelGeneration = modelId => bakeoffGenerationIdentity(path.join(resolveVersionedCacheRoot(modelCacheRoot(modelId)), 'repos', repoId));
+const admittedEvaluationPlans = new Map();
+const phaseStates = new Map();
 const outputSettings = {
   models,
   baseline,
@@ -521,14 +485,18 @@ const outputSettings = {
   buildIndex,
   buildSqlite,
   incremental,
-  stubEmbeddings: useStubEmbeddings,
+  stubEmbeddings: executionPolicy.receipt.effective.stubEmbeddings,
+  executionPolicy: executionPolicy.receipt,
+  requestedModelExecutionDigests: Object.fromEntries([...modelExecutionPlans].map(([modelId, plan]) => [modelId, plan.execution.digest])),
   runEval,
   runCompare,
   datasetPath,
   queriesPath,
+  evaluationInputIdentity,
   cacheRootBase
 };
-const settingsSignature = JSON.stringify(outputSettings);
+let checkpointOwner = null;
+let resumeObservation = { state: 'not-read', sourceHash: null, sourceRunId: null };
 const modelsTask = display.task('Models', {
   taskId: 'bakeoff:models',
   total: models.length,
@@ -575,7 +543,12 @@ const buildOutputPayload = ({
     resumedModels,
     currentModel,
     currentPhase,
-    phaseStartedAt
+    phaseStartedAt,
+    resume: resumeObservation,
+    phaseStateVersion: BAKEOFF_PHASE_STATE_VERSION,
+    phases: [...phaseStates.values()],
+    settledPhases: [...phaseStates.values()].filter(phase => ['succeeded', 'failed', 'cancelled'].includes(phase.state)).length,
+    succeededPhases: [...phaseStates.values()].filter(phase => phase.state === 'succeeded').length
   },
   error: error || null,
   settings: outputSettings,
@@ -611,7 +584,7 @@ const writeOutputPayload = async ({
   resumedModels = 0,
   currentModel = null,
   currentPhase = null,
-  phaseStartedAt = null
+  phaseStartedAt = null, finalize = false, publishLatest = true
 }) => {
   const payload = buildOutputPayload({
     modelReports,
@@ -623,8 +596,8 @@ const writeOutputPayload = async ({
     currentPhase,
     phaseStartedAt
   });
-  await writeJsonFileResolved(checkpointOutPath, payload);
-  return payload;
+  if (!checkpointOwner) throw new Error('Bakeoff checkpoint owner was not admitted.');
+  return checkpointOwner.write(payload, { final: finalize, publishLatest });
 };
 
 const isModelReportComplete = (entry) => {
@@ -643,36 +616,37 @@ const isModelReportComplete = (entry) => {
  * @returns {Promise<object[]>}
  */
 const loadResumedModelReports = async () => {
-  if (!allowResume) return [];
-  if (!fs.existsSync(checkpointOutPath)) return [];
-  try {
-    const parsed = JSON.parse(await fsPromises.readFile(checkpointOutPath, 'utf8')) || {};
-    if (!parsed || typeof parsed !== 'object') return [];
-    const savedSignature = JSON.stringify(parsed.settings || {});
-    if (savedSignature !== settingsSignature) return [];
-    const savedModels = Array.isArray(parsed.models) ? parsed.models : [];
-    const byId = new Map(savedModels.map((entry) => [entry?.modelId, entry]));
-    const resumed = [];
-    for (const modelId of models) {
-      const entry = byId.get(modelId);
-      if (!isModelReportComplete(entry)) continue;
-      resumed.push(entry);
+  const admitted = checkpointOwner.existing;
+  resumeObservation = { state: !allowResume ? 'disabled' : admitted.state, sourceHash: admitted.sourceHash,
+    sourceRunId: admitted.sourceRunId || null, sourceReceiptPath: admitted.sourceReceiptPath || null };
+  if (!allowResume || admitted.state !== 'compatible') return [];
+  const byId = new Map(admitted.payload.models.map(entry => [entry.modelId, entry]));
+  const resumed = [], excluded = [];
+  for (const modelId of models) {
+    const entry = byId.get(modelId);
+    if (!isModelReportComplete(entry)) { excluded.push({ modelId, reason: 'missing-or-incomplete-model-report' }); continue; }
+    const generation = await currentModelGeneration(modelId);
+    if (!generation || entry.resumeIdentity?.generation !== generation
+      || entry.resumeIdentity?.input !== stableStringify(evaluationInputIdentity)) {
+      excluded.push({ modelId, reason: 'generation-or-evaluation-input-unqualified' }); continue;
     }
-    return resumed;
-  } catch {
-    return [];
+    if (runEval) {
+      try { assertQualifiedEvaluationComparison(entry.eval); assertEvaluationSearchPlan(entry.eval, admittedEvaluationPlans.get(modelId)); }
+      catch (error) {
+        observeStorageResource(error, { phase: 'bakeoff-resume-evaluation-admission' }).requireSettled();
+        excluded.push({ modelId, reason: 'effective-evaluation-query-plan-changed-or-unknown' }); continue;
+      }
+    }
+    resumed.push(entry);
   }
+  resumeObservation = { ...resumeObservation, state: excluded.length ? 'compatible-partial' : 'compatible',
+    admittedModels: resumed.length, excludedModels: excluded };
+  return resumed;
 };
 
-const modelReports = await loadResumedModelReports();
-const resumedModels = modelReports.length;
-const completedModelIds = new Set(modelReports.map((entry) => entry.modelId));
-completedModelsProgress = completedModelIds.size;
-modelsTask.set(completedModelsProgress, models.length, {
-  message: resumedModels > 0
-    ? `${resumedModels} resumed`
-    : 'starting'
-});
+const modelReports = [];
+let resumedModels = 0;
+const completedModelIds = new Set();
 
 const setActivePhase = (modelId, phase) => {
   activeModelId = modelId || null;
@@ -685,55 +659,178 @@ const setActivePhase = (modelId, phase) => {
   });
 };
 
-let compareReport = null;
-for (const modelId of models) {
-  if (completedModelIds.has(modelId)) {
-    display.log(`[bakeoff] resume: skipping completed model=${modelId}`, { kind: 'status', stage: 'bakeoff' });
-    continue;
+const campaignAbort = new AbortController();
+const interruptCampaign = () => campaignAbort.abort();
+process.on('SIGINT', interruptCampaign); process.on('SIGTERM', interruptCampaign);
+const runCampaign = async () => {
+  // Resolve in each exact child environment before any model work or reuse.
+  if (runEval) for (const modelId of models) {
+    const args = [path.join(toolRoot, 'tools', 'eval', 'plan.js'), '--repo', root, '--dataset', datasetPath,
+      '--backend', backend, '--top', String(topN)];
+    if (annOverride === true) args.push('--ann');
+    if (annOverride === false) args.push('--no-ann');
+    if (limit > 0) args.push('--limit', String(limit));
+    admittedEvaluationPlans.set(modelId, await runJsonNode(args, toModelEnv(modelId), `evaluation plan (${modelId})`, { signal: campaignAbort.signal }));
   }
-  const env = toModelEnv(modelId);
-  const timings = {
-    strategy: 'skip',
-    buildIndexMs: 0,
-    buildSqliteMs: 0,
-    totalBuildMs: 0
-  };
-  display.log(`[bakeoff] model=${modelId} cache=${env.PAIROFCLEATS_CACHE_ROOT}`, {
-    kind: 'status',
-    stage: 'bakeoff'
-  });
-
-  try {
-    timings.strategy = resolveBuildStrategy({
-      modelCacheRootPath: env.PAIROFCLEATS_CACHE_ROOT,
-      shouldBuildIndex: buildIndex,
-      resolvedMode: mode
+  modelReports.push(...await loadResumedModelReports());
+  resumedModels = modelReports.length;
+  for (const report of modelReports) completedModelIds.add(report.modelId);
+  completedModelsProgress = completedModelIds.size;
+  modelsTask.set(completedModelsProgress, models.length, { message: resumedModels > 0 ? `${resumedModels} resumed` : 'starting' });
+  let compareReport = null;
+  for (const modelId of models) {
+    if (completedModelIds.has(modelId)) {
+      display.log(`[bakeoff] resume: skipping completed model=${modelId}`, { kind: 'status', stage: 'bakeoff' });
+      continue;
+    }
+    const env = toModelEnv(modelId);
+    const timings = {
+      strategy: 'skip',
+      buildIndexMs: 0,
+      buildSqliteMs: 0,
+      totalBuildMs: 0
+    };
+    display.log(`[bakeoff] model=${modelId} cache=${env.PAIROFCLEATS_CACHE_ROOT}`, {
+      kind: 'status',
+      stage: 'bakeoff'
     });
-    const sqliteRequested = runStage4OnlyBuild || (sqliteBackend && buildIndex);
-    const hasSqliteArtifacts = sqliteRequested
-      ? sqliteArtifactsExist(env.PAIROFCLEATS_CACHE_ROOT, mode)
-      : false;
-    const shouldRunStage4 = sqliteRequested
-      ? (runStage4OnlyBuild || timings.strategy === 'full' || !hasSqliteArtifacts)
-      : false;
 
-    const phasePlan = [];
-    if (timings.strategy === 'full') phasePlan.push('stage2', 'stage3');
-    else if (timings.strategy === 'stage3') phasePlan.push('stage3');
-    if (shouldRunStage4) phasePlan.push('stage4');
-    if (runEval) phasePlan.push('eval');
-    const phaseTotal = Math.max(1, phasePlan.length);
-    let phaseCompleted = 0;
-    const phaseTask = display.task(`Model ${modelId}`, {
-      taskId: `bakeoff:model:${modelId}`,
-      total: phaseTotal,
-      stage: 'bakeoff',
-      mode: modelId,
-      ephemeral: true
-    });
-    const runPhase = async (phaseName, fn) => {
-      const phaseStartedAtMs = Date.now();
-      setActivePhase(modelId, phaseName);
+    try {
+      throwIfAborted(campaignAbort.signal);
+      timings.strategy = resolveBuildStrategy({
+        modelCacheRootPath: env.PAIROFCLEATS_CACHE_ROOT,
+        shouldBuildIndex: buildIndex,
+        resolvedMode: mode
+      });
+      const sqliteRequested = runStage4OnlyBuild || (sqliteBackend && buildIndex);
+      const hasSqliteArtifacts = sqliteRequested
+        ? sqliteArtifactsExist(env.PAIROFCLEATS_CACHE_ROOT, mode)
+        : false;
+      const shouldRunStage4 = sqliteRequested
+        ? (runStage4OnlyBuild || timings.strategy === 'full' || !hasSqliteArtifacts)
+        : false;
+
+      const phasePlan = [];
+      if (timings.strategy === 'full') phasePlan.push('stage2', 'stage3');
+      else if (timings.strategy === 'stage3') phasePlan.push('stage3');
+      if (shouldRunStage4) phasePlan.push('stage4');
+      if (runEval) phasePlan.push('eval');
+      for (const phase of phasePlan) phaseStates.set(JSON.stringify([modelId, phase]), {
+        version: BAKEOFF_PHASE_STATE_VERSION, modelId, phase, state: 'planned', startedAt: null, elapsedMs: null,
+        childProgress: { observation: 'waiting', message: null, observedAt: null }
+      });
+      const phaseTotal = phasePlan.length;
+      const phaseTask = phaseTotal ? display.task(`Model ${modelId}`, {
+        taskId: `bakeoff:model:${modelId}`,
+        total: phaseTotal,
+        stage: 'bakeoff',
+        mode: modelId,
+        ephemeral: true
+      }) : null;
+      const runPhase = (phaseName, fn) => runBakeoffPhase({ modelId, phaseName, display, task: phaseTask,
+        total: phaseTotal, completed: () => [...phaseStates.values()].filter(value => value.modelId === modelId && value.state === 'succeeded').length,
+        signal: campaignAbort.signal, run: fn,
+        onState: state => { phaseStates.set(JSON.stringify([modelId, phaseName]), state); setActivePhase(modelId, phaseName); },
+        checkpoint: async state => {
+          phaseStates.set(JSON.stringify([modelId, phaseName]), state);
+          await writeOutputPayload({ modelReports, compareReport: null, status: ['failed', 'cancelled'].includes(state.state) ? 'failed' : 'running',
+            resumedModels, currentModel: modelId, currentPhase: phaseName, phaseStartedAt: state.startedAt });
+        }
+      });
+
+      if (timings.strategy === 'full') {
+        const startedAt = Date.now();
+        const stage2Args = [buildIndexScript, '--stage', '2', '--repo', root, '--mode', mode];
+        if (incremental) stage2Args.push('--incremental');
+        await runPhase('stage2', phase => runNodeWithLockRetry(stage2Args, env, `build stage2 (${modelId})`, phase));
+
+        const args = [buildIndexScript, '--stage', '3', '--repo', root, '--mode', mode];
+        if (incremental) args.push('--incremental');
+        if (useStubEmbeddings) args.push('--stub-embeddings');
+        await runPhase('stage3', phase => runNodeWithLockRetry(args, env, `build embeddings (${modelId})`, phase));
+        timings.buildIndexMs = Date.now() - startedAt;
+      } else if (timings.strategy === 'stage3') {
+        const args = [buildIndexScript, '--stage', '3', '--repo', root, '--mode', mode];
+        if (incremental) args.push('--incremental');
+        if (useStubEmbeddings) args.push('--stub-embeddings');
+        const startedAt = Date.now();
+        await runPhase('stage3', phase => runNodeWithLockRetry(args, env, `build embeddings (${modelId})`, phase));
+        timings.buildIndexMs = Date.now() - startedAt;
+      }
+
+      if (shouldRunStage4) {
+        timings.buildSqliteMs = await runPhase(
+          'stage4',
+          phase => runIsolatedStage4({ modelId, env, resolvedMode: mode, phase })
+        );
+      }
+      timings.totalBuildMs = timings.buildIndexMs + timings.buildSqliteMs;
+
+      let evalSummary = null;
+      if (runEval) {
+        const evalArgs = [
+          evalScript,
+          '--repo',
+          root,
+          '--dataset',
+          datasetPath,
+          '--backend',
+          backend,
+          '--top',
+          String(topN)
+        ];
+        if (annOverride === true) evalArgs.push('--ann');
+        if (annOverride === false) evalArgs.push('--no-ann');
+        if (limit > 0) evalArgs.push('--limit', String(limit));
+        const evalReport = await runPhase('eval', async phase => {
+          const report = await runJsonNode(evalArgs, env, `eval (${modelId})`, phase);
+          assertCompatibleEvaluationDepthPlans(report?.evaluationPlan, report?.summary?.evaluationPlan);
+          assertQualifiedEvaluationComparison(report);
+          assertEvaluationSearchPlan(report, admittedEvaluationPlans.get(modelId));
+          for (const prior of modelReports) if (prior.eval) {
+            assertCompatibleEvaluationDepthPlans(prior.eval.evaluationPlan, report.evaluationPlan);
+            assertQualifiedEvaluationComparison(prior.eval, report);
+          }
+          return report;
+        });
+        evalSummary = { ...evalReport.summary, evaluationInput: evalReport.evaluationInput,
+          evaluationSearchPlan: evalReport.evaluationSearchPlan, executionEvidence: evalReport.executionEvidence };
+      }
+
+      const cacheBytes = await directorySizeBytes(env.PAIROFCLEATS_CACHE_ROOT);
+      const observedGeneration = await bakeoffGenerationObservation(path.join(resolveVersionedCacheRoot(modelCacheRoot(modelId)), 'repos', repoId),
+        { requestedModes: modelExecutionPlans.get(modelId).execution.modes });
+      const evaluatedGeneration = runEval ? matchEvaluatedBakeoffGeneration(evalSummary, observedGeneration) : observedGeneration.identity;
+      modelReports.push({
+        modelId,
+        executionPolicy: modelExecutionPlans.get(modelId).receipt,
+        requestedEmbeddingExecutionPlan: modelExecutionPlans.get(modelId).execution,
+        observedSampling: evaluatedGeneration ? observedGeneration.coverage : { observation: 'unknown', reason: 'evaluated-generation-not-current' },
+        currentAfterRun: { scope: 'current-after-run-not-evaluation-authority', identity: observedGeneration.identity },
+        resumeIdentity: { schemaVersion: 3, generation: evaluatedGeneration, input: stableStringify(evaluationInputIdentity),
+          evaluatedInput: evalSummary?.evaluationInput?.key || null, queryPolicy: evalSummary?.evaluationSearchPlan?.key || null,
+          reason: evaluatedGeneration ? null : 'evaluated-generation-or-required-identity-unavailable' },
+        cacheRoot: env.PAIROFCLEATS_CACHE_ROOT,
+        inputFormatting: resolveEmbeddingInputFormatting(modelId),
+        build: {
+          strategy: timings.strategy,
+          buildIndexMs: toFixedMs(timings.buildIndexMs),
+          buildSqliteMs: toFixedMs(timings.buildSqliteMs),
+          totalBuildMs: toFixedMs(timings.totalBuildMs)
+        },
+        cache: {
+          bytes: cacheBytes,
+          gib: formatBytesGiB(cacheBytes)
+        },
+        eval: evalSummary,
+        evalReportPath: null
+      });
+      completedModelIds.add(modelId);
+      completedModelsProgress += 1;
+      modelsTask.set(completedModelsProgress, models.length, {
+        message: `${modelId} done`
+      });
+      setActivePhase(modelId, 'checkpoint');
       await writeOutputPayload({
         modelReports,
         compareReport: null,
@@ -743,172 +840,28 @@ for (const modelId of models) {
         currentPhase: activePhase,
         phaseStartedAt: activePhaseStartedAt
       });
-      const runningStep = Math.min(phaseTotal, phaseCompleted + 1);
-      phaseTask.set(runningStep, phaseTotal, {
-        message: `${phaseName} running (${formatElapsed(phaseStartedAtMs)})`
-      });
-      display.log(`[bakeoff] ${modelId}: ${phaseName} started`, { kind: 'status', stage: 'bakeoff' });
-      const heartbeat = setInterval(() => {
-        phaseTask.set(runningStep, phaseTotal, {
-          message: `${phaseName} running (${formatElapsed(phaseStartedAtMs)})`
-        });
-      }, 1500);
-      try {
-        return await fn();
-      } finally {
-        clearInterval(heartbeat);
-        phaseCompleted += 1;
-        const elapsedLabel = formatElapsed(phaseStartedAtMs);
-        phaseTask.set(phaseCompleted, phaseTotal, {
-          message: `${phaseName} done (${elapsedLabel})`
-        });
-        display.log(`[bakeoff] ${modelId}: ${phaseName} completed in ${elapsedLabel}`, {
-          kind: 'status',
-          stage: 'bakeoff'
-        });
-        await writeOutputPayload({
-          modelReports,
-          compareReport: null,
-          status: 'running',
-          resumedModels,
-          currentModel: activeModelId,
-          currentPhase: activePhase,
-          phaseStartedAt: activePhaseStartedAt
-        });
-      }
-    };
-
-    if (timings.strategy === 'full') {
-      const startedAt = Date.now();
-      const stage2Args = [buildIndexScript, '--stage', '2', '--repo', root, '--mode', mode];
-      if (incremental) stage2Args.push('--incremental');
-      await runPhase('stage2', async () => runNodeWithLockRetry(stage2Args, env, `build stage2 (${modelId})`));
-
-      const args = [buildIndexScript, '--stage', '3', '--repo', root, '--mode', mode];
-      if (incremental) args.push('--incremental');
-      if (useStubEmbeddings) args.push('--stub-embeddings');
-      await runPhase('stage3', async () => runNodeWithLockRetry(args, env, `build embeddings (${modelId})`));
-      timings.buildIndexMs = Date.now() - startedAt;
-    } else if (timings.strategy === 'stage3') {
-      const args = [buildIndexScript, '--stage', '3', '--repo', root, '--mode', mode];
-      if (incremental) args.push('--incremental');
-      if (useStubEmbeddings) args.push('--stub-embeddings');
-      const startedAt = Date.now();
-      await runPhase('stage3', async () => runNodeWithLockRetry(args, env, `build embeddings (${modelId})`));
-      timings.buildIndexMs = Date.now() - startedAt;
+      setActivePhase(null, null);
+    } catch (err) {
+      await persistBakeoffFailure(err, () => writeOutputPayload({
+        modelReports,
+        compareReport: null,
+        status: 'failed',
+        resumedModels,
+        currentModel: activeModelId,
+        currentPhase: activePhase,
+        phaseStartedAt: activePhaseStartedAt,
+        error: {
+          phase: 'model',
+          modelId,
+          ...bakeoffPhaseFailureReceipt(err)
+        }
+      }));
     }
-
-    if (shouldRunStage4) {
-      timings.buildSqliteMs = await runPhase(
-        'stage4',
-        async () => runIsolatedStage4({ modelId, env, resolvedMode: mode })
-      );
-    }
-    timings.totalBuildMs = timings.buildIndexMs + timings.buildSqliteMs;
-
-    let evalSummary = null;
-    if (runEval) {
-      const evalArgs = [
-        evalScript,
-        '--repo',
-        root,
-        '--dataset',
-        datasetPath,
-        '--backend',
-        backend,
-        '--top',
-        String(topN)
-      ];
-      if (annOverride === true) evalArgs.push('--ann');
-      if (annOverride === false) evalArgs.push('--no-ann');
-      if (limit > 0) evalArgs.push('--limit', String(limit));
-      const evalReport = await runPhase('eval', async () => runJsonNode(evalArgs, env, `eval (${modelId})`));
-      evalSummary = evalReport?.summary || null;
-    }
-
-    const cacheBytes = await directorySizeBytes(env.PAIROFCLEATS_CACHE_ROOT);
-    modelReports.push({
-      modelId,
-      cacheRoot: env.PAIROFCLEATS_CACHE_ROOT,
-      inputFormatting: resolveEmbeddingInputFormatting(modelId),
-      build: {
-        strategy: timings.strategy,
-        buildIndexMs: toFixedMs(timings.buildIndexMs),
-        buildSqliteMs: toFixedMs(timings.buildSqliteMs),
-        totalBuildMs: toFixedMs(timings.totalBuildMs)
-      },
-      cache: {
-        bytes: cacheBytes,
-        gib: formatBytesGiB(cacheBytes)
-      },
-      eval: evalSummary,
-      evalReportPath: null
-    });
-    completedModelIds.add(modelId);
-    completedModelsProgress += 1;
-    modelsTask.set(completedModelsProgress, models.length, {
-      message: `${modelId} done`
-    });
-    setActivePhase(modelId, 'checkpoint');
-    await writeOutputPayload({
-      modelReports,
-      compareReport: null,
-      status: 'running',
-      resumedModels,
-      currentModel: activeModelId,
-      currentPhase: activePhase,
-      phaseStartedAt: activePhaseStartedAt
-    });
-    setActivePhase(null, null);
-  } catch (err) {
-    await writeOutputPayload({
-      modelReports,
-      compareReport: null,
-      status: 'failed',
-      resumedModels,
-      currentModel: activeModelId,
-      currentPhase: activePhase,
-      phaseStartedAt: activePhaseStartedAt,
-      error: {
-        phase: 'model',
-        modelId,
-        message: err?.message || String(err)
-      }
-    });
-    throw err;
   }
-}
 
-if (runCompare) {
-  let compareTask = null;
-  let compareHeartbeat = null;
-  let compareStartedAtMs = 0;
-  try {
-    setActivePhase('compare', 'latency-compare');
-    compareTask = display.task('Compare', {
-      taskId: 'bakeoff:compare',
-      total: 1,
-      stage: 'bakeoff',
-      ephemeral: true
-    });
-    compareStartedAtMs = Date.now();
-    compareTask.set(0, 1, {
-      message: `running (${formatElapsed(compareStartedAtMs)})`
-    });
-    compareHeartbeat = setInterval(() => {
-      compareTask.set(0, 1, {
-        message: `running (${formatElapsed(compareStartedAtMs)})`
-      });
-    }, 1500);
-    await writeOutputPayload({
-      modelReports,
-      compareReport: null,
-      status: 'running',
-      resumedModels,
-      currentModel: activeModelId,
-      currentPhase: activePhase,
-      phaseStartedAt: activePhaseStartedAt
-    });
+  if (runCompare) {
+    const phaseName = 'latency-compare', modelId = 'compare';
+    const compareTask = display.task('Compare', { taskId: 'bakeoff:compare', total: 1, stage: 'bakeoff', ephemeral: true });
     const compareArgs = [
       compareScript,
       '--json',
@@ -931,75 +884,93 @@ if (runCompare) {
     if (annOverride === false) compareArgs.push('--no-ann');
     if (queriesPath) compareArgs.push('--queries', queriesPath);
     if (limit > 0) compareArgs.push('--limit', String(limit));
-    compareReport = runJsonNode(compareArgs, baseEnv, 'compare-models');
-    setActivePhase(null, null);
-  } catch (err) {
-    await writeOutputPayload({
-      modelReports,
-      compareReport: null,
-      status: 'failed',
-      resumedModels,
-      currentModel: activeModelId,
-      currentPhase: activePhase,
-      phaseStartedAt: activePhaseStartedAt,
-      error: {
-        phase: 'compare',
-        message: err?.message || String(err)
+    compareReport = await runBakeoffPhase({ modelId, phaseName, display, task: compareTask, total: 1,
+      completed: () => phaseStates.get(JSON.stringify([modelId, phaseName]))?.state === 'succeeded' ? 1 : 0,
+      signal: campaignAbort.signal,
+      run: phase => runJsonNode(executionPolicy.compareArgs(compareArgs), executionPolicy.env, 'compare-models', phase),
+      onState: state => { phaseStates.set(JSON.stringify([modelId, phaseName]), state); setActivePhase(modelId, phaseName); },
+      checkpoint: async state => {
+        phaseStates.set(JSON.stringify([modelId, phaseName]), state);
+        await writeOutputPayload({ modelReports, compareReport: null,
+          status: ['failed', 'cancelled'].includes(state.state) ? 'failed' : 'running', resumedModels,
+          currentModel: modelId, currentPhase: phaseName, phaseStartedAt: state.startedAt,
+          error: state.failure || null });
       }
     });
-    throw err;
-  } finally {
-    if (compareHeartbeat) {
-      clearInterval(compareHeartbeat);
-      compareHeartbeat = null;
+    setActivePhase(null, null);
+  }
+
+  throwIfAborted(campaignAbort.signal);
+  const output = await writeOutputPayload({
+    modelReports,
+    compareReport,
+    status: 'completed', finalize: true,
+    resumedModels,
+    currentModel: null,
+    currentPhase: null,
+    phaseStartedAt: null
+  });
+  setActivePhase(null, null);
+  modelsTask.done({ message: 'completed' });
+  if (argv.json) {
+    console.log(JSON.stringify(output, null, 2));
+  } else {
+    console.error('Embedding model bakeoff summary');
+    for (const entry of modelReports) {
+      const metric = value => Number.isFinite(value) ? value.toFixed(3) : 'n/a';
+      const recallAt5 = metric(entry.eval?.recallAtK?.['5']);
+      const mrr = metric(entry.eval?.mrr);
+      const ndcgAt10 = metric(entry.eval?.ndcgAtK?.['10']);
+      const depth = entry.eval?.evaluationPlan?.requestedDepth ?? '?';
+      console.error(
+        `- ${entry.modelId}: build=${entry.build.totalBuildMs}ms cache=${entry.cache.gib}GiB `
+        + `recall@5=${recallAt5} mrr@${depth}=${mrr} ndcg@10=${ndcgAt10} `
+        + `format=${entry.inputFormatting.family}`
+      );
     }
-    if (compareTask) {
-      const message = compareReport
-        ? `completed (${formatElapsed(compareStartedAtMs)})`
-        : `failed (${formatElapsed(compareStartedAtMs)})`;
-      compareTask.done({ message });
-      compareTask = null;
+    if (compareReport?.summary?.models) {
+      for (const modelId of models) {
+        const stats = compareReport.summary.models?.[modelId];
+        if (!stats) continue;
+        console.error(
+          `- latency ${modelId}: elapsed=${Number(stats.elapsedMsAvg || 0).toFixed(1)}ms `
+          + `wall=${Number(stats.wallMsAvg || 0).toFixed(1)}ms`
+        );
+      }
+    }
+    console.error(`Report written to ${checkpointOutPath}`);
+  }
+};
+let campaignFailed = false, campaignFailure;
+try {
+  await withBakeoffCheckpoint({ root, checkpointPath: checkpointOutPath, settings: outputSettings, signal: campaignAbort.signal }, async owner => {
+    checkpointOwner = owner;
+    try { return await runCampaign(); }
+    catch (error) {
+      if (owner.isSealed()) throw error;
+      let failure = error;
+      try {
+        await writeOutputPayload({ modelReports, compareReport: null, status: 'failed', finalize: true,
+          publishLatest: owner.hasPublished(), resumedModels, currentModel: activeModelId,
+          currentPhase: activePhase, phaseStartedAt: activePhaseStartedAt, error: bakeoffPhaseFailureReceipt(error) });
+      } catch (secondary) { failure = addStorageFailureContext(error, {}, secondary, { secondaryPresent: true }); }
+      throw failure;
+    }
+  });
+}
+catch (error) { campaignFailed = true; campaignFailure = error; }
+finally {
+  process.off('SIGINT', interruptCampaign); process.off('SIGTERM', interruptCampaign);
+  for (const close of [() => display.flush(), () => display.close()]) {
+    try { close(); }
+    catch (error) {
+      campaignFailure = campaignFailed ? addStorageFailureContext(campaignFailure, {}, error, { secondaryPresent: true }) : error;
+      campaignFailed = true;
     }
   }
 }
-
-const output = await writeOutputPayload({
-  modelReports,
-  compareReport,
-  status: 'completed',
-  resumedModels,
-  currentModel: null,
-  currentPhase: null,
-  phaseStartedAt: null
-});
-setActivePhase(null, null);
-modelsTask.done({ message: 'completed' });
-display.flush();
-display.close();
-
-if (argv.json) {
-  console.log(JSON.stringify(output, null, 2));
-} else {
-  console.error('Embedding model bakeoff summary');
-  for (const entry of modelReports) {
-    const recallAt5 = Number(entry.eval?.recallAtK?.['5'] ?? 0);
-    const mrr = Number(entry.eval?.mrr ?? 0);
-    const ndcgAt10 = Number(entry.eval?.ndcgAtK?.['10'] ?? 0);
-    console.error(
-      `- ${entry.modelId}: build=${entry.build.totalBuildMs}ms cache=${entry.cache.gib}GiB `
-      + `recall@5=${recallAt5.toFixed(3)} mrr=${mrr.toFixed(3)} ndcg@10=${ndcgAt10.toFixed(3)} `
-      + `format=${entry.inputFormatting.family}`
-    );
-  }
-  if (compareReport?.summary?.models) {
-    for (const modelId of models) {
-      const stats = compareReport.summary.models?.[modelId];
-      if (!stats) continue;
-      console.error(
-        `- latency ${modelId}: elapsed=${Number(stats.elapsedMsAvg || 0).toFixed(1)}ms `
-        + `wall=${Number(stats.wallMsAvg || 0).toFixed(1)}ms`
-      );
-    }
-  }
-  console.error(`Report written to ${checkpointOutPath}`);
+if (campaignFailed) {
+  console.error(`[bakeoff] ${JSON.stringify(bakeoffPhaseFailureReceipt(campaignFailure))}`);
+  if (checkpointOwner?.isSealed()) console.error(`[bakeoff] Final receipt: ${checkpointOwner.finalPath}`);
+  process.exitCode = 1;
 }

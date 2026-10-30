@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["captured-json", "actual-report", "nonzero", "signal", "truncated", "encoding-loss", "malformed", "unrelated", "wrong-root", "missing-capture", "diagnostics", "pending-result"]
+}

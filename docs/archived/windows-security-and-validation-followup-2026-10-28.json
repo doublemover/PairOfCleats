@@ -1,0 +1,2365 @@
+{
+  "schemaVersion": 1,
+  "kind": "windows-security-and-validation-followup",
+  "date": "2026-10-28",
+  "branch": "codex/pr557-audit-repairs-20261012",
+  "baseline": "windows-full-validation-checkpoint-265-2026-10-28.json",
+  "sourceHead": "bfa2e8bebcf46453a5c4e2b92b2745518855d000",
+  "runtime": {
+    "node": "v26.12.1",
+    "abi": "147",
+    "platform": "win32",
+    "arch": "x64"
+  },
+  "policy": {
+    "jobs": 1,
+    "timeoutMs": 30000,
+    "retries": 0,
+    "nativeStatusRedo": false,
+    "manualPlatforms": [
+      "win32"
+    ],
+    "physicalLinks": "separate optional qualification; not selected in final required cohort"
+  },
+  "dependencyRepair": {
+    "committedAt": "707722188850bc20ad83c5bdfe95ddca0741ee14",
+    "advisories": [
+      {
+        "id": "GHSA-rmxm-3fg6-px4f",
+        "package": "@hono/node-server",
+        "before": "1.19.17",
+        "after": "2.1.5",
+        "affected": ">=1.19.10 <2.1.3",
+        "url": "https://github.com/advisories/GHSA-rmxm-3fg6-px4f"
+      },
+      {
+        "id": "GHSA-gg6h-894w-4m9c",
+        "package": "re2js",
+        "before": "2.8.6",
+        "after": "2.8.7",
+        "affected": ">=2.2.0 <2.8.7",
+        "url": "https://github.com/advisories/GHSA-gg6h-894w-4m9c"
+      }
+    ],
+    "audit": {
+      "exitCode": 0,
+      "reportSha256": "81d88d27ca54dbd7e76177dd8798f976205054c75ff6f06b69d43d0692d020af",
+      "counts": {
+        "info": 0,
+        "low": 0,
+        "moderate": 0,
+        "high": 0,
+        "critical": 0,
+        "total": 0
+      }
+    },
+    "contract": "Historical advisory baselines remain; the new reviewed ranges are added. Product RE2JS does not enable opt-in lookbehinds. Live CI audit stays enabled."
+  },
+  "setup": {
+    "startedAt": "2026-10-29T00:24:14.3007309Z",
+    "finishedAt": "2026-10-29T00:30:40.3616202Z",
+    "lockSha256": "888e25affd9a8ace2605d085b40fedf7ac1484ad5b4135a63957b815ce597b7b",
+    "packageSha256": "a3265552dd6ff8d54b10ca2fd471d23587ec504e32fd21c3cbb6defa0c1cb99a",
+    "sourceHead": "2a2ff8e827ff93434dddbc2d91b2d54cbb01c279",
+    "exitCode": 0,
+    "sourceHeadNote": "Lock/package edits were present during bootstrap; exact hashes above bind them. Later source commits do not change those dependency inputs.",
+    "bootstrapLogSha256": "02f9a7bf656fd361c5501cb5a90564e700700845c9c2432bdbe01ed92ca1166a",
+    "warningOrErrorLines": [],
+    "verifiedPackages": [
+      "@derekstride/tree-sitter-sql",
+      "@eagleoutice/tree-sitter-r",
+      "@ganezdragon/tree-sitter-perl",
+      "@lancedb/lancedb",
+      "@sengac/tree-sitter-dart",
+      "@tree-sitter-grammars/tree-sitter-lua",
+      "@tree-sitter-grammars/tree-sitter-markdown",
+      "@tree-sitter-grammars/tree-sitter-toml",
+      "@tree-sitter-grammars/tree-sitter-xml",
+      "@tree-sitter-grammars/tree-sitter-yaml",
+      "better-sqlite3",
+      "hnswlib-node",
+      "lmdb",
+      "node-pty",
+      "onnxruntime-node",
+      "tree-sitter",
+      "tree-sitter-bash",
+      "tree-sitter-c",
+      "tree-sitter-c-sharp",
+      "tree-sitter-cpp",
+      "tree-sitter-css",
+      "tree-sitter-go",
+      "tree-sitter-groovy",
+      "tree-sitter-html",
+      "tree-sitter-java",
+      "tree-sitter-javascript",
+      "tree-sitter-json",
+      "tree-sitter-julia",
+      "tree-sitter-kotlin",
+      "tree-sitter-objc",
+      "tree-sitter-php",
+      "tree-sitter-python",
+      "tree-sitter-ruby",
+      "tree-sitter-rust",
+      "tree-sitter-scala",
+      "tree-sitter-swift",
+      "tree-sitter-typescript"
+    ],
+    "nativeCapabilities": [
+      {
+        "languageId": "c",
+        "moduleName": "tree-sitter-c",
+        "packageVersion": "0.24.1",
+        "nodeVersion": "v26.12.1",
+        "abi": "147",
+        "state": "parser-activated"
+      },
+      {
+        "languageId": "clike",
+        "moduleName": "tree-sitter-c",
+        "packageVersion": "0.24.1",
+        "nodeVersion": "v26.12.1",
+        "abi": "147",
+        "state": "parser-activated"
+      },
+      {
+        "languageId": "cpp",
+        "moduleName": "tree-sitter-cpp",
+        "packageVersion": "0.23.4",
+        "nodeVersion": "v26.12.1",
+        "abi": "147",
+        "state": "parser-activated"
+      },
+      {
+        "languageId": "csharp",
+        "moduleName": "tree-sitter-c-sharp",
+        "packageVersion": "0.23.5",
+        "nodeVersion": "v26.12.1",
+        "abi": "147",
+        "state": "parser-activated"
+      },
+      {
+        "languageId": "css",
+        "moduleName": "tree-sitter-css",
+        "packageVersion": "0.25.0",
+        "nodeVersion": "v26.12.1",
+        "abi": "147",
+        "state": "parser-activated"
+      },
+      {
+        "languageId": "dart",
+        "moduleName": "@sengac/tree-sitter-dart",
+        "packageVersion": "1.1.6",
+        "nodeVersion": "v26.12.1",
+        "abi": "147",
+        "state": "parser-activated"
+      },
+      {
+        "languageId": "go",
+        "moduleName": "tree-sitter-go",
+        "packageVersion": "0.25.0",
+        "nodeVersion": "v26.12.1",
+        "abi": "147",
+        "state": "parser-activated"
+      },
+      {
+        "languageId": "groovy",
+        "moduleName": "tree-sitter-groovy",
+        "packageVersion": "0.1.2",
+        "nodeVersion": "v26.12.1",
+        "abi": "147",
+        "state": "parser-activated"
+      },
+      {
+        "languageId": "html",
+        "moduleName": "tree-sitter-html",
+        "packageVersion": "0.23.2",
+        "nodeVersion": "v26.12.1",
+        "abi": "147",
+        "state": "parser-activated"
+      },
+      {
+        "languageId": "java",
+        "moduleName": "tree-sitter-java",
+        "packageVersion": "0.23.5",
+        "nodeVersion": "v26.12.1",
+        "abi": "147",
+        "state": "parser-activated"
+      },
+      {
+        "languageId": "javascript",
+        "moduleName": "tree-sitter-javascript",
+        "packageVersion": "0.25.0",
+        "nodeVersion": "v26.12.1",
+        "abi": "147",
+        "state": "parser-activated"
+      },
+      {
+        "languageId": "json",
+        "moduleName": "tree-sitter-json",
+        "packageVersion": "0.24.8",
+        "nodeVersion": "v26.12.1",
+        "abi": "147",
+        "state": "parser-activated"
+      },
+      {
+        "languageId": "jsx",
+        "moduleName": "tree-sitter-javascript",
+        "packageVersion": "0.25.0",
+        "nodeVersion": "v26.12.1",
+        "abi": "147",
+        "state": "parser-activated"
+      },
+      {
+        "languageId": "julia",
+        "moduleName": "tree-sitter-julia",
+        "packageVersion": "0.23.1",
+        "nodeVersion": "v26.12.1",
+        "abi": "147",
+        "state": "parser-activated"
+      },
+      {
+        "languageId": "kotlin",
+        "moduleName": "tree-sitter-kotlin",
+        "packageVersion": "0.3.8",
+        "nodeVersion": "v26.12.1",
+        "abi": "147",
+        "state": "parser-activated"
+      },
+      {
+        "languageId": "lua",
+        "moduleName": "@tree-sitter-grammars/tree-sitter-lua",
+        "packageVersion": "0.4.1",
+        "nodeVersion": "v26.12.1",
+        "abi": "147",
+        "state": "parser-activated"
+      },
+      {
+        "languageId": "markdown",
+        "moduleName": "@tree-sitter-grammars/tree-sitter-markdown",
+        "packageVersion": "0.3.2",
+        "nodeVersion": "v26.12.1",
+        "abi": "147",
+        "state": "parser-activated"
+      },
+      {
+        "languageId": "objc",
+        "moduleName": "tree-sitter-objc",
+        "packageVersion": "3.0.2",
+        "nodeVersion": "v26.12.1",
+        "abi": "147",
+        "state": "parser-activated"
+      },
+      {
+        "languageId": "perl",
+        "moduleName": "@ganezdragon/tree-sitter-perl",
+        "packageVersion": "1.1.1",
+        "nodeVersion": "v26.12.1",
+        "abi": "147",
+        "state": "parser-activated"
+      },
+      {
+        "languageId": "php",
+        "moduleName": "tree-sitter-php",
+        "packageVersion": "0.24.2",
+        "nodeVersion": "v26.12.1",
+        "abi": "147",
+        "state": "parser-activated"
+      },
+      {
+        "languageId": "python",
+        "moduleName": "tree-sitter-python",
+        "packageVersion": "0.25.0",
+        "nodeVersion": "v26.12.1",
+        "abi": "147",
+        "state": "parser-activated"
+      },
+      {
+        "languageId": "r",
+        "moduleName": "@eagleoutice/tree-sitter-r",
+        "packageVersion": "1.1.2",
+        "nodeVersion": "v26.12.1",
+        "abi": "147",
+        "state": "parser-activated"
+      },
+      {
+        "languageId": "ruby",
+        "moduleName": "tree-sitter-ruby",
+        "packageVersion": "0.23.1",
+        "nodeVersion": "v26.12.1",
+        "abi": "147",
+        "state": "parser-activated"
+      },
+      {
+        "languageId": "rust",
+        "moduleName": "tree-sitter-rust",
+        "packageVersion": "0.24.0",
+        "nodeVersion": "v26.12.1",
+        "abi": "147",
+        "state": "parser-activated"
+      },
+      {
+        "languageId": "scala",
+        "moduleName": "tree-sitter-scala",
+        "packageVersion": "0.24.0",
+        "nodeVersion": "v26.12.1",
+        "abi": "147",
+        "state": "parser-activated"
+      },
+      {
+        "languageId": "shell",
+        "moduleName": "tree-sitter-bash",
+        "packageVersion": "0.25.1",
+        "nodeVersion": "v26.12.1",
+        "abi": "147",
+        "state": "parser-activated"
+      },
+      {
+        "languageId": "sql",
+        "moduleName": "@derekstride/tree-sitter-sql",
+        "packageVersion": "0.3.11",
+        "nodeVersion": "v26.12.1",
+        "abi": "147",
+        "state": "parser-activated"
+      },
+      {
+        "languageId": "swift",
+        "moduleName": "tree-sitter-swift",
+        "packageVersion": "0.7.1",
+        "nodeVersion": "v26.12.1",
+        "abi": "147",
+        "state": "parser-activated"
+      },
+      {
+        "languageId": "toml",
+        "moduleName": "@tree-sitter-grammars/tree-sitter-toml",
+        "packageVersion": "0.7.0",
+        "nodeVersion": "v26.12.1",
+        "abi": "147",
+        "state": "parser-activated"
+      },
+      {
+        "languageId": "tsx",
+        "moduleName": "tree-sitter-typescript",
+        "packageVersion": "0.23.2",
+        "nodeVersion": "v26.12.1",
+        "abi": "147",
+        "state": "parser-activated"
+      },
+      {
+        "languageId": "typescript",
+        "moduleName": "tree-sitter-typescript",
+        "packageVersion": "0.23.2",
+        "nodeVersion": "v26.12.1",
+        "abi": "147",
+        "state": "parser-activated"
+      },
+      {
+        "languageId": "xml",
+        "moduleName": "@tree-sitter-grammars/tree-sitter-xml",
+        "packageVersion": "0.7.0",
+        "nodeVersion": "v26.12.1",
+        "abi": "147",
+        "state": "parser-activated"
+      },
+      {
+        "languageId": "yaml",
+        "moduleName": "@tree-sitter-grammars/tree-sitter-yaml",
+        "packageVersion": "0.7.1",
+        "nodeVersion": "v26.12.1",
+        "abi": "147",
+        "state": "parser-activated"
+      }
+    ],
+    "artifactCount": 1252,
+    "patches": {
+      "packages": 8,
+      "targetFiles": 26,
+      "hunks": 61
+    },
+    "optionalNotInstalled": [
+      "sharp"
+    ],
+    "nativeIdentity": {
+      "beforeCount": 225,
+      "afterCount": 225,
+      "beforeInventorySha256": "a2e5236d8bd48ebd19b9a7eb1eacaecd7613b55581dde60faae7bb58171f6c48",
+      "afterInventorySha256": "deb1081444af23d3db4d5cb3639ef1e9e033068c5b89ff87086e83f28c37470a",
+      "changedOrAdded": [
+        {
+          "path": "node_modules\\tree-sitter-swift\\build\\Release\\tree_sitter_swift_binding.node",
+          "before": {
+            "path": "node_modules\\tree-sitter-swift\\build\\Release\\tree_sitter_swift_binding.node",
+            "sha256": "4f93025c8c2c6e534e3ab8e9d97b0c2d3bd197dc1cb57429a65a778b6fdd1f02",
+            "bytes": 4680192
+          },
+          "after": {
+            "path": "node_modules\\tree-sitter-swift\\build\\Release\\tree_sitter_swift_binding.node",
+            "bytes": 4680192,
+            "sha256": "27f8d18eddfe35c2718fde99e0c62740c57e156883878c4cb61e6169249d1ff4"
+          }
+        },
+        {
+          "path": "node_modules\\tree-sitter-kotlin\\build\\Release\\tree_sitter_kotlin_binding.node",
+          "before": {
+            "path": "node_modules\\tree-sitter-kotlin\\build\\Release\\tree_sitter_kotlin_binding.node",
+            "sha256": "cc5ffededbda0ca5e6e2e1f82a619bb5b7568ec495634a2d700d19e31d0d82de",
+            "bytes": 5537280
+          },
+          "after": {
+            "path": "node_modules\\tree-sitter-kotlin\\build\\Release\\tree_sitter_kotlin_binding.node",
+            "bytes": 5537280,
+            "sha256": "554f9261970d12a76f9988cc57c41a642c9d3235df7f60ff36f5ee868e91a104"
+          }
+        },
+        {
+          "path": "node_modules\\tree-sitter\\build\\Release\\tree_sitter_runtime_binding.node",
+          "before": {
+            "path": "node_modules\\tree-sitter\\build\\Release\\tree_sitter_runtime_binding.node",
+            "sha256": "760fb1a50b1bc5b90479f706c57f7311edbee4b1661efbdd02a65ffad41fc7ef",
+            "bytes": 1341440
+          },
+          "after": {
+            "path": "node_modules\\tree-sitter\\build\\Release\\tree_sitter_runtime_binding.node",
+            "bytes": 1341440,
+            "sha256": "7884488980efc98d1b779b8eefd4e97a78730f6d9c30a94bf43a0627b29b3e01"
+          }
+        },
+        {
+          "path": "node_modules\\hnswlib-node\\build\\Release\\addon.node",
+          "before": {
+            "path": "node_modules\\hnswlib-node\\build\\Release\\addon.node",
+            "sha256": "44664007d5690a60d2fbcc82657898416358a3b5bd49b42bfab96450e76988e8",
+            "bytes": 1669632
+          },
+          "after": {
+            "path": "node_modules\\hnswlib-node\\build\\Release\\addon.node",
+            "bytes": 1669632,
+            "sha256": "e0cdfdd3e7b8ee05f54bdcd45a9a6787e0c471e632b136ef0933193b235603ab"
+          }
+        },
+        {
+          "path": "node_modules\\better-sqlite3\\prebuilds\\win32-x64.node",
+          "before": {
+            "path": "node_modules\\better-sqlite3\\prebuilds\\win32-x64.node",
+            "sha256": "05b86e026af200e97ee52e161c4218a7d9b00156cd4a68564145d12b108b1456",
+            "bytes": 2495488
+          },
+          "after": {
+            "path": "node_modules\\better-sqlite3\\prebuilds\\win32-x64.node",
+            "bytes": 2495488,
+            "sha256": "e212dccb2d3400ee5e7510096589a8e367b011481370d07d72d0b8edafea00d0"
+          }
+        },
+        {
+          "path": "node_modules\\better-sqlite3\\build\\Release\\better_sqlite3.node",
+          "before": {
+            "path": "node_modules\\better-sqlite3\\build\\Release\\better_sqlite3.node",
+            "sha256": "05b86e026af200e97ee52e161c4218a7d9b00156cd4a68564145d12b108b1456",
+            "bytes": 2495488
+          },
+          "after": {
+            "path": "node_modules\\better-sqlite3\\build\\Release\\better_sqlite3.node",
+            "bytes": 2495488,
+            "sha256": "e212dccb2d3400ee5e7510096589a8e367b011481370d07d72d0b8edafea00d0"
+          }
+        },
+        {
+          "path": "node_modules\\better-sqlite3\\build\\Release\\test_extension.node",
+          "before": {
+            "path": "node_modules\\better-sqlite3\\build\\Release\\test_extension.node",
+            "sha256": "5755874f8f8d01fc56b799eaf0b50d6c54e3c7209b2a4ebdd44321ccbaf3e27e",
+            "bytes": 644608
+          },
+          "after": {
+            "path": "node_modules\\better-sqlite3\\build\\Release\\test_extension.node",
+            "bytes": 644608,
+            "sha256": "0a95d6d68f6c82ec6485948c222800c3c5f0ea3cbda98d8f9aaadb9df587bcca"
+          }
+        },
+        {
+          "path": "node_modules\\@ganezdragon\\tree-sitter-perl\\build\\Release\\tree_sitter_perl_binding.node",
+          "before": {
+            "path": "node_modules\\@ganezdragon\\tree-sitter-perl\\build\\Release\\tree_sitter_perl_binding.node",
+            "sha256": "951fe53fe7435552bcd6bd4d230e838997e5725a33f9a9ba2ac5d1a0ffce8d05",
+            "bytes": 4408832
+          },
+          "after": {
+            "path": "node_modules\\@ganezdragon\\tree-sitter-perl\\build\\Release\\tree_sitter_perl_binding.node",
+            "bytes": 4408832,
+            "sha256": "3e76e640ecee8bda0a432dfdc6a83cb12aa0080a30099bc1af4995e67f5081c2"
+          }
+        },
+        {
+          "path": "node_modules\\@derekstride\\tree-sitter-sql\\build\\Release\\tree_sitter_sql_binding.node",
+          "before": {
+            "path": "node_modules\\@derekstride\\tree-sitter-sql\\build\\Release\\tree_sitter_sql_binding.node",
+            "sha256": "b87777c95d10f3f911e33404fd5a42dfe25c426a7c7c3cec1b0395eab7c4a447",
+            "bytes": 3691520
+          },
+          "after": {
+            "path": "node_modules\\@derekstride\\tree-sitter-sql\\build\\Release\\tree_sitter_sql_binding.node",
+            "bytes": 3691520,
+            "sha256": "4b6e038f5ec18dcc2a69a73b80fb37b4aab4955c5486c2e151f2d0deb29dafec"
+          }
+        }
+      ],
+      "nodePtyChanged": false
+    }
+  },
+  "initial": {
+    "source": "50a234d32622c43dbfcc1b715d89c6b6d3c349ec",
+    "reportSha256": "9e2840ca77cd6e62f36b3304ae7c8609e2f216a58d817fe47e1e47a05b0913db",
+    "summary": {
+      "durationMs": 148617,
+      "failed": 3,
+      "passed": 76,
+      "skipped": 1,
+      "total": 80
+    },
+    "tests": [
+      {
+        "id": "ci/dependency-security-contract",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 349,
+        "attempts": 1
+      },
+      {
+        "id": "indexing/postings/vector-only-service-embeddings-pending-artifacts",
+        "status": "failed",
+        "exitCode": 1,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 11288,
+        "attempts": 1
+      },
+      {
+        "id": "indexing/validate/determinism-line-hash",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 863,
+        "attempts": 1
+      },
+      {
+        "id": "indexing/validate/filter-index-requires-bylang-when-segment-aware",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 118,
+        "attempts": 1
+      },
+      {
+        "id": "indexing/validate/index",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 16909,
+        "attempts": 1
+      },
+      {
+        "id": "indexing/validate/index-artifact-max-bytes-no-cap",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 448,
+        "attempts": 1
+      },
+      {
+        "id": "indexing/validate/index-boilerplate-catalog-manifest-name",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 815,
+        "attempts": 1
+      },
+      {
+        "id": "indexing/validate/index-contract-matrix",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 1227,
+        "attempts": 1
+      },
+      {
+        "id": "indexing/validate/index-current-build-pointer-case-insensitive",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 822,
+        "attempts": 1
+      },
+      {
+        "id": "indexing/validate/index-determinism-report-required",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 842,
+        "attempts": 1
+      },
+      {
+        "id": "indexing/validate/index-jsonl-required-keys",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 692,
+        "attempts": 1
+      },
+      {
+        "id": "indexing/validate/index-sharded-meta-consistency",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 673,
+        "attempts": 1
+      },
+      {
+        "id": "indexing/validate/index-sqlite-zero-state-db-required",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 323,
+        "attempts": 1
+      },
+      {
+        "id": "indexing/validate/index-unknown-mode",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 909,
+        "attempts": 1
+      },
+      {
+        "id": "indexing/validate/ledger-validation",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 822,
+        "attempts": 1
+      },
+      {
+        "id": "indexing/validate/manifest-shared-read-plan",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 945,
+        "attempts": 1
+      },
+      {
+        "id": "indexing/validate/metav2-rejects-invalid-type-shapes",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 753,
+        "attempts": 1
+      },
+      {
+        "id": "indexing/validate/mode-finding-verdicts",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 5479,
+        "attempts": 1
+      },
+      {
+        "id": "indexing/validate/operation-generation-selection/capture-authority",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 1495,
+        "attempts": 1
+      },
+      {
+        "id": "indexing/validate/operation-generation-selection/captured-move",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 1513,
+        "attempts": 1
+      },
+      {
+        "id": "indexing/validate/operation-generation-selection/during-read",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 1497,
+        "attempts": 1
+      },
+      {
+        "id": "indexing/validate/operation-generation-selection/invalid-selection",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 947,
+        "attempts": 1
+      },
+      {
+        "id": "indexing/validate/operation-generation-selection/legacy-move",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 1507,
+        "attempts": 1
+      },
+      {
+        "id": "indexing/validate/operation-generation-selection/mixed-roots",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 1511,
+        "attempts": 1
+      },
+      {
+        "id": "indexing/validate/operation-generation-selection/strict-ledger",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 1485,
+        "attempts": 1
+      },
+      {
+        "id": "indexing/validate/profile-postings-requirements",
+        "status": "failed",
+        "exitCode": 1,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 820,
+        "attempts": 1
+      },
+      {
+        "id": "indexing/validate/repo-map-source-identity-collisions",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 220,
+        "attempts": 1
+      },
+      {
+        "id": "indexing/validate/resource-failure-classification",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 81,
+        "attempts": 1
+      },
+      {
+        "id": "indexing/validate/strict-validator-identities",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 658,
+        "attempts": 1
+      },
+      {
+        "id": "indexing/validate/symbol-integrity-strict",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 802,
+        "attempts": 1
+      },
+      {
+        "id": "indexing/validate/validator/manifest-count-sharded",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 388,
+        "attempts": 1
+      },
+      {
+        "id": "indexing/validate/validator/risk-interprocedural",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 1049,
+        "attempts": 1
+      },
+      {
+        "id": "perf/bench/regex-engine-identity",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 169,
+        "attempts": 1
+      },
+      {
+        "id": "perf/indexing/validate/stage-usage-checklist",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 19944,
+        "attempts": 1
+      },
+      {
+        "id": "services/mcp/sdk-cancel-progress",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 10065,
+        "attempts": 1
+      },
+      {
+        "id": "services/mcp/sdk-close-failure",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 3560,
+        "attempts": 1
+      },
+      {
+        "id": "services/mcp/sdk-configured-buffer-bound",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 3570,
+        "attempts": 1
+      },
+      {
+        "id": "services/mcp/sdk-descendant-grace",
+        "status": "skipped",
+        "exitCode": 77,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": "POSIX SIGTERM-resistant descendant fixture; Windows requires native qualification.",
+        "durationMs": 3506,
+        "attempts": 1
+      },
+      {
+        "id": "services/mcp/sdk-diagnostic-lane",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 3598,
+        "attempts": 1
+      },
+      {
+        "id": "services/mcp/sdk-mode",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 5503,
+        "attempts": 1
+      },
+      {
+        "id": "services/mcp/sdk-progress-failure",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 3501,
+        "attempts": 1
+      },
+      {
+        "id": "services/mcp/sdk-search-context-workflow",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 16670,
+        "attempts": 1
+      },
+      {
+        "id": "shared/capabilities/mcp-sdk",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 617,
+        "attempts": 1
+      },
+      {
+        "id": "shared/safe-regex/contract-matrix",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 100,
+        "attempts": 1
+      },
+      {
+        "id": "shared/subprocess/windows-cdb-child/async-output",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 228,
+        "attempts": 1
+      },
+      {
+        "id": "shared/subprocess/windows-cdb-child/invalid-context",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 168,
+        "attempts": 1
+      },
+      {
+        "id": "shared/subprocess/windows-cdb-child/nonzero-exit",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 183,
+        "attempts": 1
+      },
+      {
+        "id": "shared/subprocess/windows-cdb-child/phase-checkpoint",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 179,
+        "attempts": 1
+      },
+      {
+        "id": "shared/subprocess/windows-cdb-child/simulated-native-exit",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 202,
+        "attempts": 1
+      },
+      {
+        "id": "shared/subprocess/windows-cdb-child/truncated-output",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 178,
+        "attempts": 1
+      },
+      {
+        "id": "shared/subprocess/windows-cdb-collector/bad-reply",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 623,
+        "attempts": 1
+      },
+      {
+        "id": "shared/subprocess/windows-cdb-collector/boundary-collector-failure",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 775,
+        "attempts": 1
+      },
+      {
+        "id": "shared/subprocess/windows-cdb-collector/boundary-dual-runner",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 367,
+        "attempts": 1
+      },
+      {
+        "id": "shared/subprocess/windows-cdb-collector/boundary-forged",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 363,
+        "attempts": 1
+      },
+      {
+        "id": "shared/subprocess/windows-cdb-collector/boundary-native",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 793,
+        "attempts": 1
+      },
+      {
+        "id": "shared/subprocess/windows-cdb-collector/capture-write-failure",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 786,
+        "attempts": 1
+      },
+      {
+        "id": "shared/subprocess/windows-cdb-collector/debugger-failure",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 814,
+        "attempts": 1
+      },
+      {
+        "id": "shared/subprocess/windows-cdb-collector/forged-capability",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 364,
+        "attempts": 1
+      },
+      {
+        "id": "shared/subprocess/windows-cdb-collector/launch-failure",
+        "status": "failed",
+        "exitCode": 1,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 622,
+        "attempts": 1
+      },
+      {
+        "id": "shared/subprocess/windows-cdb-collector/malformed-dump",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 671,
+        "attempts": 1
+      },
+      {
+        "id": "shared/subprocess/windows-cdb-collector/metadata-release-failure",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 805,
+        "attempts": 1
+      },
+      {
+        "id": "shared/subprocess/windows-cdb-collector/missing-launch",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 622,
+        "attempts": 1
+      },
+      {
+        "id": "shared/subprocess/windows-cdb-collector/no-dump",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 612,
+        "attempts": 1
+      },
+      {
+        "id": "shared/subprocess/windows-cdb-collector/normal-exit",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 777,
+        "attempts": 1
+      },
+      {
+        "id": "shared/subprocess/windows-cdb-collector/oversize-dump",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 618,
+        "attempts": 1
+      },
+      {
+        "id": "shared/subprocess/windows-cdb-collector/owned-dump",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 808,
+        "attempts": 1
+      },
+      {
+        "id": "shared/subprocess/windows-cdb-collector/pending-error",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 619,
+        "attempts": 1
+      },
+      {
+        "id": "shared/subprocess/windows-cdb-collector/pending-result",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 596,
+        "attempts": 1
+      },
+      {
+        "id": "shared/subprocess/windows-cdb-collector/progress-foreign",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 627,
+        "attempts": 1
+      },
+      {
+        "id": "shared/subprocess/windows-cdb-collector/progress-partial",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 778,
+        "attempts": 1
+      },
+      {
+        "id": "shared/subprocess/windows-cdb-collector/progress-valid",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 785,
+        "attempts": 1
+      },
+      {
+        "id": "shared/subprocess/windows-cdb-collector/relative-path",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 347,
+        "attempts": 1
+      },
+      {
+        "id": "shared/subprocess/windows-cdb-collector/revoked-trust",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 351,
+        "attempts": 1
+      },
+      {
+        "id": "shared/subprocess/windows-cdb-collector/runtime-changed",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 626,
+        "attempts": 1
+      },
+      {
+        "id": "shared/subprocess/windows-cdb-collector/simulated-exit",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 795,
+        "attempts": 1
+      },
+      {
+        "id": "shared/subprocess/windows-cdb-collector/unexpected-entry",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 623,
+        "attempts": 1
+      },
+      {
+        "id": "shared/subprocess/windows-cdb-collector/untrusted-runner",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 347,
+        "attempts": 1
+      },
+      {
+        "id": "shared/subprocess/windows-cdb-collector/wrong-pid",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 639,
+        "attempts": 1
+      },
+      {
+        "id": "shared/subprocess/windows-cdb-collector/wrong-token",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 620,
+        "attempts": 1
+      },
+      {
+        "id": "tooling/install/node-realm-lifecycle",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 172,
+        "attempts": 1
+      }
+    ]
+  },
+  "diagnosticFollowup": {
+    "source": "Uncommitted diagnostics preceding the owner repairs; not a final-head acceptance.",
+    "reportSha256": "53694e9f14e841fbd7615efea965127f6ee608642543187c259138f1e9d683ac",
+    "summary": {
+      "durationMs": 1421,
+      "failed": 1,
+      "passed": 1,
+      "skipped": 0,
+      "total": 2
+    },
+    "tests": [
+      {
+        "id": "indexing/validate/profile-postings-requirements",
+        "status": "failed",
+        "exitCode": 1,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 802,
+        "attempts": 1
+      },
+      {
+        "id": "shared/subprocess/windows-cdb-collector/launch-failure",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 611,
+        "attempts": 1
+      }
+    ]
+  },
+  "ownerFollowup": {
+    "source": "Uncommitted owner repairs subsequently committed as 0b0f9b044 and bfa2e8beb; final required rerun below is authoritative.",
+    "reportSha256": "3e54c9544ee9297dfab176ddc79dd47b056fffe4228ab9888046c4e74dc59a19",
+    "summary": {
+      "durationMs": 2816,
+      "failed": 0,
+      "passed": 3,
+      "skipped": 0,
+      "total": 3
+    },
+    "tests": [
+      {
+        "id": "indexing/validate/index-contract-matrix",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 1229,
+        "attempts": 1
+      },
+      {
+        "id": "indexing/validate/profile-postings-requirements",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 958,
+        "attempts": 1
+      },
+      {
+        "id": "shared/subprocess/windows-cdb-collector/launch-failure",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 623,
+        "attempts": 1
+      }
+    ]
+  },
+  "final": {
+    "source": "bfa2e8bebcf46453a5c4e2b92b2745518855d000",
+    "reportSha256": "89a953763dcc4e3a56bd65af9148b9cb9775386c3c8ac509960ffc6388d463c5",
+    "summary": {
+      "durationMs": 141361,
+      "failed": 1,
+      "passed": 76,
+      "skipped": 0,
+      "total": 77
+    },
+    "tests": [
+      {
+        "id": "ci/dependency-security-contract",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 315,
+        "attempts": 1
+      },
+      {
+        "id": "indexing/postings/vector-only-service-embeddings-pending-artifacts",
+        "status": "failed",
+        "exitCode": 1,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 10550,
+        "attempts": 1
+      },
+      {
+        "id": "indexing/validate/determinism-line-hash",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 817,
+        "attempts": 1
+      },
+      {
+        "id": "indexing/validate/filter-index-requires-bylang-when-segment-aware",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 117,
+        "attempts": 1
+      },
+      {
+        "id": "indexing/validate/index",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 15290,
+        "attempts": 1
+      },
+      {
+        "id": "indexing/validate/index-artifact-max-bytes-no-cap",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 450,
+        "attempts": 1
+      },
+      {
+        "id": "indexing/validate/index-boilerplate-catalog-manifest-name",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 849,
+        "attempts": 1
+      },
+      {
+        "id": "indexing/validate/index-determinism-report-required",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 779,
+        "attempts": 1
+      },
+      {
+        "id": "indexing/validate/index-jsonl-required-keys",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 654,
+        "attempts": 1
+      },
+      {
+        "id": "indexing/validate/index-sharded-meta-consistency",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 642,
+        "attempts": 1
+      },
+      {
+        "id": "indexing/validate/index-sqlite-zero-state-db-required",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 319,
+        "attempts": 1
+      },
+      {
+        "id": "indexing/validate/index-unknown-mode",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 879,
+        "attempts": 1
+      },
+      {
+        "id": "indexing/validate/ledger-validation",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 877,
+        "attempts": 1
+      },
+      {
+        "id": "indexing/validate/manifest-shared-read-plan",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 983,
+        "attempts": 1
+      },
+      {
+        "id": "indexing/validate/metav2-rejects-invalid-type-shapes",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 776,
+        "attempts": 1
+      },
+      {
+        "id": "indexing/validate/mode-finding-verdicts",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 5354,
+        "attempts": 1
+      },
+      {
+        "id": "indexing/validate/operation-generation-selection/capture-authority",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 1498,
+        "attempts": 1
+      },
+      {
+        "id": "indexing/validate/operation-generation-selection/captured-move",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 1471,
+        "attempts": 1
+      },
+      {
+        "id": "indexing/validate/operation-generation-selection/during-read",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 1495,
+        "attempts": 1
+      },
+      {
+        "id": "indexing/validate/operation-generation-selection/invalid-selection",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 982,
+        "attempts": 1
+      },
+      {
+        "id": "indexing/validate/operation-generation-selection/legacy-move",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 1496,
+        "attempts": 1
+      },
+      {
+        "id": "indexing/validate/operation-generation-selection/mixed-roots",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 1491,
+        "attempts": 1
+      },
+      {
+        "id": "indexing/validate/operation-generation-selection/strict-ledger",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 1479,
+        "attempts": 1
+      },
+      {
+        "id": "indexing/validate/profile-postings-requirements",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 917,
+        "attempts": 1
+      },
+      {
+        "id": "indexing/validate/repo-map-source-identity-collisions",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 217,
+        "attempts": 1
+      },
+      {
+        "id": "indexing/validate/resource-failure-classification",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 101,
+        "attempts": 1
+      },
+      {
+        "id": "indexing/validate/strict-validator-identities",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 675,
+        "attempts": 1
+      },
+      {
+        "id": "indexing/validate/symbol-integrity-strict",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 788,
+        "attempts": 1
+      },
+      {
+        "id": "indexing/validate/validator/manifest-count-sharded",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 368,
+        "attempts": 1
+      },
+      {
+        "id": "indexing/validate/validator/risk-interprocedural",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 1022,
+        "attempts": 1
+      },
+      {
+        "id": "perf/bench/regex-engine-identity",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 166,
+        "attempts": 1
+      },
+      {
+        "id": "perf/indexing/validate/stage-usage-checklist",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 19928,
+        "attempts": 1
+      },
+      {
+        "id": "services/mcp/sdk-cancel-progress",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 9998,
+        "attempts": 1
+      },
+      {
+        "id": "services/mcp/sdk-close-failure",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 3594,
+        "attempts": 1
+      },
+      {
+        "id": "services/mcp/sdk-configured-buffer-bound",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 3661,
+        "attempts": 1
+      },
+      {
+        "id": "services/mcp/sdk-diagnostic-lane",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 3601,
+        "attempts": 1
+      },
+      {
+        "id": "services/mcp/sdk-mode",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 5606,
+        "attempts": 1
+      },
+      {
+        "id": "services/mcp/sdk-progress-failure",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 3605,
+        "attempts": 1
+      },
+      {
+        "id": "services/mcp/sdk-search-context-workflow",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 17235,
+        "attempts": 1
+      },
+      {
+        "id": "shared/capabilities/mcp-sdk",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 619,
+        "attempts": 1
+      },
+      {
+        "id": "shared/safe-regex/contract-matrix",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 103,
+        "attempts": 1
+      },
+      {
+        "id": "shared/subprocess/windows-cdb-child/async-output",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 265,
+        "attempts": 1
+      },
+      {
+        "id": "shared/subprocess/windows-cdb-child/invalid-context",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 194,
+        "attempts": 1
+      },
+      {
+        "id": "shared/subprocess/windows-cdb-child/nonzero-exit",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 189,
+        "attempts": 1
+      },
+      {
+        "id": "shared/subprocess/windows-cdb-child/phase-checkpoint",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 202,
+        "attempts": 1
+      },
+      {
+        "id": "shared/subprocess/windows-cdb-child/simulated-native-exit",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 185,
+        "attempts": 1
+      },
+      {
+        "id": "shared/subprocess/windows-cdb-child/truncated-output",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 203,
+        "attempts": 1
+      },
+      {
+        "id": "shared/subprocess/windows-cdb-collector/bad-reply",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 635,
+        "attempts": 1
+      },
+      {
+        "id": "shared/subprocess/windows-cdb-collector/boundary-collector-failure",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 784,
+        "attempts": 1
+      },
+      {
+        "id": "shared/subprocess/windows-cdb-collector/boundary-dual-runner",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 353,
+        "attempts": 1
+      },
+      {
+        "id": "shared/subprocess/windows-cdb-collector/boundary-forged",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 348,
+        "attempts": 1
+      },
+      {
+        "id": "shared/subprocess/windows-cdb-collector/boundary-native",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 772,
+        "attempts": 1
+      },
+      {
+        "id": "shared/subprocess/windows-cdb-collector/capture-write-failure",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 773,
+        "attempts": 1
+      },
+      {
+        "id": "shared/subprocess/windows-cdb-collector/debugger-failure",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 773,
+        "attempts": 1
+      },
+      {
+        "id": "shared/subprocess/windows-cdb-collector/forged-capability",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 355,
+        "attempts": 1
+      },
+      {
+        "id": "shared/subprocess/windows-cdb-collector/launch-failure",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 612,
+        "attempts": 1
+      },
+      {
+        "id": "shared/subprocess/windows-cdb-collector/malformed-dump",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 622,
+        "attempts": 1
+      },
+      {
+        "id": "shared/subprocess/windows-cdb-collector/metadata-release-failure",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 785,
+        "attempts": 1
+      },
+      {
+        "id": "shared/subprocess/windows-cdb-collector/missing-launch",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 633,
+        "attempts": 1
+      },
+      {
+        "id": "shared/subprocess/windows-cdb-collector/no-dump",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 637,
+        "attempts": 1
+      },
+      {
+        "id": "shared/subprocess/windows-cdb-collector/normal-exit",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 783,
+        "attempts": 1
+      },
+      {
+        "id": "shared/subprocess/windows-cdb-collector/oversize-dump",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 634,
+        "attempts": 1
+      },
+      {
+        "id": "shared/subprocess/windows-cdb-collector/owned-dump",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 841,
+        "attempts": 1
+      },
+      {
+        "id": "shared/subprocess/windows-cdb-collector/pending-error",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 604,
+        "attempts": 1
+      },
+      {
+        "id": "shared/subprocess/windows-cdb-collector/pending-result",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 614,
+        "attempts": 1
+      },
+      {
+        "id": "shared/subprocess/windows-cdb-collector/progress-foreign",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 635,
+        "attempts": 1
+      },
+      {
+        "id": "shared/subprocess/windows-cdb-collector/progress-partial",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 775,
+        "attempts": 1
+      },
+      {
+        "id": "shared/subprocess/windows-cdb-collector/progress-valid",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 790,
+        "attempts": 1
+      },
+      {
+        "id": "shared/subprocess/windows-cdb-collector/relative-path",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 355,
+        "attempts": 1
+      },
+      {
+        "id": "shared/subprocess/windows-cdb-collector/revoked-trust",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 354,
+        "attempts": 1
+      },
+      {
+        "id": "shared/subprocess/windows-cdb-collector/runtime-changed",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 643,
+        "attempts": 1
+      },
+      {
+        "id": "shared/subprocess/windows-cdb-collector/simulated-exit",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 780,
+        "attempts": 1
+      },
+      {
+        "id": "shared/subprocess/windows-cdb-collector/unexpected-entry",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 617,
+        "attempts": 1
+      },
+      {
+        "id": "shared/subprocess/windows-cdb-collector/untrusted-runner",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 356,
+        "attempts": 1
+      },
+      {
+        "id": "shared/subprocess/windows-cdb-collector/wrong-pid",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 626,
+        "attempts": 1
+      },
+      {
+        "id": "shared/subprocess/windows-cdb-collector/wrong-token",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 624,
+        "attempts": 1
+      },
+      {
+        "id": "tooling/install/node-realm-lifecycle",
+        "status": "passed",
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "skipReason": null,
+        "durationMs": 178,
+        "attempts": 1
+      }
+    ]
+  },
+  "selection": {
+    "requiredCount": 77,
+    "excluded": [
+      {
+        "id": "services/mcp/sdk-descendant-grace",
+        "sourceId": "services/mcp/sdk-descendant-grace",
+        "kind": "platform",
+        "reason": "POSIX SIGTERM escalation; Windows services/mcp/sdk-cancel-progress"
+      },
+      {
+        "id": "indexing/validate/index-contract-matrix",
+        "kind": "physical-link",
+        "reason": "Separate optional physical-link qualification per user; portable authority controls remain required"
+      },
+      {
+        "id": "indexing/validate/index-current-build-pointer-case-insensitive",
+        "kind": "physical-link",
+        "reason": "Separate optional physical-link qualification per user; portable authority controls remain required"
+      }
+    ],
+    "missing": [],
+    "extra": [],
+    "duplicates": [],
+    "initialSelectionNote": "The initial 80 included one POSIX skip and two physical-link cohort fixtures. Their incidental passes do not qualify physical-link acceptance; final selection explicitly excludes all three."
+  },
+  "repairs": [
+    {
+      "commit": "6eb2f5f3f93b1af134830d15a7db834e71c2c76e",
+      "behavior": "Preserve raw signed/unsigned child status; assert exact 0xC0000005 bits, real nonzero exit and no dump for deliberate simulated status."
+    },
+    {
+      "commit": "50a234d32622c43dbfcc1b715d89c6b6d3c349ec",
+      "behavior": "Respect intentional vector-only sparse omissions; present/declared/corrupt sparse inputs and required dense inputs remain validated."
+    },
+    {
+      "commit": "0b0f9b0445c3d8e07e461b03d38512724cecca1c",
+      "behavior": "Retain original debugger launch/monitor error together with child-receipt read failure on every final failure path."
+    },
+    {
+      "commit": "bfa2e8bebcf46453a5c4e2b92b2745518855d000",
+      "behavior": "Nonstrict optional loading admits genuine absence while preserving present, errored, declared-missing and legacy artifact checks."
+    }
+  ],
+  "remaining": [
+    "Queued vector-only service generation still fails missing dense artifact requirements before asynchronous work completes. No dense readiness or publication waiver was introduced.",
+    "CDB synthetic collector/child controls do not establish a new native crash cause or full debugger qualification.",
+    "Other full-baseline failures, Windows native workflows, real models and performance acceptance remain open."
+  ],
+  "historicalWorkspace": {
+    "root": ".tmp/tasks/windows-security-292-20261028/",
+    "availability": "Raw logs and native inventory receipts are historical author-workspace files, not promised in clean checkouts."
+  },
+  "frontGate": {
+    "sourceHead": "bfa2e8bebcf46453a5c4e2b92b2745518855d000",
+    "workingTree": "Documentation added; runtime/test/dependency files unchanged during the front gate.",
+    "results": [
+      {
+        "name": "format",
+        "program": "npm",
+        "arguments": [
+          "run",
+          "format"
+        ],
+        "startedAt": "2026-10-29T00:48:15.2372104Z",
+        "finishedAt": "2026-10-29T00:48:53.5637236Z",
+        "exitCode": 0,
+        "logSha256": "7b6ecbaa588687ae9361de86fa1be71f8a1c8d6d560b8c05c3d4a36b41040e7a"
+      },
+      {
+        "name": "config-budget",
+        "program": "npm",
+        "arguments": [
+          "run",
+          "config:budget"
+        ],
+        "startedAt": "2026-10-29T00:48:53.5826403Z",
+        "finishedAt": "2026-10-29T00:48:55.8411191Z",
+        "exitCode": 0,
+        "logSha256": "f043edbfe9c124df7382a258c37af590664650e6900a3a6b7740327033f42188"
+      },
+      {
+        "name": "env-check",
+        "program": "npm",
+        "arguments": [
+          "run",
+          "env:check"
+        ],
+        "startedAt": "2026-10-29T00:48:55.8445374Z",
+        "finishedAt": "2026-10-29T00:48:57.2625538Z",
+        "exitCode": 0,
+        "logSha256": "fdb1f3a0cc01d0aa4df797ea540d73ba56380464f88cea3f49dfa50bce41dc91"
+      },
+      {
+        "name": "generated-freshness",
+        "program": "node",
+        "arguments": [
+          "tools/docs/generated-surfaces.js",
+          "--check-freshness"
+        ],
+        "startedAt": "2026-10-29T00:49:48.8523224Z",
+        "finishedAt": "2026-10-29T00:50:00.4712394Z",
+        "exitCode": 0,
+        "logSha256": "486a1f76702c08378b565b632884d46fc5ffa16210f70a68304925fa5eb818f6"
+      },
+      {
+        "name": "command-surface",
+        "program": "node",
+        "arguments": [
+          "tools/ci/check-command-surface.js"
+        ],
+        "startedAt": "2026-10-29T00:50:00.4864188Z",
+        "finishedAt": "2026-10-29T00:50:03.5592760Z",
+        "exitCode": 0,
+        "logSha256": "f16d35826c0a50a9d9a491bc668b12374018822b83947643d1446cb031bc8577"
+      },
+      {
+        "name": "workflow-contract",
+        "program": "node",
+        "arguments": [
+          "tests/ci/workflow-contract.test.js"
+        ],
+        "startedAt": "2026-10-29T00:50:03.5628520Z",
+        "finishedAt": "2026-10-29T00:50:03.8568545Z",
+        "exitCode": 0,
+        "logSha256": "185b68faaf1903b2526a655b3bf7c5363bb10d447dfdb9e32461d93af831d39f"
+      },
+      {
+        "name": "gate",
+        "program": "node",
+        "arguments": [
+          "tests/run.js",
+          "--lane",
+          "gate",
+          "--jobs",
+          "1",
+          "--timeout-ms",
+          "30000",
+          "--retries",
+          "0",
+          "--native-status-redo=false",
+          "--report-file",
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-security-292-20261028\\gate.json",
+          "--log-dir",
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\windows-security-292-20261028\\gate-logs"
+        ],
+        "startedAt": "2026-10-29T00:50:03.8591290Z",
+        "finishedAt": "2026-10-29T00:50:27.4859307Z",
+        "exitCode": 0,
+        "logSha256": "d18dcc0491c18eda3dded605613a9f0246cfe92b7b753d934e07fa63a1adeb63"
+      },
+      {
+        "name": "diff-check",
+        "program": "git",
+        "arguments": [
+          "diff",
+          "--check"
+        ],
+        "startedAt": "2026-10-29T00:50:27.4881073Z",
+        "finishedAt": "2026-10-29T00:50:27.5573781Z",
+        "exitCode": 0,
+        "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    ],
+    "gateSummary": {
+      "durationMs": 22752,
+      "failed": 0,
+      "passed": 40,
+      "skipped": 0,
+      "total": 40
+    },
+    "earlierFailure": {
+      "name": "generated-freshness",
+      "exitCode": 1,
+      "cause": "The added status paragraph exceeded the roadmap 20000-byte CRLF contract. Condensed superseded historical prose without weakening the limit; freshness then passed.",
+      "logSha256": "41d5d0aedf8d9f18822dc9c42d42f9afc640ebbe4c995c2d6f5856fbdbb71dae"
+    }
+  },
+  "nextFullValidation": {
+    "anchorCheckpoint": 285,
+    "anchorHead": "7b05a3dbda973c48fba9335b063ce2926371147d",
+    "commitInterval": 20,
+    "nextCheckpoint": 305,
+    "scope": "Rediscover and reconcile every Windows-applicable fixture, execute correctness with bounded concurrency and native/performance serially; enumerate exclusions, zero retries/native redo, 30-second fixture bound."
+  }
+}

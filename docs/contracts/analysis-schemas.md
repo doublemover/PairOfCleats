@@ -2,7 +2,53 @@
 
 This document defines the analysis-related schemas used across indexing, validation, and retrieval. Schema validation is enforced by `src/contracts/validators/analysis.js`.
 
-> Note: Phase 11 introduces several **analysis output** schemas (JSON-first) intended for CLI today and API/MCP consumers later. These outputs are not index artifacts unless explicitly stated.
+Analysis outputs are consumed by current CLI and supported API/MCP routes;
+see [the public transport contract](mcp-api.md). A schema is not proof that every
+transport admits every option or uses the same envelope. These outputs are not
+index artifacts unless explicitly stated. Runtime validators are authoritative;
+old phase numbers do not establish current implementation or qualification.
+
+Graph context and impact outputs optionally carry `pathCapability` when their
+builder receives `pathSemantics: "graph-witness"`. The versioned shared semantic
+path declaration names each real producer/operation, graph relation kinds,
+direction, exact index signature and existing caps. Returned witness chains and
+edge domains are validated; unknown extraction, unresolved targets and truncated
+or unrequested witnesses remain explicit. `indexCompatKey` alone cannot pin this
+capability. Graph witnesses provide no executable-path or feasibility proof.
+
+The canonical context task schema is `src/contracts/schemas/context-task.js`.
+Complete-file edit units retain schema version 1; parser-qualified complete
+functions use version 2 with original file hash/span, exact unit content hash and
+parser identity. Both require unchanged pinned source and intact evidence.
+Its optional version 1 request policy distinguishes exploration excerpts from
+edit-safe complete files. Edit units bind the actual UTF-8 excerpt hash, byte
+length, complete UTF-16 span and index signature; their evidence cannot claim
+truncation, substitution or source drift. Function granularity currently requires
+an explicitly permitted whole-file fallback or an unavailable outcome. See
+[context-pack task policies](../guides/context-pack-tasks.md) for bounds and
+mandatory-unit error behavior.
+
+## Small report example
+
+The existing `tests/shared/contracts/analysis-schemas-validate.test.js` fixture
+uses the following bounded graph context shape:
+
+```json
+{
+  "version": "1.0.0",
+  "seed": { "type": "chunk", "chunkUid": "chunk-1" },
+  "provenance": { "generatedAt": "2026-02-01T00:00:00Z", "indexSignature": "sig-0001", "capsUsed": {} },
+  "nodes": [],
+  "edges": []
+}
+```
+
+Its sample identities/timestamp are fixture values. Omitting required `seed` or
+`provenance` is invalid; an empty bounded graph does not assert project-wide
+absence of relations. This excerpt documents the existing validator fixture;
+no final-head execution is claimed by this consolidation. New provider facts
+must update the canonical schema/consumer and retain source identity and explicit
+unsupported state before being documented as available.
 
 ## Metadata v2 (per chunk)
 
@@ -111,11 +157,18 @@ Minimum fields:
 - `seed`
 - `provenance`
 - `primary` (excerpt + provenance)
+- `evidence`
 - optional `graph`
 - optional `types`
 - optional `risk`
+- optional `semantic`
 - optional `truncation[]`
 - optional `warnings[]`
+
+Semantic evidence notes:
+- A present `semantic` section requires `evidence.semantic.included=true`, a matching `partial` or `unavailable` state, and `evidence.complete=false`.
+- After response-budget omission, an absent section cannot retain `included=true`; retained semantic metadata must say `included=false`, `state=omitted`, and `evidence.complete=false`.
+- These invariants are part of the standalone JSON schema and the runtime validator. Semantic follow-up requests preserve the section's repository and generation.
 
 Risk slice notes:
 - `risk.partialFlows[]` is optional and carries bounded frontier-flow summaries for incomplete or capped interprocedural analysis.
@@ -148,6 +201,38 @@ Options fields:
 - `onlyExports` (bool)
 - `failOnWarn` (bool)
 - `caps.maxSymbols`, `caps.maxCallsPerSymbol`, `caps.maxWarnings`
+
+`maxWarnings` limits retained warning details. Known violations still trigger
+`failOnWarn`, including when the detail cap is zero. A warning-detail truncation
+record reports the detected count in `observed` and the actual dropped count in
+`omitted`; it is absent when nothing was omitted. An exactly filled cap does not
+by itself imply truncation. Symbols/calls excluded by their own caps remain
+unexamined evidence, with their existing truncation records.
+
+Observed calls join only through a recorded `targetChunkUid` and a checked,
+unambiguous symbol/chunk identity in the entire admitted inventory. Callee names
+and caller-supplied bucket keys are lexical hints, never alternate target IDs.
+Export filtering and symbol/call display caps run after target qualification and
+cannot make a lexical hint authoritative. A call explicitly targeting another
+declaration cannot supply this declaration's arity warning.
+
+Each newly produced observed call retains its target, caller, source coordinates,
+optional canonical semantic invocation reference, and `join` record. The join
+records the symbol, provider scheme and report index signature/compatibility key;
+it certifies a recorded structural association, not runtime dispatch, feasibility
+or provider completeness. A compatibility key without an index signature does
+not establish an exact generation. Explicit mismatching row index signatures
+remain unresolved. Symbol aliases and overload collisions fail closed.
+
+`callEvidence` reports unique qualified/unresolved counts, duplicate inputs,
+fixed reason counts, reported calls and qualified calls omitted by selection or
+caps. Unresolved details are explicitly `counts-only`; they do not become arity
+violations. Missing targets and unique lexical names remain unresolved. Target
+lookups are built once against all symbols; deterministic ordering is separate
+from qualification. The report and emitted `api_contracts` rows share one entry
+schema, with validator checks for target/join identity, index authority, duplicate
+observed identities and consistent report accounting. Legacy rows lacking the
+additive join fields remain shape-compatible without acquiring these guarantees.
 
 ### Architecture report
 
@@ -183,3 +268,17 @@ Minimum fields:
 
 - Schemas allow `additionalProperties` so fields may be extended; only documented keys are relied upon by core logic.
 - Any schema change that affects `compatibilityKey` inputs is a hard break for mixing indexes.
+
+Complexity metadata uses the arithmetic mean of measured function cyclomatic
+values; independent module-level branches do not change that mean. A successfully
+analyzed file with no functions reports functions=0 and averageCyclomatic=0.
+Measured metadata carries status=measured and analyzerVersion=2. Unsupported AST
+kinds or parse/provider failures carry status=unavailable with a bounded reason,
+without publishing a numeric complexity as if it were measured.
+
+ESM is parsed as a real module when script parsing fails. Export wrappers retain
+their actual declaration ASTs and original locations for the provider walker;
+imports/re-exports do not invent executable branches. Unsupported modern syntax
+remains explicitly unmeasured. This is bounded syntax support, not a claim that
+escomplex accepts every admitted JavaScript/TypeScript construct. File-local
+complexity caches and incremental producer identity include the new semantics.

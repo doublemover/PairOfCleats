@@ -1,4 +1,7 @@
 import { normalizeFtsVariants } from '../../fts-variants.js';
+import { throwIfAborted } from '../../../../shared/abort.js';
+import { observeStorageResource } from '../../../../shared/storage/failure-observation.js';
+import { addStorageFailureContext } from '../../../../shared/storage/operation-error.js';
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
@@ -6,10 +9,9 @@ import { createTempPath } from '../../../../shared/json-stream/atomic.js';
 import { ensureDiskSpace, estimateDirBytes } from '../../../../shared/disk-space.js';
 import { createStageCheckpointRecorder } from '../../../../index/build/stage-checkpoints.js';
 import { resolveVectorExtensionConfigForMode } from '../../../../../tools/sqlite/vector-extension.js';
-import { compactDatabase } from '../../../../../tools/build/compact-sqlite-index.js';
+import { compactDatabase, getSqliteCompactionChunkIdentity } from '../../../../../tools/build/compact-sqlite-index.js';
 import { loadIncrementalManifest } from '../../incremental.js';
 import {
-  removeSqliteSidecars,
   replaceSqliteDatabase,
   resolveExpectedDenseCount
 } from '../../utils.js';
@@ -45,6 +47,8 @@ import {
 } from './logging.js';
 import { createModeReporter } from './reporting-state-transitions.js';
 import { resolveModeSelectionPlan } from './selection-planning.js';
+import { withSqliteStorageOperation, getSqliteStorageOperation } from '../storage-operation.js';
+import { cleanupFailedSqliteStaging, readSqliteOutputBytes } from './output-files.js';
 
 /**
  * Execute sqlite build orchestration for all selected modes.
@@ -55,7 +59,11 @@ import { resolveModeSelectionPlan } from './selection-planning.js';
  * @param {object} input
  * @returns {Promise<void>}
  */
-export const executeSqliteModeBuilds = async ({
+export const executeSqliteModeBuilds = input => withSqliteStorageOperation({ repoRoot: input.root, userConfig: input.userConfig },
+  Object.values(input.modeOutputPaths || {}).filter(Boolean).map(value => path.resolve(value)),
+  () => executeSqliteModeBuildsOwned(input));
+
+const executeSqliteModeBuildsOwned = async ({
   Database,
   argv,
   validateMode,
@@ -68,6 +76,8 @@ export const executeSqliteModeBuilds = async ({
   bail,
   modeList,
   indexRoot,
+  modeIndexRoots = null,
+  modeStateRoots = null,
   modeIndexDirs,
   modeOutputPaths,
   modeChunkCountHints,
@@ -90,8 +100,10 @@ export const executeSqliteModeBuilds = async ({
   indexPieceErrors,
   compactMode,
   envConfig,
-  threadLimits
+  threadLimits,
+  signal = null
 }) => {
+  throwIfAborted(signal);
   const requestedFtsVariants = normalizeFtsVariants(argv['fts-variants'] ?? [
     ...(userConfig?.search?.sqliteFtsStemming === true ? ['porter'] : [])
   ]);
@@ -100,11 +112,14 @@ export const executeSqliteModeBuilds = async ({
   let done = 0;
 
   for (const mode of modeList) {
+    throwIfAborted(signal);
+    const modeIndexRoot = modeIndexRoots?.[mode] || indexRoot;
+    const stateRoot = modeStateRoots ? modeStateRoots[mode] : modeIndexRoot;
     const stageCheckpoints = createStageCheckpointRecorder({
-      buildRoot: indexRoot,
+      buildRoot: stateRoot,
       metricsDir,
       mode,
-      buildId: indexRoot ? path.basename(indexRoot) : null
+      buildId: modeIndexRoot ? path.basename(modeIndexRoot) : null
     });
     const startTs = Date.now();
     const {
@@ -119,6 +134,7 @@ export const executeSqliteModeBuilds = async ({
       sqliteRuntime
     } = resolveModeSelectionPlan({
       repoRoot: root,
+      userConfig,
       mode,
       modeIndexDirs,
       modeOutputPaths,
@@ -136,63 +152,71 @@ export const executeSqliteModeBuilds = async ({
       outputPath,
       root,
       userConfig,
-      indexRoot,
+      indexRoot: modeIndexRoot,
+      indexDir: modeIndexDir,
+      stateUpdates: Boolean(stateRoot),
       schemaVersion,
       threadLimits,
       stageCheckpoints,
       emitOutput,
       logger: { log, error }
     });
-    const logDetails = [];
-
-    reporter.logBuildStart();
-    await reporter.setRunningState();
-
-    const modeIsZeroState = modeChunkCountHint === 0 && modeDenseCountHint === 0;
-    if (modeIsZeroState) {
-      const existingRows = outputExists
-        ? readSqliteModeCount({
-          repoRoot: root,
-          Database,
-          dbPath: outputPath,
-          mode
-        })
-        : 0;
-      if (!outputExists || existingRows === 0) {
-        const zeroStateManifestPath = await writeSqliteZeroStateManifest({
-          modeIndexDir,
-          mode,
-          outputPath,
-          chunkCount: modeChunkCountHint,
-          denseCount: modeDenseCountHint
-        });
-        await reporter.reportSkippedEmpty({
-          existingRows: outputExists ? 0 : null,
-          denseCount: modeDenseCountHint,
-          zeroStateManifestPath
-        });
-        done += 1;
-        buildModeTask.set(done, modeList.length, { message: `${mode} skipped` });
-        continue;
-      }
-    }
-
-    const incrementalData = loadIncrementalManifest(repoCacheRoot, mode, { repoRoot: root });
-    const incrementalBundleDir = incrementalData?.bundleDir || null;
-    const incrementalFiles = incrementalData?.manifest?.files;
-    const incrementalFileCount = incrementalFiles && typeof incrementalFiles === 'object'
-      ? Object.keys(incrementalFiles).length
-      : 0;
-    const bundleInventory = listIncrementalBundleFiles(incrementalBundleDir);
-    const incrementalBundleCount = bundleInventory.count;
-    const missingBundleCount = countMissingBundleFiles(incrementalData, bundleInventory.names);
-    let resolvedInput = null;
     let tempOutputPath = null;
-    let inputBytes = 0;
-    const sqliteStats = {};
-    const workTask = taskFactory('Build', { stage: 'sqlite', mode });
-
+    let modeFailure, modeFailed = false;
     try {
+      throwIfAborted(signal);
+      const logDetails = [];
+
+      reporter.logBuildStart();
+      await reporter.setRunningState();
+      throwIfAborted(signal);
+
+      const modeIsZeroState = Boolean(stateRoot) && modeChunkCountHint === 0 && modeDenseCountHint === 0;
+      if (modeIsZeroState) {
+        const existingRows = outputExists
+          ? readSqliteModeCount({
+            repoRoot: root,
+            userConfig,
+            Database,
+            dbPath: outputPath,
+            mode
+          })
+          : 0;
+        if (!outputExists || existingRows === 0) {
+          const zeroStateManifestPath = await writeSqliteZeroStateManifest({
+            modeIndexDir,
+            mode,
+            outputPath,
+            chunkCount: modeChunkCountHint,
+            denseCount: modeDenseCountHint
+          });
+          throwIfAborted(signal);
+          await reporter.reportSkippedEmpty({
+            existingRows: outputExists ? 0 : null,
+            denseCount: modeDenseCountHint,
+            zeroStateManifestPath
+          });
+          done += 1;
+          buildModeTask.set(done, modeList.length, { message: `${mode} skipped` });
+          continue;
+        }
+      }
+
+      const incrementalData = loadIncrementalManifest(repoCacheRoot, mode, { repoRoot: root });
+      const incrementalBundleDir = incrementalData?.bundleDir || null;
+      const incrementalFiles = incrementalData?.manifest?.files;
+      const incrementalFileCount = incrementalFiles && typeof incrementalFiles === 'object'
+        ? Object.keys(incrementalFiles).length
+        : 0;
+      const bundleInventory = listIncrementalBundleFiles(incrementalBundleDir);
+      const incrementalBundleCount = bundleInventory.count;
+      const missingBundleCount = countMissingBundleFiles(incrementalData, bundleInventory.names);
+      let resolvedInput = null;
+      let inputBytes = 0;
+      const sqliteStats = {};
+      const workTask = taskFactory('Build', { stage: 'sqlite', mode });
+
+      throwIfAborted(signal);
       await fs.mkdir(outDir, { recursive: true });
       const piecesLoadError = indexPieceErrors?.[mode];
       if (piecesLoadError) {
@@ -261,16 +285,18 @@ export const executeSqliteModeBuilds = async ({
       resolvedInput = { ...incrementalPlan.resolvedInput };
       const createModeRowLedger = ({
         source = resolvedInput?.source,
+        expectedChunkCount = modeChunkCountHint,
         inputRoot = source === 'incremental' ? incrementalBundleDir : modeIndexDir
       } = {}) => createSqliteModeRowLedger({
         mode,
         source,
-        expectedChunkCount: modeChunkCountHint,
+        expectedChunkCount,
         expectedDenseCount,
         expectedFileCount: repoFileCountHint,
         inputRoot
       });
       let activeRowLedger = createModeRowLedger();
+      let decodedArtifactChunks = null;
       const bundleWorkerAutotune = resolveBundleWorkerAutotune({
         mode,
         manifestFiles: incrementalFiles,
@@ -285,6 +311,9 @@ export const executeSqliteModeBuilds = async ({
       };
       sqliteStats.bundleWorkerAutotune = {
         mode,
+        requestedThreads: bundleWorkerAutotune.requestedThreads,
+        recommendedThreads: bundleWorkerAutotune.recommendedThreads,
+        budget: bundleWorkerAutotune.budget,
         threads: bundleWorkerAutotune.threads,
         reason: bundleWorkerAutotune.reason,
         bundleCount: bundleWorkerAutotune.bundleCount,
@@ -305,6 +334,19 @@ export const executeSqliteModeBuilds = async ({
         ...vectorConfig,
         extension: modeVectorExtension,
         enabled: vectorAnnEnabled && (mode === 'code' || mode === 'prose' || mode === 'extracted-prose')
+      };
+      const validatePublishedCounts = (dbPath, checkName = 'postImport') => {
+        const result = validateSqliteRowLedgerPostImport({ repoRoot: root, userConfig, rowLedger: activeRowLedger, Database, dbPath,
+          chunkIdentity: sqliteStats.chunkIdentity || null,
+          annTable: resolvedVectorConfig?.extension?.table || 'dense_vectors_ann',
+          annExpectation: !resolvedVectorConfig.enabled ? 'disabled' : sqliteStats.vectorAnn?.ready === true ? 'ready' : 'unavailable',
+          configureAnn: resolvedVectorConfig.enabled ? db => resolvedVectorConfig.loadVectorExtension(db,
+            resolvedVectorConfig.extension, `sqlite ${mode} ledger`) : null });
+        sqliteStats.rowLedgerChecks = { ...(sqliteStats.rowLedgerChecks || {}), [checkName]: result };
+        if (!result.ok) throw Object.assign(new Error(result.message), {
+          code: result.code, failureClass: result.failureClass, rowLedger: result.rowLedger, observed: result.observed,
+          ...(result.rowIdentity ? { rowIdentity: result.rowIdentity } : {})
+        });
       };
       let activeBatchConfig = null;
       let activeIngestPlan = null;
@@ -390,6 +432,7 @@ export const executeSqliteModeBuilds = async ({
         && recordsIncrementalSupported
       ) {
         const updateResult = await incrementalUpdateDatabase({
+          signal,
           repoRoot: root,
           ftsVariants: mode === 'code' ? requestedFtsVariants.filter(value => value !== 'porter') : requestedFtsVariants,
           Database,
@@ -422,19 +465,19 @@ export const executeSqliteModeBuilds = async ({
           };
         }
         if (updateResult?.used) {
+          validatePublishedCounts(outputPath);
           const counts = readSqliteCounts({
+            required: true,
             repoRoot: root,
+            userConfig,
             Database,
             dbPath: outputPath
           });
           const durationMs = Date.now() - startTs;
-          let stat = null;
-          try {
-            stat = await fs.stat(outputPath);
-          } catch {}
+          const outputBytes = await readSqliteOutputBytes(outputPath);
           await reporter.reportIncrementalReady({
             counts,
-            outputBytes: Number(stat?.size) || 0,
+            outputBytes,
             durationMs,
             sqliteStats
           });
@@ -477,6 +520,7 @@ export const executeSqliteModeBuilds = async ({
           label: `${mode} sqlite incremental`
         });
         const bundleResult = await buildDatabaseFromBundles({
+          signal,
           repoRoot: root,
           ftsVariants: mode === 'code' ? requestedFtsVariants.filter(value => value !== 'porter') : requestedFtsVariants,
           Database,
@@ -523,7 +567,8 @@ export const executeSqliteModeBuilds = async ({
             fileCountHint: artifactFileCountHint || repoFileCountHint,
             repoBytesHint: Math.max(sqliteRuntime.dbBytes || 0, inputBytes || 0)
           });
-          await buildDatabaseFromArtifacts({
+          decodedArtifactChunks = await buildDatabaseFromArtifacts({
+            signal,
             repoRoot: root,
             ftsVariants: mode === 'code' ? requestedFtsVariants.filter(value => value !== 'porter') : requestedFtsVariants,
             Database,
@@ -553,7 +598,8 @@ export const executeSqliteModeBuilds = async ({
           requiredBytes: Math.max(estimate.bytes * 2, 64 * 1024 * 1024),
           label: `${mode} sqlite artifacts`
         });
-        await buildDatabaseFromArtifacts({
+        decodedArtifactChunks = await buildDatabaseFromArtifacts({
+          signal,
           ftsVariants: mode === 'code' ? requestedFtsVariants.filter(value => value !== 'porter') : requestedFtsVariants,
           Database,
           index: pieces,
@@ -569,28 +615,23 @@ export const executeSqliteModeBuilds = async ({
           stats: sqliteStats
         });
       }
-      const postImportValidation = validateSqliteRowLedgerPostImport({
-        repoRoot: root,
-        rowLedger: activeRowLedger,
-        Database,
-        dbPath: tempOutputPath,
-        annTable: resolvedVectorConfig?.extension?.table || 'dense_vectors_ann'
-      });
-      sqliteStats.rowLedgerChecks = {
-        ...(sqliteStats.rowLedgerChecks || {}),
-        postImport: postImportValidation
-      };
-      if (!postImportValidation.ok) {
-        const validationError = new Error(postImportValidation.message);
-        validationError.code = postImportValidation.code;
-        validationError.failureClass = postImportValidation.failureClass;
-        validationError.rowLedger = postImportValidation.rowLedger;
-        validationError.observed = postImportValidation.observed;
-        throw validationError;
+      throwIfAborted(signal);
+      if (modeChunkCountHint == null && decodedArtifactChunks !== null) {
+        if (!Number.isSafeInteger(decodedArtifactChunks) || decodedArtifactChunks < 0) {
+          throw Object.assign(new Error('SQLite source decoder did not confirm its input row count.'), { code: 'ERR_SQLITE_SOURCE_COUNT_UNAVAILABLE' });
+        }
+        // The artifact producer already counts decoded input rows independently
+        // of the database query below. Unknown metadata is never an empty index;
+        // reuse that count without another artifact pass or relaxing known claims.
+        activeRowLedger = createModeRowLedger({ expectedChunkCount: decodedArtifactChunks });
+        sqliteStats.rowLedger = activeRowLedger;
+        sqliteStats.rowLedgerInputCountSource = 'decoded-artifact-rows';
       }
+      validatePublishedCounts(tempOutputPath);
       const hadVectorTable = resolvedVectorConfig?.enabled === true
         ? hasVectorTableAtPath({
           repoRoot: root,
+          userConfig,
           Database,
           dbPath: tempOutputPath,
           tableName: resolvedVectorConfig?.extension?.table || 'dense_vectors_ann',
@@ -599,28 +640,45 @@ export const executeSqliteModeBuilds = async ({
         : false;
       if (compactMode) {
         const compacted = await compactDatabase({
+          storageContext: { repoRoot: root, userConfig },
           dbPath: tempOutputPath,
           mode,
           vectorExtension: resolvedVectorConfig.extension,
           logger: externalLogger || { log, warn, error }
         });
-        if (compacted) logDetails.push('compacted');
+        observeStorageResource(compacted, { phase: 'sqlite-compaction-original-result' }).requireSettled();
+        if (typeof compacted?.skipped !== 'boolean') throw Object.assign(new Error('SQLite compaction did not return its original completion receipt.'), {
+          code: 'ERR_SQLITE_COMPACTION_RECEIPT'
+        });
+        if (!compacted.skipped) {
+          sqliteStats.chunkIdentityBeforeCompaction = sqliteStats.chunkIdentity || null;
+          sqliteStats.chunkIdentity = getSqliteCompactionChunkIdentity(compacted);
+          // The compactor owns a new expected identity after planned ID/path
+          // normalization. Check that actual result before final replacement.
+          if (!sqliteStats.chunkIdentity) throw Object.assign(new Error('SQLite compaction completion has no source identity witness.'), {
+            code: 'ERR_SQLITE_COMPACTION_RECEIPT'
+          });
+          validatePublishedCounts(tempOutputPath, 'postCompaction');
+          logDetails.push('compacted');
+        }
       }
-      await replaceSqliteDatabase(tempOutputPath, outputPath);
+      throwIfAborted(signal);
+      await replaceSqliteDatabase(tempOutputPath, outputPath, { signal });
       tempOutputPath = null;
-      await removeSqliteSidecars(outputPath);
       const counts = readSqliteCounts({
+        required: true,
         repoRoot: root,
+        userConfig,
         Database,
         dbPath: outputPath
       });
       const durationMs = Date.now() - startTs;
-      const stat = await fs.stat(outputPath);
+      const outputBytes = await readSqliteOutputBytes(outputPath);
       const note = logDetails.length ? logDetails.join(', ') : null;
       await reporter.reportBuildReady({
         counts,
         inputBytes,
-        outputBytes: Number(stat?.size) || 0,
+        outputBytes,
         durationMs,
         note,
         sqliteStats
@@ -633,6 +691,7 @@ export const executeSqliteModeBuilds = async ({
       }
       if (sqliteStats?.bundleWorkerAutotune && bundleWorkerProfile?.modes) {
         bundleWorkerProfile.modes[mode] = {
+          resourceIdentity: bundleWorkerAutotune.budget.resourceIdentity,
           threads: sqliteStats.bundleWorkerAutotune.threads,
           reason: sqliteStats.bundleWorkerAutotune.reason,
           bundleCount: sqliteStats.bundleWorkerAutotune.bundleCount,
@@ -647,32 +706,34 @@ export const executeSqliteModeBuilds = async ({
       done += 1;
       buildModeTask.set(done, modeList.length, { message: `${mode} done` });
     } catch (err) {
-      if (tempOutputPath) {
-        try {
-          await fs.rm(tempOutputPath, { force: true });
-        } catch {}
-      }
+      modeFailed = true; modeFailure = err;
+      getSqliteStorageOperation()?.retainFailure(err);
+      err = await cleanupFailedSqliteStaging(tempOutputPath, err);
+      modeFailure = err;
       const errorMessage = err?.message || String(err);
-      await reporter.reportFailure({ errorMessage, err });
+      try { await reporter.reportFailure({ errorMessage, err }); }
+      catch (reporting) { err = addStorageFailureContext(err, {}, reporting, { secondaryPresent: true }); }
       if (err && typeof err === 'object') {
-        if (!err.code || !err.failureClass) {
-          const classifiedFailure = classifySqliteModeBuildFailure(err);
-          if (!err.code) err.code = classifiedFailure.code;
-          if (!err.failureClass) err.failureClass = classifiedFailure.failureClass;
-        }
-        if (!Number.isFinite(Number(err.exitCode))) err.exitCode = 1;
-        err.exitOnError = exitOnError === true;
-        throw err;
+        const classifiedFailure = classifySqliteModeBuildFailure(err);
+        modeFailure = addStorageFailureContext(err, {
+          code: err.code || classifiedFailure.code,
+          failureClass: err.failureClass || classifiedFailure.failureClass,
+          exitCode: Number.isFinite(Number(err.exitCode)) ? err.exitCode : 1,
+          exitOnError: exitOnError === true
+        });
+        throw modeFailure;
       }
-      const wrapped = new Error(errorMessage);
+      const wrapped = new Error(errorMessage, { cause: err });
       const classifiedFailure = classifySqliteModeBuildFailure(wrapped);
       wrapped.code = classifiedFailure.code;
       wrapped.failureClass = classifiedFailure.failureClass;
       wrapped.exitCode = 1;
       wrapped.exitOnError = exitOnError === true;
+      modeFailure = wrapped;
       throw wrapped;
     } finally {
-      await stageCheckpoints.flush();
+      try { await stageCheckpoints.flush(); }
+      catch (cleanup) { throw modeFailed ? addStorageFailureContext(modeFailure, {}, cleanup, { secondaryPresent: true }) : cleanup; }
       // buildDatabaseFromArtifacts/buildDatabaseFromBundles close their DB handles internally.
     }
   }

@@ -42,3 +42,4 @@ export const getInferenceHistorySchema = (name) => INFERENCE_HISTORY_SCHEMA_DEFS
 export { SEMANTIC_SCHEMA_DEFS as SEMANTIC_SCHEMA_REGISTRY } from './schemas/semantic.js';
 
 export { SEMANTIC_ENVELOPE_SCHEMAS } from './schemas/semantic-envelopes.js';
+export { GRAPH_EVIDENCE_VERSION, GRAPH_EVIDENCE_REQUEST_SCHEMA, GRAPH_EVIDENCE_RESULT_SCHEMA } from './schemas/graph-evidence.js';

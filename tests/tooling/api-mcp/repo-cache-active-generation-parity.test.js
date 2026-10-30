@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
+import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -8,7 +9,10 @@ import { loadUserConfig, getRepoCacheRoot, toRealPathSync } from '../../../tools
 import { createRepoCacheManager } from '../../../src/shared/repo-cache-config.js';
 import { createRepoCacheManager as createApiRepoCacheManager } from '../../../tools/api/router/cache.js';
 
+import { applyTestEnv } from '../../helpers/test-env.js';
+
 const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'pairofcleats-repo-cache-generation-parity-'));
+applyTestEnv({ cacheRoot: path.join(tempRoot, 'cache') });
 const fixedTick = new Date('2026-03-23T00:00:00.000Z');
 
 const writeBuild = async (buildsRoot, buildId) => {
@@ -38,6 +42,7 @@ try {
   const writePointer = async (buildRoot) => {
     const currentJsonPath = path.join(buildsRoot, 'current.json');
     await fs.writeFile(currentJsonPath, JSON.stringify({
+      artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
       buildId: 'build-a',
       buildRoot: path.relative(repoCacheRoot, buildRoot).replace(/\\/g, '/')
     }, null, 2), 'utf8');
@@ -58,12 +63,14 @@ try {
   await apiManager.refreshBuildPointer(apiEntry);
   await mcpManager.refreshBuildPointer(mcpEntry);
 
+  let sqliteCloses = 0;
+  const inertDb = () => ({ close() { sqliteCloses++; } });
   sharedEntry.indexCache.set('shared', { ok: true });
-  sharedEntry.sqliteCache.set('shared', { ok: true });
+  sharedEntry.sqliteCache.set('shared', inertDb());
   apiEntry.indexCache.set('api', { ok: true });
-  apiEntry.sqliteCache.set('api', { ok: true });
+  apiEntry.sqliteCache.set('api', inertDb());
   mcpEntry.indexCache.set('mcp', { ok: true });
-  mcpEntry.sqliteCache.set('mcp', { ok: true });
+  mcpEntry.sqliteCache.set('mcp', inertDb());
 
   await writePointer(buildRootB);
 
@@ -82,6 +89,7 @@ try {
   assert.equal(mcpEntry.indexCache.size(), 0, 'mcp cache should clear on active-generation change');
   assert.equal(mcpEntry.sqliteCache.size(), 0, 'mcp sqlite cache should clear on active-generation change');
 
+  assert.equal(sqliteCloses, 3, 'generation retirement closes each actual inert database exactly once');
   sharedManager.closeRepoCaches();
   apiManager.closeRepoCaches();
   mcpManager.closeRepoCaches();

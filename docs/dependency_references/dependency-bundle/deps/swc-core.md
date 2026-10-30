@@ -1,5 +1,10 @@
 # `@swc/core`
 
+> DEPRECATED proposed integration — 2026-10-27, PR #572. This unused direct root
+> was retired. [Current ownership](../../../guides/dependency-ownership.md)
+> retains the selected Babel/Acorn/Esprima parser routes. The notes below are
+> historical proposals, not implemented SWC consumption.
+
 **Area:** Fast parsing/transform (JS/TS)
 
 ## Why this matters for PairOfCleats

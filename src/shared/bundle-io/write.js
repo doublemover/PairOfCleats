@@ -2,9 +2,9 @@ import { ARTIFACT_SURFACE_VERSION } from '../../contracts/versioning.js';
 import { Packr } from 'msgpackr';
 import { writeJsonObjectFile } from '../json-stream/json-writers.js';
 import { atomicWriteText } from '../io/atomic-write.js';
-import { removePathWithRetry } from '../io/remove-path-with-retry.js';
 import {
   BUNDLE_CHECKSUM_SCHEMA_VERSION,
+  BUNDLE_PARSE_CHECKPOINT_SUFFIX,
   BUNDLE_FORMAT_TAG,
   BUNDLE_VERSION
 } from '../bundle-io-constants.js';
@@ -31,6 +31,7 @@ const packr = new Packr({ useRecords: false, structuredClone: true });
 export async function removeBundleWriteArtifacts(bundlePath) {
   await removeFileOrThrow(bundlePath);
   await removeFileOrThrow(resolveBundleJsonChecksumPath(bundlePath));
+  await removeFileOrThrow(bundlePath + BUNDLE_PARSE_CHECKPOINT_SUFFIX);
   await clearBundlePatchFile(bundlePath);
 }
 
@@ -71,10 +72,7 @@ export async function writeBundleFile({ bundlePath, bundle, format = 'json' }) {
     const encoded = packr.pack(envelope);
     await atomicWriteText(bundlePath, Buffer.from(encoded), { newline: false });
     await clearBundlePatchFile(bundlePath);
-    await removePathWithRetry(resolveBundleJsonChecksumPath(bundlePath), {
-      recursive: false,
-      force: true
-    });
+    await removeFileOrThrow(resolveBundleJsonChecksumPath(bundlePath));
     return {
       format: resolvedFormat,
       checksum: checksum?.value ?? null,

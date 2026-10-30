@@ -1,4 +1,3 @@
-import { projectIndexFormatError } from '../shared/index-format-error.js';
 import { isDirectExecution } from '../shared/direct-execution.js';
 import {
   resolveAnnActive,
@@ -8,6 +7,9 @@ import {
   resolveSparsePreflightMissingTables,
   resolveSparsePreflightModes
 } from './cli/preflight.js';
+
+// Process-local capability for coordinator-owned per-mode work, never a CLI flag.
+export const INTERNAL_EXACT_SEARCH_MODE = Symbol('coordinator-exact-search-mode');
 
 export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}) {
   const { runSearchCli: runSearchCliImpl } = await import('./cli/run-search/plan-runner.js');
@@ -24,7 +26,8 @@ export {
 };
 
 if (isDirectExecution(import.meta.url)) {
-  runSearchCli().catch((err) => {
+  runSearchCli().catch(async (err) => {
+    const { projectIndexFormatError } = await import('../shared/index-format-error.js');
     const format = projectIndexFormatError(err);
     if (!err?.emitted) console.error(format ? JSON.stringify({ ok: false, code: format.nativeCode, message: err.message, ...format, details: format }) : err?.message || err);
     process.exit(1);

@@ -37,3 +37,5 @@ indexing/contracts/semantic-foundations
 indexing/contracts/semantic-handoff-contracts
 indexing/contracts/runtime-evidence
 indexing/contracts/index-format-cutover
+ci/windows-authority-cohort
+ci/ordered-lane-discovery

@@ -126,7 +126,7 @@ assert.equal(
 );
 
 const oversizedTokenPayload = encodeVarint64List(
-  Array.from({ length: 40 }, (_, index) => (index % 2 === 0 ? Math.floor(index / 2) + 1 : 1))
+  Array.from({ length: 4096 }, (_, index) => (index % 2 === 0 ? Math.floor(index / 2) + 1 : 1))
 );
 const oversizedTokenPostingsRows = encodeBinaryRowFrames([oversizedTokenPayload]);
 await fs.writeFile(path.join(testRoot, 'token_postings.binary-columnar.bin'), oversizedTokenPostingsRows.dataBuffer);
@@ -137,9 +137,9 @@ assert.throws(
   () => loadTokenPostings(testRoot, {
     strict: true,
     preferBinaryColumnar: true,
-    maxBytes: 16
+    maxBytes: 1024
   }),
-  /maxBytes/i,
+  { code: 'ERR_FILE_TOO_LARGE' },
   'expected default binary token_postings load to respect maxBytes'
 );
 
@@ -147,13 +147,15 @@ const postingsBudgetBypassed = loadTokenPostings(testRoot, {
   strict: true,
   preferBinaryColumnar: true,
   enforceBinaryDataBudget: false,
-  maxBytes: 16
+  maxBytes: 1024
 });
 assert.equal(
   postingsBudgetBypassed?.vocab?.[0],
   'binary_tok',
   'expected disable-enforce flag to allow large binary token_postings to load'
 );
+assert.equal(postingsBudgetBypassed.postings[0].length, 2048);
+assert.deepEqual(postingsBudgetBypassed.postings[0].at(-1), [2048 * 2049 / 2, 1]);
 
 await fs.writeFile(
   path.join(testRoot, 'token_postings.binary-columnar.meta.json'),

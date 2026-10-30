@@ -1,0 +1,48 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import { isRepoTrusted } from '../../shared/config-authority.js';
+import { isPathWithinRoot } from '../../shared/file-paths.js';
+import { resolveWorkspaceExecutionAuthority, isWorkspaceBuildExecution } from '../../shared/workspace-execution-authority.js';
+
+export const isSourcekitProvider = ({ providerId, server } = {}) => {
+  const id = String(server?.workspaceExecutionProfile || server?.id || providerId || '').toLowerCase();
+  const command = path.basename(String(server?.cmd || '')).toLowerCase().replace(/\.(exe|cmd|bat)$/u, '');
+  return ['sourcekit', 'sourcekit-lsp', 'lsp-sourcekit', 'lsp-sourcekit-lsp'].includes(id) || command === 'sourcekit-lsp';
+};
+
+export const isDotnetWorkspaceProvider = ({ providerId, server, languages } = {}) => {
+  const command = path.basename(String(server?.cmd || '')).toLowerCase().replace(/\.(exe|cmd|bat)$/u, '');
+  const id = String(server?.workspaceExecutionProfile || server?.id || providerId || '').toLowerCase();
+  const selected = [...(Array.isArray(server?.languages) ? server.languages : []), ...(Array.isArray(languages) ? languages : [])]
+    .map(value => String(value).toLowerCase());
+  return ['csharp-ls', 'omnisharp', 'roslyn-language-server', 'fsautocomplete'].includes(command)
+    || ['csharp-ls', 'lsp-csharp-ls', 'roslyn-language-server', 'fsautocomplete'].includes(id)
+    || selected.some(language => ['csharp', 'cs', 'fsharp', 'fs'].includes(language));
+};
+
+/** Phpactor can include Composer-generated PHP and trusted project extensions.
+ * A tool selection is distinct from permission to execute that repository. */
+export const isProviderWorkspaceExecution = ({ providerId, server, languages, requiresWorkspaceExecution } = {}) => {
+  const command = path.basename(String(server?.cmd || '')).toLowerCase().replace(/\.(exe|cmd|bat|phar)$/u, '');
+  return requiresWorkspaceExecution === true || server?.requiresWorkspaceExecution === true
+    || String(server?.workspaceExecutionProfile || server?.id || providerId || '').toLowerCase() === 'phpactor'
+    || command === 'phpactor' || isSourcekitProvider({ providerId, server })
+    || isDotnetWorkspaceProvider({ providerId, server, languages }) || isWorkspaceBuildExecution({ providerId, server, languages });
+};
+
+export const resolveProviderWorkspaceExecutionAuthority = ({ repoRoot, workspaceRoot = repoRoot, ...input }) => {
+  const existing = resolveWorkspaceExecutionAuthority({ repoRoot, workspaceRoot, ...input });
+  if (existing) return existing;
+  if (!isProviderWorkspaceExecution(input)) return null;
+  let authorized = isRepoTrusted(repoRoot);
+  if (authorized) {
+    try { authorized = isPathWithinRoot(fs.realpathSync(workspaceRoot), fs.realpathSync(repoRoot)) || isRepoTrusted(workspaceRoot); }
+    catch { authorized = false; }
+  }
+  if (authorized) return null;
+  const providerId = String(input.providerId || input.server?.workspaceExecutionProfile || input.server?.id || 'provider');
+  const reasonCode = `${providerId}_workspace_trust_required`;
+  const message = `${providerId} requires an exact launch-owned repository trust grant before project loaders, build hooks or extensions may execute.`;
+  return { state: 'blocked', blockProvider: true, reasonCode, message,
+    check: { name: reasonCode, status: 'warn', message } };
+};

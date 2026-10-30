@@ -2,10 +2,11 @@
 // Bounded evidence harness, not a broad benchmark or performance acceptance gate.
 // Run: node tests/tooling/fixtures/typescript-type-ir-scaling.js > receipt.json
 // Each fixed case has its own process and an enforced 29-second parent timeout.
+import { runNode as runNodeFixture } from '../../helpers/run-node.js';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
-import { spawnSync } from 'node:child_process';
+
 import { performance } from 'node:perf_hooks';
 import { fileURLToPath } from 'node:url';
 import { requireBootstrap } from '../../../src/shared/bootstrap-readiness.js';
@@ -107,9 +108,9 @@ if (process.argv[2] === '--case') {
     sourceSha256: Object.fromEntries(files.map(name => [name + '.js', hash(readFileSync(
       new URL(`../../../src/index/tooling/typescript/type-ir/${name}.js`, import.meta.url)))])), cases: [] };
   for (const mode of modes) for (const width of widths) {
-    const child = spawnSync(process.execPath, [fileURLToPath(import.meta.url), '--case', mode, String(width)], {
+    const child = runNodeFixture([fileURLToPath(import.meta.url), '--case', mode, String(width)], 'Node process fixture', process.cwd(), process.env, { stdio: 'pipe', encoding: 'buffer', allowFailure: true, spawnOptions: {
       encoding: 'utf8', timeout: 29000, maxBuffer: 1024 * 1024, windowsHide: true
-    });
+    } });
     let result;
     try { result = JSON.parse(child.stdout); } catch {
       result = { mode, width, status: 'failed', failure: { message: 'child did not emit a valid receipt',

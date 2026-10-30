@@ -1,5 +1,12 @@
 # Public Artifact Surface (0.1.0)
 
+Publication readiness binds the record's mode, build root, mode index directory,
+generation identity and artifact surface version to the requested authority.
+Its ordinary, contained manifest must carry the same mode/build identity. A
+record copied from another root cannot authorize promotion while the old root's
+manifest happens to exist. Mixed-mode pointers validate each selected published
+root independently; cleanup and reader retention continue to own old generations.
+
 This document is the **canonical** contract for PairOfCleats public artifacts. It supersedes `docs/contracts/artifact-contract.md` for all contract decisions.
 
 ## Contract version
@@ -12,6 +19,41 @@ This document is the **canonical** contract for PairOfCleats public artifacts. I
 - `pieces/manifest.json` is the **single source of truth** for artifact discovery.
 - Readers must resolve artifacts **only** via the manifest in strict mode (default).
 - Tools must not guess filenames or silently scan directories.
+
+Strict readers reject linked path components, including junctions, and verify
+that opened descriptors still identify the admitted contained ordinary files.
+This applies to payloads and sidecars. Declared SHA-1, SHA-256 and xxh64 checksums
+must have the exact supported encoding and match bytes; unsupported or malformed
+strict checksums cannot be ignored.
+
+Replacement sharded families use immutable generation paths and one enclosing
+manifest commit. Existing readers retain their selected generation until their
+normal lifetime ends. Writers and compaction do not delete old selected payloads
+as part of publication. Publication records require explicit successful
+validation evidence and matching mode/build-root authority, family membership
+and committed piece identity. Missing evidence and unknown statuses fail closed.
+
+Generation validation records a versioned SHA256 binding of the complete canonical
+manifest and independently streamed contained piece bytes, plus the exact committed
+inventory. The publication writer and promotion readiness recheck that binding;
+same-size edits, replaced inventories, missing pieces and stale same-root reports
+require fresh qualification. No all-generation sealed owner is currently available
+at these boundaries, so a manifest digest does not waive independent content checks.
+The shared index-state owner requalifies a previously valid publication around its
+controlled state/manifest updates. Stage3 explicitly requalifies after successful
+producer validation and its final ready-state write. Failure leaves publication
+unready; mixed-mode roots retain separate bindings.
+
+`index_state.profile` and `index_state.artifacts` are bounded schema-checked
+generation policy. Presence claims, omissions and required families must agree
+with the selected manifest and canonical profile requirements. Legacy absent
+profile metadata uses `default`; explicit unknown/conflicting profiles fail.
+Stats and shared validation derive sparse/field/phrase/chargram requirements from
+this admitted policy, validate declared optional families and report current-config
+drift separately as compatibility/rebuild-needed. Same-run validation additionally
+compares the captured producer plan. New producers explicitly declare both
+`field_postings` and `field_tokens`; older envelopes derive their paired requirement
+from declared field artifacts.
 
 ## Required public artifacts
 
@@ -121,4 +163,15 @@ Artifacts that truncate content must include:
 - enabled mode set
 
 Readers must hard-fail if compatibility keys differ.
+
+## Lexical producer evidence
+
+Phrase and chargram per-chunk limits are shared across configured fields.
+`indexing.postings.chargramMaxTokenLength` defaults to 48 when absent; explicit
+`null`, `0` or `false` disables that token-length limit. Repeated normalization
+retains the uncapped meaning. Independent per-chunk/unique-term guards still
+apply. Rebuild affected postings after producer meaning changes; existing
+artifacts cannot acquire previously omitted long-token evidence by relabelling.
+Synonym expansion accepts only own string-valued synonym entries, so reserved
+object-property names remain ordinary string tokens.
 

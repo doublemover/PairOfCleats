@@ -1,6 +1,9 @@
+import { loadDenseArtifactMetadata } from './dense-artifact-metadata.js';
 import path from 'node:path';
+import fs from 'node:fs';
 import { buildLocalCacheKey } from '../shared/cache-key.js';
-import { getIndexDir } from '../shared/repo-paths.js';
+import { getBuildsRoot, getCurrentBuildInfo, getIndexDir } from '../shared/repo-paths.js';
+import { buildGenerationKey } from '../shared/indexing/build-generation.js';
 import { createError, ERROR_CODES } from '../shared/error-codes.js';
 import { buildIndexSignatureInfo } from './index-cache.js';
 import { probeFileSignature } from '../shared/file-signature.js';
@@ -112,12 +115,16 @@ export async function loadIndex(dir, options) {
   const loadOptionalDenseBinary = async (artifactName) => {
     const descriptor = resolveDenseVectorBinaryArtifact(artifactName);
     if (!descriptor) return null;
-    const meta = await loadOptionalObject(descriptor.metaName);
+    const meta = strict
+      ? await loadDenseArtifactMetadata(dir, descriptor.metaName, { manifest, strict })
+      : await loadOptionalObject(descriptor.metaName);
     if (!meta || typeof meta !== 'object') return null;
     return await loadDenseVectorBinaryFromMetaAsync({
       dir,
       baseName: descriptor.baseName,
       meta,
+      manifest,
+      strict,
       modelId: modelIdDefault || null
     });
   };
@@ -143,7 +150,7 @@ export async function loadIndex(dir, options) {
   }
   if (!fileMetaLoaded) fileMetaById = null;
   if (!fileMetaById) requireFileMetaForFileIdChunks(chunkMeta);
-  else hydrateChunksFromFileMeta(chunkMeta, fileMetaById, { churnAssignment: 'falsy-or-nullish' });
+  else hydrateChunksFromFileMeta(chunkMeta, fileMetaById, { churnAssignment: 'nullish' });
   const fileRelationsRows = includeFileRelations
     ? loadOptionalRows('file_relations', { materialize: true })
     : null;
@@ -210,6 +217,8 @@ export async function loadIndex(dir, options) {
       indexPath,
       hnswConfig,
       hnswMeta,
+      embeddingsState,
+      strict,
       denseVec,
       denseVecDoc,
       denseVecCode
@@ -278,7 +287,7 @@ export async function loadIndex(dir, options) {
 }
 
 /**
- * Resolve the index directory (cache-first, local fallback).
+ * Resolve the explicitly selected index or the authoritative current mode root.
  * @param {string} root
  * @param {'code'|'prose'|'records'|'extracted-prose'} mode
  * @param {object} userConfig
@@ -300,15 +309,14 @@ export function resolveIndexDir(root, mode, userConfig, options = {}) {
   if (hasExplicitRef) {
     throw createError(ERROR_CODES.NO_INDEX, `[search] ${mode} index is unavailable for explicit as-of target.`);
   }
-  const cached = getIndexDir(root, mode, userConfig);
-  if (hasChunkMetaArtifacts(cached)) {
-    return cached;
+  if (fs.existsSync(path.join(getBuildsRoot(root, userConfig), 'current.json'))) {
+    const current = getCurrentBuildInfo(root, userConfig, { mode });
+    if (!current?.activeRoot) {
+      throw createError(ERROR_CODES.NO_INDEX, `[search] ${mode} published generation is unavailable. Repair or rebuild its current pointer.`);
+    }
+    return path.join(current.activeRoot, `index-${mode}`);
   }
-  const local = path.join(root, `index-${mode}`);
-  if (hasChunkMetaArtifacts(local)) {
-    return local;
-  }
-  return cached;
+  return getIndexDir(root, mode, userConfig);
 }
 
 /**
@@ -342,8 +350,8 @@ export function requireIndexDir(root, mode, userConfig, options = {}) {
 export function buildQueryCacheKey(payload) {
   const keyInfo = buildLocalCacheKey({
     namespace: 'query-cache',
-    // v3 isolates strict return-type matching and corrected structured-filter identities.
-    version: 3,
+    // v10 retains score-coordinate ownership on cached ranking results.
+    version: 10,
     payload
   });
   return { key: keyInfo.key, payload };
@@ -369,8 +377,7 @@ export async function getIndexSignature(options) {
     indexDirByMode = null,
     indexBaseRootByMode = null,
     explicitRef = false,
-    asOfContext = null,
-    generationContext = null
+    asOfContext = null
   } = options;
   const fileSignature = async (filePath) => (
     probeFileSignature(filePath, { compressedSiblings: 'json', format: 'legacy' })
@@ -399,13 +406,21 @@ export async function getIndexSignature(options) {
   await Promise.all(
     Object.entries(modeDirs).map(async ([mode, dir]) => {
       const info = dir ? await buildIndexSignatureInfo(dir) : null;
+      // The selected artifact directory is already captured for this request.
+      // Standalone searches need the same observed generation facts as a
+      // coordinator, without rereading a mutable current pointer here.
+      const observedRoot = info ? path.dirname(info.canonicalDir) : null;
+      const observedGeneration = info?.buildId && info?.artifactSurfaceVersion ? buildGenerationKey({
+        buildId: info.buildId, buildRoot: observedRoot, activeRoot: observedRoot, buildRoots: { [mode]: observedRoot }
+      }) : null;
       modeSignatures[mode] = info?.signature || null;
       generationByMode[mode] = info
         ? {
           buildId: info.buildId || null,
           artifactSurfaceVersion: info.artifactSurfaceVersion || null,
-          generationKey: generationContext?.buildGenerationKey || null,
-          activeBuildRoot: generationContext?.activeBuildRoot || null
+          canonicalIndexDir: info.canonicalDir,
+          generationKey: observedGeneration,
+          activeBuildRoot: observedRoot
         }
         : null;
     })

@@ -1,6 +1,14 @@
+import { unicodeScalarBoundary } from '../../../shared/unicode-chunks.js';
+import { createRequire } from 'node:module';
+import { deferLanguageFunctions } from '../../deferred-language-functions.js';
 import { buildChunksFromLineHeadings, buildLineIndexFromLines } from '../helpers.js';
-import { buildTreeSitterChunks } from '../../../lang/tree-sitter.js';
 import { getTreeSitterOptions } from '../tree-sitter.js';
+const require = createRequire(import.meta.url);
+
+const { buildTreeSitterChunks } = deferLanguageFunctions(
+  () => require('../../../lang/tree-sitter.js'),
+  ['buildTreeSitterChunks']
+);
 
 export const MAX_REGEX_LINE = 8192;
 export const DEFAULT_PROSE_FALLBACK_MAX_CHARS = 120 * 1024;
@@ -49,12 +57,13 @@ export const splitLinesWithIndex = (text, context = null) => {
   const sharedLineIndex = Array.isArray(context?.chunkingShared?.lineIndex)
     ? context.chunkingShared.lineIndex
     : null;
-  if (sharedLineIndex && sharedLineIndex.length === lines.length) {
+  if (sharedLineIndex && context.chunkingShared.lineIndexText === text) {
     return { lines, lineIndex: sharedLineIndex };
   }
   const lineIndex = buildLineIndexFromLines(lines);
   if (context?.chunkingShared && typeof context.chunkingShared === 'object') {
     context.chunkingShared.lineIndex = lineIndex;
+    context.chunkingShared.lineIndexText = text;
   }
   return { lines, lineIndex };
 };
@@ -224,9 +233,10 @@ export const chunkLargeProseFallback = (text, context = {}) => {
   // Preserve full coverage while capping worst-case tokenization latency for
   // very large prose blobs that would otherwise become one giant chunk.
   const chunks = [];
-  for (let start = 0; start < text.length; start += chunkChars) {
-    const end = Math.min(text.length, start + chunkChars);
+  for (let start = 0; start < text.length;) {
+    const end = unicodeScalarBoundary(text, start, start + chunkChars);
     chunks.push({ start, end, name: null, kind: 'Section', meta: {} });
+    start = end;
   }
   return chunks;
 };

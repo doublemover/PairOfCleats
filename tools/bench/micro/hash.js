@@ -5,7 +5,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 const { createCli } = await import('../../../src/shared/cli.js');
 const { resolveXxhashBackend } = await import('../../../src/shared/hash/xxhash-backend.js');
-const { formatStats, runSampledBench } = await import('./utils.js');
+const { formatStats, normalizeSampledBenchOptions } = await import('./utils.js');
+const { runHashBenchmark } = await import('./hash-runner.js');
 
 const argv = createCli({
   options: {
@@ -41,26 +42,28 @@ const argv = createCli({
   }
 }).parse();
 
-const size = Math.max(1, Math.floor(argv.size));
-const iterations = Math.max(1, Math.floor(argv.iterations));
-const samples = Math.max(1, Math.floor(argv.samples));
-const warmup = Math.max(0, Math.floor(argv.warmup));
+const size = argv.size;
+if (!Number.isSafeInteger(size) || size < 1) throw new RangeError('Invalid hash payload size.');
+const { iterations, requestedSamples: samples, warmup } = normalizeSampledBenchOptions(argv);
 
 const payload = 'a'.repeat(size);
 const results = {
+  schemaVersion: 2,
+  kind: 'hash-backend-microbenchmark',
   generatedAt: new Date().toISOString(),
   sizeBytes: size,
   iterations,
+  requestedSamples: samples,
   warmup,
   backends: {}
 };
 
 const wasmBackend = await resolveXxhashBackend({ backend: 'wasm' });
-results.backends.wasm = await runBench('wasm', wasmBackend, { payload, iterations, samples, warmup });
+results.backends.wasm = await runHashBenchmark(wasmBackend, payload, { iterations, samples, warmup });
 
 const nativeBackend = await resolveXxhashBackend({ backend: 'native' });
 if (nativeBackend?.name === 'native') {
-  results.backends.native = await runBench('native', nativeBackend, { payload, iterations, samples, warmup });
+  results.backends.native = await runHashBenchmark(nativeBackend, payload, { iterations, samples, warmup });
 } else {
   results.backends.native = { available: false };
 }
@@ -83,25 +86,9 @@ if (argv.json) {
   }
 }
 
-async function runBench(label, backend, { payload, iterations, samples, warmup }) {
-  const { totalMs, stats } = await runSampledBench(() => backend.hash64(payload), {
-    iterations,
-    samples,
-    warmup
-  });
-  const bytesProcessed = payload.length * iterations;
-  const mbPerSec = totalMs > 0 ? (bytesProcessed / (1024 * 1024)) / (totalMs / 1000) : 0;
-  return {
-    available: true,
-    totalMs,
-    mbPerSec,
-    stats
-  };
-}
-
 function printBackend(name, payload) {
   const stats = payload.stats || null;
   const rate = Number.isFinite(payload.mbPerSec) ? payload.mbPerSec.toFixed(1) : 'n/a';
   const summary = stats ? formatStats(stats) : 'n/a';
-  console.error(`- ${name}: ${summary} | MB/sec ${rate}`);
+  console.error(`- ${name}: bucket ${summary} | MB/sec ${rate}`);
 }

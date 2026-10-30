@@ -1,8 +1,10 @@
-import { findTopLevelIndex, splitTopLevel, stripTopLevelAssignment } from './shared.js';
+import { findMatchingParen, findTopLevelIndex, splitTopLevel, stripTopLevelAssignment } from './shared.js';
+import { setOwn } from '../../../shared/object-record.js';
+import { normalizeTypeWhitespace } from '../../../shared/type-normalization.js';
 
 const RUBY_PARAM = /^[*&]*([A-Za-z_][A-Za-z0-9_]*)[!?=]?$/u;
 
-const normalizeType = (value) => String(value || '').replace(/\s+/g, ' ').trim();
+const normalizeType = (value) => normalizeTypeWhitespace(value);
 
 const parseRubyParam = (part) => {
   const cleaned = normalizeType(part);
@@ -43,7 +45,7 @@ export const parseRubySignature = (detail) => {
   if (!detail || typeof detail !== 'string') return null;
   const signature = detail.trim();
   const open = signature.indexOf('(');
-  const close = signature.lastIndexOf(')');
+  const close = findMatchingParen(signature,open);
   if (open === -1 || close === -1 || close < open) return null;
   const paramsText = signature.slice(open + 1, close);
   const returnSuffix = normalizeType(signature.slice(close + 1));
@@ -55,7 +57,7 @@ export const parseRubySignature = (detail) => {
     const parsed = parseRubyParam(part);
     if (!parsed?.name) continue;
     paramNames.push(parsed.name);
-    if (parsed.type) paramTypes[parsed.name] = parsed.type;
+    if (parsed.type) setOwn(paramTypes,parsed.name,parsed.type);
   }
   if (!returnType && !paramNames.length) return null;
   return {

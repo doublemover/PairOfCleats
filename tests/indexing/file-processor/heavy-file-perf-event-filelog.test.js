@@ -40,10 +40,10 @@ const offsets = [
   text.length
 ];
 const sc = [
-  { start: offsets[0], end: offsets[1], segment: { languageId: 'javascript', segmentUid: 'seg-1' }, kind: 'code', name: 'a' },
-  { start: offsets[1], end: offsets[2], segment: { languageId: 'javascript', segmentUid: 'seg-2' }, kind: 'code', name: 'b' },
-  { start: offsets[2], end: offsets[3], segment: { languageId: 'javascript', segmentUid: 'seg-3' }, kind: 'code', name: 'c' },
-  { start: offsets[3], end: offsets[4], segment: { languageId: 'javascript', segmentUid: 'seg-4' }, kind: 'code', name: 'd' }
+  { start: offsets[0], end: offsets[1], segment: { languageId: 'javascript', segmentUid: 'seg-1', start: offsets[0], end: offsets[1] }, kind: 'code', name: 'a' },
+  { start: offsets[1], end: offsets[2], segment: { languageId: 'javascript', segmentUid: 'seg-2', start: offsets[1], end: offsets[2] }, kind: 'code', name: 'b' },
+  { start: offsets[2], end: offsets[3], segment: { languageId: 'javascript', segmentUid: 'seg-3', start: offsets[2], end: offsets[3] }, kind: 'code', name: 'c' },
+  { start: offsets[3], end: offsets[4], segment: { languageId: 'javascript', segmentUid: 'seg-4', start: offsets[3], end: offsets[4] }, kind: 'code', name: 'd' }
 ];
 const result = await processFixtureChunks(context, {
   sc,

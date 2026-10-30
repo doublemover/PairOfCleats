@@ -1,0 +1,333 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-10-27",
+  "sourceHead": "e191d2402f8ebbb1f71bc50feaff58b698eaee2b",
+  "sourceTree": "1c74fb73f46e39b59aaf3e433c7245558a2ea5ab",
+  "branch": "codex/pr557-audit-repairs-20261012",
+  "platform": "win32",
+  "arch": "x64",
+  "node": "v26.12.1",
+  "issue": 1289,
+  "state": "open",
+  "qualificationComplete": false,
+  "productionRepair": "Expose existing command classes on the root module for native loader discovery.",
+  "native": {
+    "hostBuild": "4192",
+    "python": "3.3.7 (default, Aug  7 2023, 15:46:25) [MSC v.1900 64 bit (AMD64)]",
+    "contractSha256": "cf2f7ecd24b2a0816074a0fd7b40201eca6b4acd78f64ef2247003723a01c294",
+    "before": {
+      "commandCount": 0,
+      "active": true
+    },
+    "after": {
+      "commandCount": 61,
+      "uniqueCommandCount": 61,
+      "active": true
+    },
+    "latestSearchAttempt": {
+      "total": 1,
+      "passed": 0,
+      "failed": 1,
+      "skipped": 0,
+      "durationMs": 28116
+    },
+    "hostExit": -805306369,
+    "remaining": [
+      "packed search",
+      "update/reload",
+      "uninstall",
+      "unpacked host",
+      "legacy and shadowing host"
+    ],
+    "furtherLaunchesStopped": true
+  },
+  "checks": {
+    "headless": {
+      "total": 30,
+      "passed": 30,
+      "failed": 0,
+      "skipped": 0,
+      "durationMs": 35871
+    },
+    "headlessTests": [
+      {
+        "id": "tooling/sublime/api-authentication",
+        "status": "passed",
+        "durationMs": 13413,
+        "attempts": 1
+      },
+      {
+        "id": "tooling/sublime/api-response-bytes",
+        "status": "passed",
+        "durationMs": 447,
+        "attempts": 1
+      },
+      {
+        "id": "tooling/sublime/behavior-contract-matrix",
+        "status": "passed",
+        "durationMs": 4981,
+        "attempts": 1
+      },
+      {
+        "id": "tooling/sublime/config-runtime-contract",
+        "status": "passed",
+        "durationMs": 1743,
+        "attempts": 1
+      },
+      {
+        "id": "tooling/sublime/editor-source-lifetime",
+        "status": "passed",
+        "durationMs": 522,
+        "attempts": 1
+      },
+      {
+        "id": "tooling/sublime/export-publication",
+        "status": "passed",
+        "durationMs": 573,
+        "attempts": 1
+      },
+      {
+        "id": "tooling/sublime/extended-editor-workflows",
+        "status": "passed",
+        "durationMs": 571,
+        "attempts": 1
+      },
+      {
+        "id": "tooling/sublime/filter-continuation",
+        "status": "passed",
+        "durationMs": 500,
+        "attempts": 1
+      },
+      {
+        "id": "tooling/sublime/filter-continuation-progress",
+        "status": "passed",
+        "durationMs": 510,
+        "attempts": 1
+      },
+      {
+        "id": "tooling/sublime/http-lifecycle-authority",
+        "status": "passed",
+        "durationMs": 485,
+        "attempts": 1
+      },
+      {
+        "id": "tooling/sublime/minimum-runtime-compatibility",
+        "status": "passed",
+        "durationMs": 563,
+        "attempts": 1
+      },
+      {
+        "id": "tooling/sublime/navigation-request-lifetime",
+        "status": "passed",
+        "durationMs": 530,
+        "attempts": 1
+      },
+      {
+        "id": "tooling/sublime/operation-ownership",
+        "status": "passed",
+        "durationMs": 477,
+        "attempts": 1
+      },
+      {
+        "id": "tooling/sublime/package-archive-metadata",
+        "status": "passed",
+        "durationMs": 250,
+        "attempts": 1
+      },
+      {
+        "id": "tooling/sublime/package-determinism",
+        "status": "passed",
+        "durationMs": 437,
+        "attempts": 1
+      },
+      {
+        "id": "tooling/sublime/package-harness",
+        "status": "passed",
+        "durationMs": 23253,
+        "attempts": 1
+      },
+      {
+        "id": "tooling/sublime/package-release-sanity",
+        "status": "passed",
+        "durationMs": 255,
+        "attempts": 1
+      },
+      {
+        "id": "tooling/sublime/package-structure",
+        "status": "passed",
+        "durationMs": 254,
+        "attempts": 1
+      },
+      {
+        "id": "tooling/sublime/pycompile",
+        "status": "passed",
+        "durationMs": 392,
+        "attempts": 1
+      },
+      {
+        "id": "tooling/sublime/python-toolchain-policy",
+        "status": "passed",
+        "durationMs": 221,
+        "attempts": 1
+      },
+      {
+        "id": "tooling/sublime/repository-request-snapshots",
+        "status": "passed",
+        "durationMs": 483,
+        "attempts": 1
+      },
+      {
+        "id": "tooling/sublime/reviewed-evidence-authority",
+        "status": "passed",
+        "durationMs": 462,
+        "attempts": 1
+      },
+      {
+        "id": "tooling/sublime/risk-request-authority",
+        "status": "passed",
+        "durationMs": 477,
+        "attempts": 1
+      },
+      {
+        "id": "tooling/sublime/root-command-registration",
+        "status": "passed",
+        "durationMs": 460,
+        "attempts": 1
+      },
+      {
+        "id": "tooling/sublime/search-scope-completion",
+        "status": "passed",
+        "durationMs": 486,
+        "attempts": 1
+      },
+      {
+        "id": "tooling/sublime/semantic-generation-discovery",
+        "status": "passed",
+        "durationMs": 484,
+        "attempts": 1
+      },
+      {
+        "id": "tooling/sublime/semantic-request-snapshots",
+        "status": "passed",
+        "durationMs": 859,
+        "attempts": 1
+      },
+      {
+        "id": "tooling/sublime/semantic-source-lifetime",
+        "status": "passed",
+        "durationMs": 1587,
+        "attempts": 1
+      },
+      {
+        "id": "tooling/sublime/task-progress-settlement",
+        "status": "passed",
+        "durationMs": 437,
+        "attempts": 1
+      },
+      {
+        "id": "tooling/sublime/watch-lifecycle-progress",
+        "status": "passed",
+        "durationMs": 439,
+        "attempts": 1
+      }
+    ],
+    "gate": {
+      "total": 40,
+      "passed": 40,
+      "failed": 0,
+      "skipped": 0,
+      "durationMs": 24866
+    },
+    "frontGate": [
+      {
+        "arguments": [
+          "run",
+          "config:budget"
+        ],
+        "durationMs": 2755,
+        "name": "config-budget",
+        "exitCode": 0,
+        "executable": "npm.cmd"
+      },
+      {
+        "arguments": [
+          "run",
+          "env:check"
+        ],
+        "durationMs": 1401,
+        "name": "environment",
+        "exitCode": 0,
+        "executable": "npm.cmd"
+      },
+      {
+        "arguments": [
+          "tools/docs/generated-surfaces.js",
+          "--check-freshness"
+        ],
+        "durationMs": 11156,
+        "name": "generated",
+        "exitCode": 0,
+        "executable": "node"
+      },
+      {
+        "arguments": [
+          "tools/ci/check-command-surface.js"
+        ],
+        "durationMs": 2952,
+        "name": "command-surface",
+        "exitCode": 0,
+        "executable": "node"
+      },
+      {
+        "arguments": [
+          "tests/ci/workflow-contract.test.js"
+        ],
+        "durationMs": 260,
+        "name": "workflow",
+        "exitCode": 0,
+        "executable": "node"
+      },
+      {
+        "arguments": [
+          "tests/run.js",
+          "--lane",
+          "gate",
+          "--jobs",
+          "1",
+          "--timeout-ms",
+          "30000",
+          "--retries",
+          "0",
+          "--native-status-redo=false",
+          "--pairofcleats-threads",
+          "1",
+          "--json"
+        ],
+        "durationMs": 25721,
+        "name": "gate-lane",
+        "exitCode": 0,
+        "executable": "node"
+      },
+      {
+        "arguments": [
+          "diff",
+          "--check"
+        ],
+        "durationMs": 73,
+        "name": "diff",
+        "exitCode": 0,
+        "executable": "git"
+      }
+    ],
+    "format": 0,
+    "pythonCompile": 0
+  },
+  "historicalAuthorWorkspace": {
+    "task": ".tmp/tasks/sublime-native-20261027/",
+    "logs": "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793089940900-utjhht",
+    "nativeFixture": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\sublime-native-packed-17784-1793089791578-lxa9ug",
+    "baselineFixture": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\sublime-native-packed-17596-1793088910815-z5x3lp",
+    "availability": "Not present in clean checkouts.",
+    "runtimeCleanup": "Automatic approval review rejected deletion as blocked by policy; copies retained."
+  }
+}

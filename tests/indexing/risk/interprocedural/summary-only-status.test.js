@@ -67,8 +67,10 @@ const result = computeInterproceduralRisk({
   runtime
 });
 
-assert.equal(result.status, 'ok');
-assert.equal(result.stats?.status, 'ok');
+assert.equal(result.status, 'partial');
+assert.equal(result.stats?.status, 'partial');
+assert.equal(result.stats?.executionStatus, 'completed');
+assert.equal(result.stats?.inputCoverage.upstreamCoverage.analysis.status, 'unknown');
 assert.equal(result.stats?.reason, null);
 assert.equal(result.stats?.effectiveConfig?.summaryOnly, true);
 
@@ -105,7 +107,7 @@ const budgetPlan = buildCrossFileInferenceBudgetPlan({
   fileRelations,
   inferenceLiteEnabled: true
 });
-assert.equal(budgetPlan?.schemaVersion, 1);
+assert.equal(budgetPlan?.schemaVersion, 2);
 assert.equal(budgetPlan?.inferenceLiteEnabled, true);
 
 const budgeted = applyCrossFileInferenceBudgetPlan({

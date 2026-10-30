@@ -1,8 +1,13 @@
+import { callArgumentView } from '../../contracts/call-arguments.js';
+import { runtimeParameterSlots, runtimeParameterFor } from '../../contracts/callable-parameters.js';
 import { sha1 } from '../../shared/hash.js';
 import { toArray } from '../../shared/iterables.js';
 import { edgeKey, sampleCallSitesForEdge } from './edges.js';
 import { containsIdentifier, matchRulePatterns, SEVERITY_RANK } from '../risk/shared.js';
 import { compileRiskInterproceduralSemantics } from './semantics.js';
+import { createRiskStateQueue } from './state-queue.js';
+import { createRiskWitness, matchesRiskWitnessExtension, materializeRiskWitness } from './witness.js';
+import { aggregateRiskInputCoverage } from './input-coverage.js';
 
 const ROW_SCHEMA_VERSION = 1;
 const MAX_FLOW_ROW_BYTES = 32 * 1024;
@@ -150,6 +155,12 @@ const isArgTainted = (argText, taintedIdentifiers, sourceRules) => {
 };
 
 const resolveParamNames = ({ edgeParamNames, calleeChunk }) => {
+  if (calleeChunk?.docmeta?.callableParameters) {
+    const slots = runtimeParameterSlots(calleeChunk.docmeta);
+    const names = [];
+    for (const slot of slots) names[slot.runtimeOrdinal] = slot.binding === 'identifier' ? slot.name : null;
+    return Array.from(names, name => name || null);
+  }
   if (Array.isArray(edgeParamNames) && edgeParamNames.length) return edgeParamNames;
   const docmetaParams = Array.isArray(calleeChunk?.docmeta?.paramNames)
     ? calleeChunk.docmeta.paramNames
@@ -161,8 +172,7 @@ const buildTaintSetKey = (values) => {
   if (!values || !values.length) return null;
   const unique = Array.from(new Set(values.map((entry) => String(entry).trim()).filter(Boolean)));
   unique.sort();
-  const capped = unique.slice(0, 16);
-  return capped.length ? capped.join(',') : null;
+  return unique.length ? JSON.stringify(unique) : null;
 };
 
 const flowConfidence = ({ source, sink, hopCount, sanitizerBarriersHit, sanitizerPolicy }) => {
@@ -294,13 +304,13 @@ const buildWatchStep = ({
   const sourceConfidence = state?.rootSource?.source?.confidence;
   const confidenceBefore = propagationConfidence({
     sourceConfidence,
-    hopCount: Math.max(0, toArray(state?.pathChunkUids).length - 1),
+    hopCount: Math.max(0, state.depth),
     sanitizerBarriersHit: barriersBefore,
     sanitizerPolicy
   });
   const confidenceAfter = propagationConfidence({
     sourceConfidence,
-    hopCount: Math.max(0, toArray(state?.pathChunkUids).length),
+    hopCount: Math.max(0, state.depth + 1),
     sanitizerBarriersHit: barriersAfter,
     sanitizerPolicy
   });
@@ -416,7 +426,9 @@ export const computeInterproceduralRisk = ({
   runtime,
   mode = 'code',
   log = null,
-  summaryTimingMs = 0
+  summaryTimingMs = 0,
+  summaryStats = null,
+  crossFileCoverage = null
 } = {}) => {
   const start = Date.now();
   const config = runtime?.riskInterproceduralConfig || {};
@@ -485,9 +497,11 @@ export const computeInterproceduralRisk = ({
     },
     artifacts: {}
   };
+  stats.inputCoverage = aggregateRiskInputCoverage(summaryRows, summaryStats, crossFileCoverage);
+  stats.executionStatus = 'completed';
 
   if (!enabled || summaryOnly) {
-    stats.status = summaryOnly ? 'ok' : 'disabled';
+    stats.status = summaryOnly ? (stats.inputCoverage.status === 'complete' ? 'ok' : 'partial') : 'disabled';
     stats.reason = !enabled ? 'disabled' : null;
     stats.timingMs.total = stats.timingMs.summaries + stats.timingMs.io;
     return {
@@ -504,7 +518,11 @@ export const computeInterproceduralRisk = ({
   const partialFlowRows = [];
   const partialFlowIds = new Set();
   const callSiteIdsReferenced = new Set();
-  const capsHit = new Set();
+  const capsHit = new Set(stats.inputCoverage.reasons.map(reason => `upstream:${reason}`));
+  const sampledEdges = new Map();
+  const preparedSinks = new Map(), preparedCallees = new Map(), preparedEdgeMetadata = new Map();
+  let preparedEdgeBytes = 0;
+  const MAX_PREPARED_EDGE_BYTES = 8 * 1024 * 1024;
   const maxDepth = Number.isFinite(caps.maxDepth) ? Math.max(1, caps.maxDepth) : 1;
   const maxPathsPerPair = Number.isFinite(caps.maxPathsPerPair) ? Math.max(1, caps.maxPathsPerPair) : 1;
   const maxTotalFlows = Number.isFinite(caps.maxTotalFlows) ? Math.max(0, caps.maxTotalFlows) : null;
@@ -540,7 +558,8 @@ export const computeInterproceduralRisk = ({
 
   if (maxTotalFlows === 0) {
     capsHit.add('maxTotalFlows');
-    stats.status = 'ok';
+    stats.status = roots.length > 0 || stats.inputCoverage.status !== 'complete' ? 'partial' : 'ok';
+    if (stats.status === 'partial') stats.reason = roots.length > 0 ? 'maxTotalFlows' : 'upstream-input-incomplete';
     stats.counts.flowsEmitted = 0;
     stats.counts.partialFlowsEmitted = 0;
     stats.counts.risksWithFlows = 0;
@@ -570,12 +589,13 @@ export const computeInterproceduralRisk = ({
       capsHit.add('maxPartialFlows');
       return;
     }
+    const path = materializeRiskWitness(state.witness);
     const partialFlowId = buildPartialFlowId({
       sourceChunkUid: state.rootSource.chunkUid,
       sourceRuleId: state.rootSource.source.ruleId,
       frontierChunkUid: state.chunkUid,
       terminalReason,
-      pathChunkUids: state.pathChunkUids
+      pathChunkUids: path.chunkUids
     });
     if (partialFlowIds.has(partialFlowId)) return;
     partialFlowIds.add(partialFlowId);
@@ -590,19 +610,15 @@ export const computeInterproceduralRisk = ({
       frontier: {
         chunkUid: state.chunkUid,
         terminalReason,
-        blockedExpansions: toArray(blockedExpansions).slice(0, maxBlockedExpansionsPerPartial || undefined)
+        blockedExpansions: toArray(blockedExpansions).slice(0, maxBlockedExpansionsPerPartial)
       },
-      path: {
-        chunkUids: state.pathChunkUids.slice(),
-        callSiteIdsByStep: state.callSiteIdsByStep.map((list) => (Array.isArray(list) ? list.slice() : [])),
-        watchByStep: toArray(state.watchByStep).map((entry) => ({ ...entry }))
-      },
+      path,
       confidence: Math.max(
         0.05,
         flowConfidence({
           source: state.rootSource.source,
           sink: state.rootSource.source,
-          hopCount: Math.max(0, state.pathChunkUids.length - 1),
+          hopCount: Math.max(0, state.depth),
           sanitizerBarriersHit: state.sanitizerBarriersHit,
           sanitizerPolicy
         }) * 0.75
@@ -610,7 +626,7 @@ export const computeInterproceduralRisk = ({
       notes: {
         strictness,
         sanitizerPolicy,
-        hopCount: Math.max(0, state.pathChunkUids.length - 1),
+        hopCount: Math.max(0, state.depth),
         sanitizerBarriersHit: state.sanitizerBarriersHit,
         capsHit: frontierCaps,
         terminalReason
@@ -621,8 +637,9 @@ export const computeInterproceduralRisk = ({
     partialFlowRows.push(trimmed);
   };
 
-  const queue = [];
+  const queue = createRiskStateQueue();
   const visited = new Set();
+  const witnessesByState = new Map();
   const pathCounts = new Map();
   const rootTaint = (summary) => {
     if (strictness !== 'argAware') return [];
@@ -636,15 +653,13 @@ export const computeInterproceduralRisk = ({
     const summary = summaryByUid.get(root.chunkUid) || null;
     const taintList = rootTaint(summary);
     const taintKey = buildTaintSetKey(taintList);
-    const visitKey = `${root.chunkUid}|${root.source.ruleId}|${root.chunkUid}|${taintKey || ''}|0`;
+    const visitKey = JSON.stringify([root.chunkUid,root.source.ruleId,root.chunkUid,taintKey,0]);
     if (visited.has(visitKey)) continue;
     visited.add(visitKey);
     queue.push({
       chunkUid: root.chunkUid,
       rootSource: root,
-      pathChunkUids: [root.chunkUid],
-      callSiteIdsByStep: [],
-      watchByStep: [],
+      witness: createRiskWitness({ chunkUid: root.chunkUid }),
       depth: 0,
       sanitizerBarriersHit: 0,
       taintList,
@@ -652,19 +667,22 @@ export const computeInterproceduralRisk = ({
     });
   }
 
-  let queueIndex = 0;
   let edgeExpansions = 0;
   let timedOut = false;
 
-  while (queueIndex < queue.length) {
+  while (queue.length) {
     if (maxMs && Date.now() - start > maxMs) {
       timedOut = true;
       capsHit.add('maxMs');
       break;
     }
-    const state = queue[queueIndex++];
+    const state = queue.pop();
     const summary = summaryByUid.get(state.chunkUid);
-    const sinkSignals = sortSinks(summary?.signals?.sinks || []);
+    let sinkSignals = preparedSinks.get(state.chunkUid);
+    if (!sinkSignals) {
+      sinkSignals = sortSinks(summary?.signals?.sinks || []);
+      preparedSinks.set(state.chunkUid, sinkSignals);
+    }
     if (sinkSignals.length && state.chunkUid !== state.rootSource.chunkUid) {
       for (const sink of sinkSignals) {
         if (!sink?.ruleId) continue;
@@ -679,7 +697,8 @@ export const computeInterproceduralRisk = ({
           break;
         }
         pathCounts.set(key, used + 1);
-        const hopCount = state.pathChunkUids.length - 1;
+        const hopCount = state.depth;
+        const path = materializeRiskWitness(state.witness);
         const flow = {
           schemaVersion: ROW_SCHEMA_VERSION,
           flowId: buildFlowId({
@@ -687,7 +706,7 @@ export const computeInterproceduralRisk = ({
             sourceRuleId: state.rootSource.source.ruleId,
             sinkChunkUid: state.chunkUid,
             sinkRuleId: sink.ruleId,
-            pathChunkUids: state.pathChunkUids
+            pathChunkUids: path.chunkUids
           }),
           source: buildFlowSourceEndpoint(state.rootSource),
           sink: {
@@ -700,11 +719,7 @@ export const computeInterproceduralRisk = ({
             confidence: Number.isFinite(sink.confidence) ? sink.confidence : null,
             tags: Array.isArray(sink.tags) ? sink.tags.filter(Boolean) : []
           },
-          path: {
-            chunkUids: state.pathChunkUids.slice(),
-            callSiteIdsByStep: state.callSiteIdsByStep.map((list) => (Array.isArray(list) ? list.slice() : [])),
-            watchByStep: toArray(state.watchByStep).map((entry) => ({ ...entry }))
-          },
+          path,
           confidence: flowConfidence({
             source: state.rootSource.source,
             sink,
@@ -779,7 +794,11 @@ export const computeInterproceduralRisk = ({
       });
       continue;
     }
-    const calleeList = Array.from(callees).sort(sortByKey);
+    let calleeList = preparedCallees.get(state.chunkUid);
+    if (!calleeList) {
+      calleeList = Array.from(callees).sort(sortByKey);
+      preparedCallees.set(state.chunkUid, calleeList);
+    }
     let expandedAny = false;
     const blockedExpansions = [];
     let hitExpansionCap = false;
@@ -807,16 +826,22 @@ export const computeInterproceduralRisk = ({
       let taintedArgIndices = [];
       if (strictness === 'argAware') {
         const argSet = new Set();
+        let incompleteArguments = false;
         for (const detail of details) {
-          const args = Array.isArray(detail?.args) ? detail.args : [];
-          for (let i = 0; i < args.length; i += 1) {
-            if (isArgTainted(args[i], state.taintList, sourceRules)) {
-              argSet.add(i);
-            }
+          const view = callArgumentView(detail);
+          incompleteArguments ||= !view.complete;
+          for (const slot of view.slots) {
+            if (slot.runtimeOrdinal !== null && !slot.previewTruncated && !slot.literalType
+              && isArgTainted(slot.preview, state.taintList, sourceRules)) argSet.add(slot.runtimeOrdinal);
           }
         }
+        if (incompleteArguments) blockedExpansions.push(buildBlockedExpansion({
+          targetChunkUid: calleeUid, reason: 'incompleteArgumentEvidence',
+          callSiteIds: details.map(detail => detail?.callSiteId).filter(Boolean)
+        }));
         taintedArgIndices = Array.from(argSet.values()).sort((a, b) => a - b);
         if (!taintedArgIndices.length) {
+          if (incompleteArguments) continue;
           blockedExpansions.push(buildBlockedExpansion({
             targetChunkUid: calleeUid,
             reason: 'untaintedArgs',
@@ -826,22 +851,32 @@ export const computeInterproceduralRisk = ({
         }
       }
 
-      const calleeChunk = chunkByUid.get(calleeUid);
-      const edgeParams = paramNamesByEdge.get(edgeKey(state.chunkUid, calleeUid)) || null;
-      const paramNames = resolveParamNames({ edgeParamNames: edgeParams, calleeChunk });
-      const matchedSemantics = resolveEdgeSemantics({
-        semantics,
-        callerChunk: chunkByUid.get(state.chunkUid),
-        calleeChunk,
-        details
-      });
+      const metadataKey = JSON.stringify([state.chunkUid, calleeUid]);
+      let preparedEdge = preparedEdgeMetadata.get(metadataKey);
+      if (!preparedEdge) {
+        const calleeChunk = chunkByUid.get(calleeUid);
+        const edgeParams = paramNamesByEdge.get(edgeKey(state.chunkUid, calleeUid)) || null;
+        const paramNames = resolveParamNames({ edgeParamNames: edgeParams, calleeChunk });
+        const matchedSemantics = resolveEdgeSemantics({ semantics,
+          callerChunk: chunkByUid.get(state.chunkUid), calleeChunk, details });
+        preparedEdge = { paramNames, matchedSemantics };
+        const bytes = metadataKey.length * 2 + paramNames.reduce((sum, name) => sum + String(name).length * 2, 0)
+          + matchedSemantics.length * 32 + 96;
+        if (preparedEdgeBytes + bytes <= MAX_PREPARED_EDGE_BYTES) {
+          preparedEdgeMetadata.set(metadataKey, preparedEdge); preparedEdgeBytes += bytes;
+        }
+      }
+      const { paramNames, matchedSemantics } = preparedEdge;
       const nextTaint = [];
       let appliedSemantics = [];
       if (strictness === 'argAware') {
         if (paramNames.length) {
           for (const idx of taintedArgIndices) {
-            const name = paramNames[idx];
+            const formal = runtimeParameterFor(runtimeParameterSlots(chunkByUid.get(calleeUid)?.docmeta), idx);
+            const name = formal?.binding === 'identifier' ? formal.name : paramNames[idx];
             if (name) nextTaint.push(name);
+            else blockedExpansions.push(buildBlockedExpansion({ targetChunkUid: calleeUid,
+              reason: 'incompleteParameterEvidence', callSiteIds: details.map(detail => detail?.callSiteId).filter(Boolean) }));
           }
         }
         const calleeSummary = summaryByUid.get(calleeUid);
@@ -865,17 +900,28 @@ export const computeInterproceduralRisk = ({
       }
       const taintKey = strictness === 'argAware' ? buildTaintSetKey(nextTaint) : null;
       const nextDepth = state.depth + 1;
-      const visitKey = `${state.rootSource.chunkUid}|${state.rootSource.source.ruleId}|${calleeUid}|${taintKey || ''}|${nextDepth}`;
-      if (visited.has(visitKey)) continue;
-      visited.add(visitKey);
 
       const callerFile = chunkByUid.get(state.chunkUid)?.file || null;
-      const sampled = sampleCallSitesForEdge(details, {
-        calleeUid,
-        callerFile,
-        maxCallSitesPerEdge: caps.maxCallSitesPerEdge
-      });
-      const callSiteIds = sampled.map((entry) => entry.callSiteId).filter(Boolean);
+      const samplingKey = JSON.stringify([state.chunkUid, calleeUid, callerFile, caps.maxCallSitesPerEdge ?? null]);
+      let sampling = sampledEdges.get(samplingKey);
+      if (!sampling) {
+        const sampled = sampleCallSitesForEdge(details, { calleeUid, callerFile, maxCallSitesPerEdge: caps.maxCallSitesPerEdge });
+        const callSiteIds = Object.freeze(sampled.map(entry => entry.callSiteId).filter(Boolean));
+        sampling = { sampled, callSiteIds, callSiteKey: JSON.stringify(callSiteIds) };
+        sampledEdges.set(samplingKey, sampling);
+      }
+      const { sampled, callSiteIds } = sampling;
+      const nextBarriers = state.sanitizerBarriersHit + (sanitizerPolicy === 'weaken' && hasSanitizers ? 1 : 0);
+      const stateKey = JSON.stringify([state.rootSource.chunkUid,state.rootSource.source.ruleId,
+        calleeUid,taintKey,nextDepth,nextBarriers]);
+      const witnesses = witnessesByState.get(stateKey) || [];
+      if (witnesses.some(witness => matchesRiskWitnessExtension(witness, state.witness, sampling.callSiteKey))) continue;
+      if (witnesses.length >= maxPathsPerPair) {
+        capsHit.add('maxPathsPerPair');
+        blockedExpansions.push(buildBlockedExpansion({ targetChunkUid: calleeUid,
+          reason: 'maxPathsPerPair', callSiteIds }));
+        continue;
+      }
       const watchStep = buildWatchStep({
         state,
         nextTaint,
@@ -886,15 +932,16 @@ export const computeInterproceduralRisk = ({
         sanitizerPolicy,
         semantics: appliedSemantics
       });
+      const witness = createRiskWitness({ parent: state.witness, chunkUid: calleeUid, callSiteIds, watch: watchStep });
+      witnesses.push(witness);
+      witnessesByState.set(stateKey,witnesses);
 
       queue.push({
         chunkUid: calleeUid,
         rootSource: state.rootSource,
-        pathChunkUids: [...state.pathChunkUids, calleeUid],
-        callSiteIdsByStep: [...state.callSiteIdsByStep, callSiteIds],
-        watchByStep: [...toArray(state.watchByStep), watchStep],
+        witness,
         depth: nextDepth,
-        sanitizerBarriersHit: state.sanitizerBarriersHit + (sanitizerPolicy === 'weaken' && hasSanitizers ? 1 : 0),
+        sanitizerBarriersHit: nextBarriers,
         taintList: nextTaint,
         taintKey
       });
@@ -909,11 +956,12 @@ export const computeInterproceduralRisk = ({
       });
       break;
     }
-    if (!expandedAny && blockedExpansions.length) {
+    const incompleteExpansions = blockedExpansions.filter(value => ['incompleteArgumentEvidence', 'incompleteParameterEvidence'].includes(value.reason));
+    if (!expandedAny && blockedExpansions.length || incompleteExpansions.length) {
       appendPartialFlow({
         state,
-        terminalReason: blockedExpansions[0]?.reason || 'blocked',
-        blockedExpansions
+        terminalReason: (expandedAny ? incompleteExpansions[0] : blockedExpansions[0])?.reason || 'blocked',
+        blockedExpansions: expandedAny ? incompleteExpansions : blockedExpansions
       });
     }
   }
@@ -923,7 +971,8 @@ export const computeInterproceduralRisk = ({
   stats.timingMs.total = stats.timingMs.summaries + propagationMs + stats.timingMs.io;
 
   if (timedOut) {
-    for (const pendingState of queue.slice(queueIndex)) {
+    stats.executionStatus = 'timed_out';
+    for (const pendingState of queue.pending()) {
       appendPartialFlow({
         state: pendingState,
         terminalReason: 'maxMs',
@@ -966,7 +1015,8 @@ export const computeInterproceduralRisk = ({
     if (flow?.sink?.ruleId) riskIdSet.add(flow.sink.ruleId);
   }
 
-  stats.status = 'ok';
+  stats.status = stats.inputCoverage.status === 'complete' ? 'ok' : 'partial';
+  if (stats.status === 'partial') stats.reason = 'upstream-input-incomplete';
   stats.counts.flowsEmitted = flowRows.length;
   partialFlowRows.sort((a, b) => {
     const sourceCmp = sortByKey(a.source.chunkUid, b.source.chunkUid);

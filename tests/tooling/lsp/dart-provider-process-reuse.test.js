@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { createHash } from 'node:crypto';
 import { runToolingProviders } from '../../../src/index/tooling/orchestrator.js';
 import { registerDefaultToolingProviders } from '../../../src/index/tooling/providers/index.js';
 
@@ -42,7 +43,8 @@ try {
     registerDefaultToolingProviders();
     const docOne = 'String greet(String name) { return name; }\n';
     const docTwo = 'String hello(String name) { return name; }\n';
-    const runDartPass = async (suffix) => runToolingProviders({
+    const documentHash = text => createHash('sha1').update(text).digest('hex');
+    const runDartPass = async (suffix, firstText = docOne) => runToolingProviders({
       strict: true,
       repoRoot: tempRoot,
       buildRoot: tempRoot,
@@ -60,16 +62,16 @@ try {
     }, {
       documents: [{
         virtualPath: 'lib/one.dart',
-        text: docOne,
+        text: firstText,
         languageId: 'dart',
         effectiveExt: '.dart',
-        docHash: `hash-dart-one-${suffix}`
+        docHash: documentHash(firstText)
       }, {
         virtualPath: 'lib/two.dart',
         text: docTwo,
         languageId: 'dart',
         effectiveExt: '.dart',
-        docHash: `hash-dart-two-${suffix}`
+        docHash: documentHash(docTwo)
       }],
       targets: [{
         chunkRef: {
@@ -79,10 +81,10 @@ try {
           file: 'lib/one.dart',
           segmentUid: null,
           segmentId: null,
-          range: { start: 0, end: docOne.length }
+          range: { start: 0, end: firstText.length }
         },
         virtualPath: 'lib/one.dart',
-        virtualRange: { start: 0, end: docOne.length },
+        virtualRange: { start: 0, end: firstText.length },
         symbolHint: { name: 'greet', kind: 'function' },
         languageId: 'dart'
       }, {
@@ -113,14 +115,7 @@ try {
       };
     };
 
-    let scenario = await runReuseScenario('attempt-one');
-    const reusedSecondPass = scenario.secondPass.diagnostics?.dart?.runtime?.pooling?.reused === true;
-    if (scenario.spawnCount !== 1 || !reusedSecondPass) {
-      await cleanupLspTestRuntime({ reason: 'dart_provider_process_reuse_retry', strict: true });
-      await fs.writeFile(counterPath, '', 'utf8');
-      scenario = await runReuseScenario('attempt-two');
-    }
-
+    const scenario = await runReuseScenario('original');
     const { firstPass, secondPass, spawnCount } = scenario;
     assert.equal(spawnCount, 1, 'expected one dart language-server process spawn across reused provider runs');
     assert.equal(firstPass.byChunkUid.size, 2, 'expected both Dart chunks enriched (first pass)');
@@ -137,6 +132,11 @@ try {
       1,
       'expected reused pooled session to avoid duplicate initialize requests (second pass)'
     );
+    const changedPass = await runDartPass('changed-generation', `${docOne}// changed source generation\n`);
+    assert.equal(changedPass.byChunkUid.size, 2);
+    assert.equal(changedPass.diagnostics?.dart?.runtime?.pooling?.reused, false,
+      'actual changed bytes must retire the original file-backed materialization');
+    assert.equal(await countNonEmptyLines(counterPath), 2, 'source generation changes require exactly one replacement');
 
     console.log('dart provider process reuse test passed');
   });

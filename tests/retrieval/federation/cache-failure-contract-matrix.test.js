@@ -54,7 +54,7 @@ const cases = [
           let observedSqlite;
           let observedIndex;
           const context = {
-            searchFn: async (repoRoot, params) => {
+            searchPolicyId: 'fixture-query-policy@1', searchFn: async (repoRoot, params) => {
               observedSqlite = params.sqliteCache;
               observedIndex = params.indexCache;
               const handle = { closes: 0, close() { this.closes += 1; } };
@@ -108,7 +108,7 @@ const cases = [
           workspacePath, query: 'strict-cache-owner', strict: true,
           search: { mode: 'code' }, limits: { concurrency: 2 }
         }, {
-          searchFn: async (repoRoot, params) => {
+          searchPolicyId: 'fixture-query-policy@1', searchFn: async (repoRoot, params) => {
             sharedCache = params.sqliteCache;
             const dbPath = path.join(repoRoot, 'lease.db');
             const handle = { closes: 0, close() { this.closes += 1; } };
@@ -229,12 +229,12 @@ const cases = [
           limits: { concurrency: 1 }
         };
 
-        const first = await runFederatedSearch(request, { searchFn });
+        const first = await runFederatedSearch(request, { searchPolicyId: 'fixture-query-policy@1', searchFn });
         assert.equal(first.ok, true);
         assert.equal(first.status, 'partial');
         assert.equal(first.code.length, 1);
 
-        const second = await runFederatedSearch(request, { searchFn });
+        const second = await runFederatedSearch(request, { searchPolicyId: 'fixture-query-policy@1', searchFn });
         assert.equal(second.ok, true);
         assert.equal(second.status, 'complete');
         assert.equal(second.code.length, 2);
@@ -295,6 +295,7 @@ const cases = [
             limits: { concurrency: 1 }
           }, {
             signal: controller.signal,
+            searchPolicyId: 'fixture-query-policy@1',
             searchFn
           }),
           (error) => {
@@ -308,9 +309,9 @@ const cases = [
           query: 'abort-cache',
           search: { mode: 'code', top: 5 },
           limits: { concurrency: 1 }
-        }, { searchFn });
+        }, { searchPolicyId: 'fixture-query-policy@1', searchFn });
 
-        assert.equal(searchCalls, 4);
+        assert.equal(searchCalls, 3, 'aborted admission never starts repo-b; the next healthy request searches both');
         assert.equal(successful.code.length, 2);
       });
     }
@@ -349,7 +350,7 @@ const cases = [
             query: 'federated',
             search: { mode: 'code', top: 5 },
             limits: { perRepoTop: 5, concurrency: 2 }
-          }, { searchFn }),
+          }, { searchPolicyId: 'fixture-query-policy@1', searchFn }),
           (error) => {
             assert.equal(error?.code, ERROR_CODES.INTERNAL);
             assert.match(String(error?.message || ''), /backend unavailable/i);

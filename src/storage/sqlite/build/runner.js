@@ -7,6 +7,8 @@ import { executeSqliteModeBuilds } from './runner/execution-orchestration.js';
 import { createRunnerLogger } from './runner/logging.js';
 import { normalizeModeArg, normalizeValidateMode } from './runner/options.js';
 import { resolveRunnerSelectionPlan } from './runner/selection-planning.js';
+import { throwIfAborted } from '../../../shared/abort.js';
+import { addStorageFailureContext } from '../../../shared/storage/operation-error.js';
 
 export { normalizeValidateMode } from './runner/options.js';
 
@@ -34,9 +36,11 @@ export { normalizeValidateMode } from './runner/options.js';
  * @param {object|null} [options.logger]
  * @param {boolean} [options.emitOutput]
  * @param {boolean} [options.exitOnError]
+ * @param {AbortSignal} [options.abortSignal]
  * @returns {Promise<{ok:boolean,mode:string,outPath:string,outputPaths:object}>}
  */
 export async function buildSqliteIndex(options = {}) {
+  throwIfAborted(options.abortSignal);
   const modeArg = normalizeModeArg(options.mode);
   const validateMode = normalizeValidateMode(options.validateMode ?? options.validate);
   const root = options.root || options.runtime?.root || null;
@@ -70,6 +74,7 @@ export async function buildSqliteIndex(options = {}) {
     rawArgs: Array.isArray(options.rawArgs) ? options.rawArgs : []
   };
   return runBuildSqliteIndexWithConfig(parsed, {
+    abortSignal: options.abortSignal || null,
     logger: options.logger || null,
     root,
     runtime: options.runtime || null,
@@ -105,6 +110,8 @@ try {
  * @returns {Promise<{ok:boolean,mode:string,outPath:string,outputPaths:object}>}
  */
 export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
+  const signal = options.abortSignal || null;
+  throwIfAborted(signal);
   const {
     argv,
     emitOutput,
@@ -118,18 +125,24 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
     : null;
   const taskFactory = resolveTaskFactory(options.taskFactory);
   let stopHeartbeat = () => {};
-  let finalized = false;
-  const finalize = () => {
-    if (finalized) return;
-    finalized = true;
-    stopHeartbeat();
-    if (typeof options.onFinalize === 'function') {
-      try {
-        options.onFinalize();
-      } catch {}
-    }
+  let finalization = null;
+  const exitFinalizer = () => {
+    try { Promise.resolve(stopHeartbeat()).catch(() => {}); } catch {}
   };
-  process.once('exit', finalize);
+  const finalize = () => {
+    if (finalization) return finalization;
+    process.off('exit', exitFinalizer);
+    finalization = Promise.resolve().then(async () => {
+      const errors = [];
+      for (const close of [stopHeartbeat, options.onFinalize].filter(value => typeof value === 'function')) {
+        try { await close(); } catch (error) { errors.push(error); }
+      }
+      stopHeartbeat = () => {};
+      if (errors.length) throw new AggregateError(errors, 'SQLite runner finalization failed.', { cause: errors[0] });
+    });
+    return finalization;
+  };
+  process.once('exit', exitFinalizer);
   const { log, warn, error } = createRunnerLogger({
     emitOutput,
     externalLogger
@@ -144,78 +157,80 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
   };
   const bail = (message, code = 1) => {
     if (message) error(message);
-    finalize();
     throw createRunnerError(message, code);
   };
-  if (!Database) return bail('better-sqlite3 is required. Run npm install first.');
-
   try {
-    const selection = await resolveRunnerSelectionPlan({
+    if (!Database) return bail('better-sqlite3 is required. Run npm install first.');
+    if (argv.compact && argv['no-compact']) return bail('Cannot use --compact and --no-compact together.');
+    return await resolveRunnerSelectionPlan({
       Database,
       argv,
       modeArg,
       parsedRawArgs,
-      options
+      options,
+      onFinalized: finalize,
+      onSelected: async selection => {
+        throwIfAborted(signal);
+        if (selection.errorMessage) {
+          return bail(selection.errorMessage);
+        }
+        const {
+          modeList,
+          outPath,
+          modeOutputPaths,
+          hasBuildState,
+          buildStateRoots,
+          indexRoot,
+          threadLimits,
+          incrementalRequested
+        } = selection;
+        const stateRoots = buildStateRoots || (hasBuildState ? [indexRoot] : []);
+        const heartbeats = stateRoots.map(buildRoot => startBuildHeartbeat(buildRoot, 'stage4'));
+        stopHeartbeat = async () => {
+          const results = await Promise.allSettled(heartbeats.map(stop => Promise.resolve().then(stop)));
+          const errors = results.filter(result => result.status === 'rejected').map(result => result.reason);
+          if (errors.length) throw new AggregateError(errors, 'SQLite build heartbeats did not all settle.', { cause: errors[0] });
+        };
+
+        if (emitOutput && argv.verbose === true) {
+          log(
+            `[sqlite] Thread limits (${threadLimits.source}): ` +
+            `cpu=${threadLimits.cpuCount}, cap=${threadLimits.maxConcurrencyCap}, ` +
+            `files=${threadLimits.fileConcurrency}, imports=${threadLimits.importConcurrency}, ` +
+            `io=${threadLimits.ioConcurrency}, cpuWork=${threadLimits.cpuConcurrency}.`
+          );
+        }
+        for (const buildRoot of stateRoots) await markBuildPhase(buildRoot, 'stage4', 'running');
+
+        await executeSqliteModeBuilds({
+          signal,
+          Database,
+          argv,
+          validateMode,
+          emitOutput,
+          exitOnError,
+          externalLogger,
+          taskFactory,
+          logger: { log, warn, error },
+          schemaVersion: SCHEMA_VERSION,
+          bail,
+          ...selection
+        });
+
+        await finalize();
+        for (const buildRoot of stateRoots) await markBuildPhase(buildRoot, 'stage4', 'done');
+
+        if (emitOutput && incrementalRequested) {
+          const summary = modeList.length > 1 ? 'indexes updated' : 'index updated';
+          log(`[sqlite] ${summary}.`);
+        }
+        return { ok: true, mode: modeArg, outPath, outputPaths: modeOutputPaths };
+      }
     });
-    if (selection.errorMessage) {
-      return bail(selection.errorMessage);
-    }
-    const {
-      modeList,
-      outPath,
-      modeOutputPaths,
-      hasBuildState,
-      indexRoot,
-      threadLimits,
-      incrementalRequested
-    } = selection;
-    stopHeartbeat = hasBuildState ? startBuildHeartbeat(indexRoot, 'stage4') : () => {};
-
-    if (emitOutput && argv.verbose === true) {
-      log(
-        `[sqlite] Thread limits (${threadLimits.source}): ` +
-        `cpu=${threadLimits.cpuCount}, cap=${threadLimits.maxConcurrencyCap}, ` +
-        `files=${threadLimits.fileConcurrency}, imports=${threadLimits.importConcurrency}, ` +
-        `io=${threadLimits.ioConcurrency}, cpuWork=${threadLimits.cpuConcurrency}.`
-      );
-    }
-    if (argv.compact && argv['no-compact']) {
-      return bail('Cannot use --compact and --no-compact together.');
-    }
-
-    if (hasBuildState) {
-      await markBuildPhase(indexRoot, 'stage4', 'running');
-    }
-
-    await executeSqliteModeBuilds({
-      Database,
-      argv,
-      validateMode,
-      emitOutput,
-      exitOnError,
-      externalLogger,
-      taskFactory,
-      logger: { log, warn, error },
-      schemaVersion: SCHEMA_VERSION,
-      bail,
-      ...selection
-    });
-
-    if (hasBuildState) {
-      await markBuildPhase(indexRoot, 'stage4', 'done');
-    }
-
-    if (emitOutput && incrementalRequested) {
-      const summary = modeList.length > 1 ? 'indexes updated' : 'index updated';
-      log(`[sqlite] ${summary}.`);
-    }
-    return { ok: true, mode: modeArg, outPath, outputPaths: modeOutputPaths };
-  } finally {
-    try {
-      await Promise.resolve(stopHeartbeat());
-    } catch {}
-    stopHeartbeat = () => {};
-    finalize();
+  } catch (primary) {
+    try { await finalize(); }
+    catch (cleanup) { if (cleanup !== primary) throw addStorageFailureContext(primary, {}, cleanup, { secondaryPresent: true }); }
+    throw primary;
   }
 }
 

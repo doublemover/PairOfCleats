@@ -34,6 +34,22 @@ Each rule entry supports:
 - `patterns` (string array, required, regex source)
 - `requires` (string, optional, regex source)
 
+An explicit `rulesPath` is a required input. Missing, denied, unreadable,
+malformed, oversized or canceled acquisition fails normalization; it does not
+fall back to defaults or an empty policy. The original failure and any unsettled
+descriptor cleanup remain attached, with `riskRuleInput` identifying the requested
+source and bounded failure reason. No new complete risk report is produced from
+that failed acquisition. Omit `rulesPath` for defaults/inline rules only. A valid
+external object containing empty rule arrays is an intentional empty input.
+
+External JSON must contain at least one of `sources`, `sinks`, or `sanitizers` as
+an array. Entries require a nonempty `name` and nonempty string `patterns`; the
+optional typed fields above are checked before compilation. Input is bounded to
+4 MiB, 4,096 rules, 16,384 patterns/conditions and 65,536 characters per pattern.
+These internal acquisition limits precede regex compilation, whose own configured
+limits and invalid-pattern diagnostics still apply. Inline programmatic iterable
+compatibility is unchanged.
+
 ## Default coverage
 
 The default bundle includes:
@@ -67,6 +83,24 @@ Configure caps under `indexing.riskCaps`:
 }
 ```
 
+Required stats and summaries must each be present and readable. Missing either
+produces a missing/degraded analysis, and strict risk returns
+`ERR_CONTEXT_PACK_RISK_STRICT`. Permission/I/O, schema and timeout failures remain
+visible. Valid required evidence proving zero emitted flows can still omit the
+flow artifact; this exception does not apply to required stats or summaries.
+
+Context-pack responses retain documented excerpt byte/token and partial-flow
+count/byte/token truncations as schema-valid bounded evidence. Unknown cap names
+remain invalid. Strict risk still rejects capped evidence through its existing
+surface error projection; it does not turn an ordinary cap into a schema error.
+
+Risk delta loads and validates both refs' declared evidence before comparison.
+Unreadable, malformed or schema-invalid stats/summaries/flows fail the comparison
+with `INTERNAL` and reason `risk_artifact_load_failed`, preserving the artifact and
+underlying cause in the shared error. Only undeclared flow families with valid
+stats proving zero emissions can become empty sets. Missing declared pieces are
+errors even when stats report zero; unknown evidence never establishes removal.
+
 `risk.analysisStatus` is an object containing `status`, `reason`, `caps`, `bytes`,
 and `lines`. Exceeding `maxBytes` or `maxLines` produces `status: "capped"`
 before allocating the line array or evaluating rules. Exceeding `maxNodes`,
@@ -96,6 +130,18 @@ and debugging can confirm the exact rule set and limits used. Serialized rules s
 sources as strings (compiled SafeRegex objects are not persisted).
 The bundle also includes `diagnostics` with bounded `warnings`/`errors` for any patterns
 that fail SafeRegex compilation (code, message, ruleId, ruleName, field, pattern, flags).
+
+`riskRules.inputReceipt` records optional absence or the exact successfully read
+external input: requested/resolved paths, byte length and SHA-256. Compilation
+consumes that same bounded descriptor snapshot after its native close confirms.
+The effective bundle fingerprint includes this receipt, the producer version,
+defaults/inline overrides and normalized regex policy. Enrichment and complete
+incremental reuse consume that admitted policy identity; a policy-only change
+preserves parse and lexical dependency identities. Workers receive the compiled
+policy projection and receipt without reopening the external pathname. A changed
+file is admitted afresh for the next build; an already admitted build retains its
+original policy. Even semantically equivalent external byte edits conservatively
+invalidate enrichment.
 
 ## Phase 3 notes
 - Risk analysis now treats cap exceedance as an early-exit condition (no full-file scanning).

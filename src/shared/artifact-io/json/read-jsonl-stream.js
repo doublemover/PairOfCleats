@@ -1,4 +1,8 @@
+import { createAbortError, throwIfAborted } from '../../abort.js';
+import { addStorageFailureContext } from '../../storage/operation-error.js';
+import { beginVerifiedArtifactRead } from '../verified-read-scope.js';
 import fs from 'node:fs';
+import { openContainedFileSync, verifyContainedFileHandle } from '../../contained-file.js';
 import { performance } from 'node:perf_hooks';
 import { createGunzip, createZstdDecompress } from 'node:zlib';
 import { MAX_JSON_BYTES } from '../constants.js';
@@ -17,13 +21,12 @@ import { createRowQueue } from './row-queue.js';
 import {
   canUseFallbackAfterPrimaryError,
   captureFallbackReadError,
+  normalizeArtifactReadFailure,
   resolvePreferredReadError
 } from './fallback.js';
 import {
   resolveJsonlReadPlan,
-  resolveOptionalZstd,
-  SMALL_JSONL_BYTES,
-  ZSTD_STREAM_THRESHOLD
+  SMALL_JSONL_BYTES
 } from './read-plan.js';
 import {
   shouldAbortForHeap,
@@ -70,13 +73,15 @@ const readStreamJsonlEntries = async ({
   maxBytes,
   requiredKeys,
   validationMode,
-  onEntry
+  onEntry,
+  signal
 }) => parseJsonlStreamEntries(stream, {
   targetPath: sourcePath,
   maxBytes,
   requiredKeys,
   validationMode,
-  onEntry
+  onEntry,
+  signal
 });
 
 const emitBufferedJsonlEntries = async ({
@@ -87,7 +92,6 @@ const emitBufferedJsonlEntries = async ({
   validationMode,
   pushEntry,
   cleanup,
-  queue,
   shouldMeasure,
   start,
   compression,
@@ -104,7 +108,6 @@ const emitBufferedJsonlEntries = async ({
     await pushEntry(entry);
   }
   if (cleanup) cleanupBak(sourcePath);
-  queue.finish();
   recordJsonlRead({
     shouldMeasure,
     start,
@@ -130,9 +133,12 @@ const readJsonlIteratorSingle = async function* (
     onBackpressure = null,
     onResume = null,
     byteRange = null,
-    recoveryFallback = false
+    containedRoot = null,
+    recoveryFallback = false,
+    signal = null
   } = {}
 ) {
+  throwIfAborted(signal);
   const shouldMeasure = hasArtifactReadObserver();
   const start = shouldMeasure ? performance.now() : 0;
   let rows = 0;
@@ -141,12 +147,32 @@ const readJsonlIteratorSingle = async function* (
   let compression = null;
   let cleanup = null;
   let stream = null;
-  const destroyStream = () => {
-    if (!stream) return;
-    try {
-      stream.destroy();
-    } catch {}
+  const ownedStreams = new Map();
+  const cleanupFailures = new Set();
+  let cancelled = false;
+  let cancellationError = null;
+  let producerFailure = null;
+  let containedReadError = null;
+  const cancelError = () => (cancellationError ||= createAbortError());
+  const ownStream = (owned) => {
+    const closed = owned.closed ? Promise.resolve() : new Promise(resolve => owned.once('close', resolve));
+    // Ownership cleanup must also be safe before the row parser is attached.
+    const state = { closed, error: null };
+    owned.on('error', error => { state.error ||= error; });
+    ownedStreams.set(owned, state);
+    return owned;
+  };
+  const destroyStream = async (reason = undefined) => {
+    const streams = [...ownedStreams];
+    for (const [owned, state] of streams) {
+      try { owned.destroy(reason); } catch (error) { state.error ||= error; }
+    }
     stream = null;
+    await Promise.all(streams.map(([, state]) => state.closed));
+    const errors = streams.map(([, state]) => state.error).filter(error => error != null);
+    for (const error of errors) cleanupFailures.add(error);
+    for (const [owned] of streams) ownedStreams.delete(owned);
+    return [...new Set(errors)];
   };
   let sourcePath = targetPath;
   const queue = createRowQueue({
@@ -154,9 +180,19 @@ const readJsonlIteratorSingle = async function* (
     onBackpressure,
     onResume
   });
+  const abort = () => {
+    const error = cancelError();
+    queue.cancel(error);
+    for (const [owned, state] of ownedStreams) {
+      try { owned.destroy(error); } catch (cleanupError) { state.error ||= cleanupError; }
+    }
+  };
+  signal?.addEventListener('abort', abort, { once: true });
 
   const producer = (async () => {
+    let primary = null;
     try {
+      throwIfAborted(signal);
       const hasRange = byteRange && Number.isFinite(byteRange.start) && Number.isFinite(byteRange.end);
       const range = hasRange
         ? { start: Math.max(0, byteRange.start), end: Math.max(0, byteRange.end - 1) }
@@ -185,13 +221,16 @@ const readJsonlIteratorSingle = async function* (
         if (index > 0 && !fallbackEnabled) break;
         let emittedForCandidate = 0;
         const pushEntry = async (entry) => {
+          throwIfAborted(signal);
+          if (cancelled) throw cancelError();
           emittedForCandidate += 1;
           await queue.push(entry);
+          throwIfAborted(signal);
         };
         try {
           sourcePath = candidate.path;
           compression = candidate.compression ?? detectCompression(candidate.path);
-          cleanup = candidate.cleanup;
+          cleanup = containedRoot ? false : candidate.cleanup;
           if (range && compression) {
             throw new Error(
               `[artifact-io] byteRange requires an uncompressed JSONL source: ${sourcePath}`
@@ -205,7 +244,7 @@ const readJsonlIteratorSingle = async function* (
           const plan = resolveJsonlReadPlan(stat.size);
           if (!range && (plan.smallFile || (compression === 'gzip' && stat.size <= SMALL_JSONL_BYTES))) {
             if (compression === 'gzip') {
-              const buffer = readBuffer(sourcePath, maxBytes);
+              const buffer = readBuffer(sourcePath, maxBytes, { containedRoot });
               const decompressed = decompressBuffer(buffer, 'gzip', maxBytes, sourcePath);
               ({ rows, bytes } = await emitBufferedJsonlEntries({
                 sourcePath,
@@ -224,7 +263,7 @@ const readJsonlIteratorSingle = async function* (
               return;
             }
             if (!compression) {
-              const buffer = readBuffer(sourcePath, maxBytes);
+              const buffer = readBuffer(sourcePath, maxBytes, { containedRoot });
               ({ rows, bytes } = await emitBufferedJsonlEntries({
                 sourcePath,
                 buffer,
@@ -242,36 +281,47 @@ const readJsonlIteratorSingle = async function* (
               return;
             }
           }
-          stream = fs.createReadStream(sourcePath, range || undefined);
+          // The optional whole-buffer decoder cannot enforce decoded output
+          // admission during allocation. Use the owned native stream for zstd
+          // regardless of encoded size, so decoded counting precedes staging.
+          if (containedRoot) {
+            const fd = openContainedFileSync(containedRoot, sourcePath);
+            let descriptorOwnedByStream = false;
+            try {
+              const openedStat = fs.fstatSync(fd);
+              if (openedStat.size > maxBytes) throw toJsonTooLargeError(sourcePath, openedStat.size);
+              const openedPath = sourcePath;
+              const witness = !range ? beginVerifiedArtifactRead(containedRoot, openedPath, fd) : null;
+              stream = ownStream(fs.createReadStream(sourcePath, { ...range, fd, autoClose: true }));
+              descriptorOwnedByStream = true;
+              const rawStream = stream;
+              if (witness) rawStream.on('data', bytes => {
+                try { witness.update(bytes); } catch (error) { containedReadError = error; rawStream.destroy(error); }
+              });
+              if (typeof witness?.signal?.addEventListener === 'function') {
+                const onAbort = () => rawStream.destroy(createAbortError());
+                witness.signal.addEventListener('abort', onAbort, { once: true });
+                rawStream.once('close', () => witness.signal.removeEventListener('abort', onAbort));
+                if (witness.signal.aborted) onAbort();
+              }
+              rawStream.prependOnceListener('end', () => {
+                try {
+                  const verify = () => verifyContainedFileHandle(fd, containedRoot, openedPath);
+                  if (witness) witness.finish(verify);
+                  else verify();
+                } catch (error) { containedReadError = error; }
+              });
+            } catch (error) { if (!descriptorOwnedByStream) fs.closeSync(fd); throw error; }
+          } else {
+            stream = ownStream(fs.createReadStream(sourcePath, range || undefined));
+          }
           if (compression === 'gzip') {
-            const gunzip = createGunzip();
+            const gunzip = ownStream(createGunzip());
+            stream.on('error', error => gunzip.destroy(error));
             stream = stream.pipe(gunzip);
           } else if (compression === 'zstd') {
-            const zstd = resolveOptionalZstd();
-            if (zstd && rawBytes <= ZSTD_STREAM_THRESHOLD) {
-              const buffer = readBuffer(sourcePath, maxBytes);
-              const decoded = await zstd.decompress(buffer);
-              const payload = Buffer.isBuffer(decoded) ? decoded : Buffer.from(decoded);
-              if (payload.length > maxBytes || shouldAbortForHeap(payload.length)) {
-                throw toJsonTooLargeError(sourcePath, payload.length);
-              }
-              ({ rows, bytes } = await emitBufferedJsonlEntries({
-                sourcePath,
-                buffer: payload,
-                maxBytes,
-                requiredKeys,
-                validationMode,
-                pushEntry,
-                cleanup,
-                queue,
-                shouldMeasure,
-                start,
-                compression,
-                rawBytes
-              }));
-              return;
-            }
-            const zstdStream = createZstdDecompress();
+            const zstdStream = ownStream(createZstdDecompress());
+            stream.on('error', error => zstdStream.destroy(error));
             stream = stream.pipe(zstdStream);
           }
           break;
@@ -280,7 +330,7 @@ const readJsonlIteratorSingle = async function* (
             throw err;
           }
           if (index === 0) {
-            primaryErr = err;
+            primaryErr = normalizeArtifactReadFailure(err);
             fallbackEnabled = canUseFallbackAfterPrimaryError(primaryErr, recoveryFallback);
             if (!fallbackEnabled) {
               throw primaryErr;
@@ -289,7 +339,10 @@ const readJsonlIteratorSingle = async function* (
             fallbackErr = captureFallbackReadError(fallbackErr, err);
           }
           lastErr = err;
-          destroyStream();
+          const cleanupErrors = await destroyStream();
+          for (const error of cleanupErrors) {
+            if (error !== err) throw addStorageFailureContext(err, {}, error, { secondaryPresent: true });
+          }
         }
       }
       if (!stream) {
@@ -302,12 +355,15 @@ const readJsonlIteratorSingle = async function* (
         maxBytes,
         requiredKeys,
         validationMode,
+        signal,
         onEntry: async (entry) => {
+          throwIfAborted(signal);
+          if (cancelled) throw cancelError();
           await queue.push(entry);
         }
       }));
+      if (containedReadError) throw containedReadError;
       if (cleanup) cleanupBak(sourcePath);
-      queue.finish();
       recordJsonlRead({
         shouldMeasure,
         start,
@@ -318,20 +374,44 @@ const readJsonlIteratorSingle = async function* (
         rows
       });
     } catch (err) {
-      queue.finish(err);
+      primary = normalizeArtifactReadFailure(err);
     } finally {
-      destroyStream();
+      const cleanupErrors = await destroyStream();
+      for (const error of cleanupErrors) {
+        if (error === primary || error === cancellationError) continue;
+        primary = primary ? addStorageFailureContext(primary, {}, error, { secondaryPresent: true }) : error;
+      }
+      producerFailure = primary;
+      queue.finish(primary);
     }
   })();
 
+  let iterationFailure = null, iterationFailed = false;
   try {
     for await (const entry of queue.iterator()) {
+      throwIfAborted(signal);
       yield entry;
     }
+  } catch (error) {
+    iterationFailure = error; iterationFailed = true; throw error;
   } finally {
+    cancelled = true;
     queue.cancel();
-    destroyStream();
+    await destroyStream(cancelError());
     await producer.catch(() => {});
+    signal?.removeEventListener('abort', abort);
+    // A consumer return has no queue read left to report finalizer failures.
+    // Suppress only our exact cancellation cause, retaining independent source
+    // or decoder errors even when the caller stops after the first row.
+    if (!iterationFailed || iterationFailure !== producerFailure) {
+      let primary = iterationFailure, failed = iterationFailed;
+      for (const error of cleanupFailures) {
+        if (error === cancellationError || error === primary) continue;
+        primary = failed ? addStorageFailureContext(primary, {}, error, { secondaryPresent: true }) : error;
+        failed = true;
+      }
+      if (failed && (!iterationFailed || primary !== iterationFailure)) throw primary;
+    }
   }
 };
 
@@ -347,7 +427,8 @@ const readJsonlIteratorSingle = async function* (
  *   onBackpressure?: ((pending:number) => void)|null,
  *   onResume?: ((pending:number) => void)|null,
  *   byteRange?: {start:number,end:number}|null,
- *   recoveryFallback?:boolean
+ *   recoveryFallback?:boolean,
+ *   signal?:AbortSignal|null
  * }} [options]
  * @returns {AsyncGenerator<any, void, unknown>}
  */
@@ -376,22 +457,25 @@ export const readJsonLinesIterator = function (filePath, options = {}) {
 export const readJsonLinesEachAwait = async (
   filePath,
   onEntry,
-  {
-    maxBytes = MAX_JSON_BYTES,
-    requiredKeys = null,
-    validationMode = 'strict',
-    recoveryFallback = false
-  } = {}
+  options = {}
 ) => {
   if (typeof onEntry !== 'function') return;
-  for await (const entry of readJsonLinesIterator(filePath, {
-    maxBytes,
-    requiredKeys,
-    validationMode,
-    recoveryFallback
-  })) {
-    await onEntry(entry);
+  const iterator = readJsonLinesIterator(filePath, options);
+  let completed = false, failed = false, primary;
+  try {
+    while (true) {
+      const entry = await iterator.next();
+      if (entry.done) { completed = true; break; }
+      await onEntry(entry.value);
+    }
+  } catch (error) { failed = true; primary = error; }
+  if (!completed) {
+    try { await iterator.return(); } catch (error) {
+      primary = failed ? addStorageFailureContext(primary, {}, error, { secondaryPresent: true }) : error;
+      failed = true;
+    }
   }
+  if (failed) throw primary;
 };
 
 /**

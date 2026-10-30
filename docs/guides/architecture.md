@@ -1,5 +1,10 @@
 # Architecture diagrams
 
+Architecture rule IDs must be unique within one rule set. Duplicate IDs are
+rejected before rule compilation or cached matcher lookup, including callers
+that construct a report directly. IDs identify distinct rule semantics and must
+not silently alias cached matchers.
+
 This document holds detailed system diagrams. The README only keeps a simplified, high-level explainer.
 Update these diagrams when the pipeline changes.
 

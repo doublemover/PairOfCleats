@@ -27,10 +27,10 @@ This plan turns the roadmap's validation queue into executable release lanes wit
 Run commands from the repo root:
 
 ```powershell
-Set-Location 'C:\Users\sneak\Development\DOUBLECLEAT'
+Set-Location '<path-to-PairOfCleats-checkout>'
 ```
 
-Use the repo test runner for tests. `tests/run.js` imports the testing-env helper and sets `PAIROFCLEATS_TESTING=1`, which is required before other `PAIROFCLEATS_TEST_*` variables are honored. Use direct `node` only for syntax checks or non-test tooling that is not registered with the runner.
+Use Node >=26.10.0 <27 and complete `npm run bootstrap:ci` before validation. Use the repo test runner for tests. `tests/run.js` imports the testing-env helper and sets `PAIROFCLEATS_TESTING=1`, which is required before other `PAIROFCLEATS_TEST_*` variables are honored. Use direct `node` only for syntax checks or non-test tooling that is not registered with the runner.
 
 Every validation command that runs tests must enforce the repository 30 second guidance. Put test selectors before `--lane=all` so positional selectors are parsed correctly and release evidence is not accidentally limited to the default lane:
 

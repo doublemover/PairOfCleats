@@ -92,6 +92,7 @@ try {
   await assert.rejects(async () => {
     const sourceFile = path.join(stagingRoot,'semantic-sources',retained.source.byteHash+'.utf8');
     await fs.writeFile(sourceFile,Buffer.alloc(bytes.length)); await retained.readBytes();
-  }, /hash or length mismatch/);
+  }, error => error.code === 'ERR_FILE_INTEGRITY' && error.sourceUnitId === retained.source.sourceUnitId
+    && error.sourcePath === 'module.wasm');
   console.log('standalone binary admission and retained streaming/filesystem byte provenance passed');
 } finally { await fs.rm(root,{recursive:true,force:true}); }

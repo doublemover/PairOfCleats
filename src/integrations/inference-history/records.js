@@ -17,7 +17,8 @@ export function normalizeHistoryRecord(raw, evidenceKind, limits) {
     if(!object(raw)||Object.keys(raw).some(key=>!allowed.includes(key))||!id(raw.id)||typeof raw.title!=='string'
       ||typeof raw.body!=='string'||raw.body.length>limits.maxTextChars||raw.visibility!=='visible'
       ||!['document','code','activity','tool_activity','metadata'].includes(raw.artifact_kind)
-      ||!object(raw.provenance)||Object.keys(raw.provenance).some(key=>!['source_sha256','locator','chunk_start','chunk_end','total_chars','date_basis','offset_basis','transformation','projection_version'].includes(key))||!/^[a-f0-9]{64}$/.test(raw.provenance.source_sha256??'')
+      ||!object(raw.provenance)||Object.keys(raw.provenance).some(key=>!['source_sha256','locator','origin_hash','chunk_start','chunk_end','total_chars','date_basis','offset_basis','transformation','projection_version'].includes(key))||!/^[a-f0-9]{64}$/.test(raw.provenance.source_sha256??'')
+      ||!/^[a-f0-9]{64}$/.test(raw.provenance.origin_hash??'')
       ||raw.provenance.chunk_end-raw.provenance.chunk_start!==raw.body.length||raw.provenance.chunk_end>raw.provenance.total_chars
       ||raw.provenance.offset_basis!=='sanitized_utf16'||raw.provenance.projection_version!==ARTIFACT_PROJECTION_VERSION
       ||(!object(raw.provenance.transformation)||Object.keys(raw.provenance.transformation).sort().join(',')!=='kind,original_end,original_start,sanitized_end,sanitized_start'||!['identity','redacted_coarse'].includes(raw.provenance.transformation.kind)||['original_start','original_end','sanitized_start','sanitized_end'].some(key=>!Number.isSafeInteger(raw.provenance.transformation[key])||raw.provenance.transformation[key]<0)||raw.provenance.transformation.original_start!==0||raw.provenance.transformation.sanitized_start!==0||raw.provenance.transformation.sanitized_end!==raw.provenance.total_chars||raw.provenance.transformation.kind==='identity'&&raw.provenance.transformation.original_end!==raw.provenance.total_chars)
@@ -28,7 +29,7 @@ export function normalizeHistoryRecord(raw, evidenceKind, limits) {
       nodes:[{nodeId:raw.id,messageId:null,parentId:null,children:[],role:'artifact',pathState:'unknown',
         parts:[{type:'text',text:raw.body}],assets:[],text:raw.body,createdAt:normalizeTimestamp(raw.created_at),
         sourceRevision:revision,sourceDetails:{artifactKind:raw.artifact_kind,sourceSha256:raw.provenance.source_sha256,
-          locator:raw.provenance.locator??null,sanitizedStart:raw.provenance.chunk_start,sanitizedEnd:raw.provenance.chunk_end,totalChars:raw.provenance.total_chars,offsetBasis:raw.provenance.offset_basis,projectionVersion:raw.provenance.projection_version,transformation:raw.provenance.transformation,...classifyArchiveSource({locator:raw.provenance.locator,kind:raw.artifact_kind,text:raw.body}),dateBasis:raw.provenance.date_basis??'unknown',attribution:'source_artifact'}}]};
+          locator:raw.provenance.locator??null,originHash:raw.provenance.origin_hash,sanitizedStart:raw.provenance.chunk_start,sanitizedEnd:raw.provenance.chunk_end,totalChars:raw.provenance.total_chars,offsetBasis:raw.provenance.offset_basis,projectionVersion:raw.provenance.projection_version,transformation:raw.provenance.transformation,...classifyArchiveSource({locator:raw.provenance.locator,kind:raw.artifact_kind,text:raw.body}),dateBasis:raw.provenance.date_basis??'unknown',attribution:'source_artifact'}}]};
   }
   if (evidenceKind !== 'exported_codex_task') throw invalid();
   const snapshotHash = hashCanonicalJson(raw);

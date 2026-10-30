@@ -7,3 +7,16 @@ Follow the steps in this manual.
 == Troubleshooting
 
 Check the logs.
+
+[source,text]
+----
+== Listing Impostor
+----
+
+////
+== Comment Impostor
+////
+
+== Final section
+
+The preceding literals remain searchable within Troubleshooting.

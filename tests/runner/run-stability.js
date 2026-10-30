@@ -96,6 +96,8 @@ export const loadStabilityHistory = async ({ historyDir, historyLimit = DEFAULT_
       const parsed = JSON.parse(await fsPromises.readFile(filePath, 'utf8'));
       if (parsed?.schemaVersion !== 1 || !Array.isArray(parsed?.tests)) continue;
       artifacts.push(parsed);
+      artifacts.sort(compareByGeneratedAtDesc);
+      if (artifacts.length > limit) artifacts.pop();
     } catch {}
   }
   artifacts.sort(compareByGeneratedAtDesc);

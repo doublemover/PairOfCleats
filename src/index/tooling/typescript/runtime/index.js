@@ -3,7 +3,7 @@ import { fileURLToPath } from 'node:url';
 import { spawnSubprocess } from '../../../../shared/subprocess/runner.js';
 import { trackedOwnershipIdByAbortSignal } from '../../../../shared/subprocess/tracking.js';
 import { parseEffectiveMaxOldSpaceMb } from '../../../../shared/runtime-envelope/parse.js';
-import { createAbortError, raceAbort } from '../../../../shared/abort.js';
+import { raceAbort, throwIfAborted } from '../../../../shared/abort.js';
 import { isRequiredToolingComputationError } from '../../required-computation.js';
 import {
   createRecordWriter, measureJsonRecord, protocolFailure, readRecords,
@@ -41,7 +41,8 @@ export const runTypeScriptProviderSubprocess = async (ctx, inputs, options = {})
   const timeoutMs = positiveInteger(options.timeoutMs ?? 60000, 'timeoutMs');
   const maxOldSpaceMb = resolveTypeScriptRuntimeHeapMb(options);
   const maxCollectorBytes = positiveInteger(options.maxCollectorBytes ?? limits.maxOutputBytes, 'maxCollectorBytes');
-  if (options.onRecord != null && typeof options.onRecord !== 'function') throw protocolFailure('invalid-record-callback');
+  const onRecord = options.onRecord;
+  if (onRecord != null && typeof onRecord !== 'function') throw protocolFailure('invalid-record-callback');
   const context = { repoRoot: ctx.repoRoot, toolingConfig: ctx.toolingConfig || {}, strict: ctx.strict !== false };
   const documents = Array.isArray(inputs?.documents) ? inputs.documents : [];
   const targets = Array.isArray(inputs?.targets) ? inputs.targets : [];
@@ -53,7 +54,7 @@ export const runTypeScriptProviderSubprocess = async (ctx, inputs, options = {})
   if (externalSignal != null && !(externalSignal instanceof AbortSignal)) throw protocolFailure('invalid-abort-signal');
   const deadline = AbortSignal.timeout(timeoutMs);
   const signal = AbortSignal.any([controller.signal, deadline, ...(externalSignal ? [externalSignal] : [])]);
-  if (signal.aborted) throw createAbortError('TypeScript provider cancelled.');
+  throwIfAborted(signal, 'TypeScript provider cancelled.');
   const assembler = createResultAssembler({ logger: ctx.logger });
   let inputTask, outputTask, taskError, childResult, processError;
   let collectorBytes = 0;
@@ -84,10 +85,17 @@ export const runTypeScriptProviderSubprocess = async (ctx, inputs, options = {})
         inputTask.catch(failTask);
         outputTask = (async () => {
           for await (const record of readRecords(child.stdout, limits, limits.maxOutputBytes)) {
+            throwIfAborted(signal);
             collectorBytes += measureJsonRecord(record, limits);
             if (collectorBytes > maxCollectorBytes) throw protocolFailure('collector-byte-limit', { limit: maxCollectorBytes });
             assembler.accept(record);
-            if (options.onRecord) await raceAbort(signal, Promise.resolve().then(() => options.onRecord(record)));
+            if (onRecord) {
+              throwIfAborted(signal);
+              await raceAbort(signal, Promise.resolve().then(() => {
+                throwIfAborted(signal);
+                return onRecord.call(options, record);
+              }));
+            }
           }
         })();
         outputTask.catch(failTask);
@@ -99,7 +107,7 @@ export const runTypeScriptProviderSubprocess = async (ctx, inputs, options = {})
     controller.abort(error);
   }
   await Promise.allSettled([inputTask, outputTask]);
-  if (externalSignal?.aborted) throw createAbortError('TypeScript provider cancelled.');
+  throwIfAborted(externalSignal, 'TypeScript provider cancelled.');
   if (deadline.aborted || processError?.code === 'SUBPROCESS_TIMEOUT') throw protocolFailure('timeout', { timeoutMs }, processError);
   const receipt = processError?.result || {};
   const heapExhausted = /JavaScript heap out of memory|Reached heap limit|Allocation failed.*heap/i.test(receipt.stderr || '');

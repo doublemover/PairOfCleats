@@ -19,7 +19,16 @@ const normalizeFiniteNumber = (value) => {
  * @param {number} end
  * @returns {string}
  */
-const buildCommentLookupKey = (file, start, end) => `${file}:${start}:${end}`;
+const buildCommentLookupKey = (file, start, end) => JSON.stringify([file, start, end]);
+
+// Metadata arrays belong to immutable admitted generations. Weak ownership does
+// not retain old indexes after a generation replacement.
+const generationLookups = new WeakMap();
+
+export const needsCommentExcerpts = (hits) => Array.isArray(hits) && hits.some(hit => (
+  hit?.file && !hit.docmeta?.commentExcerpts && !hit.docmeta?.commentExcerpt
+  && Array.isArray(hit.docmeta?.commentRefs) && hit.docmeta.commentRefs.length > 0
+));
 
 /**
  * Build extracted-comment lookup data keyed by file/start/end.
@@ -29,6 +38,7 @@ const buildCommentLookupKey = (file, start, end) => `${file}:${start}:${end}`;
  */
 export const buildCommentLookup = ({ joinComments, extractedChunkMeta }) => {
   if (!joinComments || !Array.isArray(extractedChunkMeta) || !extractedChunkMeta.length) return null;
+  if (generationLookups.has(extractedChunkMeta)) return generationLookups.get(extractedChunkMeta);
   const lookup = new Map();
   for (const chunk of extractedChunkMeta) {
     if (!chunk?.file) continue;
@@ -42,13 +52,15 @@ export const buildCommentLookup = ({ joinComments, extractedChunkMeta }) => {
       const key = buildCommentLookupKey(chunk.file, start, end);
       const matches = lookup.get(key);
       if (matches) {
-        matches.push(comment);
+        matches.push({ ...comment });
       } else {
-        lookup.set(key, [comment]);
+        lookup.set(key, [{ ...comment }]);
       }
     }
   }
-  return lookup.size ? lookup : null;
+  const result = lookup.size ? lookup : null;
+  generationLookups.set(extractedChunkMeta, result);
+  return result;
 };
 
 /**

@@ -1,8 +1,14 @@
 import { spawnSubprocess } from '../../shared/subprocess/runner.js';
+import { withSchedulerCpuSuspended } from '../../shared/concurrency/scheduler-task-scope.js';
 
-const defaultRunner = (command, args, options = {}) => (
-  spawnSubprocess(command, args, { ...options, shell: false })
-);
+const defaultRunner = (command, args, options = {}) => {
+  // Launch under the caller's compute admission. Buffered commands only wait
+  // after launch; provider parsing resumes after compute reacquisition. Hooks
+  // can do arbitrary JS work while the child runs, so retain their permit.
+  const pending = spawnSubprocess(command, args, { ...options, shell: false });
+  if (['onSpawn', 'onStdout', 'onStderr'].some(name => typeof options[name] === 'function')) return pending;
+  return withSchedulerCpuSuspended(() => pending);
+};
 
 const DEFAULT_SCM_MAX_OUTPUT_BYTES = 64 * 1024 * 1024;
 

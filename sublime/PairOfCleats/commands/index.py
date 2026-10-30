@@ -8,6 +8,7 @@ from ..lib import paths
 from ..lib import runner
 from ..lib import ui
 from ..lib import watch
+from ..lib.process_outcome import describe_process_outcome
 
 INDEX_PANEL = 'pairofcleats-index'
 
@@ -69,12 +70,15 @@ def _run_index_build(window, mode, stage=None, build_args=None):
         ui.show_status('PairOfCleats: index build started ({0}) for {1}.'.format(mode, repo_root))
 
         def on_done(result):
-            if result.returncode == 0:
+            outcome = describe_process_outcome(result, 'PairOfCleats index build')
+            if outcome['status'] == 'done':
                 index_state.record_last_build(window, mode)
                 ui.show_status('PairOfCleats: index build complete ({0}) for {1}.'.format(mode, repo_root))
                 return
-            message = result.output.strip() or 'PairOfCleats index build failed.'
-            ui.show_error(message)
+            if outcome['status'] == 'cancelled':
+                ui.show_status(outcome['summary'])
+            else:
+                ui.show_error(outcome['summary'] + '\nInspect Tasks retains bounded logs and safe retry/diagnostics actions.')
 
         runner.run_process(
             command,
@@ -109,14 +113,15 @@ def _run_index_watch(window):
         active_watch = watch.snapshot(window)
         if active_watch:
             active_root = active_watch.get('root')
-            if active_root == watch_root:
+            if active_root == watch_root and active_watch.get('running') and not active_watch.get('stopping'):
                 message = 'PairOfCleats: watch already running.'
                 if active_root:
                     message = '{0} ({1})'.format(message, active_root)
                 ui.show_status(message)
                 return
-            watch.stop(window, reason='restart')
-            ui.show_status('PairOfCleats: restarting watch ({0}).'.format(watch_root))
+            ui.show_error('PairOfCleats: an earlier watch still owns process settlement for {0}. '
+                          'Use Stop Watch / Inspect Tasks, then deliberately start the next watch. No automatic restart.'.format(active_root))
+            return
 
         mode = settings.get('index_watch_mode') or 'all'
         poll_ms = settings.get('index_watch_poll_ms')
@@ -135,7 +140,7 @@ def _run_index_watch(window):
         full_args = list(cli.get('args_prefix') or []) + args
         env = config.build_env(settings)
 
-        ui.show_status('PairOfCleats: watch started ({0}).'.format(watch_root))
+        ui.show_status('PairOfCleats: watch is starting ({0}); readiness is not yet observed.'.format(watch_root))
 
         token = None
 
@@ -143,16 +148,13 @@ def _run_index_watch(window):
             current = watch.snapshot(window)
             if current and current.get('token') != token:
                 return
-            stop_reason = current.get('stopReason') if current else None
             stopping = bool(current and current.get('stopping'))
             watch.clear_if_done(window, token=token)
-            if stop_reason == 'restart':
-                return
-            if result.returncode == 0 or stopping:
-                ui.show_status('PairOfCleats: watch stopped.')
-                return
-            message = result.output.strip() or 'PairOfCleats watch failed.'
-            ui.show_error(message)
+            outcome = describe_process_outcome(result, 'PairOfCleats watch', stop_requested=stopping)
+            if outcome['status'] in ('done', 'cancelled'):
+                ui.show_status(outcome['summary'])
+            else:
+                ui.show_error(outcome['summary'] + '\nInspect Tasks before retrying; unconfirmed settlement remains owned.')
 
         handle = runner.run_process(
             command,
@@ -166,7 +168,10 @@ def _run_index_watch(window):
             stream_output=True,
             panel_name=INDEX_PANEL
         )
-        token = watch.register(window, handle, watch_root)
+        try:
+            token = watch.register(window, handle, watch_root)
+        except RuntimeError as error:
+            ui.show_error('PairOfCleats: ' + str(error))
 
     _with_mutating_repo_root(window, 'index watch', on_repo_root)
 
@@ -175,7 +180,11 @@ def _run_index_watch_stop(window):
     if watch.stop(window, reason='user'):
         ui.show_status('PairOfCleats: watch stopping...')
     else:
-        ui.show_status('PairOfCleats: no watch to stop.')
+        retained = watch.snapshot(window)
+        if retained and retained.get('cancelError'):
+            ui.show_error('PairOfCleats: watch cancellation remains unconfirmed: ' + retained['cancelError'])
+        else:
+            ui.show_status('PairOfCleats: no watch to stop.')
 
 
 def _resolve_validated_index_repo(window):

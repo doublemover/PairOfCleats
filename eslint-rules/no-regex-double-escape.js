@@ -6,20 +6,13 @@ const TARGET_ESCAPES = new Set([
   'w',
   'W',
   'b',
-  'B',
-  '(',
-  ')',
-  '[',
-  ']',
-  '{',
-  '}',
-  '+',
-  '*',
-  '?',
-  '|',
-  '^',
-  '$'
+  'B'
 ]);
+
+// Regex operators after a literal backslash have their normal grammar: \\?
+// means an optional backslash. Collapsing it to \? changes accepted input even
+// though the new regex also compiles. Operators are not character-class escapes
+// and cannot be inferred to be double-escape mistakes.
 
 const buildFixedPattern = (pattern) => {
   let changed = false;
@@ -84,6 +77,9 @@ export default {
         const fixedPattern = buildFixedPattern(pattern);
         if (!fixedPattern) return;
         const flags = raw.slice(lastSlash + 1);
+        // A literal backslash followed by a real group is valid regex syntax.
+        // Never turn that into an unmatched escaped delimiter during --fix.
+        try { new RegExp(fixedPattern, flags); } catch { return; }
         context.report({
           node,
           messageId: 'doubleEscape',

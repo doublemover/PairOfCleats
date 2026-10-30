@@ -2,13 +2,12 @@ import { fileURLToPath } from 'node:url';
 import { atomicWriteJson } from '../../../shared/io/atomic-write.js';
 import { coerceAbortSignal, throwIfAborted } from '../../../shared/abort.js';
 import { resolveRuntimeEnv } from '../../../shared/runtime-envelope/env-patch.js';
-import {
-  resolveBuildCleanupTimeoutMs,
-  runBuildCleanupWithTimeout
-} from '../cleanup-timeout.js';
+import { resolveBuildCleanupTimeoutMs } from '../cleanup-timeout.js';
+import { withSchedulerCrashPersistence } from './runner/crash-persistence.js';
 import { buildTreeSitterSchedulerPlan } from './plan.js';
 import { createTreeSitterSchedulerLookup } from './lookup.js';
 import { createSchedulerCrashTracker } from './runner/crash-tracker.js';
+import { createSchedulerDegradationQuery } from './degradation.js';
 import { loadIndexEntries } from './runner/index-loader.js';
 import {
   buildTreeSitterPlannerFailureSnapshot
@@ -98,189 +97,189 @@ export const runTreeSitterScheduler = async ({
     crashLogger,
     log
   });
-  let prepared = null;
-  try {
-    prepared = prepareTreeSitterSchedulerTasks({
+  return withSchedulerCrashPersistence(crashTracker, { mode }, async waitForPersistence => {
+    let prepared = null;
+    try {
+      prepared = prepareTreeSitterSchedulerTasks({
+        planResult,
+        schedulerConfig,
+        runtime
+      });
+    } catch (err) {
+      await writePlannerFailureSnapshot({
+        paths: planResult.paths,
+        plan: planResult.plan,
+        groups: planResult.groups,
+        tasks: prepared?.plannedTasks || [],
+        failureSummary: {
+          parserCrashSignatures: 0,
+          failedGrammarKeys: [],
+          degradedVirtualPaths: [],
+          failureClasses: { scheduler_contract_violation: 1 }
+        }
+      });
+      throw err;
+    }
+
+    const { grammarKeys, plannedTasks, execConcurrency } = prepared;
+    const execution = await executeTreeSitterSchedulerTasks({
+      plannedTasks,
+      execConcurrency,
+      effectiveAbortSignal,
+      runtime,
+      outDir,
+      runtimeEnv,
+      schedulerExecPath: SCHEDULER_EXEC_PATH,
+      crashTracker,
       planResult,
-      schedulerConfig
+      log,
+      onWritePlannerFailureSnapshot: ({ plan, groups, tasks, failureSummary }) => writePlannerFailureSnapshot({
+        paths: planResult.paths,
+        plan,
+        groups,
+        tasks,
+        failureSummary
+      })
     });
-  } catch (err) {
-    await writePlannerFailureSnapshot({
-      paths: planResult.paths,
-      plan: planResult.plan,
-      groups: planResult.groups,
-      tasks: prepared?.plannedTasks || [],
-      failureSummary: {
-        parserCrashSignatures: 0,
-        failedGrammarKeys: [],
-        degradedVirtualPaths: [],
-        failureClasses: { scheduler_contract_violation: 1 }
-      }
+    await persistTreeSitterSchedulerAdaptiveSamples({
+      runtime,
+      treeSitterConfig: runtime?.languageOptions?.treeSitter || null,
+      adaptiveSamples: execution.adaptiveSamples,
+      log
     });
-    throw err;
-  }
+    throwIfAborted(effectiveAbortSignal);
 
-  const { grammarKeys, plannedTasks, execConcurrency } = prepared;
-  const execution = await executeTreeSitterSchedulerTasks({
-    plannedTasks,
-    execConcurrency,
-    effectiveAbortSignal,
-    runtime,
-    outDir,
-    runtimeEnv,
-    schedulerExecPath: SCHEDULER_EXEC_PATH,
-    crashTracker,
-    planResult,
-    log,
-    onWritePlannerFailureSnapshot: ({ plan, groups, tasks, failureSummary }) => writePlannerFailureSnapshot({
-      paths: planResult.paths,
-      plan,
-      groups,
-      tasks,
-      failureSummary
-    })
-  });
-  await persistTreeSitterSchedulerAdaptiveSamples({
-    runtime,
-    treeSitterConfig: runtime?.languageOptions?.treeSitter || null,
-    adaptiveSamples: execution.adaptiveSamples,
-    log
-  });
-  throwIfAborted(effectiveAbortSignal);
-
-  const crashPersistenceResult = await runBuildCleanupWithTimeout({
-    label: `tree-sitter-scheduler.${mode}.crash-persistence`,
-    cleanup: () => crashTracker.waitForPersistence(),
-    log
-  });
-  if (crashPersistenceResult?.timedOut && log) {
-    log(
-      `[tree-sitter:schedule] crash persistence timed out after ${crashPersistenceResult?.elapsedMs || 'unknown'}ms; continuing with degraded crash telemetry.`
-    );
-  }
-  const crashSummary = crashTracker.summarize();
-  const failedGrammarKeySet = new Set(crashSummary.failedGrammarKeys);
-  const successfulGrammarKeys = grammarKeys.filter((grammarKey) => !failedGrammarKeySet.has(grammarKey));
-  const degradedVirtualPathSet = new Set(crashSummary.degradedVirtualPaths);
-  const quarantineDecisionCount = Array.isArray(crashSummary.quarantineDecisions)
-    ? crashSummary.quarantineDecisions.length
-    : 0;
-  if (crashSummary.parserCrashSignatures > 0 && log) {
-    log(
-      `[tree-sitter:schedule] parser quarantine active: ` +
+    await waitForPersistence();
+    const crashSummary = crashTracker.summarize();
+    const failedGrammarKeySet = new Set(crashSummary.failedGrammarKeys);
+    const successfulGrammarKeys = grammarKeys.filter((grammarKey) => !failedGrammarKeySet.has(grammarKey));
+    const degradation = createSchedulerDegradationQuery(crashSummary);
+    const quarantineDecisionCount = Array.isArray(crashSummary.quarantineDecisions)
+      ? crashSummary.quarantineDecisions.length
+      : 0;
+    if (crashSummary.parserCrashSignatures > 0 && log) {
+      log(
+        `[tree-sitter:schedule] parser quarantine active: ` +
       `signatures=${crashSummary.parserCrashSignatures} ` +
       `failedGrammarKeys=${crashSummary.failedGrammarKeys.length} ` +
       `degradedVirtualPaths=${crashSummary.degradedVirtualPaths.length} ` +
       `quarantineDecisions=${quarantineDecisionCount}`
-    );
-  }
-  let plannerFailureSnapshotPath = null;
-  if (crashSummary.failedGrammarKeys.length > 0) {
-    plannerFailureSnapshotPath = await writePlannerFailureSnapshot({
-      paths: planResult.paths,
-      plan: planResult.plan,
-      groups: planResult.groups,
-      tasks: plannedTasks,
-      failureSummary: crashSummary
-    });
-  }
+      );
+    }
+    let plannerFailureSnapshotPath = null;
+    if (crashSummary.failedGrammarKeys.length > 0) {
+      plannerFailureSnapshotPath = await writePlannerFailureSnapshot({
+        paths: planResult.paths,
+        plan: planResult.plan,
+        groups: planResult.groups,
+        tasks: plannedTasks,
+        failureSummary: crashSummary
+      });
+    }
 
-  throwIfAborted(effectiveAbortSignal);
-  const index = await loadIndexEntries({
-    grammarKeys: successfulGrammarKeys,
-    paths: planResult.paths,
-    abortSignal: effectiveAbortSignal
-  });
-  const lookupConfig = schedulerConfig?.lookup && typeof schedulerConfig.lookup === 'object'
-    ? schedulerConfig.lookup
-    : {};
-  const stage1CleanupTimeoutMs = resolveBuildCleanupTimeoutMs(
-    runtime?.indexingConfig?.stage1?.watchdog?.cleanupTimeoutMs,
-    runtime?.stage1Queues?.watchdog?.cleanupTimeoutMs
-  );
-  const configuredMaxOpenReaders = Number(
-    lookupConfig.maxOpenReaders
+    throwIfAborted(effectiveAbortSignal);
+    const index = await loadIndexEntries({
+      grammarKeys: successfulGrammarKeys,
+      paths: planResult.paths,
+      abortSignal: effectiveAbortSignal
+    });
+    const lookupConfig = schedulerConfig?.lookup && typeof schedulerConfig.lookup === 'object'
+      ? schedulerConfig.lookup
+      : {};
+    const stage1CleanupTimeoutMs = resolveBuildCleanupTimeoutMs(
+      runtime?.indexingConfig?.stage1?.watchdog?.cleanupTimeoutMs,
+      runtime?.stage1Queues?.watchdog?.cleanupTimeoutMs
+    );
+    const configuredMaxOpenReaders = Number(
+      lookupConfig.maxOpenReaders
       ?? schedulerConfig?.maxOpenReaders
-  );
-  const lookupCloseTimeoutMs = lookupConfig.closeTimeoutMs
+    );
+    const lookupCloseTimeoutMs = lookupConfig.closeTimeoutMs
     ?? schedulerConfig?.closeTimeoutMs
     ?? stage1CleanupTimeoutMs;
-  const lookupForceCloseAfterMs = lookupConfig.closeForceAfterMs
+    const lookupForceCloseAfterMs = lookupConfig.closeForceAfterMs
     ?? schedulerConfig?.closeForceAfterMs
     ?? null;
-  const lookup = createTreeSitterSchedulerLookup({
-    outDir,
-    index,
-    log,
-    maxOpenReaders: Number.isFinite(configuredMaxOpenReaders) && configuredMaxOpenReaders > 0
-      ? Math.floor(configuredMaxOpenReaders)
-      : null,
-    closeTimeoutMs: lookupCloseTimeoutMs,
-    forceCloseAfterMs: lookupForceCloseAfterMs
-  });
-  const plannedSegmentsByContainer = buildPlannedSegmentsByContainer(planResult.groups);
-  const scheduledLanguageIds = buildScheduledLanguageSet(planResult.groups);
-  const baseLookupStats = typeof lookup.stats === 'function' ? lookup.stats.bind(lookup) : null;
-  const scheduleStats = planResult.plan
-    ? {
-      grammarKeys: grammarKeys.length,
-      successfulGrammarKeys: successfulGrammarKeys.length,
-      failedGrammarKeys: crashSummary.failedGrammarKeys.length,
-      jobs: planResult.plan.jobs || 0,
-      parserQueueIdleGaps: {
-        samples: execution.idleGapStats.samples,
-        totalMs: execution.idleGapStats.totalMs,
-        maxMs: execution.idleGapStats.maxMs,
-        avgMs: execution.idleGapStats.samples > 0
-          ? Math.round(execution.idleGapStats.totalMs / execution.idleGapStats.samples)
-          : 0
-      },
-      parserCrashSignatures: crashSummary.parserCrashSignatures,
-      quarantineDecisions: quarantineDecisionCount,
-      degradedVirtualPaths: crashSummary.degradedVirtualPaths.length,
-      failureClasses: crashSummary.failureClasses
-    }
-    : null;
+    const lookup = createTreeSitterSchedulerLookup({
+      outDir,
+      index,
+      log,
+      maxOpenReaders: Number.isFinite(configuredMaxOpenReaders) && configuredMaxOpenReaders > 0
+        ? Math.floor(configuredMaxOpenReaders)
+        : null,
+      closeTimeoutMs: lookupCloseTimeoutMs,
+      forceCloseAfterMs: lookupForceCloseAfterMs
+    });
+    const plannedSegmentsByContainer = buildPlannedSegmentsByContainer(planResult.groups);
+    const scheduledLanguageIds = buildScheduledLanguageSet(planResult.groups);
+    const baseLookupStats = typeof lookup.stats === 'function' ? lookup.stats.bind(lookup) : null;
+    const scheduleStats = planResult.plan
+      ? {
+        grammarKeys: grammarKeys.length,
+        successfulGrammarKeys: successfulGrammarKeys.length,
+        failedGrammarKeys: crashSummary.failedGrammarKeys.length,
+        jobs: planResult.plan.jobs || 0,
+        parserSubprocessFanout: { configured: schedulerConfig.execConcurrency ?? null,
+          effective: prepared.execConcurrency, observed: execution.peakActiveChildren,
+          budget: prepared.executionBudget },
+        parserQueueIdleGaps: {
+          samples: execution.idleGapStats.samples,
+          totalMs: execution.idleGapStats.totalMs,
+          maxMs: execution.idleGapStats.maxMs,
+          avgMs: execution.idleGapStats.samples > 0
+            ? Math.round(execution.idleGapStats.totalMs / execution.idleGapStats.samples)
+            : 0
+        },
+        parserCrashSignatures: crashSummary.parserCrashSignatures,
+        quarantineDecisions: quarantineDecisionCount,
+        degradedVirtualPaths: crashSummary.degradedVirtualPaths.length,
+        failureClasses: crashSummary.failureClasses
+      }
+      : null;
 
-  return {
-    ...lookup,
-    plan: planResult.plan,
-    scheduledLanguageIds,
-    failedGrammarKeys: crashSummary.failedGrammarKeys,
-    degradedVirtualPaths: crashSummary.degradedVirtualPaths,
-    parserCrashEvents: crashSummary.parserCrashEvents,
-    parserCrashSignatures: crashSummary.parserCrashSignatures,
-    quarantineDecisions: crashSummary.quarantineDecisions,
-    crashForensicsBundlePath: crashTracker.getBundlePath(),
-    durableCrashForensicsBundlePath: crashTracker.getDurableBundlePath(),
-    plannerFailureSnapshotPath,
-    getCrashSummary: () => ({
+    return {
+      ...lookup,
+      plan: planResult.plan,
+      scheduledLanguageIds,
+      failedGrammarKeys: crashSummary.failedGrammarKeys,
+      degradedVirtualPaths: crashSummary.degradedVirtualPaths,
+      parserCrashEvents: crashSummary.parserCrashEvents,
       parserCrashSignatures: crashSummary.parserCrashSignatures,
-      parserCrashEvents: crashSummary.parserCrashEvents.map((event) => ({ ...event })),
-      failedGrammarKeys: crashSummary.failedGrammarKeys.slice(),
-      degradedVirtualPaths: crashSummary.degradedVirtualPaths.slice(),
-      quarantineDecisions: Array.isArray(crashSummary.quarantineDecisions)
-        ? crashSummary.quarantineDecisions.map((entry) => ({ ...entry }))
-        : [],
-      failureClasses: { ...(crashSummary.failureClasses || {}) }
-    }),
-    isDegradedVirtualPath: (virtualPath) => degradedVirtualPathSet.has(virtualPath),
-    plannedSegmentsByContainer,
-    loadPlannedSegments: (containerPath) => {
-      if (!containerPath || !plannedSegmentsByContainer.has(containerPath)) return null;
-      const segments = plannedSegmentsByContainer.get(containerPath);
-      return Array.isArray(segments) ? segments.map((segment) => ({ ...segment })) : null;
-    },
-    schedulerStats: scheduleStats,
-    stats: () => ({
-      ...(baseLookupStats ? baseLookupStats() : {}),
-      parserCrashSignatures: crashSummary.parserCrashSignatures,
-      quarantineDecisions: quarantineDecisionCount,
-      failedGrammarKeys: crashSummary.failedGrammarKeys.length,
-      degradedVirtualPaths: crashSummary.degradedVirtualPaths.length,
-      failureClasses: { ...(crashSummary.failureClasses || {}) }
-    })
-  };
+      quarantineDecisions: crashSummary.quarantineDecisions,
+      crashForensicsBundlePath: crashTracker.getBundlePath(),
+      durableCrashForensicsBundlePath: crashTracker.getDurableBundlePath(),
+      plannerFailureSnapshotPath,
+      getCrashSummary: () => ({
+        persistence: structuredClone(crashSummary.persistence),
+        parserCrashSignatures: crashSummary.parserCrashSignatures,
+        parserCrashEvents: crashSummary.parserCrashEvents.map((event) => ({ ...event })),
+        failedGrammarKeys: crashSummary.failedGrammarKeys.slice(),
+        degradedVirtualPaths: crashSummary.degradedVirtualPaths.slice(),
+        degradation: structuredClone(degradation.receipt),
+        quarantineDecisions: Array.isArray(crashSummary.quarantineDecisions)
+          ? crashSummary.quarantineDecisions.map((entry) => ({ ...entry }))
+          : [],
+        failureClasses: { ...(crashSummary.failureClasses || {}) }
+      }),
+      queryDegradation: degradation.query,
+      isDegradedVirtualPath: (virtualPath) => degradation.query({ virtualPath }).degraded,
+      plannedSegmentsByContainer,
+      loadPlannedSegments: (containerPath) => {
+        if (!containerPath || !plannedSegmentsByContainer.has(containerPath)) return null;
+        const segments = plannedSegmentsByContainer.get(containerPath);
+        return Array.isArray(segments) ? segments.map((segment) => ({ ...segment })) : null;
+      },
+      schedulerStats: scheduleStats,
+      stats: () => ({
+        ...(baseLookupStats ? baseLookupStats() : {}),
+        parserCrashSignatures: crashSummary.parserCrashSignatures,
+        quarantineDecisions: quarantineDecisionCount,
+        failedGrammarKeys: crashSummary.failedGrammarKeys.length,
+        degradedVirtualPaths: crashSummary.degradedVirtualPaths.length,
+        failureClasses: { ...(crashSummary.failureClasses || {}) }
+      })
+    };
+  });
 };
 
 export const treeSitterSchedulerRunnerInternals = Object.freeze({

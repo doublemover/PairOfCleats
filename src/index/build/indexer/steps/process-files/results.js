@@ -140,11 +140,11 @@ export const finalizeStage1ProcessingResult = async ({
   }
   if (orderedFinalSnapshot) {
     const nextCommitSeq = Number(orderedFinalSnapshot.nextCommitSeq);
-    const expectedTerminal = Number(orderedFinalSnapshot.totalSeqCount) || 0;
-    const expectedNextCommitSeq = Number.isFinite(startOrderIndex)
-      ? (startOrderIndex + expectedTerminal)
-      : nextCommitSeq;
-    if (!Number.isFinite(nextCommitSeq) || nextCommitSeq < startOrderIndex || nextCommitSeq > expectedNextCommitSeq) {
+    const minimumCommitSeq = Number.isSafeInteger(startOrderIndex) ? startOrderIndex : 0;
+    const expectedNextCommitSeq = expectedOrderIndices.reduce(
+      (successor, index) => Math.max(successor, index + 1), minimumCommitSeq
+    );
+    if (!Number.isSafeInteger(nextCommitSeq) || nextCommitSeq < minimumCommitSeq || nextCommitSeq > expectedNextCommitSeq) {
       const err = new Error(
         `[stage1] commit cursor invariant violation: nextCommitSeq=${nextCommitSeq} expected<=${expectedNextCommitSeq}`
       );

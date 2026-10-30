@@ -4,12 +4,18 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { spawnSync } from 'node:child_process';
-import { Bookmark, Document, ImageRun, ImportedXmlComponent, Packer, Paragraph, TextRun } from 'docx';
 import { extractDocx, loadDocxExtractorRuntime } from '../../../src/index/extractors/docx.js';
 import { applyPatches } from '../../../tools/setup/apply-patches.js';
 import { runNode } from '../../helpers/run-node.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 import { makeTempDir, rmDirRecursive } from '../../helpers/temp.js';
+
+const warnings = [];
+const onWarning = warning => warnings.push({ name: warning.name, message: warning.message });
+process.on('warning', onWarning);
+const { Bookmark, Document, ImageRun, ImportedXmlComponent, Packer, Paragraph, TextRun } = await import('docx');
+await new Promise(resolve => setImmediate(resolve));
+assert.deepEqual(warnings, [], 'the real DOCX generator loads without runtime warnings');
 
 // Use real documents and the installed vendor CLI: an available fallback
 // extractor or a parser mock would conceal a broken dependency migration.
@@ -25,8 +31,8 @@ const require = createRequire(import.meta.url);
 const mammothRoot = path.dirname(require.resolve('mammoth/package.json'));
 const mammothCli = path.join(mammothRoot, 'bin', 'mammoth');
 const runtime = await loadDocxExtractorRuntime({ refresh: true });
-assert.equal(runtime?.backend, 'mammoth', 'the real Mammoth backend must be available');
-assert.equal(runtime.version, '1.13.0', 'exercise the reviewed Mammoth release');
+assert.equal(runtime?.backend, 'docx-xml', 'production text/provenance comes from the canonical structural owner');
+assert.equal(require('mammoth/package.json').version, '1.13.0', 'the independent real Mammoth CLI security oracle retains its reviewed release');
 
 const root = await makeTempDir('poc mammoth migration ');
 const paragraphs = ['Mammoth migration first paragraph', 'Second paragraph survives'];
@@ -73,8 +79,8 @@ try {
 
   const extracted = await extractDocx({ buffer: documentBytes });
   assert.equal(extracted.ok, true, JSON.stringify(extracted));
-  assert.equal(extracted.extractor?.name, 'mammoth');
-  assert.equal(extracted.extractor?.version, '1.13.0');
+  assert.equal(extracted.extractor?.name, 'docx-xml');
+  assert.equal(extracted.extractor?.version, runtime.version);
   assert.deepEqual(extracted.paragraphs, paragraphs.map((text, index) => ({ index: index + 1, text })));
   assert.deepEqual(extracted.warnings, []);
 
@@ -112,11 +118,13 @@ try {
   assert.ok(revisionBytes.length < 64 * 1024, 'tracked revision fixture stays small');
   const revised = await extractDocx({ buffer: revisionBytes });
   assert.equal(revised.ok, true, JSON.stringify(revised));
-  assert.equal(revised.extractor?.name, 'mammoth');
+  assert.equal(revised.extractor?.name, 'docx-xml');
+  // The omitted move-origin paragraph is physical paragraph 2, so subsequent
+  // visible anchors retain source ordinals 3 and 4 rather than dense numbering.
   assert.deepEqual(revised.paragraphs, [
     { index: 1, text: 'Custom XML paragraph survives' },
-    { index: 2, text: 'Moved paragraph survives' },
-    { index: 3, text: 'Before moved run after' }
+    { index: 3, text: 'Moved paragraph survives' },
+    { index: 4, text: 'Before moved run after' }
   ]);
   assert.deepEqual(revised.warnings, []);
 
@@ -272,7 +280,10 @@ try {
   assert.equal(await fs.readFile(fixtureCli, 'utf8'), partialSource, 'a partial patch fails without changing source');
   assert.equal(await fs.readFile(mammothCli, 'utf8'), installedSource, 'fixture checks never modify installed Mammoth');
 
+  await new Promise(resolve => setImmediate(resolve));
+  assert.deepEqual(warnings, [], 'real DOCX generation and extraction emit no runtime warnings');
   console.log('Mammoth security migration preserves real DOCX extraction and CLI conversion, images, and argument errors.');
 } finally {
+  process.off('warning', onWarning);
   await rmDirRecursive(root);
 }

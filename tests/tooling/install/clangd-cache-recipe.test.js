@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
-import os from 'node:os';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { ensureManagedClangd, selectOfficialClangdArchive } from '../../../tools/tooling/install-clangd.js';
@@ -10,9 +9,13 @@ import {
 } from '../../../src/shared/managed-clangd.js';
 import { downloadOfficialGitHubRelease } from '../../../tools/tooling/official-release-download.js';
 import { resolveLocalToolingBinDirs } from '../../../src/shared/tooling-bin-dirs.js';
+import { prepareIsolatedTestCacheDir } from '../../helpers/test-cache.js';
+import { applyTestEnv } from '../../helpers/test-env.js';
 
-process.env.PAIROFCLEATS_TESTING = '1';
-const root = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-clangd-recipe-'));
+const { dir: root } = await prepareIsolatedTestCacheDir('clangd-cache-recipe');
+applyTestEnv({ cacheRoot: path.join(root, 'cache'), extraEnv: {
+  PAIROFCLEATS_HOME: path.join(root, 'home'), PAIROFCLEATS_TRUSTED_CONFIG: null
+} });
 const version = '23.1.0';
 const archiveBytes = Buffer.from('inert clangd archive fixture');
 const checksum = createHash('sha256').update(archiveBytes).digest('hex');
@@ -79,7 +82,8 @@ try {
         probes += 1;
         assert.equal(options.cwd, root);
         assert.ok(command.endsWith(platform === 'win32' ? 'clangd.exe' : 'clangd'));
-        return { ok: true, stdout: `clangd version ${version}\n` };
+        return { ok: true, stdout: `clangd version ${version}\n`,
+          settlement: { resourceId: options.resourceId, settled: true, pending: false } };
       }
     };
     if (platform === 'linux') linuxDependencies = dependencies;
@@ -135,7 +139,7 @@ try {
       assert.deepEqual(Object.keys(options.headers), ['accept']);
       return redirects.length === 1
         ? { status: 302, headers: new Map([['location', 'https://release-assets.githubusercontent.com/inert']]) }
-        : { ok: true, status: 200, headers: new Map(), body: [Buffer.from('inert')] };
+        : { ok: true, status: 200, headers: new Map(), body: (async function* () { yield Buffer.from('inert'); })() };
     }
   });
   assert.equal(downloaded.body.toString(), 'inert');
@@ -146,7 +150,7 @@ try {
   (error) => error.reason === 'official_release_origin_rejected');
   assert.equal(badCalls, 1, 'a rejected redirect is never requested');
   await assert.rejects(downloadOfficialGitHubRelease({ url: 'https://github.com/inert', maxBytes: 3,
-    fetchImpl: async () => ({ ok: true, status: 200, headers: new Map(), body: [Buffer.from('inert')] }) }),
+    fetchImpl: async () => ({ ok: true, status: 200, headers: new Map(), body: (async function* () { yield Buffer.from('inert'); })() }) }),
   (error) => error.reason === 'official_release_too_large');
 } finally {
   await fs.rm(root, { recursive: true, force: true });

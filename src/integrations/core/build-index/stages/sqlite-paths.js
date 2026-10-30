@@ -10,6 +10,15 @@ export const resolveSqliteModeList = (sqliteModes) => (
   areAllPrimaryModesRequested(sqliteModes) ? ['all'] : sqliteModes
 );
 
+/** Batch only after each concrete mode has resolved its authoritative root. */
+export const resolveSqliteModePlan = (modeRoots) => {
+  if (areAllPrimaryModesRequested(modeRoots.map(entry => entry.mode))
+    && modeRoots.every(entry => path.resolve(entry.indexRoot) === path.resolve(modeRoots[0].indexRoot))) {
+    return [{ mode: 'all', indexRoot: modeRoots[0].indexRoot }];
+  }
+  return modeRoots;
+};
+
 /**
  * Build memoized resolver for per-build sqlite input/output directories.
  *

@@ -1,0 +1,14 @@
+import assert from 'node:assert/strict';
+import { projectPipeSemantics, pipeLane } from '../../src/map/isometric/client/rendering/pipe-semantics.js';
+const evidence={from:{member:0},to:{member:'opaque:target:😀'},type:'call',certainty:'heuristic',id:'relation:exact-id'};
+const row={fromFile:'a.ts',fromMember:0,toFile:'b.ts',toMember:'opaque:target:😀',from:{x:0,y:1,z:0},to:{x:4,y:2,z:2},type:'call',count:1,evidence};
+const projected=projectPipeSemantics(row,'segments');assert.equal(projected.from.member,0);assert.strictEqual(projected.sourceEvidence[0],evidence);
+assert.equal(projected.certainty,'heuristic');assert.equal(projected.pattern,'dash');assert.match(projected.textCue,/static directed relationship/);
+assert.equal(projectPipeSemantics({...row,evidence:[evidence,{...evidence,certainty:'exact-static'}]},'stacks').certainty,'mixed');
+assert.equal(projectPipeSemantics({...row,evidence:{...evidence,certainty:undefined}},'segments').certainty,'not provided');
+assert.equal(projectPipeSemantics({...row,evidence:{...evidence,certainty:'custom producer label'}},'segments').certainty,'custom producer label','unknown labels remain source labels, not verified causation');
+const reciprocal={...row,from:row.to,to:row.from,fromFile:row.toFile,toFile:row.fromFile,fromMember:row.toMember,toMember:row.fromMember};
+const a=pipeLane(row,'segments',0),b=pipeLane(reciprocal,'segments',0);assert.notEqual(a.side,b.side);
+assert.equal(new Set(Array.from({length:8},(_,ordinal)=>pipeLane(row,'segments',ordinal).side)).size,8,'six-plus coincident links do not immediately recycle five lanes');
+assert.equal(projectPipeSemantics(row,'segments').viewKey,projected.viewKey);
+console.log('Source certainty/type/static direction cues and deterministic reciprocal lanes authored; pixels unqualified.');

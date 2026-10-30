@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { encodeFilenameKey } from '../../../shared/filename-key.js';
 
 /**
  * Sanitize key fragments for safe scheduler artifact filenames.
@@ -6,13 +7,7 @@ import path from 'node:path';
  * @param {unknown} value
  * @returns {string}
  */
-const sanitizeKey = (value) => {
-  const raw = value == null ? '' : String(value);
-  const trimmed = raw.trim();
-  if (!trimmed) return 'unknown';
-  // Keep filenames safe and stable on Windows.
-  return trimmed.replace(/[^a-zA-Z0-9._-]+/g, '_');
-};
+const sanitizeKey = encodeFilenameKey;
 
 /**
  * Resolve canonical Tree-sitter scheduler artifact paths under an index root.

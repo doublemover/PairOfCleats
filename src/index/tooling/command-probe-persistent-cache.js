@@ -1,26 +1,69 @@
 import fsSync from 'node:fs';
 import path from 'node:path';
+import { createHash } from 'node:crypto';
 import { buildLocalCacheKey } from '../../shared/cache-key.js';
-import { getCacheRoot } from '../../shared/cache-roots.js';
+import { getApplicationHome, getCacheRoot } from '../../shared/cache-roots.js';
+import { readStorageProbePolicy } from '../../shared/storage/probe-policy-read.js';
+import { isStorageObservationFailure, observeStorageResource } from '../../shared/storage/failure-observation.js';
+import { getContainedFileSession } from '../../shared/contained-file-resource.js';
 import { isAbsolutePathNative } from '../../shared/file-paths.js';
 import { isGeneratedCacheMetadata, withGeneratedCacheMetadata } from '../../shared/generated-artifact-cache.js';
+import { resolveNoProvisionToolingEnvironment } from '../../shared/toolchain-env.js';
+import { acquireRepoCacheAccessLease } from '../../shared/cache/repo-access.js';
+import { createLockPayload, readLockInfoSync, removeLockFileSyncIfOwned } from '../../shared/locks/file-lock-info.js';
 import {
   assertToolingCachePath,
+  ensureToolingCacheDir,
   readToolingCacheEntry,
   removeToolingCacheEntry,
   writeToolingCacheJsonSync
 } from './cache-storage.js';
 
-const COMMAND_PROBE_CACHE_SCHEMA_VERSION = 1;
-const COMMAND_PROBE_CACHE_KEY_VERSION = 'tcp2';
+const COMMAND_PROBE_CACHE_SCHEMA_VERSION = 2;
+const COMMAND_PROBE_CACHE_KEY_VERSION = 'tcp3';
 const SHARED_COMMAND_PROBE_CACHE_SUBDIR = path.join('tooling', 'command-probes');
 const TOOLING_CACHE_COMMAND_PROBE_SUBDIR = 'command-probes';
-const COMMAND_PROBE_CACHE_MAX_ENTRIES = 256;
-const COMMAND_PROBE_CACHE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
+const COMMAND_PROBE_CACHE_MAX_ENTRY_BYTES = 8 * 1024 * 1024;
+
+/** Shared producer/key authority for persisted command-probe records. */
+export const createCommandProbeCacheKey = payload => buildLocalCacheKey({
+  namespace: 'tooling-command-probe',
+  version: COMMAND_PROBE_CACHE_KEY_VERSION,
+  payload: { schemaVersion: COMMAND_PROBE_CACHE_SCHEMA_VERSION, providerId: payload.providerId,
+    commandPath: payload.command.path, cwd: payload.cwd, environmentIdentity: payload.environmentIdentity,
+    args: payload.args, size: payload.command.size, mtimeMs: payload.command.mtimeMs }
+});
 
 let persistentReadCount = 0;
 let persistentHitCount = 0;
 let persistentWriteCount = 0;
+
+const rethrowRetainedFailure = error => {
+  if (isStorageObservationFailure(error) || getContainedFileSession(error)) throw error;
+};
+
+const readAdmittedPolicy = () => {
+  try {
+    const selected = readStorageProbePolicy(getApplicationHome());
+    const policy = selected.policy;
+    return policy?.enabled && policy.entryLimit > 0 && policy.maxAgeMs > 0 && policy.hardBytes > 0 ? selected : null;
+  } catch (error) {
+    rethrowRetainedFailure(error);
+    observeStorageResource(error, { phase: 'command-probe-policy' }).requireSettled();
+    return null;
+  }
+};
+const unchangedPolicy = selected => {
+  const current = readAdmittedPolicy();
+  return current && current.target === selected.target && current.sha256 === selected.sha256;
+};
+
+/** Cache context retains only a digest, never raw environment or credentials. */
+export const createCommandProbeEnvironmentIdentity = env => createHash('sha256').update(JSON.stringify({
+  node: process.version, abi: process.versions.modules, platform: process.platform, arch: process.arch,
+  environment: Object.entries(env || {}).filter(([, value]) => value !== undefined && value !== null)
+    .map(([key, value]) => [key, String(value)]).sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0)
+})).digest('hex');
 
 const normalizeCommandPath = (value) => {
   const raw = String(value || '').trim();
@@ -91,7 +134,8 @@ const resolvePersistentCacheDescriptor = ({
   command,
   args = [],
   toolingConfig,
-  cwd = process.cwd()
+  cwd = process.cwd(),
+  probeEnv = null
 }) => {
   const cacheDir = resolvePersistentCacheRoot(toolingConfig);
   if (!cacheDir) return null;
@@ -103,24 +147,19 @@ const resolvePersistentCacheDescriptor = ({
   catch { return null; }
   const normalizedProviderId = normalizeProviderIdForCache(providerId);
   const normalizedArgs = normalizeArgListForCache(args);
-  const keyInfo = buildLocalCacheKey({
-    namespace: 'tooling-command-probe',
-    version: COMMAND_PROBE_CACHE_KEY_VERSION,
-    payload: {
-      schemaVersion: COMMAND_PROBE_CACHE_SCHEMA_VERSION,
-      providerId: normalizedProviderId,
-      commandPath: fingerprint.path,
-      cwd: normalizedCwd,
-      args: normalizedArgs,
-      size: fingerprint.size,
-      mtimeMs: fingerprint.mtimeMs
-    }
+  const environmentIdentity = createCommandProbeEnvironmentIdentity(probeEnv
+    || resolveNoProvisionToolingEnvironment(process.env, { command, providerId, cwd,
+      toolingRoot: toolingConfig?.dir || null }));
+  const keyInfo = createCommandProbeCacheKey({
+    providerId: normalizedProviderId, command: fingerprint, cwd: normalizedCwd,
+    environmentIdentity, args: normalizedArgs
   });
   return {
     cacheDir,
     cachePath: path.join(cacheDir, `${keyInfo.digest}.json`),
     fingerprint,
     cwd: normalizedCwd,
+    environmentIdentity,
     providerId: normalizedProviderId,
     args: normalizedArgs
   };
@@ -137,26 +176,30 @@ const isCommandProbeEntry = (payload, fileName, { requireOwnership = true } = {}
   if (payload?.schemaVersion !== COMMAND_PROBE_CACHE_SCHEMA_VERSION
     || payload.ok !== true || !isAttemptList(payload.attempted)
     || typeof payload.cwd !== 'string' || !path.isAbsolute(payload.cwd)
+    || !/^[a-f0-9]{64}$/u.test(payload.environmentIdentity || '')
     || typeof payload.command?.path !== 'string' || !path.isAbsolute(payload.command.path)
     || !Array.isArray(payload.args)) return false;
-  const key = buildLocalCacheKey({
-    namespace: 'tooling-command-probe',
-    version: COMMAND_PROBE_CACHE_KEY_VERSION,
-    payload: {
-      schemaVersion: COMMAND_PROBE_CACHE_SCHEMA_VERSION,
-      providerId: payload.providerId,
-      commandPath: payload.command.path,
-      cwd: payload.cwd,
-      args: payload.args,
-      size: payload.command.size,
-      mtimeMs: payload.command.mtimeMs
-    }
-  });
+  const key = createCommandProbeCacheKey(payload);
   return fileName === `${key.digest}.json`;
 };
 
-const prunePersistentCommandProbeCacheDir = (cacheDir) => {
-  if (!cacheDir) return;
+/** Destructive authority is the real complete producer/key identity. Unknown
+ * pin, retention, reference or future fields are retained rather than inferred
+ * disposable from a marker alone. Legacy reads keep their existing decoder.
+ */
+export const isOwnedCommandProbeCacheEntry = (payload, fileName) => {
+  const keys = ['__poc_generated', 'schemaVersion', 'createdAt', 'ok', 'providerId', 'args', 'cwd',
+    'environmentIdentity', 'command', 'attempted'].sort();
+  return Boolean(payload && Object.keys(payload).sort().join(',') === keys.join(',')
+    && payload.command && Object.keys(payload.command).sort().join(',') === 'mtimeMs,path,size'
+    && Number.isSafeInteger(payload.command.size) && payload.command.size >= 0
+    && Number.isSafeInteger(payload.command.mtimeMs) && payload.command.mtimeMs >= 0
+    && typeof payload.createdAt === 'string' && Number.isFinite(Date.parse(payload.createdAt))
+    && isCommandProbeEntry(payload, fileName));
+};
+
+const prunePersistentCommandProbeCacheDir = (cacheDir, selected) => {
+  if (!cacheDir || !unchangedPolicy(selected)) return;
   let entries;
   try {
     assertToolingCachePath(cacheDir);
@@ -165,23 +208,24 @@ const prunePersistentCommandProbeCacheDir = (cacheDir) => {
     return;
   }
   const files = [];
-  const cutoffMs = Date.now() - COMMAND_PROBE_CACHE_MAX_AGE_MS;
+  const cutoffMs = Date.now() - selected.policy.maxAgeMs;
   for (const entry of entries) {
     if (!entry?.isFile?.() || !/^[a-f0-9]{40}\.json$/.test(entry.name)) continue;
     const fullPath = path.join(cacheDir, entry.name);
     try {
       const { payload, stat } = readToolingCacheEntry(fullPath);
-      if (!isCommandProbeEntry(payload, entry.name)) continue;
+      if (!isOwnedCommandProbeCacheEntry(payload, entry.name)) continue;
       const size = toFiniteSize(stat.size);
       const mtimeMs = toFiniteMtimeMs(stat.mtimeMs);
-      if (mtimeMs > 0 && mtimeMs < cutoffMs) {
+      if (toFiniteTimestampMs(payload.createdAt) < cutoffMs) {
+        if (!unchangedPolicy(selected)) return;
         try { removeToolingCacheEntry(fullPath, stat); } catch {}
         continue;
       }
       files.push({ path: fullPath, stat, mtimeMs, size });
-    } catch {}
+    } catch (error) { rethrowRetainedFailure(error); }
   }
-  if (files.length <= COMMAND_PROBE_CACHE_MAX_ENTRIES) return;
+  if (files.length <= selected.policy.entryLimit) return;
   files.sort((left, right) => (
     left.mtimeMs - right.mtimeMs
   ) || (
@@ -189,8 +233,9 @@ const prunePersistentCommandProbeCacheDir = (cacheDir) => {
   ) || (
     left.path.localeCompare(right.path)
   ));
-  const overflow = files.length - COMMAND_PROBE_CACHE_MAX_ENTRIES;
+  const overflow = files.length - selected.policy.entryLimit;
   for (const entry of files.slice(0, overflow)) {
+    if (!unchangedPolicy(selected)) return;
     try { removeToolingCacheEntry(entry.path, entry.stat); } catch {}
   }
 };
@@ -201,14 +246,18 @@ export const readPersistentCommandProbeCache = ({
   args = [],
   toolingConfig,
   cwd = process.cwd(),
+  probeEnv = null,
   successTtlMs = null
 } = {}) => {
+  const selected = readAdmittedPolicy();
+  if (!selected) return null;
   const descriptor = resolvePersistentCacheDescriptor({
     providerId,
     command,
     args,
     toolingConfig,
-    cwd
+    cwd,
+    probeEnv
   });
   if (!descriptor) return null;
   persistentReadCount += 1;
@@ -218,6 +267,7 @@ export const readPersistentCommandProbeCache = ({
     if (Number(parsed?.schemaVersion) !== COMMAND_PROBE_CACHE_SCHEMA_VERSION) return null;
     if (parsed?.ok !== true) return null;
     if (parsed.cwd !== descriptor.cwd) return null;
+    if (parsed.environmentIdentity !== descriptor.environmentIdentity) return null;
     if (normalizeProviderIdForCache(parsed?.providerId) !== descriptor.providerId) return null;
     const cachedCommand = normalizeCommandPath(parsed?.command?.path);
     if (cachedCommand !== descriptor.fingerprint.path) return null;
@@ -226,12 +276,11 @@ export const readPersistentCommandProbeCache = ({
     if (toFiniteSize(parsed?.command?.size) !== descriptor.fingerprint.size) return null;
     if (toFiniteMtimeMs(parsed?.command?.mtimeMs) !== descriptor.fingerprint.mtimeMs) return null;
     if (!isAttemptList(parsed?.attempted)) return null;
-    const ttlMs = Number(successTtlMs);
-    if (Number.isFinite(ttlMs) && ttlMs >= 0) {
-      const createdAtMs = toFiniteTimestampMs(parsed?.createdAt);
-      if (createdAtMs <= 0) return null;
-      if ((Date.now() - createdAtMs) > Math.floor(ttlMs)) return null;
-    }
+    const requestedTtlMs = successTtlMs === null || successTtlMs === undefined ? selected.policy.maxAgeMs : Number(successTtlMs);
+    const ttlMs = Number.isFinite(requestedTtlMs) && requestedTtlMs >= 0
+      ? Math.min(Math.floor(requestedTtlMs), selected.policy.maxAgeMs) : selected.policy.maxAgeMs;
+    const createdAtMs = toFiniteTimestampMs(parsed?.createdAt);
+    if (ttlMs === 0 || createdAtMs <= 0 || Date.now() - createdAtMs >= ttlMs || !unchangedPolicy(selected)) return null;
     persistentHitCount += 1;
     return {
       ok: true,
@@ -239,7 +288,8 @@ export const readPersistentCommandProbeCache = ({
       cached: true,
       cacheSource: 'persistent'
     };
-  } catch {
+  } catch (error) {
+    rethrowRetainedFailure(error);
     return null;
   }
 };
@@ -250,42 +300,95 @@ export const writePersistentCommandProbeCache = ({
   args = [],
   toolingConfig,
   cwd = process.cwd(),
+  probeEnv = null,
   attempted
 } = {}) => {
+  const selected = readAdmittedPolicy();
+  if (!selected) return false;
   const descriptor = resolvePersistentCacheDescriptor({
     providerId,
     command,
     args,
     toolingConfig,
-    cwd
+    cwd,
+    probeEnv
   });
   if (!descriptor || !isAttemptList(attempted) || attempted.length === 0) return false;
+  let lease = null;
+  let admissionLock = null;
+  const admissionPath = path.join(descriptor.cacheDir, '.write-admission.lock');
   try {
+    lease = acquireRepoCacheAccessLease(descriptor.cacheDir, { scope: 'command-probe-write-admission' });
+    ensureToolingCacheDir(descriptor.cacheDir);
+    admissionLock = createLockPayload({ scope: 'command-probe-write-admission' });
+    fsSync.writeFileSync(admissionPath, JSON.stringify(admissionLock), { flag: 'wx' });
     try {
       const { payload } = readToolingCacheEntry(descriptor.cachePath);
-      if (!isCommandProbeEntry(payload, path.basename(descriptor.cachePath))) return false;
+      if (!isOwnedCommandProbeCacheEntry(payload, path.basename(descriptor.cachePath))) return false;
     } catch (error) {
+      rethrowRetainedFailure(error);
       if (error?.code !== 'ENOENT') return false;
     }
-    writeToolingCacheJsonSync(descriptor.cachePath, withGeneratedCacheMetadata({
+    const next = withGeneratedCacheMetadata({
       schemaVersion: COMMAND_PROBE_CACHE_SCHEMA_VERSION,
       createdAt: new Date().toISOString(),
       ok: true,
       providerId: descriptor.providerId,
       args: descriptor.args,
       cwd: descriptor.cwd,
+      environmentIdentity: descriptor.environmentIdentity,
       command: {
         path: descriptor.fingerprint.path,
         size: descriptor.fingerprint.size,
         mtimeMs: descriptor.fingerprint.mtimeMs
       },
       attempted
-    }, 'command-probe'), { spaces: 0 });
+    }, 'command-probe');
+    const nextBytes = Buffer.byteLength(`${JSON.stringify(next)}\n`);
+    if (nextBytes > COMMAND_PROBE_CACHE_MAX_ENTRY_BYTES || nextBytes > selected.policy.hardBytes) return false;
+    const files = [];
+    const directory = fsSync.opendirSync(descriptor.cacheDir);
+    try {
+      for (;;) {
+        const entry = directory.readSync();
+        if (!entry) break;
+        if (entry.name === path.basename(admissionPath)
+          && readLockInfoSync(admissionPath)?.lockId === admissionLock.lockId) continue;
+        // Unknown files, saved annotations and incomplete inventory cannot be
+        // evicted to admit a new cache write. They remain byte-for-byte intact.
+        if (!entry.isFile() || files.length >= 10000) return false;
+        const file = path.join(descriptor.cacheDir, entry.name);
+        const { payload, stat } = readToolingCacheEntry(file);
+        if (!isOwnedCommandProbeCacheEntry(payload, entry.name)) return false;
+        files.push({ path: file, stat, size: stat.size, mtimeMs: stat.mtimeMs });
+      }
+    } finally { directory.closeSync(); }
+    const previous = files.find(file => file.path === descriptor.cachePath);
+    let count = files.length + (previous ? 0 : 1);
+    let bytes = files.reduce((sum, file) => sum + BigInt(file.size), 0n) - BigInt(previous?.size || 0) + BigInt(nextBytes);
+    const budget = BigInt(selected.policy.hardBytes);
+    const candidates = files.filter(file => file.path !== descriptor.cachePath)
+      .sort((a, b) => a.mtimeMs - b.mtimeMs || a.path.localeCompare(b.path));
+    for (const candidate of candidates) {
+      if (count <= selected.policy.entryLimit && bytes <= budget) break;
+      if (!unchangedPolicy(selected)) return false;
+      const current = readToolingCacheEntry(candidate.path);
+      if (!isOwnedCommandProbeCacheEntry(current.payload, path.basename(candidate.path))
+        || ['dev', 'ino', 'size', 'mtimeMs'].some(key => current.stat[key] !== candidate.stat[key])
+        || !removeToolingCacheEntry(candidate.path, candidate.stat)) return false;
+      count -= 1; bytes -= BigInt(candidate.size);
+    }
+    if (count > selected.policy.entryLimit || bytes > budget || !unchangedPolicy(selected)) return false;
+    writeToolingCacheJsonSync(descriptor.cachePath, next, { spaces: 0 });
     persistentWriteCount += 1;
-    prunePersistentCommandProbeCacheDir(descriptor.cacheDir);
+    prunePersistentCommandProbeCacheDir(descriptor.cacheDir, selected);
     return true;
-  } catch {
+  } catch (error) {
+    rethrowRetainedFailure(error);
     return false;
+  } finally {
+    if (admissionLock) removeLockFileSyncIfOwned(admissionPath, admissionLock);
+    lease?.release();
   }
 };
 
@@ -294,21 +397,26 @@ export const invalidatePersistentCommandProbeCache = ({
   command,
   args = [],
   toolingConfig,
-  cwd = process.cwd()
+  cwd = process.cwd(),
+  probeEnv = null
 } = {}) => {
+  const selected = readAdmittedPolicy();
+  if (!selected) return false;
   const descriptor = resolvePersistentCacheDescriptor({
     providerId,
     command,
     args,
     toolingConfig,
-    cwd
+    cwd,
+    probeEnv
   });
   if (!descriptor) return false;
   try {
     const { payload, stat } = readToolingCacheEntry(descriptor.cachePath);
-    return isCommandProbeEntry(payload, path.basename(descriptor.cachePath))
+    return unchangedPolicy(selected) && isOwnedCommandProbeCacheEntry(payload, path.basename(descriptor.cachePath))
       && removeToolingCacheEntry(descriptor.cachePath, stat);
-  } catch {
+  } catch (error) {
+    rethrowRetainedFailure(error);
     return false;
   }
 };

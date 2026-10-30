@@ -6,6 +6,7 @@ import path from 'node:path';
 import { writeJsonFile } from '../../src/shared/json-file.js';
 import { applyTestEnv } from '../helpers/test-env.js';
 import { runNode } from '../helpers/run-node.js';
+import { BENCH_VERDICT_SCHEMA_VERSION } from '../../src/contracts/bench-comparison-input.js';
 
 const ROOT = process.cwd();
 const gatePath = path.join(ROOT, 'tools', 'ci', 'bench-language-rollout-gate.js');
@@ -15,6 +16,7 @@ const env = applyTestEnv({ syncProcess: false });
 
 const writeReport = async (filePath, {
   aggregateResultClass,
+  total = 10,
   failed,
   retained,
   resultClasses = {},
@@ -25,18 +27,25 @@ const writeReport = async (filePath, {
   buildSqliteMs,
   queryWallMsPerSearch
 }) => {
+  const passedWithDegradation = resultClasses.passed_with_degradation || 0;
+  const passed = total - failed - passedWithDegradation;
+  const hardClasses = ['infra_failed', 'timed_out', 'crashed'];
+  const completeResultClasses = { ...resultClasses,
+    repo_failed: resultClasses.repo_failed ?? failed - hardClasses.reduce((sum, key) => sum + (resultClasses[key] || 0), 0),
+    passed, passed_with_degradation: passedWithDegradation };
   await writeJsonFile(filePath, {
     generatedAt: '2026-03-18T00:00:00.000Z',
     run: {
+      schemaVersion: BENCH_VERDICT_SCHEMA_VERSION,
       aggregateResultClass,
       repoCounts: {
-        total: 10,
+        total,
         failed,
-        passed: 10 - failed,
-        passedWithDegradation: 0,
+        passed,
+        passedWithDegradation,
         skipped: 0
       },
-      countsByResultClass: resultClasses,
+      countsByResultClass: completeResultClasses,
       countsByDiagnosticType: diagnosticTypes
     },
     diagnostics: {
@@ -86,6 +95,7 @@ try {
     queryWallMsPerSearch: 11
   });
   await writeReport(corpusBefore, {
+    total: 40,
     aggregateResultClass: 'repo_failed',
     failed: 11,
     retained: 11,
@@ -96,6 +106,7 @@ try {
     queryWallMsPerSearch: 28
   });
   await writeReport(corpusAfter, {
+    total: 40,
     aggregateResultClass: 'passed_with_degradation',
     failed: 4,
     retained: 3,
@@ -269,6 +280,34 @@ try {
     true,
     'expected parity mismatch failure to be surfaced by rollout gate'
   );
+
+  const successPlan = JSON.parse(await fs.readFile(successPlanPath, 'utf8'));
+  const invalidPath = path.join(tempRoot, 'missing-evidence.json');
+  const invalidPlanPath = path.join(tempRoot, 'invalid-evidence-plan.json');
+  await fs.writeFile(invalidPath, '{}');
+  const invalidPlan = structuredClone(successPlan);
+  invalidPlan.fixAreas[0].controlSlice.beforeReport = './missing-evidence.json';
+  await fs.writeFile(invalidPlanPath, JSON.stringify(invalidPlan));
+  const rejectedEvidence = runGate(invalidPlanPath, ['--enforce']);
+  assert.equal(rejectedEvidence.status, 3);
+  const rejectedPayload = JSON.parse(await fs.readFile(jsonPath, 'utf8'));
+  assert.equal(rejectedPayload.status, 'error');
+  assert.ok(rejectedPayload.failures.some(failure => failure.message.includes('invalid benchmark comparison evidence')));
+  const informational = runGate(invalidPlanPath);
+  assert.equal(informational.status, 0);
+  assert.equal(JSON.parse(await fs.readFile(jsonPath, 'utf8')).status, 'warn', 'nonblocking mode still reports missing evidence');
+
+  const unavailable = JSON.parse(await fs.readFile(controlBefore, 'utf8'));
+  unavailable.overallSummary.buildMs.index = null;
+  unavailable.overallSummary.queryWallMsPerSearch = null;
+  await fs.writeFile(controlBefore, JSON.stringify(unavailable));
+  const unknownTiming = runGate(successPlanPath, ['--enforce']);
+  assert.equal(unknownTiming.status, 0, 'valid count/diagnostic evidence may have unavailable individual timings');
+  const unknownPayload = JSON.parse(await fs.readFile(jsonPath, 'utf8'));
+  assert.equal(unknownPayload.areas[0].controlSlice.before.coreTiming.buildIndexMsAvg, null);
+  assert.equal(unknownPayload.areas[0].controlSlice.delta.coreTiming.buildIndexMsAvg, null);
+  assert.equal(unknownPayload.areas[0].controlSlice.delta.coreTiming.queryWallMsPerSearch, null);
+  assert.equal(unknownPayload.areas[0].controlSlice.delta.coreTiming.buildSqliteMsAvg, -40);
 
   console.log('bench-language rollout gate smoke test passed');
 } finally {

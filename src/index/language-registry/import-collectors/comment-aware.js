@@ -39,11 +39,13 @@ const TEMPLATE_COMMENT_PATTERNS = Object.freeze([
 export const createCommentAwareLineStripper = ({
   markers = ['#'],
   blockCommentPairs = [],
+  nestedBlockComments = false,
   requireWhitespaceBefore = false
 } = {}) => {
   const markerList = normalizeLineMarkers(markers);
   const blockPairs = normalizeBlockPairs(blockCommentPairs);
   let activeBlockComment = null;
+  let blockDepth = 0;
 
   return (line) => {
     const source = String(line || '');
@@ -59,12 +61,19 @@ export const createCommentAwareLineStripper = ({
     while (i < source.length) {
       if (activeBlockComment) {
         const endIndex = source.indexOf(activeBlockComment[1], i);
+        const nestedStart = nestedBlockComments ? source.indexOf(activeBlockComment[0], i) : -1;
+        if (nestedStart >= 0 && (endIndex < 0 || nestedStart < endIndex)) {
+          blockDepth += 1;
+          i = nestedStart + activeBlockComment[0].length;
+          continue;
+        }
         if (endIndex < 0) {
           i = source.length;
           break;
         }
         i = endIndex + activeBlockComment[1].length;
-        activeBlockComment = null;
+        blockDepth -= 1;
+        if (blockDepth === 0) activeBlockComment = null;
         continue;
       }
 
@@ -119,6 +128,7 @@ export const createCommentAwareLineStripper = ({
       for (const pair of blockPairs) {
         if (!source.startsWith(pair[0], i)) continue;
         activeBlockComment = pair;
+        blockDepth = 1;
         i += pair[0].length;
         startedBlock = true;
         break;

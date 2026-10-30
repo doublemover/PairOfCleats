@@ -8,8 +8,10 @@ import {
   normalizeTokenRetention
 } from '../../state.js';
 import { quantizeVecUint8 } from '../../../embedding.js';
+import { createQuantizationEvidence } from '../../postings/quantization-evidence.js';
 import { isVectorLike } from '../../../../shared/embedding-utils.js';
 import { INDEX_PROFILE_VECTOR_ONLY } from '../../../../contracts/index-profile.js';
+import { assertQuantizedEmbeddingRow, resolveEmbeddingQuantizationSpec } from '../../../../shared/embedding-quantization-spec.js';
 
 /**
  * Vector-only builds are allowed when embeddings are available inline or via
@@ -44,6 +46,9 @@ export const createTokenRetentionState = ({
   log = sharedLog
 }) => {
   const tokenizationStats = {
+    routeObservations: runtime.tokenizationObservations ||= { processedChunks: 0,
+      routes: {}, reasons: {}, firstInlineReason: null,
+      defaultInlineReason: runtime.workerPoolConfig?.enabled === false ? 'disabled-config' : 'pool-unavailable' },
     chunks: 0,
     tokens: 0,
     seq: 0,
@@ -84,6 +89,8 @@ export const createTokenRetentionState = ({
   // Shared empty vector marker used to represent missing doc embeddings without
   // allocating a new empty TypedArray for every chunk.
   const EMPTY_U8 = new Uint8Array(0);
+  const quantization = resolveEmbeddingQuantizationSpec(runtime.embeddingQuantization
+    || runtime.userConfig?.indexing?.embeddings?.quantization);
   const quantizedBySource = typeof WeakMap === 'function' ? new WeakMap() : null;
 
   const isU8View = (v) => !!(
@@ -101,7 +108,7 @@ export const createTokenRetentionState = ({
       const cached = quantizedBySource.get(vector);
       if (cached) return cached;
     }
-    const quantized = quantizeVecUint8(vector);
+    const quantized = quantizeVecUint8(vector, quantization.minVal, quantization.maxVal, quantization.levels);
     if (quantizedBySource && typeof vector === 'object') {
       quantizedBySource.set(vector, quantized);
     }
@@ -109,6 +116,7 @@ export const createTokenRetentionState = ({
   };
 
   const coerceU8 = (v, { allowEmptyMarker = false } = {}) => {
+    if (v != null) assertQuantizedEmbeddingRow(v, { spec: quantization });
     if (isU8View(v)) return v.length ? v : (allowEmptyMarker ? EMPTY_U8 : null);
     if (Array.isArray(v)) {
       if (v.length === 0) return allowEmptyMarker ? EMPTY_U8 : null;
@@ -272,6 +280,9 @@ export const buildIndexPostings = async ({ runtime, state, incrementalState = nu
     log: sharedLog,
     workerPool: runtime.workerPool,
     quantizePool: runtime.quantizePool,
+    quantizationObservations: runtime.quantizationObservations ||= createQuantizationEvidence(),
+    quantization: runtime.embeddingQuantization || runtime.userConfig?.indexing?.embeddings?.quantization,
+    abortSignal: runtime.abortSignal,
     embeddingsEnabled: runtime.embeddingEnabled,
     sparsePostingsEnabled: !vectorOnlyProfile,
     buildStage: runtime.stage

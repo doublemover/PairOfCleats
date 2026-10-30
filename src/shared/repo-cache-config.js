@@ -7,11 +7,10 @@ import { defineCachePolicy, resolveCachePolicy } from './cache/policy.js';
 import { loadUserConfig, getRepoCacheRoot, resolveRepoRoot, toRealPathSync } from './dict-utils.js';
 import { readCurrentBuildGeneration } from './indexing/build-pointer.js';
 import { incCacheEviction, setCacheSize } from './metrics/core.js';
+import { createRepoCacheRetirementLedger, closeRepoCacheEntry } from './repo-cache-retirement.js';
+import { observeStorageResource } from './storage/failure-observation.js';
 
-export const closeRepoCacheEntry = (entry) => {
-  entry?.indexCache?.clear?.();
-  entry?.sqliteCache?.closeAll?.();
-};
+export { closeRepoCacheEntry } from './repo-cache-retirement.js';
 
 export const REPO_CACHE_POLICY_DEFAULTS = Object.freeze({
   maxEntries: 5,
@@ -96,7 +95,8 @@ const hasRepoArtifacts = (repoPath) => {
       } catch {}
     }
     return false;
-  } catch {
+  } catch (error) {
+    observeStorageResource(error, { phase: 'repo-cache-artifact-probe' }).requireSettled();
     return false;
   }
 };
@@ -119,16 +119,8 @@ export const createRepoCacheManager = ({
   const indexCacheConfig = normalizeCacheConfig(indexPolicy, defaults.index);
   const sqliteCacheConfig = normalizeCacheConfig(sqlitePolicy, defaults.sqlite);
 
-  const resetRepoEntry = (entry, { terminal = false } = {}) => {
-    try {
-      repoCacheConfig.shutdown(entry);
-    } catch {}
-    if (terminal) {
-      // A request may still hold this entry after repo eviction. Late opens
-      // must receive detached leases rather than repopulating an orphan cache.
-      try { entry?.sqliteCache?.dispose?.(); } catch {}
-    }
-  };
+  const retirements = createRepoCacheRetirementLedger();
+  const resetRepoEntry = (entry, options) => retirements.retire(entry, repoCacheConfig.shutdown, options);
 
   const repoCaches = new LRUCache({
     max: repoCacheConfig.maxEntries,
@@ -148,7 +140,7 @@ export const createRepoCacheManager = ({
     const userConfig = loadUserConfig(repoPath);
     const repoCacheRoot = getRepoCacheRoot(repoPath, userConfig);
     const buildsRoot = path.join(repoCacheRoot, 'builds');
-    return {
+    const entry = {
       repoRoot: repoPath,
       indexCache: createIndexCache({
         maxEntries: indexCacheConfig.maxEntries,
@@ -168,6 +160,8 @@ export const createRepoCacheManager = ({
       buildPointerPath: path.join(buildsRoot, 'current.json'),
       buildPointerMtimeMs: null
     };
+    retirements.register(entry);
+    return entry;
   };
 
   const refreshBuildPointer = async (entry) => {
@@ -238,13 +232,16 @@ export const createRepoCacheManager = ({
 
   const clearRepoCaches = (repoPath) => {
     if (!repoPath) return;
-    repoCaches.delete(resolveRepoKey(repoPath));
+    const key = resolveRepoKey(repoPath);
+    repoCaches.delete(key);
     setCacheSize({ cache: 'repo', value: repoCaches.size });
+    return retirements.report(key);
   };
 
   const closeRepoCaches = () => {
     repoCaches.clear();
     setCacheSize({ cache: 'repo', value: repoCaches.size });
+    return retirements.report();
   };
 
   return {
@@ -253,6 +250,8 @@ export const createRepoCacheManager = ({
     refreshRepoCaches,
     clearRepoCaches,
     closeRepoCaches,
+    awaitRepoRetirement: repoPath => retirements.awaitRetirement(repoPath ? resolveRepoKey(repoPath) : undefined),
+    getRetirementReceipt: retirements.getReceipt,
     repoCacheConfig,
     indexCacheConfig,
     sqliteCacheConfig

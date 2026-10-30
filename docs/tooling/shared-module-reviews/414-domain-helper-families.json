@@ -4,7 +4,7 @@
   "reviewDate": "2026-03-26",
   "scope": "Primary ownership for src/shared domain helper families assigned to #414 in the shared-module ledger, including embeddings-cache, indexing, filter, fs, hash, perf, text, validation, safe-regex, and root-level domain-specific utilities.",
   "summary": {
-    "ownedFileCount": 61,
+    "ownedFileCount": 68,
     "overallAssessment": "Most of this surface is genuinely shared and domain-specific rather than a random grab-bag. The strongest parts are the small normalization helpers, backend/config facades, embeddings-cache family, safe-regex backend structure, and low-level perf/text/validation helpers. The main weaknesses are a handful of oversized mixed-responsibility modules and two cross-layer ownership seams: src/shared/dict-utils.js is only a re-export of tools/shared/dict-utils.js, and token-id.js mixes 64-bit token hashing with a specialized typed posting map implementation.",
     "runtimeRisks": [
       {
@@ -104,7 +104,7 @@
   "entries": [
     {
       "path": "src/shared/ann-similarity.js",
-      "consumerCount": 2,
+      "consumerCount": 6,
       "classifications": [
         "keep",
         "document",
@@ -148,7 +148,7 @@
     },
     {
       "path": "src/shared/code-dictionaries.js",
-      "consumerCount": 6,
+      "consumerCount": 7,
       "classifications": [
         "keep",
         "document",
@@ -159,7 +159,7 @@
     },
     {
       "path": "src/shared/dense-vector-artifacts.js",
-      "consumerCount": 14,
+      "consumerCount": 13,
       "classifications": [
         "split",
         "document",
@@ -181,7 +181,7 @@
     },
     {
       "path": "src/shared/dict-utils.js",
-      "consumerCount": 44,
+      "consumerCount": 75,
       "classifications": [
         "move",
         "document",
@@ -192,7 +192,7 @@
     },
     {
       "path": "src/shared/dictionary-wordlists.js",
-      "consumerCount": 2,
+      "consumerCount": 3,
       "classifications": [
         "keep",
         "document",
@@ -214,7 +214,7 @@
     },
     {
       "path": "src/shared/dockerfile.js",
-      "consumerCount": 2,
+      "consumerCount": 3,
       "classifications": [
         "keep",
         "document",
@@ -225,7 +225,7 @@
     },
     {
       "path": "src/shared/embedding-adapter.js",
-      "consumerCount": 3,
+      "consumerCount": 7,
       "classifications": [
         "split",
         "document",
@@ -236,7 +236,7 @@
     },
     {
       "path": "src/shared/embedding-batch.js",
-      "consumerCount": 2,
+      "consumerCount": 3,
       "classifications": [
         "keep",
         "document",
@@ -247,7 +247,7 @@
     },
     {
       "path": "src/shared/embedding-identity.js",
-      "consumerCount": 2,
+      "consumerCount": 5,
       "classifications": [
         "keep",
         "document",
@@ -269,7 +269,7 @@
     },
     {
       "path": "src/shared/embedding-utils.js",
-      "consumerCount": 12,
+      "consumerCount": 11,
       "classifications": [
         "split",
         "document",
@@ -302,7 +302,7 @@
     },
     {
       "path": "src/shared/embeddings-cache/index.js",
-      "consumerCount": 1,
+      "consumerCount": 3,
       "classifications": [
         "keep",
         "document",
@@ -313,7 +313,7 @@
     },
     {
       "path": "src/shared/embeddings-cache/layout.js",
-      "consumerCount": 1,
+      "consumerCount": 3,
       "classifications": [
         "keep",
         "document",
@@ -332,6 +332,16 @@
       ],
       "consumerNotes": "Small LRU helper tailored to embeddings cache behavior.",
       "recommendation": "Keep within the embeddings-cache family."
+    },
+    {
+      "path": "src/shared/filter/chunk-file-facts.js",
+      "consumerCount": 2,
+      "classifications": [
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Static production imports: src/retrieval/effective-filter-facts.js, src/storage/sqlite/filter-facts.js.",
+      "recommendation": "Keep extension and language projection shared across retrieval filters."
     },
     {
       "path": "src/shared/filter/merge.js",
@@ -368,7 +378,7 @@
     },
     {
       "path": "src/shared/hash.js",
-      "consumerCount": 92,
+      "consumerCount": 110,
       "classifications": [
         "keep",
         "document",
@@ -379,7 +389,7 @@
     },
     {
       "path": "src/shared/hash/xxhash-backend.js",
-      "consumerCount": 2,
+      "consumerCount": 10,
       "classifications": [
         "keep",
         "document",
@@ -390,7 +400,7 @@
     },
     {
       "path": "src/shared/hnsw.js",
-      "consumerCount": 8,
+      "consumerCount": 11,
       "classifications": [
         "keep",
         "document",
@@ -401,7 +411,7 @@
     },
     {
       "path": "src/shared/indexing/build-generation.js",
-      "consumerCount": 1,
+      "consumerCount": 3,
       "classifications": [
         "keep",
         "document",
@@ -412,7 +422,7 @@
     },
     {
       "path": "src/shared/indexing/build-pointer-roots.js",
-      "consumerCount": 3,
+      "consumerCount": 10,
       "classifications": [
         "keep",
         "document",
@@ -423,7 +433,7 @@
     },
     {
       "path": "src/shared/indexing/build-pointer.js",
-      "consumerCount": 4,
+      "consumerCount": 7,
       "classifications": [
         "split",
         "document",
@@ -477,6 +487,16 @@
       "recommendation": "Split budget math, classification rules, and progress-state interpretation into narrower helpers."
     },
     {
+      "path": "src/shared/indexing/selected-mode-roots.js",
+      "consumerCount": 4,
+      "classifications": [
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Static production imports: src/index/build/artifacts/token-postings-reuse.js, src/integrations/core/status.js, tools/index/stats.js, tools/index/validate.js.",
+      "recommendation": "Retain one pointer read per operation and preserve declared missing modes as broken selected publication."
+    },
+    {
       "path": "src/shared/indexing/stage1-watchdog-policy.js",
       "consumerCount": 1,
       "classifications": [
@@ -489,7 +509,7 @@
     },
     {
       "path": "src/shared/indexing/stages.js",
-      "consumerCount": 4,
+      "consumerCount": 7,
       "classifications": [
         "keep",
         "document",
@@ -511,7 +531,7 @@
     },
     {
       "path": "src/shared/lancedb.js",
-      "consumerCount": 7,
+      "consumerCount": 10,
       "classifications": [
         "keep",
         "document",
@@ -522,7 +542,7 @@
     },
     {
       "path": "src/shared/onnx-embeddings.js",
-      "consumerCount": 8,
+      "consumerCount": 10,
       "classifications": [
         "split",
         "document",
@@ -532,8 +552,18 @@
       "recommendation": "Keep config, run-queue, and tokenization inside the ONNX family, then split model/session lifecycle, provider/runtime resolution, request execution, and output normalization."
     },
     {
-      "path": "src/shared/onnx-embeddings/config.js",
+      "path": "src/shared/onnx-embeddings/cache-lifetime.js",
       "consumerCount": 1,
+      "classifications": [
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Static production imports: src/shared/onnx-embeddings.js.",
+      "recommendation": "Retain retirement in the existing cache and require explicit reconciliation for previously failed cleanup."
+    },
+    {
+      "path": "src/shared/onnx-embeddings/config.js",
+      "consumerCount": 9,
       "classifications": [
         "keep",
         "document",
@@ -543,8 +573,38 @@
       "recommendation": "Keep ownership explicit and update this review entry with a narrower recommendation when the module is next touched."
     },
     {
-      "path": "src/shared/onnx-embeddings/run-queue.js",
+      "path": "src/shared/onnx-embeddings/output.js",
       "consumerCount": 1,
+      "classifications": [
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Static production imports: src/shared/onnx-embeddings.js.",
+      "recommendation": "Qualify output selection against actual loaded session metadata; unknown layouts must retain generic output acquisition."
+    },
+    {
+      "path": "src/shared/onnx-embeddings/qualification.js",
+      "consumerCount": 3,
+      "classifications": [
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Static production imports: src/retrieval/rerankers/onnx-cross-encoder.js, src/shared/onnx-embeddings.js, tools/bench/embeddings/onnx-profile-experiment.js.",
+      "recommendation": "Keep runtime/memory qualification receipts separate from activation and requested native thread settings."
+    },
+    {
+      "path": "src/shared/onnx-embeddings/resource-lifetime.js",
+      "consumerCount": 1,
+      "classifications": [
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Static production imports: src/shared/onnx-embeddings.js.",
+      "recommendation": "Retain original cleanup methods and each independently failed resource; do not repeat successful releases."
+    },
+    {
+      "path": "src/shared/onnx-embeddings/run-queue.js",
+      "consumerCount": 3,
       "classifications": [
         "keep",
         "document",
@@ -552,6 +612,16 @@
       ],
       "consumerNotes": "Ledger-owned shared module in src/shared/onnx-embeddings with 1 direct consumer(s).",
       "recommendation": "Keep ownership explicit and update this review entry with a narrower recommendation when the module is next touched."
+    },
+    {
+      "path": "src/shared/onnx-embeddings/tensor-lifetime.js",
+      "consumerCount": 1,
+      "classifications": [
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Static production imports: src/shared/onnx-embeddings.js.",
+      "recommendation": "Keep feeds, output views and pending inference under the exact session until decoding and disposal finish."
     },
     {
       "path": "src/shared/onnx-embeddings/tokenization.js",
@@ -577,7 +647,7 @@
     },
     {
       "path": "src/shared/packed-postings.js",
-      "consumerCount": 3,
+      "consumerCount": 4,
       "classifications": [
         "keep",
         "document",
@@ -599,7 +669,7 @@
     },
     {
       "path": "src/shared/perf/histogram.js",
-      "consumerCount": 1,
+      "consumerCount": 2,
       "classifications": [
         "keep",
         "document",
@@ -632,7 +702,7 @@
     },
     {
       "path": "src/shared/risk-filters.js",
-      "consumerCount": 9,
+      "consumerCount": 8,
       "classifications": [
         "keep",
         "document",
@@ -643,7 +713,7 @@
     },
     {
       "path": "src/shared/safe-regex.js",
-      "consumerCount": 5,
+      "consumerCount": 6,
       "classifications": [
         "split",
         "document",
@@ -709,7 +779,7 @@
     },
     {
       "path": "src/shared/token-id.js",
-      "consumerCount": 10,
+      "consumerCount": 11,
       "classifications": [
         "split",
         "document",
@@ -720,7 +790,7 @@
     },
     {
       "path": "src/shared/tokenize.js",
-      "consumerCount": 13,
+      "consumerCount": 12,
       "classifications": [
         "split",
         "document",
@@ -731,7 +801,7 @@
     },
     {
       "path": "src/shared/truncation.js",
-      "consumerCount": 5,
+      "consumerCount": 8,
       "classifications": [
         "keep",
         "document",
@@ -753,7 +823,7 @@
     },
     {
       "path": "src/shared/type-normalization.js",
-      "consumerCount": 4,
+      "consumerCount": 16,
       "classifications": [
         "keep",
         "document",
@@ -764,7 +834,7 @@
     },
     {
       "path": "src/shared/validation/ajv-factory.js",
-      "consumerCount": 11,
+      "consumerCount": 44,
       "classifications": [
         "keep",
         "document",
@@ -773,5 +843,11 @@
       "consumerNotes": "Small schema-clone, dialect-selection, and compile helper for Ajv usage.",
       "recommendation": "Keep as the shared Ajv factory helper."
     }
-  ]
+  ],
+  "inventoryReview": {
+    "date": "2026-10-24",
+    "scope": "Current file ownership, exported boundaries and production-consumer inventory; not runtime or platform qualification.",
+    "newlyReviewedFiles": 7,
+    "evidence": "tools/docs/shared-module-ledger.js and current source declarations; dynamic preload ownership inspected separately."
+  }
 }

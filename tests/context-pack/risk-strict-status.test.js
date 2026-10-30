@@ -1,12 +1,16 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
+import fsSync from 'node:fs';
+import { syncBuiltinESMExports } from 'node:module';
 import path from 'node:path';
 import { writeJsonObjectFile } from '../../src/shared/json-stream/json-writers.js';
 import { assembleCompositeContextPack, classifyRiskLoadFailure } from '../../src/context-pack/assemble.js';
 import { ARTIFACT_SURFACE_VERSION } from '../../src/contracts/versioning.js';
 import { applyTestEnv } from '../helpers/test-env.js';
 import { resolveTestCachePath } from '../helpers/test-cache.js';
+import { buildCapHeavyRiskPacksReport, renderDiagnosticsReportHuman } from '../../tools/reports/diagnostics-report.js';
+import { createRiskSourceConsumerCase } from '../helpers/risk-source-consumer.js';
 
 applyTestEnv({ testing: '1' });
 
@@ -28,6 +32,7 @@ const baseStats = {
   mode: 'code',
   status: 'ok',
   reason: null,
+  inputCoverage: { status: 'complete' },
   effectiveConfig: { enabled: true, summaryOnly: false, emitArtifacts: 'jsonl' },
   counts: { flowsEmitted: 1, summariesEmitted: 1, uniqueCallSitesReferenced: 0 },
   callSiteSampling: { strategy: 'firstN', maxCallSitesPerEdge: 0, order: 'deterministic' },
@@ -83,7 +88,7 @@ const writeManifest = async (indexDir, pieces) => {
   });
 };
 
-const buildPack = async ({ name, stats = null, summaries = null, flows = null, invalidFlows = false, riskStrict = false }) => {
+const buildPack = async ({ name, stats = null, summaries = null, flows = null, callSites = null, metadata = chunkMeta, invalidFlows = false, riskStrict = false }) => {
   const indexDir = path.join(tempRoot, name, 'index-code');
   await fs.rm(indexDir, { recursive: true, force: true });
   await fs.mkdir(indexDir, { recursive: true });
@@ -104,10 +109,14 @@ const buildPack = async ({ name, stats = null, summaries = null, flows = null, i
     }
     pieces.push({ name: 'risk_flows', path: 'risk_flows.jsonl', format: 'jsonl' });
   }
+  if (callSites) {
+    await writeJsonl(path.join(indexDir, 'call_sites.jsonl'), callSites);
+    pieces.push({ name: 'call_sites', path: 'call_sites.jsonl', format: 'jsonl' });
+  }
   await writeManifest(indexDir, pieces);
   return assembleCompositeContextPack({
-    seed: { type: 'chunk', chunkUid: 'chunk-primary' },
-    chunkMeta,
+    seed: { type: 'chunk', chunkUid: metadata[0].chunkUid },
+    chunkMeta: metadata,
     repoRoot,
     indexDir,
     includeGraph: false,
@@ -143,7 +152,34 @@ const assertStrictFail = (indexDir) => {
   );
 };
 
+// Exercise the report with the actual producer outputs below, including failed
+// artifact loads. Hand-authored analysisStatus objects cannot prove this parity.
+const assertOperatorReport = async (pack, expectedCode, expectedStatus, expectedReason = null) => {
+  const contextPackPath = path.join(tempRoot, 'operator-pack.json');
+  await fs.writeFile(contextPackPath, JSON.stringify(pack));
+  const report = buildCapHeavyRiskPacksReport({ contextPackPath });
+  assert.equal(report.status, expectedStatus);
+  assert.equal(report.summary.analysisCode, expectedCode);
+  assert.equal(report.summary.riskStatus, pack.risk.status);
+  assert.equal(report.summary.reason, pack.risk.reason ?? pack.risk.analysisStatus?.reason ?? null);
+  assert.equal(report.summary.summaryOnly, pack.risk.analysisStatus.summaryOnly);
+  assert.equal(report.summary.degraded, pack.risk.analysisStatus.degraded);
+  assert.equal(report.summary.strictFailure, pack.risk.analysisStatus.strictFailure);
+  if (expectedReason) assert.ok(report.reasonCodes.includes(expectedReason));
+  else assert.deepEqual(report.reasonCodes, []);
+  const human = renderDiagnosticsReportHuman({ summary: { status: report.status }, reports: [report] });
+  assert.ok(human.includes(`Cap-Heavy Risk Packs [${expectedStatus}]`));
+  assert.ok(human.includes(`analysisCode: ${expectedCode}`));
+  assert.ok(human.includes(`riskStatus: ${pack.risk.status}`));
+  if (report.summary.reason) assert.ok(human.includes(`reason: ${report.summary.reason}`));
+  if (expectedReason) assert.ok(human.includes(expectedReason));
+};
+
 assert.equal(classifyRiskLoadFailure({ code: 'ETIMEDOUT' }), 'timed_out');
+
+const healthyPack = await buildPack({ name: 'healthy', stats: baseStats, summaries: [summaryRow], flows: [normalFlow] });
+assert.equal(healthyPack.risk?.analysisStatus?.code, 'ok');
+await assertOperatorReport(healthyPack, 'ok', 'ok');
 
 const disabledPack = await buildPack({
   name: 'disabled',
@@ -151,6 +187,7 @@ const disabledPack = await buildPack({
   summaries: [summaryRow]
 });
 assert.equal(disabledPack.risk?.analysisStatus?.code, 'disabled');
+await assertOperatorReport(disabledPack, 'disabled', 'warn', 'RISK_PACK_DISABLED');
 assertStrictFail(path.join(tempRoot, 'disabled', 'index-code'));
 
 const summaryOnlyPack = await buildPack({
@@ -159,10 +196,12 @@ const summaryOnlyPack = await buildPack({
   summaries: [summaryRow]
 });
 assert.equal(summaryOnlyPack.risk?.analysisStatus?.code, 'summary_only');
+await assertOperatorReport(summaryOnlyPack, 'summary_only', 'warn', 'RISK_PACK_SUMMARY_ONLY');
 assertStrictFail(path.join(tempRoot, 'summary-only', 'index-code'));
 
 const missingPack = await buildPack({ name: 'missing' });
 assert.equal(missingPack.risk?.analysisStatus?.code, 'missing');
+await assertOperatorReport(missingPack, 'missing', 'error', 'RISK_PACK_NOT_ACTIONABLE');
 assertStrictFail(path.join(tempRoot, 'missing', 'index-code'));
 
 const cappedPack = await buildPack({
@@ -172,6 +211,7 @@ const cappedPack = await buildPack({
   flows: [hugeFlow, normalFlow]
 });
 assert.equal(cappedPack.risk?.analysisStatus?.code, 'capped');
+await assertOperatorReport(cappedPack, 'capped', 'warn', 'RISK_PACK_CAPPED');
 assertStrictFail(path.join(tempRoot, 'capped', 'index-code'));
 
 const invalidPack = await buildPack({
@@ -182,6 +222,7 @@ const invalidPack = await buildPack({
   invalidFlows: true
 });
 assert.equal(invalidPack.risk?.analysisStatus?.code, 'schema_invalid');
+await assertOperatorReport(invalidPack, 'schema_invalid', 'error', 'RISK_PACK_NOT_ACTIONABLE');
 assertStrictFail(path.join(tempRoot, 'invalid', 'index-code'));
 
 const zeroFlowPack = await buildPack({
@@ -190,6 +231,7 @@ const zeroFlowPack = await buildPack({
   summaries: [summaryRow]
 });
 assert.equal(zeroFlowPack.risk?.analysisStatus?.code, 'ok');
+await assertOperatorReport(zeroFlowPack, 'ok', 'ok');
 assert.doesNotThrow(() => assembleCompositeContextPack({
   seed: { type: 'chunk', chunkUid: 'chunk-primary' },
   chunkMeta,
@@ -206,4 +248,77 @@ assert.doesNotThrow(() => assembleCompositeContextPack({
   indexCompatKey: 'compat-strict'
 }));
 
+const assembleAt = (indexDir, riskStrict = false) => assembleCompositeContextPack({
+  seed: { type: 'chunk', chunkUid: 'chunk-primary' }, chunkMeta, repoRoot, indexDir,
+  includeGraph: false, includeTypes: false, includeRisk: true, riskStrict,
+  includeImports: false, includeUsages: false, includeCallersCallees: false,
+  now: fixedNow, indexCompatKey: 'compat-strict'
+});
+for (const [name, inputCoverage, droppedRecords] of [
+  ['unknown-input', undefined, []],
+  ['partial-input', { status: 'partial' }, []],
+  ['dropped-input', { status: 'complete' }, [{ artifact: 'risk_flows', count: 1 }]]
+]) {
+  const pack = await buildPack({ name, stats: { ...baseStats, inputCoverage, droppedRecords },
+    summaries: [summaryRow], flows: [normalFlow] });
+  assert.equal(pack.risk.analysisStatus.code, 'capped', name);
+  assertStrictFail(path.join(tempRoot, name, 'index-code'));
+}
+for (const missing of ['stats', 'summaries']) {
+  const name = `missing-${missing}`;
+  const pack = await buildPack({ name, stats: missing === 'stats' ? null : baseStats,
+    summaries: missing === 'summaries' ? null : [summaryRow], flows: [normalFlow] });
+  assert.equal(pack.risk.analysisStatus.artifactStatus[missing], 'missing');
+  assert.equal(pack.risk.analysisStatus.code, 'missing', `independently missing required ${missing}`);
+  assert.equal(pack.risk.analysisStatus.strictFailure, true);
+  assert.equal(pack.risk.degraded, true);
+  assertStrictFail(path.join(tempRoot, name, 'index-code'));
+}
+for (const family of ['stats', 'summaries']) {
+  for (const [code, expected] of [['EACCES', 'degraded'], ['EIO', 'degraded'], ['ETIMEDOUT', 'timed_out'], ['ERR_ARTIFACT_INVALID', 'schema_invalid']]) {
+    const name = `failed-${family}-${code}`;
+    await buildPack({ name, stats: baseStats, summaries: [summaryRow], flows: [normalFlow] });
+    const indexDir = path.join(tempRoot, name, 'index-code');
+    const target = path.resolve(indexDir, family === 'stats' ? 'risk_interprocedural_stats.json' : 'risk_summaries.jsonl');
+    const originals = new Map(['openSync', 'readFileSync'].map(method => [method, fsSync[method]]));
+    let failures = 0;
+    try {
+      for (const [method, original] of originals) fsSync[method] = function(file, ...args) {
+        if (typeof file === 'string' && path.resolve(file) === target) {
+          failures += 1;
+          throw Object.assign(new Error('controlled required artifact failure'), { code });
+        }
+        return original.call(this, file, ...args);
+      };
+      syncBuiltinESMExports();
+      const pack = assembleAt(indexDir);
+      assert.equal(pack.risk.analysisStatus.artifactStatus[family], 'load_failed');
+      assert.equal(pack.risk.analysisStatus.code, expected);
+      await assertOperatorReport(pack, expected, expected === 'degraded' ? 'warn' : 'error',
+        expected === 'degraded' ? 'RISK_PACK_DEGRADED' : 'RISK_PACK_NOT_ACTIONABLE');
+      assert.equal(pack.risk.analysisStatus.strictFailure, true);
+      assert.equal(pack.risk.degraded, true);
+      assert.ok(pack.warnings.some(warning => warning.code.startsWith(`RISK_${family.toUpperCase()}_`)));
+      assertStrictFail(indexDir);
+      assert.ok(failures >= 2, 'both non-strict and strict requests reach the real artifact read boundary');
+    } finally {
+      for (const [method, original] of originals) fsSync[method] = original;
+      syncBuiltinESMExports();
+    }
+  }
+}
+for (const [name, caps, count] of [['actual-complete-local', {}, 1], ['actual-capped-local', { maxBytes: 10 }, 0]]) {
+  const actual = await createRiskSourceConsumerCase({ caps });
+  await fs.writeFile(path.join(repoRoot, 'src/actual-source.js'), actual.sourceText);
+  await fs.writeFile(path.join(repoRoot, 'src/actual-sink.js'), actual.sinkText);
+  assert.equal(actual.result.flowRows.length, count);
+  const pack = await buildPack({ name, stats: actual.result.stats, summaries: actual.result.summaryRows,
+    flows: actual.result.flowRows, callSites: actual.callSites, metadata: actual.chunks });
+  assert.equal(pack.risk.analysisStatus.strictFailure, true, 'unknown cross-file admission remains an independent strict qualification');
+  assert.ok(pack.risk.caps.hits.includes('upstream:cross-file-analysis:unknown'));
+  assert.equal(pack.risk.caps.hits.includes('upstream:maxBytes'), count === 0, 'the real detector cap reaches the strict pack consumer');
+  await assert.rejects(buildPack({ name: name + '-strict', stats: actual.result.stats, summaries: actual.result.summaryRows,
+    flows: actual.result.flowRows, callSites: actual.callSites, metadata: actual.chunks, riskStrict: true }),
+  error => error.code === 'ERR_CONTEXT_PACK_RISK_STRICT');
+}
 console.log('context pack risk strict status test passed');

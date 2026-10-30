@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { MINHASH_HASH_IDENTITY } from '../../../src/index/minhash.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 import assert from 'node:assert/strict';
 import { buildPostings } from '../../../src/index/build/postings.js';
@@ -10,7 +11,7 @@ const chunks = [
     file: 'src/a.js',
     tokens: ['alpha', 'beta'],
     tokenIds: [11, 22],
-    minhashSig: [1, 2, 3]
+    minhashHashIdentity: MINHASH_HASH_IDENTITY, minhashSig: [1, 2, 3]
   }
 ];
 

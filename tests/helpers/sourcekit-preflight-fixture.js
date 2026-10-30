@@ -4,7 +4,8 @@ import { registerDefaultToolingProviders } from '../../src/index/tooling/provide
 import { getToolingProvider } from '../../src/index/tooling/provider-registry.js';
 import { resolveTestCachePath } from './test-cache.js';
 import { prependLspTestPath } from './lsp-runtime.js';
-import { withTemporaryEnv } from './test-env.js';
+import { applyTestEnv, withTemporaryEnv } from './test-env.js';
+import { createSourcekitOperationPlan } from '../../src/index/tooling/preflight/sourcekit-operation-plan.js';
 
 const buildPackageSwift = ({ dependencyVersion = '1.0.0', includeDependencies = true }) => {
   const dependencyLines = includeDependencies
@@ -30,7 +31,7 @@ const buildPackageSwift = ({ dependencyVersion = '1.0.0', includeDependencies = 
   ].join('\n');
 };
 
-const buildSwiftCmd = ({ resolveExitCode = 0, resolveStderr = '' }) => {
+const buildSwiftCmd = ({ resolveExitCode = 0, resolveStderr = '', delayed = false }) => {
   const maybeStderr = resolveStderr ? `  echo ${resolveStderr} 1>&2` : '';
   return [
     '@echo off',
@@ -44,6 +45,7 @@ const buildSwiftCmd = ({ resolveExitCode = 0, resolveStderr = '' }) => {
     ')',
     'if "%1"=="package" if "%2"=="resolve" (',
     '  if not "%POC_SWIFT_PREFLIGHT_COUNTER%"=="" echo resolve>>"%POC_SWIFT_PREFLIGHT_COUNTER%"',
+    ...(delayed ? ['  "%POC_SWIFT_NODE%" "%POC_SWIFT_RESOLVE_SCRIPT%"'] : []),
     ...(maybeStderr ? [maybeStderr] : []),
     `  exit /b ${Math.max(0, Math.floor(Number(resolveExitCode) || 0))}`,
     ')',
@@ -52,7 +54,7 @@ const buildSwiftCmd = ({ resolveExitCode = 0, resolveStderr = '' }) => {
   ].join('\r\n');
 };
 
-const buildSwiftPosix = ({ resolveExitCode = 0, resolveStderr = '' }) => {
+const buildSwiftPosix = ({ resolveExitCode = 0, resolveStderr = '', delayed = false }) => {
   const maybeStderr = resolveStderr ? `  echo "${resolveStderr}" 1>&2` : '';
   return [
     '#!/usr/bin/env sh',
@@ -68,6 +70,7 @@ const buildSwiftPosix = ({ resolveExitCode = 0, resolveStderr = '' }) => {
     '  if [ -n "$POC_SWIFT_PREFLIGHT_COUNTER" ]; then',
     '    printf "resolve\\n" >> "$POC_SWIFT_PREFLIGHT_COUNTER"',
     '  fi',
+    ...(delayed ? ['  "$POC_SWIFT_NODE" "$POC_SWIFT_RESOLVE_SCRIPT"'] : []),
     ...(maybeStderr ? [maybeStderr] : []),
     `  exit ${Math.max(0, Math.floor(Number(resolveExitCode) || 0))}`,
     'fi',
@@ -85,7 +88,8 @@ const buildSwiftPosix = ({ resolveExitCode = 0, resolveStderr = '' }) => {
  *   includeDependencies?:boolean,
  *   dependencyVersion?:string,
  *   resolveExitCode?:number,
- *   resolveStderr?:string
+ *   resolveStderr?:string,
+ *   resolveDelayMs?:number
  * }} input
  * @returns {Promise<{
  *   tempRoot:string,
@@ -98,11 +102,20 @@ const buildSwiftPosix = ({ resolveExitCode = 0, resolveStderr = '' }) => {
  * }>}
  */
 export const createSourcekitPreflightFixture = async (input) => {
+  const priorEnvironment = new Map(Object.entries(process.env)
+    .filter(([key]) => key.startsWith('PAIROFCLEATS_')));
   const root = path.resolve(String(input?.root || process.cwd()));
   const name = String(input?.name || 'sourcekit-preflight-fixture').trim() || 'sourcekit-preflight-fixture';
   const tempRoot = resolveTestCachePath(root, name);
   const markerPath = path.join(tempRoot, '.build', 'pairofcleats', 'sourcekit-package-preflight.json');
   const counterPath = path.join(tempRoot, 'swift-preflight.counter');
+  const cacheRoot = path.join(tempRoot, 'cache');
+  const startedPath = path.join(tempRoot, 'swift-resolve-started.json');
+  const completedPath = path.join(tempRoot, 'swift-resolve-completed');
+  const resolveScriptPath = path.join(tempRoot, 'swift-resolve.mjs');
+  const resolveDelayMs = Math.max(0, Math.floor(Number(input?.resolveDelayMs) || 0));
+  const fixtureCommand = path.join(root, 'tests/fixtures/lsp/bin',
+    process.platform === 'win32' ? 'sourcekit-lsp.cmd' : 'sourcekit-lsp');
   const binDir = path.join(tempRoot, 'bin');
   const swiftCmdPath = path.join(binDir, 'swift.cmd');
   const swiftPosixPath = path.join(binDir, 'swift');
@@ -127,7 +140,7 @@ export const createSourcekitPreflightFixture = async (input) => {
     swiftCmdPath,
     buildSwiftCmd({
       resolveExitCode: input?.resolveExitCode ?? 0,
-      resolveStderr: input?.resolveStderr || ''
+      resolveStderr: input?.resolveStderr || '', delayed: resolveDelayMs > 0
     }),
     'utf8'
   );
@@ -135,18 +148,38 @@ export const createSourcekitPreflightFixture = async (input) => {
     swiftPosixPath,
     buildSwiftPosix({
       resolveExitCode: input?.resolveExitCode ?? 0,
-      resolveStderr: input?.resolveStderr || ''
+      resolveStderr: input?.resolveStderr || '', delayed: resolveDelayMs > 0
     }),
     'utf8'
   );
+  if (resolveDelayMs > 0) await fs.writeFile(resolveScriptPath, `
+    import fs from 'node:fs';
+    fs.writeFileSync(${JSON.stringify(startedPath)}, JSON.stringify({pid:process.pid,parentPid:process.ppid}));
+    setTimeout(() => fs.writeFileSync(${JSON.stringify(completedPath)}, 'completed'), ${resolveDelayMs});
+  `);
   try {
     await fs.chmod(swiftPosixPath, 0o755);
   } catch {}
 
-  const restorePath = prependLspTestPath({
+  // Callers may acquire the preflight lock before entering the provider body.
+  // Cache selection therefore belongs to the entire fixture lifetime.
+  applyTestEnv({ cacheRoot, extraEnv: {
+    PAIROFCLEATS_TRUSTED_CONFIG: null,
+    PAIROFCLEATS_TRUSTED_REPOS: JSON.stringify([await fs.realpath(tempRoot)])
+  } });
+  const restoreLspPath = prependLspTestPath({
     repoRoot: root,
     extraPrepend: [binDir, path.dirname(process.execPath)]
   });
+  const restorePath = async () => {
+    try { await restoreLspPath(); }
+    finally {
+      for (const key of Object.keys(process.env)) {
+        if (key.startsWith('PAIROFCLEATS_') && !priorEnvironment.has(key)) delete process.env[key];
+      }
+      for (const [key, value] of priorEnvironment) process.env[key] = value;
+    }
+  };
 
   const contextFor = (logs) => {
     const logSink = Array.isArray(logs) ? logs : [];
@@ -154,7 +187,7 @@ export const createSourcekitPreflightFixture = async (input) => {
       ctx: {
         repoRoot: tempRoot,
         buildRoot: tempRoot,
-        toolingConfig: {},
+        toolingConfig: { sourcekit: { cmd: fixtureCommand, args: [] } },
         logger: (line) => logSink.push(String(line || '')),
         strict: true
       },
@@ -178,15 +211,23 @@ export const createSourcekitPreflightFixture = async (input) => {
       }
     };
   };
+  const authorizeOperations = async ctx => {
+    ctx.sourcekitOperationPlan = await createSourcekitOperationPlan({ repoRoot: tempRoot,
+      swiftCommand: process.platform === 'win32' ? swiftCmdPath : swiftPosixPath,
+      allowWorkspaceLoad: true, toolingConfig: ctx.toolingConfig });
+    return ctx.sourcekitOperationPlan;
+  };
 
   return {
     tempRoot,
     binDir,
     markerPath,
     counterPath,
+    cacheRoot, startedPath, completedPath, resolveScriptPath, fixtureCommand,
     restorePath,
     writePackage,
-    contextFor
+    contextFor,
+    authorizeOperations
   };
 };
 
@@ -209,10 +250,18 @@ export const withSourcekitPreflightProvider = async ({
   context = null
 }, run) => {
   const fixtureContext = context || fixture.contextFor(logs);
-  await withTemporaryEnv({ POC_SWIFT_PREFLIGHT_COUNTER: fixture.counterPath, ...env }, async () => {
+  const fixtureEnv = applyTestEnv({ cacheRoot: fixture.cacheRoot, syncProcess: false, extraEnv: {
+    PAIROFCLEATS_TRUSTED_CONFIG: null,
+    PAIROFCLEATS_TRUSTED_REPOS: JSON.stringify([await fs.realpath(fixture.tempRoot)])
+  } });
+  await withTemporaryEnv({ ...fixtureEnv, POC_SWIFT_PREFLIGHT_COUNTER: fixture.counterPath,
+    POC_SWIFT_NODE: process.execPath, POC_SWIFT_RESOLVE_SCRIPT: fixture.resolveScriptPath, ...env }, async () => {
     registerDefaultToolingProviders();
     const provider = getToolingProvider('sourcekit');
     if (!provider) throw new Error('expected sourcekit provider');
+    // This helper explicitly exercises the benign resolver/workspace operation;
+    // ordinary provider fixtures receive no operation plan by default.
+    await fixture.authorizeOperations(fixtureContext.ctx);
     await run({ provider, ...fixtureContext });
   });
 };

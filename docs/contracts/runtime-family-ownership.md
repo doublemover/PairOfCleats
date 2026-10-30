@@ -14,6 +14,24 @@ refuses new work without deleting pinned families. Promotion relinquishes exclus
 ownership of an immutable family. Cancellation or pointer failure cleans only
 owned staging and keeps promoted bytes charged and available to pinned readers.
 
+Saved comparison and standalone claim persistence each establish one absolute
+operation deadline before writer admission. Comparison passes that same private
+budget through lock/account waits, citation verification and publication; nested
+owners cannot renew it. Lock waiting receives only the remaining allowance.
+Mutation admission rechecks the budget after asynchronous boundaries, including
+immediately before family and pointer promotion. Caller cancellation remains
+`ABORT_ERR`; internal expiry is `ERR_RUNTIME_QUERY_BUDGET`. Cleanup joins actual
+opened handles and both independent staging removals even after expiry, preserving
+original and secondary failures before writer ownership settles.
+
+A rename can win a cancellation race. A producer-authenticated passive
+`runtimeClaimPublication` error receipt then reports the claim generation,
+manifest hash, family promotion state and pointer commit state. HTTP errors and
+MCP domain details preserve this bounded receipt. `commit-unconfirmed` requires
+reconciliation of the pointer; `committed` records observed rename completion.
+The receipt grants no mutation or cleanup authority. Serialized error lookalikes
+are not authenticated receipts, and failure never rolls back an immutable family.
+
 An import can receive `semanticContext: { repoRoot, store, manifest }` for an exact
 published source generation. Record targets require partition membership, record
 existence, source ownership/hash and supported source coordinates. Direct UTF-16
@@ -54,3 +72,27 @@ Streaming verification rechecks the shared opened-descriptor containment guard
 before committing its result. Native database and file resource cleanup attempts
 every close even if another fails. An open/query error remains the primary cause
 when cleanup also fails, and failed closes remain explicit errors.
+
+## Original read failures and advisory content
+
+The CPU-profile adapter finishes its bounded, contained, size/hash-qualified read
+before decoding content. Only confirmed UTF-8/JSON content failures yield malformed
+coverage. Read/integrity failures and original unconfirmed descriptors propagate
+through family/staging/destination cleanup with their original observations and
+close-only recovery session. Recovery does not parse, yield, recreate output or
+publish a pointer. Streaming code-log read failures also bypass content catches.
+Offline parser identity advances to version 4; raw interchange formats stay at 1.
+
+Native authority discovery and its build-frontier consumer observe settlement
+before cancellation/diagnostic classification. A pending read cannot become an
+ordinary unsupported/deferred authority. Settled unsupported native inputs retain
+that policy. Native/LSP producer identity is lspBindings48; platform sealing and
+runtime launch authority are unchanged. Portable error-boundary fixtures intercept
+executable resolution; they do not qualify ELF or actual native tools on Windows.
+
+Runtime independent resource, staging and destination cleanup preserves explicit
+failure presence, including null/undefined/false values and frozen originals.
+Inventory reconciliation cannot prevent an independent lock-release attempt;
+neither can it replace the original descriptor failure. Authored actual FileHandle,
+import/pointer, native discovery/frontier and independent-cleanup regressions are
+unrun. Scoped formatting/whitespace checks cover this source batch only.

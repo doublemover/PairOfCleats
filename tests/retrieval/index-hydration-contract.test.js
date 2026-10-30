@@ -94,7 +94,13 @@ assert.doesNotThrow(() => requireFileMetaForFileIdChunks([{ fileId: 7, file: 'sr
     fileId: 7,
     file: 'already.js',
     ext: 'js',
-    churn: null
+    externalDocs: ['docs/example.md'],
+    last_modified: 123,
+    last_author: 'Ada',
+    churn: 11,
+    churn_added: 12,
+    churn_deleted: 13,
+    churn_commits: 14
   });
 }
 

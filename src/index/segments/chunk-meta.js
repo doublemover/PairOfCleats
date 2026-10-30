@@ -1,3 +1,6 @@
+import { mapEmbeddedContentRange } from '../../shared/embedded-content.js';
+import { offsetToLine } from '../../shared/lines.js';
+
 /**
  * Rebase a segment-local chunk into container-file coordinates.
  *
@@ -23,17 +26,20 @@ export const attachSegmentMeta = ({
   segmentEnd,
   segmentStartLine,
   segmentEndLine,
-  embeddingContext
+  embeddingContext,
+  lineIndex = null
 }) => {
   const adjusted = { ...chunk };
-  adjusted.start = chunk.start + segmentStart;
-  adjusted.end = chunk.end + segmentStart;
+  const sourcePieces = segment?.contentView ? mapEmbeddedContentRange(segment.contentView, chunk.start, chunk.end) : null;
+  adjusted.start = sourcePieces ? sourcePieces[0].start : chunk.start + segmentStart;
+  adjusted.end = sourcePieces ? sourcePieces.at(-1).end : chunk.end + segmentStart;
   if (adjusted.meta && typeof adjusted.meta === 'object') {
+    adjusted.meta = { ...adjusted.meta };
     if (Number.isFinite(adjusted.meta.startLine)) {
-      adjusted.meta.startLine = segmentStartLine + adjusted.meta.startLine - 1;
+      adjusted.meta.startLine = sourcePieces && lineIndex ? offsetToLine(lineIndex, adjusted.start) : segmentStartLine + adjusted.meta.startLine - 1;
     }
     if (Number.isFinite(adjusted.meta.endLine)) {
-      adjusted.meta.endLine = segmentStartLine + adjusted.meta.endLine - 1;
+      adjusted.meta.endLine = sourcePieces && lineIndex ? offsetToLine(lineIndex, Math.max(adjusted.start, adjusted.end - 1)) : segmentStartLine + adjusted.meta.endLine - 1;
     }
   }
   if (segment) {
@@ -48,7 +54,10 @@ export const attachSegmentMeta = ({
       startLine: segmentStartLine,
       endLine: segmentEndLine,
       parentSegmentId: segment.parentSegmentId || null,
-      embeddingContext
+      embeddingContext,
+      ...(segment.meta?.commentContentIdentity ? { contentOrigin: { kind: 'comment',
+        identity: segment.meta.commentContentIdentity, start: segment.meta.containerStart, end: segment.meta.containerEnd } } : {}),
+      ...(segment.contentView ? { contentView: segment.contentView } : {})
     };
   }
   return adjusted;

@@ -5,8 +5,43 @@ It is the canonical contract for Git/JJ/none providers.
 
 ## 1) Provider interface
 
+SCM freshness uses immutable commit identities. JJ change IDs describe lineage,
+and must never replace the full commit ID in metadata cache guards or snapshots.
+Providers may expose optional `getHistoryAffectedFiles({repoRoot,fromRef,toRef})`
+for history-derived metadata reuse. Success requires `{complete:true,filesPosix}`
+and means every path whose history changed was enumerated, including paths edited
+then reverted to identical endpoint bytes. Git requires an ancestry move and
+enumerates touched paths with NUL-safe output; rewritten/missing histories or
+truncated output force refresh. `getChangedFiles` retains its content-diff meaning.
+
+An unavailable change-history proof or dirty/unknown working copy cannot carry
+old metadata into a new-head snapshot. Only proven reusable or freshly acquired
+entries are certified under the current generation. A failed refresh remains
+unresolved and retries on the next request. Prefetch joiners recheck and hydrate
+their own missing paths after any earlier flight; one caller's success is not
+proof of another caller's coverage. A successful empty tracked-file array remains
+authoritative and never triggers filesystem fallback.
+
 Each provider must implement these functions with the listed shapes.
 All paths must be repo-relative and POSIX normalized.
+Filename whitespace and case remain significant according to the repository's
+path contract. Normalize separators/dot segments without display trimming;
+leading-space filenames remain distinct from their unspaced counterparts in
+requests, batch parsing, snapshots, invalidation and lookup.
+
+Metadata prefetch identity includes whether churn is requested. Historical
+annotations pass a validated commit ID to the blame command. Unpinned blame
+does not reuse a cached working-tree result across subsequent edits/commits.
+
+JJ runtime providers bind an invocation-owned read session into provenance,
+inventory, metadata and annotation calls. One lossless operation-log observation
+pins all content reads in that session. A later runtime acquires a new immutable
+operation; failed acquisition never becomes a successful mutable `@` pin.
+Read-only sessions use `--ignore-working-copy` and never snapshot. The existing
+explicit working-copy snapshot opt-in runs `status` before acquiring its pin.
+Historical immutable operation IDs remain explicit session inputs. Run teardown
+joins admitted readers before retiring the session, including late acquisition.
+Metadata producer 2 and snapshot schema 3 invalidate earlier collided-key reuse.
 
 ### detect
 
@@ -23,15 +58,40 @@ Rules:
 ### listTrackedFiles
 
 ```ts
-function listTrackedFiles({ repoRoot, subdir }:
-  { repoRoot: string; subdir?: string | null }):
-  { filesPosix: string[] } | { ok: false; reason: 'unavailable' };
+function listTrackedFiles({ repoRoot, subdir, signal }:
+  { repoRoot: string; subdir?: string | null; signal?: AbortSignal | null }):
+  { complete: true; filesPosix: string[]; inventory?: ScmFileInventoryReceipt }
+  | { ok: false; complete: false; reason: 'unavailable'; inventory: ScmFileInventoryReceipt };
 ```
 
 Rules:
 - `filesPosix` are repo-relative, POSIX separators, sorted ascending.
 - `subdir` filters to a repo-relative folder (provider may ignore if unsupported).
 - On provider errors (missing tool, repo unreadable), return `{ ok:false, reason:'unavailable' }` so callers can fall back.
+
+File-list success requires explicit completion, including an empty list. Git/JJ
+adapters qualify exit/signal settlement, enabled stdout capture, complete byte
+counts, zero dropped bytes, lossless encoding and terminal record framing before
+parsing names. Known partial/unknown output has no `filesPosix` result. The capture
+cap is unchanged. JJ's compatibility newline route receives the same checks;
+its changed-file record cap returns unavailable rather than a complete prefix.
+Git history-derived enumeration keeps its ancestry requirement and now shares
+the full capture qualification. Caller cancellation propagates through commands
+and registered wrappers. Unsettled resource failures bypass fallback catches.
+
+`ScmFileInventoryReceipt` is bounded passive data: schema version 1, provider,
+operation (`tracked`, `changed`, `history`), completion/status/reason and nullable
+capture byte counts/truncation/encoding observations. It contains no filenames,
+environments or cleanup authority. Registered external providers explicitly
+declare completion; contradictory supplied capture receipts remain inadmissible.
+
+Discovery records `scmInventory` and the actual `selectionPolicy`:
+`scm-tracked-only`, `filesystem-fallback` or `filesystem`. A complete filesystem
+fallback is a statement about its filtered candidates, not complete SCM coverage.
+Streamed providers also declare a complete source and retain actual iterator
+settlement/cancellation. Early candidate caps still report incomplete enumeration.
+Discovery selection producer version 5 also includes generated-source admission;
+its versioned identity invalidates prior selection behavior.
 
 ### getRepoProvenance
 
@@ -62,9 +122,10 @@ Rules:
 ### getChangedFiles
 
 ```ts
-function getChangedFiles({ repoRoot, fromRef, toRef, subdir }:
-  { repoRoot: string; fromRef?: string | null; toRef?: string | null; subdir?: string | null }):
-  { filesPosix: string[] } | { ok: false; reason: 'unsupported' | 'unavailable' };
+function getChangedFiles({ repoRoot, fromRef, toRef, subdir, signal }:
+  { repoRoot: string; fromRef?: string | null; toRef?: string | null; subdir?: string | null; signal?: AbortSignal | null }):
+  { complete: true; filesPosix: string[]; inventory?: ScmFileInventoryReceipt }
+  | { ok: false; complete?: false; reason: 'unsupported' | 'unavailable'; inventory?: ScmFileInventoryReceipt };
 ```
 
 Rules:
@@ -132,7 +193,10 @@ Decision table:
 
 ## 4) BuildId and signature provenance rules
 
-- `buildId` format: `YYYYMMDDTHHMMSSZ_<scmHeadShort>_<configHash8>`
+- `buildId` format: `YYYYMMDDTHHMMSSZ_<nonce>_<scmHeadShort>_<configHash8>`
+  (an optional collision suffix may follow). Explicit `repo.head` provenance is
+  preferred to parsing a display identifier; legacy three-component identifiers
+  use their SCM component, never their configuration-hash component.
 - `scmHeadShort` rules:
   - git: short commit SHA
   - jj: changeId (preferred) else commitId
@@ -162,4 +226,6 @@ When a provider cannot perform an operation:
 - Returned file lists are normalized to repo-relative POSIX paths and sorted deterministically.
 - Throwing provider methods are normalized to deterministic unavailable payloads:
   - `{ ok:false, reason:'unavailable' }` for operational failures.
+  - Annotation/provenance cancellation and unconfirmed original resource
+    settlement propagate; they cannot be normalized into a completed negative.
 - Provenance payloads are normalized to a stable shape so downstream build-state serialization is strict.

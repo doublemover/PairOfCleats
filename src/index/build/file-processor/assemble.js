@@ -40,6 +40,7 @@ export function buildChunkPayload({
   preContext,
   postContext,
   minhashSig,
+  minhashHashIdentity = null,
   commentFieldTokens,
   dictWords,
   dictConfig,
@@ -143,6 +144,8 @@ export function buildChunkPayload({
     seq,
     codeRelations,
     docmeta: resolvedDocmeta,
+    ...(chunk.meta?.outlineCoverage ? { sourceOutline: { coverage: chunk.meta.outlineCoverage, heading: chunk.meta.heading || null,
+      sourceOnly: chunk.meta.sourceOnly === true, preamble: chunk.meta.preamble === true } } : {}),
     stats,
     complexity,
     lint,
@@ -153,6 +156,7 @@ export function buildChunkPayload({
     embed_doc: [],
     embed_code: [],
     minhashSig,
+    minhashHashIdentity,
     ...(fieldTokens ? { fieldTokens } : {}),
     weight,
     ...gitMeta,
@@ -164,6 +168,9 @@ export function buildChunkPayload({
     toolInfo,
     analysisPolicy
   });
+  // The canonical persisted metadata owns this receipt once; the temporary
+  // assembly input is not a second per-chunk copy in incremental bundles.
+  delete chunkPayload.sourceOutline;
   if (analysisPolicy?.metadata?.enabled !== false && !chunkPayload.metaV2) {
     log(
       `[metaV2] missing metadata for ${relKey} ` +

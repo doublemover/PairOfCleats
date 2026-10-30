@@ -7,14 +7,9 @@ import { writeDenseVectorArtifacts } from '../../../src/shared/dense-vector-arti
 import { createCrashLogger } from '../../../src/index/build/crash-log.js';
 import { runSqliteDenseWithBoundary } from '../../../tools/build/embeddings/sqlite-dense-isolate.js';
 import { ensureTestingEnv, withTemporaryEnv } from '../../helpers/test-env.js';
-import { skip } from '../../helpers/skip.js';
-
-let Database;
-try {
-  ({ default: Database } = await import('better-sqlite3'));
-} catch {
-  skip('better-sqlite3 not available; skipping sqlite dense isolate test.');
-}
+import Database from 'better-sqlite3';
+import { SCHEMA_VERSION } from '../../../src/storage/sqlite/schema.js';
+import { writeSqliteIndexFormat } from '../../../src/storage/sqlite/index-format.js';
 
 ensureTestingEnv(process.env);
 
@@ -27,6 +22,8 @@ const createDbWithTables = (target) => {
   const db = new Database(target);
   db.exec('CREATE TABLE dense_vectors (mode TEXT, doc_id INTEGER, vector BLOB)');
   db.exec('CREATE TABLE dense_meta (mode TEXT, dims INTEGER, scale REAL, model TEXT, min_val REAL, max_val REAL, levels INTEGER)');
+  db.pragma(`user_version = ${SCHEMA_VERSION}`);
+  writeSqliteIndexFormat(db);
   db.close();
 };
 
@@ -122,8 +119,13 @@ try {
   assert.equal(replayEnvelope.bundle.failureClass, 'native_subprocess_crash', 'expected replay bundle failure class');
   assert.equal(replayEnvelope.bundle.replay.vectorsPath, vectorsBasePath, 'expected replay bundle vectors path');
   assert.equal(replayEnvelope.bundle.workerIdentity, 'stage3-sqlite:code', 'expected replay bundle worker identity');
+  assert.equal(replayEnvelope.bundle.crashCapture.requested, true);
+  assert.equal(replayEnvelope.bundle.crashCapture.enabled, false, 'an output directory alone cannot provide native dump capture');
+  assert.equal(replayEnvelope.bundle.crashCapture.status, process.platform === 'win32' ? 'unavailable' : 'unsupported-platform');
+  assert.deepEqual(replayEnvelope.bundle.crashCapture.dumpFiles, []);
+  assert.equal(crashError.dumpDir, null);
 
-  const forensicsIndexPath = path.join(repoCacheRoot, 'logs', 'index-crash-forensics-index.json');
+  const forensicsIndexPath = path.join(crashLogger.paths.directory, 'index-crash-forensics-index.json');
   const forensicsIndex = JSON.parse(await fsPromises.readFile(forensicsIndexPath, 'utf8'));
   assert.equal(
     Array.isArray(forensicsIndex?.entries) && forensicsIndex.entries.some((entry) => entry.kind === 'sqlite-stage3-replay'),

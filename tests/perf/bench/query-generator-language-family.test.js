@@ -6,6 +6,8 @@ import {
   normalizeIntentWeights,
   resolveLanguageFamily
 } from '../../../tools/bench/query-generator.js';
+import { parseQueryInput } from '../../../src/retrieval/query.js';
+import { QUERY_GENERATION_SEMANTICS_VERSION } from '../../../tools/bench/query-expression.js';
 
 const fixtures = [
   {
@@ -113,6 +115,9 @@ assert.deepEqual(
 const countsByIntent = Object.fromEntries(QUERY_INTENT_CLASSES.map((intentClass) => [intentClass, 0]));
 let adversarialCount = 0;
 for (const entry of generated.querySet) {
+  assert.equal(entry.queryShape.schemaVersion, QUERY_GENERATION_SEMANTICS_VERSION);
+  assert.equal(entry.queryShape.intendedClass, entry.queryShape.observedClass);
+  assert.ok(parseQueryInput(entry.query).ast, 'every generated query must use the production grammar without fallback');
   countsByIntent[entry.intentClass] += 1;
   if (entry.variant === 'adversarial') adversarialCount += 1;
 }

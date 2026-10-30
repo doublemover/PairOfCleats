@@ -17,6 +17,8 @@ export const normalizeDenseVectors = (raw) => ({
 
 export const normalizeMinhash = (raw) => ({
   signatures: extractArray(raw, 'signatures'),
+  hashIdentity: raw?.hashIdentity ?? raw?.fields?.hashIdentity,
+  sampling: raw?.sampling ?? raw?.fields?.sampling,
   width: Number.isFinite(Number(raw?.width)) ? Number(raw.width) : null
 });
 

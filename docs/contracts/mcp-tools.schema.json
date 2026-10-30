@@ -1,5 +1,5 @@
 {
-  "schemaVersion": "1.6.0",
+  "schemaVersion": "1.11.0",
   "tools": [
     {
       "name": "bootstrap",
@@ -116,7 +116,7 @@
     },
     {
       "name": "cache_gc",
-      "description": "Garbage-collect repo caches.",
+      "description": "Preview cleanup of only the selected repository cache using quota or age limits. Explicit dryRun=false applies deletion; process-lifetime leases protect cooperating sessions. Shared CAS and other repositories require user-owned maintenance CLI scope.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -269,6 +269,200 @@
           "seed": {
             "type": "string",
             "description": "Chunk/file/symbol seed reference."
+          },
+          "taskPolicy": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "schemaVersion",
+              "task",
+              "granularity"
+            ],
+            "properties": {
+              "schemaVersion": {
+                "const": 1
+              },
+              "task": {
+                "enum": [
+                  "edit-safe",
+                  "exploration"
+                ]
+              },
+              "granularity": {
+                "enum": [
+                  "file",
+                  "function",
+                  "excerpt"
+                ]
+              },
+              "wholeFileFallback": {
+                "type": "boolean"
+              }
+            },
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "task": {
+                    "const": "edit-safe"
+                  },
+                  "granularity": {
+                    "enum": [
+                      "file",
+                      "function"
+                    ]
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "task": {
+                    "const": "exploration"
+                  },
+                  "granularity": {
+                    "const": "excerpt"
+                  },
+                  "wholeFileFallback": {
+                    "const": false
+                  }
+                }
+              }
+            ]
+          },
+          "renderedTokenBudget": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "schemaVersion",
+              "maxTokens",
+              "profile"
+            ],
+            "properties": {
+              "schemaVersion": {
+                "const": 1
+              },
+              "maxTokens": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "reservedTokens": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "rendering": {
+                "const": "context-text-v1"
+              },
+              "profile": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "id",
+                  "revision",
+                  "directory",
+                  "tokenizerSha256",
+                  "configSha256"
+                ],
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "revision": {
+                    "type": "string",
+                    "pattern": "^(?:[a-f0-9]{40}|[a-f0-9]{64})$"
+                  },
+                  "directory": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 4096
+                  },
+                  "tokenizerSha256": {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  "configSha256": {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  "addSpecialTokens": {
+                    "type": "boolean"
+                  },
+                  "engine": {
+                    "const": "huggingface-tokenizers-0.2.0-v1"
+                  }
+                }
+              }
+            }
+          },
+          "evidenceSelection": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "schemaVersion",
+              "algorithm"
+            ],
+            "properties": {
+              "schemaVersion": {
+                "const": 1
+              },
+              "algorithm": {
+                "enum": [
+                  "top-k",
+                  "mmr",
+                  "role-coverage",
+                  "facility-location"
+                ]
+              },
+              "maxCandidates": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 64
+              },
+              "maxSelected": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 16
+              },
+              "maxPairwise": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 4096
+              },
+              "maxWorkUnits": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 262144
+              },
+              "maxWallClockMs": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 10000
+              },
+              "maxPoolBytes": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 524288
+              },
+              "maxMeasurements": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 128
+              },
+              "lambda": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              }
+            }
+          },
+          "pathSemantics": {
+            "enum": [
+              "graph-witness"
+            ]
           },
           "hops": {
             "type": "number",
@@ -620,6 +814,278 @@
             "description": "Override cache directory."
           }
         }
+      }
+    },
+    {
+      "name": "graph_evidence",
+      "description": "Experimental, qualification pending: page retained call occurrences or resolved adjacency in an explicit immutable build. Bounded retained-family coverage does not establish upstream semantic completeness.",
+      "inputSchema": {
+        "type": "object",
+        "oneOf": [
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "schemaVersion": {
+                "const": 1
+              },
+              "repoRoot": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 4096
+              },
+              "buildId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256,
+                "pattern": "^(?!\\.\\.?$)[^/\\\\:\\u0000]+$"
+              },
+              "family": {
+                "const": "call_sites"
+              },
+              "filter": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 4096
+                  },
+                  "callerChunkUid": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 4096
+                  },
+                  "targetChunkUid": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 4096
+                  },
+                  "chunkUid": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 4096
+                  },
+                  "resolution": {
+                    "enum": [
+                      "resolved",
+                      "ambiguous",
+                      "unresolved"
+                    ]
+                  },
+                  "direction": {
+                    "enum": [
+                      "out",
+                      "in",
+                      "both"
+                    ]
+                  }
+                },
+                "required": [],
+                "allOf": [
+                  {
+                    "if": {
+                      "required": [
+                        "direction"
+                      ],
+                      "properties": {
+                        "direction": {
+                          "enum": [
+                            "out",
+                            "in"
+                          ]
+                        }
+                      }
+                    },
+                    "then": {
+                      "properties": {
+                        "chunkUid": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 4096
+                        }
+                      },
+                      "required": [
+                        "chunkUid"
+                      ]
+                    }
+                  }
+                ]
+              },
+              "cursor": {
+                "anyOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 2048,
+                    "pattern": "^[A-Za-z0-9_-]+$"
+                  }
+                ]
+              },
+              "limits": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "rows": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 512
+                  },
+                  "scanRows": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 4096
+                  },
+                  "bytes": {
+                    "type": "integer",
+                    "minimum": 8192,
+                    "maximum": 4194304
+                  }
+                },
+                "required": []
+              }
+            },
+            "required": [
+              "schemaVersion",
+              "repoRoot",
+              "buildId",
+              "family"
+            ]
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "schemaVersion": {
+                "const": 1
+              },
+              "repoRoot": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 4096
+              },
+              "buildId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256,
+                "pattern": "^(?!\\.\\.?$)[^/\\\\:\\u0000]+$"
+              },
+              "family": {
+                "const": "graph_relation_edges"
+              },
+              "filter": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "graph": {
+                    "enum": [
+                      "callGraph",
+                      "usageGraph",
+                      "importGraph"
+                    ]
+                  },
+                  "from": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 4096
+                  },
+                  "to": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 4096
+                  },
+                  "node": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 4096
+                  },
+                  "direction": {
+                    "enum": [
+                      "out",
+                      "in",
+                      "both"
+                    ]
+                  }
+                },
+                "required": [],
+                "allOf": [
+                  {
+                    "if": {
+                      "required": [
+                        "direction"
+                      ],
+                      "properties": {
+                        "direction": {
+                          "enum": [
+                            "out",
+                            "in"
+                          ]
+                        }
+                      }
+                    },
+                    "then": {
+                      "properties": {
+                        "node": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 4096
+                        }
+                      },
+                      "required": [
+                        "node"
+                      ]
+                    }
+                  }
+                ]
+              },
+              "cursor": {
+                "anyOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 2048,
+                    "pattern": "^[A-Za-z0-9_-]+$"
+                  }
+                ]
+              },
+              "limits": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "rows": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 512
+                  },
+                  "scanRows": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 4096
+                  },
+                  "bytes": {
+                    "type": "integer",
+                    "minimum": 8192,
+                    "maximum": 4194304
+                  }
+                },
+                "required": []
+              }
+            },
+            "required": [
+              "schemaVersion",
+              "repoRoot",
+              "buildId",
+              "family"
+            ]
+          }
+        ]
       }
     },
     {
@@ -1840,18 +2306,12 @@
         "type": "object",
         "additionalProperties": false,
         "properties": {
-          "repoPath": {
-            "type": "string",
-            "description": "Repo path (defaults to server cwd)."
-          },
           "query": {
             "type": "string"
           },
-          "cursor": {
+          "repoPath": {
             "type": "string",
-            "minLength": 1,
-            "maxLength": 8192,
-            "description": "Filter-only nextCursor; reuse identical filters, modes and generation."
+            "description": "Repo path (defaults to server cwd)."
           },
           "asOf": {
             "type": "string",
@@ -1865,24 +2325,11 @@
             "type": "string",
             "description": "Alias for snapshot; conflicting references fail."
           },
-          "mode": {
+          "cursor": {
             "type": "string",
-            "enum": [
-              "both",
-              "code",
-              "prose",
-              "extracted-prose",
-              "records",
-              "all"
-            ]
-          },
-          "backend": {
-            "type": "string",
-            "enum": [
-              "memory",
-              "sqlite",
-              "sqlite-fts"
-            ]
+            "minLength": 1,
+            "maxLength": 8192,
+            "description": "Filter-only nextCursor; reuse identical filters, modes and generation."
           },
           "output": {
             "type": "string",
@@ -1892,20 +2339,30 @@
             ],
             "description": "Return compact JSON (default) or full payload."
           },
-          "ann": {
-            "type": "boolean",
-            "description": "Enable ANN re-ranking (default uses config)."
+          "mode": {
+            "type": "string",
+            "enum": [
+              "code",
+              "prose",
+              "records",
+              "both",
+              "all",
+              "extracted-prose"
+            ]
           },
-          "allowSparseFallback": {
-            "type": "boolean",
-            "description": "Allow ANN fallback when sparse-only is requested but sparse is unavailable."
-          },
-          "allowUnsafeMix": {
-            "type": "boolean",
-            "description": "Allow compatibility/profile cohort mixing when keys do not match."
+          "backend": {
+            "type": "string",
+            "enum": [
+              "auto",
+              "memory",
+              "sqlite",
+              "sqlite-fts",
+              "lmdb"
+            ]
           },
           "top": {
-            "type": "number",
+            "type": "integer",
+            "minimum": 0,
             "description": "Top N results."
           },
           "context": {
@@ -2002,21 +2459,13 @@
             "type": "string",
             "description": "Filter by risk flow."
           },
-          "branchesMin": {
-            "type": "number",
-            "description": "Min branch count."
+          "chunkAuthor": {
+            "type": "string",
+            "description": "Filter by chunk author (git blame)."
           },
-          "loopsMin": {
-            "type": "number",
-            "description": "Min loop count."
-          },
-          "breaksMin": {
-            "type": "number",
-            "description": "Min break count."
-          },
-          "continuesMin": {
-            "type": "number",
-            "description": "Min continue count."
+          "modifiedAfter": {
+            "type": "string",
+            "description": "Filter by last modified date (parseable string)."
           },
           "visibility": {
             "type": "string",
@@ -2025,6 +2474,64 @@
           "extends": {
             "type": "string",
             "description": "Filter by inheritance."
+          },
+          "lang": {
+            "type": "string",
+            "description": "Language filter (maps to extensions)."
+          },
+          "branch": {
+            "type": "string",
+            "description": "Git branch filter (current branch)."
+          },
+          "filter": {
+            "type": "string",
+            "description": "Canonical filter expression."
+          },
+          "branchesMin": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Min branch count."
+          },
+          "loopsMin": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Min loop count."
+          },
+          "breaksMin": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Min break count."
+          },
+          "continuesMin": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Min continue count."
+          },
+          "churnMin": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Minimum git churn (added+deleted lines)."
+          },
+          "modifiedSince": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Filter by last modified recency (days)."
+          },
+          "ann": {
+            "type": "boolean",
+            "description": "Enable ANN re-ranking (default uses config)."
+          },
+          "allowSparseFallback": {
+            "type": "boolean",
+            "description": "Allow ANN fallback when sparse-only is requested but sparse is unavailable."
+          },
+          "allowUnsafeMix": {
+            "type": "boolean",
+            "description": "Allow compatibility/profile cohort mixing when keys do not match."
+          },
+          "lint": {
+            "type": "boolean",
+            "description": "Filter chunks with lint results."
           },
           "async": {
             "type": "boolean",
@@ -2038,28 +2545,30 @@
             "type": "boolean",
             "description": "Filter chunks with returns."
           },
-          "churnMin": {
-            "type": "number",
-            "description": "Minimum git churn (added+deleted lines)."
-          },
-          "chunkAuthor": {
-            "type": "string",
-            "description": "Filter by chunk author (git blame)."
-          },
-          "modifiedAfter": {
-            "type": "string",
-            "description": "Filter by last modified date (parseable string)."
-          },
-          "modifiedSince": {
-            "type": "number",
-            "description": "Filter by last modified recency (days)."
-          },
-          "lint": {
+          "case": {
             "type": "boolean",
-            "description": "Filter chunks with lint results."
+            "description": "Case-sensitive matching for file/path and tokens."
+          },
+          "caseFile": {
+            "type": "boolean",
+            "description": "Case-sensitive file/path matching."
+          },
+          "caseTokens": {
+            "type": "boolean",
+            "description": "Case-sensitive token matching."
           },
           "path": {
-            "type": "string",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            ],
             "description": "Substring/regex match for file paths."
           },
           "paths": {
@@ -2075,44 +2584,77 @@
               }
             ]
           },
-          "filter": {
-            "type": "string",
-            "description": "Canonical filter expression."
-          },
           "file": {
-            "type": "string",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            ],
             "description": "Substring/regex match for file paths."
           },
           "ext": {
-            "type": "string",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            ],
             "description": "Extension filter (ex: .js)."
           },
-          "lang": {
-            "type": "string",
-            "description": "Language filter (maps to extensions)."
-          },
-          "branch": {
-            "type": "string",
-            "description": "Git branch filter (current branch)."
-          },
-          "case": {
-            "type": "boolean",
-            "description": "Case-sensitive matching for file/path and tokens."
-          },
-          "caseFile": {
-            "type": "boolean",
-            "description": "Case-sensitive file/path matching."
-          },
-          "caseTokens": {
-            "type": "boolean",
-            "description": "Case-sensitive token matching."
-          },
           "meta": {
-            "type": "object",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "boolean"
+                    },
+                    {
+                      "type": "object"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": true
+              }
+            ],
             "description": "Metadata filters for records (key/value)."
           },
           "metaJson": {
-            "type": "string",
+            "type": [
+              "string",
+              "object",
+              "array",
+              "number",
+              "boolean",
+              "null"
+            ],
             "description": "JSON metadata filters for records."
           }
         },
@@ -2857,8 +3399,7 @@
           }
         },
         "required": [
-          "workspacePath",
-          "query"
+          "workspacePath"
         ]
       }
     },
@@ -2931,7 +3472,8 @@
               "enum": [
                 "operands",
                 "names",
-                "ownership"
+                "ownership",
+                "providerEvidence"
               ]
             }
           },
@@ -3231,6 +3773,12 @@
             "enum": [
               "artifact",
               "sqlite"
+            ]
+          },
+          "pathSemantics": {
+            "enum": [
+              "balanced-call-value",
+              "relation-neighborhood"
             ]
           },
           "slot": {
@@ -3658,6 +4206,12 @@
             "enum": [
               "artifact",
               "sqlite"
+            ]
+          },
+          "pathSemantics": {
+            "enum": [
+              "balanced-call-value",
+              "relation-neighborhood"
             ]
           },
           "slot": {

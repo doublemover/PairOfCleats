@@ -41,7 +41,9 @@ for (const gram of expected) {
   assert.ok(observed.has(gram), `expected configured-field chargram missing: ${gram}`);
 }
 for (const gram of disallowed) {
-  assert.ok(!observed.has(gram), `unexpected chargram from non-selected field: ${gram}`);
+  if (!expected.has(gram)) assert.ok(!observed.has(gram), `unexpected chargram from non-selected field: ${gram}`);
 }
+assert.ok([...disallowed].some(gram => !expected.has(gram)), 'non-selected fields supply independent negative witnesses');
+assert.deepEqual(observed, expected, 'the selected fields define the complete chargram set, including shared grams');
 
 console.log('chargram fields test passed');

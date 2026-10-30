@@ -1,5 +1,6 @@
 import { createCli } from '../../shared/cli.js';
 import { INDEX_BUILD_OPTIONS, validateBuildArgs } from '../../shared/cli-options.js';
+import { validateBuildRawIntent } from '../../shared/cli-option-validators.js';
 
 /**
  * Parse CLI args for build_index.
@@ -7,6 +8,7 @@ import { INDEX_BUILD_OPTIONS, validateBuildArgs } from '../../shared/cli-options
  * @returns {{argv:object,modes:string[]}}
  */
 export function parseBuildArgs(rawArgs) {
+  validateBuildRawIntent(rawArgs, { parse: false });
   const argv = createCli({
     scriptName: 'build-index',
     argv: ['node', 'build-index.js', ...rawArgs],

@@ -1,7 +1,8 @@
 import { color } from './ansi.js';
 import { recordSearchArtifacts } from './persist.js';
-import { renderSearchOutput } from './render.js';
+import { prepareSearchOutput } from './render.js';
 import { runSearchSession } from './run-search-session.js';
+import { createError, ERROR_CODES } from '../../shared/error-codes.js';
 
 /**
  * Execute retrieval, render output, and persist query artifacts.
@@ -15,10 +16,14 @@ export async function executeSearchAndEmit(input) {
     filterCursor = null,
     plain = false,
     t0,
+    beforePublish = null,
     emitOutput,
     jsonOutput,
     jsonCompact,
     outputMaxBytes = null,
+    effectivePlanIdentity = null,
+    scorePolicyIdentity = null,
+    effectiveSystemIdentity = null,
     explain,
     explainTier = 'summary',
     rootDir,
@@ -110,6 +115,7 @@ export async function executeSearchAndEmit(input) {
     preferMemoryBackendOnCacheHit,
     backendLabel,
     backendPolicyInfo,
+    branchQualification = null,
     indexSignaturePayload = null,
     showStats,
     showMatched,
@@ -128,6 +134,7 @@ export async function executeSearchAndEmit(input) {
 
   const searchStart = stageTracker.mark();
   const searchResult = await runSearchSession({
+    effectivePlanIdentity,
     filterOnly,
     filterCursor,
     rootDir,
@@ -254,8 +261,12 @@ export async function executeSearchAndEmit(input) {
 
   const elapsedMs = Date.now() - t0;
 
-  const payload = renderSearchOutput({
+  const prepared = prepareSearchOutput({
+    effectivePlanIdentity,
+    scorePolicyIdentity,
+    effectiveSystemIdentity,
     filterEnumeration: searchResult.filterEnumeration,
+    filtersActive: queryPlan.filtersActive,
     plain,
     emitOutput,
     jsonOutput,
@@ -267,6 +278,7 @@ export async function executeSearchAndEmit(input) {
     backendLabel,
     backendPolicyInfo,
     routingPolicy: searchResult.routingPolicy || null,
+    branchQualification,
     runCode,
     runProse,
     runExtractedProse,
@@ -302,6 +314,8 @@ export async function executeSearchAndEmit(input) {
     embeddingProvider,
     embeddingOnnx,
     cacheInfo: searchResult.cache,
+    workInfo: searchResult.work,
+    executionOutcomes: searchResult.executionOutcomes,
     profileInfo: searchResult.profile || null,
     intentInfo: queryPlan.intentInfo,
     resolvedDenseVectorMode: queryPlan.resolvedDenseVectorMode,
@@ -341,5 +355,8 @@ export async function executeSearchAndEmit(input) {
       : null
   });
 
-  return payload;
+  if (beforePublish) await beforePublish();
+  if (input.signal?.aborted) throw createError(ERROR_CODES.CANCELLED, 'Search cancelled.', { cancelled: true });
+  prepared.emit();
+  return prepared.payload;
 }

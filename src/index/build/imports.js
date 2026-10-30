@@ -1,6 +1,9 @@
+import { observeStorageResource } from '../../shared/storage/failure-observation.js';
+import { attachImportExtraction, canReuseImportExtraction, createImportExtraction, getImportExtraction, importExtractionRuntimeVersions, projectImportExtraction } from '../../shared/import-extraction.js';
 import path from 'node:path';
-import { init as initEsModuleLexer, parse as parseEsModuleLexer } from 'es-module-lexer';
-import { init as initCjsLexer, parse as parseCjsLexer } from 'cjs-module-lexer';
+// The v3 minimal entry preserves the flat specifier/offset records this bounded
+// literal-import collector owns; the full entry now returns different unions.
+import { init as initEsModuleLexer, parse as parseEsModuleLexer } from 'es-module-lexer/minimal';
 import {
   collectLanguageImportEntries,
   collectLanguageImports
@@ -16,6 +19,7 @@ import { sha1 } from '../../shared/hash.js';
 import { showProgress } from '../../shared/progress-runtime.js';
 import { canonicalizeForSignature, stableStringifyForSignature } from '../../shared/stable-json.js';
 import { readCachedImports } from './incremental.js';
+import { SEMANTIC_ANALYSIS_VERSIONS } from '../semantic/analysis-versions.js';
 import {
   IMPORT_REASON_CODES,
   IMPORT_RESOLUTION_STATES,
@@ -29,7 +33,6 @@ import {
 import { resolveLanguageLabelFromImporter } from './import-resolution/labels.js';
 
 let esModuleInitPromise = null;
-let cjsInitPromise = null;
 
 const sortStrings = (a, b) => (a < b ? -1 : (a > b ? 1 : 0));
 
@@ -76,6 +79,8 @@ const sanitizeImportScanLanguageOptions = (value, pathSegments = []) => {
 };
 
 const buildImportScanFingerprint = ({ languageOptions, mode }) => sha1(stableStringifyForSignature({
+  producer: SEMANTIC_ANALYSIS_VERSIONS.importResolution,
+  extractionRuntime: importExtractionRuntimeVersions(), node: process.versions.node,
   mode: typeof mode === 'string' ? mode : 'code',
   languageOptions: canonicalizeForSignature(sanitizeImportScanLanguageOptions(languageOptions || null))
 }));
@@ -305,11 +310,6 @@ const ensureEsModuleLexer = async () => {
   await esModuleInitPromise;
 };
 
-const ensureCjsLexer = async () => {
-  if (!cjsInitPromise) cjsInitPromise = initCjsLexer();
-  await cjsInitPromise;
-};
-
 /**
  * Deduplicate and stable-sort import specifiers for deterministic output.
  *
@@ -338,7 +338,7 @@ const normalizeImportEntriesWithHints = (entries) => {
   for (const entry of Array.isArray(entries) ? entries : []) {
     const specifier = sanitizeImportSpecifier(
       typeof entry === 'string' ? entry : entry?.specifier,
-      { stripTrailingPunctuation: false }
+      { literal:true }
     );
     if (!specifier) continue;
     imports.push(specifier);
@@ -346,13 +346,19 @@ const normalizeImportEntriesWithHints = (entries) => {
     if (!hint) continue;
     hints[specifier] = mergeCollectorHints(hints[specifier], hint);
   }
-  const normalizedImports = normalizeImports(imports);
+  // Registry entries and persisted import-cache rows are already admitted
+  // semantic specifiers. Reapplying scanner syntax cleanup corrupts literals.
+  const normalizedImports = [...new Set(imports)].sort((a,b)=>a<b?-1:a>b?1:0);
   const filteredHints = Object.create(null);
   for (const specifier of normalizedImports) {
     if (hints[specifier]) filteredHints[specifier] = hints[specifier];
   }
+  const extraction = getImportExtraction(entries);
+  if (extraction) attachImportExtraction(normalizedImports, projectImportExtraction(extraction, entries, normalizedImports,
+    { owner: 'scan-normalization', duplicates: imports.length - normalizedImports.length, invalid: entries.length - imports.length }));
   return {
     imports: normalizedImports,
+    extraction: getImportExtraction(normalizedImports),
     hints: filteredHints
   };
 };
@@ -413,7 +419,7 @@ const coerceCachedImportEntries = (value) => {
 };
 
 /**
- * Fast-path JS/TS import discovery using ESM/CJS lexers with regex fallback.
+ * Fast-path JS/TS module literals from a successful ESM lexer observation.
  *
  * Returns `null` when no parser path produced any signal, allowing callers to
  * defer to slower parsing logic.
@@ -423,39 +429,23 @@ const coerceCachedImportEntries = (value) => {
  */
 const collectModuleImportsFast = async ({ text, ext }) => {
   if (!isJsLike(ext) && !isTypeScript(ext)) return null;
+  // CJS reexport metadata is not a general require-call parser. Require-like
+  // text and escaped identifiers need the source-owned AST collector; regex
+  // matches inside strings/comments cannot become qualified dependencies.
+  if (text.includes('require') || text.includes('\\')) return null;
   const imports = new Set();
-  let success = false;
   try {
     await ensureEsModuleLexer();
     const [entries] = parseEsModuleLexer(text);
     if (Array.isArray(entries)) {
-      success = true;
       for (const entry of entries) {
         const spec = entry?.n;
         if (typeof spec === 'string' && spec) imports.add(spec);
       }
+      return Array.from(imports);
     }
   } catch {}
-  try {
-    await ensureCjsLexer();
-    const result = parseCjsLexer(text);
-    if (result) {
-      success = true;
-      if (Array.isArray(result.reexports)) {
-        result.reexports.forEach((imp) => {
-          if (imp) imports.add(imp);
-        });
-      }
-    }
-  } catch {}
-  const requireRegex = /(?:^|[^.\w$])require\s*\(\s*['"]([^'"\n]+)['"]\s*\)/g;
-  for (const match of text.matchAll(requireRegex)) {
-    if (match[1]) {
-      imports.add(match[1]);
-      success = true;
-    }
-  }
-  return success ? normalizeImports(Array.from(imports)) : null;
+  return null;
 };
 
 /**
@@ -501,8 +491,10 @@ export async function scanImports({
   throwIfAborted(effectiveAbortSignal);
   const importsByFile = new Map();
   const importHintsByFile = new Map();
+  const importCoverageByFile = Object.create(null);
+  const importExtractionByFile = Object.create(null);
   const importScanFingerprint = buildImportScanFingerprint({ languageOptions, mode });
-  const moduleSet = new Set();
+  const moduleCounts = new Map();
   const start = Date.now();
   let processed = 0;
   let filesWithImports = 0;
@@ -555,6 +547,8 @@ export async function scanImports({
         throwIfAborted(effectiveAbortSignal);
         if (!item.stat) return;
         const cachedImports = await readCachedImportsFn({
+          repoRoot: root,
+          signal: effectiveAbortSignal,
           enabled: true,
           absPath: item.absPath,
           relKey: item.relKey,
@@ -566,7 +560,7 @@ export async function scanImports({
           expectedImportScanFingerprint: importScanFingerprint
         });
         const cachedEntries = coerceCachedImportEntries(cachedImports);
-        if (Array.isArray(cachedEntries)) {
+        if (Array.isArray(cachedEntries) && canReuseImportExtraction(getImportExtraction(cachedEntries), cachedEntries)) {
           const normalizedCached = normalizeImportEntriesWithHints(cachedEntries);
           if (normalizedCached.imports.length > 0) {
             cachedImportCounts.set(item.relKey, normalizedCached.imports.length);
@@ -588,7 +582,8 @@ export async function scanImports({
       const relKey = item.relKey;
       const ext = item.ext || fileExt(relKey);
       const hadPrefetch = cachedImportsByFile.has(relKey);
-      const options = languageOptions && typeof languageOptions === 'object' ? languageOptions : {};
+      const options = { ...(languageOptions && typeof languageOptions === 'object' ? languageOptions : {}),
+        ...(effectiveAbortSignal ? { abortSignal: effectiveAbortSignal } : {}) };
       const recordImportHints = (hints, imports = null) => {
         if (!hints || typeof hints !== 'object') return;
         const importSet = new Set(Array.isArray(imports) ? imports : []);
@@ -605,13 +600,29 @@ export async function scanImports({
       };
       const recordImports = (imports) => {
         if (!Array.isArray(imports)) return;
-        if (imports.length > 0) filesWithImports += 1;
+        const extraction = getImportExtraction(imports);
+        if (extraction) importExtractionByFile[relKey] = extraction;
+        const previous = importsByFile.get(relKey) || [];
+        if (previous.length) filesWithImports -= 1;
+        edgeCount -= previous.length;
+        for (const mod of previous) {
+          const remaining = (moduleCounts.get(mod) || 0) - 1;
+          if (remaining > 0) moduleCounts.set(mod, remaining); else moduleCounts.delete(mod);
+        }
+        if (imports.length > 0) filesWithImports += 1; else importHintsByFile.delete(relKey);
         importsByFile.set(relKey, imports);
         edgeCount += imports.length;
-        for (const mod of imports) moduleSet.add(mod);
+        for (const mod of imports) moduleCounts.set(mod, (moduleCounts.get(mod) || 0) + 1);
+      };
+      const recordUnavailableSource = () => {
+        const empty = [];
+        attachImportExtraction(empty, createImportExtraction({ entries: empty, text: null, producerId: 'import-source-acquisition',
+          scope: 'source-read-admission', state: 'unavailable', reasons: ['source_text_unavailable'] }));
+        recordImports(empty);
       };
       const recordImportEntries = (entries) => {
         if (!Array.isArray(entries)) return false;
+        if (entries.coverage) importCoverageByFile[relKey] = entries.coverage;
         const normalized = normalizeImportEntriesWithHints(entries);
         recordImports(normalized.imports);
         recordImportHints(normalized.hints, normalized.imports);
@@ -672,8 +683,16 @@ export async function scanImports({
                 : text);
             }
           }
+          if (typeof text !== 'string') { recordUnavailableSource(); return false; }
           return true;
-        } catch {
+        } catch (error) {
+          const observation = observeStorageResource(error, { phase: 'import-source-acquisition' });
+          observation.requireSettled();
+          let code;
+          try { code = observation.primary.code; }
+          catch (inspection) { throw observation.retain(inspection, { inspectionPresent: true }); }
+          if (!['ENOENT', 'EACCES', 'EPERM', 'EISDIR', 'ENOTDIR', 'EBUSY', 'EIO', 'EINVAL'].includes(code)) throw error;
+          recordUnavailableSource();
           return false;
         }
       };
@@ -697,7 +716,7 @@ export async function scanImports({
         const cachedImports = cachedImportsByFile.get(relKey);
         cachedImportsByFile.delete(relKey);
         const cachedEntries = coerceCachedImportEntries(cachedImports);
-        if (Array.isArray(cachedEntries)) {
+        if (Array.isArray(cachedEntries) && canReuseImportExtraction(getImportExtraction(cachedEntries), cachedEntries)) {
           const normalizedCached = normalizeImportEntriesWithHints(cachedEntries);
           recordImports(normalizedCached.imports);
           recordImportHints(normalizedCached.hints, normalizedCached.imports);
@@ -709,6 +728,8 @@ export async function scanImports({
       }
       if (!hadPrefetch && incrementalState?.enabled && item.stat) {
         const cachedImportsFallback = await readCachedImportsFn({
+          repoRoot: root,
+          signal: effectiveAbortSignal,
           enabled: true,
           absPath: item.absPath,
           relKey,
@@ -720,7 +741,7 @@ export async function scanImports({
           expectedImportScanFingerprint: importScanFingerprint
         });
         const cachedFallbackEntries = coerceCachedImportEntries(cachedImportsFallback);
-        if (Array.isArray(cachedFallbackEntries)) {
+        if (Array.isArray(cachedFallbackEntries) && canReuseImportExtraction(getImportExtraction(cachedFallbackEntries), cachedFallbackEntries)) {
           const normalizedCachedFallback = normalizeImportEntriesWithHints(cachedFallbackEntries);
           recordImports(normalizedCachedFallback.imports);
           recordImportHints(normalizedCachedFallback.hints, normalizedCachedFallback.imports);
@@ -737,7 +758,11 @@ export async function scanImports({
       }
       const fastImports = await collectModuleImportsFast({ text, ext });
       if (Array.isArray(fastImports)) {
-        const imports = normalizeImports(fastImports);
+        const sourceReceipt = createImportExtraction({ entries: fastImports, text, producerId: 'module-lexer-fast-path',
+          parser: { id: 'es-module-lexer', version: importExtractionRuntimeVersions()['es-module-lexer'], available: true },
+          parserCoverage: 'partial', scope: 'js-static-module-reference-literals-v1', observedEntries: fastImports.length });
+        attachImportExtraction(fastImports, sourceReceipt);
+        const { imports } = normalizeImportEntriesWithHints(fastImports);
         recordImports(imports);
       } else {
         const importEntries = collectLanguageImportEntries({
@@ -780,11 +805,13 @@ export async function scanImports({
   }
   return {
     importsByFile: dedupedImportsByFile,
+    importCoverageByFile,
+    importExtractionByFile,
     importHintsByFile: dedupedImportHintsByFile,
     importScanFingerprint,
     durationMs: Date.now() - start,
     stats: {
-      modules: moduleSet.size,
+      modules: moduleCounts.size,
       edges: edgeCount,
       files: filesWithImports,
       scanned: processed

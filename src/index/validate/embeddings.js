@@ -5,11 +5,12 @@ import {
   resolveBinaryArtifactPath,
   resolveDirArtifactPath
 } from '../../shared/artifact-io/manifest.js';
-import { normalizeDenseVectorMeta } from '../../shared/dense-vector-artifacts.js';
-import { joinPathSafe } from '../../shared/path-normalize.js';
-import { resolveLanceDbPaths } from '../../shared/lancedb.js';
+import { normalizeDenseVectorMeta, resolveDenseVectorBinaryPayloadPath } from '../../shared/dense-vector-artifacts.js';
+import { assertLanceDbPayload, resolveLanceDbPaths } from '../../shared/lancedb.js';
 import { addIssue } from './issues.js';
 import { validateSchema } from './schema.js';
+import { embeddingBindingMismatches } from '../../shared/embedding-generation.js';
+import { normalizeDenseVectors } from './normalize.js';
 
 const hasJsonVariant = (basePath) => (
   fs.existsSync(basePath)
@@ -31,8 +32,29 @@ export const validateEmbeddingArtifacts = ({
   chunkMeta,
   validateManifestCount,
   lanceConfig,
-  readJsonArtifact
+  readJsonArtifact,
+  resolvePresence = null
 }) => {
+  const embeddings = readJsonArtifact('index_state')?.embeddings;
+  const readMeta = (name, legacyPath) => strict || manifest?.pieces?.some(piece => piece.name === name)
+    ? readJsonArtifact(name) : readJsonVariant(legacyPath);
+  const validateBinding = (name, meta) => {
+    const mismatches = embeddingBindingMismatches(meta, embeddings);
+    if (mismatches.length) addIssue(report, mode, `${name} embedding identity mismatch (${mismatches.join(', ')})`,
+      'Rebuild embeddings for this mode.', 'issues', { artifact: name, code: 'ERR_INDEX_EMBEDDING_IDENTITY' });
+  };
+  for (const name of ['dense_vectors', 'dense_vectors_doc', 'dense_vectors_code']) {
+    if (resolvePresence?.(name)?.format !== 'json') continue;
+    const raw = readJsonArtifact(name);
+    if (!raw) continue;
+    const dense = normalizeDenseVectors(raw);
+    validateSchema(report, mode, name, dense, 'Rebuild embeddings for this mode.', { strictSchema: strict });
+    validateBinding(name, raw);
+    validateManifestCount(name, dense.vectors.length);
+    if (dense.vectors.length !== chunkMeta.length || dense.vectors.some(vector => vector.length !== dense.dims)) {
+      addIssue(report, mode, `${name} vector row/dimension mismatch`, 'Rebuild embeddings for this mode.');
+    }
+  }
   const denseTargets = [
     {
       label: 'dense_vectors',
@@ -60,11 +82,10 @@ export const validateEmbeddingArtifacts = ({
     }
   ];
   for (const target of denseTargets) {
-    const denseMetaRaw = strict
-      ? readJsonArtifact(target.metaName)
-      : readJsonVariant(target.metaPath);
+    const denseMetaRaw = readMeta(target.metaName, target.metaPath);
     if (!denseMetaRaw) continue;
     const denseMeta = normalizeDenseVectorMeta(denseMetaRaw) || denseMetaRaw;
+    validateBinding(target.metaName, denseMeta);
     validateSchema(
       report,
       mode,
@@ -85,27 +106,19 @@ export const validateEmbeddingArtifacts = ({
       const issue = `${target.label} count mismatch (${denseCount} !== ${chunkMeta.length})`;
       modeReport.ok = false;
       modeReport.missing.push(issue);
-      report.issues.push(`[${mode}] ${issue}`);
+      addIssue(report, mode, issue);
     }
     if (!denseDims) {
       addIssue(report, mode, `${target.label} dims missing from binary metadata`, 'Rebuild embeddings for this mode.');
       continue;
     }
-    const binPathFromMeta = (() => {
-      const relPath = typeof denseMeta?.path === 'string' && denseMeta.path
-        ? denseMeta.path
-        : `${target.baseName}.bin`;
-      return joinPathSafe(dir, [relPath]);
-    })();
-    if (typeof denseMeta?.path === 'string' && denseMeta.path && !binPathFromMeta) {
-      addIssue(report, mode, `${target.label} binary path invalid`, 'Rebuild embeddings for this mode.');
+    let denseBinPath;
+    try {
+      denseBinPath = resolveDenseVectorBinaryPayloadPath({ dir, baseName: target.baseName, meta: denseMeta, manifest, strict });
+    } catch (error) {
+      addIssue(report, mode, `${target.label} binary path invalid: ${error.message}`, 'Rebuild embeddings for this mode.');
       continue;
     }
-    const denseBinPath = binPathFromMeta || resolveBinaryArtifactPath(dir, target.binName, {
-      manifest,
-      strict,
-      fallbackPath: target.binPath
-    });
     if (!denseBinPath || !fs.existsSync(denseBinPath)) {
       addIssue(report, mode, `${target.label} binary payload missing`, 'Rebuild embeddings for this mode.');
       continue;
@@ -150,10 +163,9 @@ export const validateEmbeddingArtifacts = ({
     }
   ];
   for (const target of hnswTargets) {
-    const hnswMeta = strict
-      ? readJsonArtifact(target.metaName)
-      : readJsonVariant(target.metaPath);
+    const hnswMeta = readMeta(target.metaName, target.metaPath);
     if (!hnswMeta) continue;
+    validateBinding(target.metaName, hnswMeta);
     validateSchema(
       report,
       mode,
@@ -181,7 +193,7 @@ export const validateEmbeddingArtifacts = ({
       const issue = `${target.label} count mismatch (${detail})`;
       modeReport.ok = false;
       modeReport.missing.push(issue);
-      report.issues.push(`[${mode}] ${issue}`);
+      addIssue(report, mode, issue);
     }
     const hnswIndexPath = resolveBinaryArtifactPath(dir, target.binName, {
       manifest,
@@ -219,10 +231,9 @@ export const validateEmbeddingArtifacts = ({
       }
     ];
     for (const target of lanceTargets) {
-      const meta = strict
-        ? readJsonArtifact(target.metaName)
-        : readJsonVariant(target.metaPath);
+      const meta = readMeta(target.metaName, target.metaPath);
       if (!meta) continue;
+      validateBinding(target.metaName, meta);
       validateSchema(
         report,
         mode,
@@ -234,11 +245,13 @@ export const validateEmbeddingArtifacts = ({
       const lanceCount = Number.isFinite(meta?.count) ? meta.count : chunkMeta.length;
       validateManifestCount(target.metaName, lanceCount, `${target.label} meta`);
       validateManifestCount(target.dirName, lanceCount, `${target.label} dir`);
-      if (Number.isFinite(meta?.count) && meta.count !== chunkMeta.length) {
-        const issue = `${target.label} count mismatch (${meta.count} !== ${chunkMeta.length})`;
+      const expectedCount = Number.isInteger(meta?.expectedCount) && meta.expectedCount >= 0
+        ? meta.expectedCount : chunkMeta.length;
+      if (Number.isFinite(meta?.count) && (meta.count !== expectedCount || meta.count > chunkMeta.length)) {
+        const issue = `${target.label} count mismatch (${meta.count} !== ${expectedCount} expected nonempty vectors; ${chunkMeta.length} chunk rows)`;
         modeReport.ok = false;
         modeReport.missing.push(issue);
-        report.issues.push(`[${mode}] ${issue}`);
+        addIssue(report, mode, issue);
       }
       const lanceDir = resolveDirArtifactPath(dir, target.dirName, {
         manifest,
@@ -247,6 +260,11 @@ export const validateEmbeddingArtifacts = ({
       });
       if (!lanceDir || !fs.existsSync(lanceDir)) {
         addIssue(report, mode, `${target.label} directory missing`, 'Rebuild embeddings for this mode.');
+      } else {
+        try { assertLanceDbPayload(lanceDir, { table: meta.table || lanceConfig.table, count: lanceCount }); }
+        catch (error) {
+          addIssue(report, mode, `${target.label} payload invalid: ${error.message}`, 'Rebuild embeddings for this mode.');
+        }
       }
     }
   }

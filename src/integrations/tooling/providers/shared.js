@@ -1,4 +1,8 @@
 import { sleep } from '../../../shared/sleep.js';
+import { isAbortError } from '../../../shared/abort.js';
+import { observeStorageResource, describeStorageFailure } from '../../../shared/storage/failure-observation.js';
+import { addStorageFailureContext } from '../../../shared/storage/operation-error.js';
+import { getWorkspaceHealthDecision } from './lsp/workspace-health-decision.js';
 import {
   mergeTypeEntries,
   normalizeTypeEntry,
@@ -107,13 +111,13 @@ const trimWindow = (events, now, windowMs) => {
  */
 export const createToolingLifecycleHealth = (options = {}) => {
   const name = String(options?.name || 'tooling');
-  const restartWindowMs = Number.isFinite(Number(options?.restartWindowMs))
+  const restartWindowMs = options?.restartWindowMs != null && Number.isFinite(Number(options.restartWindowMs))
     ? Math.max(1000, Math.floor(Number(options.restartWindowMs)))
     : 60_000;
-  const maxRestartsPerWindow = Number.isFinite(Number(options?.maxRestartsPerWindow))
+  const maxRestartsPerWindow = options?.maxRestartsPerWindow != null && Number.isFinite(Number(options.maxRestartsPerWindow))
     ? Math.max(2, Math.floor(Number(options.maxRestartsPerWindow)))
     : 6;
-  const fdPressureBackoffMs = Number.isFinite(Number(options?.fdPressureBackoffMs))
+  const fdPressureBackoffMs = options?.fdPressureBackoffMs != null && Number.isFinite(Number(options.fdPressureBackoffMs))
     ? Math.max(50, Math.floor(Number(options.fdPressureBackoffMs)))
     : 1500;
   const log = typeof options?.log === 'function' ? options.log : (() => {});
@@ -282,27 +286,61 @@ export const createToolingGuard = ({
   let consecutiveFailures = 0;
   let lastFailure = null;
   let tripCount = 0;
-  const isOpen = () => consecutiveFailures >= breakerThreshold;
+  const pendingOriginals = new Set();
+  let overflow = null;
+  const requirePendingOriginals = () => {
+    if (overflow) throw overflow;
+    for (const original of pendingOriginals) {
+      original.requireSettled(); pendingOriginals.delete(original);
+    }
+  };
+  const requireOriginal = (value, phase) => {
+    if (overflow) throw addStorageFailureContext(overflow, {}, value, { secondaryPresent: true });
+    const original = observeStorageResource(value, { phase });
+    try { original.requireSettled(); }
+    catch (error) {
+      if (pendingOriginals.size >= 128) {
+        overflow = addStorageFailureContext(Object.assign(new Error('Tooling guard original-resource inventory is incomplete.'), {
+          code: 'ERR_TOOLING_GUARD_RESOURCE_BUDGET'
+        }), { cacheOwnershipPending: true, cacheOwnershipReleased: () => false }, error, { secondaryPresent: true });
+        throw overflow;
+      }
+      pendingOriginals.add(observeStorageResource(error, { phase: 'tooling-guard-retained-original' }));
+      throw error;
+    }
+    return original;
+  };
+  const retainFailureDiagnostic = (primary, secondary, prerequisite) => {
+    let failure = addStorageFailureContext(primary, {}, secondary, { secondaryPresent: true });
+    if (prerequisite) failure = addStorageFailureContext(failure, {}, prerequisite, { secondaryPresent: true });
+    requireOriginal(failure, 'tooling-guard-independent-failure');
+    return failure;
+  };
+  const isOpen = () => { requirePendingOriginals(); return consecutiveFailures >= breakerThreshold; };
   const reset = () => {
     consecutiveFailures = 0;
   };
-  const recordFailure = (err, label) => {
-    consecutiveFailures += 1;
-    const message = err?.message || String(err);
+  const recordFailure = (err, label, { methodScoped = false } = {}) => {
+    const diagnostic = describeStorageFailure(err, { phase: 'tooling-guard-failure-diagnostic',
+      defaultCode: 'TOOLING_REQUEST_FAILED', defaultMessage: err !== null && typeof err === 'object' ? 'Tooling request failed.' : String(err) });
+    if (!methodScoped) consecutiveFailures += 1;
+    const message = diagnostic.message;
     lastFailure = {
       label: label || null,
+      scope: methodScoped ? 'method' : 'provider',
       message,
-      code: err?.code || null,
+      code: diagnostic.code === 'TOOLING_REQUEST_FAILED' ? null : diagnostic.code,
       at: new Date().toISOString(),
       timedOut: /\btimeout\b/i.test(message)
     };
-    if (label) log(`[tooling] ${name} ${label} failed (${consecutiveFailures}/${breakerThreshold}): ${err?.message || err}`);
-    if (isOpen()) {
+    if (label) log(`[tooling] ${name} ${label} failed (${methodScoped ? 'method cooldown' : `${consecutiveFailures}/${breakerThreshold}`}): ${message}`);
+    if (!methodScoped && isOpen()) {
       tripCount += 1;
       log(`[tooling] ${name} circuit breaker tripped.`);
     }
   };
   const run = async (fn, { label, timeoutOverride } = {}) => {
+    requirePendingOriginals();
     if (isOpen()) {
       const reason = lastFailure?.message || 'unknown failure';
       const err = new Error(`${name} tooling disabled (circuit breaker): ${reason}`);
@@ -318,29 +356,45 @@ export const createToolingGuard = ({
     }
     let attempt = 0;
     while (attempt <= retries) {
+      requirePendingOriginals();
       try {
-        const result = await fn({ timeoutMs: timeoutOverride || timeoutMs });
+        const result = await fn({ timeoutMs: timeoutOverride || timeoutMs, attempt, retriesRemaining: retries - attempt });
+        requireOriginal(result, 'tooling-guard-successful-result');
         reset();
         return result;
       } catch (err) {
+        const originalFailure = requireOriginal(err, 'tooling-guard-original-failure');
+        const prerequisite = originalFailure.hasResourceObservation ? originalFailure.retain() : null;
+        let cancelled;
+        try { cancelled = isAbortError(err); }
+        catch (inspectionError) { throw retainFailureDiagnostic(err, inspectionError, prerequisite); }
+        if (cancelled) throw err;
+        const healthDecision = getWorkspaceHealthDecision(err);
+        if (healthDecision?.kind === 'not-admitted') throw err;
         attempt += 1;
-        if (attempt > retries) {
-          recordFailure(err, label);
+        if (attempt > retries || healthDecision?.kind === 'failed-admitted') {
+          try { recordFailure(err, label, { methodScoped: healthDecision?.methodScoped === true }); originalFailure.requireSettled(); }
+          catch (diagnosticError) { throw retainFailureDiagnostic(err, diagnosticError, prerequisite); }
           throw err;
         }
         const delay = attempt === 1 ? 250 : 1000;
         await sleep(delay);
+        try { originalFailure.requireSettled(); }
+        catch (error) { throw retainFailureDiagnostic(err, error, prerequisite); }
       }
     }
     return null;
   };
   return {
     isOpen,
+    assertSettled: requirePendingOriginals,
     getState: () => ({
       breakerThreshold,
       consecutiveFailures,
       tripCount,
-      lastFailure
+      lastFailure,
+      pendingObservationCount: pendingOriginals.size,
+      observationInventoryComplete: overflow === null
     }),
     run
   };

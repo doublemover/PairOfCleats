@@ -10,6 +10,10 @@ const formatWitnessPath = (witnessPath) => {
 export const renderSuggestTestsReport = (report) => {
   const lines = [];
   lines.push('Suggested Tests');
+  if (report?.execution) {
+    const execution = report.execution;
+    lines.push(`Computation: ${execution.state}; ${execution.elapsedMs} ms / ${execution.limitMs} ms; cooperative, preparation/rendering excluded`);
+  }
   const suggestions = Array.isArray(report?.suggestions) ? report.suggestions.slice() : [];
   suggestions.sort((a, b) => {
     const scoreCompare = (Number.isFinite(b?.score) ? b.score : -Infinity)

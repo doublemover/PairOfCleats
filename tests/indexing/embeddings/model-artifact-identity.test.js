@@ -6,6 +6,7 @@ import { resolveEmbeddingArtifactIdentity, assertEmbeddingArtifactCompatibility 
 import { buildEmbeddingIdentity, buildEmbeddingIdentityKey } from '../../../src/shared/embedding-identity.js';
 import { createEmbeddingResolver } from '../../../src/retrieval/cli/run-search-session/embedding-cache.js';
 import { prepareIsolatedTestCacheDir } from '../../helpers/test-cache.js';
+import { resolveEmbeddingIntent } from '../../../src/shared/embedding-intent.js';
 
 const { dir } = await prepareIsolatedTestCacheDir('model-artifact-identity');
 const modelsDir = path.join(dir, 'models'), modelId = 'fixture';
@@ -56,7 +57,9 @@ try {
       { code: 'ERR_EMBEDDING_ARTIFACT_INCOMPATIBLE' });
     await fs.writeFile(path.join(path.dirname(modelPath), 'tokenizer.json'), '{"vocab":"irrelevant"}');
     assert.equal(resolveEmbeddingArtifactIdentity(selectedOptions).digest, selectedB.digest);
-    if (path.isAbsolute(tokenizerId)) {
+    // POSIX join can form a valid cache shadow of an absolute path. On Windows
+    // that join embeds a second drive letter and is not a creatable path.
+    if (path.isAbsolute(tokenizerId) && process.platform !== 'win32') {
       const shadow = path.join(modelsDir, tokenizerId);
       await fs.mkdir(shadow, { recursive: true });
       await fs.writeFile(path.join(shadow, 'tokenizer.json'), '{"vocab":"cache-shadow"}');
@@ -78,6 +81,17 @@ try {
       onnx: { modelPath, tokenizerId: localId } }).status, 'verified');
   } finally { process.chdir(originalCwd); }
   let calls = 0;
+  const stubArtifact = resolveEmbeddingArtifactIdentity({ ...options, stub: true });
+  for (const intentInput of [{ envConfig: { embeddings: 'stub' } },
+    { argv: { 'stub-embeddings': true } }, { embeddingsConfig: { mode: 'stub' } }]) {
+    const intent = resolveEmbeddingIntent({ ...intentInput, execution: 'query' });
+    const stubResolver = createEmbeddingResolver({ throwIfAborted() {}, embeddingQueryText: 'stub',
+      modelConfig: { dir: modelsDir }, ...intent, rootDir: dir,
+      getQueryEmbeddingImpl: async input => { assert.equal(input.useStub, true); return [1, 2, 3]; } });
+    assert.deepEqual(await stubResolver(modelId, 3, true, null, null, identity(stubArtifact)), [1, 2, 3]);
+    await assert.rejects(stubResolver(modelId, 3, true, null, null, identity(first)),
+      { code: 'ERR_EMBEDDING_ARTIFACT_INCOMPATIBLE' }, 'stub selection cannot reuse real model artifacts');
+  }
   const resolver = createEmbeddingResolver({ throwIfAborted() {}, embeddingQueryText: 'test',
     modelConfig: { dir: modelsDir }, embeddingProvider: 'onnx', embeddingOnnx: { modelPath }, rootDir: dir,
     getQueryEmbeddingImpl: async () => { calls++; return [1, 2, 3]; } });

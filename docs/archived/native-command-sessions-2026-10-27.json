@@ -1,0 +1,891 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-10-27",
+  "sourceHead": "753c7f9a013346fdc3b6f0d3472bd31236b5c282",
+  "sourceTree": "c7ec579613b2c5af91da1d78c73cd607c3ca74f4",
+  "branch": "codex/pr557-audit-repairs-20261012",
+  "platform": "win32",
+  "arch": "x64",
+  "node": "v26.12.1",
+  "issues": {
+    "partial": [
+      1574
+    ]
+  },
+  "setup": {
+    "dependenciesChanged": false,
+    "nativeBinariesChanged": false,
+    "patchesChanged": false,
+    "bootstrapRerun": false
+  },
+  "before": {
+    "method": "Child-only load hooks substitute five historical owners from 691f7db7b and two isolated prior cleanup/admission snippets while retaining current admission so the intended failure is reached. Checkout files were not reverted.",
+    "cases": [
+      {
+        "name": "command-resource-session",
+        "exitCode": 1,
+        "signal": null,
+        "error": null,
+        "durationMs": 223,
+        "failure": [
+          "AssertionError [ERR_ASSERTION]: the native command owns its launch-selected repository/resource/category lifetime\r",
+          "false !== true\r"
+        ],
+        "baseline": "691f7db7b1fa0c476c06a63416d45f1b7935c92c",
+        "priorSnippet": null,
+        "files": [
+          "tools/shared/native-database-lifetime.js"
+        ],
+        "command": [
+          "C:\\nvm4w\\nodejs\\node.exe",
+          "--import",
+          "file:///C:/Users/sneak/Development/PairOfCleats/.tmp/tasks/native-command-sessions-20261027/before-command-resource-session-hook.mjs",
+          "tests/shared/storage/native-command-sessions.test.js"
+        ],
+        "receipt": ".tmp/tasks/native-command-sessions-20261027/before-command-resource-session.json"
+      },
+      {
+        "name": "command-category-admission",
+        "exitCode": 1,
+        "signal": null,
+        "error": null,
+        "durationMs": 242,
+        "failure": [
+          "AssertionError [ERR_ASSERTION]: Missing expected rejection.\r"
+        ],
+        "baseline": "691f7db7b1fa0c476c06a63416d45f1b7935c92c",
+        "priorSnippet": null,
+        "files": [
+          "tools/shared/native-database-lifetime.js"
+        ],
+        "command": [
+          "C:\\nvm4w\\nodejs\\node.exe",
+          "--import",
+          "file:///C:/Users/sneak/Development/PairOfCleats/.tmp/tasks/native-command-sessions-20261027/before-command-category-admission-hook.mjs",
+          "tests/shared/storage/native-command-sessions.test.js"
+        ],
+        "receipt": ".tmp/tasks/native-command-sessions-20261027/before-command-category-admission.json"
+      },
+      {
+        "name": "command-metadata-recovery",
+        "exitCode": 1,
+        "signal": null,
+        "error": null,
+        "durationMs": 219,
+        "failure": [
+          "AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:\r"
+        ],
+        "baseline": "691f7db7b1fa0c476c06a63416d45f1b7935c92c",
+        "priorSnippet": null,
+        "files": [
+          "tools/shared/native-database-lifetime.js"
+        ],
+        "command": [
+          "C:\\nvm4w\\nodejs\\node.exe",
+          "--import",
+          "file:///C:/Users/sneak/Development/PairOfCleats/.tmp/tasks/native-command-sessions-20261027/before-command-metadata-recovery-hook.mjs",
+          "tests/shared/storage/native-command-sessions.test.js"
+        ],
+        "receipt": ".tmp/tasks/native-command-sessions-20261027/before-command-metadata-recovery.json"
+      },
+      {
+        "name": "builder-prefetch-session",
+        "exitCode": 1,
+        "signal": null,
+        "error": null,
+        "durationMs": 329,
+        "failure": [
+          "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\r",
+          "false !== true\r"
+        ],
+        "baseline": "691f7db7b1fa0c476c06a63416d45f1b7935c92c",
+        "priorSnippet": null,
+        "files": [
+          "tools/shared/native-database-lifetime.js"
+        ],
+        "command": [
+          "C:\\nvm4w\\nodejs\\node.exe",
+          "--import",
+          "file:///C:/Users/sneak/Development/PairOfCleats/.tmp/tasks/native-command-sessions-20261027/before-builder-prefetch-session-hook.mjs",
+          "tests/storage/lmdb/prefetch-close-ownership.test.js"
+        ],
+        "receipt": ".tmp/tasks/native-command-sessions-20261027/before-builder-prefetch-session.json"
+      },
+      {
+        "name": "actual-compaction-session",
+        "exitCode": 1,
+        "signal": null,
+        "error": null,
+        "durationMs": 1130,
+        "failure": [
+          "AssertionError [ERR_ASSERTION]: Missing expected rejection.\r"
+        ],
+        "baseline": "691f7db7b1fa0c476c06a63416d45f1b7935c92c",
+        "priorSnippet": null,
+        "files": [
+          "tools/build/compact-sqlite-index.js"
+        ],
+        "command": [
+          "C:\\nvm4w\\nodejs\\node.exe",
+          "--import",
+          "file:///C:/Users/sneak/Development/PairOfCleats/.tmp/tasks/native-command-sessions-20261027/before-actual-compaction-session-hook.mjs",
+          "tests/shared/storage/native-compaction-session.test.js"
+        ],
+        "receipt": ".tmp/tasks/native-command-sessions-20261027/before-actual-compaction-session.json"
+      },
+      {
+        "name": "compaction-frozen-primary",
+        "exitCode": 1,
+        "signal": null,
+        "error": null,
+        "durationMs": 1353,
+        "failure": [
+          "AssertionError [ERR_ASSERTION]: The validation function is expected to return \"true\". Received false\r",
+          "AggregateError: Cannot add property nativeCleanupError, object is not extensible\r",
+          "  actual: AggregateError: Cannot add property nativeCleanupError, object is not extensible\r",
+          "    [cause]: TypeError: Cannot add property nativeCleanupError, object is not extensible\r"
+        ],
+        "baseline": "691f7db7b1fa0c476c06a63416d45f1b7935c92c",
+        "priorSnippet": "frozen-cleanup",
+        "files": [
+          "tools/build/compact-sqlite-index.js"
+        ],
+        "command": [
+          "C:\\nvm4w\\nodejs\\node.exe",
+          "--import",
+          "file:///C:/Users/sneak/Development/PairOfCleats/.tmp/tasks/native-command-sessions-20261027/before-compaction-frozen-primary-hook.mjs",
+          "tests/shared/storage/native-compaction-session.test.js"
+        ],
+        "receipt": ".tmp/tasks/native-command-sessions-20261027/before-compaction-frozen-primary.json"
+      },
+      {
+        "name": "command-empty-scope",
+        "exitCode": 1,
+        "signal": null,
+        "error": null,
+        "durationMs": 268,
+        "failure": [
+          "AssertionError [ERR_ASSERTION]: Missing expected exception.\r"
+        ],
+        "baseline": "691f7db7b1fa0c476c06a63416d45f1b7935c92c",
+        "priorSnippet": "empty-scope",
+        "files": [
+          "tools/shared/native-database-lifetime.js"
+        ],
+        "command": [
+          "C:\\nvm4w\\nodejs\\node.exe",
+          "--import",
+          "file:///C:/Users/sneak/Development/PairOfCleats/.tmp/tasks/native-command-sessions-20261027/before-command-empty-scope-hook.mjs",
+          "tests/shared/storage/native-command-sessions.test.js"
+        ],
+        "receipt": ".tmp/tasks/native-command-sessions-20261027/before-command-empty-scope.json"
+      }
+    ]
+  },
+  "checks": {
+    "focused": {
+      "summary": {
+        "total": 24,
+        "passed": 24,
+        "failed": 0,
+        "skipped": 0,
+        "durationMs": 20622
+      },
+      "tests": [
+        {
+          "id": "shared/storage/delegated-native-owner-lifetime",
+          "status": "passed",
+          "durationMs": 1741,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "shared/storage/native-command-sessions/admission-race",
+          "status": "passed",
+          "durationMs": 284,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "shared/storage/native-command-sessions/lmdb",
+          "status": "passed",
+          "durationMs": 388,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "shared/storage/native-command-sessions/metadata",
+          "status": "passed",
+          "durationMs": 416,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "shared/storage/native-command-sessions/native-unknown",
+          "status": "passed",
+          "durationMs": 449,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "shared/storage/native-command-sessions/primary-and-metadata",
+          "status": "passed",
+          "durationMs": 422,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "shared/storage/native-command-sessions/scope-authority",
+          "status": "passed",
+          "durationMs": 288,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "shared/storage/native-command-sessions/sqlite",
+          "status": "passed",
+          "durationMs": 359,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "shared/storage/native-compaction-session/frozen-primary",
+          "status": "passed",
+          "durationMs": 1366,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "shared/storage/native-compaction-session/success",
+          "status": "passed",
+          "durationMs": 1368,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "storage/lmdb/native-artifact-parity/columnar",
+          "status": "passed",
+          "durationMs": 2508,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "storage/lmdb/native-artifact-parity/json",
+          "status": "passed",
+          "durationMs": 2559,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "storage/lmdb/native-artifact-parity/jsonl",
+          "status": "passed",
+          "durationMs": 2570,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "storage/lmdb/prefetch-close-ownership/builder",
+          "status": "passed",
+          "durationMs": 306,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "storage/lmdb/prefetch-close-ownership/builder-storage",
+          "status": "passed",
+          "durationMs": 444,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "storage/lmdb/prefetch-close-ownership/retrieval",
+          "status": "passed",
+          "durationMs": 305,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "storage/lmdb/prefetch-close-ownership/retrieval-storage",
+          "status": "passed",
+          "durationMs": 541,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "storage/lmdb/prefetch-close-ownership/validator",
+          "status": "passed",
+          "durationMs": 319,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "storage/lmdb/replacement-atomicity",
+          "status": "passed",
+          "durationMs": 102,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "storage/sqlite/compact-metadata-roundtrip",
+          "status": "passed",
+          "durationMs": 1564,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "storage/sqlite/compact-minhash-identity",
+          "status": "passed",
+          "durationMs": 1098,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "storage/sqlite/delegated-native-scope-authority",
+          "status": "passed",
+          "durationMs": 90,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "storage/sqlite/fts-optional-build-compaction",
+          "status": "passed",
+          "durationMs": 935,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "storage/sqlite/native-command-resource-closure",
+          "status": "passed",
+          "durationMs": 178,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        }
+      ]
+    },
+    "gate": {
+      "summary": {
+        "total": 40,
+        "passed": 40,
+        "failed": 0,
+        "skipped": 0,
+        "durationMs": 22161
+      },
+      "tests": [
+        {
+          "id": "indexing/policy/hotpath-membership-guard",
+          "status": "passed",
+          "durationMs": 69,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/policy/module-cache-boundedness-contract",
+          "status": "passed",
+          "durationMs": 66,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/policy/generated-matrix",
+          "status": "passed",
+          "durationMs": 72,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/contracts/artifact-surface-version",
+          "status": "passed",
+          "durationMs": 69,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/contracts/n-minus-one-adapter",
+          "status": "passed",
+          "durationMs": 66,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/contracts/public-artifact-surface-doc",
+          "status": "passed",
+          "durationMs": 64,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/contracts/index-compatibility-key-generation",
+          "status": "passed",
+          "durationMs": 152,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/contracts/semver-policy-enforced",
+          "status": "passed",
+          "durationMs": 66,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/contracts/index-state-dense-sidecars-present",
+          "status": "passed",
+          "durationMs": 73,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "contracts/manifest-max-bytes-validation",
+          "status": "passed",
+          "durationMs": 151,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/policy/repo-inventory",
+          "status": "passed",
+          "durationMs": 1404,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/policy/shared-module-cycle-guard",
+          "status": "passed",
+          "durationMs": 222,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/contracts/loader-matrix-parity",
+          "status": "passed",
+          "durationMs": 199,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/policy/analysis-schema",
+          "status": "passed",
+          "durationMs": 272,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/contracts/snapshots",
+          "status": "passed",
+          "durationMs": 266,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/contracts/builds-current-repo-head-schema",
+          "status": "passed",
+          "durationMs": 247,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/contracts/call-sites-schema",
+          "status": "passed",
+          "durationMs": 262,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/contracts/diffs",
+          "status": "passed",
+          "durationMs": 266,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/contracts/additional-properties-policy",
+          "status": "passed",
+          "durationMs": 267,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/contracts/index-compatibility-key-enforced-on-load",
+          "status": "passed",
+          "durationMs": 480,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/contracts/schema-registry-single-source",
+          "status": "passed",
+          "durationMs": 258,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "tooling/api-contracts/caps",
+          "status": "passed",
+          "durationMs": 615,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "tooling/api-contracts/schema-validate",
+          "status": "passed",
+          "durationMs": 831,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "tooling/api-contracts/fail-on-warn",
+          "status": "passed",
+          "durationMs": 909,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "tooling/api-contracts/optional-params",
+          "status": "passed",
+          "durationMs": 796,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "tooling/api-contracts/large-call-sites",
+          "status": "passed",
+          "durationMs": 602,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/contracts/embedding-identity-gating-on-load",
+          "status": "passed",
+          "durationMs": 521,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "ci/capability-gate.smoke",
+          "status": "passed",
+          "durationMs": 778,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/contracts/index-compatibility-key-federation-block",
+          "status": "passed",
+          "durationMs": 1101,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/policy/stable-entrypoints",
+          "status": "passed",
+          "durationMs": 69,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/policy/optional-deps",
+          "status": "passed",
+          "durationMs": 1224,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/policy/analysis-gating",
+          "status": "passed",
+          "durationMs": 961,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "ci/tooling-doctor-gate.smoke",
+          "status": "passed",
+          "durationMs": 1062,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "tooling/api-contracts/basic",
+          "status": "passed",
+          "durationMs": 594,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "contracts/module-export-surface-compat",
+          "status": "passed",
+          "durationMs": 2443,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/contracts/semantic-foundations",
+          "status": "passed",
+          "durationMs": 1186,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/contracts/semantic-handoff-contracts",
+          "status": "passed",
+          "durationMs": 323,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/contracts/runtime-evidence",
+          "status": "passed",
+          "durationMs": 506,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/contracts/index-format-cutover",
+          "status": "passed",
+          "durationMs": 1342,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "ci/windows-authority-cohort",
+          "status": "passed",
+          "durationMs": 1273,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        }
+      ]
+    },
+    "frontGateInitial": [
+      {
+        "executable": "npm.cmd",
+        "exitCode": 0,
+        "durationMs": 2110,
+        "arguments": [
+          "run",
+          "config:budget"
+        ],
+        "name": "config-budget"
+      },
+      {
+        "executable": "npm.cmd",
+        "exitCode": 0,
+        "durationMs": 1233,
+        "arguments": [
+          "run",
+          "env:check"
+        ],
+        "name": "environment"
+      },
+      {
+        "executable": "node",
+        "exitCode": 1,
+        "durationMs": 10201,
+        "arguments": [
+          "tools/docs/generated-surfaces.js",
+          "--check-freshness"
+        ],
+        "name": "generated"
+      }
+    ],
+    "frontGateTail": [
+      {
+        "exitCode": 0,
+        "name": "command-surface",
+        "executable": "node",
+        "durationMs": 2660,
+        "arguments": [
+          "tools/ci/check-command-surface.js"
+        ]
+      },
+      {
+        "exitCode": 0,
+        "name": "workflow",
+        "executable": "node",
+        "durationMs": 224,
+        "arguments": [
+          "tests/ci/workflow-contract.test.js"
+        ]
+      },
+      {
+        "exitCode": 0,
+        "name": "gate-lane",
+        "executable": "node",
+        "durationMs": 22916,
+        "arguments": [
+          "tests/run.js",
+          "--lane",
+          "gate",
+          "--jobs",
+          "1",
+          "--timeout-ms",
+          "30000",
+          "--retries",
+          "0",
+          "--native-status-redo=false",
+          "--pairofcleats-threads",
+          "1",
+          "--json"
+        ]
+      },
+      {
+        "exitCode": 0,
+        "name": "diff",
+        "executable": "git",
+        "durationMs": 73,
+        "arguments": [
+          "diff",
+          "--check"
+        ]
+      }
+    ],
+    "generatedRepair": "Roadmap exceeded 20000 UTF-8 bytes after CRLF normalization. Condensed completed receipts retaining every link. The unchanged freshness check then passed; format and staged/working diff checks pass.",
+    "policy": {
+      "jobs": 1,
+      "threads": 1,
+      "timeoutMs": 30000,
+      "retries": 0,
+      "nativeStatusRedo": false
+    }
+  },
+  "fixtureRepair": "The initial LMDB fixture cleanup used an open-method truthy check intended for SQLite. Guarded by Database instance; focused final 24-case cohort all passes.",
+  "coverage": {
+    "commands": "Actual LMDB build CLI/readback across JSON/JSONL/columnar and actual SQLite compaction retain launch-selected repo/resource/category metadata until accepted work and original native closure settle.",
+    "prefetch": "Actual LMDB prefetch callback handoff is held; command/category leases remain live until its original completion callback and result.",
+    "failure": "Native unknown close remains pending, metadata recovery cannot close again, original frozen work and cleanup causes survive; concurrent explicit metadata retries join and failed result stays rejected.",
+    "admission": "Invalid/repeated/empty scopes cannot admit native work; active category exclusion precedes native access; no external-root deletion authority."
+  },
+  "remaining": [
+    "Custom/external backend root registration with producer/publication identity and explicit launch authority.",
+    "Validator/probe, complete SQLite builder, sidecar and unadopted legacy-adapter lifetimes.",
+    "Category-specific eligible backend deletion/requalification and all/multi-repo CLI/MCP acceptance.",
+    "Full deep suite, optional backends, representative models/performance, release and other-platform qualification."
+  ],
+  "authority": "Windows only; no user cache deletion, GUI, WSL, elevation, physical links, security-setting or public knob changes.",
+  "rawEvidence": "Historical author-workspace .tmp/.testLogs receipts are absent from clean checkouts."
+}

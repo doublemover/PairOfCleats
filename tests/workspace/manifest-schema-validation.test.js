@@ -8,9 +8,12 @@ import { toRealPathSync } from '../../src/workspace/identity.js';
 import { loadWorkspaceConfig } from '../../src/workspace/config.js';
 import { generateWorkspaceManifest } from '../../src/workspace/manifest.js';
 import { validateWorkspaceManifest } from '../../src/contracts/validators/workspace.js';
+import { ARTIFACT_SURFACE_VERSION } from '../../src/contracts/versioning.js';
+import { applyTestEnv } from '../helpers/test-env.js';
 
 const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'pairofcleats-workspace-manifest-schema-'));
 const cacheRoot = path.join(tempRoot, 'cache');
+applyTestEnv({ cacheRoot });
 const repo = path.join(tempRoot, 'repo');
 await fs.mkdir(repo, { recursive: true });
 await fs.writeFile(path.join(repo, '.pairofcleats.json'), JSON.stringify({ cache: { root: cacheRoot } }, null, 2), 'utf8');
@@ -21,8 +24,8 @@ const indexDir = path.join(buildRoot, 'index-code');
 await fs.mkdir(indexDir, { recursive: true });
 await fs.writeFile(path.join(indexDir, 'chunk_meta.json'), '[]', 'utf8');
 await fs.writeFile(path.join(indexDir, 'token_postings.json'), '{}', 'utf8');
-await fs.writeFile(path.join(indexDir, 'index_state.json'), JSON.stringify({ compatibilityKey: 'compat-a' }), 'utf8');
-await fs.writeFile(path.join(repoCacheRoot, 'builds', 'current.json'), JSON.stringify({ buildId: 'build-1', buildRoot }, null, 2), 'utf8');
+await fs.writeFile(path.join(indexDir, 'index_state.json'), JSON.stringify({ artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION, compatibilityKey: 'compat-a' }), 'utf8');
+await fs.writeFile(path.join(repoCacheRoot, 'builds', 'current.json'), JSON.stringify({ artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION, buildId: 'build-1', buildRoot }, null, 2), 'utf8');
 
 const workspacePath = path.join(tempRoot, '.pairofcleats-workspace.jsonc');
 await fs.writeFile(workspacePath, `{

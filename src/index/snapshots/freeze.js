@@ -1,3 +1,6 @@
+import { readJsonFile } from '../../shared/artifact-io/json.js';
+import { sha256File } from '../../shared/hash.js';
+import { readFrozenModeState } from './mode-provenance.js';
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
@@ -14,14 +17,20 @@ import {
   loadFrozen,
   loadSnapshot,
   loadSnapshotsManifest,
+  resolveSnapshotDir,
   writeFrozen,
   writeSnapshotsManifest
 } from './registry.js';
-import { copySnapshotModeArtifacts } from './copy-pieces.js';
+import {
+  assertSnapshotSourcePath,
+  copySnapshotDirectory,
+  copySnapshotFile,
+  copySnapshotModeArtifacts
+} from './copy-pieces.js';
 import {
   buildSnapshotLockConflict,
   buildSnapshotRetention,
-  normalizeSnapshotRetentionTier
+  resolveSnapshotRetentionPolicy
 } from './support.js';
 
 const SNAPSHOT_ID_RE = /^snap-[A-Za-z0-9._-]+$/;
@@ -41,8 +50,8 @@ const ensureSnapshotId = (snapshotId) => {
 };
 
 const normalizeMethod = (method) => {
-  const normalized = String(method || 'hardlink').trim().toLowerCase();
-  if (normalized === 'copy' || normalized === 'hardlink') return normalized;
+  const normalized = String(method || 'copy').trim().toLowerCase();
+  if (normalized === 'copy' || normalized === 'hardlink') return 'copy';
   throw invalidRequest(`Invalid freeze method "${method}". Use hardlink|copy.`);
 };
 
@@ -119,66 +128,6 @@ const withSnapshotLock = async (repoCacheRoot, options, worker) => {
   });
 };
 
-const linkOrCopyFile = async (srcPath, destPath, method) => {
-  if (method === 'copy') {
-    await fsPromises.copyFile(srcPath, destPath);
-    return 'copy';
-  }
-  try {
-    await fsPromises.link(srcPath, destPath);
-    return 'hardlink';
-  } catch (err) {
-    if (!['EXDEV', 'EPERM', 'EACCES', 'EEXIST'].includes(err?.code)) {
-      throw err;
-    }
-    await fsPromises.copyFile(srcPath, destPath);
-    return 'copy';
-  }
-};
-
-const copyOptionalDir = async ({
-  sourceDir,
-  targetDir,
-  method
-}) => {
-  const copiedFiles = [];
-  const walk = async (srcDir, dstDir) => {
-    await fsPromises.mkdir(dstDir, { recursive: true });
-    const entries = await fsPromises.readdir(srcDir, { withFileTypes: true });
-    for (const entry of entries) {
-      const srcPath = path.join(srcDir, entry.name);
-      const dstPath = path.join(dstDir, entry.name);
-      if (entry.isDirectory()) {
-        await walk(srcPath, dstPath);
-        continue;
-      }
-      await fsPromises.mkdir(path.dirname(dstPath), { recursive: true });
-      const copyMethod = await linkOrCopyFile(srcPath, dstPath, method);
-      const stat = await fsPromises.stat(dstPath);
-      copiedFiles.push({
-        sourcePath: srcPath,
-        targetPath: dstPath,
-        method: copyMethod,
-        bytes: Number(stat.size || 0)
-      });
-    }
-  };
-  await walk(sourceDir, targetDir);
-  return copiedFiles;
-};
-
-const hasSqliteArtifact = async (sqliteDir) => {
-  if (!fs.existsSync(sqliteDir)) return false;
-  const entries = await fsPromises.readdir(sqliteDir, { withFileTypes: true });
-  return entries.some((entry) => (
-    entry.isFile()
-    && (
-      entry.name.endsWith('.db')
-      || entry.name.endsWith('.sqlite')
-      || entry.name.endsWith('.sqlite3')
-    )
-  ));
-};
 
 const matchesTagPattern = (tag, pattern) => {
   const escaped = String(pattern)
@@ -249,7 +198,7 @@ export const freezeSnapshot = async ({
   userConfig = null,
   snapshotId,
   modes = [],
-  method = 'hardlink',
+  method = 'copy',
   verify = true,
   includeSqlite = 'auto',
   includeLmdb = false,
@@ -278,11 +227,11 @@ export const freezeSnapshot = async ({
       snapshotId
     }
   }, async (lock) => {
+    const manifest = loadSnapshotsManifest(repoCacheRoot);
     await cleanupStaleFrozenStagingDirs(repoCacheRoot, {
       lock,
       maxAgeHours: stagingMaxAgeHours
     });
-    const manifest = loadSnapshotsManifest(repoCacheRoot);
     const entry = manifest.snapshots?.[snapshotId];
     if (!entry) {
       throw notFound(`Snapshot not found: ${snapshotId}`);
@@ -291,7 +240,7 @@ export const freezeSnapshot = async ({
     if (!snapshotJson) {
       throw notFound(`snapshot.json missing for ${snapshotId}`);
     }
-    const snapshotDir = path.join(repoCacheRoot, 'snapshots', snapshotId);
+    const snapshotDir = resolveSnapshotDir(repoCacheRoot, snapshotId);
     const frozenDir = path.join(snapshotDir, 'frozen');
     const existingFrozen = loadFrozen(repoCacheRoot, snapshotId);
     if (entry.hasFrozen === true && existingFrozen && fs.existsSync(frozenDir)) {
@@ -299,7 +248,10 @@ export const freezeSnapshot = async ({
         snapshotId,
         alreadyFrozen: true,
         frozenAt: existingFrozen.frozenAt || null,
-        method: existingFrozen.method || normalizedMethod
+        method: existingFrozen.method || normalizedMethod,
+        verificationOk: existingFrozen.verification?.ok === true,
+        filesChecked: existingFrozen.verification?.filesChecked ?? null,
+        bytesChecked: existingFrozen.verification?.bytesChecked ?? null
       };
     }
 
@@ -326,6 +278,7 @@ export const freezeSnapshot = async ({
 
     try {
       const modeResults = [];
+      const modeProvenance = {};
       for (const mode of selectedModes) {
         const sourceRoot = sourceRootByMode[mode];
         const copyResult = await copySnapshotModeArtifacts({
@@ -335,45 +288,48 @@ export const freezeSnapshot = async ({
           verify: verifyEnabled
         });
         modeResults.push({ mode, result: copyResult });
+        const statePath = path.join(sourceRoot, 'build_state.json');
+        const relativeState = `provenance/${mode}.build_state.json`;
+        const targetState = path.join(stagingDir, relativeState);
+        const stateCopy = await copySnapshotFile({ sourceRoot, sourcePath: statePath, targetPath: targetState, verify: true });
+        copyResult.filesCopied = Number(copyResult.filesCopied || 0) + 1;
+        copyResult.bytesCopied = Number(copyResult.bytesCopied || 0) + stateCopy.bytes;
+        const state = readJsonFile(targetState, { maxBytes: 8 * 1024 * 1024, containedRoot: stagingDir });
+        const pieces = readJsonFile(path.join(stagingDir, `index-${mode}`, 'pieces', 'manifest.json'), { containedRoot: stagingDir });
+        const expectedId = snapshotJson.pointer?.buildIdByMode?.[mode];
+        if (!state.buildId || pieces.buildId !== state.buildId || (expectedId && expectedId !== state.buildId)) {
+          throw invalidRequest(`Snapshot ${mode} state does not match its selected artifacts.`);
+        }
+        modeProvenance[mode] = { mode, statePath: relativeState, sha256: await sha256File(targetState),
+          buildId: state.buildId, configHash: state.configHash ?? null, toolVersion: state.tool?.version ?? null,
+          compatibilityKey: pieces.compatibilityKey ?? null };
+        readFrozenModeState({ frozenRoot: stagingDir, mode, receipt: modeProvenance[mode] });
       }
 
-      const dominantSourceRoot = sourceRootByMode.code || sourceRootByMode[selectedModes[0]];
-      const sourceSqliteDir = dominantSourceRoot ? path.join(dominantSourceRoot, 'index-sqlite') : null;
-      const includeSqliteResolved = includeSqliteMode === 'auto'
-        ? await hasSqliteArtifact(sourceSqliteDir)
-        : includeSqliteMode === true;
-      const includeLmdbResolved = includeLmdbEnabled === true;
       const optionalCopies = [];
-      if (includeSqliteResolved) {
-        if (!sourceSqliteDir || !fs.existsSync(sourceSqliteDir)) {
-          throw notFound(`index-sqlite source missing for snapshot ${snapshotId}.`);
+      let includeSqliteResolved = false;
+      const includeLmdbResolved = includeLmdbEnabled === true;
+      for (const mode of selectedModes) {
+        const sourceRoot = sourceRootByMode[mode];
+        const sqliteName = `index-${mode}.db`;
+        const database = path.join(sourceRoot, 'index-sqlite', sqliteName);
+        const exists = fs.existsSync(database);
+        if (includeSqliteMode === true && !exists) throw notFound(`Selected ${mode} SQLite source missing.`);
+        if (includeSqliteMode !== false && exists) {
+          const walPath = `${database}-wal`;
+          if (fs.existsSync(walPath) && (await fsPromises.stat(walPath)).size > 0) throw invalidRequest(`Selected ${mode} SQLite WAL requires checkpointing before freeze.`);
+          const targetPath = path.join(stagingDir, 'index-sqlite', sqliteName);
+          const copied = await copySnapshotFile({ sourceRoot, sourcePath: database, targetPath, verify: true });
+          if (await sha256File(database) !== await sha256File(targetPath)) throw invalidRequest(`Frozen ${mode} SQLite bytes differ.`);
+          optionalCopies.push(copied);
+          includeSqliteResolved = true;
         }
-        const copied = await copyOptionalDir({
-          sourceDir: sourceSqliteDir,
-          targetDir: path.join(stagingDir, 'index-sqlite'),
-          method: normalizedMethod
-        });
-        optionalCopies.push(...copied);
-      }
-
-      if (includeLmdbResolved) {
-        const sourceLmdbDir = dominantSourceRoot ? path.join(dominantSourceRoot, 'index-lmdb') : null;
-        if (!sourceLmdbDir || !fs.existsSync(sourceLmdbDir)) {
-          throw notFound(`index-lmdb source missing for snapshot ${snapshotId}.`);
+        if (includeLmdbResolved && ['code', 'prose'].includes(mode)) {
+          const sourceDir = path.join(sourceRoot, 'index-lmdb', `index-${mode}`);
+          if (!fs.existsSync(sourceDir)) throw notFound(`Selected ${mode} LMDB source missing.`);
+          optionalCopies.push(...await copySnapshotDirectory({ sourceDir,
+            targetDir: path.join(stagingDir, 'index-lmdb', `index-${mode}`), verify: true }));
         }
-        const copied = await copyOptionalDir({
-          sourceDir: sourceLmdbDir,
-          targetDir: path.join(stagingDir, 'index-lmdb'),
-          method: normalizedMethod
-        });
-        optionalCopies.push(...copied);
-      }
-
-      const sourceBuildStatePath = dominantSourceRoot
-        ? path.join(dominantSourceRoot, 'build_state.json')
-        : null;
-      if (sourceBuildStatePath && fs.existsSync(sourceBuildStatePath)) {
-        await linkOrCopyFile(sourceBuildStatePath, path.join(stagingDir, 'build_state.json'), normalizedMethod);
       }
 
       if (fs.existsSync(frozenDir)) {
@@ -382,8 +338,10 @@ export const freezeSnapshot = async ({
       await fsPromises.rename(stagingDir, frozenDir);
 
       const checkedAt = new Date().toISOString();
-      const filesChecked = modeResults.reduce((sum, entry) => sum + Number(entry.result.filesChecked || 0), 0);
-      const bytesChecked = modeResults.reduce((sum, entry) => sum + Number(entry.result.bytesChecked || 0), 0);
+      const filesChecked = modeResults.reduce((sum, entry) => sum + Number(entry.result.filesChecked || 0), 0)
+        + (verifyEnabled ? optionalCopies.length : 0);
+      const bytesChecked = modeResults.reduce((sum, entry) => sum + Number(entry.result.bytesChecked || 0), 0)
+        + (verifyEnabled ? optionalCopies.reduce((sum, entry) => sum + entry.bytes, 0) : 0);
       const filesCopied = modeResults.reduce((sum, entry) => sum + Number(entry.result.filesCopied || 0), 0)
         + optionalCopies.length;
       const bytesCopied = modeResults.reduce((sum, entry) => sum + Number(entry.result.bytesCopied || 0), 0)
@@ -392,6 +350,8 @@ export const freezeSnapshot = async ({
       const frozenJson = {
         version: 1,
         snapshotId,
+        modeProvenanceVersion: 1,
+        modeProvenance,
         frozenAt: checkedAt,
         method: normalizedMethod,
         frozenRoot: toPosix(path.join('snapshots', snapshotId, 'frozen')),
@@ -402,7 +362,8 @@ export const freezeSnapshot = async ({
         },
         verification: {
           checkedAt,
-          ok: true,
+          ok: verifyEnabled,
+          status: verifyEnabled ? 'verified' : 'skipped',
           filesChecked: verifyEnabled ? filesChecked : null,
           bytesChecked: verifyEnabled ? bytesChecked : null,
           failures: []
@@ -420,7 +381,7 @@ export const freezeSnapshot = async ({
         ...entry,
         hasFrozen: true,
         retention: buildSnapshotRetention({
-          retentionTier,
+          retentionTier: retentionTier ?? (entry?.retention?.tier === 'pinned' ? 'pinned' : null),
           tags: Array.isArray(entry?.tags) ? entry.tags : [],
           hasFrozen: true
         })
@@ -438,7 +399,7 @@ export const freezeSnapshot = async ({
         bytesCopied,
         filesChecked: verifyEnabled ? filesChecked : null,
         bytesChecked: verifyEnabled ? bytesChecked : null,
-        verificationOk: true,
+        verificationOk: verifyEnabled,
         retention: manifest.snapshots[snapshotId].retention
       };
     } catch (err) {
@@ -484,11 +445,12 @@ export const gcSnapshots = async ({
       operation: 'gc'
     }
   }, async (lock) => {
+    const manifest = loadSnapshotsManifest(repoCacheRoot);
     const staleCleanup = await cleanupStaleFrozenStagingDirs(repoCacheRoot, {
       lock,
-      maxAgeHours: stagingMaxAgeHours
+      maxAgeHours: stagingMaxAgeHours,
+      dryRun: dryRunEnabled
     });
-    const manifest = loadSnapshotsManifest(repoCacheRoot);
     const entries = sortedSnapshotEntries(manifest);
     const protectedIds = new Set();
     const removedEntries = [];
@@ -503,10 +465,8 @@ export const gcSnapshots = async ({
       const tagProtected = tags.some((tag) => (
         keepTagPatterns.some((pattern) => matchesTagPattern(tag, pattern))
       ));
-      const retentionTier = normalizeSnapshotRetentionTier(
-        entry?.retention?.tier,
-        entry?.hasFrozen === true ? 'forensic' : 'cache'
-      );
+      const policy = resolveSnapshotRetentionPolicy(entry, { tagProtected });
+      const retentionTier = policy.tier;
       if (tagProtected) protectedIds.add(snapshotId);
       const createdAtMs = parseCreatedAtMs(entry.createdAt);
       const youngerThanCutoff = maxAgeCutoffMs == null || createdAtMs >= maxAgeCutoffMs;
@@ -515,8 +475,8 @@ export const gcSnapshots = async ({
       let reason = 'cache_budget';
       if (tagProtected) {
         reason = 'tag_pattern';
-      } else if (retentionTier === 'pinned') {
-        reason = 'pinned';
+      } else if (policy.protectionReason) {
+        reason = policy.protectionReason;
       } else if (retentionTier === 'forensic') {
         const withinKeep = keptFrozen < keepFrozenCount;
         if (withinKeep || youngerThanCutoff) {
@@ -558,7 +518,7 @@ export const gcSnapshots = async ({
     const removed = removedEntries.map((entry) => entry.snapshotId);
     if (!dryRunEnabled && removed.length) {
       for (const snapshotId of removed) {
-        await fsPromises.rm(path.join(repoCacheRoot, 'snapshots', snapshotId), {
+        await fsPromises.rm(resolveSnapshotDir(repoCacheRoot, snapshotId), {
           recursive: true,
           force: true
         });

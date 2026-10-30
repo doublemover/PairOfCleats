@@ -1,0 +1,17 @@
+import assert from 'node:assert/strict';
+import { createSchedulerCoreConfig } from '../../src/shared/concurrency/scheduler-core/config.js';
+import { createSchedulerQueueLifecycle } from '../../src/shared/concurrency/scheduler-core/queue-lifecycle.js';
+import { createSchedulerDispatch } from '../../src/shared/concurrency/scheduler-core/dispatch.js';
+const config=createSchedulerCoreConfig({enabled:true,cpuTokens:1,ioTokens:1,memoryTokens:1,queues:{work:{maxPending:1000}}});
+const state={tokens:config.createTokenState(),shuttingDown:false,runningTasks:new Set(),globalInFlightBytes:0};
+state.tokens.cpu.used=1;
+const normalize=config.normalizeRequest;let visits=0;
+config.normalizeRequest=(...args)=>{visits+=1;return normalize(...args);};
+const dispatch=createSchedulerDispatch({config,state,queueLifecycle:createSchedulerQueueLifecycle({config}),adaptiveController:{maybeAdaptTokens(){}},captureTelemetryIfDue(){}});
+const jobs=Array.from({length:200},()=>dispatch.schedule('work',{cpu:1},async()=>{}));
+assert.ok(visits<200*5,`unchanged blocked enqueue work must be linear; got ${visits}`);
+let ioRan=false;
+await dispatch.schedule('work',{io:1},async()=>{ioRan=true;});
+assert.equal(ioRan,true,'a runnable tail cannot be hidden by a blocked CPU head');
+state.tokens.cpu.used=0;dispatch.pump();await Promise.all(jobs);
+console.log('blocked scheduler scan amortization passed');

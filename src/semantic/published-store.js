@@ -1,70 +1,123 @@
 import { assertSemanticOperationIndex } from '../contracts/validators/semantic-operation-index.js';
-import { checksumFile } from '../shared/hash.js';
 import { assertSemanticQueryIndex } from '../contracts/validators/semantic-query-index.js';
-import fs from 'node:fs/promises';
 import { validateArtifact } from '../contracts/artifact-schemas.js';
 import path from 'node:path';
-import { loadPiecesManifest } from '../shared/artifact-io/manifest-read.js';
+import { readFreshPiecesManifest } from '../shared/artifact-io/manifest-read.js';
 import { assertCurrentIndexFormat } from '../contracts/index-format.js';
 import { assertSemanticEnvelope } from '../contracts/validators/semantic-envelopes.js';
-import { createArtifactSemanticStore, resolveSemanticPartPath } from './artifact-store.js';
+import { SEMANTIC_MEMBER_NAMES } from '../contracts/schemas/semantic-envelopes.js';
+import { canonicalSemanticJson } from '../index/semantic/identity.js';
+import { throwIfAborted } from '../shared/abort.js';
+import { createArtifactSemanticStore } from './artifact-store.js';
+import { readSemanticManifest } from './manifest-reader.js';
+import { compareQueryIndexRows } from './query-index.js';
+import { compareOperationIndexRows } from './operation-index.js';
 
-/** Open only a complete family already registered in the pinned build manifest. */
-export const openPublishedSemanticStore = async ({ indexDir, repoRoot, generation = null, requireQueryIndex = false }) => {
-  const pieces = loadPiecesManifest(indexDir, { repoRoot });
-  const manifestPiece = pieces.pieces?.find((piece) => piece.name === 'semantic_manifest' && piece.path === 'semantic_manifest.json');
-  if (!manifestPiece) {
-    throw Object.assign(new Error('Semantic family is unavailable in this generation.'), { code: 'ERR_SEMANTIC_UNAVAILABLE' });
+const integrity = message => Object.assign(new Error(message), { code: 'ERR_SEMANTIC_INTEGRITY' });
+const generationMismatch = message => Object.assign(new Error(message), { code: 'ERR_SEMANTIC_GENERATION_MISMATCH' });
+
+/** Open only a complete family already registered in the pinned build manifest.
+ * Metadata buffers live only during admission; stores own parsed inventories.
+ */
+export const openPublishedSemanticStore = async ({ indexDir, repoRoot, generation = null,
+  requireQueryIndex = false, signal = null }) => {
+  throwIfAborted(signal);
+  if (generation) { generation = structuredClone(generation); assertSemanticEnvelope('generation', generation); }
+  const pieces = readFreshPiecesManifest(indexDir, { repoRoot });
+  // Capture fresh registration authority before any await without retaining or
+  // changing the ordinary mutable parsed cache.
+  const registrations = structuredClone(pieces.pieces);
+  const buildId = pieces.buildId;
+  const byPath = new Map();
+  for (const piece of registrations) {
+    if (!piece || typeof piece.path !== 'string' || byPath.has(piece.path)) throw integrity('Duplicate or invalid registered semantic path.');
+    byPath.set(piece.path, piece);
   }
-  const filePath = path.join(indexDir, 'semantic_manifest.json');
-  if ((await fs.stat(filePath)).size > 32 * 1024 * 1024) throw new Error('Semantic manifest exceeds metadata allowance.');
-  const manifest = JSON.parse(await fs.readFile(filePath, 'utf8'));
+  const metadata = (name, filename) => {
+    const matches = registrations.filter(piece => piece.name === name);
+    if (!matches.length) {
+      if (byPath.has(filename)) throw integrity('Semantic metadata has the wrong registered member name.');
+      return null;
+    }
+    if (matches.length !== 1 || matches[0].path !== filename) throw integrity('Conflicting registered semantic metadata identity.');
+    return matches[0];
+  };
+  const registeredPart = (name, relativePath, hash, bytes = null) => {
+    const piece = byPath.get('semantic/' + relativePath);
+    if (!piece || piece.name !== name || piece.checksum !== 'sha256:' + hash
+      || (bytes !== null && piece.bytes !== bytes)) throw integrity('Semantic part identity is not registered: ' + relativePath);
+  };
+  const registeredRows = (name, entries) => {
+    for (const piece of entries) {
+      registeredPart(name, piece.path, piece.hash, piece.bytes);
+      registeredPart(name + '_offsets', piece.offsetsPath, piece.offsetsHash, piece.count * 8);
+    }
+  };
+  const manifestPiece = metadata('semantic_manifest', 'semantic_manifest.json');
+  if (!manifestPiece) throw Object.assign(new Error('Semantic family is unavailable in this generation.'), { code: 'ERR_SEMANTIC_UNAVAILABLE' });
+  const manifest = await readSemanticManifest(indexDir, manifestPiece, signal);
+  throwIfAborted(signal);
+  const filePath = path.join(indexDir, manifestPiece.path);
   assertCurrentIndexFormat({ operation: 'semantic_detail', component: 'semantic manifest',
     foundVersion: manifest.artifactSurfaceVersion, repoRoot, indexPath: filePath });
   assertCurrentIndexFormat({ operation: 'semantic_detail', component: 'semantic schema', expectedVersion: 1,
     foundVersion: manifest.semanticSchemaVersion, repoRoot, indexPath: filePath });
-  const manifestChecksum = await checksumFile(filePath);
-  if (manifestPiece.checksum !== manifestChecksum.algo + ':' + manifestChecksum.value) throw Object.assign(new Error('Semantic manifest checksum mismatch.'), { code: 'ERR_SEMANTIC_INTEGRITY' });
   const validation = validateArtifact('semantic_manifest', manifest);
   if (!validation.ok) throw new Error('Invalid semantic manifest: ' + validation.errors.join('; '));
-  if (pieces.buildId !== manifest.generation.baseBuildId) throw new Error('Mixed semantic/build manifest generations.');
+  if (buildId !== manifest.generation.baseBuildId) throw new Error('Mixed semantic/build manifest generations.');
   assertSemanticEnvelope('generation', manifest.generation);
-  if (generation && (generation.baseBuildId !== manifest.generation.baseBuildId || generation.semanticRevision !== 0)) {
-    throw Object.assign(new Error('Semantic generation no longer matches the requested build.'), { code: 'ERR_SEMANTIC_GENERATION_MISMATCH' });
+  if (generation && canonicalSemanticJson(generation) !== canonicalSemanticJson(manifest.generation)) {
+    throw generationMismatch('Semantic generation no longer matches the requested build.');
   }
-  const registeredEvidence = new Set(pieces.pieces.filter(piece => piece.name === 'semantic_evidence').map(piece => piece.path));
-  for (const artifact of manifest.evidenceArtifacts || []) {
-    if (!registeredEvidence.has('semantic/' + artifact.path)) throw Object.assign(new Error('Semantic evidence is not registered.'), { code: 'ERR_SEMANTIC_INTEGRITY' });
+  const partitionIds = new Set();
+  for (const partition of manifest.partitions) {
+    throwIfAborted(signal);
+    if (partitionIds.has(partition.partitionId)) throw integrity('Duplicate semantic partition identity.');
+    partitionIds.add(partition.partitionId);
+    for (const member of SEMANTIC_MEMBER_NAMES) registeredRows(member, partition.members[member]);
   }
+  for (const artifact of manifest.evidenceArtifacts || []) registeredPart('semantic_evidence', artifact.path, artifact.hash, artifact.bytes);
+  for (const artifact of manifest.frontierTargets || []) registeredPart('semantic_frontier_targets', artifact.path, artifact.hash, artifact.bytes);
+  const expectedHashes = manifest.partitions.map(({ partitionId, canonicalHash }) => ({ partitionId, canonicalHash }))
+    .sort((a, b) => a.partitionId < b.partitionId ? -1 : a.partitionId > b.partitionId ? 1 : 0);
+  const validateIndex = (index, compare, name) => {
+    if (canonicalSemanticJson(index.generation) !== canonicalSemanticJson(manifest.generation)) throw generationMismatch('Mixed semantic ' + name + ' generation.');
+    if (canonicalSemanticJson(index.partitionHashes) !== canonicalSemanticJson(expectedHashes)) throw integrity('Semantic ' + name + ' partition inventory mismatch.');
+    let previous = null;
+    for (const piece of index.pieces) {
+      throwIfAborted(signal);
+      if (compare(piece.firstKey, piece.lastKey) > 0 || (previous && compare(previous, piece.firstKey) >= 0)) throw integrity('Invalid semantic ' + name + ' ordering.');
+      previous = piece.lastKey;
+    }
+  };
   let queryIndex = null;
-  const queryPiece = pieces.pieces?.find((piece) => piece.name === 'semantic_query_index' && piece.path === 'semantic_query_index.json');
+  const queryPiece = metadata('semantic_query_index', 'semantic_query_index.json');
   if (queryPiece) {
-    const queryPath = await resolveSemanticPartPath(indexDir, 'semantic_query_index.json');
-    if ((await fs.stat(queryPath)).size > 32 * 1024 * 1024) throw new Error('Semantic query index exceeds metadata allowance.');
-    const checksum = await checksumFile(queryPath);
-    if (queryPiece.checksum !== checksum.algo + ':' + checksum.value) throw Object.assign(new Error('Semantic query manifest checksum mismatch.'), { code: 'ERR_SEMANTIC_INTEGRITY' });
-    queryIndex = assertSemanticQueryIndex(JSON.parse(await fs.readFile(queryPath, 'utf8')));
-    if (queryIndex.generation.baseBuildId !== manifest.generation.baseBuildId || queryIndex.generation.semanticRevision !== manifest.generation.semanticRevision) throw Object.assign(new Error('Mixed semantic query index generation.'), { code: 'ERR_SEMANTIC_GENERATION_MISMATCH' });
-    const registered = new Set(pieces.pieces.map((piece) => piece.path));
+    queryIndex = assertSemanticQueryIndex(await readSemanticManifest(indexDir, queryPiece, signal));
+    throwIfAborted(signal);
+    validateIndex(queryIndex, compareQueryIndexRows, 'query index');
     for (const piece of queryIndex.pieces) {
-      if (!registered.has('semantic/' + piece.path) || !registered.has('semantic/' + piece.offsetsPath)) throw new Error('Semantic query index part is not registered.');
+      registeredPart('semantic_query_index_rows', piece.path, piece.hash, piece.bytes);
+      registeredPart('semantic_query_index_offsets', piece.offsetsPath, piece.offsetsHash, piece.count * 8);
     }
   } else if (requireQueryIndex) throw Object.assign(new Error('Semantic query lookup index is unavailable in this generation.'), { code: 'ERR_SEMANTIC_QUERY_INDEX_UNAVAILABLE' });
   let operationIndex = null;
-  const operationPiece = pieces.pieces.find(piece => piece.name === 'semantic_operation_index' && piece.path === 'semantic_operation_index.json');
+  const operationPiece = metadata('semantic_operation_index', 'semantic_operation_index.json');
   if (operationPiece) {
-    const file = await resolveSemanticPartPath(indexDir, operationPiece.path);
-    if ((await fs.stat(file)).size > 32 * 1024 * 1024) throw new Error('Operation index manifest exceeds allowance.');
-    const checksum = await checksumFile(file);
-    if (operationPiece.checksum !== checksum.algo + ':' + checksum.value) throw new Error('Operation index checksum mismatch.');
-    const operationManifest = JSON.parse(await fs.readFile(file, 'utf8'));
-    assertCurrentIndexFormat({ operation: 'semantic_find', component: 'semantic operation index',
-      expectedVersion: 2, foundVersion: operationManifest.schemaVersion, repoRoot, indexPath: file });
+    const operationManifest = await readSemanticManifest(indexDir, operationPiece, signal);
+    throwIfAborted(signal);
+    assertCurrentIndexFormat({ operation: 'semantic_find', component: 'semantic operation index', expectedVersion: 2,
+      foundVersion: operationManifest.schemaVersion, repoRoot, indexPath: path.join(indexDir, operationPiece.path) });
     operationIndex = assertSemanticOperationIndex(operationManifest);
-    const registered = new Set(pieces.pieces.map(piece => piece.path));
-    for (const piece of operationIndex.pieces) if (!registered.has('semantic/' + piece.path) || !registered.has('semantic/' + piece.offsetsPath)) throw new Error('Unregistered operation index part.');
+    validateIndex(operationIndex, compareOperationIndexRows, 'operation index');
+    for (const piece of operationIndex.pieces) {
+      registeredPart('semantic_operation_index_rows', piece.path, piece.hash, piece.bytes);
+      registeredPart('semantic_operation_index_offsets', piece.offsetsPath, piece.offsetsHash, piece.count * 8);
+    }
   }
+  throwIfAborted(signal);
   const store = createArtifactSemanticStore({ root: path.join(indexDir, 'semantic'), repoRoot,
     artifactSurfaceVersion: manifest.artifactSurfaceVersion, generation: manifest.generation, partitions: manifest.partitions, completedTasks: manifest.completedTasks, operationIndex, queryIndex });
+  throwIfAborted(signal);
   return { store, manifest };
 };

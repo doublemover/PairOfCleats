@@ -1,0 +1,853 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-10-27",
+  "sourceHead": "acd8a79d9372dcec14b99ae6a46f082ac7f3d744",
+  "sourceTree": "f127c0a8b7e0976430bde8ccc2787374dbccae4a",
+  "branch": "codex/pr557-audit-repairs-20261012",
+  "platform": "win32",
+  "arch": "x64",
+  "node": "v26.12.1",
+  "issues": {
+    "partial": [
+      1574
+    ]
+  },
+  "setup": {
+    "dependenciesChanged": false,
+    "nativeBinariesChanged": false,
+    "patchesChanged": false,
+    "bootstrapRerun": false
+  },
+  "before": {
+    "method": "Eight child-only historical owner substitutions from e44b279d6; checkout files were not reverted.",
+    "cases": [
+      {
+        "name": "initialization",
+        "exitCode": 1,
+        "signal": null,
+        "error": null,
+        "durationMs": 697,
+        "failure": [
+          "AssertionError [ERR_ASSERTION]: The validation function is expected to return \"true\". Received false\r",
+          "Error: original frozen SQLite build operation failed\r",
+          "  actual: Error: original frozen SQLite build operation failed\r"
+        ],
+        "baseline": "e44b279d604f45091a20a623192307e2fd7a49b0",
+        "files": [
+          "src/storage/sqlite/build/core.js"
+        ],
+        "command": [
+          "C:\\nvm4w\\nodejs\\node.exe",
+          "--import",
+          "file:///C:/Users/sneak/Development/PairOfCleats/.tmp/tasks/sqlite-writer-owners-20261027/before-initialization-hook.mjs",
+          "tests/storage/sqlite/build/original-close-owner.test.js"
+        ],
+        "receipt": ".tmp/tasks/sqlite-writer-owners-20261027/before-initialization.json"
+      },
+      {
+        "name": "late-method",
+        "exitCode": 1,
+        "signal": null,
+        "error": null,
+        "durationMs": 793,
+        "failure": [
+          "AssertionError [ERR_ASSERTION]: concurrent finalization joins its original operation\r",
+          "    <rejected> AssertionError [ERR_ASSERTION]: late replacement cannot own writer finalization\r",
+          "    <rejected> AssertionError [ERR_ASSERTION]: late replacement cannot own writer finalization\r",
+          "    <rejected> AssertionError [ERR_ASSERTION]: late replacement cannot own writer finalization\r"
+        ],
+        "baseline": "e44b279d604f45091a20a623192307e2fd7a49b0",
+        "files": [
+          "src/storage/sqlite/build/core.js"
+        ],
+        "command": [
+          "C:\\nvm4w\\nodejs\\node.exe",
+          "--import",
+          "file:///C:/Users/sneak/Development/PairOfCleats/.tmp/tasks/sqlite-writer-owners-20261027/before-late-method-hook.mjs",
+          "tests/storage/sqlite/build/original-close-owner.test.js"
+        ],
+        "receipt": ".tmp/tasks/sqlite-writer-owners-20261027/before-late-method.json"
+      },
+      {
+        "name": "unknown-close",
+        "exitCode": 1,
+        "signal": null,
+        "error": null,
+        "durationMs": 794,
+        "failure": [
+          "AssertionError [ERR_ASSERTION]: concurrent finalization joins its original operation\r",
+          "    <rejected> AssertionError [ERR_ASSERTION]: late replacement cannot own writer finalization\r",
+          "    <rejected> AssertionError [ERR_ASSERTION]: late replacement cannot own writer finalization\r",
+          "    <rejected> AssertionError [ERR_ASSERTION]: late replacement cannot own writer finalization\r"
+        ],
+        "baseline": "e44b279d604f45091a20a623192307e2fd7a49b0",
+        "files": [
+          "src/storage/sqlite/build/core.js"
+        ],
+        "command": [
+          "C:\\nvm4w\\nodejs\\node.exe",
+          "--import",
+          "file:///C:/Users/sneak/Development/PairOfCleats/.tmp/tasks/sqlite-writer-owners-20261027/before-unknown-close-hook.mjs",
+          "tests/storage/sqlite/build/original-close-owner.test.js"
+        ],
+        "receipt": ".tmp/tasks/sqlite-writer-owners-20261027/before-unknown-close.json"
+      },
+      {
+        "name": "constructor-pending",
+        "exitCode": 1,
+        "signal": null,
+        "error": null,
+        "durationMs": 714,
+        "failure": [
+          "AssertionError [ERR_ASSERTION]: an unsettled or fatal original constructor cannot dispatch more native fallback attempts\r",
+          "8 !== 1\r"
+        ],
+        "baseline": "e44b279d604f45091a20a623192307e2fd7a49b0",
+        "files": [
+          "src/storage/sqlite/build/core.js"
+        ],
+        "command": [
+          "C:\\nvm4w\\nodejs\\node.exe",
+          "--import",
+          "file:///C:/Users/sneak/Development/PairOfCleats/.tmp/tasks/sqlite-writer-owners-20261027/before-constructor-pending-hook.mjs",
+          "tests/storage/sqlite/build/original-close-owner.test.js"
+        ],
+        "receipt": ".tmp/tasks/sqlite-writer-owners-20261027/before-constructor-pending.json"
+      },
+      {
+        "name": "constructor-fatal",
+        "exitCode": 1,
+        "signal": null,
+        "error": null,
+        "durationMs": 708,
+        "failure": [
+          "AssertionError [ERR_ASSERTION]: an unsettled or fatal original constructor cannot dispatch more native fallback attempts\r",
+          "3 !== 1\r"
+        ],
+        "baseline": "e44b279d604f45091a20a623192307e2fd7a49b0",
+        "files": [
+          "src/storage/sqlite/build/core.js"
+        ],
+        "command": [
+          "C:\\nvm4w\\nodejs\\node.exe",
+          "--import",
+          "file:///C:/Users/sneak/Development/PairOfCleats/.tmp/tasks/sqlite-writer-owners-20261027/before-constructor-fatal-hook.mjs",
+          "tests/storage/sqlite/build/original-close-owner.test.js"
+        ],
+        "receipt": ".tmp/tasks/sqlite-writer-owners-20261027/before-constructor-fatal.json"
+      },
+      {
+        "name": "artifact-primary",
+        "exitCode": 1,
+        "signal": null,
+        "error": null,
+        "durationMs": 980,
+        "failure": [
+          "AssertionError [ERR_ASSERTION]: The validation function is expected to return \"true\". Received false\r",
+          "AggregateError: SQLite cache closure remains unconfirmed.\r",
+          "  actual: AggregateError: SQLite cache closure remains unconfirmed.\r",
+          "    [cause]: Error: original SQLite writer close failed\r"
+        ],
+        "baseline": "e44b279d604f45091a20a623192307e2fd7a49b0",
+        "files": [
+          "src/storage/sqlite/build/from-artifacts/build.js"
+        ],
+        "command": [
+          "C:\\nvm4w\\nodejs\\node.exe",
+          "--import",
+          "file:///C:/Users/sneak/Development/PairOfCleats/.tmp/tasks/sqlite-writer-owners-20261027/before-artifact-primary-hook.mjs",
+          "tests/storage/sqlite/build/original-close-owner.test.js"
+        ],
+        "receipt": ".tmp/tasks/sqlite-writer-owners-20261027/before-artifact-primary.json"
+      },
+      {
+        "name": "bundle-primary",
+        "exitCode": 1,
+        "signal": null,
+        "error": null,
+        "durationMs": 821,
+        "failure": [
+          "AssertionError [ERR_ASSERTION]: The validation function is expected to return \"true\". Received false\r",
+          "AggregateError: SQLite cache closure remains unconfirmed.\r",
+          "  actual: AggregateError: SQLite cache closure remains unconfirmed.\r",
+          "    [cause]: Error: original SQLite writer close failed\r"
+        ],
+        "baseline": "e44b279d604f45091a20a623192307e2fd7a49b0",
+        "files": [
+          "src/storage/sqlite/build/from-bundles.js"
+        ],
+        "command": [
+          "C:\\nvm4w\\nodejs\\node.exe",
+          "--import",
+          "file:///C:/Users/sneak/Development/PairOfCleats/.tmp/tasks/sqlite-writer-owners-20261027/before-bundle-primary-hook.mjs",
+          "tests/storage/sqlite/build/original-close-owner.test.js"
+        ],
+        "receipt": ".tmp/tasks/sqlite-writer-owners-20261027/before-bundle-primary.json"
+      },
+      {
+        "name": "incremental-original-causes",
+        "exitCode": 1,
+        "signal": null,
+        "error": null,
+        "durationMs": 814,
+        "failure": [
+          "AssertionError [ERR_ASSERTION]: cleanup-errors: preserve the original failure and exact native cleanup cause\r",
+          "  actual: Error: injected planner failure\r"
+        ],
+        "baseline": "e44b279d604f45091a20a623192307e2fd7a49b0",
+        "files": [
+          "src/storage/sqlite/build/incremental-update.js"
+        ],
+        "command": [
+          "C:\\nvm4w\\nodejs\\node.exe",
+          "--import",
+          "file:///C:/Users/sneak/Development/PairOfCleats/.tmp/tasks/sqlite-writer-owners-20261027/before-incremental-original-causes-hook.mjs",
+          "tests/storage/sqlite/incremental/handle-lifecycle.test.js"
+        ],
+        "receipt": ".tmp/tasks/sqlite-writer-owners-20261027/before-incremental-original-causes.json"
+      }
+    ]
+  },
+  "checks": {
+    "focused": {
+      "summary": {
+        "total": 17,
+        "passed": 17,
+        "failed": 0,
+        "skipped": 0,
+        "durationMs": 17370
+      },
+      "tests": [
+        {
+          "id": "indexing/contracts/index-format-cutover",
+          "status": "passed",
+          "durationMs": 1445,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "storage/sqlite/build/cancellation",
+          "status": "passed",
+          "durationMs": 2903,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "storage/sqlite/build/existing-output-staging",
+          "status": "passed",
+          "durationMs": 1380,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "storage/sqlite/build/fallback-wal-publication",
+          "status": "passed",
+          "durationMs": 609,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "storage/sqlite/build/finalization-diagnostics",
+          "status": "passed",
+          "durationMs": 1237,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "storage/sqlite/build/incremental-runner-imports-contract",
+          "status": "passed",
+          "durationMs": 94,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "storage/sqlite/build/multi-row-build-parity",
+          "status": "passed",
+          "durationMs": 1153,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "storage/sqlite/build/original-close-owner/artifact-primary",
+          "status": "passed",
+          "durationMs": 986,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "storage/sqlite/build/original-close-owner/bundle-primary",
+          "status": "passed",
+          "durationMs": 809,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "storage/sqlite/build/original-close-owner/constructor-fatal",
+          "status": "passed",
+          "durationMs": 686,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "storage/sqlite/build/original-close-owner/constructor-pending",
+          "status": "passed",
+          "durationMs": 687,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "storage/sqlite/build/original-close-owner/initialization",
+          "status": "passed",
+          "durationMs": 674,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "storage/sqlite/build/original-close-owner/late-method",
+          "status": "passed",
+          "durationMs": 745,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "storage/sqlite/build/original-close-owner/unknown-close",
+          "status": "passed",
+          "durationMs": 805,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "storage/sqlite/build/startup-lifecycle",
+          "status": "passed",
+          "durationMs": 1220,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "storage/sqlite/incremental-transaction-boundary",
+          "status": "passed",
+          "durationMs": 814,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "storage/sqlite/incremental/handle-lifecycle",
+          "status": "passed",
+          "durationMs": 1106,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        }
+      ]
+    },
+    "gate": {
+      "summary": {
+        "total": 40,
+        "passed": 40,
+        "failed": 0,
+        "skipped": 0,
+        "durationMs": 24351
+      },
+      "tests": [
+        {
+          "id": "indexing/policy/hotpath-membership-guard",
+          "status": "passed",
+          "durationMs": 73,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/policy/module-cache-boundedness-contract",
+          "status": "passed",
+          "durationMs": 75,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/policy/generated-matrix",
+          "status": "passed",
+          "durationMs": 77,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/contracts/artifact-surface-version",
+          "status": "passed",
+          "durationMs": 72,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/contracts/n-minus-one-adapter",
+          "status": "passed",
+          "durationMs": 68,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/contracts/public-artifact-surface-doc",
+          "status": "passed",
+          "durationMs": 74,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/contracts/index-compatibility-key-generation",
+          "status": "passed",
+          "durationMs": 161,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/contracts/semver-policy-enforced",
+          "status": "passed",
+          "durationMs": 73,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/contracts/index-state-dense-sidecars-present",
+          "status": "passed",
+          "durationMs": 82,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "contracts/manifest-max-bytes-validation",
+          "status": "passed",
+          "durationMs": 160,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/policy/repo-inventory",
+          "status": "passed",
+          "durationMs": 1854,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/policy/shared-module-cycle-guard",
+          "status": "passed",
+          "durationMs": 257,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/contracts/loader-matrix-parity",
+          "status": "passed",
+          "durationMs": 223,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/policy/analysis-schema",
+          "status": "passed",
+          "durationMs": 281,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/contracts/snapshots",
+          "status": "passed",
+          "durationMs": 267,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/contracts/builds-current-repo-head-schema",
+          "status": "passed",
+          "durationMs": 269,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/contracts/call-sites-schema",
+          "status": "passed",
+          "durationMs": 271,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/contracts/diffs",
+          "status": "passed",
+          "durationMs": 266,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/contracts/additional-properties-policy",
+          "status": "passed",
+          "durationMs": 283,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/contracts/index-compatibility-key-enforced-on-load",
+          "status": "passed",
+          "durationMs": 497,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/contracts/schema-registry-single-source",
+          "status": "passed",
+          "durationMs": 277,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "tooling/api-contracts/caps",
+          "status": "passed",
+          "durationMs": 750,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "tooling/api-contracts/schema-validate",
+          "status": "passed",
+          "durationMs": 980,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "tooling/api-contracts/fail-on-warn",
+          "status": "passed",
+          "durationMs": 1050,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "tooling/api-contracts/optional-params",
+          "status": "passed",
+          "durationMs": 864,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "tooling/api-contracts/large-call-sites",
+          "status": "passed",
+          "durationMs": 650,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/contracts/embedding-identity-gating-on-load",
+          "status": "passed",
+          "durationMs": 550,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "ci/capability-gate.smoke",
+          "status": "passed",
+          "durationMs": 863,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/contracts/index-compatibility-key-federation-block",
+          "status": "passed",
+          "durationMs": 1121,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/policy/stable-entrypoints",
+          "status": "passed",
+          "durationMs": 66,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/policy/optional-deps",
+          "status": "passed",
+          "durationMs": 1233,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/policy/analysis-gating",
+          "status": "passed",
+          "durationMs": 972,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "ci/tooling-doctor-gate.smoke",
+          "status": "passed",
+          "durationMs": 1060,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "tooling/api-contracts/basic",
+          "status": "passed",
+          "durationMs": 602,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "contracts/module-export-surface-compat",
+          "status": "passed",
+          "durationMs": 2469,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/contracts/semantic-foundations",
+          "status": "passed",
+          "durationMs": 1194,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/contracts/semantic-handoff-contracts",
+          "status": "passed",
+          "durationMs": 338,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/contracts/runtime-evidence",
+          "status": "passed",
+          "durationMs": 520,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "indexing/contracts/index-format-cutover",
+          "status": "passed",
+          "durationMs": 1637,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        },
+        {
+          "id": "ci/windows-authority-cohort",
+          "status": "passed",
+          "durationMs": 1736,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false,
+          "signal": null
+        }
+      ]
+    },
+    "frontGate": [
+      {
+        "durationMs": 2974,
+        "exitCode": 0,
+        "executable": "npm.cmd",
+        "arguments": [
+          "run",
+          "config:budget"
+        ],
+        "name": "config-budget"
+      },
+      {
+        "durationMs": 1325,
+        "exitCode": 0,
+        "executable": "npm.cmd",
+        "arguments": [
+          "run",
+          "env:check"
+        ],
+        "name": "environment"
+      },
+      {
+        "durationMs": 12517,
+        "exitCode": 0,
+        "executable": "node",
+        "arguments": [
+          "tools/docs/generated-surfaces.js",
+          "--check-freshness"
+        ],
+        "name": "generated"
+      },
+      {
+        "durationMs": 2705,
+        "exitCode": 0,
+        "executable": "node",
+        "arguments": [
+          "tools/ci/check-command-surface.js"
+        ],
+        "name": "command-surface"
+      },
+      {
+        "durationMs": 232,
+        "exitCode": 0,
+        "executable": "node",
+        "arguments": [
+          "tests/ci/workflow-contract.test.js"
+        ],
+        "name": "workflow"
+      },
+      {
+        "durationMs": 25109,
+        "exitCode": 0,
+        "executable": "node",
+        "arguments": [
+          "tests/run.js",
+          "--lane",
+          "gate",
+          "--jobs",
+          "1",
+          "--timeout-ms",
+          "30000",
+          "--retries",
+          "0",
+          "--native-status-redo=false",
+          "--pairofcleats-threads",
+          "1",
+          "--json"
+        ],
+        "name": "gate-lane"
+      },
+      {
+        "durationMs": 82,
+        "exitCode": 0,
+        "executable": "git",
+        "arguments": [
+          "diff",
+          "--check"
+        ],
+        "name": "diff"
+      }
+    ],
+    "format": true,
+    "workingAndStagedDiff": true,
+    "policy": {
+      "jobs": 1,
+      "threads": 1,
+      "timeoutMs": 30000,
+      "retries": 0,
+      "nativeStatusRedo": false
+    }
+  },
+  "coverage": {
+    "physical": "Artifact/bundle construction captures the original synchronous native close owner before any initialization. Successful and failed finalization share one Promise; late close methods and repeated failure calls do not replace/retry it.",
+    "errors": "Initialization, artifact, bundle and incremental work preserve exact frozen primary and native cleanup causes. Restoration and failed close remain distinct. Incremental failed close cannot become a successful update.",
+    "admission": "Fatal and independent pending constructor failures stop further native dispatch. Controlled Windows before cases show three fatal or eight pending attempts, versus one after repair. Existing confirmed CANTOPEN fallback retains its bounds and WAL publication checks.",
+    "compatibility": "Actual SQLite readback, existing-output staging, fallback WAL publication, cancellation, multi-row parity, transaction rollback, format rejection, diagnostics and import budget remain.",
+    "tests": "Existing failure cases now require exact original primary plus exact cleanup cause and pending ownership; healthy cleanup still requires original error identity. No assertions were removed."
+  },
+  "remaining": [
+    "Custom/external backend registration with producer/publication identity and explicit launch authority.",
+    "Complete SQLite writer storage-session/temporary-namespace adoption, sidecar and unadopted legacy/other-backend lifetimes.",
+    "Category-specific eligible backend deletion/requalification and all/multi-repo CLI/MCP acceptance."
+  ],
+  "limits": "This batch repairs physical writer ownership, not every builder storage session or private fallback temporary namespace; it grants no custom/external deletion permission and does not attribute an access-violation stack.",
+  "authority": "No user cache cleanup, GUI, WSL, elevation, physical links, public knobs or security-setting changes.",
+  "rawEvidence": "Historical author-workspace .tmp/.testLogs evidence is absent from clean checkouts. Controlled unknown-close cases manually close actual test handles without claiming protocol settlement."
+}

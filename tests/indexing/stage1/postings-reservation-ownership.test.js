@@ -1,0 +1,13 @@
+import assert from 'node:assert/strict';
+import { createPostingsQueue } from '../../../src/index/build/indexer/steps/process-files/postings-queue.js';
+const queue = createPostingsQueue({ maxPending: 3, maxPendingRows: 100, maxHeapFraction: 1 });
+const first = await queue.reserve({ rows: 7, bytes: 70 });
+const second = await queue.reserve({ rows: 11, bytes: 110 });
+first.release(); first.release();
+assert.deepEqual(queue.stats().pending, { count: 1, rows: 11, bytes: 110 });
+const controller = new AbortController(); controller.abort();
+await assert.rejects(queue.reserve({ signal: controller.signal }), { name: 'AbortError' });
+await assert.rejects(queue.reserve({ signal: controller.signal, bypass: true }), { name: 'AbortError' });
+second.release();
+assert.equal(queue.stats().pending.count, 0);
+console.log('postings reservation ownership passed');

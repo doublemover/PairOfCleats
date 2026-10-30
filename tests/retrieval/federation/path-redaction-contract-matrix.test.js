@@ -45,7 +45,7 @@ const cases = [
           query: 'diagnostic-redaction',
           search: { mode: 'code', top: 5 }
         }, {
-          searchFn: async (repoRootCanonical) => {
+          searchPolicyId: 'fixture-query-policy@1', searchFn: async (repoRootCanonical) => {
             if (path.basename(repoRootCanonical) === 'repo-b') {
               throw createError(ERROR_CODES.NO_INDEX, `Missing pieces manifest: ${leakedPath}`);
             }
@@ -115,8 +115,8 @@ const cases = [
           };
         };
 
-        const first = await runFederatedSearch(request, { searchFn });
-        const second = await runFederatedSearch(request, { searchFn });
+        const first = await runFederatedSearch(request, { searchPolicyId: 'fixture-query-policy@1', searchFn });
+        const second = await runFederatedSearch(request, { searchPolicyId: 'fixture-query-policy@1', searchFn });
 
         assert.equal(searchCalls, 1);
         assert.equal(first.code[0]?.file, '<redacted>');

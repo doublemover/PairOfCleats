@@ -12,6 +12,8 @@ import {
 import { sha1 } from '../../../src/shared/hash.js';
 import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
+import { collectLanguageImports } from '../../../src/index/language-registry.js';
+import { getImportExtraction } from '../../../src/shared/import-extraction.js';
 
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 
@@ -32,11 +34,10 @@ const text = [
 await fs.writeFile(absPath, `${text}\n`, 'utf8');
 const sourceBuffer = await fs.readFile(absPath);
 const relKey = 'src/file.js';
-const coarseStat = {
-  size: sourceBuffer.length,
-  mtimeMs: 2000
-};
+await fs.utimes(absPath, new Date(2000), new Date(2000));
+const coarseStat = await fs.stat(absPath);
 const fileHash = sha1(sourceBuffer);
+const imports = collectLanguageImports({ text: sourceBuffer.toString('utf8'), ext: '.js', relPath: relKey, mode: 'code' });
 
 const manifestEntry = await writeIncrementalBundle({
   enabled: true,
@@ -45,7 +46,7 @@ const manifestEntry = await writeIncrementalBundle({
   fileStat: coarseStat,
   fileHash,
   fileChunks: [],
-  fileRelations: { imports: ['./dep.js'] },
+  fileRelations: { imports, importExtraction: getImportExtraction(imports) },
   vfsManifestRows: null,
   bundleFormat: 'json'
 });
@@ -59,21 +60,26 @@ const manifest = {
 };
 
 const sharedReadState = new Map();
-const originalReadFile = fsPromises.readFile;
+const originalOpen = fsPromises.open;
 let sourceReadCount = 0;
 /**
  * Intercept source reads so this test can assert shared read-state reuse
  * across bundle/import cache lookups.
  */
-fsPromises.readFile = async (...args) => {
-  if (String(args[0]) === absPath) sourceReadCount += 1;
-  return originalReadFile(...args);
+fsPromises.open = async (file, ...args) => {
+  const handle = await originalOpen.call(fsPromises, file, ...args);
+  if (path.relative(String(file), absPath) === '') {
+    const read = handle.read;
+    handle.read = async function (...args) { const result = await read.apply(this, args); if (result.bytesRead > 0) sourceReadCount++; return result; };
+  }
+  return handle;
 };
 
 let bundleResult = null;
 let importsResult = null;
 try {
   bundleResult = await readCachedBundle({
+    repoRoot: tempRoot,
     enabled: true,
     absPath,
     relKey,
@@ -84,6 +90,7 @@ try {
     sharedReadState
   });
   importsResult = await readCachedImports({
+    repoRoot: tempRoot,
     enabled: true,
     absPath,
     relKey,
@@ -94,7 +101,7 @@ try {
     sharedReadState
   });
 } finally {
-  fsPromises.readFile = originalReadFile;
+  fsPromises.open = originalOpen;
 }
 
 assert.ok(bundleResult?.cachedBundle, 'expected cached bundle hit');
@@ -102,24 +109,27 @@ assert.equal(bundleResult.fileHash, fileHash, 'expected source hash from cached 
 assert.deepEqual(importsResult, ['./dep.js'], 'expected cached imports to match bundle contents');
 assert.equal(sourceReadCount, 1, 'expected source bytes to be read once across bundle/import cache checks');
 
-const changedStat = {
-  size: coarseStat.size,
-  mtimeMs: coarseStat.mtimeMs + 1
-};
+await fs.utimes(absPath, new Date(2001), new Date(2001));
+const changedStat = await fs.stat(absPath);
 const changedSharedReadState = new Map();
 let changedSourceReadCount = 0;
 /**
  * Second interception verifies hash-fallback lookups still share one source read.
  */
-fsPromises.readFile = async (...args) => {
-  if (String(args[0]) === absPath) changedSourceReadCount += 1;
-  return originalReadFile(...args);
+fsPromises.open = async (file, ...args) => {
+  const handle = await originalOpen.call(fsPromises, file, ...args);
+  if (path.relative(String(file), absPath) === '') {
+    const read = handle.read;
+    handle.read = async function (...args) { const result = await read.apply(this, args); if (result.bytesRead > 0) changedSourceReadCount++; return result; };
+  }
+  return handle;
 };
 
 let changedBundleResult = null;
 let changedImportsResult = null;
 try {
   changedBundleResult = await readCachedBundle({
+    repoRoot: tempRoot,
     enabled: true,
     absPath,
     relKey,
@@ -130,6 +140,7 @@ try {
     sharedReadState: changedSharedReadState
   });
   changedImportsResult = await readCachedImports({
+    repoRoot: tempRoot,
     enabled: true,
     absPath,
     relKey,
@@ -140,7 +151,7 @@ try {
     sharedReadState: changedSharedReadState
   });
 } finally {
-  fsPromises.readFile = originalReadFile;
+  fsPromises.open = originalOpen;
 }
 
 assert.ok(changedBundleResult?.cachedBundle, 'expected hash-validated bundle hit after stat drift');

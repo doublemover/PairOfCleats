@@ -27,8 +27,15 @@ assert.deepEqual(
 );
 assert.deepEqual(
   inferSuiteCategory({ id: 'tooling/vscode/integration-harness', lane: 'ci-lite' }),
-  { category: 'hero', reason: 'peripheral-tooling-surface' }
+  { category: 'hero', reason: 'peripheral-tooling-or-smoke-surface' }
 );
+for (const id of ['smoke/cli', 'tooling/install/detect', 'tooling/sublime/integration-harness']) {
+  assert.deepEqual(
+    inferSuiteCategory({ id, lane: 'ci-long', tags: ['long'] }),
+    { category: 'hero', reason: 'peripheral-tooling-or-smoke-surface' },
+    'peripheral behavior remains a hero case regardless of its execution lane'
+  );
+}
 
 const summary = buildSuiteCategorySummary([
   { suiteCategory: 'hero' },

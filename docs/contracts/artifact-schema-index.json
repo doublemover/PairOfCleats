@@ -1,5 +1,5 @@
 {
-  "schemaHash": "51c2dcb91f84f7c0d425c1a53f6ab0117c5e259e",
+  "schemaHash": "360619c7306e3aef4074abcc51c4cde8f06ece8b",
   "artifacts": [
     {
       "artifact": "api_contracts",
@@ -122,12 +122,14 @@
         "start"
       ],
       "optionalFields": [
+        "displayPath",
         "endLine",
         "ext",
         "fileId",
         "kind",
         "metaV2",
         "name",
+        "recordSource",
         "startLine"
       ]
     },
@@ -235,11 +237,16 @@
         "vectors"
       ],
       "optionalFields": [
+        "absence",
+        "embeddingGeneration",
+        "embeddingIdentity",
         "levels",
         "maxVal",
         "minVal",
         "model",
-        "scale"
+        "quantizationVersion",
+        "scale",
+        "zeroPoint"
       ]
     },
     {
@@ -256,16 +263,21 @@
         "path"
       ],
       "optionalFields": [
+        "absence",
         "artifact",
         "bytes",
+        "embeddingGeneration",
+        "embeddingIdentity",
         "format",
         "generatedAt",
         "levels",
         "maxVal",
         "minVal",
         "model",
+        "quantizationVersion",
         "scale",
-        "schemaVersion"
+        "schemaVersion",
+        "zeroPoint"
       ]
     },
     {
@@ -276,11 +288,16 @@
         "vectors"
       ],
       "optionalFields": [
+        "absence",
+        "embeddingGeneration",
+        "embeddingIdentity",
         "levels",
         "maxVal",
         "minVal",
         "model",
-        "scale"
+        "quantizationVersion",
+        "scale",
+        "zeroPoint"
       ]
     },
     {
@@ -297,16 +314,21 @@
         "path"
       ],
       "optionalFields": [
+        "absence",
         "artifact",
         "bytes",
+        "embeddingGeneration",
+        "embeddingIdentity",
         "format",
         "generatedAt",
         "levels",
         "maxVal",
         "minVal",
         "model",
+        "quantizationVersion",
         "scale",
-        "schemaVersion"
+        "schemaVersion",
+        "zeroPoint"
       ]
     },
     {
@@ -321,14 +343,21 @@
         "space"
       ],
       "optionalFields": [
+        "absence",
+        "backendGeneration",
+        "embeddingGeneration",
+        "embeddingIdentity",
         "expectedCount",
         "generatedAt",
         "levels",
         "maxVal",
         "minVal",
         "model",
+        "quantizationVersion",
         "scale",
-        "version"
+        "variant",
+        "version",
+        "zeroPoint"
       ]
     },
     {
@@ -343,13 +372,21 @@
         "table"
       ],
       "optionalFields": [
+        "absence",
+        "backendGeneration",
+        "embeddingGeneration",
+        "embeddingIdentity",
+        "expectedCount",
         "generatedAt",
         "levels",
         "maxVal",
         "minVal",
         "model",
+        "quantizationVersion",
         "scale",
-        "version"
+        "variant",
+        "version",
+        "zeroPoint"
       ]
     },
     {
@@ -360,11 +397,16 @@
         "vectors"
       ],
       "optionalFields": [
+        "absence",
+        "embeddingGeneration",
+        "embeddingIdentity",
         "levels",
         "maxVal",
         "minVal",
         "model",
-        "scale"
+        "quantizationVersion",
+        "scale",
+        "zeroPoint"
       ]
     },
     {
@@ -381,16 +423,21 @@
         "path"
       ],
       "optionalFields": [
+        "absence",
         "artifact",
         "bytes",
+        "embeddingGeneration",
+        "embeddingIdentity",
         "format",
         "generatedAt",
         "levels",
         "maxVal",
         "minVal",
         "model",
+        "quantizationVersion",
         "scale",
-        "schemaVersion"
+        "schemaVersion",
+        "zeroPoint"
       ]
     },
     {
@@ -405,14 +452,21 @@
         "space"
       ],
       "optionalFields": [
+        "absence",
+        "backendGeneration",
+        "embeddingGeneration",
+        "embeddingIdentity",
         "expectedCount",
         "generatedAt",
         "levels",
         "maxVal",
         "minVal",
         "model",
+        "quantizationVersion",
         "scale",
-        "version"
+        "variant",
+        "version",
+        "zeroPoint"
       ]
     },
     {
@@ -427,13 +481,21 @@
         "table"
       ],
       "optionalFields": [
+        "absence",
+        "backendGeneration",
+        "embeddingGeneration",
+        "embeddingIdentity",
+        "expectedCount",
         "generatedAt",
         "levels",
         "maxVal",
         "minVal",
         "model",
+        "quantizationVersion",
         "scale",
-        "version"
+        "variant",
+        "version",
+        "zeroPoint"
       ]
     },
     {
@@ -448,14 +510,21 @@
         "space"
       ],
       "optionalFields": [
+        "absence",
+        "backendGeneration",
+        "embeddingGeneration",
+        "embeddingIdentity",
         "expectedCount",
         "generatedAt",
         "levels",
         "maxVal",
         "minVal",
         "model",
+        "quantizationVersion",
         "scale",
-        "version"
+        "variant",
+        "version",
+        "zeroPoint"
       ]
     },
     {
@@ -470,13 +539,21 @@
         "table"
       ],
       "optionalFields": [
+        "absence",
+        "backendGeneration",
+        "embeddingGeneration",
+        "embeddingIdentity",
+        "expectedCount",
         "generatedAt",
         "levels",
         "maxVal",
         "minVal",
         "model",
+        "quantizationVersion",
         "scale",
-        "version"
+        "variant",
+        "version",
+        "zeroPoint"
       ]
     },
     {
@@ -488,15 +565,20 @@
         "table"
       ],
       "optionalFields": [
+        "absence",
         "embeddingColumn",
+        "embeddingGeneration",
+        "embeddingIdentity",
         "generatedAt",
         "idColumn",
         "levels",
         "maxVal",
         "minVal",
         "model",
+        "quantizationVersion",
         "scale",
-        "version"
+        "version",
+        "zeroPoint"
       ]
     },
     {
@@ -630,12 +712,14 @@
         "id"
       ],
       "optionalFields": [
+        "displayPath",
         "encoding",
         "encodingConfidence",
         "encodingFallback",
         "encodingFallbackClass",
         "encodingFallbackRisk",
-        "ext"
+        "ext",
+        "recordSource"
       ]
     },
     {
@@ -726,6 +810,42 @@
       ]
     },
     {
+      "artifact": "graph_relation_edges",
+      "schemaVersion": {
+        "const": 1
+      },
+      "requiredFields": [
+        "from",
+        "graph",
+        "schemaVersion",
+        "to"
+      ],
+      "optionalFields": []
+    },
+    {
+      "artifact": "graph_relation_edges_meta",
+      "schemaVersion": {
+        "type": "string",
+        "pattern": "^\\d+\\.\\d+\\.\\d+(?:-[0-9A-Za-z.-]+)?$"
+      },
+      "requiredFields": [
+        "artifact",
+        "compression",
+        "format",
+        "generatedAt",
+        "maxPartBytes",
+        "maxPartRecords",
+        "parts",
+        "schemaVersion",
+        "targetMaxBytes",
+        "totalBytes",
+        "totalRecords"
+      ],
+      "optionalFields": [
+        "extensions"
+      ]
+    },
+    {
       "artifact": "graph_relations",
       "schemaVersion": null,
       "requiredFields": [
@@ -735,7 +855,10 @@
         "usageGraph",
         "version"
       ],
-      "optionalFields": []
+      "optionalFields": [
+        "extractionCoverage",
+        "upstreamCoverage"
+      ]
     },
     {
       "artifact": "graph_relations_meta",
@@ -770,6 +893,7 @@
         "stats"
       ],
       "optionalFields": [
+        "extractionCoverage",
         "importScanMode",
         "toolVersion",
         "warnings"
@@ -822,6 +946,7 @@
       "artifact": "minhash_signatures",
       "schemaVersion": null,
       "requiredFields": [
+        "hashIdentity",
         "signatures"
       ],
       "optionalFields": []
@@ -862,9 +987,12 @@
         "name"
       ],
       "optionalFields": [
+        "chunkUid",
         "exported",
         "kind",
-        "signature"
+        "signature",
+        "symbolId",
+        "virtualPath"
       ]
     },
     {
@@ -948,6 +1076,7 @@
       "optionalFields": [
         "artifacts",
         "droppedRecords",
+        "inputCoverage",
         "provenance",
         "reason"
       ]
@@ -1036,6 +1165,10 @@
     {
       "artifact": "scan_profile",
       "schemaVersion": {
+        "enum": [
+          1,
+          2
+        ],
         "type": "integer"
       },
       "requiredFields": [
@@ -1048,7 +1181,9 @@
         "source",
         "totals"
       ],
-      "optionalFields": []
+      "optionalFields": [
+        "coverage"
+      ]
     },
     {
       "artifact": "semantic_coverage",
@@ -1209,7 +1344,10 @@
         "verification",
         "version"
       ],
-      "optionalFields": []
+      "optionalFields": [
+        "modeProvenance",
+        "modeProvenanceVersion"
+      ]
     },
     {
       "artifact": "snapshot_record",
@@ -1355,6 +1493,8 @@
         "virtualPath"
       ],
       "optionalFields": [
+        "exportNames",
+        "exported",
         "extensions",
         "kind",
         "lang",

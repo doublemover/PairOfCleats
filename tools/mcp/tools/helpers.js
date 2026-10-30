@@ -8,7 +8,8 @@ import {
 } from '../../shared/dict-utils.js';
 import { createProgressReporter } from '../../../src/shared/progress-events.js';
 import { resolveRepoPath } from '../repo.js';
-import { runNodeSync } from '../runner.js';
+import { runNodeAsync } from '../runner.js';
+import { throwIfAborted } from '../../../src/shared/abort.js';
 
 export const toolRoot = resolveToolRoot();
 
@@ -23,7 +24,7 @@ export const resolveMcpRepoContext = (repoArg, options = {}) => {
     includeRuntimeEnv = true,
     includeUserConfig = true
   } = options;
-  const repoPath = resolveRepoPath(repoArg);
+  const repoPath = resolveRepoPath(repoArg, { preserveExplicitTarget: options.preserveExplicitTarget === true });
   const shouldLoadConfig = includeUserConfig || includeRuntimeEnv;
   const userConfig = shouldLoadConfig ? loadUserConfig(repoPath) : null;
   if (!includeRuntimeEnv) {
@@ -40,18 +41,20 @@ export const resolveMcpRepoContext = (repoArg, options = {}) => {
  * @param {string} artifactsDir
  * @param {object} progress
  * @param {Record<string,string|undefined>} runtimeEnv
- * @returns {boolean}
+ * @returns {Promise<boolean>}
  */
-export function maybeRestoreArtifacts(repoPath, artifactsDir, progress, runtimeEnv) {
+export async function maybeRestoreArtifacts(repoPath, artifactsDir, progress, runtimeEnv) {
+  throwIfAborted(progress?.signal);
   const fromDir = artifactsDir ? path.resolve(artifactsDir) : path.join(repoPath, 'ci-artifacts');
   if (!fs.existsSync(path.join(fromDir, 'manifest.json'))) return false;
   const reporter = createProgressReporter(progress);
   reporter?.start(`Restoring CI artifacts from ${fromDir}`);
-  runNodeSync(
+  await runNodeAsync(
     repoPath,
     [path.join(toolRoot, 'tools', 'ci', 'restore-artifacts.js'), '--repo', repoPath, '--from', fromDir],
-    { env: runtimeEnv }
+    { env: runtimeEnv, signal: progress?.signal }
   );
+  throwIfAborted(progress?.signal);
   reporter?.done('CI artifacts restored.');
   return true;
 }

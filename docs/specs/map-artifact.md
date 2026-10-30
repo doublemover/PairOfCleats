@@ -10,11 +10,11 @@ Status: **Normative** for map generation and tooling consumption.
 Note: the current `report map` tooling writes a single JSON file. Sharding is reserved for
 future use and should preserve the same row ordering rules.
 
-## Schema (v1.0.0)
+## Schema (v1.1.0)
 
 ```ts
 type CodeMapModelV1 = {
-  version: "1.0.0";
+  version: "1.1.0";
   generatedAt: string; // ISO 8601
   root: { path: string; id?: string|null };
   mode?: string|null;
@@ -112,6 +112,9 @@ type CodeMapViewerConfig = {
 type CodeMapSummary = {
   counts: { files: number; members: number; edges: number };
   dropped: { files: number; members: number; edges: number };
+  inventory: { status: "complete" | "unavailable"; files: number };
+  identity: { ambiguous: number; unresolved: number; complete: boolean };
+  omittedEndpoints: { unavailable: number; displayFiltered: number };
   truncated: boolean;
   limits: CodeMapOptions["limits"];
   include: string[];
@@ -157,6 +160,21 @@ When consuming index relations (`graph_relations`, `file_relations`, `repo_map`,
 - New fields MUST be additive.
 - Consumers MUST ignore unknown fields.
 - Breaking schema changes MUST bump `version`.
+
+Version 1.1 joins repo-map export/signature metadata to canonical chunk/symbol identities
+within the selected generation. New repo-map rows carry chunkUid, symbolId and
+virtualPath; legacy rows join only a unique compatible source declaration. Ambiguous
+legacy names do not select an arbitrary overload or transfer export authority.
+The shared repo-map producer identity is 2 and the map-cache producer identity is 3.
+
+The generation file inventory uses the canonical file-meta loader, including shards
+and columnar layouts, independently of named members. Inventory-only and relation
+source files remain visible with empty member lists. Import targets alone never
+establish file authority. Missing inventory is reported as unavailable; malformed
+declared sources fail strict loading. Summary endpoint omissions distinguish missing
+authority from display filtering; display edge-cap omissions remain in dropped.edges.
+Alias-only dataflow retains every producer string annotation under the same edge
+limits; unsupported structured alias objects are not stringified into evidence.
 
 ## Example (minimal)
 

@@ -622,6 +622,7 @@ type ApiContractsReportV1 = {
   };
 
   symbols: ApiContractEntryV1[];   // bounded, stable ordering
+  callEvidence?: ApiContractCallEvidenceV1;
   truncation?: TruncationRecord[];
   warnings?: WarningRecord[];
 };
@@ -653,6 +654,41 @@ type ObservedCallV1 = {
   file?: string | null;
   startLine?: number | null;
   confidence?: number | null;
+  callerChunkUid?: string | null;
+  calleeNormalized?: string | null;
+  targetChunkUid?: string | null;
+  start?: number | null;
+  end?: number | null;
+  startCol?: number | null;
+  endLine?: number | null;
+  endCol?: number | null;
+  semanticRef?: CanonicalCallSiteSemanticRef | null; // invocation, not target dispatch proof
+  join?: {
+    schemaVersion: 1;
+    qualification: "recorded-target-chunk";
+    targetChunkUid: string;
+    symbolId: string;
+    providerScheme: string | null;
+    indexSignature: string | null; // null does not qualify an exact generation
+    indexCompatKey: string | null;
+  };
+};
+
+type ApiContractCallEvidenceV1 = {
+  schemaVersion: 1;
+  policy: "recorded-target-only";
+  inputCallCount: number;
+  duplicateCallCount: number;
+  totalCallCount: number;
+  qualifiedCallCount: number;
+  unresolvedCallCount: number;
+  unresolvedByReason: Record<"invalid-call" | "conflicting-call-identity" |
+    "invalid-target" | "unresolved-lexical" | "ambiguous-lexical" |
+    "missing-target" | "unknown-target" | "ambiguous-target" |
+    "generation-mismatch", number>;
+  unresolvedDetails: "counts-only";
+  reportedCallCount: number;
+  omittedQualifiedCallCount: number;
 };
 
 type ApiContractWarningV1 = {

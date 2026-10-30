@@ -27,7 +27,7 @@ for (const [language, ext, library, main] of programs) {
     const state = { chunks: [], semanticFactsByFile: new Map(), semanticDiskAccount: fixture.account };
     let scheduled = 0;
     const runtime = { root: fixture.root, buildRoot: fixture.root, semanticPolicy: policy,
-      scheduler: { schedule: async (lane, resources, fn) => { assert.equal(lane, 'relations'); assert.ok(resources.bytes > 0); scheduled++; return fn(); } } };
+      scheduler: { schedule: async (lane, resources, fn) => { assert.equal(lane, 'stage2.relations'); assert.ok(resources.bytes > 0); scheduled++; return fn(); } } };
     for (const [file, text] of [['library.' + ext, library], ['main.' + ext, main]]) {
       const bytes = Buffer.from(text), stagingRoot = path.join(fixture.root, 'index-code', 'semantic');
       await fs.writeFile(path.join(fixture.root, file), bytes);

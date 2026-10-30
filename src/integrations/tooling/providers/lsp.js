@@ -1,9 +1,9 @@
+import { createDocumentProgressRunner } from './lsp/hover-types/concurrency.js';
 import path from 'node:path';
-import { buildLineIndex } from '../../../shared/lines.js';
 import { languageIdForFileExt, pathToFileUri } from '../lsp/client.js';
-import { resolveInitializeResultPositionEncoding } from '../lsp/positions.js';
+import { resolveInitializeResultPositionEncoding, buildLspLineIndex as buildLineIndex } from '../lsp/positions.js';
 import { createLspConfigurationHandler } from '../lsp/configuration.js';
-import { resolveWorkspaceExecutionAuthority } from '../../../shared/workspace-execution-authority.js';
+import { resolveProviderWorkspaceExecutionAuthority as resolveWorkspaceExecutionAuthority } from '../../../index/tooling/workspace-execution.js';
 import { openOwnedLspDocument, closeOwnedLspDocuments } from './lsp/document-lifecycle.js';
 import { buildVfsUri } from '../lsp/uris.js';
 import { buildIndexSignature } from '../../../retrieval/index-cache.js';
@@ -53,11 +53,16 @@ import {
 } from './lsp/vfs-batching.js';
 import { buildLspCapabilityGate, probeLspCapabilities } from './lsp/capabilities.js';
 import { withLspSession } from './lsp/session-pool.js';
+import { buildVfsConsumerGeneration } from './lsp/materialization-generation.js';
 import { throwIfAborted } from '../../../shared/abort.js';
 import { coercePositiveInt } from '../../../shared/number-coerce.js';
 import { sleep } from '../../../shared/sleep.js';
 import { applyToolchainDaemonPolicyEnv } from '../../../shared/toolchain-env.js';
+import { resolveDotnetRuntimeLaunch } from '../../../index/tooling/dotnet-runtime.js';
 import { sha1 } from '../../../shared/hash.js';
+import { observeStorageResource } from '../../../shared/storage/failure-observation.js';
+import { createWorkspaceMethodHealth } from './lsp/workspace-method-health.js';
+import { getWorkspaceHealthDecision } from './lsp/workspace-health-decision.js';
 
 /**
  * Parse positive integer configuration with fallback floor of 1.
@@ -199,6 +204,7 @@ export async function collectLspTypes({
   parseSignature,
   strict = true,
   vfsRoot = null,
+  storageContext = null,
   uriScheme = 'file',
   captureDiagnostics = false,
   collectTypes = true,
@@ -208,6 +214,7 @@ export async function collectLspTypes({
   indexDir = null,
   vfsColdStartCache = null,
   cacheRoot = null,
+  workspaceHealthContext = null,
   hoverTimeoutMs = null,
   signatureHelpTimeoutMs = null,
   definitionTimeoutMs = null,
@@ -221,6 +228,8 @@ export async function collectLspTypes({
   hoverRequireMissingReturn = true,
   hoverSymbolKinds = null,
   hoverMaxPerFile = null,
+  documentRequestPolicies = null,
+  documentUris = null,
   hoverDisableAfterTimeouts = null,
   adaptiveDocScope = null,
   adaptiveDegradedHint = false,
@@ -237,6 +246,7 @@ export async function collectLspTypes({
   referencesConcurrency = DEFAULT_HOVER_CONCURRENCY,
   softDeadlineMs = null,
   requestCacheMaxEntries = DEFAULT_LSP_REQUEST_CACHE_MAX_ENTRIES,
+  requestCacheGeneration = null,
   stderrFilter = null,
   initializationOptions = null,
   providerId = null,
@@ -331,6 +341,10 @@ export async function collectLspTypes({
     DEFAULT_LSP_REQUEST_CACHE_MAX_ENTRIES,
     { min: 1000, max: 200000 }
   );
+  // Unscoped direct callers get per-invocation reuse only. They cannot establish
+  // that unchanged text still sees the same imports/includes/workspace state.
+  const resolvedRequestCacheGeneration = typeof requestCacheGeneration === 'string' && requestCacheGeneration.length
+    ? requestCacheGeneration : globalThis.crypto.randomUUID();
 
   const checks = [];
   const runtime = {
@@ -385,6 +399,8 @@ export async function collectLspTypes({
   const resolvedWorkspaceRootDir = String(workspaceRootDir || rootDir || '').trim() || rootDir;
   const resolvedWorkspaceKey = String(workspaceKey || workspaceRootDir || rootDir || '').trim() || null;
   const resolvedScheme = normalizeUriScheme(uriScheme);
+  const materializationGeneration = resolvedScheme === 'file'
+    ? buildVfsConsumerGeneration({ rootDir: resolvedRoot, docs }) : null;
   const resolvedBatching = resolveVfsIoBatching(vfsIoBatching);
 
   const targetsByPath = new Map();
@@ -476,15 +492,43 @@ export async function collectLspTypes({
   });
   const onRequest = createLspConfigurationHandler(initializationOptions);
 
+  const launch = resolveDotnetRuntimeLaunch({ command: cmd, args, cwd: resolvedWorkspaceRootDir, providerId: resolvedProviderId, toolingRoot,
+    languages: docs.map(doc => doc.languageId),
+    baseEnv: applyToolchainDaemonPolicyEnv(process.env, { toolingRoot, providerId: resolvedProviderId, command: cmd }) });
+  runtime.command = String(launch.command || '');
+  runtime.managedRuntimeInstallations = launch.managedRuntimeCommands.map(({ toolId, descriptorId, installId }) => ({ toolId, descriptorId, installId }));
+  const workspaceHealth = workspaceHealthContext ? await createWorkspaceMethodHealth({ cacheRoot,
+    repoRoot: resolvedRoot, workspaceRoot: resolvedWorkspaceRootDir, providerId: resolvedProviderId,
+    workspaceKey: resolvedWorkspaceKey || null, command: launch.command, args, environment: launch.environment,
+    documents: docs, initializationOptions, providerVersion: workspaceHealthContext.providerVersion,
+    configFileNames: workspaceHealthContext.configFileNames,
+    policy: { context: workspaceHealthContext, timeoutMs, retries, breakerThreshold,
+      hoverEnabled, signatureHelpEnabled, definitionEnabled, typeDefinitionEnabled, referencesEnabled,
+      documentSymbolConcurrency, hoverConcurrency, hoverDisableAfterTimeouts,
+      resolvedHoverTimeout, resolvedSignatureHelpTimeout, resolvedDefinitionTimeout, resolvedTypeDefinitionTimeout,
+      resolvedReferencesTimeout, resolvedDocumentSymbolTimeout, resolvedHoverDisableAfterTimeouts,
+      managedRuntimeCommands: launch.managedRuntimeCommands },
+    timeoutThreshold: docs.some(doc => doc.languageId === 'lua' || doc.effectiveExt === '.lua') ? 1 : 3,
+    signal: toolingAbortSignal }) : null;
+  const deferredHealthCheck = method => ({ name: 'tooling_workspace_method_deferred', status: 'warn',
+    message: `${resolvedProviderId} ${method} deferred by observed workspace-method cooldown; other admitted methods remain available.` });
+  if (workspaceHealth?.suppressBeforeAdmission('initialize')) {
+    checks.push(deferredHealthCheck('initialize')); runtime.workspaceHealth = workspaceHealth.metrics();
+    return buildEmptyCollectResult(checks, runtime);
+  }
+
   const runWithPooledSession = () => withLspSession({
+    abortSignal: toolingAbortSignal,
     enabled: sessionPoolingEnabled !== false,
     repoRoot: rootDir,
     providerId: resolvedProviderId,
     workspaceKey: resolvedWorkspaceKey || rootDir,
-    cmd,
+    cmd: launch.command,
     args,
+    toolingRoot,
     cwd: resolvedWorkspaceRootDir,
-    env: applyToolchainDaemonPolicyEnv(process.env, { toolingRoot, providerId: resolvedProviderId, command: cmd }),
+    env: launch.environment,
+    managedRuntimeCommands: launch.managedRuntimeCommands,
     log,
     stderrFilter,
     onNotification,
@@ -498,7 +542,8 @@ export async function collectLspTypes({
     lifecycleFdPressureBackoffMs,
     sessionIdleTimeoutMs,
     sessionMaxLifetimeMs,
-    initializationOptions
+    initializationOptions,
+    materializationGeneration
   }, async (lease) => {
     const client = lease.client;
     const currentAuthority = workspaceExecutionAuthority();
@@ -549,6 +594,7 @@ export async function collectLspTypes({
         ? lease.getReliabilityState()
         : lifecycleHealth.getState();
       runtime.guard = guard.getState ? guard.getState() : null;
+      if (workspaceHealth) runtime.workspaceHealth = workspaceHealth.metrics();
       if (includeRequests || runtime.requests == null) {
         runtime.requests = typeof client.getMetrics === 'function' ? client.getMetrics() : null;
       }
@@ -576,10 +622,14 @@ export async function collectLspTypes({
         await sleep(Math.min(1000, Math.max(25, state.fdPressureBackoffRemainingMs)));
       }
       try {
-        const out = await guard.run(fn, options);
+        const out = await guard.run(workspaceHealth
+          ? parameters => workspaceHealth.run(options.label, () => fn(parameters), { retriesRemaining: parameters.retriesRemaining })
+          : fn, options);
         refreshRuntimeState();
         return out;
       } catch (err) {
+        guard.assertSettled?.();
+        observeStorageResource(err, { phase: 'lsp-request-failure' }).requireSettled();
         const message = String(err?.message || err || '').toLowerCase();
         const transportFailure = err?.code === 'ERR_LSP_TRANSPORT_CLOSED'
           || message.includes('transport closed')
@@ -590,8 +640,12 @@ export async function collectLspTypes({
         if (transportFailure && typeof lease.markPoisoned === 'function') {
           lease.markPoisoned('transport_failure');
         }
-        if (requestTimeout && typeof lease.markPoisoned === 'function') {
+        if (requestTimeout && getWorkspaceHealthDecision(err)?.methodScoped !== true && typeof lease.markPoisoned === 'function') {
           lease.markPoisoned('request_timeout');
+        }
+        const healthDecision = getWorkspaceHealthDecision(err);
+        if (healthDecision?.failureClass === 'malformed' && !healthDecision.methodScoped && typeof lease.markPoisoned === 'function') {
+          lease.markPoisoned('protocol_parse_failure');
         }
         refreshRuntimeState();
         throw err;
@@ -675,12 +729,28 @@ export async function collectLspTypes({
       effectiveTypeDefinitionEnabled = capabilityGate.effective.typeDefinition;
       effectiveReferencesEnabled = capabilityGate.effective.references;
       skipSymbolCollection = capabilityGate.skipSymbolCollection;
+      if (workspaceHealth) {
+        const suppress = method => {
+          if (!workspaceHealth.suppressBeforeAdmission(method)) return false;
+          checks.push(deferredHealthCheck(method)); return true;
+        };
+        if (effectiveHoverEnabled && suppress('hover')) effectiveHoverEnabled = false;
+        if (effectiveSemanticTokensEnabled && suppress('semanticTokens')) effectiveSemanticTokensEnabled = false;
+        if (effectiveSignatureHelpEnabled && suppress('signatureHelp')) effectiveSignatureHelpEnabled = false;
+        if (effectiveInlayHintsEnabled && suppress('inlayHints')) effectiveInlayHintsEnabled = false;
+        if (effectiveDefinitionEnabled && suppress('definition')) effectiveDefinitionEnabled = false;
+        if (effectiveTypeDefinitionEnabled && suppress('typeDefinition')) effectiveTypeDefinitionEnabled = false;
+        if (effectiveReferencesEnabled && suppress('references')) effectiveReferencesEnabled = false;
+        if (!skipSymbolCollection && suppress('documentSymbol')) skipSymbolCollection = true;
+      }
       checks.push(...capabilityGate.checks);
       if (skipSymbolCollection) {
         shouldShutdownClient = lease.pooled !== true;
       }
       shouldShutdownClient = lease.pooled !== true;
     } catch (err) {
+      guard.assertSettled?.();
+      observeStorageResource(err, { phase: 'lsp-request-failure' }).requireSettled();
       throwIfAborted(toolingAbortSignal);
       if (err?.code === LSP_SESSION_DESYNC_ERROR_CODE) {
         throw err;
@@ -903,25 +973,38 @@ export async function collectLspTypes({
       }
       throwIfAborted(toolingAbortSignal);
       const nativeUris = new Map();
-      if (semanticSession?.nativeDocumentUri) for (const doc of selectedDocsToOpen) {
-        const uri = await semanticSession.nativeDocumentUri(doc);
+      for (const doc of selectedDocsToOpen) {
+        const uri = semanticSession?.nativeDocumentUri ? await semanticSession.nativeDocumentUri(doc) : null;
+        const admitted = documentUris && Object.hasOwn(documentUris, doc.virtualPath) ? documentUris[doc.virtualPath] : null;
         if (uri) nativeUris.set(doc.virtualPath, uri);
+        else if (admitted) {
+          if (typeof admitted !== 'string' || new URL(admitted).protocol !== 'file:') throw new TypeError('Admitted physical LSP document URI must use file:.');
+          nativeUris.set(doc.virtualPath, admitted);
+        }
+      }
+      const materializedDocs = selectedDocsToOpen.filter(doc => !nativeUris.has(doc.virtualPath));
+      if (resolvedScheme === 'file' && materializedDocs.length) {
+        lease.materializationSession.admitRoot(resolvedRoot, storageContext);
       }
       const diskPathMap = resolvedScheme === 'file'
         ? await ensureVirtualFilesBatch({
           rootDir: resolvedRoot,
-          docs: selectedDocsToOpen.filter(doc => !nativeUris.has(doc.virtualPath)),
+          docs: materializedDocs,
           batching: resolvedBatching,
-          coldStartCache
+          coldStartCache,
+          materializationSession: lease.materializationSession
         })
         : null;
 
       if (semanticSession) for (const doc of selectedDocsToOpen) {
-        const uri = nativeUris.get(doc.virtualPath) || await resolveDocumentUri({ rootDir: resolvedRoot, doc, uriScheme: resolvedScheme, tokenMode: vfsTokenMode, diskPathMap, coldStartCache });
+        const uri = nativeUris.get(doc.virtualPath) || await resolveDocumentUri({ rootDir: resolvedRoot, doc, uriScheme: resolvedScheme, tokenMode: vfsTokenMode, diskPathMap, coldStartCache, materializationSession: lease.materializationSession });
         semanticSession.registerDocument(doc, uri);
       }
       const processDoc = async (doc) => {
         throwIfAborted(toolingAbortSignal);
+        const documentPolicy = documentRequestPolicies?.[doc.virtualPath] || null;
+        const documentHoverMax = Number.isSafeInteger(documentPolicy?.hoverMaxPerFile)
+          && documentPolicy.hoverMaxPerFile >= 0 ? documentPolicy.hoverMaxPerFile : null;
         const languageId = doc.languageId || languageIdForFileExt(path.extname(doc.virtualPath));
         const uri = nativeUris.get(doc.virtualPath) || await resolveDocumentUri({
           rootDir: resolvedRoot,
@@ -929,7 +1012,8 @@ export async function collectLspTypes({
           uriScheme: resolvedScheme,
           tokenMode: vfsTokenMode,
           diskPathMap,
-          coldStartCache
+          coldStartCache,
+          materializationSession: lease.materializationSession
         });
         const legacyUri = resolvedScheme === 'poc-vfs' ? buildVfsUri(doc.virtualPath) : null;
         if (collectTypes === false) {
@@ -956,7 +1040,7 @@ export async function collectLspTypes({
           targetIndexesByPath,
           byChunkUid,
           signatureParseCache,
-          hoverEnabled: effectiveHoverEnabled,
+          hoverEnabled: effectiveHoverEnabled && documentPolicy?.hoverEnabled !== false && documentHoverMax !== 0,
           semanticTokensEnabled: effectiveSemanticTokensEnabled,
           signatureHelpEnabled: effectiveSignatureHelpEnabled,
           inlayHintsEnabled: effectiveInlayHintsEnabled,
@@ -967,7 +1051,8 @@ export async function collectLspTypes({
           docPathPolicy: docPathPolicyByPath.get(String(doc?.virtualPath || '')) || null,
           hoverRequireMissingReturn,
           resolvedHoverKinds,
-          resolvedHoverMaxPerFile: effectiveHoverMaxPerFile,
+          resolvedHoverMaxPerFile: documentHoverMax === null ? effectiveHoverMaxPerFile
+            : effectiveHoverMaxPerFile === null ? documentHoverMax : Math.min(effectiveHoverMaxPerFile, documentHoverMax),
           resolvedHoverDisableAfterTimeouts,
           resolvedHoverTimeout,
           resolvedSignatureHelpTimeout,
@@ -988,7 +1073,10 @@ export async function collectLspTypes({
           requestCacheContext: {
             providerId: resolvedProviderId,
             providerVersion: resolvedProviderVersion,
-            workspaceKey: resolvedWorkspaceKey
+            workspaceKey: resolvedWorkspaceKey,
+            generation: launch.managedRuntimeCommands.length
+              ? sha1(JSON.stringify([resolvedRequestCacheGeneration, launch.managedRuntimeCommands]))
+              : resolvedRequestCacheGeneration
           },
           providerConfidenceBias: resolveProviderConfidenceBias(resolvedProviderId),
           semanticTokensLegend: initializeResult?.capabilities?.semanticTokensProvider?.legend
@@ -1009,26 +1097,12 @@ export async function collectLspTypes({
         enriched += enrichedDelta;
       };
 
-      let processedDocs = 0;
-      let lastProgressLogAt = Date.now();
-      const progressLogEnabled = selectedDocsToOpen.length >= 20;
-      const runDocWithProgress = async (doc) => {
-        try {
-          await processDoc(doc);
-        } finally {
-          processedDocs += 1;
-          if (!progressLogEnabled) return;
-          const now = Date.now();
-          const shouldLog = processedDocs === selectedDocsToOpen.length
-            || processedDocs % 20 === 0
-            || (now - lastProgressLogAt) >= 5000;
-          if (!shouldLog) return;
-          lastProgressLogAt = now;
-          log(
-            `[tooling] ${cmd} progress: docs=${processedDocs}/${selectedDocsToOpen.length}, enriched=${enriched}, checks=${checks.length}`
-          );
-        }
-      };
+      const runDocWithProgress = createDocumentProgressRunner({ total: selectedDocsToOpen.length,
+        worker: processDoc,
+        onProgress: ({ processed, total }) => log(
+          `[tooling] ${cmd} progress: docs=${processed}/${total}, enriched=${enriched}, checks=${checks.length}`
+        )
+      });
       await runWithConcurrency(selectedDocsToOpen, resolvedDocumentSymbolConcurrency, runDocWithProgress, {
         signal: toolingAbortSignal
       });
@@ -1079,6 +1153,8 @@ export async function collectLspTypes({
         try {
           await coldStartCache.flush();
         } catch (err) {
+          guard.assertSettled?.();
+          observeStorageResource(err, { phase: 'lsp-request-failure' }).requireSettled();
           log(`[tooling] vfs cold-start cache flush failed: ${err?.message || err}`);
         }
       }
@@ -1177,6 +1253,7 @@ export async function collectLspTypes({
     try {
       return await runWithPooledSession();
     } catch (err) {
+      observeStorageResource(err, { phase: 'lsp-request-failure' }).requireSettled();
       const isSessionDesync = err?.code === LSP_SESSION_DESYNC_ERROR_CODE;
       const isQuarantined = err?.code === 'TOOLING_QUARANTINED';
       if (isQuarantined) {

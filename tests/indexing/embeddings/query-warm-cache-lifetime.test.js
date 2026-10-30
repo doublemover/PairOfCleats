@@ -69,14 +69,17 @@ try {
   await pending; await disposingLease; await shutdown; await secondShutdown;
   assert.equal(releases, creates);
 
-  // Bounded LRU retains at most 64 adapters; variants share the same raw pipeline.
+  // Bounded LRU retains at most 64 adapters; distinct consumer workspaces share
+  // the same raw pipeline and keep the same valid output dimensions.
   const artifact = resolveEmbeddingArtifactIdentity(options);
-  const first = getEmbeddingAdapter({ ...options, modelArtifact: artifact, dims: 1, retainInCache: true });
+  const first = getEmbeddingAdapter({ ...options, modelArtifact: artifact, dims: 3, retainInCache: true });
   await first.embed(['one']);
   await first.dispose();
   const oldestPipelineCreates = creates;
-  for (let dims = 2; dims <= 66; dims++) {
-    const lease = getEmbeddingAdapter({ ...options, modelArtifact: artifact, dims, retainInCache: true });
+  for (let consumer = 1; consumer <= 65; consumer++) {
+    const rootDir = path.join(dir, `consumer-${consumer}`);
+    await fs.mkdir(rootDir);
+    const lease = getEmbeddingAdapter({ ...options, rootDir, modelArtifact: artifact, dims: 3, retainInCache: true });
     await lease.embed(['another']);
     await lease.dispose();
   }
@@ -108,9 +111,10 @@ try {
       return timer;
     };
     idle = getEmbeddingAdapter({ ...options, retainInCache: true });
+    await idle.embed(['idle']);
+    await idle.dispose();
   } finally { globalThis.setTimeout = originalSetTimeout; }
-  await idle.embed(['idle']);
-  await idle.dispose();
+  assert.ok(retentionTimer, 'the actual deferred acquisition establishes the idle retention timer');
   assert.equal(retentionTimer.hasRef(), false);
   expire();
   await tick();

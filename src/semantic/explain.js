@@ -1,13 +1,11 @@
 import { createSemanticTraceService } from './trace.js';
 import { assertSemanticExplain } from '../contracts/validators/semantic-explain.js';
 import { projectExplainEnrichment } from './explain-enrichment.js';
+import { captureSemanticRequest } from './request-snapshot.js';
+import { SEMANTIC_EXPLAIN_REQUEST_SCHEMA } from '../contracts/schemas/semantic-explain.js';
 /** Explain cited static edges without promoting modeled relationships to observations. */
 export const createSemanticExplainService = options => {
-  const trace=createSemanticTraceService(options);
-  return async input => {
-    assertSemanticExplain('request',input.request);
-    const began=performance.now();
-    const result=await trace(input);
+  const trace=createSemanticTraceService({...options,operation:'semantic_explain',finalizeResult:async(result,input,began)=>{
     const remainingMs=Math.max(0,(input.request.limits?.workMs||options?.maxWorkMs||250)-(performance.now()-began));
     Object.assign(result,await projectExplainEnrichment({...input,result,maxMs:remainingMs}));
     const records=new Map(result.records.map(row=>[JSON.stringify(row.ref),row]));
@@ -26,5 +24,11 @@ export const createSemanticExplainService = options => {
       if(Buffer.byteLength(JSON.stringify(result))>limit)throw Object.assign(new Error('Explanation response exceeds byte allowance.'),{code:'ERR_SEMANTIC_OUTPUT_LIMIT'});
     }
     return assertSemanticExplain('result',result);
+  }});
+  const service = async input => {
+    input = { ...input, request: captureSemanticRequest(input.request, SEMANTIC_EXPLAIN_REQUEST_SCHEMA) };
+    assertSemanticExplain('request',input.request);
+    return trace(input);
   };
+  return Object.freeze(Object.assign(service, { dispose: trace.dispose, continuationStats: trace.continuationStats }));
 };

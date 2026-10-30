@@ -4,14 +4,11 @@ await guardBootstrapEntry(import.meta.url);
 import path from 'node:path';
 
 const { createCli } = await import('../../src/shared/cli.js');
-const { writeJsonFileResolved } = await import('../../src/shared/json-file.js');
+const { publishBenchRuntimeCanarySummary } = await import('./language/canary-reports.js');
 const { resolveRepoRootArg } = await import('../shared/dict-utils.js');
-const { writeTextIfChanged } = await import('../shared/generated-report.js');
 const {
-  buildBenchRuntimeLiveCanarySummary,
-  formatBenchRuntimeLiveCanarySummaryMarkdown,
   loadBenchRuntimeCanaryManifest,
-  runBenchRuntimeLiveCanary,
+  runBenchRuntimeCanaryLane,
   validateBenchRuntimeCanaryManifest
 } = await import('./language/canaries.js');
 
@@ -46,13 +43,19 @@ const run = async () => {
   if (entries.length === 0) {
     throw new Error('no live canaries matched the requested filter');
   }
-  const results = [];
-  for (const entry of entries) {
-    results.push(await runBenchRuntimeLiveCanary(entry, root));
+  const controller = new AbortController();
+  const interrupt = () => controller.abort();
+  process.on('SIGINT', interrupt);
+  process.on('SIGTERM', interrupt);
+  let summary;
+  try {
+    summary = await runBenchRuntimeCanaryLane(entries, root, {
+      requireTarget: argv['require-target'] === true, signal: controller.signal
+    });
+  } finally {
+    process.off('SIGINT', interrupt);
+    process.off('SIGTERM', interrupt);
   }
-  const summary = buildBenchRuntimeLiveCanarySummary(results, {
-    requireTarget: argv['require-target'] === true
-  });
 
   const outJsonPath = String(argv['out-json'] || '').trim()
     ? path.resolve(root, String(argv['out-json']).trim())
@@ -61,18 +64,13 @@ const run = async () => {
     ? path.resolve(root, String(argv['out-md']).trim())
     : '';
 
-  if (outJsonPath) {
-    await writeJsonFileResolved(outJsonPath, summary, { trailingNewline: true });
-  }
-  if (outMdPath) {
-    await writeTextIfChanged(outMdPath, formatBenchRuntimeLiveCanarySummaryMarkdown(summary), { encoding: 'utf8' });
-  }
+  await publishBenchRuntimeCanarySummary(summary, { outJsonPath, outMdPath });
 
   process.stdout.write(`${JSON.stringify(summary, null, 2)}\n`);
-  if (!summary.ok) process.exit(1);
+  if (!summary.ok) process.exitCode = 1;
 };
 
 run().catch((error) => {
   console.error(error?.message || error);
-  process.exit(1);
+  process.exitCode = 1;
 });

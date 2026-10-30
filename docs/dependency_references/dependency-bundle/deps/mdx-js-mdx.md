@@ -1,5 +1,10 @@
 # `@mdx-js/mdx`
 
+> DEPRECATED proposed integration — 2026-10-27, PR #572. This unused direct root
+> was retired. [Current ownership](../../../guides/dependency-ownership.md)
+> retains MDX source handling through Markdown chunking. The compiler integration
+> notes below remain historical proposals.
+
 **Area:** MDX parsing/compilation
 
 ## Why this matters for PairOfCleats

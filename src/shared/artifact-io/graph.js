@@ -183,6 +183,10 @@ export const createGraphRelationsShell = (meta) => {
   };
   const caps = extensions?.caps ?? meta?.caps ?? null;
   if (caps != null) payload.caps = caps;
+  payload.upstreamCoverage = extensions.upstreamCoverage ?? meta?.upstreamCoverage ?? null;
+  if (extensions.extractionCoverage !== undefined || meta?.extractionCoverage !== undefined) {
+    payload.extractionCoverage = extensions.extractionCoverage ?? meta?.extractionCoverage ?? null;
+  }
   return payload;
 };
 

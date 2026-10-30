@@ -68,11 +68,11 @@ export const validateOwnershipPayload = (payload) => {
   };
 };
 
-export const loadConsolidationOwnership = async ({ root = process.cwd(), ownershipPath } = {}) => {
+export const loadConsolidationOwnership = async ({ root = process.cwd(), ownershipPath, readText = null } = {}) => {
   const resolvedPath = ownershipPath
     ? path.resolve(root, ownershipPath)
     : path.join(root, DEFAULT_OWNERSHIP_PATH);
-  const raw = await fsPromises.readFile(resolvedPath, 'utf8');
+  const raw = await (readText ? readText(resolvedPath) : fsPromises.readFile(resolvedPath, 'utf8'));
   const parsed = JSON.parse(raw);
   const payload = normalizeOwnershipPayload(parsed);
   const validation = validateOwnershipPayload(payload);

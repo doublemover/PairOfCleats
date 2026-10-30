@@ -70,7 +70,6 @@ const cases = [
       '</root>'
     ].join('\n'),
     expected: [
-      'urn:cfg',
       './cfg.xsd',
       './base.xml',
       './types.xsd'

@@ -1,4 +1,6 @@
 #!/usr/bin/env node
+import assert from 'node:assert/strict';
+import { releaseWorkflowSourceErrors } from '../../tools/release/source-revision.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -22,6 +24,8 @@ if (!fs.existsSync(runSuitePath)) {
 const pkg = JSON.parse(fs.readFileSync(packagePath, 'utf8'));
 const scripts = pkg.scripts || {};
 const pinnedNodeVersion = fs.readFileSync(path.join(ROOT, '.nvmrc'), 'utf8').trim();
+const pinnedPythonVersion = fs.readFileSync(path.join(ROOT, '.python-version'), 'utf8').trim();
+assert.match(pinnedPythonVersion, /^3\.\d+\.\d+$/, '.python-version must select an exact stable Python 3 release');
 if (!/^26\.\d+\.\d+$/.test(pinnedNodeVersion)) {
   console.error('.nvmrc must pin an exact Node 26 version.');
   process.exit(1);
@@ -60,6 +64,16 @@ const assertNodePinned = ({ workflowText, label }) => {
   if (cacheVersions.some((version) => version !== pinnedNodeVersion)) {
     console.error(`${label} node_modules cache keys must match Node ${pinnedNodeVersion}.`);
     process.exit(1);
+  }
+  for (const [jobName, job] of Object.entries(parse(workflowText).jobs || {})) {
+    for (const step of job.steps || []) {
+      if (step.id !== 'node-modules-cache') continue;
+      const paths = String(step.with?.path || '').split(/\r?\n/u).map(value => value.trim());
+      assert.ok(paths.includes('node_modules') && paths.includes('.cache/native-build/headers'),
+        `${label} ${jobName}: cached native build projects must retain their selected import-library inputs`);
+      assert.ok(String(step.with?.key).includes('-headers-v1-'),
+        `${label} ${jobName}: incomplete historical dependency caches require a distinct key`);
+    }
   }
 };
 
@@ -130,11 +144,7 @@ const assertReleaseTagTriggerPresent = ({ workflowText, label }) => {
 
 const assertReleaseWorkflowStructure = ({ workflowText, label }) => {
   workflowText = normalizeEol(workflowText);
-  const checkoutRefs = workflowText.match(/uses:\s*actions\/checkout@[^\s]+[\s\S]*?ref:\s*\$\{\{\s*github\.event_name == 'workflow_dispatch' && inputs\.tag \|\| github\.ref\s*\}\}/g) || [];
-  if (checkoutRefs.length < 9) {
-    console.error(`${label} must pin manual release checkouts to the requested tag ref in every checkout-based job.`);
-    process.exit(1);
-  }
+  assert.deepEqual(releaseWorkflowSourceErrors(parse(workflowText)), [], `${label} must use the prepared immutable source revision in every downstream checkout.`);
   if (!/workflow_dispatch:\s*\n\s*inputs:\s*\n\s*tag:\s*\n\s*description:[\s\S]*?required:\s*true/.test(workflowText)) {
     console.error(`${label} must require a tag for workflow_dispatch release promotions.`);
     process.exit(1);
@@ -243,8 +253,8 @@ const assertReleaseWorkflowStructure = ({ workflowText, label }) => {
       process.exit(1);
     }
   }
-  if (!/find dist\/release\/downloads dist\/release\/bundle dist\/release\/trust -type f \| sort/.test(publishBlock)) {
-    console.error(`${label} publish job must upload trust materials alongside the release bundle.`);
+  if (!/stageReleaseAssets\('dist\/release'\)/.test(publishBlock)) {
+    console.error(`${label} publish job must stage validated downloads, bundle and trust assets.`);
     process.exit(1);
   }
   if (!/RELEASE_GIT_SHA:\s*\$\{\{\s*needs\.prepare\.outputs\.release_git_sha\s*\}\}/.test(publishBlock)) {
@@ -264,8 +274,13 @@ const assertReleaseWorkflowStructure = ({ workflowText, label }) => {
       process.exit(1);
     }
   }
-  if (!/upload_args=\(\)[\s\S]*rel_path="\$\{file_path#dist\/release\/\}"[\s\S]*"\$\{file_path\}#\$\{rel_path\}"/.test(publishBlock)) {
-    console.error(`${label} publish job must upload release assets with unique relative-path labels.`);
+  const stageOffset = publishBlock.indexOf("stageReleaseAssets('dist/release')");
+  if (stageOffset < 0 || stageOffset > publishBlock.indexOf('gh release create')
+    || !/mapfile -t upload_args[^\n]*plan\.uploadPaths/.test(publishBlock)
+    || !/uses: actions\/checkout@v7[\s\S]*ref:\s*\$\{\{\s*needs\.prepare\.outputs\.release_git_sha\s*\}\}/.test(publishBlock)
+    || !/uses: actions\/setup-node@v7/.test(publishBlock)
+    || /file_path\}#/.test(publishBlock)) {
+    console.error(`${label} publish job must validate unique asset basenames before release mutation and upload the staged plan.`);
     process.exit(1);
   }
   if (!/name:\s*release-prepare-docs[\s\S]*docs\/tooling\/doc-contract-drift\.json[\s\S]*docs\/tooling\/doc-contract-drift\.md/.test(prepareBlock)) {
@@ -339,12 +354,61 @@ const readWorkflow = (name) => {
 const minimumActionMajor = {
   'checkout': 7,
   'setup-node': 7,
+  'setup-python': 7,
   'cache': 6,
   'upload-artifact': 6,
   'download-artifact': 7,
   'github-script': 9,
   'attest-build-provenance': 3
 };
+// GitHub expands job env before runner context exists. Step env may use it.
+const assertJobEnvironmentContexts = (workflow, label) => {
+  for (const [id, job] of Object.entries(workflow.jobs || {})) {
+    for (const [key, value] of Object.entries(job.env || {})) {
+      if (typeof value !== 'string') continue;
+      for (const [, expression] of value.matchAll(/\$\{\{([\s\S]*?)\}\}/g)) {
+        const code = expression.replace(/'(?:[^']|'')*'/g, '');
+        if (/\brunner\s*[.\[]/.test(code)) throw new Error(`${label}:${id}.env.${key}: runner context is unavailable in job env.`);
+      }
+    }
+  }
+};
+const assertBootstrapPython = (workflow, label) => {
+  for (const [id, job] of Object.entries(workflow.jobs || {})) {
+    const steps = job.steps || [];
+    const setup = steps.findIndex(step => step.uses?.startsWith('actions/setup-python@'));
+    for (let index = 0; index < steps.length; index++) {
+      if (!/npm run bootstrap(?::ci)?\b/.test(steps[index].run || '')) continue;
+      assert.ok(setup >= 0 && setup < index, `${label}:${id} must select Python before native bootstrap`);
+      assert.equal(steps[setup].with?.['python-version-file'], '.python-version');
+      assert.ok([undefined, false, 'false'].includes(steps[setup].with?.['allow-prereleases']),
+        `${label}:${id} must retain stable-only Python selection`);
+      assert.equal(steps[index].env?.NODE_GYP_FORCE_PYTHON,
+        '${{ steps.' + steps[setup].id + '.outputs.python-path }}',
+        `${label}:${id} must bind preflight/node-gyp to the selected interpreter`);
+    }
+  }
+};
+const pythonBootstrapControl = {
+  jobs: { fixture: { steps: [
+    { id: 'python-runtime', uses: 'actions/setup-python@v7', with: { 'python-version-file': '.python-version' } },
+    { run: 'npm run bootstrap:ci', env: { NODE_GYP_FORCE_PYTHON: '${{ steps.python-runtime.outputs.python-path }}' } }
+  ] } }
+};
+assert.doesNotThrow(() => assertBootstrapPython(pythonBootstrapControl, 'positive'));
+const missingPython = structuredClone(pythonBootstrapControl);
+missingPython.jobs.fixture.steps.shift();
+assert.throws(() => assertBootstrapPython(missingPython, 'negative'), /select Python before native bootstrap/);
+const stalePython = structuredClone(pythonBootstrapControl);
+stalePython.jobs.fixture.steps[1].env.NODE_GYP_FORCE_PYTHON = 'python';
+assert.throws(() => assertBootstrapPython(stalePython, 'negative'), /bind preflight\/node-gyp/);
+for (const expression of ['${{ runner.temp }}/home', '${{ runner[\'temp\'] }}/home']) {
+  assert.throws(() => assertJobEnvironmentContexts({ jobs: { fixture: { env: { HOME: expression } } } }, 'negative'), /runner context is unavailable/);
+}
+assert.doesNotThrow(() => assertJobEnvironmentContexts({ jobs: { fixture: {
+  env: { HOME: '${{ github.workspace }}/.tmp/home', LABEL: '${{ format(\'runner.temp\') }}' },
+  steps: [{ env: { HOME: '${{ runner.temp }}/home' } }]
+} } }, 'supported'));
 // v9 adds getOctokit to the injected parameters and makes @actions/github ESM-only.
 const AsyncFunction = Object.getPrototypeOf(async () => {}).constructor;
 const githubScriptParameters = [
@@ -366,6 +430,8 @@ for (const fileName of fs.readdirSync(path.join(ROOT, '.github', 'workflows'))) 
     }
   }
   const workflow = parse(workflowText);
+  assertJobEnvironmentContexts(workflow, fileName);
+  assertBootstrapPython(workflow, fileName);
   for (const job of Object.values(workflow.jobs || {})) {
     for (const step of job.steps || []) {
       const pinnedAction = step.uses?.match(/^actions\/(checkout|github-script)@([0-9a-f]{40})$/);
@@ -385,6 +451,151 @@ for (const fileName of fs.readdirSync(path.join(ROOT, '.github', 'workflows'))) 
 }
 
 const ciWorkflow = readWorkflow('ci.yml');
+const windowsJob = parse(ciWorkflow).jobs.windows;
+const ownershipStepIndex = windowsJob.steps.findIndex(step => step.name === 'Windows subprocess ownership');
+const ownershipCommand = windowsJob.steps[ownershipStepIndex]?.run || '';
+if (ownershipStepIndex < 0 || ownershipStepIndex >= windowsJob.steps.findIndex(step => step.name === 'CI Suite')
+  || !ownershipCommand.includes('shared\\/kill-tree\\.windows$')
+  || !ownershipCommand.includes('shared\\/kill-tree\\.windows-orphan-descendant-fallback$')
+  || !ownershipCommand.includes('shared\\/kill-tree-windows-snapshot$')
+  || !ownershipCommand.includes('shared\\/subprocess\\/sync-timeout-kills-child-tree$')
+  || !ownershipCommand.includes('shared\\/locks\\/windows-delete-pending$')
+  || !ownershipCommand.includes('--jobs 1 --pairofcleats-threads 1 --timeout-ms 30000 --retries 0 --native-status-redo=false')) {
+  throw new Error('Windows ownership must run its native snapshot, three lifecycle fixtures and native delete-pending control before the broad suite with strict bounds and zero retries.');
+}
+for (const platform of ['ubuntu', 'windows', 'macos']) {
+  const steps = parse(ciWorkflow).jobs[platform].steps;
+  const jj = steps.findIndex(step => step.name === 'Setup qualified Jujutsu');
+  assert.ok(jj >= 0 && jj < steps.findIndex(step => step.name === 'CI Suite')
+    && steps[jj].run === 'node tools/ci/provision-jj.js', `${platform}: provision the actual pinned SCM prerequisite before its native session fixtures`);
+  assert.ok(steps.find(step => step.name === 'Upload quality artifacts').with.path.split(/\r?\n/u)
+    .includes('.diagnostics/jj-provisioning.json'), `${platform}: retain the original Jujutsu executable identity`);
+  const crash = steps.findIndex(step => step.name === 'Serial crash-log ownership and latency qualification');
+  assert.ok(crash >= 0 && crash < steps.findIndex(step => step.name === 'CI Suite'),
+    `${platform}: qualify crash-log ownership and serial latency before the broad suite`);
+  const crashCommand = steps[crash].run;
+  assert.ok(crashCommand.includes('terminal-ownership|state-write-contention|independent-sinks|boundary-controls')
+    && crashCommand.includes('perf\\/crash-log-error-latency\\/')
+    && crashCommand.includes('--jobs 1 --pairofcleats-threads 1 --timeout-ms 30000 --retries 0 --native-status-redo=false')
+    && crashCommand.includes('--report-file .diagnostics/crash-log-qualification.json'),
+  `${platform}: retain original crash ownership cases, raw latency receipts and strict serial bounds`);
+  const crashUpload = steps.find(step => step.name === 'Upload quality artifacts');
+  assert.ok(crashUpload.with.path.split(/\r?\n/u).includes('.diagnostics/crash-log-qualification.json'),
+    `${platform}: upload the source-bound crash-log report and test logs`);
+  const goSetup = steps.findIndex(step => step.name === 'Setup qualified Go SDK');
+  const goVerify = steps.findIndex(step => step.name === 'Verify selected Go SDK');
+  const goStartup = steps.findIndex(step => step.name === 'Qualify real Go language server startup');
+  const shutdown = steps.findIndex(step => step.name === 'Serial LSP shutdown ownership qualification');
+  assert.ok(shutdown >= 0 && shutdown < goStartup
+    && steps[shutdown].run.includes('graceful-exit-after-transport-close\\/')
+    && steps[shutdown].run.includes('handshake-admission-and-cancellation')
+    && steps[shutdown].run.includes('--jobs 1 --pairofcleats-threads 1 --timeout-ms 30000 --retries 0 --native-status-redo=false')
+    && steps[shutdown].run.includes('--report-file .diagnostics/lsp-shutdown-qualification.json')
+    && crashUpload.with.path.split(/\r?\n/u).includes('.diagnostics/lsp-shutdown-qualification.json'),
+  `${platform}: require serial graceful/forced LSP shutdown and retain exact ownership receipts before real server qualification`);
+  const goProvision = steps.findIndex(step => step.name === 'Provision pinned Go language server for CI');
+  const go = steps[goSetup];
+  if (goSetup < 0 || goVerify <= goSetup
+    || goVerify >= steps.findIndex(step => step.name === 'Install optional LSP tools (best effort)')
+    || go.uses !== 'actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e'
+    || go.with?.['go-version'] !== '1.27.3' || go.with?.cache !== false
+    || !steps[goVerify].run.includes('delete env.GOROOT')
+    || !steps[goVerify].run.includes('GOTOOLCHAIN=local')
+    || !steps[goVerify].run.includes('.diagnostics/go-sdk.json')
+    || goProvision <= goVerify || goProvision >= steps.findIndex(step => step.name === 'Install optional LSP tools (best effort)')
+    || steps[goProvision].run !== 'node tools/ci/provision-gopls.js'
+    || goStartup <= steps.findIndex(step => step.name === 'Install optional LSP tools (best effort)')
+    || goStartup >= steps.findIndex(step => step.name === 'CI Suite')
+    || !steps[goStartup].run.includes('qualifyInstalledLspRuntime')
+    || !steps[goStartup].run.includes('providerId: "gopls"')
+    || !steps[goStartup].run.includes('dir: provision.toolingRoot')
+    || !steps[goStartup].run.includes('fs.realpathSync(provision.command)')
+    || !steps[goStartup].run.includes('receipt.binarySha256, provision.binarySha256')) {
+    throw new Error(`${platform}: qualify the explicit compatible Go SDK before optional installs, bind its root, and retain the executable receipt.`);
+  }
+  const dotnetSetup = steps.findIndex(step => step.name === 'Setup qualified .NET SDK');
+  const dotnetVerify = steps.findIndex(step => step.name === 'Verify selected .NET SDK');
+  const csharpStartup = steps.findIndex(step => step.name === 'Qualify real Csharp language server startup');
+  const csharpProvision = steps.findIndex(step => step.name === 'Provision pinned Csharp language server for CI');
+  const dotnet = steps[dotnetSetup];
+  if (dotnetSetup < 0 || dotnetVerify <= dotnetSetup
+    || dotnetVerify >= steps.findIndex(step => step.name === 'Install optional LSP tools (best effort)')
+    || dotnet.uses !== 'actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68'
+    || dotnet.with?.['dotnet-version'] !== '10.0.403'
+    || dotnet.env?.DOTNET_INSTALL_DIR !== '${{ runner.temp }}/poc-dotnet-sdk'
+    || parse(ciWorkflow).jobs[platform].env?.DOTNET_GENERATE_ASPNET_CERTIFICATE !== 'false'
+    || parse(ciWorkflow).jobs[platform].env?.DOTNET_CLI_HOME !== '${{ github.workspace }}/.tmp/ci/dotnet-cli-home'
+    || parse(ciWorkflow).jobs[platform].env?.NUGET_PACKAGES !== '${{ github.workspace }}/.tmp/ci/nuget-packages'
+    || !steps[dotnetVerify].run.includes('DOTNET_HOST_PATH=')
+    || !steps[dotnetVerify].run.includes('DOTNET_ROOT_')
+    || !steps[dotnetVerify].run.includes('.diagnostics/dotnet-sdk.json')
+    || csharpStartup <= steps.findIndex(step => step.name === 'Install optional LSP tools (best effort)')
+    || csharpStartup >= steps.findIndex(step => step.name === 'CI Suite')
+    || csharpProvision <= dotnetVerify || csharpProvision >= csharpStartup
+    || steps[csharpProvision].run !== 'node tools/ci/provision-csharp-ls.js'
+    || steps[csharpStartup].env?.PAIROFCLEATS_TRUSTED_REPOS !== "${{ format('[{0},{1}]', toJSON(github.workspace), toJSON(format('{0}/.diagnostics/.lsp-qualification/csharp-ls', github.workspace))) }}"
+    || !steps[csharpStartup].run.includes('dir: provision.toolingRoot')
+    || !steps[csharpStartup].run.includes('fs.realpathSync(provision.command)')
+    || !steps[csharpStartup].run.includes('receipt.binarySha256, provision.binarySha256')
+    || !steps[csharpStartup].run.includes('qualifyInstalledLspRuntime')
+    || !steps[csharpStartup].run.includes('providerId: "csharp-ls"')) {
+    throw new Error(`${platform}: qualify the isolated .NET SDK and real C# runtime, bind host/architecture roots, and prevent unrelated development-certificate generation.`);
+  }
+  const upload = steps.find(step => step.name === 'Upload quality artifacts');
+  const paths = String(upload?.with?.path || '').trim().split(/\r?\n/).map(line => line.trim());
+  const optional = steps.findIndex(step => step.name === 'Install optional LSP tools (best effort)');
+  assert.ok(!/--tools\s+[^\s]*\bgopls\b/u.test(steps[optional].run), 'CI runtime setup cannot depend on the application\'s unqualified managed gopls build forecast');
+  assert.ok(paths.includes('.diagnostics/gopls-provisioning.json'), 'CI must retain the separately provisioned Go server identity');
+  assert.ok(paths.includes('.diagnostics/csharp-ls-provisioning.json'), 'CI must retain the separately provisioned Csharp server identity');
+  assert.ok(!/--tools\s+[^\s]*\bcsharp-ls\b/u.test(steps[optional].run), 'Required Csharp setup cannot depend on an unqualified product install forecast');
+  const phpSetup = steps.findIndex(step => step.name === 'Setup qualified PHP runtime');
+  const phpVerify = steps.findIndex(step => step.name === 'Verify selected PHP runtime');
+  const phpStartup = steps.findIndex(step => step.name === 'Qualify real PHPactor startup');
+  const phpProvision = steps.findIndex(step => step.name === 'Provision pinned PHPactor for CI');
+  if (platform === 'windows') {
+    const declaration = steps.findIndex(step => step.name === 'Record PHPactor native platform limitation');
+    const selected = /--tools\s+([^\s]+)/.exec(steps[optional].run)?.[1].split(',') || [];
+    if (selected.includes('phpactor') || phpSetup !== -1 || phpStartup !== -1 || phpProvision !== -1
+      || declaration <= optional || declaration >= steps.findIndex(step => step.name === 'CI Suite')
+      || !steps[declaration].run.includes('"unsupported_platform"')
+      || !steps[declaration].run.includes('tooling/install/phpactor-platform-contract')
+      || !paths.includes('.diagnostics/phpactor-platform.json')) {
+      throw new Error('Windows must declare the stock PHAR POSIX limitation and its actual guard owner, separately from supported-platform startup.');
+    }
+  } else {
+    const setup = steps[phpSetup];
+    if (phpSetup < 0 || phpVerify <= phpSetup || phpVerify >= optional
+      || setup.uses !== 'shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962'
+      || setup.with?.['php-version'] !== '8.5.12' || setup.with?.coverage !== 'none' || setup.with?.tools !== 'none'
+      || !String(setup.with?.extensions).split(/,\s*/).includes('posix')
+      || !steps[phpVerify].run.includes('get_loaded_extensions()')
+      || steps[optional].env?.PAIROFCLEATS_DOWNLOAD_REDIRECT_ORIGINS !== '["https://release-assets.githubusercontent.com"]'
+      || phpStartup <= optional || phpStartup >= steps.findIndex(step => step.name === 'CI Suite')
+      || steps[phpStartup].env?.PAIROFCLEATS_TRUSTED_REPOS !== "${{ format('[{0},{1}]', toJSON(github.workspace), toJSON(format('{0}/.diagnostics/.lsp-qualification/phpactor', github.workspace))) }}"
+      || phpProvision <= phpVerify || phpProvision >= phpStartup
+      || steps[phpProvision].run !== 'node tools/ci/provision-phpactor.js'
+      || steps[phpProvision].env?.PAIROFCLEATS_DOWNLOAD_REDIRECT_ORIGINS !== '["https://release-assets.githubusercontent.com"]'
+      || !steps[phpStartup].run.includes('dir: provision.toolingRoot')
+      || !steps[phpStartup].run.includes('fs.realpathSync(provision.command)')
+      || !steps[phpStartup].run.includes('receipt.binarySha256, provision.binarySha256')
+      || !paths.includes('.diagnostics/phpactor-provisioning.json')
+      || !steps[phpStartup].run.includes('qualifyInstalledLspRuntime')
+      || !steps[phpStartup].run.includes('providerId: "phpactor"')
+      || !steps[phpStartup].env?.XDG_CACHE_HOME?.startsWith('${{ runner.temp }}/')
+      || !paths.includes('.diagnostics/php-sdk.json') || !paths.includes('.diagnostics/phpactor-startup.json')) {
+      throw new Error(`${platform}: select and verify PHP/POSIX before delivery, scope the existing redirect approval to installation, and require real PHPactor shutdown/exit evidence.`);
+    }
+  }
+  if (upload?.if !== 'always()' || !paths.includes('.testLogs/**/*.log')
+    || !paths.includes('.testLogs/**/*.failure.json') || !paths.includes('.diagnostics/go-sdk.json')
+    || !paths.includes('.diagnostics/gopls-startup.json') || !paths.includes('.diagnostics/serial-native-lifecycle.json')
+    || !paths.includes('.diagnostics/dotnet-sdk.json') || !paths.includes('.diagnostics/csharp-ls-startup.json')) {
+    throw new Error(`${platform}: quality artifacts must preserve every raw attempt and failure receipt, including retry-masked failures.`);
+  }
+  if (platform === 'windows' && !paths.includes('.diagnostics/windows-subprocess-ownership.json')) {
+    throw new Error('Windows quality artifacts must retain the early ownership result even when the broad suite does not run.');
+  }
+}
 const gateJob = parse(ciWorkflow).jobs.gate;
 const gateCommand = gateJob.steps.find((step) => step.name === 'Gate lane')?.run || '';
 if (/--allow-timeouts/.test(gateCommand) || !/--timeout-ms 30000/.test(gateCommand)

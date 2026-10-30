@@ -3,6 +3,7 @@ import os from 'node:os';
 
 export function createAdaptiveSignalReader({ config, state }) {
   const readSystemSignals = (at = config.nowMs()) => {
+    const configuredFdCap = config.normalizePositiveInt(config.fdPressureRoot?.maxTokenCap, null);
     const cpuTokenUtilization = state.tokens.cpu.total > 0 ? (state.tokens.cpu.used / state.tokens.cpu.total) : 0;
     const ioTokenUtilization = state.tokens.io.total > 0 ? (state.tokens.io.used / state.tokens.io.total) : 0;
     const memTokenUtilization = state.tokens.mem.total > 0 ? (state.tokens.mem.used / state.tokens.mem.total) : 0;
@@ -18,13 +19,20 @@ export function createAdaptiveSignalReader({ config, state }) {
         1,
         config.normalizePositiveInt(config.fdPressureRoot?.maxTokenCap, config.maxLimits.io) || config.maxLimits.io
       ),
-      tokenCap: Math.max(1, Math.floor(state.tokens.io.total || 1)),
+      // Current controller capacity is not an observed external FD ceiling.
+      // Without a configured/sampled cap, the ordinary max-I/O and memory
+      // envelopes remain binding while adaptation may recover or grow.
+      tokenCap: configuredFdCap == null ? null : Math.min(config.maxLimits.io, configuredFdCap),
+      available: configuredFdCap != null,
+      source: configuredFdCap == null ? 'unavailable' : 'configured-max-token-cap',
       pressureScore: 0
     };
     const defaultSignals = {
       cpu: {
         tokenUtilization: Math.max(cpuTokenUtilization, ioTokenUtilization),
-        loadRatio: 0
+        loadRatio: null,
+        externalLoadAvailable: false,
+        externalLoadSource: 'unavailable'
       },
       memory: {
         rssBytes: 0,
@@ -74,7 +82,9 @@ export function createAdaptiveSignalReader({ config, state }) {
           );
           defaultSignals.cpu = {
             tokenUtilization: cpuToken,
-            loadRatio: cpuLoad
+            loadRatio: typeof sampled?.cpu?.loadRatio === 'number' && Number.isFinite(sampled.cpu.loadRatio) ? cpuLoad : null,
+            externalLoadAvailable: typeof sampled?.cpu?.loadRatio === 'number' && Number.isFinite(sampled.cpu.loadRatio),
+            externalLoadSource: 'injected-sample'
           };
           defaultSignals.memory = {
             ...defaultSignals.memory,
@@ -89,10 +99,9 @@ export function createAdaptiveSignalReader({ config, state }) {
             heapUtilization: config.normalizeRatio(sampled?.memory?.heapUtilization, defaultSignals.memory.heapUtilization, { min: 0, max: 1 }),
             freeRatio: config.normalizeRatio(sampled?.memory?.freeRatio, defaultSignals.memory.freeRatio, { min: 0, max: 1 })
           };
-          const sampledFdTokenCap = config.normalizePositiveInt(
-            sampled?.fd?.tokenCap,
-            defaultSignals.fd.tokenCap
-          );
+          const observedCap = sampled?.fd?.tokenCap;
+          const sampledFdTokenCap = typeof observedCap === 'number' && Number.isSafeInteger(observedCap) && observedCap > 0
+            ? observedCap : defaultSignals.fd.tokenCap;
           const sampledFdMaxTokenCap = Math.max(
             defaultSignals.fd.minTokenCap,
             config.normalizePositiveInt(sampled?.fd?.maxTokenCap, defaultSignals.fd.maxTokenCap)
@@ -111,10 +120,10 @@ export function createAdaptiveSignalReader({ config, state }) {
               config.normalizePositiveInt(sampled?.fd?.minTokenCap, defaultSignals.fd.minTokenCap) || defaultSignals.fd.minTokenCap
             ),
             maxTokenCap: sampledFdMaxTokenCap,
-            tokenCap: Math.max(
-              1,
-              Math.min(sampledFdMaxTokenCap, sampledFdTokenCap || defaultSignals.fd.tokenCap)
-            ),
+            tokenCap: sampledFdTokenCap == null ? null : Math.max(1, Math.min(sampledFdMaxTokenCap, sampledFdTokenCap)),
+            available: sampledFdTokenCap != null,
+            source: sampledFdTokenCap == null ? 'unavailable'
+              : sampledFdTokenCap === observedCap ? 'injected-sample' : defaultSignals.fd.source,
             pressureScore: config.normalizeRatio(
               sampled?.fd?.pressureScore,
               defaultSignals.fd.pressureScore,
@@ -129,9 +138,10 @@ export function createAdaptiveSignalReader({ config, state }) {
       ? Math.max(1, os.availableParallelism())
       : Math.max(1, os.cpus().length || 1);
     const loadAvg = typeof os.loadavg === 'function' ? os.loadavg() : null;
-    const loadRatio = Array.isArray(loadAvg) && Number.isFinite(loadAvg[0]) && cpuCount > 0
+    const externalLoadAvailable = process.platform !== 'win32' && Array.isArray(loadAvg) && Number.isFinite(loadAvg[0]) && cpuCount > 0;
+    const loadRatio = externalLoadAvailable
       ? Math.max(0, Math.min(2, Number(loadAvg[0]) / cpuCount))
-      : 0;
+      : null;
     let rssBytes = 0;
     let heapUsedBytes = 0;
     let heapTotalBytes = 0;
@@ -166,7 +176,9 @@ export function createAdaptiveSignalReader({ config, state }) {
     return {
       cpu: {
         tokenUtilization: Math.max(cpuTokenUtilization, ioTokenUtilization),
-        loadRatio
+        loadRatio,
+        externalLoadAvailable,
+        externalLoadSource: externalLoadAvailable ? 'system-load-average' : 'unavailable'
       },
       memory: {
         budget: memoryBudget,

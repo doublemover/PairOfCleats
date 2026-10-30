@@ -1,3 +1,4 @@
+import { runNode as runNodeFixture } from '../../helpers/run-node.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
@@ -6,16 +7,24 @@ import { createPublishedSemanticWitness } from '../../helpers/published-semantic
 import { createRuntimeImportFixture } from '../../helpers/runtime-import-fixture.js';
 import { importRuntimeEvidence } from '../../../src/index/semantic/runtime/import.js';
 import { queryRuntimeEvidence, defaultRuntimeQuerySelectors } from '../../../src/index/semantic/runtime/query.js';
-import { spawnSync } from 'node:child_process';
+
 import { fileURLToPath } from 'node:url';
 import { applyTestEnv } from '../../helpers/test-env.js';
 import { qualifyRuntimeSourceCandidates, runtimeObservationTargets } from '../../../src/index/semantic/runtime/source-authority.js';
 import { createRuntimeObservation } from '../../../src/index/semantic/runtime/adapters/shared.js';
 
+const selected = process.env.PAIROFCLEATS_TEST_ID?.split('storage/semantic/runtime-source-reference-authority/')[1];
+assert.ok(['source-authority', 'cli-generation-pin', 'projection-order-forward', 'projection-order-reverse'].includes(selected));
 const root = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-runtime-reference-'));
 let fixture;
 try {
-  const witness = await createPublishedSemanticWitness({ root: path.join(root, 'source') });
+  // Runtime coordinate ownership needs two authored functions plus one foreign
+  // source. Buffer/worker flow workloads belong to their dedicated consumers.
+  const witness = await createPublishedSemanticWitness({ root: path.join(root, 'source'), threads: 1,
+    sourceFiles: {
+      'snapshot.ts': 'export function build(seed:number) { return seed + 1; }\nexport function render(payload:number[]) { return payload.length; }\n',
+      'host.ts': 'export function foreign() { return 0; }\n'
+    } });
   const source = [...witness.sources.values()].find(row => row.path === 'snapshot.ts');
   const functions = witness.records.filter(row => row.kind === 'scope' && row.data.scopeKind === 'FunctionDeclaration'
     && row.sourceUnitId === source.sourceUnitId).sort((a, b) => a.span[0] - b.span[0]);
@@ -86,58 +95,85 @@ try {
   const overlappingRows = await fixture.readRows(overlappingImport);
   const firstFunctionCpu = overlappingRows.find(row => row.kind === 'cpuProfile' && row.data.functionName === 'build');
   assert.equal(firstFunctionCpu.join.targetQuality, 'ambiguous'); assert.deepEqual(firstFunctionCpu.join.targets, []);
-  const specification = path.join(root, 'runtime-specification.json');
-  await fs.writeFile(specification, JSON.stringify({ capture: options.capture, authority: options.authority,
-    inputs: options.inputs, sourceCandidates: options.sourceCandidates, importOptions: options.importOptions }));
-  const cli = fileURLToPath(new URL('../../../tools/ingest/runtime-evidence.js', import.meta.url));
-  const cliEnvironment = applyTestEnv({ cacheRoot: witness.cacheRoot, syncProcess: false });
-  const execute = args => spawnSync(process.execPath, [cli, '--specification', specification,
-    '--out', path.join(root, 'cli-import'), ...args], { env: cliEnvironment, encoding: 'utf8', timeout: 10000, maxBuffer: 1024 * 1024 });
-  const pinned = execute(['--repo', witness.repoRoot, '--generation', JSON.stringify(witness.manifest.generation)]);
-  assert.equal(pinned.error, undefined, 'bounded CLI completes and reaps its child');
-  assert.equal(pinned.status, 0, pinned.stderr);
-  const pinnedResult = JSON.parse(pinned.stdout.trim().split('\n').at(-1));
-  assert.equal(pinnedResult.semanticVerification, 'pinned-generation');
-  assert.ok(pinnedResult.recordCount > 0);
-  for (const args of [['--repo', witness.repoRoot], ['--generation', JSON.stringify(witness.manifest.generation)]]) {
-    const incomplete = execute(args);
-    assert.equal(incomplete.error, undefined);
-    assert.notEqual(incomplete.status, 0);
-    assert.match(incomplete.stderr, /must be supplied together/);
+  const unverified = await importRuntimeEvidence({ ...options, semanticContext: null });
+  assert.ok((await fixture.readRows(unverified)).every(row => row.join.targets.length === 0));
+  const variants = [imported, overlappingImport, unverified].map(result => result.pointer.generationId);
+  const expectedQualities = new Map([[variants[0], 'verified-coordinate'], [variants[1], 'ambiguous'], [variants[2], 'unverified-candidate']]);
+  if (selected === 'cli-generation-pin') {
+    const specification = path.join(root, 'runtime-specification.json');
+    await fs.writeFile(specification, JSON.stringify({ capture: options.capture, authority: options.authority,
+      inputs: options.inputs, sourceCandidates: options.sourceCandidates, importOptions: options.importOptions }));
+    const cli = fileURLToPath(new URL('../../../tools/ingest/runtime-evidence.js', import.meta.url));
+    const cliEnvironment = applyTestEnv({ cacheRoot: witness.cacheRoot, syncProcess: false });
+    const execute = args => runNodeFixture([cli, '--specification', specification,
+      '--out', path.join(root, 'cli-import'), ...args], 'Node process fixture', process.cwd(), process.env, { stdio: 'pipe', encoding: 'buffer', allowFailure: true, spawnOptions: { env: cliEnvironment, encoding: 'utf8', timeout: 10000, maxBuffer: 1024 * 1024 } });
+    const pinned = execute(['--repo', witness.repoRoot, '--generation', JSON.stringify(witness.manifest.generation)]);
+    assert.equal(pinned.error, undefined, 'bounded CLI completes and reaps its child');
+    assert.equal(pinned.status, 0, pinned.stderr);
+    const pinnedResult = JSON.parse(pinned.stdout.trim().split('\n').at(-1));
+    assert.equal(pinnedResult.semanticVerification, 'pinned-generation');
+    assert.ok(pinnedResult.recordCount > 0);
+    for (const args of [['--repo', witness.repoRoot], ['--generation', JSON.stringify(witness.manifest.generation)]]) {
+      const incomplete = execute(args);
+      assert.equal(incomplete.error, undefined);
+      assert.notEqual(incomplete.status, 0);
+      assert.match(incomplete.stderr, /must be supplied together/);
+    }
+    const stale = execute(['--repo', witness.repoRoot, '--generation', JSON.stringify({ baseBuildId: 'stale', semanticRevision: 0 })]);
+    assert.equal(stale.error, undefined);
+    assert.notEqual(stale.status, 0, 'stale generation must not silently fall back to current');
   }
-  const stale = execute(['--repo', witness.repoRoot, '--generation', JSON.stringify({ baseBuildId: 'stale', semanticRevision: 0 })]);
-  assert.equal(stale.error, undefined);
-  assert.notEqual(stale.status, 0, 'stale generation must not silently fall back to current');
   const request = { schemaVersion: 1, repositoryNamespace: source.repositoryNamespace, generation: witness.manifest.generation,
     familyGenerations: [imported.pointer.generationId], selectors: defaultRuntimeQuerySelectors(),
     limits: { maxRecords: 32, maxBytes: 65536, maxMs: 1000 }, cursor: null };
   const query = async refs => queryRuntimeEvidence({ destination: options.destination,
     request: { ...request, selectors: { ...request.selectors, records: refs } } });
-  for (const [index, fn] of functions.entries()) {
-    const result = await query([fn.ref]);
-    assert.equal(result.observations.length, 1);
-    assert.equal(result.observations[0].data.functionName, index ? 'render' : 'build');
-    assert.equal(result.observations[0].join.targetQuality, 'verified-coordinate');
-    assert.deepEqual(result.observations[0].join.targets, [fn.ref]);
+  if (selected === 'source-authority') {
+    for (const [index, fn] of functions.entries()) {
+      const result = await query([fn.ref]);
+      assert.equal(result.observations.length, 1);
+      assert.equal(result.observations[0].data.functionName, index ? 'render' : 'build');
+      assert.equal(result.observations[0].join.targetQuality, 'verified-coordinate');
+      assert.deepEqual(result.observations[0].join.targets, [fn.ref]);
+    }
+    for (const targets of [
+      [{ partitionId: 'sy1:' + 'f'.repeat(64), localId: 987654321 }],
+      [{ ...functions[0].ref, localId: 987654321 }], [host.ref]
+    ]) {
+      const invalid = await importRuntimeEvidence({ ...options, sourceCandidates: [{ ...options.sourceCandidates[0], targets }] });
+      const rows = await fixture.readRows(invalid);
+      assert.ok(rows.every(row => row.join.targets.length === 0), 'invalid or foreign-source references retain file evidence without record authority');
+    }
   }
-  for (const targets of [
-    [{ partitionId: 'sy1:' + 'f'.repeat(64), localId: 987654321 }],
-    [{ ...functions[0].ref, localId: 987654321 }], [host.ref]
-  ]) {
-    const invalid = await importRuntimeEvidence({ ...options, sourceCandidates: [{ ...options.sourceCandidates[0], targets }] });
-    const rows = await fixture.readRows(invalid);
-    assert.ok(rows.every(row => row.join.targets.length === 0), 'invalid or foreign-source references retain file evidence without record authority');
+  if (selected.startsWith('projection-order-')) {
+    const familyGenerations = selected === 'projection-order-forward' ? variants : [...variants].reverse();
+    const logicalIds = new Set(), owners = new Set();
+    let cursor = null;
+    do {
+      const page = await queryRuntimeEvidence({ destination: options.destination, request: { ...request,
+        familyGenerations, selectors: { ...request.selectors, kinds: ['cpuProfile'] },
+        limits: { ...request.limits, maxRecords: 1 }, cursor } });
+      cursor = page.nextCursor;
+      for (const row of page.observations.filter(row => row.data.functionName === 'build')) {
+        const owner = page.pinnedFamilies[row.reference.family];
+        logicalIds.add(row.evidenceId); owners.add(owner.generationId);
+        assert.equal(row.join.targetQuality, expectedQualities.get(owner.generationId));
+        assert.deepEqual(row.join.targets, owner.generationId === variants[0] ? [functions[0].ref] : []);
+        assert.equal(page.explanations[0].evidenceRefs[0].rowHash, row.reference.rowHash);
+        assert.equal(page.explanations[0].evidenceRefs[0].family, row.reference.family);
+      }
+    } while (cursor);
+    assert.equal(logicalIds.size, 1, 'the same observation keeps its logical ID across attribution variants');
+    assert.deepEqual(owners, new Set(variants), 'no weaker projection overwrites or disappears behind a sibling');
   }
-  const unverified = await importRuntimeEvidence({ ...options, semanticContext: null });
-  assert.ok((await fixture.readRows(unverified)).every(row => row.join.targets.length === 0));
-  await assert.rejects(importRuntimeEvidence({ ...options, semanticContext: { ...witness.semanticContext,
-    manifest: { ...witness.manifest, generation: { baseBuildId: 'stale', semanticRevision: 0 } } } }), { code: 'ERR_RUNTIME_QUERY_SCOPE' });
-  const other = await createPublishedSemanticWitness({ root: path.join(root, 'changed'), revision: 1 });
-  await assert.rejects(importRuntimeEvidence({ ...options, semanticContext: other.semanticContext }), { code: 'ERR_RUNTIME_QUERY_SCOPE' });
-  const outOfRange = structuredClone(profile); outOfRange.nodes.forEach(row => { row.callFrame.columnNumber = source.textLength + 1; });
-  const outside = await add('outside.cpuprofile', JSON.stringify(outOfRange), 'inspector-cpu-profile');
-  const outsideImport = await importRuntimeEvidence({ ...options, capture: { ...options.capture, rawArtifacts: [logArtifact, outside] },
-    inputs: [options.inputs[0], fixture.inputs.at(-1)], authority: { ...options.authority, artifactHashes: [logArtifact.hash, outside.hash] } });
-  assert.ok((await fixture.readRows(outsideImport)).every(row => row.join.targets.length === 0));
-  console.log('Published semantic generations verify runtime records and distinguish function coordinates without broadcasting targets');
+  if (selected === 'source-authority') {
+    await assert.rejects(importRuntimeEvidence({ ...options, semanticContext: { ...witness.semanticContext,
+      manifest: { ...witness.manifest, generation: { baseBuildId: 'stale', semanticRevision: 0 } } } }), { code: 'ERR_RUNTIME_QUERY_SCOPE' });
+    const outOfRange = structuredClone(profile); outOfRange.nodes.forEach(row => { row.callFrame.columnNumber = source.textLength + 1; });
+    const outside = await add('outside.cpuprofile', JSON.stringify(outOfRange), 'inspector-cpu-profile');
+    const outsideImport = await importRuntimeEvidence({ ...options, capture: { ...options.capture, rawArtifacts: [logArtifact, outside] },
+      inputs: [options.inputs[0], fixture.inputs.at(-1)], authority: { ...options.authority, artifactHashes: [logArtifact.hash, outside.hash] } });
+    assert.ok((await fixture.readRows(outsideImport)).every(row => row.join.targets.length === 0));
+  }
+  console.log(`Published semantic generations qualify ${selected} with the same capture's verified/ambiguous/unavailable projections retained together.`);
 } finally { await fixture?.cleanup(); await fs.rm(root, { recursive: true, force: true }); }

@@ -28,10 +28,16 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
+      - name: Setup Python
+        id: python-runtime
+        uses: actions/setup-python@v7
+        with:
+          python-version-file: .python-version
+
       - name: Setup Node
         uses: actions/setup-node@v7
         with:
-          node-version: '26.8.1'
+          node-version: '26.13.0'
           cache: npm
 
       - name: Restore PairOfCleats cache
@@ -49,10 +55,14 @@ jobs:
         id: node-modules-cache
         uses: actions/cache@v6
         with:
-          path: node_modules
-          key: node-modules-${{ runner.os }}-${{ runner.arch }}-node-26.8.1-v2-${{ hashFiles('package-lock.json', 'patches/**/*.patch') }}
+          path: |
+            node_modules
+            .cache/native-build/headers
+          key: node-modules-${{ runner.os }}-${{ runner.arch }}-node-26.13.0-headers-v1-${{ hashFiles('package-lock.json', 'patches/**/*.patch') }}
 
       - name: Install deps and report versions
+        env:
+          NODE_GYP_FORCE_PYTHON: ${{ steps.python-runtime.outputs.python-path }}
         shell: bash
         run: |
           node -e "require('fs').mkdirSync('.ci-cache/pairofcleats/models', { recursive: true }); require('fs').mkdirSync('.ci-cache/pairofcleats/dictionaries', { recursive: true });"
@@ -116,7 +126,7 @@ jobs:
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: 1.88.0
+          toolchain: 1.99.1
           components: rustfmt, clippy
 
       - name: Restore Cargo cache

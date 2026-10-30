@@ -1,4 +1,5 @@
 import { buildQueryCacheKey, getIndexSignature } from '../../cli-index.js';
+import { QUERY_EMBEDDING_ADMISSION_VERSION } from '../../../shared/embedding-output-admission.js';
 import { stableStringifyForSignature } from '../../../shared/stable-json.js';
 import {
   findQueryCacheEntry,
@@ -6,6 +7,15 @@ import {
   rememberQueryCacheEntry
 } from '../../query-cache.js';
 import { resolveRetrievalCachePath } from '../cache-paths.js';
+import { persistQueryCacheTouch } from '../../query-cache-touches.js';
+import { upsertQueryCacheEntry } from '../../query-cache-state.js';
+import { throwIfAborted, isAbortError } from '../../../shared/abort.js';
+import { observeStorageResource } from '../../../shared/storage/failure-observation.js';
+import { QUERY_PARSER_VERSION } from '../../query-plan-schema.js';
+import { METADATA_PREDICATE_VERSION } from '../../effective-filter-facts.js';
+import { areRetrievalExecutionsReusable } from '../../../contracts/retrieval-execution.js';
+import { FTS_WORK_POLICY_VERSION } from '../../fts-work-policy.js';
+import { CONTEXT_EXPANSION_POLICY_VERSION } from '../../context-expansion-version.js';
 
 const normalizePositiveIntOrNull = (value) => (
   Number.isFinite(Number(value)) ? Math.max(1, Math.floor(Number(value))) : null
@@ -35,6 +45,7 @@ export function resolveQueryCachePolicy({
     ? Math.max(0, Math.floor(Number(queryCacheMemoryFreshMs)))
     : 0;
   const sqliteFtsOverfetchCacheKey = {
+    policyVersion: FTS_WORK_POLICY_VERSION,
     rowCap: normalizePositiveIntOrNull(sqliteFtsOverfetch?.rowCap),
     timeBudgetMs: normalizePositiveIntOrNull(sqliteFtsOverfetch?.timeBudgetMs),
     chunkSize: normalizePositiveIntOrNull(sqliteFtsOverfetch?.chunkSize)
@@ -64,6 +75,7 @@ export function resolveEmbeddingInputFormattingByMode({
 }
 
 export async function resolveQueryCacheLookup({
+  effectivePlanIdentity = null,
   queryCacheEnabled,
   queryCacheDir,
   metricsDir,
@@ -84,6 +96,7 @@ export async function resolveQueryCacheLookup({
   indexBaseRootByMode = null,
   explicitRef = false,
   indexSignaturePayload = null,
+  chunkAuthorEvidence = null,
   asOfContext = null,
   query,
   searchMode,
@@ -132,8 +145,10 @@ export async function resolveQueryCacheLookup({
   cacheStrategy,
   cachePrewarmEnabled,
   cachePrewarmLimit,
-  cacheMemoryFreshMs
+  cacheMemoryFreshMs,
+  signal = null
 }) {
+  throwIfAborted(signal);
   let cacheHit = false;
   let cacheKey = null;
   let cacheSignature = null;
@@ -178,7 +193,11 @@ export async function resolveQueryCacheLookup({
       explicitRef,
       asOfContext
     });
-  cacheSignature = stableStringifyForSignature(signature);
+  cacheSignature = stableStringifyForSignature({index:signature,queryParserVersion:QUERY_PARSER_VERSION,metadataPredicateVersion:METADATA_PREDICATE_VERSION,
+    contextExpansionPolicyVersion: CONTEXT_EXPANSION_POLICY_VERSION,
+    queryEmbeddingAdmissionVersion: QUERY_EMBEDDING_ADMISSION_VERSION,
+    effectivePlanIdentity,
+    ...(chunkAuthorEvidence ? { chunkAuthorEvidence } : {})});
   const cacheKeyInfo = buildQueryCacheKey({
     query,
     backend: backendLabel,
@@ -252,11 +271,16 @@ export async function resolveQueryCacheLookup({
   });
   cacheKey = cacheKeyInfo.key;
 
+  // Zero disables the canonical-validation grace period. The low-level hot
+  // cache also supports unbounded in-memory consumers, so enforce this session
+  // policy at both lookup sites rather than interpreting zero as infinite.
+  const lookupStrategy = cacheStrategy === 'memory-first' && cacheMemoryFreshMs > 0
+    ? 'memory-first' : 'disk-first';
   let entry = null;
-  if (cacheStrategy === 'memory-first') {
+  if (lookupStrategy === 'memory-first') {
     entry = findQueryCacheEntry(null, cacheKey, cacheSignature, {
       cachePath: queryCachePath,
-      strategy: cacheStrategy,
+      strategy: lookupStrategy,
       memoryFreshMs: cacheMemoryFreshMs,
       maxHotEntries: queryCacheMaxEntries
     });
@@ -266,12 +290,13 @@ export async function resolveQueryCacheLookup({
     cacheData = queryCachePath
       ? loadQueryCache(queryCachePath, {
         prewarm: cachePrewarmEnabled,
+        maxHotEntries: queryCacheMaxEntries,
         prewarmMaxEntries: cachePrewarmLimit
       })
       : null;
     entry = findQueryCacheEntry(cacheData, cacheKey, cacheSignature, {
       cachePath: queryCachePath,
-      strategy: cacheStrategy,
+      strategy: lookupStrategy,
       memoryFreshMs: cacheMemoryFreshMs,
       maxHotEntries: queryCacheMaxEntries
     });
@@ -289,8 +314,15 @@ export async function resolveQueryCacheLookup({
     };
   }
 
+  const requiredModes = [[runCode, 'code'], [runProse, 'prose'], [runExtractedProse, 'extracted-prose'], [runRecords, 'records']]
+    .filter(([enabled]) => enabled).map(([, mode]) => mode);
+  if (!areRetrievalExecutionsReusable(entry.meta?.executionOutcomes, requiredModes)) {
+    return { queryCachePath, cacheHit: false, cacheKey, cacheSignature, cacheData,
+      cachedPayload: null, cacheShouldPersist, cacheHotPathHit: false };
+  }
+  const timestamp = Number(entry.ts);
   const ttl = Number.isFinite(Number(entry.ttlMs)) ? Number(entry.ttlMs) : queryCacheTtlMs;
-  if (ttl && (Date.now() - entry.ts) > ttl) {
+  if (!Number.isFinite(timestamp) || timestamp <= 0 || (ttl && (Date.now() - timestamp) > ttl)) {
     return {
       queryCachePath,
       cacheHit,
@@ -334,24 +366,43 @@ export async function resolveQueryCacheLookup({
     };
   }
 
+  // Rendering/comment joins own mutable hit rows. Cache payloads retain their
+  // immutable admitted data independently of those downstream enrichments.
+  try {
+    cachedPayload = structuredClone(cachedPayload);
+    Object.defineProperty(cachedPayload, 'executionOutcomes', { value: structuredClone(entry.meta.executionOutcomes) });
+  }
+  catch (error) {
+    observeStorageResource(error, { phase: 'query-cache-hit-admission' }).requireSettled();
+    if (isAbortError(error)) throw error;
+    return { queryCachePath, cacheHit: false, cacheKey, cacheSignature, cacheData,
+      cachedPayload: null, cacheShouldPersist: false, cacheHotPathHit };
+  }
+  throwIfAborted(signal);
   cacheHit = true;
-  entry.ts = Date.now();
+  entry = { ...entry, ts: Math.max(Number(entry.ts || 0), Date.now()) };
+  let touchPersisted = false;
+  if (entry.payloadId && queryCachePath) {
+    try { touchPersisted = await persistQueryCacheTouch({ cachePath: queryCachePath, key: cacheKey,
+      signature: cacheSignature, payloadId: entry.payloadId, ts: entry.ts, maxEntries: queryCacheMaxEntries }); }
+    catch (error) {
+      observeStorageResource(error, { phase: 'query-cache-touch' }).requireSettled();
+      if (isAbortError(error)) throw error;
+      touchPersisted = false;
+    }
+  }
+  throwIfAborted(signal);
+  if (touchPersisted) {
+    rememberQueryCacheEntry(queryCachePath, cacheKey, cacheSignature, entry, queryCacheMaxEntries);
+    return { queryCachePath, cacheHit, cacheKey, cacheSignature, cacheData,
+      cachedPayload, cacheShouldPersist: false, cacheHotPathHit };
+  }
   rememberQueryCacheEntry(queryCachePath, cacheKey, cacheSignature, entry, queryCacheMaxEntries);
   if (!cacheData) {
     cacheData = loadQueryCache(queryCachePath, { prewarm: false });
   }
   if (cacheData && Array.isArray(cacheData.entries)) {
-    const existingIndex = cacheData.entries.findIndex((candidate) => (
-      candidate?.key === cacheKey && candidate?.signature === cacheSignature
-    ));
-    if (existingIndex >= 0) {
-      cacheData.entries[existingIndex] = {
-        ...cacheData.entries[existingIndex],
-        ts: entry.ts
-      };
-    } else {
-      cacheData.entries.push(entry);
-    }
+    upsertQueryCacheEntry(cacheData, entry, { replacement: false });
     cacheShouldPersist = Boolean(queryCachePath);
   }
 

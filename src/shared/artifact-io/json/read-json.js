@@ -1,3 +1,4 @@
+import { readVerifiedArtifactJson } from '../verified-read-scope.js';
 import { performance } from 'node:perf_hooks';
 import { MAX_JSON_BYTES } from '../constants.js';
 import { cleanupBak, getBakPath } from '../cache.js';
@@ -10,6 +11,7 @@ import {
 import {
   canUseFallbackAfterPrimaryError,
   captureFallbackReadError,
+  normalizeArtifactReadFailure,
   resolvePreferredReadError
 } from './fallback.js';
 import {
@@ -28,22 +30,23 @@ const parseJsonBuffer = (buffer, sourcePath, maxBytes) => {
   }
   try {
     return JSON.parse(buffer.toString('utf8'));
-  } catch (err) {
+  } catch (value) {
+    const err = normalizeArtifactReadFailure(value);
     if (shouldTreatAsTooLarge(err)) {
-      throw toJsonTooLargeError(sourcePath, buffer.length);
+      throw toJsonTooLargeError(sourcePath, buffer.length, { cause: err, causePresent: true });
     }
     throw err;
   }
 };
 
-const readJsonSource = (targetPath, maxBytes, { compression = null, cleanup = false } = {}) => {
+const readJsonSource = (targetPath, maxBytes, { compression = null, cleanup = false, containedRoot = null } = {}) => {
   const shouldMeasure = hasArtifactReadObserver();
   const start = shouldMeasure ? performance.now() : 0;
-  const buffer = readBuffer(targetPath, maxBytes);
+  const buffer = readBuffer(targetPath, maxBytes, { containedRoot });
   const resolvedCompression = compression || detectCompression(targetPath) || null;
   const decompressed = decompressBuffer(buffer, resolvedCompression, maxBytes, targetPath);
   const parsed = parseJsonBuffer(decompressed, targetPath, maxBytes);
-  if (cleanup) cleanupBak(targetPath);
+  if (cleanup && !containedRoot) cleanupBak(targetPath);
   if (shouldMeasure) {
     recordArtifactRead({
       path: targetPath,
@@ -73,16 +76,16 @@ const readJsonSource = (targetPath, maxBytes, { compression = null, cleanup = fa
  * @param {{maxBytes?: number,recoveryFallback?:boolean}} [options]
  * @returns {any}
  */
-export const readJsonFile = (
+const readJsonFileUncached = (
   filePath,
-  { maxBytes = MAX_JSON_BYTES, recoveryFallback = false } = {}
+  { maxBytes = MAX_JSON_BYTES, recoveryFallback = false, containedRoot = null } = {}
 ) => {
   const bakPath = getBakPath(filePath);
   let primaryErr = null;
   try {
-    return readJsonSource(filePath, maxBytes, { cleanup: true });
+    return readJsonSource(filePath, maxBytes, { cleanup: true, containedRoot });
   } catch (err) {
-    primaryErr = err;
+    primaryErr = normalizeArtifactReadFailure(err);
     if (!canUseFallbackAfterPrimaryError(primaryErr, recoveryFallback)) {
       throw primaryErr;
     }
@@ -94,7 +97,8 @@ export const readJsonFile = (
       try {
         return readJsonSource(candidate.path, maxBytes, {
           compression: candidate.compression,
-          cleanup: candidate.cleanup
+          cleanup: candidate.cleanup,
+          containedRoot
         });
       } catch (err) {
         fallbackErr = captureFallbackReadError(fallbackErr, err);
@@ -103,7 +107,7 @@ export const readJsonFile = (
   }
 
   try {
-    return readJsonSource(bakPath, maxBytes);
+    return readJsonSource(bakPath, maxBytes, { containedRoot });
   } catch (bakErr) {
     fallbackErr = captureFallbackReadError(fallbackErr, bakErr);
   }
@@ -112,3 +116,7 @@ export const readJsonFile = (
   if (preferredErr) throw preferredErr;
   throw new Error(`Missing JSON artifact: ${filePath}`);
 };
+
+export const readJsonFile = (filePath, options = {}) => readVerifiedArtifactJson(
+  filePath, options, () => readJsonFileUncached(filePath, options)
+);

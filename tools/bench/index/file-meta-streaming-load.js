@@ -1,3 +1,4 @@
+import { resolveDevelopmentArtifactPath } from '../../shared/dev-artifacts.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { performance } from 'node:perf_hooks';
@@ -38,7 +39,7 @@ const loadFromIndex = async (indexDir) => {
 };
 
 const loadFromGenerated = async (rows) => {
-  const benchRoot = path.join(process.cwd(), '.benchCache', 'file-meta-streaming-load');
+  const benchRoot = resolveDevelopmentArtifactPath(process.cwd(), 'bench-cache', 'file-meta-streaming-load');
   await fs.rm(benchRoot, { recursive: true, force: true });
   await fs.mkdir(benchRoot, { recursive: true });
   const jsonlPath = path.join(benchRoot, 'file_meta.jsonl');

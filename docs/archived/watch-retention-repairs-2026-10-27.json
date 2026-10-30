@@ -1,0 +1,559 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-10-27",
+  "sourceHead": "7c3683ad06dc633b9e0447ab2c232239534a7c64",
+  "sourceTree": "169a1f4fd0529239b4379f6c4be185e926214a20",
+  "branch": "codex/pr557-audit-repairs-20261012",
+  "platform": "win32",
+  "arch": "x64",
+  "node": "v26.12.1",
+  "issues": [
+    {
+      "number": 690,
+      "state": "closed",
+      "stateReason": "completed",
+      "closedAt": "2026-10-27T06:52:11Z",
+      "sourceHead": "7c3683ad06dc633b9e0447ab2c232239534a7c64",
+      "qualifiedTests": [
+        "indexing/build/promotion-unreadable-pointer",
+        "indexing/watch/atomicity",
+        "indexing/watch/attempts",
+        "indexing/watch/backend-selection",
+        "indexing/watch/build-state",
+        "indexing/watch/cache-writer-drain-ownership",
+        "indexing/watch/cancel-before-publication",
+        "indexing/watch/consistency-state",
+        "indexing/watch/continuous-edit-deadline",
+        "indexing/watch/debounce",
+        "indexing/watch/default-depth",
+        "indexing/watch/e2e-promotion",
+        "indexing/watch/edit-to-search",
+        "indexing/watch/filter",
+        "indexing/watch/generated-cache-guard",
+        "indexing/watch/index-lock",
+        "indexing/watch/index-lock-lazy-storage-context",
+        "indexing/watch/index-lock-signal-cleanup",
+        "indexing/watch/index-lock-signal-listeners",
+        "indexing/watch/lock-backoff",
+        "indexing/watch/pinned-attempt-retention",
+        "indexing/watch/post-commit-retention",
+        "indexing/watch/promotion/safety",
+        "indexing/watch/retained-reader-attempts",
+        "indexing/watch/retention-native-close",
+        "indexing/watch/retry-after-lock-exhaustion",
+        "indexing/watch/retry-on-failed-cycle",
+        "indexing/watch/root-normalization",
+        "indexing/watch/shutdown",
+        "indexing/watch/source-observation-owner",
+        "indexing/watch/source-observation-replay",
+        "indexing/watch/stability-checks",
+        "indexing/watch/stability-guard",
+        "indexing/watch/stability-requeue",
+        "indexing/watch/startup-lifetime",
+        "indexing/watch/structured-progress",
+        "indexing/watch/update-queue-no-loss",
+        "shared/indexing/build-pointer"
+      ]
+    }
+  ],
+  "currentCounts": {
+    "open": 725,
+    "qualificationPending": 464,
+    "partialFollowup": 147,
+    "implementationStatusUnresolved": 114
+  },
+  "liveCensus": {
+    "open": 725,
+    "checkedAt": "2026-10-27T06:53:19.665Z",
+    "newOrUnexpectedRemovedIssues": []
+  },
+  "dependencies": {
+    "changed": false,
+    "verification": "Earlier clean required native/patch verification; current readiness passes."
+  },
+  "policy": {
+    "jobs": 1,
+    "indexingThreads": 1,
+    "timeoutMs": 30000,
+    "retries": 0,
+    "nativeStatusRedo": false,
+    "launch": "Task child omits only the inherited missing trusted-config selector; user/global settings unchanged."
+  },
+  "uniqueAffectedFixtures": 38,
+  "finalObservations": [
+    {
+      "id": "indexing/build/promotion-unreadable-pointer",
+      "status": "passed",
+      "durationMs": 1084,
+      "attempts": 1,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false
+    },
+    {
+      "id": "indexing/watch/atomicity",
+      "status": "passed",
+      "durationMs": 2573,
+      "attempts": 1,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false
+    },
+    {
+      "id": "indexing/watch/attempts",
+      "status": "passed",
+      "durationMs": 553,
+      "attempts": 1,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false
+    },
+    {
+      "id": "indexing/watch/backend-selection",
+      "status": "passed",
+      "durationMs": 2638,
+      "attempts": 1,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false
+    },
+    {
+      "id": "indexing/watch/build-state",
+      "status": "passed",
+      "durationMs": 220,
+      "attempts": 1,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false
+    },
+    {
+      "id": "indexing/watch/cache-writer-drain-ownership",
+      "status": "passed",
+      "durationMs": 3104,
+      "attempts": 1,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false
+    },
+    {
+      "id": "indexing/watch/cancel-before-publication",
+      "status": "passed",
+      "durationMs": 4107,
+      "attempts": 1,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false
+    },
+    {
+      "id": "indexing/watch/consistency-state",
+      "status": "passed",
+      "durationMs": 2473,
+      "attempts": 1,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false
+    },
+    {
+      "id": "indexing/watch/continuous-edit-deadline",
+      "status": "passed",
+      "durationMs": 4315,
+      "attempts": 1,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false
+    },
+    {
+      "id": "indexing/watch/debounce",
+      "status": "passed",
+      "durationMs": 2865,
+      "attempts": 1,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false
+    },
+    {
+      "id": "indexing/watch/default-depth",
+      "status": "passed",
+      "durationMs": 530,
+      "attempts": 1,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false
+    },
+    {
+      "id": "indexing/watch/e2e-promotion",
+      "status": "passed",
+      "durationMs": 2486,
+      "attempts": 1,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false
+    },
+    {
+      "id": "indexing/watch/edit-to-search",
+      "status": "passed",
+      "durationMs": 7106,
+      "attempts": 1,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false
+    },
+    {
+      "id": "indexing/watch/filter",
+      "status": "passed",
+      "durationMs": 2308,
+      "attempts": 1,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false
+    },
+    {
+      "id": "indexing/watch/generated-cache-guard",
+      "status": "passed",
+      "durationMs": 2439,
+      "attempts": 1,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false
+    },
+    {
+      "id": "indexing/watch/index-lock",
+      "status": "passed",
+      "durationMs": 210,
+      "attempts": 1,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false
+    },
+    {
+      "id": "indexing/watch/index-lock-lazy-storage-context",
+      "status": "passed",
+      "durationMs": 85,
+      "attempts": 1,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false
+    },
+    {
+      "id": "indexing/watch/index-lock-signal-cleanup",
+      "status": "passed",
+      "durationMs": 82,
+      "attempts": 1,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false
+    },
+    {
+      "id": "indexing/watch/index-lock-signal-listeners",
+      "status": "passed",
+      "durationMs": 93,
+      "attempts": 1,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false
+    },
+    {
+      "id": "indexing/watch/lock-backoff",
+      "status": "passed",
+      "durationMs": 2476,
+      "attempts": 1,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false
+    },
+    {
+      "id": "indexing/watch/pinned-attempt-retention",
+      "status": "passed",
+      "durationMs": 1009,
+      "attempts": 1,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false
+    },
+    {
+      "id": "indexing/watch/post-commit-retention",
+      "status": "passed",
+      "durationMs": 2926,
+      "attempts": 1,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false
+    },
+    {
+      "id": "indexing/watch/promotion/safety",
+      "status": "passed",
+      "durationMs": 1139,
+      "attempts": 1,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false
+    },
+    {
+      "id": "indexing/watch/retained-reader-attempts",
+      "status": "passed",
+      "durationMs": 2535,
+      "attempts": 1,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false
+    },
+    {
+      "id": "indexing/watch/retention-native-close",
+      "status": "passed",
+      "durationMs": 612,
+      "attempts": 1,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false
+    },
+    {
+      "id": "indexing/watch/retry-after-lock-exhaustion",
+      "status": "passed",
+      "durationMs": 2902,
+      "attempts": 1,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false
+    },
+    {
+      "id": "indexing/watch/retry-on-failed-cycle",
+      "status": "passed",
+      "durationMs": 2949,
+      "attempts": 1,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false
+    },
+    {
+      "id": "indexing/watch/root-normalization",
+      "status": "passed",
+      "durationMs": 99,
+      "attempts": 1,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false
+    },
+    {
+      "id": "indexing/watch/shutdown",
+      "status": "passed",
+      "durationMs": 2726,
+      "attempts": 1,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false
+    },
+    {
+      "id": "indexing/watch/source-observation-owner",
+      "status": "passed",
+      "durationMs": 76,
+      "attempts": 1,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false
+    },
+    {
+      "id": "indexing/watch/source-observation-replay",
+      "status": "passed",
+      "durationMs": 6122,
+      "attempts": 1,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false
+    },
+    {
+      "id": "indexing/watch/stability-checks",
+      "status": "passed",
+      "durationMs": 110,
+      "attempts": 1,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false
+    },
+    {
+      "id": "indexing/watch/stability-guard",
+      "status": "passed",
+      "durationMs": 3781,
+      "attempts": 1,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false
+    },
+    {
+      "id": "indexing/watch/stability-requeue",
+      "status": "passed",
+      "durationMs": 3775,
+      "attempts": 1,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false
+    },
+    {
+      "id": "indexing/watch/startup-lifetime",
+      "status": "passed",
+      "durationMs": 2300,
+      "attempts": 1,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false
+    },
+    {
+      "id": "indexing/watch/structured-progress",
+      "status": "passed",
+      "durationMs": 2661,
+      "attempts": 1,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false
+    },
+    {
+      "id": "indexing/watch/update-queue-no-loss",
+      "status": "passed",
+      "durationMs": 2536,
+      "attempts": 1,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false
+    },
+    {
+      "id": "shared/indexing/build-pointer",
+      "status": "passed",
+      "durationMs": 79,
+      "attempts": 1,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false
+    }
+  ],
+  "frontGate": [
+    {
+      "arguments": [
+        "run",
+        "config:budget"
+      ],
+      "exitCode": 0,
+      "executable": "npm.cmd",
+      "durationMs": 2347,
+      "name": "config-budget"
+    },
+    {
+      "arguments": [
+        "run",
+        "env:check"
+      ],
+      "exitCode": 0,
+      "executable": "npm.cmd",
+      "durationMs": 1298,
+      "name": "environment"
+    },
+    {
+      "arguments": [
+        "tools/docs/generated-surfaces.js",
+        "--check-freshness"
+      ],
+      "exitCode": 0,
+      "executable": "node",
+      "durationMs": 10847,
+      "name": "generated"
+    },
+    {
+      "arguments": [
+        "tools/ci/check-command-surface.js"
+      ],
+      "exitCode": 0,
+      "executable": "node",
+      "durationMs": 2618,
+      "name": "command-surface"
+    },
+    {
+      "arguments": [
+        "tests/ci/workflow-contract.test.js"
+      ],
+      "exitCode": 0,
+      "executable": "node",
+      "durationMs": 231,
+      "name": "workflow"
+    },
+    {
+      "arguments": [
+        "tests/run.js",
+        "--lane",
+        "gate",
+        "--jobs",
+        "1",
+        "--timeout-ms",
+        "30000",
+        "--retries",
+        "0",
+        "--native-status-redo=false",
+        "--pairofcleats-threads",
+        "1",
+        "--json"
+      ],
+      "exitCode": 0,
+      "executable": "node",
+      "durationMs": 21009,
+      "name": "gate-lane"
+    },
+    {
+      "arguments": [
+        "diff",
+        "--check"
+      ],
+      "exitCode": 0,
+      "executable": "git",
+      "durationMs": 64,
+      "name": "diff"
+    }
+  ],
+  "gateLane": {
+    "total": 40,
+    "passed": 40,
+    "failed": 0,
+    "skipped": 0,
+    "durationMs": 20291
+  },
+  "priorSourceControl": {
+    "sourceHead": "d5028853a2179c238a6514b4884eabe8a9339b90",
+    "summary": {
+      "total": 1,
+      "passed": 0,
+      "failed": 1,
+      "skipped": 0,
+      "durationMs": 411
+    },
+    "defect": "Still-leased lazy shard deleted under retention pressure (ENOENT).",
+    "tests": [
+      {
+        "id": "indexing/watch/retained-reader-attempts",
+        "path": "indexing/watch/retained-reader-attempts.test.js",
+        "lane": "integration",
+        "tags": [
+          "indexing",
+          "integration",
+          "watch"
+        ],
+        "status": "failed",
+        "durationMs": 404,
+        "attempts": 1,
+        "exitCode": 1,
+        "signal": null,
+        "timedOut": false,
+        "timeoutClass": null,
+        "skipReason": null,
+        "termination": null,
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793083857274-mnav72\\indexing_watch_retained-reader-attempts.attempt-1.log",
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793083857274-mnav72\\indexing_watch_retained-reader-attempts.attempt-1.failure.json"
+        ]
+      }
+    ]
+  },
+  "rawReceipts": {
+    "historicalAuthorWorkspace": true,
+    "cleanCheckoutAvailability": false,
+    "taskDirectory": ".tmp/tasks/watch-retention-20261027/",
+    "affectedLogDir": "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793083759302-iluxtx",
+    "gateLogDir": "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793083875814-02jm18"
+  },
+  "remaining": "Broader common lifecycle policy #1267, custom backend cleanup #1574, full Windows and other-platform/model/performance/release qualification."
+}

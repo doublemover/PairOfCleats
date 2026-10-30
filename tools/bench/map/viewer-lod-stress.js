@@ -3,6 +3,8 @@ import { guardBootstrapEntry } from '../../../src/shared/bootstrap-readiness.js'
 await guardBootstrapEntry(import.meta.url);
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
+import { resolveToolRoot } from '../../shared/dict-utils.js';
+import { verifyMapViewerModuleGraph } from './module-graph.js';
 
 const { buildCodeMap } = await import('../../../src/map/build-map.js');
 const { renderIsometricHtml } = await import('../../../src/map/isometric-viewer.js');
@@ -29,6 +31,7 @@ const argv = createMapBenchCli({
 });
 
 const { repoRoot, indexDir, buildOptions } = resolveMapBenchInputs(argv);
+const preparationStarted = performance.now();
 const mapModel = await buildCodeMap({ repoRoot, indexDir, options: buildOptions });
 
 const viewerConfig = {
@@ -67,7 +70,21 @@ const outPath = argv.out
 await fsPromises.mkdir(path.dirname(outPath), { recursive: true });
 await fsPromises.writeFile(outPath, html);
 
-const { url } = await startMapViewerStaticServer({ outPath, port: argv.port });
-console.error('Map viewer LOD stress benchmark ready.');
+const preparationMs = performance.now() - preparationStarted;
+const listener = await startMapViewerStaticServer({ outPath, port: argv.port });
+const { url } = listener;
+const graphStarted = performance.now();
+let graph;
+try { graph = await verifyMapViewerModuleGraph({ url, toolRoot: resolveToolRoot() }); }
+catch (error) { await listener.close(); throw error; }
+for (const signal of ['SIGINT', 'SIGTERM']) process.once(signal, async () => {
+  try { await listener.close(); } catch (error) { console.error(error.message); process.exitCode = 1; }
+});
+console.error(JSON.stringify({ kind: 'map-benchmark-readiness', schemaVersion: 1, scenario: 'lod', url,
+  stages: { preparation: { state: 'completed', elapsedMs: preparationMs },
+    listener: { state: listener.readiness, elapsedMs: listener.timings.listenerReadyMs },
+    moduleGraph: { state: graph.status, elapsedMs: performance.now() - graphStarted, modules: graph.modules.length, bytes: graph.totalBytes },
+    viewer: { state: 'not-run' } }, fps: 'not-measured' }));
+console.error('Map viewer LOD stress: listener-ready and module-graph-ready. Rendered viewer/FPS qualification has not run.');
 console.error(`- Open: ${url}`);
 console.error('- Sweep zoom in/out and confirm LOD tier changes + draw counts in the HUD.');

@@ -143,7 +143,6 @@ export const normalizeIdList = (list) => {
 
 export const normalizeTfPostings = (list) => {
   if (!Array.isArray(list)) return [];
-  if (list.length <= 1) return list;
   const filtered = list.reduce((acc, entry) => {
     if (!Array.isArray(entry)) return acc;
     const docId = entry[0];
@@ -152,6 +151,7 @@ export const normalizeTfPostings = (list) => {
     acc.push([docId, Math.trunc(count)]);
     return acc;
   }, []);
+  if (filtered.length <= 1) return filtered;
   filtered.sort((a, b) => {
     const delta = a[0] - b[0];
     return delta || (a[1] - b[1]);

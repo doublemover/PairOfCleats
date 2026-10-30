@@ -19,11 +19,14 @@ const containsSequence = (args, sequence) => {
 const cases = [
   { label: 'mode', args: { mode: 'code' }, expect: ['--mode', 'code'] },
   { label: 'backend', args: { backend: 'sqlite' }, expect: ['--backend', 'sqlite'] },
+  { label: 'automatic backend', args: { backend: 'auto' }, expect: ['--backend', 'auto'] },
+  { label: 'LMDB backend', args: { backend: 'lmdb' }, expect: ['--backend', 'lmdb'] },
   { label: 'ann true', args: { ann: true }, expect: ['--ann'] },
   { label: 'ann false', args: { ann: false }, expect: ['--no-ann'] },
   { label: 'allowSparseFallback', args: { allowSparseFallback: true }, expect: ['--allow-sparse-fallback'] },
   { label: 'allowUnsafeMix', args: { allowUnsafeMix: true }, expect: ['--allow-unsafe-mix'] },
   { label: 'top', args: { top: 5 }, expect: ['-n', '5'] },
+  { label: 'zero top', args: { top: 0 }, expect: ['-n', '0'] },
   { label: 'cursor', args: { query: '', type: 'Function', cursor: 'fixture-token' }, expect: ['--cursor', 'fixture-token'] },
   { label: 'asOf', args: { asOf: 'build:fixture' }, expect: ['--as-of', 'build:fixture'] },
   { label: 'snapshot', args: { snapshot: 'fixture' }, expect: ['--snapshot', 'fixture'] },
@@ -64,14 +67,18 @@ const cases = [
   { label: 'modifiedSince', args: { modifiedSince: 7 }, expect: ['--modified-since', '7'] },
   { label: 'lint', args: { lint: true }, expect: ['--lint'] },
   { label: 'path', args: { path: 'src/' }, expect: ['--path', 'src/'] },
+  { label: 'path list', args: { path: ['src/', 'lib/'] }, expect: ['--path', 'src/', '--path', 'lib/'] },
   { label: 'file', args: { file: 'index.js' }, expect: ['--file', 'index.js'] },
+  { label: 'file list', args: { file: ['src/a.js', 'src/b.js'] }, expect: ['--file', 'src/a.js', '--file', 'src/b.js'] },
   { label: 'ext', args: { ext: '.js' }, expect: ['--ext', '.js'] },
+  { label: 'extension list', args: { ext: ['.js', '.ts'] }, expect: ['--ext', '.js', '--ext', '.ts'] },
   { label: 'lang', args: { lang: 'javascript' }, expect: ['--lang', 'javascript'] },
   { label: 'branch', args: { branch: 'main' }, expect: ['--branch', 'main'] },
   { label: 'case', args: { case: true }, expect: ['--case'] },
   { label: 'caseFile', args: { caseFile: true }, expect: ['--case-file'] },
   { label: 'caseTokens', args: { caseTokens: true }, expect: ['--case-tokens'] },
   { label: 'meta', args: { meta: { key: 'value' } }, expect: ['--meta', 'key=value'] },
+  { label: 'metadata list', args: { meta: ['team=infra', 'env=prod'] }, expect: ['--meta', 'team=infra', '--meta', 'env=prod'] },
   { label: 'metaJson', args: { metaJson: { foo: 'bar' } }, expect: ['--meta-json', JSON.stringify({ foo: 'bar' })] }
 ];
 

@@ -1,3 +1,6 @@
+import { unicodeScalarBoundary } from '../../shared/unicode-chunks.js';
+import { createRequire } from 'node:module';
+import { deferLanguageFunctions } from '../deferred-language-functions.js';
 import {
   isCLike,
   isGo,
@@ -15,6 +18,7 @@ import {
   isCss,
   isLua,
   isSql,
+  MARKDOWN_EXTS,
   CMAKE_EXTS,
   STARLARK_EXTS,
   NIX_EXTS,
@@ -28,32 +32,6 @@ import {
   JINJA_EXTS,
   RAZOR_EXTS
 } from '../constants.js';
-import { buildJsChunks } from '../../lang/javascript.js';
-import { buildTypeScriptChunks } from '../../lang/typescript.js';
-import { buildCSharpChunks } from '../../lang/csharp.js';
-import { buildKotlinChunks } from '../../lang/kotlin.js';
-import { buildRubyChunks } from '../../lang/ruby.js';
-import { buildPhpChunks } from '../../lang/php.js';
-import { buildHtmlChunks } from '../../lang/html.js';
-import { buildCssChunks } from '../../lang/css.js';
-import { buildLuaChunks } from '../../lang/lua.js';
-import { buildSqlChunks } from '../../lang/sql.js';
-import { buildCLikeChunks } from '../../lang/clike.js';
-import { buildPythonChunksFromAst, buildPythonHeuristicChunks } from '../../lang/python.js';
-import { buildRustChunks } from '../../lang/rust.js';
-import { buildSwiftChunks } from '../../lang/swift.js';
-import { buildGoChunks } from '../../lang/go.js';
-import { buildJavaChunks } from '../../lang/java.js';
-import { buildPerlChunks } from '../../lang/perl.js';
-import { buildShellChunks } from '../../lang/shell.js';
-import { chunkIniToml } from './formats/ini-toml.js';
-import { chunkJson } from './formats/json.js';
-import { chunkDocxDocument } from './formats/docx.js';
-import { chunkMarkdown } from './formats/markdown.js';
-import { chunkPdfDocument } from './formats/pdf.js';
-import { chunkRst, chunkAsciiDoc } from './formats/rst-asciidoc.js';
-import { chunkXml } from './formats/xml.js';
-import { chunkYaml } from './formats/yaml.js';
 import { applyChunkingLimits } from './limits.js';
 import { getTreeSitterOptions } from './tree-sitter.js';
 import {
@@ -62,7 +40,114 @@ import {
   resolveChunker,
   tryTreeSitterChunks
 } from './dispatch/shared.js';
-import {
+const require = createRequire(import.meta.url);
+
+const { buildJsChunks } = deferLanguageFunctions(
+  () => require('../../lang/javascript.js'),
+  ['buildJsChunks']
+);
+const { buildTypeScriptChunks } = deferLanguageFunctions(
+  () => require('../../lang/typescript.js'),
+  ['buildTypeScriptChunks']
+);
+const { buildCSharpChunks } = deferLanguageFunctions(
+  () => require('../../lang/csharp.js'),
+  ['buildCSharpChunks']
+);
+const { buildKotlinChunks } = deferLanguageFunctions(
+  () => require('../../lang/kotlin.js'),
+  ['buildKotlinChunks']
+);
+const { buildRubyChunks } = deferLanguageFunctions(
+  () => require('../../lang/ruby.js'),
+  ['buildRubyChunks']
+);
+const { buildPhpChunks } = deferLanguageFunctions(
+  () => require('../../lang/php.js'),
+  ['buildPhpChunks']
+);
+const { buildHtmlChunks } = deferLanguageFunctions(
+  () => require('../../lang/html.js'),
+  ['buildHtmlChunks']
+);
+const { resolveCssPreparedChunks } = deferLanguageFunctions(
+  () => require('../../lang/css.js'),
+  ['resolveCssPreparedChunks']
+);
+const { buildLuaChunks } = deferLanguageFunctions(
+  () => require('../../lang/lua.js'),
+  ['buildLuaChunks']
+);
+const { buildSqlChunks } = deferLanguageFunctions(
+  () => require('../../lang/sql.js'),
+  ['buildSqlChunks']
+);
+const { buildCLikeChunks } = deferLanguageFunctions(
+  () => require('../../lang/clike.js'),
+  ['buildCLikeChunks']
+);
+const { resolvePythonPreparedChunks } = deferLanguageFunctions(
+  () => require('../../lang/python/prepared-chunks.js'),
+  ['resolvePythonPreparedChunks']
+);
+const { buildRustChunks } = deferLanguageFunctions(
+  () => require('../../lang/rust.js'),
+  ['buildRustChunks']
+);
+const { buildSwiftChunks } = deferLanguageFunctions(
+  () => require('../../lang/swift.js'),
+  ['buildSwiftChunks']
+);
+const { buildGoChunks } = deferLanguageFunctions(
+  () => require('../../lang/go.js'),
+  ['buildGoChunks']
+);
+const { buildJavaChunks } = deferLanguageFunctions(
+  () => require('../../lang/java.js'),
+  ['buildJavaChunks']
+);
+const { buildPerlChunks } = deferLanguageFunctions(
+  () => require('../../lang/perl.js'),
+  ['buildPerlChunks']
+);
+const { buildShellChunks } = deferLanguageFunctions(
+  () => require('../../lang/shell.js'),
+  ['buildShellChunks']
+);
+const { chunkIniToml } = deferLanguageFunctions(
+  () => require('./formats/ini-toml.js'),
+  ['chunkIniToml']
+);
+const { chunkJson } = deferLanguageFunctions(
+  () => require('./formats/json.js'),
+  ['chunkJson']
+);
+const { chunkDocxDocument } = deferLanguageFunctions(
+  () => require('./formats/docx.js'),
+  ['chunkDocxDocument']
+);
+const { chunkMarkdown } = deferLanguageFunctions(
+  () => require('./formats/markdown.js'),
+  ['chunkMarkdown']
+);
+const { chunkPdfDocument } = deferLanguageFunctions(
+  () => require('./formats/pdf.js'),
+  ['chunkPdfDocument']
+);
+const { chunkRst, chunkAsciiDoc } = deferLanguageFunctions(
+  () => require('./formats/rst-asciidoc.js'),
+  ['chunkRst', 'chunkAsciiDoc']
+);
+const { chunkXml } = deferLanguageFunctions(
+  () => require('./formats/xml.js'),
+  ['chunkXml']
+);
+const { chunkYaml } = deferLanguageFunctions(
+  () => require('./formats/yaml.js'),
+  ['chunkYaml']
+);
+
+const {
   chunkCmake,
   chunkDart,
   chunkDockerfile,
@@ -77,8 +162,29 @@ import {
   chunkRazor,
   chunkScala,
   chunkStarlark
-} from './dispatch/heuristic-chunkers.js';
-import { chunkGraphql, chunkProto } from './dispatch/schema-chunkers.js';
+} = deferLanguageFunctions(
+  () => require('./dispatch/heuristic-chunkers.js'),
+  [
+    'chunkCmake',
+    'chunkDart',
+    'chunkDockerfile',
+    'chunkGroovy',
+    'chunkHandlebars',
+    'chunkJinja',
+    'chunkJulia',
+    'chunkMakefile',
+    'chunkMustache',
+    'chunkNix',
+    'chunkR',
+    'chunkRazor',
+    'chunkScala',
+    'chunkStarlark'
+  ]
+);
+const { chunkGraphql, chunkProto } = deferLanguageFunctions(
+  () => require('./dispatch/schema-chunkers.js'),
+  ['chunkGraphql', 'chunkProto']
+);
 
 const INI_LIKE_EXTS = new Set(['.toml', '.ini', '.cfg', '.conf']);
 
@@ -129,19 +235,12 @@ const CODE_CHUNKERS = [
   {
     id: 'css',
     match: (ext) => isCss(ext),
-    chunk: ({ text, context }) => context?.cssChunks || buildCssChunks(text, getTreeSitterOptions(context))
+    chunk: ({ text, context }) => resolveCssPreparedChunks(text, context, getTreeSitterOptions(context))
   },
   {
     id: 'python',
     match: (ext) => ext === '.py',
-    chunk: ({ text, context }) => {
-      const astChunks = buildPythonChunksFromAst(text, context?.pythonAst || null);
-      if (astChunks && astChunks.length) return astChunks;
-      if (context?.pythonTreeChunks && context.pythonTreeChunks.length) {
-        return context.pythonTreeChunks;
-      }
-      return buildPythonHeuristicChunks(text);
-    }
+    chunk: ({ text, context }) => resolvePythonPreparedChunks(text, context)
   },
   {
     id: 'swift',
@@ -234,27 +333,27 @@ const CODE_CHUNKERS = [
   {
     id: 'dart',
     match: (ext) => DART_EXTS.has(ext),
-    chunk: ({ text, context }) => tryTreeSitterChunks(text, 'dart', context) || chunkDart(text, context)
+    chunk: ({ text, context }) => context?.dartChunks || tryTreeSitterChunks(text, 'dart', context) || chunkDart(text, context)
   },
   {
     id: 'scala',
     match: (ext) => SCALA_EXTS.has(ext),
-    chunk: ({ text, context }) => tryTreeSitterChunks(text, 'scala', context) || chunkScala(text, context)
+    chunk: ({ text, context }) => context?.scalaChunks || tryTreeSitterChunks(text, 'scala', context) || chunkScala(text, context)
   },
   {
     id: 'groovy',
     match: (ext) => GROOVY_EXTS.has(ext),
-    chunk: ({ text, context }) => tryTreeSitterChunks(text, 'groovy', context) || chunkGroovy(text, context)
+    chunk: ({ text, context }) => context?.groovyChunks || tryTreeSitterChunks(text, 'groovy', context) || chunkGroovy(text, context)
   },
   {
     id: 'r',
     match: (ext) => R_EXTS.has(ext),
-    chunk: ({ text, context }) => tryTreeSitterChunks(text, 'r', context) || chunkR(text, context)
+    chunk: ({ text, context }) => context?.rChunks || tryTreeSitterChunks(text, 'r', context) || chunkR(text, context)
   },
   {
     id: 'julia',
     match: (ext) => JULIA_EXTS.has(ext),
-    chunk: ({ text, context }) => tryTreeSitterChunks(text, 'julia', context) || chunkJulia(text, context)
+    chunk: ({ text, context }) => context?.juliaChunks || tryTreeSitterChunks(text, 'julia', context) || chunkJulia(text, context)
   },
   {
     id: 'handlebars',
@@ -321,7 +420,7 @@ const PROSE_CHUNKERS = [
   { id: 'docx', match: (ext) => ext === '.docx', chunk: ({ text, context }) => chunkDocxDocument(text, context) },
   {
     id: 'markdown',
-    match: (ext) => ext === '.md' || ext === '.mdx',
+    match: (ext) => MARKDOWN_EXTS.has(ext),
     chunk: ({ text, ext, context }) => chunkMarkdown(text, ext, context)
   },
   { id: 'rst', match: (ext) => ext === '.rst', chunk: ({ text }) => chunkRst(text) },
@@ -381,15 +480,11 @@ export function smartChunk({
   }
   const fallbackChunkSize = 800;
   const fallbackKind = mode === 'code' ? 'Module' : 'Section';
-  const out = new Array(Math.ceil(text.length / fallbackChunkSize));
-  for (let i = 0, off = 0; off < text.length; off += fallbackChunkSize, i += 1) {
-    out[i] = {
-      start: off,
-      end: Math.min(text.length, off + fallbackChunkSize),
-      name: null,
-      kind: fallbackKind,
-      meta: {}
-    };
+  const out = [];
+  for (let off = 0; off < text.length;) {
+    const end = unicodeScalarBoundary(text, off, off + fallbackChunkSize);
+    out.push({ start: off, end, name: null, kind: fallbackKind, meta: {} });
+    off = end;
   }
   return applyChunkingLimits(out, text, limitContext);
 }

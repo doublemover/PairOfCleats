@@ -24,8 +24,11 @@ export const RUNTIME_QUERY_REQUEST_SCHEMA = object({ schemaVersion: { const: 1 }
   generation: SEMANTIC_GENERATION_SCHEMA, familyGenerations: { ...list(hash), minItems: 1 },
   selectors: RUNTIME_QUERY_SELECTORS_SCHEMA, limits: RUNTIME_QUERY_LIMITS_SCHEMA,
   cursor: nullable({ type: 'string', minLength: 1, maxLength: 4096 }) });
-const observation = { allOf: [RUNTIME_EVIDENCE_SCHEMA, { type: 'object', properties: { evidenceClass: { const: 'observed' } } }] };
-const claim = { allOf: [RUNTIME_EVIDENCE_SCHEMA, { type: 'object', properties: { evidenceClass: { const: 'inferred' } } }] };
+export const RUNTIME_QUERY_ROW_REFERENCE_SCHEMA = object({ family: { type: 'integer', minimum: 0, maximum: 31 }, rowHash: hash });
+const occurrence = { oneOf: RUNTIME_EVIDENCE_SCHEMA.oneOf.map(schema => ({ ...schema,
+  required: [...schema.required, 'reference'], properties: { ...schema.properties, reference: RUNTIME_QUERY_ROW_REFERENCE_SCHEMA } })) };
+const observation = { allOf: [occurrence, { type: 'object', properties: { evidenceClass: { const: 'observed' } } }] };
+const claim = { allOf: [occurrence, { type: 'object', properties: { evidenceClass: { const: 'inferred' } } }] };
 const next = object({ question: text, evidenceKinds: list(kinds), expectedInformationGain: text,
   estimatedCost: text, permissionRequirements: list(text), action: { const: 'plan-only' }, executionAuthorized: { const: false } });
 export const RUNTIME_QUERY_RESULT_SCHEMA = object({ schemaVersion: { const: 1 }, queryId: hash,
@@ -34,16 +37,23 @@ export const RUNTIME_QUERY_RESULT_SCHEMA = object({ schemaVersion: { const: 1 },
   observations: { type: 'array', maxItems: 128, items: observation }, derivedClaims: { type: 'array', maxItems: 128, items: claim },
   derivedCoverage: object({ state: { const: 'unsupported' }, reason: { const: 'current_saved_adapters_project_direct_observations_only' } }),
   explanations: { type: 'array', maxItems: 128, items: object({ evidenceIds: list(text), statement: text,
+    evidenceRefs: list(object({ ...RUNTIME_QUERY_ROW_REFERENCE_SCHEMA.properties, evidenceId: text })),
     basis: { enum: ['direct-observation', 'derived-claim'] }, limitations: list(text), nextObservation: nullable(next) }) },
   coverage: list(object({ generationId: hash, captureId: text, completion: { enum: ['complete', 'partial', 'failed', 'cancelled'] },
     selected: { type: 'boolean' }, formats: list(text, 128), importStates: list({ enum: ['complete', 'partial', 'unsupported', 'malformed'] }, 4),
     sourceJoinCounts: object({ exactSource: integer, sourceMap: integer, heuristic: integer, ambiguous: integer, unresolved: integer }),
+    sourceJoinCountsScope: { const: 'family' },
+    requestedSources: list(object({ ...source.properties, snapshotPresent: { type: 'boolean' },
+      retainedExactCount: nullable(integer), executionCoverage: { const: 'unknown' },
+      state: { enum: ['retained-exact-observations', 'no-retained-exact-observations', 'absent-from-snapshot', 'not-selected'] },
+      reasons: list(text, 2) })),
     joinStatus: { enum: ['not-filtered', 'exact-source-requested', 'record-reference-requested'] }, reasons: list(text) })),
-  omitted: { type: 'array', maxItems: 128, items: object({ generationId: hash, evidenceId: text, reason: text }) },
+  omitted: { type: 'array', maxItems: 128, items: object({ generationId: hash, evidenceId: text,
+    reference: RUNTIME_QUERY_ROW_REFERENCE_SCHEMA, reason: text }) },
   status: { enum: ['complete', 'partial'] }, warnings: list(text), nextCursor: nullable({ type: 'string', maxLength: 4096 }),
   integrity: object({ manifest: { const: 'verified' }, queryIndex: { const: 'verified' }, returnedRows: { const: 'verified' }, rawArtifacts: { const: 'not-read' } }),
   cost: object({ visitedRecords: integer, hydratedRecords: integer, elapsedMs: integer, responseBytes: integer,
-    familyOpens: integer, verificationBytes: integer })
+    familyOpens: integer, verificationBytes: integer, sourcePredicates: integer })
 });
 
 export const RUNTIME_QUERY_CURSOR_SCHEMA = object({ version: { const: 1 }, queryId: hash,

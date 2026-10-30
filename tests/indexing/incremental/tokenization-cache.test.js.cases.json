@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["identical-config", "tokenization-config", "dictionary-config"]
+}

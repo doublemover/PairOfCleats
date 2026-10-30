@@ -1,6 +1,10 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import { loadUserConfig } from '../../../tools/dict-utils/config.js';
+import { prepareIsolatedTestCacheDir } from '../../helpers/test-cache.js';
 import { createEmbeddingExecutionPlan, validateEmbeddingExecutionPlan, applyEmbeddingExecutionPlan } from '../../../src/shared/embedding-execution-plan.js';
 import { stableStringify } from '../../../src/shared/stable-json.js';
 
@@ -79,3 +83,33 @@ const circular = { version: 1, digest: 'invalid' };
 circular.sources = circular;
 assert.throws(() => validateEmbeddingExecutionPlan(circular), { code: 'ERR_EMBEDDING_EXECUTION_PLAN' });
 console.log('embedding execution plan allowlist and model precedence test passed');
+
+// Use the actual source owner: an absent optional config has settled diagnostics
+// that must not change the strict child-plan wire shape.
+const { dir } = await prepareIsolatedTestCacheDir('embedding-plan-config-origin');
+const configPath = path.join(dir, '.pairofcleats.json');
+for (const present of [false, true]) {
+  if (present) await fs.writeFile(configPath, '{"quality":"fast"}\n');
+  let configSources;
+  const userConfig = loadUserConfig(dir, { env: {}, onSources: value => { configSources = value; } });
+  assert.equal(configSources.files[0].exists, present);
+  if (!present) assert.equal(configSources.files[0].readState, 'missing');
+  const intent = { embeddingEnabled: true, useStubEmbeddings: true, resolvedEmbeddingMode: 'stub',
+    reason: 'cli-stub', configSources };
+  const origin = createEmbeddingExecutionPlan({ ...base, root: dir, indexRoot: dir, userConfig, intent });
+  const expected = structuredClone(configSources);
+  if (!present) delete expected.files[0].readState;
+  assert.deepEqual(origin.sources.config, expected);
+  assert.equal(validateEmbeddingExecutionPlan(JSON.parse(JSON.stringify(origin))).digest, origin.digest);
+  for (const mutate of [
+    file => { file.readState = 'pending'; },
+    file => { file.readState = 'failed'; },
+    file => { file.command = 'unexpected'; },
+    file => { file.readState = 'missing'; file.errorCode = 'EACCES'; }
+  ]) {
+    const invalid = structuredClone(configSources);
+    mutate(invalid.files[0]);
+    assert.throws(() => createEmbeddingExecutionPlan({ ...base, userConfig,
+      intent: { ...intent, configSources: invalid } }), { code: 'ERR_EMBEDDING_EXECUTION_PLAN' });
+  }
+}

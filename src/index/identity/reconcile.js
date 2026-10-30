@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { MAX_JSON_BYTES } from '../../shared/artifact-io/constants.js';
 import { loadJsonArrayArtifactRows } from '../../shared/artifact-io/loaders/core.js';
-import { loadChunkMetaRows } from '../../shared/artifact-io/loaders/chunk-meta.js';
+import { loadChunkMetaIdentityRows } from '../../shared/artifact-io/loaders/chunk-meta.js';
 import { loadPiecesManifest } from '../../shared/artifact-io/manifest.js';
 import {
   assertChunkIdentityEnvelope,
@@ -144,7 +144,7 @@ const buildChunkIndex = async ({
 }) => {
   const chunkByUid = new Map();
   const chunkByDocId = new Map();
-  for await (const row of loadChunkMetaRows(indexDir, {
+  for await (const row of loadChunkMetaIdentityRows(indexDir, {
     manifest,
     strict,
     maxBytes,
@@ -430,8 +430,8 @@ const reconcileChunkUidMap = async ({
     maxBytes
   })) {
     report.counts.chunkUidMap += 1;
-    const docId = Number(row?.docId);
-    if (!Number.isFinite(docId)) {
+    const docId = row?.docId;
+    if (!Number.isSafeInteger(docId) || docId < 0) {
       pushIssue(report, 'ERR_ID_CHUNK_UID_MAP_DOC_ID_MISSING', 'chunk_uid_map row missing numeric docId');
       continue;
     }
@@ -466,6 +466,12 @@ const reconcileChunkUidMap = async ({
         { docId, chunkUid }
       );
     }
+  }
+  for (const [docId, identity] of chunkByDocId) {
+    if (seenDocIds.has(docId)) continue;
+    pushIssue(report, 'ERR_ID_CHUNK_UID_MAP_DOC_ID_OMITTED',
+      `chunk_uid_map missing chunk_meta docId (${docId})`,
+      { docId, chunkUid: identity.chunkUid, detectedByStage: 'identity.reconcile.chunk_uid_map' });
   }
 };
 

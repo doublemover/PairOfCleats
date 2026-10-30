@@ -20,7 +20,7 @@ export function computeSqlFlow(text, chunk, options = {}) {
   if (!chunk || !Number.isFinite(chunk.start) || !Number.isFinite(chunk.end)) return null;
   if (chunk.end <= chunk.start) return null;
 
-  const cleaned = stripSqlComments(text.slice(chunk.start, chunk.end));
+  const cleaned = stripSqlComments(text.slice(chunk.start, chunk.end), options);
   const dataflowEnabled = options.dataflow !== false;
   const controlFlowEnabled = options.controlFlow !== false;
   const out = {

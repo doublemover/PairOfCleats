@@ -14,6 +14,10 @@ const CONTEXT_PACK_PAYLOAD_FIELDS = Object.freeze([
   'includeUsages',
   'includeCallersCallees',
   'includePaths',
+  'pathSemantics',
+  'taskPolicy',
+  'renderedTokenBudget',
+  'evidenceSelection',
   'maxBytes',
   'maxTokens',
   'maxTypeEntries',
@@ -87,7 +91,18 @@ export function buildContextPackRequestInput(source = {}, {
  * @returns {object}
  */
 export function buildCliContextPackRequestInput(argv = {}, { repoRoot = undefined } = {}) {
-  return buildContextPackRequestInput(argv, {
+  const source = { ...argv };
+  for (const field of ['renderedTokenBudget', 'evidenceSelection']) if (argv[field] !== undefined) {
+    try { source[field] = JSON.parse(argv[field]); }
+    catch (cause) { throw Object.assign(new Error(`Invalid ${field} JSON.`, { cause }), {
+      code: 'ERR_CONTEXT_PACK_INVALID_REQUEST', status: 400
+    }); }
+  }
+  if (argv.task !== undefined || argv.granularity !== undefined || argv.wholeFileFallback !== undefined) {
+    source.taskPolicy = { schemaVersion: 1, task: argv.task, granularity: argv.granularity,
+      wholeFileFallback: argv.wholeFileFallback === true };
+  }
+  return buildContextPackRequestInput(source, {
     repoRoot,
     workspacePath: argv.workspace ?? argv.workspacePath,
     repoFilter: argv.repoFilter ?? argv['repo-filter'],

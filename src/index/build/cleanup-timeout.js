@@ -2,6 +2,13 @@ import { createTimeoutError, runWithTimeout } from '../../shared/promise-timeout
 
 export const DEFAULT_BUILD_CLEANUP_TIMEOUT_MS = 30_000;
 const pendingCleanupOperations = new Set();
+const ownedTimeoutErrors = new WeakMap();
+
+/** Identity is held by the actual deadline producer, never reconstructed from
+ * a caller's error code, label or serialized pending marker.
+ */
+export const isOwnedBuildCleanupTimeout = (error, owner) => owner && typeof owner === 'object'
+  && ownedTimeoutErrors.get(error) === owner;
 
 const trackPendingCleanupOperation = (promise) => {
   if (!promise || typeof promise.then !== 'function') return promise;
@@ -62,6 +69,7 @@ export const runBuildCleanupWithTimeout = async ({
   timeoutMs = DEFAULT_BUILD_CLEANUP_TIMEOUT_MS,
   log = null,
   onTimeout = null,
+  deadlineOwner = null,
   swallowTimeout = true
 } = {}) => {
   if (typeof cleanup !== 'function') {
@@ -70,6 +78,7 @@ export const runBuildCleanupWithTimeout = async ({
   const resolvedTimeoutMs = resolveBuildCleanupTimeoutMs(timeoutMs);
   const startedAtMs = Date.now();
   let cleanupOperation = null;
+  let cleanupTimeoutError = null;
   const runCleanup = () => {
     if (!cleanupOperation) {
       cleanupOperation = trackPendingCleanupOperation(Promise.resolve().then(() => cleanup()));
@@ -90,15 +99,20 @@ export const runBuildCleanupWithTimeout = async ({
       runCleanup,
       {
         timeoutMs: resolvedTimeoutMs,
-        errorFactory: () => createTimeoutError({
-          message: `[cleanup] ${label} timed out after ${resolvedTimeoutMs}ms.`,
-          code: 'BUILD_CLEANUP_TIMEOUT',
-          retryable: false,
-          meta: {
-            label,
-            timeoutMs: resolvedTimeoutMs
-          }
-        })
+        errorFactory: () => {
+          const error = createTimeoutError({
+            message: `[cleanup] ${label} timed out after ${resolvedTimeoutMs}ms.`,
+            code: 'BUILD_CLEANUP_TIMEOUT',
+            retryable: false,
+            meta: {
+              label,
+              timeoutMs: resolvedTimeoutMs
+            }
+          });
+          cleanupTimeoutError = error;
+          if (deadlineOwner && typeof deadlineOwner === 'object') ownedTimeoutErrors.set(error, deadlineOwner);
+          return error;
+        }
       }
     );
     return {
@@ -108,9 +122,17 @@ export const runBuildCleanupWithTimeout = async ({
       pending: false
     };
   } catch (error) {
-    if (error?.code !== 'BUILD_CLEANUP_TIMEOUT') throw error;
+    // Only this timer's actual exception is a cleanup deadline. An external
+    // code/getter cannot replace a primary or impersonate timeout ownership.
+    if (cleanupTimeoutError === null || error !== cleanupTimeoutError) throw error;
     const elapsedMs = Math.max(0, Date.now() - startedAtMs);
     const pending = Boolean(cleanupOperation) && pendingCleanupOperations.has(cleanupOperation);
+    if (pending) {
+      // The generic timeout owner cannot prove what a later cleanup return
+      // value means for native resources. Preserve unknown ownership; only the
+      // resource owner may later produce its own settlement receipt.
+      error.cacheOwnershipPending = true;
+    }
     if (typeof log === 'function') {
       try {
         log(

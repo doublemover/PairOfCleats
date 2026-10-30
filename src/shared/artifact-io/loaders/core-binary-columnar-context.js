@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import { assertNoSymlinkPath } from '../../contained-file.js';
 import { readJsonFile } from '../json.js';
 import { createManifestChecksumValidator } from './core-binary-columnar-checksum.js';
 import { createLoaderError, resolveArtifactMetaEnvelope } from './shared.js';
@@ -13,9 +14,10 @@ const SUPPORTED_BINARY_COLUMNAR_FORMAT = 'binary-columnar-v1';
 const parseBinaryColumnarMeta = ({
   metaPath,
   maxBytes,
-  baseName
+  baseName,
+  containedRoot
 }) => {
-  const raw = readJsonFile(metaPath, { maxBytes });
+  const raw = readJsonFile(metaPath, { maxBytes, containedRoot });
   const { fields } = resolveArtifactMetaEnvelope(raw);
   const format = typeof fields?.format === 'string'
     ? fields.format.trim().toLowerCase()
@@ -99,7 +101,8 @@ export const resolveBinaryColumnarContext = ({
 }) => {
   const sourcePath = sources.paths[0];
   const sidecars = sources.binaryColumnar || null;
-  const defaults = resolveBinaryColumnarDefaultPaths(sourcePath);
+  const canonicalSourcePath = sources.canonicalPaths?.[0] || sourcePath;
+  const defaults = resolveBinaryColumnarDefaultPaths(canonicalSourcePath);
   const dataPath = sidecars?.dataPath || sourcePath;
   const metaPath = sidecars?.metaPath || defaults.metaPath;
   const offsetsPath = sidecars?.offsetsPath || defaults.offsetsPath;
@@ -123,24 +126,11 @@ export const resolveBinaryColumnarContext = ({
     baseName,
     label: 'binary-columnar meta'
   });
-  const fallbackOffsetsPath = resolveBinaryColumnarPartPath({
-    dir,
-    candidate: null,
-    fallbackPath: offsetsPath,
-    baseName,
-    label: 'binary-columnar offsets'
-  });
-  const fallbackLengthsPath = resolveBinaryColumnarPartPath({
-    dir,
-    candidate: null,
-    fallbackPath: lengthsPath,
-    baseName,
-    label: 'binary-columnar lengths'
-  });
   const { fields, count } = parseBinaryColumnarMeta({
     metaPath: resolvedMetaPath,
     maxBytes,
-    baseName
+    baseName,
+    containedRoot: strict ? dir : null
   });
   const resolvedDataPath = resolveBinaryColumnarPartPath({
     dir,
@@ -152,17 +142,22 @@ export const resolveBinaryColumnarContext = ({
   const resolvedOffsetsPath = resolveBinaryColumnarPartPath({
     dir,
     candidate: fields?.offsets,
-    fallbackPath: fallbackOffsetsPath,
+    fallbackPath: offsetsPath,
     baseName,
     label: 'binary-columnar offsets'
   });
   const resolvedLengthsPath = resolveBinaryColumnarPartPath({
     dir,
     candidate: fields?.lengths,
-    fallbackPath: fallbackLengthsPath,
+    fallbackPath: lengthsPath,
     baseName,
     label: 'binary-columnar lengths'
   });
+  if (strict) {
+    for (const target of [resolvedDataPath, resolvedMetaPath, resolvedOffsetsPath, resolvedLengthsPath]) {
+      assertNoSymlinkPath(dir, target);
+    }
+  }
   if (enforceDataBudget) {
     assertBinaryPartWithinMaxBytes(resolvedDataPath, maxBytes, `${baseName} binary-columnar data`);
   }
@@ -177,21 +172,21 @@ export const resolveBinaryColumnarContext = ({
     dataValidator: createManifestChecksumValidator({
       manifest,
       dir,
-      targetPath: resolvedDataPath,
+      targetPath: joinPathSafe(dir, [fields?.data || canonicalSourcePath]),
       expectedName: sidecars?.dataName || null,
       label: `${baseName} binary-columnar data`
     }),
     offsetsValidator: createManifestChecksumValidator({
       manifest,
       dir,
-      targetPath: resolvedOffsetsPath,
+      targetPath: joinPathSafe(dir, [fields?.offsets || offsetsPath]),
       expectedName: sidecars?.offsetsName || null,
       label: `${baseName} binary-columnar offsets`
     }),
     lengthsValidator: createManifestChecksumValidator({
       manifest,
       dir,
-      targetPath: resolvedLengthsPath,
+      targetPath: joinPathSafe(dir, [fields?.lengths || lengthsPath]),
       expectedName: sidecars?.lengthsName || null,
       label: `${baseName} binary-columnar lengths`
     })

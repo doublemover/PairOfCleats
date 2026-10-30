@@ -7,7 +7,9 @@ import { gzipSync, gunzipSync } from 'node:zlib';
 const { default: yargs } = await import('yargs/yargs');
 const { hideBin } = await import('yargs/helpers');
 const { tryRequire } = await import('../../../src/shared/optional-deps.js');
-const { formatStats, runSampledBench } = await import('./utils.js');
+const { formatStats, normalizeSampledBenchOptions } = await import('./utils.js');
+const { runCompressionBenchmark } = await import('./compression-runner.js');
+const { installedPackageVersion } = await import('../../../src/shared/installed-package-version.js');
 
 const argv = yargs(hideBin(process.argv))
   .option('sizes', {
@@ -48,22 +50,12 @@ const argv = yargs(hideBin(process.argv))
   .argv;
 
 const sizes = parseSizes(argv.sizes);
-const iterations = Math.max(1, Math.floor(argv.iterations));
-const samples = Math.max(1, Math.floor(argv.samples));
-const warmup = Math.max(0, Math.floor(argv.warmup));
-const entropy = clamp(Number(argv.entropy) || 0, 0, 1);
-
-const results = {
-  generatedAt: new Date().toISOString(),
-  sizes,
-  iterations,
-  warmup,
-  entropy,
-  backends: {}
-};
+const { iterations, requestedSamples: samples, warmup } = normalizeSampledBenchOptions(argv);
+const entropy = argv.entropy;
 
 const gzipBackend = {
   label: 'gzip',
+  implementation: { name: 'node:zlib/gzip', version: process.versions.zlib || null, settings: { level: -1, policy: 'zlib-defaults' } },
   compress: async (buffer) => gzipSync(buffer),
   decompress: async (buffer) => gunzipSync(buffer)
 };
@@ -73,19 +65,14 @@ const backends = [gzipBackend];
 if (zstd) {
   backends.push({
     label: 'zstd',
+    implementation: { name: '@mongodb-js/zstd', version: installedPackageVersion('@mongodb-js/zstd'),
+      settings: { level: null, policy: 'library-default-unobserved' } },
     compress: async (buffer) => zstd.compress(buffer),
     decompress: async (buffer) => zstd.decompress(buffer)
   });
 }
 
-for (const backend of backends) {
-  results.backends[backend.label] = {};
-  for (const size of sizes) {
-    const payload = buildPayload(size, entropy);
-    const summary = await runBench(backend, payload, { iterations, samples, warmup });
-    results.backends[backend.label][String(size)] = summary;
-  }
-}
+const results = await runCompressionBenchmark({ sizes, entropy, iterations, samples, warmup, backends });
 
 if (!zstd) {
   results.backends.zstd = { available: false };
@@ -110,8 +97,8 @@ if (argv.json) {
       const compress = entry.compress?.stats ? formatStats(entry.compress.stats) : 'n/a';
       const decompress = entry.decompress?.stats ? formatStats(entry.decompress.stats) : 'n/a';
       console.error(`- size=${size} ratio=${ratio}`);
-      console.error(`  compress:   ${compress}`);
-      console.error(`  decompress: ${decompress}`);
+      console.error(`  compress buckets:   ${compress}`);
+      console.error(`  decompress buckets: ${decompress}`);
     }
   }
   if (!zstd) {
@@ -120,50 +107,13 @@ if (argv.json) {
 }
 
 function parseSizes(raw) {
-  return String(raw || '')
-    .split(',')
-    .map((value) => Math.max(1, Math.floor(Number(value))))
-    .filter((value) => Number.isFinite(value) && value > 0);
-}
-
-function clamp(value, min, max) {
-  return Math.min(max, Math.max(min, value));
-}
-
-function buildPayload(size, entropy) {
-  const base = Buffer.alloc(size);
-  if (entropy <= 0) {
-    base.fill(0x61);
-    return base;
-  }
-  for (let i = 0; i < size; i += 1) {
-    if (Math.random() < entropy) {
-      base[i] = Math.floor(Math.random() * 256);
-    } else {
-      base[i] = 0x61 + (i % 26);
-    }
-  }
-  return base;
+  const values = String(raw || '').split(',').map(Number);
+  if (values.some(value => !Number.isSafeInteger(value) || value < 1)) throw new RangeError('Invalid compression payload sizes.');
+  return values;
 }
 
 function loadZstd() {
   const result = tryRequire('@mongodb-js/zstd');
   if (!result.ok) return null;
   return result.mod;
-}
-
-async function runBench(backend, payload, { iterations, samples, warmup }) {
-  const baseCompressed = await backend.compress(payload);
-  const ratio = baseCompressed.length / payload.length;
-
-  const compress = await runSampledBench(() => backend.compress(payload), { iterations, samples, warmup });
-  const decompress = await runSampledBench(() => backend.decompress(baseCompressed), { iterations, samples, warmup });
-
-  return {
-    payloadBytes: payload.length,
-    compressedBytes: baseCompressed.length,
-    ratio,
-    compress,
-    decompress
-  };
 }

@@ -1,6 +1,46 @@
+import { addStorageFailureContext } from '../storage/operation-error.js';
 import PQueue from 'p-queue';
 import { createAbortError, isAbortSignal, throwIfAborted } from '../abort.js';
 import { awaitWithKeepalive } from '../promise-keepalive.js';
+import { isQueueRecoveryUnsafe as unsafeRecovery } from './queue-recovery.js';
+
+const objectLike = value => value !== null && (typeof value === 'object' || typeof value === 'function');
+const captureQueueOwnership = error => {
+  if (!objectLike(error)) return null;
+  try {
+    const observe = error.cacheOwnershipReleased;
+    if (error.cacheOwnershipPending !== true && typeof observe !== 'function') return null;
+    return () => { try { return typeof observe === 'function' && observe.call(error) === true; } catch { return false; } };
+  } catch { return () => false; }
+};
+const captureFailureDescriptors = error => {
+  try { return Object.getOwnPropertyDescriptors(error); } catch { return null; }
+};
+const aggregateQueueFailures = (errors, message, { originalObservers = [], primaryDescriptors = null, stopRetry = false } = {}) => {
+  const failure = new AggregateError(errors, message, { cause: errors[0] });
+  const observers = [...originalObservers, ...errors.map(captureQueueOwnership)].filter(Boolean);
+  if (primaryDescriptors) {
+    const reserved = new Set(['cause', 'errors', 'message', 'stack', 'retryable',
+      'cacheOwnershipPending', 'cacheOwnershipReleased']);
+    for (const key of Reflect.ownKeys(primaryDescriptors)) {
+      if (!reserved.has(key)) Object.defineProperty(failure, key, primaryDescriptors[key]);
+    }
+  }
+  if (observers.length) Object.defineProperties(failure, {
+    cacheOwnershipPending: { get: () => !observers.every(observe => observe()) },
+    cacheOwnershipReleased: { value: () => observers.every(observe => observe()) },
+    retryable: { value: false }
+  });
+  else if (stopRetry) failure.retryable = false;
+  else if (primaryDescriptors?.retryable) {
+    if (Object.hasOwn(primaryDescriptors.retryable, 'value')) Object.defineProperty(failure, 'retryable', primaryDescriptors.retryable);
+    else failure.retryable = false;
+  } else {
+    try { if (errors[0]?.retryable === false) failure.retryable = false; }
+    catch { failure.retryable = false; }
+  }
+  return failure;
+};
 
 /**
  * Run async work over items using a shared queue.
@@ -20,6 +60,7 @@ export async function runWithQueue(queue, items, worker, options = {}) {
   const onBeforeDispatch = typeof options.onBeforeDispatch === 'function'
     ? options.onBeforeDispatch
     : null;
+  const schedulerMetadata = typeof options.schedulerMetadata === 'function' ? options.schedulerMetadata : null;
   const retries = Number.isFinite(Number(options.retries)) ? Math.max(0, Math.floor(Number(options.retries))) : 0;
   const retryDelayMs = Number.isFinite(Number(options.retryDelayMs)) ? Math.max(0, Math.floor(Number(options.retryDelayMs))) : 0;
   const backoffMs = Number.isFinite(Number(options.backoffMs)) ? Math.max(0, Math.floor(Number(options.backoffMs))) : null;
@@ -36,9 +77,38 @@ export async function runWithQueue(queue, items, worker, options = {}) {
     err.retryable = false;
     throw err;
   }
-  const abortError = options.abortError instanceof Error ? options.abortError : createAbortError();
+  const abortOverride = options.abortError instanceof Error ? options.abortError : null;
+  let abortError = null;
+  const getAbortError = () => {
+    if (!abortError) {
+      let originalAbort;
+      try { throwIfAborted(signal); } catch (error) { originalAbort = error; }
+      abortError = abortOverride || originalAbort || createAbortError();
+      // An explicit diagnostic override retains its ordinary identity. Once
+      // queue work is accepted, it cannot erase an unsafe original abort owner
+      // while PQueue's rejection is still being delivered to recordError.
+      if (abortOverride && pendingSignals.size && originalAbort && unsafeRecovery(originalAbort)) {
+        abortError = aggregateQueueFailures([abortOverride, originalAbort],
+          'Queue abort override retained original resource ownership', {
+            originalObservers: [captureQueueOwnership(originalAbort.cause)],
+            primaryDescriptors: captureFailureDescriptors(abortOverride), stopRetry: true
+          });
+      }
+    }
+    return abortError;
+  };
   const results = collectResults ? new Array(list.length) : null;
   const pendingSignals = new Set();
+  let capacityChange = null, notifyCapacityChange = null;
+  const readCapacityChange = () => {
+    if (!capacityChange) capacityChange = new Promise(resolve => { notifyCapacityChange = resolve; });
+    return capacityChange;
+  };
+  const notifyCapacity = () => {
+    const notify = notifyCapacityChange;
+    capacityChange = null; notifyCapacityChange = null;
+    notify?.();
+  };
   const parsedMaxPending = Number(queue?.maxPending);
   const maxPending = Number.isFinite(parsedMaxPending) && parsedMaxPending > 0
     ? Math.floor(parsedMaxPending)
@@ -64,6 +134,7 @@ export async function runWithQueue(queue, items, worker, options = {}) {
   }
   let aborted = false;
   let firstError = null;
+  let fatalResourceFailure = null;
   const errors = [];
   let doneCount = 0;
   const normalizePendingBytes = (value) => {
@@ -87,14 +158,27 @@ export async function runWithQueue(queue, items, worker, options = {}) {
     aborted = true;
   };
   const recordError = async (err, ctx) => {
-    let error = err || new Error('Queue task failed');
-    if (onError) {
+    const primary = objectLike(err) ? err : new Error('Queue task failed', { cause: err });
+    let error = primary;
+    const resourceUnsafe = unsafeRecovery(primary);
+    if (resourceUnsafe) { fatalResourceFailure ||= primary; markAborted(); }
+    // A skip/publication callback cannot retire a failed worker/native owner.
+    if (onError && !resourceUnsafe) {
+      const originalObserver = captureQueueOwnership(primary);
+      const originalDescriptors = captureFailureDescriptors(primary);
+      let callbackError, callbackFailed = false;
       try {
-        await onError(error, ctx);
+        await onError(primary, ctx);
       } catch (callbackErr) {
-        error = callbackErr;
+        callbackFailed = true; callbackError = callbackErr;
       }
+      if (callbackFailed || originalObserver) error = aggregateQueueFailures(
+        callbackFailed ? [primary, callbackError] : [primary],
+        callbackFailed ? 'Queue task and error handler failed' : 'Queue task retained resource ownership',
+        { originalObservers: [originalObserver], primaryDescriptors: originalDescriptors }
+      );
     }
+    if (unsafeRecovery(error)) { fatalResourceFailure ||= error; markAborted(); }
     if (bestEffort) {
       errors.push(error);
       return;
@@ -125,12 +209,28 @@ export async function runWithQueue(queue, items, worker, options = {}) {
   const runWorker = async (item, ctx) => {
     let attempt = 0;
     while (true) {
+      if (fatalResourceFailure) throw fatalResourceFailure;
       throwIfAborted(signal);
       let result;
       try {
         result = await worker(item, ctx);
       } catch (err) {
-        if (err?.retryable === false) throw err;
+        const originalObserver = captureQueueOwnership(err);
+        const primaryDescriptors = captureFailureDescriptors(err);
+        if (originalObserver && !originalObserver()) {
+          const failure = aggregateQueueFailures([err], 'Queue operation retains original resource ownership',
+            { originalObservers: [originalObserver], primaryDescriptors });
+          fatalResourceFailure ||= failure; markAborted(); throw failure;
+        }
+        if (unsafeRecovery(err)) { fatalResourceFailure ||= err; markAborted(); throw err; }
+        if (primaryDescriptors?.retryable?.value === false) throw err;
+        let retryable;
+        try { retryable = err?.retryable; }
+        catch (classificationError) {
+          throw aggregateQueueFailures([err, classificationError], 'Queue operation retry policy could not be inspected',
+            { originalObservers: [originalObserver], primaryDescriptors, stopRetry: true });
+        }
+        if (retryable === false) throw err;
         attempt += 1;
         if (attempt > retries) throw err;
         if (delayMs > 0) {
@@ -147,20 +247,20 @@ export async function runWithQueue(queue, items, worker, options = {}) {
   };
   const waitForAnyPendingOrAbort = async () => {
     if (!pendingSignals.size) return;
-    const pendingRace = Promise.race(Array.from(pendingSignals));
+    const pendingRace = readCapacityChange();
     if (!signal) {
       await awaitWithKeepalive(pendingRace);
       return;
     }
     if (signal.aborted) {
       markAborted();
-      throw abortError;
+      throw getAbortError();
     }
     let onAbort = null;
     const abortedPromise = new Promise((_, reject) => {
       onAbort = () => {
         markAborted();
-        reject(abortError);
+        reject(getAbortError());
       };
       signal.addEventListener('abort', onAbort, { once: true });
     });
@@ -173,6 +273,7 @@ export async function runWithQueue(queue, items, worker, options = {}) {
   const enqueue = async (item, index) => {
     const ctx = { index, item, signal };
     let taskBytes = 0;
+    let shadow = null;
     if (aborted) return;
     if (signal?.aborted) {
       markAborted();
@@ -200,6 +301,9 @@ export async function runWithQueue(queue, items, worker, options = {}) {
       await recordProgress();
       return;
     }
+    // Optional evidence cannot change actual producer/admission outcomes.
+    // A failed observer yields an explicitly missing prediction at dispatch.
+    try { shadow = schedulerMetadata?.(item, ctx) || null; } catch { shadow = null; }
     if (maxPending) {
       while (pendingSignals.size >= maxPending && !aborted) {
         await waitForAnyPendingOrAbort();
@@ -225,6 +329,7 @@ export async function runWithQueue(queue, items, worker, options = {}) {
         () => runWorker(item, ctx),
         {
           bytes: taskBytes,
+          ...(shadow ? { shadow } : {}),
           ...(signal ? { signal } : {})
         }
       );
@@ -255,13 +360,14 @@ export async function runWithQueue(queue, items, worker, options = {}) {
         setInflightBytes(readInflightBytes() - taskBytes);
       }
       pendingSignals.delete(settled);
+      notifyCapacity();
     });
     void cleanup.catch(() => {});
   };
   const waitForPendingDrainOrAbort = async () => {
     if (!pendingSignals.size) return;
     if (signal?.aborted) {
-      throw abortError;
+      throw getAbortError();
     }
     const pendingDrain = Promise.all(Array.from(pendingSignals));
     const pendingStartedAt = Date.now();
@@ -311,7 +417,7 @@ export async function runWithQueue(queue, items, worker, options = {}) {
       return;
     }
     const aborted = new Promise((_, reject) => {
-      onAbort = () => reject(abortError);
+      onAbort = () => reject(getAbortError());
       signal.addEventListener('abort', onAbort, { once: true });
     });
     raceCandidates.push(aborted);
@@ -328,11 +434,13 @@ export async function runWithQueue(queue, items, worker, options = {}) {
       await enqueue(list[index], index);
       if (aborted && !bestEffort) break;
     }
-    await waitForPendingDrainOrAbort();
-    if (signal?.aborted) throw abortError;
+    try { await waitForPendingDrainOrAbort(); }
+    catch (error) { if (fatalResourceFailure) throw fatalResourceFailure; throw error; }
+    if (fatalResourceFailure) throw fatalResourceFailure;
+    if (signal?.aborted) throw getAbortError();
     if (firstError) throw firstError;
     if (bestEffort && errors.length) {
-      throw new AggregateError(errors, 'runWithQueue best-effort failures');
+      throw aggregateQueueFailures(errors, 'runWithQueue best-effort failures');
     }
     return results;
   } finally {
@@ -353,4 +461,40 @@ export async function runWithQueue(queue, items, worker, options = {}) {
 export async function runWithConcurrency(items, limit, worker, options = {}) {
   const queue = new PQueue({ concurrency: Math.max(1, Math.floor(limit || 1)) });
   return runWithQueue(queue, items, worker, options);
+}
+
+
+/** Drain original work before exposing cancellation or failure. The signal is
+ * passed to the actual worker, while the existing queue cannot race its drain.
+ * No new operation starts after a failure, and every failed owner is retained.
+ */
+export async function runWithSettledConcurrency(items, limit, worker, { signal = null, collectResults = false } = {}) {
+  throwIfAborted(signal);
+  const failures = [], observedFailures = new Set();
+  const remember = error => {
+    if (!objectLike(error) || !observedFailures.has(error)) {
+      failures.push(error); if (objectLike(error)) observedFailures.add(error);
+    }
+  };
+  // Observe cancellation when it happens, but do not race the original worker.
+  // A later failed close remains secondary to the already observed cancellation.
+  const onAbort = () => { try { throwIfAborted(signal); } catch (error) { remember(error); } };
+  signal?.addEventListener('abort', onAbort, { once: true });
+  let results;
+  try {
+    if (signal?.aborted) onAbort();
+    results = await runWithConcurrency(items, limit, async (item, context) => {
+      if (failures.length) return;
+      try { throwIfAborted(signal); return await worker(item, { ...context, signal }); }
+      catch (error) { remember(error); }
+    }, { collectResults, retries: 0 });
+  } finally { signal?.removeEventListener('abort', onAbort); }
+  if (failures.length === 1) throw failures[0];
+  if (failures.length) {
+    let failure = failures[0];
+    for (const secondary of failures.slice(1)) failure = addStorageFailureContext(failure, { retryable: false }, secondary, { secondaryPresent: true });
+    throw failure;
+  }
+  throwIfAborted(signal);
+  return results;
 }

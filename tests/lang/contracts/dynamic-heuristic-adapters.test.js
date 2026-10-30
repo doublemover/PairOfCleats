@@ -41,6 +41,6 @@ const CASES = [
   }
 ];
 
-assertHeuristicAdapterCases(CASES);
+await assertHeuristicAdapterCases(CASES);
 
 console.log('dynamic heuristic adapters contract test passed');

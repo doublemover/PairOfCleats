@@ -9,6 +9,7 @@ import { writeJsonObjectFile } from '../../../src/shared/json-stream/json-writer
 import { assembleCompositeContextPack } from '../../../src/context-pack/assemble.js';
 import { getMetricsRegistry } from '../../../src/shared/metrics/core.js';
 import { createApiRouter } from '../../../tools/api/router.js';
+import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
 
 applyTestEnv();
 
@@ -235,7 +236,7 @@ await fs.mkdir(path.join(indexDir, 'pieces'), { recursive: true });
 await writeJsonObjectFile(path.join(indexDir, 'pieces', 'manifest.json'), {
   fields: {
     version: 2,
-    artifactSurfaceVersion: 'test',
+    artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
     compatibilityKey: 'compat-risk-pack-metrics',
     generatedAt: '2026-03-19T00:00:00.000Z',
     mode: 'code',

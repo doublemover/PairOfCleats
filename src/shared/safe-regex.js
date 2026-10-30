@@ -60,8 +60,12 @@ const selectBackend = (engine) => {
   return re2Backend.available ? re2Backend : re2jsBackend;
 };
 
+const ownedSafeRegexes = new WeakSet();
+export const isSafeRegex = value => value !== null && typeof value === 'object' && ownedSafeRegexes.has(value);
+
 class SafeRegex {
   constructor(backend, compiled, source, flags, config) {
+    ownedSafeRegexes.add(this);
     this.backend = backend;
     this.compiled = compiled;
     this.source = source;

@@ -106,7 +106,7 @@ const runMetricsAggregateCases = async () => {
   assert.equal(Number(aggregate.metrics?.preflights?.total) >= 1, true);
   assert.equal(typeof aggregate.metrics?.preflights?.byPolicy, 'object');
   assert.equal(Number(aggregate.metrics?.preflights?.teardown?.timedOut || 0), 0);
-  assert.equal(aggregate.metrics?.degradedProviderCount, 1);
+  assert.equal(aggregate.metrics?.degradedProviderCount, 2, 'a contributing provider retains its independent FD-pressure warning');
   assert.equal(Number(aggregate.metrics?.degradedWarningChecks || 0) >= 1, true);
   assert.equal(Number(aggregate.metrics?.requests?.requests || 0) >= 1, true);
   assert.equal(Number(aggregate.metrics?.health?.fdPressureEvents || 0) >= 1, true);
@@ -127,7 +127,7 @@ const runMetricsAggregateCases = async () => {
   assert.equal(Number.isFinite(Number(aggregate.metrics?.hover?.skippedByGlobalDisable)), true);
   assert.deepEqual(Object.keys(aggregate.metrics?.providerRuntime || {}), ['dart', 'lsp-test']);
   assert.equal(aggregate.metrics?.providerRuntime?.dart?.degraded?.active, true);
-  assert.equal(aggregate.metrics?.providerRuntime?.['lsp-test']?.degraded?.active, false);
+  assert.equal(aggregate.metrics?.providerRuntime?.['lsp-test']?.degraded?.active, true);
   assert.equal(aggregate.metrics?.providerRuntime?.['lsp-test']?.pooling?.enabled, true);
   assert.equal(aggregate.metrics?.providerRuntime?.['lsp-test']?.pooling?.sessionKeyPresent, true);
   assert.ok(aggregate.metrics?.providerRuntime?.['lsp-test']?.hover && typeof aggregate.metrics.providerRuntime['lsp-test'].hover === 'object');
@@ -274,7 +274,10 @@ const runMetricsAggregateCases = async () => {
   );
 };
 
-const runClientMetricsCacheCase = async () => {
+const runClientMetricsCacheCase = async (capabilities = {
+  textDocument: { documentSymbol: { hierarchicalDocumentSymbolSupport: true } }
+}, expectedEncodings = ['utf-16', 'utf-8', 'utf-32'], expectedLegacy = null) => {
+  let advertised = null;
   const client = createLspClient({
     cmd: 'fake-lsp',
     args: ['--stdio'],
@@ -285,6 +288,7 @@ const runClientMetricsCacheCase = async () => {
       const outboundParser = createFramedJsonRpcParser({
         onMessage: (message) => {
           if (message?.method === 'initialize') {
+            advertised = message.params.capabilities;
             writer.write({
               jsonrpc: '2.0',
               id: message.id,
@@ -305,9 +309,18 @@ const runClientMetricsCacheCase = async () => {
   try {
     await client.initialize({
       rootUri: 'file:///fake',
-      capabilities: { textDocument: { documentSymbol: { hierarchicalDocumentSymbolSupport: true } } },
+      capabilities,
       timeoutMs: 1000
     });
+    assert.deepEqual(advertised.general.positionEncodings, expectedEncodings,
+      'the wire request advertises standard position-encoding negotiation');
+    if (expectedLegacy === null) {
+      assert.equal(Object.hasOwn(advertised, 'offsetEncoding'), false,
+        'default initialization does not advertise the deprecated clangd extension');
+    } else {
+      assert.deepEqual(advertised.offsetEncoding, expectedLegacy,
+        'explicit legacy negotiation remains available');
+    }
     const snapshot1 = client.getMetrics();
     const snapshot2 = client.getMetrics();
     assert.equal(snapshot1, snapshot2);
@@ -391,6 +404,8 @@ const runProviderDeltaManifestCase = async () => {
 
 await runMetricsAggregateCases();
 await runClientMetricsCacheCase();
+await runClientMetricsCacheCase({ general: { positionEncodings: ['utf-8'] }, offsetEncoding: ['utf-8'] },
+  ['utf-8'], ['utf-8']);
 await runFailureAccountingCase();
 await runProviderDeltaManifestCase();
 

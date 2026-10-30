@@ -12,6 +12,8 @@ import { openSemanticCacheEntry } from './semantic-cache.js';
 import { validateSemanticPartitions } from '../../semantic/reconcile.js';
 import { validateEmbeddedCacheSource } from '../../semantic/embedded-cache.js';
 import { withSemanticDiskWriter } from './accounted-bundle.js';
+import { readIncrementalSourceSnapshot, isIncrementalSourceMiss } from './source-snapshot.js';
+import { describeStorageFailure } from '../../../shared/storage/failure-observation.js';
 
 const MAX_DESCRIPTOR_BYTES = 16 * 1024 * 1024;
 const HASH = /^[a-f0-9]{64}$/;
@@ -147,7 +149,8 @@ export const readFileCompletion = async ({ bundleDir, relKey, sourceBytes, seman
       chunkCount: descriptor.chunkCount, lexiconFilterStats: descriptor.lexiconFilterStats };
   } catch (error) {
     throwIfAborted(signal);
-    if (error.code === 'ERR_SEMANTIC_DISK_LIMIT' || error.code === 'EACCES' || error.code === 'EPERM') throw error;
+    const diagnostic = describeStorageFailure(error, { phase: 'incremental-completion-admission' });
+    if (['ERR_SEMANTIC_DISK_LIMIT', 'EACCES', 'EPERM'].includes(diagnostic.code)) throw error;
     return null;
   }
 };
@@ -164,8 +167,9 @@ export const preloadFileCompletions = async ({ entries, incrementalState, semant
   for (const entry of entries) {
     throwIfAborted(semanticContext.signal);
     let sourceBytes;
-    try { sourceBytes = await fs.readFile(entry.abs); }
-    catch (error) { if (error.code === 'ENOENT') continue; throw error; }
+    try { sourceBytes = (await readIncrementalSourceSnapshot({ repoRoot: semanticContext.repoRoot,
+      absPath: entry.abs, fileStat: entry.stat, signal: semanticContext.signal })).buffer; }
+    catch (error) { if (isIncrementalSourceMiss(error)) continue; throw error; }
     semanticContext.replayVerification?.recordSourceRead(sourceBytes.length);
     const receipt = await readFileCompletion({ bundleDir: incrementalState.bundleDir,
       relKey: entry.rel, sourceBytes, semanticContext });

@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
+import fsSync from 'node:fs';
 import path from 'node:path';
 
 import { applyTestEnv } from '../../helpers/test-env.js';
@@ -107,5 +108,32 @@ const relaxed = await loadChunkMeta(testRoot, {
 });
 assert.equal(relaxed.length, 2, 'expected relaxed binary budget mode to load chunk_meta rows');
 assert.equal(relaxed[0]?.file, 'src/streamed.js', 'expected binary fileRef lookup in relaxed mode');
+
+// Row admission remains binding when aggregate streaming admission is disabled.
+// Sidecars fit every allowance here, so the negative belongs to the row owner.
+const wide = { id: 0, fileRef: 0, docmeta: { doc: 'x'.repeat(8192) } };
+const framed = encodeBinaryRowFrames([Buffer.from(JSON.stringify(wide))]);
+await fs.writeFile(path.join(testRoot, 'chunk_meta.binary-columnar.bin'), framed.dataBuffer);
+await fs.writeFile(path.join(testRoot, 'chunk_meta.binary-columnar.offsets.bin'), framed.offsetsBuffer);
+await fs.writeFile(path.join(testRoot, 'chunk_meta.binary-columnar.lengths.varint'), framed.lengthsBuffer);
+const metaPath = path.join(testRoot, 'chunk_meta.binary-columnar.meta.json');
+const meta = JSON.parse(await fs.readFile(metaPath, 'utf8')); meta.fields.count = 1;
+await fs.writeFile(metaPath, JSON.stringify(meta));
+const read = fsSync.readSync;
+let largestDataRead = 0;
+try {
+  fsSync.readSync = (fd, buffer, ...args) => {
+    if (fsSync.fstatSync(fd).size === framed.dataBuffer.length) largestDataRead = Math.max(largestDataRead, buffer.length);
+    return read.call(fsSync, fd, buffer, ...args);
+  };
+  for (const maxBytes of [framed.dataBuffer.length - 1, framed.dataBuffer.length, framed.dataBuffer.length + 1]) {
+    const consume = async () => { const values = []; for await (const row of loadChunkMetaRows(testRoot,
+      { strict: true, maxBytes, includeCold: false, enforceBinaryDataBudget: false })) values.push(row); return values; };
+    if (maxBytes < framed.dataBuffer.length) {
+      await assert.rejects(consume, { code: 'ERR_ARTIFACT_TOO_LARGE' });
+      assert.equal(largestDataRead, 0, 'wide row rejected before its payload read');
+    } else assert.equal((await consume())[0].docmeta.doc, wide.docmeta.doc);
+  }
+} finally { fsSync.readSync = read; }
 
 console.log('chunk-meta rows streaming binary budget test passed');

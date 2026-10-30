@@ -49,9 +49,9 @@ export const collectRazorImports = (text, options = {}) => {
   try {
     for (const rawLine of lines) {
       if (scanBudget.exhausted || !scanBudget.consumeTime()) break;
-      if (shouldScanLine(rawLine, precheck)) {
+      const line = stripComments(rawLine);
+      if (shouldScanLine(line, precheck)) {
         if (!scanBudget.consumeMatch()) break;
-        const line = stripComments(rawLine);
         if (line.trim()) {
           const token = parseRazorUsingTarget(line);
           if (token && scanBudget.consumeToken()) addCollectorImport(imports, token);

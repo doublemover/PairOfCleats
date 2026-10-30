@@ -3,13 +3,17 @@ import path from 'node:path';
 import { redactDiagnosticText } from './diagnostic-text.js';
 import { stableStringify } from './stable-json.js';
 import { getModelConfig } from './dict-utils.js';
-import { normalizeEmbeddingProvider, normalizeOnnxConfig, resolveOnnxConfig } from './onnx-embeddings.js';
+import { normalizeEmbeddingProvider, normalizeOnnxConfig, resolveOnnxConfig, resolveOnnxModelPath } from './onnx-embeddings/config.js';
+import { throwIfAborted } from './abort.js';
 import { projectSchedulerRequestConfig } from '../index/build/runtime/scheduler.js';
 import { resolveQuantizationParams } from '../storage/sqlite/quantization.js';
 import { getEnvConfig } from './env/runtime.js';
 import { resolveEmbeddingIntent } from './embedding-intent.js';
 import { applyObservabilityContextEnv, buildChildObservability, parseObservabilityContextEnv } from './observability.js';
 import { toRealPathSync } from '../workspace/identity.js';
+import { snapshotEmbeddingMetadata } from './embedding-selection-snapshot.js';
+import { resolveEmbeddingModelProfile, validateEmbeddingModelProfile, resolveQueryEmbeddingContract } from './embedding-model-profile.js';
+import { observeStorageResource } from './storage/failure-observation.js';
 
 export const EMBEDDING_LAUNCH_OPTION_KEYS = Object.freeze([
   'model', 'dims', 'threads', 'scheduler', 'scheduler-cpu', 'scheduler-io',
@@ -41,12 +45,28 @@ const projectEnvironment = rawEnv => {
     return [key, typeof value === 'boolean' ? (value ? '1' : '0') : Number.isFinite(value) ? String(value) : null];
   }));
 };
+const projectSourceFacts = source => {
+  if (!source || !Array.isArray(source.files)) return source;
+  return { ...source, files: source.files.map(file => {
+    if (file?.readState !== 'missing' || file.exists !== false
+      || file.errorCode !== 'ENOENT' || file.contentHash !== null) return file;
+    const { readState: ignoredReadState, ...facts } = file;
+    return facts;
+  }) };
+};
 const pick = (value, keys) => Object.fromEntries(keys.filter(key => value?.[key] !== undefined).map(key => [key, value[key]]));
 const fail = message => Object.assign(new Error(`Invalid embedding execution plan: ${message}`), { code: 'ERR_EMBEDDING_EXECUTION_PLAN' });
 const digest = plan => {
   const { digest: ignoredDigest, selectedAt: ignoredTime, ...semantic } = plan;
   return crypto.createHash('sha256').update(stableStringify(semantic)).digest('hex');
 };
+const preflightSelections = new WeakMap();
+const rejectedPreflights = new WeakMap();
+
+/** Actual read-only admission failures retain their original selected request.
+ * This is diagnostic identity, never an execution or resource-release grant.
+ */
+export const readEmbeddingPreflightRejection = error => rejectedPreflights.get(error) || null;
 
 /** Freeze existing resolver outputs; never serialize raw user config or environment. */
 export const createEmbeddingExecutionPlan = ({ root, indexRoot = null, buildId = null, modes, modelId = null, argv = {}, userConfig = {}, rawEnv = process.env, intent = null }) => {
@@ -68,6 +88,13 @@ export const createEmbeddingExecutionPlan = ({ root, indexRoot = null, buildId =
     onnx,
     embeddinggemma2: pick(configured.embeddinggemma2, ['revision', 'dtype', 'dimensions'])
   };
+  if (selected.embeddingEnabled && !selected.useStubEmbeddings) {
+    const profile = resolveEmbeddingModelProfile(embeddings.model, embeddings.embeddinggemma2);
+    validateEmbeddingModelProfile(profile, { provider: embeddings.provider, normalize: embeddings.normalize });
+    if (profile) embeddings.embeddinggemma2 = pick(profile, ['revision', 'dtype', 'dimensions']);
+    resolveQueryEmbeddingContract({ modelId: embeddings.model, modelProfile: embeddings.embeddinggemma2,
+      dims: argv.dims ?? null, useStub: false });
+  }
   const plan = {
     version: 2,
     selectedAt: new Date().toISOString(),
@@ -84,7 +111,7 @@ export const createEmbeddingExecutionPlan = ({ root, indexRoot = null, buildId =
       indexing: Object.fromEntries(['concurrency', 'importConcurrency', 'ioConcurrencyCap', 'embeddingBatchSize'].map(key => [key, userConfig.indexing?.[key] ?? null])),
       scheduler: projectSchedulerRequestConfig(userConfig.runtime?.scheduler, userConfig.indexing?.scheduler) },
     environment: projectEnvironment(rawEnv),
-    sources: { config: intent?.configSources || null, model: argv.model ? 'cli.model' : configured.model ? 'config.indexing.embeddings.model'
+    sources: { config: projectSourceFacts(intent?.configSources) || null, model: argv.model ? 'cli.model' : configured.model ? 'config.indexing.embeddings.model'
       : userConfig.models?.id ? 'config.models.id' : 'default', intent: selected.reason || 'resolved-parent' }
   };
   const planText = JSON.stringify(plan);
@@ -193,6 +220,104 @@ export const validateEmbeddingExecutionPlan = (plan, selection) => {
     if (error?.code === 'ERR_EMBEDDING_EXECUTION_PLAN') throw error;
     throw fail('malformed handoff value');
   }
+};
+
+/** A bounded immutable selection can outlive Stage2 without borrowing caller data. */
+export const captureEmbeddingExecutionPlan = (plan, selection) =>
+  snapshotEmbeddingMetadata(validateEmbeddingExecutionPlan(plan, selection));
+
+/** Read-only admission of the selected local graph, without loading a provider. */
+export const preflightEmbeddingExecutionPlan = (plan, { executionHost = 'local', signal = null } = {}) => {
+  if (!['local', 'deferred'].includes(executionHost)) throw fail('invalid preflight execution host');
+  throwIfAborted(signal);
+  const selected = captureEmbeddingExecutionPlan(plan);
+  const receipt = (status, reason, observedPlan = selected) => {
+    const evidence = Object.freeze({ version: 1, status, reason,
+      executionHost, runtime: 'unverified', inference: 'unverified', downloadAttempted: false });
+    preflightSelections.set(evidence, { digest: observedPlan.digest, selectedAt: observedPlan.selectedAt });
+    return evidence;
+  };
+  const result = (status, reason) => Object.freeze({ plan: selected, preflight: receipt(status, reason) });
+  if (!selected.embeddings.enabled || selected.embeddings.mode === 'off') return result('inactive', 'embeddings-off');
+  if (selected.options['stub-embeddings']) return result('inactive', 'stub-does-not-use-model-assets');
+  if (executionHost === 'deferred' || selected.embeddings.mode === 'service') return result('unverified', 'execution-host-deferred');
+  // Fetch-capable providers retain their existing acquisition/runtime owner. A
+  // parent-host file observation cannot qualify that owner or a cache-only hit.
+  if (selected.embeddings.provider !== 'onnx') return result('unverified', 'provider-acquisition-at-execution');
+  let graph;
+  try {
+    graph = resolveOnnxModelPath({ rootDir: selected.repoRoot,
+      modelPath: selected.embeddings.onnx.modelPath, modelsDir: selected.modelsDir,
+      modelId: selected.embeddings.model });
+  } catch (error) {
+    const observation = observeStorageResource(error, { phase: 'embedding-preflight-rejection' });
+    observation.requireSettled();
+    rejectedPreflights.set(observation.primary, Object.freeze({ plan: selected,
+      preflight: receipt('unavailable', 'selected-graph-observation-failed') }));
+    throw observation.primary;
+  }
+  throwIfAborted(signal);
+  if (!graph) {
+    const preflight = receipt('unavailable', 'local-onnx-graph-unavailable');
+    const error = Object.assign(new Error('The requested local ONNX graph is unavailable. Download/verify the selected model or run explicit Stage2 without embeddings.'), {
+      code: 'ERR_EMBEDDING_PREFLIGHT', preflight
+    });
+    rejectedPreflights.set(error, Object.freeze({ plan: selected, preflight }));
+    throw error;
+  }
+  // Complete graph selection before CPU work. A later default/selector change
+  // must not silently choose a different graph; runtime still verifies bytes.
+  const pinned = structuredClone(selected);
+  pinned.embeddings.onnx.modelPath = path.resolve(graph);
+  pinned.digest = digest(pinned);
+  const pinnedPlan = captureEmbeddingExecutionPlan(pinned);
+  return Object.freeze({ plan: pinnedPlan,
+    preflight: receipt('ready-to-attempt', 'selected-graph-readable', pinnedPlan) });
+};
+
+/** Bounded diagnostic evidence for the existing attempt owner, never a launch
+ * plan or readiness grant. Hash selected environment/resources without storing
+ * their raw containers or bypassing runtime-receipt redaction.
+ */
+export const projectEmbeddingExecutionEvidence = ({ plan, preflight }, selection) => {
+  const selected = captureEmbeddingExecutionPlan(plan, selection);
+  const observed = preflightSelections.get(preflight);
+  if (!observed || observed.digest !== selected.digest || observed.selectedAt !== selected.selectedAt) {
+    throw fail('preflight evidence does not belong to the selected plan');
+  }
+  fields(preflight, { version: value => value === 1,
+    status: value => ['inactive', 'unverified', 'ready-to-attempt', 'unavailable'].includes(value),
+    reason: value => ['embeddings-off', 'stub-does-not-use-model-assets', 'execution-host-deferred',
+      'provider-acquisition-at-execution', 'selected-graph-readable', 'local-onnx-graph-unavailable',
+      'selected-graph-observation-failed'].includes(value),
+    executionHost: value => ['local', 'deferred'].includes(value), runtime: value => value === 'unverified',
+    inference: value => value === 'unverified', downloadAttempted: value => value === false }, 'preflight evidence');
+  const hash = value => crypto.createHash('sha256').update(stableStringify(value)).digest('hex');
+  return snapshotEmbeddingMetadata({ version: 1, projection: 'diagnostic-selection-summary',
+    planDigest: selected.digest, selectedAt: selected.selectedAt,
+    requested: { modelId: redactDiagnosticText(selected.embeddings.model, 512), provider: selected.embeddings.provider,
+      mode: selected.embeddings.mode, enabled: selected.embeddings.enabled,
+      stub: selected.options['stub-embeddings'], dims: selected.options.dims ?? null, normalize: selected.embeddings.normalize,
+      selectedGraph: redactDiagnosticText(selected.embeddings.onnx.modelPath, 1024) },
+    resourceRequestDigest: hash(selected.resources), environmentSelectionDigest: hash(selected.environment),
+    profileDigest: hash(selected.embeddings.embeddinggemma2), preflight });
+};
+
+/** Bind generated execution scope only. Never re-run model/config/env selection. */
+export const bindEmbeddingExecutionPlan = (plan, binding = {}) => {
+  record(binding, ['root', 'indexRoot', 'buildId', 'modes'], 'binding');
+  for (const key of ['root', 'indexRoot']) if (binding[key] != null
+    && (typeof binding[key] !== 'string' || !path.isAbsolute(binding[key]))) throw fail(`binding ${key} must be absolute`);
+  validateEmbeddingExecutionPlan(plan, { root: binding.root });
+  const indexRoot = binding.indexRoot ? toRealPathSync(binding.indexRoot) : plan.indexRoot;
+  const buildId = binding.buildId ?? plan.buildId;
+  if (plan.indexRoot && indexRoot !== toRealPathSync(plan.indexRoot)) throw fail('cannot rebind selected index root');
+  if (plan.buildId && buildId !== plan.buildId) throw fail('cannot rebind selected build identity');
+  const modes = binding.modes == null ? plan.modes : binding.modes;
+  if (!Array.isArray(modes) || !modes.length || modes.some(mode => !plan.modes.includes(mode))) throw fail('binding cannot widen selected modes');
+  const bound = { ...structuredClone(plan), indexRoot, buildId, modes: [...new Set(modes)].sort() };
+  bound.digest = digest(bound);
+  return captureEmbeddingExecutionPlan(bound, { root: binding.root, indexRoot, modes });
 };
 
 export const buildEmbeddingLaunchArgs = (options = {}) => {

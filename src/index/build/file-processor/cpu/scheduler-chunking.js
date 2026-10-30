@@ -1,4 +1,5 @@
 import { chunkSegments } from '../../../segments.js';
+import { readSegmentContent } from '../../../../shared/embedded-content.js';
 import {
   resolveSegmentExt,
   resolveSegmentTokenMode,
@@ -12,6 +13,7 @@ import {
 import { LANGUAGE_GRAMMAR_KEYS, TREE_SITTER_LANGUAGE_IDS } from '../../../../lang/tree-sitter/config.js';
 import { isTreeSitterEnabled } from '../../../../lang/tree-sitter/options.js';
 import { exceedsTreeSitterLimits } from './guardrails.js';
+import { createSchedulerDegradationQuery } from '../../tree-sitter-scheduler/degradation.js';
 
 const TREE_SITTER_LANG_IDS = new Set(TREE_SITTER_LANGUAGE_IDS);
 
@@ -29,6 +31,7 @@ const createChunkingDiagnostics = ({ treeSitterEnabled, schedulerRequired }) => 
   codeFallbackSegmentCount: 0,
   schedulerMissingCount: 0,
   schedulerDegradedCount: 0,
+  schedulerDegradation: null,
   usedHeuristicChunking: false,
   usedHeuristicCodeChunking: false
 });
@@ -145,11 +148,24 @@ export const chunkWithScheduler = async ({
     codeFallbackSegmentCount: 0
   };
   const sourceSegments = Array.isArray(segments) ? segments : [];
+  const contentAdmission = { schemaVersion: 1, state: 'complete', linear: 0, piecewise: 0, unavailable: 0, exclusions: [] };
+  for (const segment of sourceSegments) {
+    if (segment?.contentUnavailable) {
+      contentAdmission.state = 'partial'; contentAdmission.unavailable++;
+      if (contentAdmission.exclusions.length < 16) contentAdmission.exclusions.push({ start: segment.start,
+        end: segment.end, reason: segment.contentUnavailable });
+    } else if (segment?.contentView) {
+      if (segment.contentView.pieces.length > 1) contentAdmission.piecewise++;
+      else contentAdmission.linear++;
+    }
+  }
+  chunkingDiagnostics.segmentContent = contentAdmission;
+  if (contentAdmission.unavailable) logLine?.(`[segments] embedded content unavailable for ${relKey}: ${JSON.stringify(contentAdmission)}`);
   const treeSitterOptions = { treeSitter: treeSitterConfigForMode || {} };
   const schedulerLanguageSet = resolveSchedulerLanguageSet(treeSitterScheduler);
 
   for (const segment of sourceSegments) {
-    if (!segment) continue;
+    if (!segment || segment.contentUnavailable) continue;
     const segmentTokenMode = resolveSegmentTokenMode(segment);
     if (!shouldIndexSegment(segment, segmentTokenMode, tokenMode)) continue;
 
@@ -182,7 +198,7 @@ export const chunkWithScheduler = async ({
       continue;
     }
 
-    const segmentText = text.slice(segment.start, segment.end);
+    const segmentText = readSegmentContent(text, segment);
     if (exceedsTreeSitterLimits({ text: segmentText, languageId: resolvedLang, treeSitterConfig: treeSitterConfigForMode })) {
       pushFallbackSegment({
         segment,
@@ -212,7 +228,9 @@ export const chunkWithScheduler = async ({
     const virtualPath = buildVfsVirtualPath({
       containerPath: relKey,
       segmentUid,
-      effectiveExt: segmentExt
+      effectiveExt: segmentExt,
+      segmentStart: segment.start,
+      segmentEnd: segment.end
     });
     scheduled.push({
       virtualPath,
@@ -235,59 +253,35 @@ export const chunkWithScheduler = async ({
     && typeof treeSitterScheduler.releaseVirtualPathCaches === 'function'
     ? treeSitterScheduler.releaseVirtualPathCaches.bind(treeSitterScheduler)
     : null;
-  const schedulerDegradedCheck = treeSitterScheduler
-    && typeof treeSitterScheduler.isDegradedVirtualPath === 'function'
-    ? treeSitterScheduler.isDegradedVirtualPath.bind(treeSitterScheduler)
-    : () => false;
-  const schedulerCrashSummary = treeSitterScheduler
-    && typeof treeSitterScheduler.getCrashSummary === 'function'
-    ? treeSitterScheduler.getCrashSummary()
-    : null;
-  const degradedVirtualPaths = Array.isArray(schedulerCrashSummary?.degradedVirtualPaths)
-    ? schedulerCrashSummary.degradedVirtualPaths
-    : [];
-  const failedGrammarKeys = new Set(
-    Array.isArray(schedulerCrashSummary?.failedGrammarKeys)
-      ? schedulerCrashSummary.failedGrammarKeys.filter((value) => typeof value === 'string' && value)
-      : []
-  );
-  /**
-   * Match current virtual-path requests against degraded crash-summary paths.
-   *
-   * Crash summaries may contain container-only entries, segment-qualified
-   * entries, or historical path variants. We treat prefix/suffix relationships
-   * as degraded so scheduler lookups safely fall back to heuristic chunking.
-   *
-   * @param {string} virtualPath
-   * @returns {boolean}
-   */
-  const isDegradedInCrashSummary = (virtualPath) => degradedVirtualPaths.some((candidate) => (
-    typeof candidate === 'string'
-    && (
-      candidate === virtualPath
-      || candidate.startsWith(`${virtualPath}#seg:`)
-      || virtualPath.startsWith(candidate)
-      || (relKey && candidate.includes(relKey))
-    )
-  ));
-  const containerVirtualPath = buildVfsVirtualPath({ containerPath: relKey });
-  const containerDegraded = schedulerDegradedCheck(containerVirtualPath)
-    || isDegradedInCrashSummary(containerVirtualPath);
+  const schedulerCrashSummary = typeof treeSitterScheduler?.getCrashSummary === 'function'
+    ? treeSitterScheduler.getCrashSummary() : {};
+  const degradation = typeof treeSitterScheduler?.queryDegradation === 'function'
+    ? { query: treeSitterScheduler.queryDegradation.bind(treeSitterScheduler),
+      unknown: schedulerCrashSummary?.degradation?.unknown || [] }
+    : createSchedulerDegradationQuery(schedulerCrashSummary || {}, {
+      legacyExactCheck: typeof treeSitterScheduler?.isDegradedVirtualPath === 'function'
+        ? treeSitterScheduler.isDegradedVirtualPath.bind(treeSitterScheduler) : null
+    });
+  const scopeCounts = { grammar: 0, container: 0, segment: 0 };
+  const decisions = [];
   const schedulerLookupItems = [];
   for (const item of scheduled) {
-    if (
-      containerDegraded
-      || (item.grammarKey && failedGrammarKeys.has(item.grammarKey))
-      || schedulerDegradedCheck(item.virtualPath)
-      || isDegradedInCrashSummary(item.virtualPath)
-    ) {
+    const decision = degradation.query({ virtualPath: item.virtualPath, grammarKey: item.grammarKey });
+    if (decision.degraded) {
       fallbackSegments.push(item.segment);
       counters.schedulerDegradedCount += 1;
       counters.codeFallbackSegmentCount += 1;
+      scopeCounts[decision.scope] += 1;
+      if (decisions.length < 16) decisions.push({ scope: decision.scope, reason: decision.reason,
+        grammarKey: item.grammarKey, segmentUid: item.segment.segmentUid,
+        start: item.segment.start, end: item.segment.end });
       continue;
     }
     schedulerLookupItems.push(item);
   }
+  chunkingDiagnostics.schedulerDegradation = { schemaVersion: 1, scopeCounts,
+    unknownReceipts: degradation.unknown.length, decisions,
+    omittedDecisions: Math.max(0, counters.schedulerDegradedCount - decisions.length) };
   const releaseSchedulerLookupCaches = () => {
     if (!schedulerReleaseVirtualPathCaches || !schedulerLookupItems.length) return;
     for (const item of schedulerLookupItems) {
@@ -300,7 +294,8 @@ export const chunkWithScheduler = async ({
     scheduledSegmentCount: scheduled.length,
     schedulerLookupItems: schedulerLookupItems.length,
     fallbackSegmentCount: fallbackSegments.length,
-    schedulerDegradedCount: counters.schedulerDegradedCount
+    schedulerDegradedCount: counters.schedulerDegradedCount,
+    schedulerDegradation: chunkingDiagnostics.schedulerDegradation
   });
   try {
     const batchChunks = schedulerLookupItems.length > 0

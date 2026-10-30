@@ -16,3 +16,5 @@ export {
   ARCHITECTURE_REPORT_SCHEMA,
   SUGGEST_TESTS_SCHEMA
 } from './architecture.js';
+
+export { ARCHITECTURE_RULES_SCHEMA } from '../../architecture-rules.js';

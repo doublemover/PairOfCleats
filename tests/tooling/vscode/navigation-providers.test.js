@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import { createHash } from 'node:crypto';
 
 import {
   createVsCodeRuntimeHarness,
@@ -14,7 +16,8 @@ const harness = createVsCodeRuntimeHarness({
   repoRoot: workspace.root,
   workspaceFolders: [{ name: 'repo', path: workspace.root }],
   activeFile,
-  configValues: {
+  globalConfigValues: {
+    cliPath: workspace.resolvePath('bin', 'pairofcleats.js'),
     cliArgs: ['--trace']
   }
 });
@@ -26,9 +29,15 @@ assert.equal(harness.referenceProviders.length, 1, 'expected reference provider 
 assert.equal(harness.documentSymbolProviders.length, 1, 'expected document symbol provider registration');
 
 const symbol = 'WidgetBuilder';
+const sourceText = symbol + '\n'.repeat(6);
+fs.writeFileSync(activeFile, sourceText);
+fs.writeFileSync(workspace.resolvePath('src', 'defs.js'), '\n'.repeat(11) + '  WidgetBuilder\n');
+fs.writeFileSync(workspace.resolvePath('src', 'consumer.ts'), '\n'.repeat(8) + '    WidgetBuilder();\n');
+const hashFile = file => createHash('sha256').update(fs.readFileSync(file)).digest('hex');
 const start = new harness.fakeVscode.Position(0, 0);
 const end = new harness.fakeVscode.Position(0, symbol.length);
 const document = {
+  version: 1, isDirty: false,
   uri: {
     scheme: 'file',
     fsPath: activeFile,
@@ -40,18 +49,23 @@ const document = {
   getWordRangeAtPosition() {
     return { start, end };
   },
-  getText() {
-    return symbol;
+  getText(range) {
+    return range ? symbol : sourceText;
+  },
+  positionAt(offset) {
+    const lines = sourceText.slice(0, offset).split('\n');
+    return new harness.fakeVscode.Position(lines.length - 1, lines.at(-1).length);
   }
 };
 
 harness.queuedResults.push({
   code: 0,
   stdout: JSON.stringify({
-    ok: true,
+    ok: true, status: 'resolved', binding: { status: 'resolved' }, sourceHash: hashFile(activeFile),
+    sourceVersion: '1', coordinateUnit: 'utf16',
     results: [
       {
-        file: 'src/defs.js',
+        file: 'src/defs.js', coordinateUnit: 'utf16', sourceHash: hashFile(workspace.resolvePath('src', 'defs.js')),
         virtualPath: 'src/defs.js',
         startLine: 12,
         endLine: 12,
@@ -73,20 +87,21 @@ assert.equal(definitions[0].range.start.character, 2);
 harness.queuedResults.push({
   code: 0,
   stdout: JSON.stringify({
-    ok: true,
+    ok: true, status: 'resolved', binding: { status: 'resolved' }, sourceHash: hashFile(activeFile),
+    sourceVersion: '1', coordinateUnit: 'utf16',
     results: [
       {
-        file: 'src/app.ts',
+        file: 'src/app.ts', coordinateUnit: 'utf16', sourceHash: hashFile(activeFile),
         virtualPath: 'src/app.ts',
-        startLine: 4,
-        endLine: 4,
+        startLine: 1,
+        endLine: 1,
         startCol: 1,
         endCol: 14,
         kind: 'FunctionDeclaration',
         name: 'WidgetBuilder'
       },
       {
-        file: 'src/consumer.ts',
+        file: 'src/consumer.ts', coordinateUnit: 'utf16', sourceHash: hashFile(workspace.resolvePath('src', 'consumer.ts')),
         virtualPath: 'src/consumer.ts',
         startLine: 9,
         endLine: 9,
@@ -99,7 +114,7 @@ harness.queuedResults.push({
   })
 });
 
-const references = await harness.referenceProviders[0].provider.provideReferences(document, start, {}, {});
+const references = await harness.referenceProviders[0].provider.provideReferences(document, start, { includeDeclaration: false }, {});
 assert.equal(references.length, 2);
 assert.equal(references[1].uri.fsPath, harness.resolvePath('src', 'consumer.ts'));
 
@@ -107,9 +122,12 @@ harness.queuedResults.push({
   code: 0,
   stdout: JSON.stringify({
     ok: true,
+    status: 'resolved', sourceHash: hashFile(activeFile), sourceVersion: '1', coordinateUnit: 'utf16',
+    generation: { baseBuildId: 'qualified-symbols', semanticRevision: 0 },
     results: [
       {
         file: 'src/app.ts',
+        sourceHash: hashFile(activeFile), coordinateUnit: 'utf16',
         virtualPath: 'src/app.ts',
         startLine: 2,
         endLine: 6,
@@ -146,12 +164,85 @@ assert.deepEqual(
     '--file',
     activeFile,
     '--symbol',
-    'WidgetBuilder'
+    'WidgetBuilder',
+    '--source-hash', hashFile(activeFile),
+    '--source-version', '1',
+    '--coordinate-unit', 'utf16',
+    '--line', '1', '--column', '1',
+    '--include-declaration', 'true'
   ]
 );
 
 assert.equal(harness.spawnCalls[1].args[4], '--json');
 assert.equal(harness.spawnCalls[1].args[8], 'references');
+assert.equal(harness.spawnCalls[1].args[harness.spawnCalls[1].args.indexOf('--include-declaration') + 1], 'false');
 assert.equal(harness.spawnCalls[2].args[8], 'document-symbols');
+
+const boundResult = { ok: true, status: 'resolved', binding: { status: 'resolved' },
+  sourceHash: hashFile(activeFile), sourceVersion: '1', coordinateUnit: 'utf16', results: [{
+    file: 'src/defs.js', sourceHash: hashFile(workspace.resolvePath('src', 'defs.js')),
+    coordinateUnit: 'utf16', startLine: 12, endLine: 12, startCol: 3, endCol: 16 }] };
+harness.queuedResults.push({ code: 0, stdout: JSON.stringify({ ...boundResult, sourceVersion: 'older-document' }) });
+assert.deepEqual(await harness.definitionProviders[0].provider.provideDefinition(document, start, {}), [],
+  'a response for another document version cannot publish native locations');
+harness.fakeVscode.workspace.textDocuments = [{ uri: harness.fakeVscode.Uri.file(workspace.resolvePath('src', 'defs.js')),
+  isDirty: true, getText: () => 'unsaved target buffer' }];
+harness.queuedResults.push({ code: 0, stdout: JSON.stringify(boundResult) });
+assert.deepEqual(await harness.definitionProviders[0].provider.provideDefinition(document, start, {}), [],
+  'a matching disk hash cannot qualify a dirty target buffer');
+const bomTarget = workspace.resolvePath('src', 'defs.js');
+fs.writeFileSync(bomTarget, '\ufeff  WidgetBuilder\r\nnext\r\n');
+harness.fakeVscode.workspace.textDocuments = [];
+harness.queuedResults.push({ code: 0, stdout: JSON.stringify({ ...boundResult,
+  results: [{ file: 'src/defs.js', sourceHash: hashFile(bomTarget), coordinateUnit: 'utf16',
+    startLine: 1, startCol: 4, endLine: 1, endCol: 17 }] }) });
+const normalized = await harness.definitionProviders[0].provider.provideDefinition(document, start, {});
+assert.equal(normalized.length, 1);
+assert.equal(normalized[0].range.start.character, 2);
+assert.equal(normalized[0].range.end.character, 15,
+  'native provider uses the actual opened BOM-stripped target buffer rather than retained raw columns');
+
+const siblingTarget = workspace.resolvePath('src', 'same-bytes-sibling.js');
+fs.writeFileSync(siblingTarget, fs.readFileSync(bomTarget));
+const originalOpenTextDocument = harness.fakeVscode.workspace.openTextDocument;
+try {
+  harness.fakeVscode.workspace.openTextDocument = async function(uri) {
+    const opened = await originalOpenTextDocument.call(this, uri);
+    return { ...opened, uri: harness.fakeVscode.Uri.file(siblingTarget) };
+  };
+  harness.queuedResults.push({ code: 0, stdout: JSON.stringify({ ...boundResult,
+    results: [{ file: 'src/defs.js', sourceHash: hashFile(bomTarget), coordinateUnit: 'utf16',
+      startLine: 1, startCol: 4, endLine: 1, endCol: 17 }] }) });
+  assert.deepEqual(await harness.definitionProviders[0].provider.provideDefinition(document, start, {}), [],
+    'actual native provider refuses an identical-text sibling returned by document opening');
+} finally { harness.fakeVscode.workspace.openTextDocument = originalOpenTextDocument; }
+
+fs.writeFileSync(bomTarget, 'one\rWidgetBuilder\r\nlast\r');
+const mixedText = 'one\nWidgetBuilder\nlast\n';
+harness.fakeVscode.workspace.textDocuments = [{ uri: harness.fakeVscode.Uri.file(bomTarget), version: 1, isDirty: false,
+  getText: () => mixedText, positionAt(offset) { const lines = mixedText.slice(0, offset).split('\n');
+    return new harness.fakeVscode.Position(lines.length - 1, lines.at(-1).length); } }];
+harness.queuedResults.push({ code: 0, stdout: JSON.stringify({ ...boundResult,
+  results: [{ file: 'src/defs.js', sourceHash: hashFile(bomTarget), coordinateUnit: 'utf16',
+    startLine: 2, startCol: 1, endLine: 2, endCol: 14 }] }) });
+const mixedLocation = await harness.definitionProviders[0].provider.provideDefinition(document, start, {});
+assert.equal(mixedLocation.length, 1); assert.equal(mixedLocation[0].range.start.line, 1);
+assert.equal(mixedLocation[0].range.start.character, 0); assert.equal(mixedLocation[0].range.end.character, 13,
+  'actual registered native provider maps bare-CR source lines through the observed normalized target buffer');
+fs.writeFileSync(bomTarget, '\ufeff  WidgetBuilder\r\nnext\r\n'); harness.fakeVscode.workspace.textDocuments = [];
+
+harness.queuedResults.push({ persistent: true });
+const pendingSource = harness.definitionProviders[0].provider.provideDefinition(document, start, {});
+await new Promise(setImmediate);
+const delayedChild = harness.spawnCalls[harness.spawnCalls.length - 1].child;
+try {
+  fs.writeFileSync(activeFile, sourceText + 'external disk replacement');
+  delayedChild.stdout.emit('data', Buffer.from(JSON.stringify({ ...boundResult,
+    results: [{ file: 'src/defs.js', sourceHash: hashFile(bomTarget), coordinateUnit: 'utf16',
+      startLine: 1, startCol: 4, endLine: 1, endCol: 17 }] })));
+  delayedChild.emit('close', 0);
+  assert.deepEqual(await pendingSource, [],
+    'a still-clean old buffer cannot qualify a source binding after its saved file changes during the CLI request');
+} finally { fs.writeFileSync(activeFile, sourceText); }
 
 console.log('vscode navigation providers test passed');

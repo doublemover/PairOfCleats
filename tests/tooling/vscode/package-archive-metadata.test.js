@@ -4,6 +4,7 @@ import path from 'node:path';
 
 import { runNode } from '../../helpers/run-node.js';
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
+import { validateVsixContainer } from '../../../tools/tooling/vsix-container.js';
 
 const root = process.cwd();
 const outDir = resolveTestCachePath(root, 'package-vscode-metadata');
@@ -22,6 +23,7 @@ if (run.status !== 0) {
 
 const manifestPath = path.join(outDir, 'pairofcleats.vsix.manifest.json');
 const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+await validateVsixContainer(path.join(outDir, 'pairofcleats.vsix'));
 if (manifest.fixedMtime !== '2000-01-01T00:00:00.000Z') {
   console.error('package-archive-metadata test failed: fixed mtime mismatch');
   process.exit(1);

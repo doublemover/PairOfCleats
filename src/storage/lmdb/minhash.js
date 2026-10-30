@@ -2,8 +2,8 @@ import { loadMinhashSignatures } from '../../shared/artifact-io/loaders/minhash.
 import { MAX_JSON_BYTES } from '../../shared/artifact-io/constants.js';
 
 /** Load the common artifact representation and retain its sampling descriptor. */
-export const loadLmdbMinhashArtifact = async (dir) => {
-  const payload = await loadMinhashSignatures(dir, { maxBytes: MAX_JSON_BYTES, strict: false });
+export const loadLmdbMinhashArtifact = async (dir, { manifest = null, maxBytes = MAX_JSON_BYTES, strict = false } = {}) => {
+  const payload = await loadMinhashSignatures(dir, { maxBytes, strict, manifest });
   if (!payload) return null;
   return {
     ...payload,

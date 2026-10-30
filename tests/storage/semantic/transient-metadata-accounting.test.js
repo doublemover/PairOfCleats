@@ -20,7 +20,9 @@ try {
   assert.equal(account.used, original.length);
   const immutable = path.join(root, 'immutable'), bytes = Buffer.from('complete immutable bytes');
   const retained = createSemanticDiskAccount(100);
-  await Promise.all(Array.from({ length: 3 }, () => retainSemanticBytes({ filename: immutable, bytes, diskAccount: retained })));
+  const receipts = await Promise.all(Array.from({ length: 3 }, () => retainSemanticBytes({ filename: immutable, bytes, diskAccount: retained })));
+  const retainedStat = await fs.stat(immutable, { bigint: true });
+  assert.ok(receipts.every(receipt => receipt.ctimeNs === retainedStat.ctimeNs), 'retention receipts describe the file after temporary-link cleanup');
   assert.equal(retained.used, bytes.length, 'losing equivalent writes return transient credits');
   await assert.rejects(retainSemanticBytes({ filename: immutable, bytes: Buffer.from('different'), diskAccount: retained }), { code: 'ERR_SEMANTIC_INTEGRITY' });
   const inventory = [], evidence = createSemanticDiskAccount(1024);

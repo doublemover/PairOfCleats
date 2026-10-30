@@ -1,3 +1,4 @@
+import { getOwn, setOwn } from '../../shared/object-record.js';
 import { stableStringify } from '../../shared/stable-json.js';
 
 export const MODE_ORDER = ['code', 'prose', 'extracted-prose', 'records'];
@@ -125,7 +126,7 @@ export const toEventCounts = (events) => {
   const byKind = {};
   for (const event of events) {
     const kind = String(event.kind || 'unknown');
-    byKind[kind] = Number(byKind[kind] || 0) + 1;
+    setOwn(byKind,kind,Number(getOwn(byKind,kind) || 0) + 1);
   }
   return byKind;
 };

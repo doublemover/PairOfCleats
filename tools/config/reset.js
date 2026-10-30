@@ -17,6 +17,10 @@ const argv = createCli({
   }
 }).parse();
 
+if (argv._.length) {
+  throw Object.assign(new Error('config reset does not accept positional arguments.'), { code: 'INVALID_REQUEST' });
+}
+
 const forceRequested = argv.force
   || normalizeBooleanString(process.env.npm_config_force, { fallback: false });
 

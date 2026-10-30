@@ -214,23 +214,6 @@ const buildResult = ({ pid, exitCode, signal, startedAt, stdout, stderr, outputC
   ...(outputCapture ? { outputCapture } : {})
 });
 
-const trimOutput = (value, maxBytes, encoding, mode) => {
-  if (value == null) return mode === 'lines' ? [] : '';
-  const buffer = Buffer.isBuffer(value) ? value : Buffer.from(String(value), encoding);
-  if (buffer.length <= maxBytes) {
-    const text = buffer.toString(encoding);
-    if (mode !== 'lines') return text;
-    const lines = text.split(/\r?\n/);
-    if (lines.length && lines[lines.length - 1] === '') lines.pop();
-    return lines;
-  }
-  const tail = buffer.subarray(buffer.length - maxBytes);
-  const text = tail.toString(encoding);
-  if (mode !== 'lines') return text;
-  const lines = text.split(/\r?\n/);
-  if (lines.length && lines[lines.length - 1] === '') lines.pop();
-  return lines;
-};
 
 export {
   DEFAULT_MAX_OUTPUT_BYTES,
@@ -263,5 +246,4 @@ export {
   shouldCapture,
   createCollector,
   buildResult,
-  trimOutput
 };

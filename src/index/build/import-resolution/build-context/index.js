@@ -1,3 +1,4 @@
+import { createBazelPackageIndex } from '../bazel-label.js';
 import { sortStrings } from '../path-utils.js';
 import { IMPORT_REASON_CODES } from '../reason-codes.js';
 import { createExpectedArtifactsIndex } from '../expected-artifacts-index.js';
@@ -7,6 +8,7 @@ import { createGeneratedArtifactsPlugin } from './plugins/generated-artifacts.js
 import { createNixFlakePlugin } from './plugins/nix-flake.js';
 import { createMakefileArtifactsPlugin } from './plugins/makefile-artifacts.js';
 import { createTypeScriptEmitPlugin } from './plugins/typescript-emit.js';
+import { assertConfiguredBuildSnapshot } from '../../../tooling/configured-build-snapshot.js';
 
 const normalizePluginConfig = (resolverPlugins) => (
   resolverPlugins && typeof resolverPlugins === 'object'
@@ -59,22 +61,26 @@ export const createImportBuildContext = ({
   resolverPlugins = null,
   rootAbs = '',
   fsMemo = null,
-  generatedPolicy = null
+  generatedPolicy = null,
+  configuredSnapshot = null,
+  bazelLabels = null
 } = {}) => {
   const normalizedConfig = normalizePluginConfig(resolverPlugins);
+  if (configuredSnapshot) assertConfiguredBuildSnapshot(configuredSnapshot);
   const buildContextConfig = normalizedConfig.buildContext
     && typeof normalizedConfig.buildContext === 'object'
     ? normalizedConfig.buildContext
     : normalizedConfig;
   const expectedArtifactsIndex = createExpectedArtifactsIndex({ entries });
+  bazelLabels ||= createBazelPackageIndex({ entries, rootAbs, fsMemo });
   const plugins = [];
 
   if (isEnabled(buildContextConfig?.bazelLabels, true)) {
-    plugins.push(createBazelLabelPlugin({ entries }));
+    plugins.push(createBazelLabelPlugin({ entries, bazelLabels }));
   }
 
   if (isEnabled(buildContextConfig?.pathContext, true)) {
-    plugins.push(createPathContextPlugin());
+    plugins.push(createPathContextPlugin({ entries }));
   }
 
   if (isEnabled(buildContextConfig?.nixFlakeReferences, true)) {
@@ -102,7 +108,8 @@ export const createImportBuildContext = ({
   }
 
   plugins.sort(stablePluginComparator);
-  const fingerprint = `build-context-v5|${buildPluginFingerprint(plugins)}|${buildGeneratedPolicyFingerprint(generatedPolicy)}`;
+  const fingerprint = `build-context-v6|${buildPluginFingerprint(plugins)}|${buildGeneratedPolicyFingerprint(generatedPolicy)}`
+    + (configuredSnapshot ? `|configured:${configuredSnapshot.identity}` : '') + `|bazel:${bazelLabels.fingerprint}`;
 
   const classifyUnresolved = ({ importerRel = '', spec = '', rawSpec = '' } = {}) => {
     for (const plugin of plugins) {
@@ -132,13 +139,16 @@ export const createImportBuildContext = ({
   };
 
   return Object.freeze({
-    version: 'build-context-v5',
+    version: 'build-context-v6',
     fingerprint,
     plugins: plugins.map((plugin) => ({
       id: plugin.id,
       priority: plugin.priority
     })),
     expectedArtifactsIndex,
+    bazelLabels,
+    configuredSnapshot: configuredSnapshot?.metadata || null,
+    configuredDependenciesFor: input => configuredSnapshot ? configuredSnapshot.dependenciesFor(input) : [],
     classifyUnresolved,
     resolveGeneratedExpectation
   });

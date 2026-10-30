@@ -3,6 +3,16 @@ import assert from 'node:assert/strict';
 import { smartChunk } from '../../../src/index/chunking.js';
 import { assignChunkUids } from '../../../src/index/identity/chunk-uid.js';
 import { buildLineIndex } from '../../../src/shared/lines.js';
+import { splitLinesWithIndex, chunkByLineRegex } from '../../../src/index/chunking/dispatch/shared.js';
+
+const changedContext = { chunkingShared: {} };
+const oldIndex = splitLinesWithIndex('a\nb', changedContext).lineIndex;
+const changedIndex = splitLinesWithIndex('longer\nb', changedContext).lineIndex;
+assert.deepEqual(oldIndex, [0, 2]);
+assert.deepEqual(changedIndex, [0, 7]);
+assert.notEqual(changedIndex, oldIndex);
+assert.equal(splitLinesWithIndex('longer\nb', changedContext).lineIndex, changedIndex);
+assert.equal(chunkByLineRegex('longer\nb', /^(b)$/, { kind: 'Section' }, changedContext).at(-1).start, 7);
 
 const text = [
   'message Account {',

@@ -1,4 +1,5 @@
 import fs from 'node:fs/promises';
+import { readExactAt } from '../../shared/io/read-exact.js';
 import { runBuildCleanupWithTimeout } from './cleanup-timeout.js';
 const MAX_SHEBANG_READ_BYTES = 256;
 const SHELL_INTERPRETERS = new Set(['sh', 'bash', 'zsh', 'ksh', 'dash']);
@@ -40,7 +41,7 @@ const readShebangLine = async (absPath) => {
   const file = await fs.open(absPath, 'r');
   try {
     const buffer = Buffer.allocUnsafe(MAX_SHEBANG_READ_BYTES);
-    const { bytesRead } = await file.read(buffer, 0, MAX_SHEBANG_READ_BYTES, 0);
+    const { bytesRead } = await readExactAt(file, buffer, 0, buffer.length, 0);
     if (!bytesRead) return '';
     const sample = buffer.subarray(0, bytesRead).toString('utf8');
     const firstNewline = sample.search(/\r?\n/);

@@ -1,5 +1,6 @@
 import { normalizePathForRepo } from '../shared/path-normalize.js';
 import { loadJsonArrayArtifactRows } from '../shared/artifact-io/loaders/core.js';
+import { describeStorageFailure } from '../shared/storage/failure-observation.js';
 
 export const resolveSeedRef = (seed) => {
   if (!seed || typeof seed !== 'object') return null;
@@ -35,13 +36,17 @@ export const resolveSeedCandidates = (seed) => {
 export const buildChunkIndex = (chunkMeta, { repoRoot = null } = {}) => {
   if (!Array.isArray(chunkMeta)) return null;
   const byChunkUid = new Map();
+  const ambiguousChunkUids = new Set();
   const byFile = new Map();
   const bySymbol = new Map();
   for (const chunk of chunkMeta) {
     if (!chunk) continue;
     const entry = { ...chunk };
     const chunkUid = entry.chunkUid || entry.metaV2?.chunkUid || null;
-    if (chunkUid && !byChunkUid.has(chunkUid)) byChunkUid.set(chunkUid, entry);
+    if (chunkUid) {
+      if (!byChunkUid.has(chunkUid)) byChunkUid.set(chunkUid, entry);
+      else ambiguousChunkUids.add(chunkUid);
+    }
     const normalizedFile = normalizePathForRepo(entry.file, repoRoot);
     if (normalizedFile) {
       const list = byFile.get(normalizedFile) || [];
@@ -53,6 +58,7 @@ export const buildChunkIndex = (chunkMeta, { repoRoot = null } = {}) => {
   }
   return {
     byChunkUid,
+    ambiguousChunkUids,
     byFile,
     bySymbol,
     normalizePath: (value) => normalizePathForRepo(value, repoRoot)
@@ -94,10 +100,10 @@ export const resolveChunkCandidatesBySeed = (seedRef, chunkIndex) => {
     const candidate = candidates[index];
     const ref = candidate?.chunkUid
       ? { type: 'chunk', chunkUid: candidate.chunkUid }
-      : candidate?.path
-        ? { type: 'file', path: candidate.path }
-        : candidate?.symbolId
-          ? { type: 'symbol', symbolId: candidate.symbolId }
+      : candidate?.symbolId
+        ? { type: 'symbol', symbolId: candidate.symbolId }
+        : candidate?.path
+          ? { type: 'file', path: candidate.path }
           : null;
     if (!ref) continue;
     for (const chunk of resolveFromNode(ref)) {
@@ -138,7 +144,11 @@ export const resolvePrimaryRef = (seedRef, chunk) => {
     return { type: 'chunk', chunkUid: chunk.chunkUid || chunk.metaV2.chunkUid };
   }
   if (chunk?.file) return { type: 'file', path: chunk.file };
-  return seedRef || null;
+  const resolved = seedRef?.status === 'resolved' ? seedRef.resolved : null;
+  if (typeof resolved?.chunkUid === 'string' && resolved.chunkUid) return { type: 'chunk', chunkUid: resolved.chunkUid };
+  if (typeof resolved?.symbolId === 'string' && resolved.symbolId) return { type: 'symbol', symbolId: resolved.symbolId };
+  if (typeof resolved?.path === 'string' && resolved.path) return { type: 'file', path: resolved.path };
+  return null;
 };
 
 export const resolveChunkUidMapSeedRefs = (seedRef) => {
@@ -164,10 +174,10 @@ export const resolveChunkUidMapSeedRefs = (seedRef) => {
   for (const candidate of candidates) {
     if (candidate?.chunkUid) {
       pushUnique({ type: 'chunk', chunkUid: candidate.chunkUid });
-    } else if (candidate?.path) {
-      pushUnique({ type: 'file', path: candidate.path });
     } else if (candidate?.symbolId) {
       pushUnique({ type: 'symbol', symbolId: candidate.symbolId });
+    } else if (candidate?.path) {
+      pushUnique({ type: 'file', path: candidate.path });
     }
   }
   return refs;
@@ -191,7 +201,7 @@ export const normalizeChunkUidMapRowAsChunk = (row) => {
 export const buildChunkUidMapSeedIndex = async ({
   indexDir,
   manifest,
-  strict,
+  strict = true,
   repoRoot
 } = {}) => {
   if (!indexDir) return null;
@@ -216,13 +226,21 @@ export const buildChunkUidMapSeedIndex = async ({
         byFile.set(normalizedFile, list);
       }
     }
-  } catch {
-    return null;
+  } catch (error) {
+    byChunkUid.clear(); byFile.clear();
+    if (strict !== false) throw error;
+    const declared = Array.isArray(manifest?.pieces) && manifest.pieces.some(entry =>
+      ['chunk_uid_map', 'chunk_uid_map_meta'].includes(entry?.name));
+    const diagnostic = describeStorageFailure(error, { phase: 'context-pack-seed-map' });
+    if (rowsIndexed || declared || !Array.isArray(manifest?.pieces) || diagnostic.code !== 'ERR_MANIFEST_ENTRY_MISSING') throw error;
+    return { byChunkUid, byFile, rowsIndexed: 0, readState: 'optional-absent',
+      degradation: { artifact: 'chunk_uid_map', reason: 'optional-undeclared' } };
   }
   return {
     byChunkUid,
     byFile,
-    rowsIndexed
+    rowsIndexed,
+    readState: 'ready'
   };
 };
 

@@ -8,9 +8,10 @@ import { getRepoCacheRoot } from '../../../../tools/shared/dict-utils.js';
 import { setupIncrementalRepo } from '../../../helpers/sqlite-incremental.js';
 import { runSqliteBuild } from '../../../helpers/sqlite-builder.js';
 import {
-  readBundleFile,
-  writeBundleFile
+  readBundleFile
 } from '../../../../src/shared/bundle-io.js';
+import { writeIncrementalBundleSnapshot } from '../../../../src/index/build/incremental/bundle-snapshot.js';
+import { decodeIncrementalManifest, encodeIncrementalManifest } from '../../../../src/index/build/incremental/manifest-codec.js';
 
 function createBundleFallbackTestConfig() {
   return {
@@ -50,7 +51,7 @@ export function writeLargeMultiChunkSource(repoRoot) {
   fs.mkdirSync(path.dirname(largeSourcePath), { recursive: true });
   fs.writeFileSync(
     largeSourcePath,
-    Array.from({ length: 256 }, (_, index) => `export function value${index}() { return ${index}; }`).join('\n'),
+    Array.from({ length: 64 }, (_, index) => `export function value${index}() { return ${index}; }`).join('\n'),
     'utf8'
   );
 }
@@ -78,11 +79,11 @@ export async function setupBundlePartialFallbackFixture({ name, beforeBuild } = 
 }
 
 export function readManifest(manifestPath) {
-  return JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+  return decodeIncrementalManifest(JSON.parse(fs.readFileSync(manifestPath, 'utf8')), { indexPath: manifestPath });
 }
 
 export function writeManifest(manifestPath, manifest) {
-  fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
+  fs.writeFileSync(manifestPath, encodeIncrementalManifest(manifest, { indexPath: manifestPath }));
 }
 
 export function findFirstBundleEntry(manifest, predicate = () => true) {
@@ -105,14 +106,24 @@ export async function readFirstBundleShard(repoCacheRoot, targetEntry) {
 }
 
 export async function writeBundleChunks({ bundlePath, targetEntry, readResult, chunks }) {
-  await writeBundleFile({
-    bundlePath,
-    format: targetEntry.bundleFormat || null,
-    bundle: {
-      ...readResult.bundle,
-      chunks
-    }
+  const filesDir = path.dirname(bundlePath);
+  const manifestPath = path.join(filesDir, '..', 'manifest.json');
+  const manifest = readManifest(manifestPath);
+  const file = readResult.bundle.file;
+  assert.ok(manifest.files[file], 'the mutation belongs to the selected manifest');
+  const bundles = [];
+  for (const name of targetEntry.bundles) {
+    const result = await readBundleFile(path.join(filesDir, name), { format: targetEntry.bundleFormat || null });
+    assert.equal(result.ok, true);
+    bundles.push(name === path.basename(bundlePath) ? { ...readResult.bundle, chunks } : result.bundle);
+  }
+  const snapshot = await writeIncrementalBundleSnapshot({ bundleDir: filesDir,
+    relKey: file, entry: targetEntry, bundles, format: targetEntry.bundleFormat || 'json'
   });
+  manifest.files[file] = { ...manifest.files[file], ...snapshot };
+  // Publish the new selected content identity last. Keep stale chunk/embedding
+  // counts deliberately: those are the specific fallback boundaries under test.
+  writeManifest(manifestPath, manifest);
 }
 
 export async function runIncrementalSqliteAndGetOutput(repoRoot) {

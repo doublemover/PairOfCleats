@@ -5,7 +5,7 @@ PairOfCleats integration for Sublime Text 3.
 ## Install
 
 1. Install the CLI from the [source checkout](../../README.md#quickstart), using
-   Node.js **24.15.0 or newer** and npm with development dependencies.
+   Node.js **>=26.12.1 <27** and `npm run bootstrap:ci` with development dependencies.
 2. Copy or symlink `sublime/PairOfCleats` into your Sublime `Packages` directory.
 3. Run `PairOfCleats: Open Settings` and set `pairofcleats_path` to the absolute path
    of that checkout's `bin/pairofcleats.js`. Set `node_path` if the required Node
@@ -17,7 +17,37 @@ The package is currently private; these instructions do not assume a published
 global npm package or a globally linked CLI command. CLI/Node paths belong in
 User Settings rather than `.sublime-project` overrides.
 
+## Optional keyboard shortcuts
+
+Installation does not claim any keyboard shortcuts. All commands remain
+available through the command palette and the applicable menus.
+
+To opt in, open `Preferences: Key Bindings` and copy the entries from
+[`keybindings/Windows.json`](keybindings/Windows.json),
+[`keybindings/Linux.json`](keybindings/Linux.json), or
+[`keybindings/OSX.json`](keybindings/OSX.json) into your **User** keymap array.
+Review them against your existing bindings and change any conflicting chords.
+These example JSON files are packaged for reference and are not loaded as
+keymaps. Each supplies five suggested two-step chords:
+
+| Prefix | Second key | Command |
+| --- | --- | --- |
+| `Ctrl+Alt+P` (Windows/Linux), `Super+Alt+P` (macOS) | `S` | Search |
+| same | `Q` | Search selection |
+| same | `D` | Go to definition |
+| same | `R` | Find references |
+| same | `P` | Show progress |
+
+Remove those entries from your User keymap to opt out. Package updates leave
+your User bindings intact; the shipped default and platform keymaps stay empty.
+
 ## Package Control notes
+
+The plugin supports Sublime Text 3's embedded Python 3.3; checkout setup still
+requires the separately documented Python/native build toolchain. Windows stop
+uses a bounded compatible subprocess helper and retains direct termination and
+force-stop escalation when that helper fails. Folder-watch containment checks
+path components, including sibling-prefix and different-drive rejection.
 
 This package avoids external Python dependencies. It relies on the Node runtime
 and the PairOfCleats CLI or local repo binaries.
@@ -46,14 +76,24 @@ Open the command palette and run:
 Core:
 - `pairofcleats_path`: Path to the CLI binary or `bin/pairofcleats.js`.
 - `node_path`: Optional override for the Node.js binary.
-- `index_mode_default`: `code`, `prose`, or `both`.
-- `search_backend_default`: `memory`, `sqlite`, `sqlite-fts`, or `lmdb`.
+- `index_mode_default`: `code`, `prose`, `both`, `records`, `extracted-prose`, or `all`.
+- `search_backend_default`: `auto`, `memory`, `sqlite`, `sqlite-fts`, `lmdb`, or CLI-only `tantivy`. The API rejects backends it does not admit.
 - `search_limit`: Default `--top` value.
 - `search_prompt_options`: Prompt for mode/backend/limit each search.
 - `history_limit`: Maximum queries stored per project.
 
 API:
+- Success and error response bodies have a 20 MiB byte ceiling before decoding.
+  An oversized response is closed and reported as `api-response-too-large`;
+  narrow the request or reduce result volume. HTTP error text and overflow
+  previews contain at most 4,096 characters.
 - `api_server_url`: Base URL for API-backed workflows.
+- Authenticated servers use `PAIROFCLEATS_API_TOKEN` from User Settings `env`,
+  falling back to the editor process environment. Credentials are sent only to
+  the origin configured by the user in `api_server_url` (scheme, host and port).
+  Project settings and caller-provided workflow settings cannot approve another
+  destination or override the token. Credential-bearing redirects are refused,
+  including redirects within the same origin; use the final API URL directly.
 - `api_timeout_ms`: Timeout for API requests in milliseconds.
 - `api_execution_mode`: `cli`, `prefer`, or `require`.
   - `search` and symbol-driven navigation/completion can use the API path.
@@ -160,6 +200,209 @@ Use `PairOfCleats: Project Settings Template` to open a copy/paste starter paylo
 
 ## CLI output contract
 
+Subprocess and API requests belong to their source window. Closing a window,
+unloading the plugin or changing project context cancels owned work and prevents
+late panels, history updates and navigation. Shutdown waits for bounded resource
+settlement and reports unconfirmed cleanup instead of equating cleared task UI
+with terminated processes. A newer foreground search supersedes earlier work
+only in the same window. Native host disable/update/uninstall and process-tree
+qualification remain separate from the authored lifecycle fixtures.
+
 The Sublime integration is designed to use `--json` output so it can access full
 metadata when available. It does not assume the compact JSON contract used by
 other editors.
+
+Risk Explain resolves chunk, file and symbol seeds through the canonical context-pack
+code-generation owner. Editor requests and exported results retain repository, mode,
+concrete index directory and index signature. Stale repo-local index-code artifacts
+do not provide a fallback. Saved qualified requests remain pinned; if that generation
+or chunk is unavailable, run the current command deliberately to choose current evidence.
+
+## Selected repositories and bounded evidence
+
+Use **Select Repository** / **Clear Selected Repository** to switch a window's read-only target without editing its project or starting an index. Ambiguous multi-root searches and **Show Effective Settings** offer the same target choice. Removed roots are discarded. The effective-settings panel shows target, source of each supported override and corrections; runtime, API and environment authority stays in User Settings and secrets/arguments are redacted.
+
+**Browse Indexed Matches** deliberately admits an empty query plus an effective filter. **Load More Indexed Matches** reuses frozen options and generation identity, appends exact IDs without merging spelling collisions, and stops at the 2,000 hit view bound. Restart after a generation/cursor error. Ranked text results remain top-k; ordinary empty/cancelled search prompts still do nothing.
+
+Goto Definition / Find References use the shared navigation consumer with saved-source SHA-256, document version and one-based UTF-16 cursor coordinates. Dirty or stale sources do not produce precise indexed joins. Ambiguous candidates can be inspected without pooling references. **Related Search (Approximate)** retains the ranked-search fallback under an honest label. Qualified source selections retain start/end columns, including Unicode and multiline spans; unsupported generated/byte mappings remain explicit.
+
+**Semantic Evidence (Experimental)** resolves the first-use current saved cursor through the canonical local navigation owner, then offers its exact target/generation or source/structural/type/literal selectors. Generation discovery in CLI/API mode reads the canonical selected-source context section; explicit immutable `baseBuildId` entry remains available when discovery is unsupported. Git revisions and status paths do not become semantic generation IDs. Type queries select declared/compiler sources and roles; scalar types include empty strings, boolean, null, finite numbers and bigint. Numeric input is the exact recorded decimal representation, with no bigint `n` suffix. Generation, refs, extraction/analysis/response coverage and stopped-frontier warnings remain visible. Requests retain 128-record, 512-edge, 64 KiB and 250 ms bounds where applicable; native panels choose depth 1–64, edge kinds and optional slot/ordinal. API menus offer advertised operations. Persistent API sessions offer bounded More; CLI cursors expire with their process. Enrichment exposes planning only, and empty/partial output is never proof of no flow.
+
+Exact source opening verifies original disk-byte identity and the actual loaded buffer. Observed BOM removal and CR/LF/CRLF newline projections preserve protocol line/UTF-16 column mapping. Semantic spans and navigation use the same contained, bounded original-byte reader; source spans count bare CR as a line break and reject CRLF interiors and surrogate splits. Ranges crossing a removed BOM or unsupported byte/generated mappings remain unavailable. Other buffer changes never reuse indexed ranges. These new source assertions remain unvalidated; supported Sublime-host acceptance is separate.
+
+The original-byte verifier is bounded to 4 MiB and rechecks source identity after loading. Precise columns outside a line or inside a surrogate pair are refused. Deferred source selection stops when its window/context is invalidated or a newer source-opening action supersedes it; loading has a five-second selection deadline. Evidence selection and purpose/save inputs keep their original operation lifetime, so a late native callback cannot start a new request or write after context replacement. Semantic operation failures retain the prior evidence picker without automatically replaying the request.
+
+Resolved indexed navigation retains the original source view/buffer, version, file and cursor through result selection, and its original source check continues while the target loads. Equal-text sibling views and stale source requests cannot supply that authority. See [native request lifetime and qualification limits](../../docs/contracts/editor-native-request-lifetime.md). The additional source behavior and authored controls remain unvalidated in a Sublime host.
+
+In local CLI mode, **Semantic Evidence** rechecks file bytes, buffer version and cursor selection before Find. Ambiguous/partial or changed cursor evidence retains a source/structural selector instead of a unique target. Generation discovery is read-only and bounded: 8 KiB primary context, graph/risk expansion disabled, and the canonical semantic section keeps its existing limits. Subsequent operations preserve that returned generation.
+
+From a search/context/risk hit action, **Create Context from This Evidence**, or use **Copy / Export Selected Context** for up to eight seeds. The native keyboard picker toggles items, previews canonical packets, allows exclusions, and deliberately copies/saves JSON or Markdown. Each packet uses a 24 KiB context budget and the export is bounded to 256 KiB. JSON is an array of unchanged canonical packets; purpose and omission notes are in Markdown. Actual byte size is shown; token estimates are unavailable. Current/indexed distinctions, generation/source provenance, confidence, truncation and incomplete-frontier warnings are retained. Collection captures current indexed context and does not certify an older result generation. Export requires an explicit destination and never transmits to an agent.
+
+**Inspect Tasks** identifies exact repository/operation IDs and offers the selected task's bounded log tail (up to 128 lines and 64 KiB), cancellation and registered diagnostics. Eight recent completed observations retain logs without process callbacks. Settings target the selected task's repository; doctor/health actions explicitly use the current repository. A failed build offers a deliberate retry with mode/repository selection, except when process-tree cleanup remains unconfirmed. Structured `poc.progress@2` events supply stages and bounded counters; quiet/missing phases stay indeterminate. Cancellation waits for owned process/HTTP settlement; timeout, cleanup uncertainty and errors remain failures even after a requested stop or zero exit. Starting another watch requires the prior owned watch and termination helper to settle, followed by a deliberate start. There is no automatic destructive rebuild/restart.
+
+**Show Effective Settings** includes a native **Inspect Installation / Transport Evidence** action. It observes CLI/runtime versions through the configured User-owned installation, and service capabilities only for an API policy. Each version observation has a three-second/8 KiB output bound; no installation, dependency setup or build runs. Missing or malformed identities stay unobserved, and settings/doctor recovery actions remain registered native commands.
+
+Typed index-watch lifecycle frames can show **idle-watch**, indexing and degraded states. Idle requires admitted watcher, quiescence and no queued/replay work. Watcher admission, a canonical publication commit/build ID and search readiness are separate observations; search/backend readiness remains unknown. A typed degraded state retains its reason/code and publication evidence until the watch owner explicitly recovers. Terminal ownership failures are observed even after UI publication is revoked; they do not create late result panels, successful cancellation, automatic replacement or saved-PID authority.
+
+**Select Service Repository** separates the API host's repository path from this editor's local checkout. `/status` must admit that service root and report a matching Git revision with clean service source; editor worktree freshness remains unverified. Paths are mapped using service-host path rules and traversal is rejected. Non-Git identities require local CLI or another qualified workflow. Sublime has no automatic SSH/WSL/container shell transport: run a compatible CLI on the host where Sublime executes, or deliberately select supported API operations. `require` never silently switches to CLI. Connection recovery does not replay mutations or change binds/credentials.
+
+Search, symbol completion, Server Status and Index Health retain the repository,
+endpoint and nested settings observed before service mapping. Switching the
+selected repository during the native mapping prompt cannot retarget that
+pending request. Status and health map the service repository explicitly and
+display both roots. A local Git revision change during mapping requires a new
+selection; stale saved mappings cannot supply that revision. Cancelling
+**Select Repository** keeps the previous choice. The additional command-level
+regressions are authored; supported host/topology qualification remains open.
+
+Semantic seed prompts retain the originally selected source view, file, buffer
+version and cursor. A later active file cannot replace that source. Requests,
+response packets, record actions and More retain independent captured data;
+transport annotations and caller edits cannot change the displayed evidence.
+New semantic operations supersede pending operations, while deliberate Back and
+failure recovery retain the previous frontier. More refuses repeated cursors
+and stops at 128 pages. These controls do not certify provider completeness or
+supported Sublime host behavior.
+
+Task observations schedule at most one pending progress render per window on
+Sublime's UI thread. Noisy output coalesces until that render runs; this is a
+work bound, not a measured latency claim. Revoked operations cannot reacquire
+UI authority while settling. Read, close, wait and settlement-callback failures
+remain failures even after a zero exit, with the initiating diagnostic preserved
+beside cleanup uncertainty. Unconfirmed cleanup stays registered for inspection.
+
+Indexed browsing retains an observed matching total through later pages that
+omit it. A page cannot claim exhaustion while known matches remain, or advertise
+More after all known identities are loaded. Such contradictions retain the
+previous result set and selection. A genuinely unknown producer total is shown
+as unknown; it is never rendered as a complete count.
+
+The installed package loads only its canonical bundled runtime contract and
+refuses malformed, oversized or unsupported revisions with reinstall guidance.
+The archive root and package identity remain `PairOfCleats.sublime-package`.
+API endpoints are HTTP(S) bases without user-info, query secrets or fragments;
+bearer credentials remain destination-bound User/environment values. Received
+body activity does not renew an elapsed request deadline. HTTP cancellation
+requests an owned response close off the UI thread, and shutdown accounts for
+both the request worker and closer. Original read/byte-budget failures survive
+close faults; unconfirmed close remains a failure rather than successful stop.
+These runtime/installed-consumer controls are authored, with behavior and real
+Sublime/Python/network qualification deferred.
+
+Completion edits retain a private, bounded original target receipt as well as
+the public JSON command arguments. Renames, window moves, project replacement,
+close and unload revoke that target; moving the caret alone still replaces the
+original admitted word. History and hit-action pickers retain their original
+foreground request lifetime. Invalid saved limits, modes, booleans and filters
+remain incomplete scope instead of being coerced into current defaults, and a
+failed history save retains the previous acknowledged project state.
+
+Risk seed resolution, standalone execution and optional export retain one
+original repository/request scope. Direct chunks must agree with the canonical
+context packet; retained file/symbol selections execute their qualified chunk
+UID, and a different returned chunk cannot inherit that qualification. The panel
+shows the selected index directory and context-pack signature, while stating
+that standalone risk output does not independently reattest the signature.
+Context from the active source resolves that source's repository before the
+request. Late prompts/results cannot export after project or window revocation.
+
+Process settlement also joins its owned watchdog/deadline threads. Registration
+before worker start has an explicit bounded wait, and auxiliary/execution/output
+startup faults retain the original error while stopping and closing the owned
+child resources. An exited parent with pending output does not release its
+operation. Windows fallback parent termination still cannot certify descendant
+cleanup; host process-tree and minimum-runtime qualification remain open.
+
+Reviewed context collection freezes the selected hit membership before asking
+for its purpose and copies each received packet before preview. Older toggle,
+response, review and save callbacks cannot revive an earlier native step or
+publish twice. Missing primary source identity remains visibly unresolved;
+partial-frontier warnings and generation provenance remain in copied packets.
+Clipboard/save actions continue to require a deliberate native selection.
+
+Reviewed evidence and analysis JSON exports share one direct file-save owner.
+It stages the exact UTF-8 bytes beside the destination, checks write/flush/fsync/
+close and the original request before replacement, and never truncates the prior
+destination. Original save errors retain independent close/removal failures and
+the path of any staging file whose cleanup failed. Opening a successfully saved
+file is a separate host notification; its failure cannot turn the save into a
+failed publication or replay the write. This uses Python 3.3-era file APIs and
+does not certify crash durability or native host/filesystem behavior. Fault and
+actual-consumer regressions are authored; execution remains deferred.
+
+Search query, mode/backend/ANN/time/limit steps and analysis seed inputs now
+seal each native callback after acceptance or cancellation. A queued callback
+cannot revive a cancelled step, skip a newer panel or execute twice. Project or
+request replacement also revokes the chain. Search prompts retain their original
+runtime and effective settings through final CLI/API dispatch; changing User
+Settings during a prompt does not substitute a different execution profile.
+Credentials are still read only through the destination-bound grant at request
+time. The additional actual-command regressions remain unrun.
+
+Service repository admission now remains a child of the original search,
+semantic, collection or diagnostics request, so superseding that request also
+revokes its status work and prompts. Status must name the selected service root
+as well as the matching clean revision. Input/confirmation/HTTP callbacks are
+consumed once; cancelled or duplicate steps cannot replace a mapping. Failed
+mapping persistence retains the previous cache and never acknowledges a new
+selection. Deferred regressions also cover replacing the credential endpoint
+while an original request is pending: it cannot borrow the replacement token.
+
+Stored result sessions, attached buffers and reopened native pickers now retain
+independent nested source/evidence snapshots; edits through a transport or a
+previous reader cannot replace their acknowledged references. Private indexed
+continuation receipts retain the same isolation. A history-save failure reports
+that failure while keeping valid search results usable, with a scope recheck
+before publication. Search, symbol, map, context and risk consumers preserve an
+originating owned failure ahead of secondary process-exit text, and negative
+diagnostic envelopes cannot claim successful operator reports. These source and
+actual-consumer fixture changes remain unqualified until deferred execution.
+
+Ordinary search prompts now resolve their repository before capturing settings
+or showing query/options input. The chosen root stays in the pending request,
+so a later active file or explicit repository choice cannot substitute another
+target before dispatch. Ambiguous roots use the existing repository picker.
+
+Map generation retains one operation and a settings snapshot from repository
+selection through its options and CLI settlement. New maps, cancellation and
+project replacement revoke older native steps/results. Saved map packets are
+independent snapshots and failed persistence retains the acknowledged entry.
+History/report failures are reported separately from successfully generated
+output, and a browser refusal is no longer reported as a successful open.
+Actual command, persistence and host-notification regressions are authored and
+unrun; native browser/filesystem qualification remains pending.
+
+Semantic generation, selector, literal and trace-bound inputs consume each native
+step once, including cancellation. Accepted depth/kind/slot choices cannot be
+replaced by queued callbacks, and evidence/action pickers seal their previous
+steps. CLI requests reuse the direct-save staging owner for exact flushed bytes;
+the runner's settlement callback owns request-file removal even when publication
+is revoked. Removal faults remain settlement failures with the owned path, and
+dispatch failures retain their initiating error beside independent cleanup errors.
+These consumer and fault fixtures are authored, unrun, and do not qualify a real
+Sublime installation or the Python 3.3 runtime.
+
+Disposal now revokes publication before adapter cancellation, visits independent
+adapters after individual failures and snapshots task membership during reentrant
+completion. Watch/task cancellation errors remain visible uncertainty. A native
+window-close request reaps its old work without permanently disabling a window
+when Sublime's save prompt cancels that close. Repository selection acknowledges
+native persistence before replacing its fallback cache. These boundary fixtures
+are authored and unrun; actual close/unload behavior still needs supported-host
+qualification.
+
+Exact saved-source cursor requests and line/column selections derive protocol
+CR/LF/CRLF boundaries from the verified original text, then invert only the
+actually observed BOM/newline buffer form. They do not depend on a host's LF-only
+line table. Split-surrogate, CRLF-interior, removed-BOM and out-of-range boundaries
+are refused. Qualified range helpers retain an internal original UTF-8 byte-span
+witness with contained path, source digest and original byte length; they do not
+infer task identity, generation, exploration or use telemetry. These controls are
+source-authored and unrun; supported Sublime/Python host acceptance remains separate.
+
+Exact source opening also binds the returned native view to the originally
+requested local file. Equal bytes in a sibling or scratch buffer do not supply
+that file identity. Delayed highlighting retains the original file and a copy
+of its hit fields, rechecks the view filename before publication, and refuses a
+rename or context replacement without changing that view's selection or prior
+highlight. These additional actual-opening controls are authored and unrun.

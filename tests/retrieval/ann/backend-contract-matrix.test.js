@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
+import { quantizeEmbeddingVector } from '../../../src/shared/embedding-quantization.js';
 import { resolveLanceDbTarget } from '../../../src/shared/lancedb.js';
 import { resolveHnswTarget } from '../../../src/shared/hnsw.js';
 import {
@@ -50,11 +51,12 @@ assert.deepEqual(resolveAnnOrder('auto'), ['lancedb', 'sqlite-vector', 'hnsw', '
   const abortedSignal = { aborted: true };
 
   const dense = createDenseAnnProvider();
-  assert.equal(dense.isAvailable({ idx: { denseVec: { vectors: [[0.1, 0.2]] } }, embedding }), true);
-  assert.equal(dense.isAvailable({ idx: { denseVec: { vectors: [[0.1, 0.2]] } }, embedding: [] }), false);
+  const denseVec = { vectors: [quantizeEmbeddingVector([0.1, 0.2])] };
+  assert.equal(dense.isAvailable({ idx: { denseVec }, embedding }), true);
+  assert.equal(dense.isAvailable({ idx: { denseVec }, embedding: [] }), false);
   assert.deepEqual(
     dense.query({
-      idx: { denseVec: { vectors: [[0.1, 0.2]] } },
+      idx: { denseVec },
       embedding,
       topN: 5,
       candidateSet: null,
@@ -64,7 +66,7 @@ assert.deepEqual(resolveAnnOrder('auto'), ['lancedb', 'sqlite-vector', 'hnsw', '
   );
   assert.deepEqual(
     dense.query({
-      idx: { denseVec: { vectors: [[0.1, 0.2]] } },
+      idx: { denseVec },
       embedding,
       topN: 5,
       candidateSet: new Set(),

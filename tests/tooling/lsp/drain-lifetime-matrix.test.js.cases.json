@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["kill-timeout", "graceful-timeout-force", "delayed-close", "real-server-exit"]
+}

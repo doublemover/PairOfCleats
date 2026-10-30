@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["digest", "edited", "queued", "queued-distinct", "cancelled-epoch", "cancelled-creation", "unconfirmed", "different-root", "invalid"]
+}

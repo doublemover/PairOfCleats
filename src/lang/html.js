@@ -1,4 +1,7 @@
-import { parse as parseHtml } from 'parse5';
+import { prepareHtmlDocument, releaseHtmlDocument, getHtmlPreparationDiagnostics, withHtmlDocument, htmlPreparationProfileKey } from './html-prepared-document.js';
+import { throwIfAborted } from '../shared/abort.js';
+import { installedPackageVersion } from '../shared/installed-package-version.js';
+import { attachImportExtraction, createImportExtraction, getImportExtraction, toParsedLiteralImportEntries } from '../shared/import-extraction.js';
 import { buildLineIndex, offsetToLine } from '../shared/lines.js';
 import { buildTreeSitterChunks } from './tree-sitter.js';
 import { buildJsChunks } from './javascript.js';
@@ -239,12 +242,14 @@ function extractTagSignature(text, start, end) {
   return slice.slice(0, close + 1).replace(/\s+/g, ' ').trim();
 }
 
-function walkHtml(node, visitor) {
+function walkHtml(node, visitor, recordVisit = null) {
   if (!node || typeof node !== 'object') return;
+  if (recordVisit) recordVisit();
   visitor(node);
-  const children = node.childNodes || node.content?.childNodes || [];
+  const children = node.tagName === 'template' && node.content
+    ? node.content.childNodes : node.childNodes;
   if (!Array.isArray(children)) return;
-  for (const child of children) walkHtml(child, visitor);
+  for (const child of children) walkHtml(child, visitor, recordVisit);
 }
 
 function addKeywordEntries(content, keywords) {
@@ -258,87 +263,139 @@ function addKeywordEntries(content, keywords) {
   }
 }
 
-function extractHtmlMetadata(text) {
-  let document = null;
-  try {
-    document = parseHtml(text, { sourceCodeLocationInfo: true });
-  } catch {
-    return { imports: [], title: null, description: null, keywords: [], scripts: [], links: [] };
-  }
-  const imports = new Set();
-  const scripts = [];
-  const links = [];
-  let title = null;
-  let description = null;
-  const keywords = new Set();
-  walkHtml(document, (node) => {
-    if (!node || typeof node.nodeName !== 'string') return;
-    const tag = node.nodeName.toLowerCase();
-    if (tag === 'title' && Array.isArray(node.childNodes)) {
-      const textNode = node.childNodes.find((child) => child.nodeName === '#text');
-      if (textNode?.value) title = textNode.value.trim();
+function extractHtmlMetadata(text, options = {}, prepared = null) {
+  return withHtmlDocument(text, options, prepared, ({ document, status, recordVisit }) => {
+    const qualifyImports = (imports, occurrences, reason = null) => {
+      Object.defineProperty(imports, 'occurrences', { value: occurrences });
+      return attachImportExtraction(imports, createImportExtraction({ entries: imports, text: typeof text === 'string' ? text : null,
+        producerId: 'html-parsed-attributes', parser: { id: 'parse5', version: installedPackageVersion('parse5'), available: true },
+        parserCoverage: reason ? 'unavailable' : 'complete', parserReason: reason,
+        scope: 'parse5-recovered-dom-script-src-link-href', observedEntries: occurrences.length }));
+    };
+    if (status !== 'parsed') {
+      return { imports: qualifyImports([], [], 'parse-failed'), title: null, description: null, keywords: [], scripts: [], links: [] };
     }
-    if (!Array.isArray(node.attrs)) return;
-    let attrName = '';
-    let attrProperty = '';
-    let attrContent = '';
-    let attrSrc = '';
-    let attrHref = '';
-    for (const attr of node.attrs) {
-      const key = String(attr?.name || '').toLowerCase();
-      if (!key) continue;
-      const value = attr?.value || '';
-      if (key === 'name') attrName = value;
-      else if (key === 'property') attrProperty = value;
-      else if (key === 'content') attrContent = value;
-      else if (key === 'src') attrSrc = value;
-      else if (key === 'href') attrHref = value;
-    }
-    if (tag === 'meta') {
-      const name = attrName || attrProperty || '';
-      const content = attrContent || '';
-      if (name === 'description' && content) description = content;
-      if (name === 'keywords' && content) {
-        addKeywordEntries(content, keywords);
+    const imports = new Set();
+    const occurrences = [];
+    const scripts = [];
+    const links = [];
+    let title = null;
+    let description = null;
+    const keywords = new Set();
+    const recordImport = (node, attribute, specifier) => {
+      imports.add(specifier);
+      const location = node.sourceCodeLocation?.attrs?.[attribute];
+      occurrences.push({ specifier, attribute, rawAttribute: location ? text.slice(location.startOffset, location.endOffset) : null,
+        source: location ? { start: location.startOffset, end: location.endOffset, encoding: 'utf16le-js-string' } : null });
+    };
+    walkHtml(document, (node) => {
+      if (!node || typeof node.nodeName !== 'string') return;
+      const tag = node.nodeName.toLowerCase();
+      if (tag === 'title' && Array.isArray(node.childNodes)) {
+        const textNode = node.childNodes.find((child) => child.nodeName === '#text');
+        if (textNode?.value) title = textNode.value.trim();
       }
-    }
-    if (tag === 'script') {
-      const src = attrSrc || '';
-      if (src) {
-        imports.add(src);
-        scripts.push(src);
+      if (!Array.isArray(node.attrs)) return;
+      let attrName = '';
+      let attrProperty = '';
+      let attrContent = '';
+      let attrSrc = '';
+      let attrHref = '';
+      for (const attr of node.attrs) {
+        const key = String(attr?.name || '').toLowerCase();
+        if (!key) continue;
+        const value = attr?.value || '';
+        if (key === 'name') attrName = value;
+        else if (key === 'property') attrProperty = value;
+        else if (key === 'content') attrContent = value;
+        else if (key === 'src') attrSrc = value;
+        else if (key === 'href') attrHref = value;
       }
-    }
-    if (tag === 'link') {
-      const href = attrHref || '';
-      if (href) {
-        imports.add(href);
-        links.push(href);
+      if (tag === 'meta') {
+        const name = attrName || attrProperty || '';
+        const content = attrContent || '';
+        if (name === 'description' && content) description = content;
+        if (name === 'keywords' && content) {
+          addKeywordEntries(content, keywords);
+        }
       }
-    }
+      if (tag === 'script') {
+        const src = attrSrc || '';
+        if (src) {
+          recordImport(node, 'src', src);
+          scripts.push(src);
+        }
+      }
+      if (tag === 'link') {
+        const href = attrHref || '';
+        if (href) {
+          recordImport(node, 'href', href);
+          links.push(href);
+        }
+      }
+    }, () => recordVisit('metadata'));
+    return {
+      imports: qualifyImports(Array.from(imports), occurrences),
+      title,
+      description,
+      keywords: Array.from(keywords),
+      scripts,
+      links
+    };
   });
-  return {
-    imports: Array.from(imports),
-    title,
-    description,
-    keywords: Array.from(keywords),
-    scripts,
-    links
-  };
 }
 
-export function getHtmlMetadata(text) {
-  return extractHtmlMetadata(text);
+const preparedContexts = new WeakMap();
+const cloneHtmlMetadata = metadata => {
+  const imports = [...metadata.imports], receipt = getImportExtraction(metadata.imports);
+  Object.defineProperty(imports, 'occurrences', { value: (metadata.imports.occurrences || []).map(value => ({
+    ...value, source: value.source ? { ...value.source } : null
+  })) });
+  if (receipt) attachImportExtraction(imports, receipt);
+  return { ...metadata, imports, keywords: [...metadata.keywords], scripts: [...metadata.scripts], links: [...metadata.links] };
+};
+const readPreparedMetadata = (text, options) => {
+  const entry = preparedContexts.get(options?.context);
+  return entry && entry.text === text && entry.profile === htmlPreparationProfileKey(options)
+    ? cloneHtmlMetadata(entry.metadata) : null;
+};
+
+export function getHtmlMetadata(text, options = {}, prepared = null) {
+  throwIfAborted(options?.signal || options?.abortSignal);
+  return readPreparedMetadata(text, options) || extractHtmlMetadata(text, options, prepared);
 }
 
-function collectHtmlImportsFast(text) {
+function collectHtmlImportsFast(text, options) {
+  const prepared = readPreparedMetadata(text, options);
+  if (prepared) return prepared.imports;
   if (!text || !HTML_IMPORT_TAG_HINT.test(text) || !HTML_IMPORT_ATTR_HINT.test(text)) return [];
-  return extractHtmlMetadata(text).imports;
+  return extractHtmlMetadata(text, options).imports;
 }
 
-export function collectHtmlImports(text) {
-  return collectHtmlImportsFast(text);
+export function collectHtmlImports(text, options = {}) {
+  throwIfAborted(options?.signal || options?.abortSignal);
+  return collectHtmlImportsFast(text, options);
 }
+
+export const collectHtmlImportEntries = (text, options) => toParsedLiteralImportEntries(collectHtmlImports(text, options));
+
+export const releaseHtmlPreparedContext = context => preparedContexts.delete(context);
+
+export const prepareHtmlChunkContext = (text, options = {}) => {
+  const prepared = prepareHtmlDocument(text, { forceParseError: options?.html?.forceParseError === true,
+    signal: options?.signal || options?.abortSignal });
+  let context;
+  try {
+    const htmlChunks = buildHtmlChunks(text, options, prepared), metadata = extractHtmlMetadata(text, options, prepared);
+    throwIfAborted(options?.signal || options?.abortSignal);
+    context = { htmlChunks, htmlMeta: cloneHtmlMetadata(metadata) };
+    // Only compact facts survive tree projection; the weak context lifetime is
+    // the owning file attempt. Returned arrays cannot mutate private reuse facts.
+    preparedContexts.set(context, { text, profile: htmlPreparationProfileKey(options), metadata });
+  } finally { releaseHtmlDocument(prepared); }
+  context.htmlPreparation = getHtmlPreparationDiagnostics(prepared);
+  return context;
+};
 
 function normalizeLang(raw) {
   if (!raw) return null;
@@ -414,6 +471,7 @@ function resolveEmbeddedChunks(language, text, options) {
 
 function buildEmbeddedChunks(text, blocks, options = {}) {
   const chunks = [];
+  const lines = buildLineIndex(text);
   for (const block of blocks) {
     if (!block || block.start == null || block.end == null || block.end <= block.start) continue;
     const slice = text.slice(block.start, block.end);
@@ -421,11 +479,14 @@ function buildEmbeddedChunks(text, blocks, options = {}) {
     if (Array.isArray(embedded) && embedded.length) {
       for (const chunk of embedded) {
         if (!chunk) continue;
+        const start = chunk.start + block.start, end = chunk.end + block.start;
         chunks.push({
           ...chunk,
-          start: chunk.start + block.start,
-          end: chunk.end + block.start,
-          meta: { ...chunk.meta, embeddedLanguage: block.language, embeddedTag: block.tag }
+          start,
+          end,
+          meta: { ...chunk.meta, startLine: offsetToLine(lines, start),
+            endLine: offsetToLine(lines, end > start ? end - 1 : start),
+            embeddedLanguage: block.language, embeddedTag: block.tag }
         });
       }
       continue;
@@ -444,101 +505,99 @@ function buildEmbeddedChunks(text, blocks, options = {}) {
   return chunks;
 }
 
-export function buildHtmlChunks(text, options = {}) {
+export function buildHtmlChunks(text, options = {}, prepared = null) {
+  throwIfAborted(options?.signal || options?.abortSignal);
   const treeChunks = buildTreeSitterChunks({ text, languageId: 'html', options });
   const filteredTree = Array.isArray(treeChunks)
     ? treeChunks.filter((chunk) => IMPORTANT_TAGS.has(String(chunk.name || '').toLowerCase()))
     : null;
-  let document = null;
-  try {
-    if (options?.html?.forceParseError === true) {
-      throw new Error('forced parse5 error');
+  return withHtmlDocument(text, options, prepared, ({ document, status, recordVisit }) => {
+    if (status !== 'parsed') {
+      if (filteredTree && filteredTree.length) return filteredTree;
+      if (Array.isArray(treeChunks) && treeChunks.length) return treeChunks;
+      if (!text) return null;
+      return [{
+        start: 0,
+        end: text.length,
+        name: 'html',
+        kind: 'Document',
+        meta: { fallback: 'parse5-error' }
+      }];
     }
-    document = parseHtml(text, { sourceCodeLocationInfo: true });
-  } catch {
-    if (filteredTree && filteredTree.length) return filteredTree;
-    if (Array.isArray(treeChunks) && treeChunks.length) return treeChunks;
-    if (!text) return null;
-    return [{
-      start: 0,
-      end: text.length,
-      name: 'html',
-      kind: 'Document',
-      meta: { fallback: 'parse5-error' }
-    }];
-  }
-  const lineIndex = buildLineIndex(text);
-  const chunks = [];
-  const embeddedBlocks = [];
-  walkHtml(document, (node) => {
-    if (!node || typeof node.nodeName !== 'string') return;
-    const tag = node.nodeName.toLowerCase();
-    if (tag.startsWith('#')) return;
-    const loc = node.sourceCodeLocation;
-    const start = loc?.startOffset;
-    const end = loc?.endOffset;
-    const hasRange = Number.isFinite(start) && Number.isFinite(end) && end > start;
-    if (IMPORTANT_TAGS.has(tag) && hasRange) {
-      const startLine = offsetToLine(lineIndex, start);
-      const endLine = offsetToLine(lineIndex, Math.max(start, end - 1));
-      chunks.push({
-        start,
-        end,
-        name: tag,
-        kind: 'ElementDeclaration',
-        meta: {
-          tag,
-          startLine,
-          endLine,
-          signature: extractTagSignature(text, start, end)
+    const lineIndex = buildLineIndex(text);
+    const chunks = [];
+    const embeddedBlocks = [];
+    walkHtml(document, (node) => {
+      if (!node || typeof node.nodeName !== 'string') return;
+      const tag = node.nodeName.toLowerCase();
+      if (tag.startsWith('#')) return;
+      const loc = node.sourceCodeLocation;
+      const start = loc?.startOffset;
+      const end = loc?.endOffset;
+      const hasRange = Number.isFinite(start) && Number.isFinite(end) && end > start;
+      if (IMPORTANT_TAGS.has(tag) && hasRange) {
+        const startLine = offsetToLine(lineIndex, start);
+        const endLine = offsetToLine(lineIndex, Math.max(start, end - 1));
+        chunks.push({
+          start,
+          end,
+          name: tag,
+          kind: 'ElementDeclaration',
+          meta: {
+            tag,
+            startLine,
+            endLine,
+            signature: extractTagSignature(text, start, end)
+          }
+        });
+      }
+      if (!hasRange) return;
+      if (tag === 'script' || tag === 'style') {
+        const innerStart = loc?.startTag?.endOffset;
+        const innerEnd = loc?.endTag?.startOffset;
+        if (Number.isFinite(innerStart) && Number.isFinite(innerEnd) && innerEnd > innerStart) {
+          const attrs = collectLangAttrs(node.attrs);
+          const language = tag === 'style' ? 'css' : (extractLangFromAttrs(attrs) || 'javascript');
+          embeddedBlocks.push({
+            start: innerStart,
+            end: innerEnd,
+            language,
+            tag,
+            kind: tag === 'style' ? 'StyleBlock' : 'ScriptBlock',
+            name: tag
+          });
         }
-      });
-    }
-    if (!hasRange) return;
-    if (tag === 'script' || tag === 'style') {
-      const innerStart = loc?.startTag?.endOffset;
-      const innerEnd = loc?.endTag?.startOffset;
-      if (Number.isFinite(innerStart) && Number.isFinite(innerEnd) && innerEnd > innerStart) {
-        const attrs = collectLangAttrs(node.attrs);
-        const language = tag === 'style' ? 'css' : (extractLangFromAttrs(attrs) || 'javascript');
-        embeddedBlocks.push({
-          start: innerStart,
-          end: innerEnd,
-          language,
-          tag,
-          kind: tag === 'style' ? 'StyleBlock' : 'ScriptBlock',
-          name: tag
-        });
       }
-    }
-    if (tag === 'code' || tag === 'pre') {
-      const innerStart = loc?.startTag?.endOffset;
-      const innerEnd = loc?.endTag?.startOffset;
-      if (Number.isFinite(innerStart) && Number.isFinite(innerEnd) && innerEnd > innerStart) {
-        const attrs = collectLangAttrs(node.attrs);
-        const language = extractLangFromAttrs(attrs);
-        embeddedBlocks.push({
-          start: innerStart,
-          end: innerEnd,
-          language: language || 'text',
-          tag,
-          kind: 'CodeBlock',
-          name: language ? `code:${language}` : 'code'
-        });
+      if (tag === 'code' || tag === 'pre') {
+        const innerStart = loc?.startTag?.endOffset;
+        const innerEnd = loc?.endTag?.startOffset;
+        if (Number.isFinite(innerStart) && Number.isFinite(innerEnd) && innerEnd > innerStart) {
+          const attrs = collectLangAttrs(node.attrs);
+          const language = extractLangFromAttrs(attrs);
+          embeddedBlocks.push({
+            start: innerStart,
+            end: innerEnd,
+            language: language || 'text',
+            tag,
+            kind: 'CodeBlock',
+            name: language ? `code:${language}` : 'code'
+          });
+        }
       }
-    }
+    }, () => recordVisit('chunks'));
+    const embeddedChunks = buildEmbeddedChunks(text, embeddedBlocks, options);
+    const baseChunks = filteredTree && filteredTree.length ? filteredTree : chunks;
+    const merged = baseChunks.concat(embeddedChunks);
+    if (!merged.length) return null;
+    merged.sort((a, b) => a.start - b.start);
+    return merged;
   });
-  const embeddedChunks = buildEmbeddedChunks(text, embeddedBlocks, options);
-  const baseChunks = filteredTree && filteredTree.length ? filteredTree : chunks;
-  const merged = baseChunks.concat(embeddedChunks);
-  if (!merged.length) return null;
-  merged.sort((a, b) => a.start - b.start);
-  return merged;
 }
 
 export function buildHtmlRelations(text, htmlChunks, htmlMeta) {
   const imports = Array.isArray(htmlMeta?.imports) ? htmlMeta.imports : [];
-  return { imports, exports: [], calls: [], usages: [], importLinks: [], functionMeta: {}, classMeta: {} };
+  return { imports, ...(getImportExtraction(imports) ? { importExtraction: getImportExtraction(imports) } : {}),
+    exports: [], calls: [], usages: [], importLinks: [], functionMeta: {}, classMeta: {} };
 }
 
 export function extractHtmlDocMeta(chunk, htmlMeta) {

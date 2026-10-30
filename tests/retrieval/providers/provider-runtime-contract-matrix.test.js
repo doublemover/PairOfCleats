@@ -7,6 +7,7 @@ import { ANN_PROVIDER_IDS } from '../../../src/retrieval/ann/types.js';
 import { createSearchPipeline } from '../../../src/retrieval/pipeline.js';
 import { buildAnnPipelineFixture } from '../pipeline/helpers/ann-scenarios.js';
 import { createTantivyProvider } from '../../../src/retrieval/sparse/providers/tantivy.js';
+import { getGenerationProviderRuntime } from '../../../src/retrieval/pipeline/provider-runtime.js';
 
 const withMockedNow = async (action) => {
   const originalNow = Date.now;
@@ -26,15 +27,51 @@ const withMockedNow = async (action) => {
 
 const cases = [
   {
+    name: 'preflight health and unknown latency never create timing samples',
+    async run() {
+      const generation = {}, runtime = getGenerationProviderRuntime(generation);
+      let preflights = 0;
+      const measured = { id: 'measured', preflight: async () => { preflights++; return true; } };
+      const unknown = { id: 'unknown' }, otherUnknown = { id: 'other-unknown' };
+      const providers = new Map([['unknown', unknown], ['measured', measured], ['other', otherUnknown]]);
+      const base = [...providers.keys()], state = runtime.getProviderModeState(measured, 'code');
+      await withMockedNow(async clock => {
+        assert.equal(await runtime.ensureProviderPreflight(measured, { mode: 'code' }), true);
+        assert.equal(state.latencyEwmaMs, null); assert.equal(state.latencySamples, 0);
+        assert.deepEqual(runtime.resolveAnnBackends(providers, 'code', base, true), base);
+        runtime.recordProviderSuccess(measured, 'code', { latencyMs: 40 });
+        assert.equal(state.latencyEwmaMs, 40); assert.equal(state.latencySamples, 1);
+        runtime.recordProviderSuccess(measured, 'code', { latencyMs: 80 });
+        assert.equal(state.latencyEwmaMs, 50); assert.equal(state.latencySamples, 2);
+        for (const latencyMs of [null, undefined, NaN, Infinity, -1, '', '0']) {
+          runtime.recordProviderSuccess(measured, 'code', { latencyMs });
+          assert.equal(state.latencyEwmaMs, 50); assert.equal(state.latencySamples, 2);
+        }
+        assert.equal(getGenerationProviderRuntime(generation), runtime);
+        clock.advance(1_000_000);
+        assert.equal(await runtime.ensureProviderPreflight(measured, { mode: 'code' }), true);
+        assert.equal(preflights, 2); assert.equal(state.latencySamples, 2); assert.equal(state.latencyEwmaMs, 50);
+        assert.deepEqual(runtime.resolveAnnBackends(providers, 'code', base, true), ['measured', 'unknown', 'other']);
+        runtime.recordProviderFailure(measured, 'code', 'controlled failure');
+        assert.deepEqual(runtime.resolveAnnBackends(providers, 'code', base, true), ['unknown', 'other', 'measured']);
+        clock.advance(1_000_000);
+        await runtime.ensureProviderPreflight(measured, { mode: 'code' });
+        assert.equal(state.failures, 0); assert.equal(state.latencySamples, 2);
+        runtime.recordProviderSuccess(measured, 'code', { latencyMs: 0 });
+        assert.equal(state.latencyEwmaMs, 37.5); assert.equal(state.latencySamples, 3);
+      });
+    }
+  },
+  {
     name: 'Tantivy filters global overfetch without narrowing it to eligible cardinality',
-    run() {
+    async run() {
       const originalLoad = Module._load;
       const limits = [];
-      let opens = 0;
+      let opens = 0, closes = 0;
       const nativeRows = [{ id: 0, score: 9 }, { docId: 1, score: 8 }, { idx: 2, score: 7 }];
       Module._load = function (name, ...args) {
         if (name === 'tantivy') return {
-          openIndex: () => { opens += 1; return {}; },
+          openIndex: () => { opens += 1; return { close() { closes++; } }; },
           search: (_handle, _query, limit) => { limits.push(limit); return nativeRows.slice(0, limit); }
         };
         return originalLoad.call(this, name, ...args);
@@ -69,6 +106,7 @@ const cases = [
         assert.deepEqual(provider.search({ ...input, topN: 2, allowedIds: new Set([0, 1, 2]) }).hits, [{ idx: 0, score: 9 }, { idx: 1, score: 8 }], 'return at most requested top-k after filtering');
         nativeRows.splice(0, nativeRows.length, { idx: 2, score: 9 }, { idx: 1, score: 9 }, { idx: 0, score: 7 });
         assert.deepEqual(provider.search({ ...input, allowedIds: new Set([1, 2]) }).hits, [{ idx: 1, score: 9 }], 'equal scores retain deterministic id order');
+        await provider.dispose(); assert.equal(closes, 1, 'all queries share one physical native close');
       } finally {
         Module._load = originalLoad;
       }

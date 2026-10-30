@@ -32,7 +32,7 @@ try {
   await assert.rejects(pool.run({ oversize: true }, { name: 'quantizeVectors' }), { code: 'ERR_PROCESS_TASK_BUDGET' });
 } finally { await clean(pool, pids); }
 
-for (const variant of ['pre', 'queued', 'active', 'initialization', 'crash']) {
+for (const variant of ['pre', 'queued', 'active', 'initialization', 'crash', 'disconnect']) {
   pool = create({ maxThreads: 1, ...(variant === 'initialization' ? { workerData: { failInitialization: true } } : {}) });
   pids = new Set();
   let started;
@@ -49,15 +49,18 @@ for (const variant of ['pre', 'queued', 'active', 'initialization', 'crash']) {
       assert.equal(pool.stats().ownedChildren, 0);
     } else if (variant === 'initialization') {
       await assert.rejects(pool.run({ id: 1 }, { name: 'quantizeVectors' }), { code: 'ERR_PROCESS_TASK_INITIALIZATION' });
-    } else if (variant === 'crash') {
-      const failed = pool.run({ id: 1, crash: true }, { name: 'quantizeVectors' });
+    } else if (variant === 'crash' || variant === 'disconnect') {
+      const failed = pool.run({ id: 1, [variant]: true }, { name: 'quantizeVectors' });
       const resumed = pool.run({ id: 2 }, { name: 'quantizeVectors' });
+      // Observe immediately while the first task's failure is asserted; a
+      // failed assertion must not turn cleanup of the sibling into an unhandled rejection.
+      resumed.catch(() => {});
       await assert.rejects(failed, { code: 'ERR_PROCESS_TASK_EXIT' });
       assert.equal((await resumed).id, 2);
       assert.equal(pool.stats().restarts, 1);
     } else {
       const held = pool.run({ id: 1, waitMs: 300 }, { name: 'quantizeVectors', ...(variant === 'active' ? { signal: abort.signal } : {}) });
-      await ready;
+      await Promise.race([ready, held.then(() => { throw new Error(`${variant}: task completed before its start observation`); })]);
       if (variant === 'queued') {
         const queued = pool.run({ id: 2 }, { name: 'quantizeVectors', signal: abort.signal });
         abort.abort(); await assert.rejects(queued, { name: 'AbortError' }); await held;

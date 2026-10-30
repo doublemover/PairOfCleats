@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { buildSqliteReport } from '../../../src/index/validate/sqlite-report.js';
+import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
+import { SQLITE_ZERO_STATE_SCHEMA_VERSION, sqliteZeroStateChecksum, resolveSqliteZeroStateSourceProof } from '../../../src/storage/sqlite/zero-state.js';
 
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 
@@ -17,7 +19,13 @@ const sqliteDir = path.join(indexRoot, 'index-sqlite');
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(prosePiecesDir, { recursive: true });
 await fs.mkdir(sqliteDir, { recursive: true });
-await fs.writeFile(path.join(prosePiecesDir, 'sqlite-zero-state.json'), '{}\n', 'utf8');
+await fs.writeFile(path.join(proseIndexDir, 'chunk_meta.json'), '[]\n');
+const zeroState = { schemaVersion: SQLITE_ZERO_STATE_SCHEMA_VERSION, artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
+  mode: 'prose', indexDir: path.resolve(proseIndexDir), outputPath: path.resolve(sqliteDir, 'index-prose.db'),
+  chunkCount: 0, denseCount: 0, sourceProof: await resolveSqliteZeroStateSourceProof(proseIndexDir, 'prose') };
+await fs.writeFile(path.join(prosePiecesDir, 'sqlite-zero-state.json'), JSON.stringify({
+  ...zeroState, checksum: sqliteZeroStateChecksum(zeroState)
+}));
 
 const userConfig = {
   cache: { root: path.join(tempRoot, 'cache') },
@@ -48,6 +56,10 @@ assert.equal(
 );
 
 const nonZeroValidation = { issues: [], hints: [] };
+await fs.writeFile(path.join(prosePiecesDir, 'sqlite-zero-state.json'), JSON.stringify({ ...zeroState, checksum: 'wrong' }));
+const corrupt = await buildSqliteReport({ root: repoRoot, userConfig, indexRoot, modes: ['prose'],
+  report: { issues: [], hints: [] }, sqliteEnabled: true });
+assert.equal(corrupt.ok, false, 'a marker without its exact checksum cannot suppress the missing database');
 const nonZeroResult = await buildSqliteReport({
   root: repoRoot,
   userConfig,

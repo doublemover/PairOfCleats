@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { createHash } from 'node:crypto';
 import { MAX_JSON_BYTES } from '../../../shared/artifact-io/constants.js';
 import { readJsonFile } from '../../../shared/artifact-io/json.js';
 import { buildIndexSignature } from '../../index-cache.js';
@@ -9,13 +10,17 @@ import {
   serializeContextIndex,
   hydrateContextIndex
 } from '../../context-expansion.js';
-import { filterChunks } from '../../output.js';
+import { createChunkFilterPredicate } from '../../output/filters.js';
+import { isAbortError, throwIfAborted } from '../../../shared/abort.js';
+import { observeStorageResource } from '../../../shared/storage/failure-observation.js';
 
 const readContextCacheJson = (filePath, maxBytes = MAX_JSON_BYTES) => {
   if (!filePath) return null;
   try {
     return readJsonFile(filePath, { maxBytes });
-  } catch {
+  } catch (error) {
+    observeStorageResource(error, { phase: 'context-index-cache-read' }).requireSettled();
+    if (isAbortError(error)) throw error;
     return null;
   }
 };
@@ -27,7 +32,9 @@ export function createModeExpander({
   filters,
   filtersActive,
   filterPredicates,
-  explain
+  explain,
+  contextCacheDir = null,
+  signal = null
 }) {
   const contextExpansionStats = {
     enabled: contextExpansionEnabled,
@@ -39,30 +46,47 @@ export function createModeExpander({
   const contextIndexByIndex = new WeakMap();
   const allowedIdsByIndex = new WeakMap();
 
+  const resolveContextCachePaths = async idx => {
+    if (!idx?.indexDir || !contextCacheDir) return null;
+    const cacheRoot = path.resolve(contextCacheDir);
+    const relative = path.relative(path.resolve(idx.indexDir), cacheRoot);
+    if (relative === '' || (!relative.startsWith(`..${path.sep}`) && relative !== '..' && !path.isAbsolute(relative))) return null;
+    const signature = await buildIndexSignature(idx.indexDir);
+    if (!signature) return null;
+    const identity = createHash('sha256').update(JSON.stringify([path.resolve(idx.indexDir), signature])).digest('hex');
+    const base = path.join(cacheRoot, 'context-index-v2', identity);
+    return { signature, metaPath: `${base}.meta.json`, dataPath: `${base}.json` };
+  };
+
   const loadContextIndexCache = async (idx) => {
-    if (!idx?.indexDir) return null;
-    const metaPath = path.join(idx.indexDir, 'context_index.meta.json');
-    const dataPath = path.join(idx.indexDir, 'context_index.json');
+    const paths = await resolveContextCachePaths(idx);
+    if (!paths) return null;
+    const { metaPath, dataPath, signature } = paths;
     const meta = readContextCacheJson(metaPath);
     if (!meta) return null;
-    if (!meta?.signature || meta.version !== 1) return null;
-    const signature = await buildIndexSignature(idx.indexDir);
+    if (!meta?.signature || meta.version !== 2) return null;
     if (signature !== meta.signature) return null;
     const raw = readContextCacheJson(dataPath);
     if (!raw) return null;
     return hydrateContextIndex(raw);
   };
   const persistContextIndexCache = async (idx, contextIndex) => {
-    if (!idx?.indexDir || !contextIndex) return;
-    const signature = await buildIndexSignature(idx.indexDir);
+    if (!contextIndex) return;
+    const paths = await resolveContextCachePaths(idx);
+    if (!paths) return;
+    const { signature, metaPath, dataPath } = paths;
     const payload = serializeContextIndex(contextIndex);
     if (!signature || !payload) return;
-    const metaPath = path.join(idx.indexDir, 'context_index.meta.json');
-    const dataPath = path.join(idx.indexDir, 'context_index.json');
     try {
+      throwIfAborted(signal);
       await atomicWriteJson(dataPath, payload, { spaces: 0 });
-      await atomicWriteJson(metaPath, { version: 1, signature }, { spaces: 0 });
-    } catch {}
+      throwIfAborted(signal);
+      await atomicWriteJson(metaPath, { version: 2, signature }, { spaces: 0 });
+    } catch (error) {
+      observeStorageResource(error, { phase: 'context-index-cache-write' }).requireSettled();
+      if (isAbortError(error)) throw error;
+      throwIfAborted(signal);
+    }
   };
   const getContextIndex = async (idx) => {
     if (!idx?.chunkMeta?.length) return null;
@@ -74,6 +98,7 @@ export function createModeExpander({
     if (pending) return pending;
     const nextPromise = (async () => {
       let next = await loadContextIndexCache(idx);
+      throwIfAborted(signal);
       if (next) {
         next.chunkMeta = idx.chunkMeta;
         next.repoMap = idx.repoMap;
@@ -81,6 +106,7 @@ export function createModeExpander({
         return next;
       }
       next = buildContextIndex({ chunkMeta: idx.chunkMeta, repoMap: idx.repoMap });
+      throwIfAborted(signal);
       idx.contextIndex = next;
       await persistContextIndexCache(idx, next);
       return next;
@@ -92,23 +118,52 @@ export function createModeExpander({
       contextIndexByIndex.delete(idx);
     }
   };
-  const getAllowedIds = (idx) => {
-    if (!(contextExpansionRespectFilters && filtersActive)) return null;
+  const getAllowedIds = (idx, contextIndex) => {
+    if (!(contextExpansionRespectFilters && filtersActive)) return { ids: null,
+      preparation: { state: 'not-requested', availableChunkRows: idx.chunkMeta.length, selectedRows: null, elapsedMs: 0 } };
     const cached = allowedIdsByIndex.get(idx);
-    if (cached) return cached;
-    const next = new Set(
-      filterChunks(idx.chunkMeta, filters, idx.filterIndex, idx.fileRelations, {
-        compiled: filterPredicates
-      })
-        .map((chunk) => chunk.id)
-    );
-    allowedIdsByIndex.set(idx, next);
-    return next;
+    if (cached && cached.chunkMeta === idx.chunkMeta && cached.filterIndex === idx.filterIndex
+      && cached.fileRelations === idx.fileRelations && cached.byDocId === contextIndex.byDocId) {
+      cached.preparation = { ...cached.preparation, state: 'reused', elapsedMs: 0,
+        probedIds: 0, missingRows: 0, evaluatedRows: 0, matchedRows: 0, memoHits: 0 };
+      return cached;
+    }
+    const started = performance.now();
+    const match = createChunkFilterPredicate(filters, idx.fileRelations, { compiled: filterPredicates });
+    const preparation = { state: 'built', representation: 'candidate-predicate-memo',
+      availableChunkRows: idx.chunkMeta.length, selectedRows: null, probedIds: 0, missingRows: 0,
+      evaluatedRows: 0, matchedRows: 0, memoHits: 0,
+      elapsedMs: Math.max(0, performance.now() - started) };
+    const membership = new Map(), metadata = idx.chunkMeta, byDocId = contextIndex.byDocId;
+    const prepared = { preparation, ids: { has(id) {
+      const stats = prepared.preparation;
+      if (membership.has(id)) { stats.memoHits++; return membership.get(id); }
+      // expandContext charges each attempted candidate before this probe. Never
+      // scan/materialize unrelated metadata to answer a bounded context query.
+      throwIfAborted(signal);
+      const started = performance.now(), chunk = byDocId.get(id);
+      stats.probedIds++;
+      if (chunk) stats.evaluatedRows++;
+      else stats.missingRows++;
+      const accepted = Boolean(chunk) && match(chunk);
+      stats.elapsedMs += Math.max(0, performance.now() - started);
+      if (accepted) stats.matchedRows++;
+      membership.set(id, accepted);
+      return accepted;
+    } } };
+    Object.assign(prepared, { chunkMeta: metadata, byDocId, filterIndex: idx.filterIndex, fileRelations: idx.fileRelations });
+    allowedIdsByIndex.set(idx, prepared);
+    return prepared;
   };
   const expandModeHits = async (mode, idx, hits) => {
+    throwIfAborted(signal);
     if (!contextExpansionEnabled || !hits.length || !idx?.chunkMeta?.length) {
       return { hits, contextHits: [], stats: { added: 0, workUnitsUsed: 0, truncation: null } };
     }
+    const prepared = await getContextIndex(idx);
+    throwIfAborted(signal);
+    const allowed = getAllowedIds(idx, prepared);
+    throwIfAborted(signal);
     const result = expandContext({
       hits,
       chunkMeta: idx.chunkMeta,
@@ -119,9 +174,11 @@ export function createModeExpander({
         ...contextExpansionOptions,
         explain
       },
-      allowedIds: getAllowedIds(idx),
-      contextIndex: await getContextIndex(idx)
+      allowedIds: allowed.ids,
+      contextIndex: prepared,
+      signal
     });
+    result.stats.preparation.filterSet = { ...allowed.preparation };
     contextExpansionStats[mode] = result.stats;
     return {
       hits: hits.concat(result.contextHits),

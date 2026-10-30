@@ -4,6 +4,12 @@ Last updated: 2026-05-21T00:00:00Z
 
 This directory contains JSON schemas for USR artifacts, reports, and gate evidence payloads.
 
+Report and evidence-envelope semantics are generated from
+`src/contracts/schemas/usr.js` by `tools/docs/export-usr-schemas.js`. The three
+specialized report payloads are retained in the source-owned
+`usr-report-overrides.js` contract. Runtime and published schemas share status
+enums, required fields, unknown-key admission and those payload restrictions.
+
 Primary contract references:
 
 - `docs/specs/unified-syntax-representation.md`

@@ -3,7 +3,7 @@ import { fileExt, toPosix } from '../../shared/file-paths.js';
 import { sha1 } from '../../shared/hash.js';
 import { compareStrings } from '../../shared/sort.js';
 import { resolveSpecialCodeExt } from '../constants.js';
-import { getLanguageForFile } from '../language-registry.js';
+import { getLanguageRouteForFile } from '../language-registry/routing.js';
 import { estimateFileCost } from './perf-profile.js';
 import { planWeightedBatches as planShardBatches } from '../../shared/concurrency/weighted-batches.js';
 
@@ -241,7 +241,7 @@ export function planShards(
     const rel = entry.rel || '';
     const dirKey = resolveDirKey(rel, dirDepth);
     const ext = resolveExt(entry.abs || rel);
-    const lang = mode === 'code' ? getLanguageForFile(ext, rel) : null;
+    const lang = mode === 'code' ? getLanguageRouteForFile(ext, rel) : null;
     const langKey = mode === 'code'
       ? (lang?.id || ext || 'unknown')
       : (ext || 'prose');

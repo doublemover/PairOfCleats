@@ -102,6 +102,7 @@ await writeIndexArtifacts({
     artifactWriteThroughputBytesPerSec: 64 * 1024
   },
   indexState: {
+    buildId: 'artifact-fixture',
     generatedAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
     counts: { files: 0, chunks: 0 },
@@ -114,7 +115,9 @@ await writeIndexArtifacts({
 const shardsMetaPath = path.join(outDir, 'field_postings.shards.meta.json');
 const shardsMeta = JSON.parse(await fs.readFile(shardsMetaPath, 'utf8'));
 assert.ok(Number.isInteger(shardsMeta.shardCount), 'expected shardCount in field_postings shards meta');
-assert.ok(shardsMeta.shardCount >= 8 && shardsMeta.shardCount <= 16, 'expected adaptive shardCount bounded to 8-16');
+assert.ok(shardsMeta.desiredShardCount >= 8 && shardsMeta.desiredShardCount <= 16, 'expected adaptive desired shardCount bounded to 8-16');
+assert.equal(shardsMeta.layout, 'json-byte-fragments-v1');
+assert.ok(shardsMeta.parts.every(part => part.bytes > 0 && part.bytes <= shardsMeta.shardTargetBytes), 'actual encoded fragments obey the byte cap');
 assert.equal(shardsMeta.parts.length, shardsMeta.shardCount, 'expected shard parts length to match shardCount');
 
 const legacyPath = path.join(outDir, 'field_postings.json');

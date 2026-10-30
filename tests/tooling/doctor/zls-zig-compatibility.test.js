@@ -6,6 +6,9 @@ import { runToolingDoctor } from '../../../src/index/tooling/doctor.js';
 
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 import { prependLspTestPath } from '../../helpers/lsp-runtime.js';
+import { applyTestEnv, withTemporaryEnv } from '../../helpers/test-env.js';
+
+applyTestEnv({ extraEnv: { PAIROFCLEATS_TRUSTED_CONFIG: null } });
 
 const root = process.cwd();
 const tempRoot = resolveTestCachePath(root, 'tooling-doctor-zls-zig-compat');
@@ -15,7 +18,9 @@ await fs.mkdir(tempRoot, { recursive: true });
 const restorePath = prependLspTestPath({ repoRoot: root });
 
 try {
-  const report = await runToolingDoctor({
+  const fixtureZls = path.join(root, 'tests', 'fixtures', 'lsp', 'bin',
+    process.platform === 'win32' ? 'zls.cmd' : 'zls');
+  const report = await withTemporaryEnv({ PAIROFCLEATS_TRUSTED_REPOS: JSON.stringify([tempRoot]) }, () => runToolingDoctor({
     repoRoot: tempRoot,
     buildRoot: tempRoot,
     toolingConfig: {
@@ -23,6 +28,7 @@ try {
         enabled: true,
         servers: [{
           preset: 'zls',
+          cmd: fixtureZls,
           languages: ['zig']
         }]
       }
@@ -31,7 +37,7 @@ try {
   }, ['lsp-zls'], {
     log: () => {},
     probeHandshake: false
-  });
+  }));
 
   const zlsProvider = (report.providers || []).find((provider) => provider.id === 'lsp-zls');
   assert.ok(zlsProvider, 'expected zls provider report entry');

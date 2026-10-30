@@ -21,7 +21,14 @@ const shape = (input, { cap = 100, finder = findTargetForOffsets, encoding = 'ut
   for (const virtualPath of paths) {
     const uri = `poc-vfs:///${virtualPath}`;
     openDocs.set(virtualPath, { uri, text, lineIndex: buildLineIndex(text) });
-    diagnosticsByUri.set(uri, input);
+    const encodedInput = encoding === 'utf-16' ? input : input.map(diagnostic => ({ ...diagnostic,
+      range: Object.fromEntries(['start', 'end'].map(key => {
+        const position = diagnostic.range[key], line = text.split('\r\n')[position.line];
+        const prefix = line.slice(0, position.character);
+        return [key, { ...position, character: encoding === 'utf-8' ? Buffer.byteLength(prefix) : [...prefix].length }];
+      }))
+    }));
+    diagnosticsByUri.set(uri, encodedInput);
     const targets = [
       { virtualRange: { start: 0, end: 8 }, chunkRef: { chunkUid: `${virtualPath}:outer` } },
       { virtualRange: { start: 3, end: 5 }, chunkRef: { chunkUid: `${virtualPath}:inner` } },

@@ -1,4 +1,6 @@
 import { performance } from 'node:perf_hooks';
+import { assertMinhashHashIdentity } from '../../../../index/minhash.js';
+import { assertSqliteMinhashReceiver, writeSqliteMinhashHeader } from '../../minhash.js';
 import { buildChunkRow, buildTokenFrequency, prepareVectorAnnInsert } from '../../build-helpers.js';
 import { ensureVocabIds } from '../../vocab.js';
 import { toArray } from '../../../../shared/iterables.js';
@@ -14,6 +16,9 @@ import { deleteDocIds, updateTokenStats } from '../delete.js';
 import { validateSqliteDatabase } from '../validate.js';
 import { applyCachedSemanticPlan } from '../../semantic/from-cache.js';
 import { throwIfAborted } from '../../../../shared/abort.js';
+import { sealSqliteFilterFacts } from '../../filter-facts.js';
+import { setImmediate } from 'node:timers/promises';
+import { sqliteBundleIdentity } from '../../bundle-identity.js';
 
 /**
  * Sentinel error used to convert transactional guard failures into
@@ -171,6 +176,12 @@ export const runIncrementalUpdatePhase = async ({
       vectorAnnWarned = true;
     }
   }
+  const existingAnnTable = vectorExtension.table || 'dense_vectors_ann';
+  const existingAnn = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name=?").get(existingAnnTable);
+  if (existingAnn && !vectorAnn?.ready) {
+    return { ok: false, skipReason: `existing ANN table unavailable for coordinated incremental update: ${existingAnnTable}`,
+      mutated: false };
+  }
   const vectorDeleteTargets = vectorAnn?.ready
     ? [{ table: vectorAnn.tableName, column: 'rowid', withMode: false, transform: toSqliteRowId }]
     : [];
@@ -212,6 +223,7 @@ export const runIncrementalUpdatePhase = async ({
         entry?.hash || null,
         Number.isFinite(entry?.mtimeMs) ? entry.mtimeMs : null,
         Number.isFinite(entry?.size) ? entry.size : null,
+        sqliteBundleIdentity(entry),
         mode,
         normalizedFile
       );
@@ -339,6 +351,7 @@ export const runIncrementalUpdatePhase = async ({
         }
 
         if (Array.isArray(chunk.minhashSig) && chunk.minhashSig.length) {
+          assertMinhashHashIdentity(chunk.minhashHashIdentity);
           insertMinhash.run(mode, docId, packUint32(chunk.minhashSig));
           tableRows.minhash_signatures += 1;
         }
@@ -417,7 +430,8 @@ export const runIncrementalUpdatePhase = async ({
         manifestEntry?.hash || null,
         Number.isFinite(manifestEntry?.mtimeMs) ? manifestEntry.mtimeMs : null,
         Number.isFinite(manifestEntry?.size) ? manifestEntry.size : null,
-        chunkCount
+        chunkCount,
+        sqliteBundleIdentity(manifestEntry)
       );
       tableRows.file_manifest += 1;
     }
@@ -441,10 +455,14 @@ export const runIncrementalUpdatePhase = async ({
     db.exec('BEGIN IMMEDIATE');
     ownsTransaction = true;
     throwIfAborted(signal);
+    const minhashHeader = assertSqliteMinhashReceiver(db, mode);
     applyDeletes();
     applyInserts();
+    if (tableRows.minhash_signatures) writeSqliteMinhashHeader(db, mode, minhashHeader?.sampling ?? null);
     await applyCachedSemanticPlan({ db, plan: semanticPlan, signal });
+    if (signal) await setImmediate(undefined, { signal });
     throwIfAborted(signal);
+    sealSqliteFilterFacts(db, mode);
     db.exec('COMMIT');
     ownsTransaction = false;
     transactionApplied = true;

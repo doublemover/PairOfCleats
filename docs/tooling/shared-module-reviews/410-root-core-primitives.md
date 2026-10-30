@@ -114,3 +114,57 @@ The JSON companion is the authoritative full per-file ledger. This markdown comp
 | `src/shared/sort.js` | `keep`, `document` | Intentionally tiny primitive comparator; keep it that way. |
 | `src/shared/time-format.js` | `keep`, `document` | Good tiny duration-format helper. |
 | `src/shared/toolchain-env.js` | `keep`, `document`, `test` | Good narrow toolchain env patch helper. |
+
+## October 18 ownership inventory reconciliation
+
+The JSON companion now includes 44 later-added active modules. Static consumer evidence supports retaining these owners; it does not replace behavioral or platform qualification. The original review remains dated 2026-03-25. See the [deep audit](../../archived/deep-test-audit-2026-10-18.md) for current failures and acceptance limits.
+
+- `src/shared/application-parser-loader.js`: 8 direct consumers; retain and document the owner.
+- `src/shared/bootstrap-readiness.js`: 89 direct consumers; retain and document the owner.
+- `src/shared/bundle-source-key.js`: 8 direct consumers; retain and document the owner.
+- `src/shared/cache-deletion.js`: 3 direct consumers; retain and document the owner.
+- `src/shared/config-authority.js`: 9 direct consumers; retain and document the owner.
+- `src/shared/contained-file.js`: 27 direct consumers; retain and document the owner.
+- `src/shared/diagnostic-text.js`: 9 direct consumers; retain and document the owner.
+- `src/shared/dictionary-identifiers.js`: 3 direct consumers; retain and document the owner.
+- `src/shared/dockerfile-ast.js`: 3 direct consumers; retain and document the owner.
+- `src/shared/effective-memory.js`: 12 direct consumers; retain and document the owner.
+- `src/shared/embedding-artifact-identity.js`: 6 direct consumers; retain and document the owner.
+- `src/shared/embedding-execution-plan.js`: 5 direct consumers; retain and document the owner.
+- `src/shared/embedding-intent.js`: 7 direct consumers; retain and document the owner.
+- `src/shared/embedding-model-profile.js`: 10 direct consumers; retain and document the owner.
+- `src/shared/embedding-prepared.js`: 3 direct consumers; retain and document the owner.
+- `src/shared/extraction-quality.js`: 3 direct consumers; retain and document the owner.
+- `src/shared/generated-artifact-cache.js`: 15 direct consumers; retain and document the owner.
+- `src/shared/generated-artifact-core.js`: 17 direct consumers; retain and document the owner.
+- `src/shared/generated-artifact-prefix.js`: 2 direct consumers; retain and document the owner.
+- `src/shared/generated-artifact.js`: 5 direct consumers; retain and document the owner.
+- `src/shared/graphql-ast.js`: 3 direct consumers; retain and document the owner.
+- `src/shared/handlebars-ast.js`: 3 direct consumers; retain and document the owner.
+- `src/shared/index-format-error.js`: 15 direct consumers; retain and document the owner.
+- `src/shared/jinja-template-structure.js`: 3 direct consumers; retain and document the owner.
+- `src/shared/json-reference-policy.js`: 2 direct consumers; retain and document the owner.
+- `src/shared/jsonc-structure.js`: 2 direct consumers; retain and document the owner.
+- `src/shared/managed-clangd.js`: 3 direct consumers; retain and document the owner.
+- `src/shared/managed-go.js`: 4 direct consumers; retain and document the owner.
+- `src/shared/managed-tool-file.js`: 3 direct consumers; retain and document the owner.
+- `src/shared/mustache-structure.js`: 3 direct consumers; retain and document the owner.
+- `src/shared/native-package-probe.js`: 3 direct consumers; retain and document the owner.
+- `src/shared/proto-structure.js`: 3 direct consumers; retain and document the owner.
+- `src/shared/provider-thread-observation.js`: 1 direct consumers; retain and document the owner.
+- `src/shared/runtime-envelope/observe.js`: 4 direct consumers; retain and document the owner.
+- `src/shared/runtime-envelope/preview.js`: 1 direct consumers; retain and document the owner.
+- `src/shared/runtime-envelope/read-receipt.js`: 5 direct consumers; retain and document the owner.
+- `src/shared/runtime-envelope/receipt.js`: 8 direct consumers; retain and document the owner.
+- `src/shared/symbolic-types.js`: 13 direct consumers; retain and document the owner.
+- `src/shared/system-cache-alias.js`: 2 direct consumers; retain and document the owner.
+- `src/shared/text-analyzer.js`: 3 direct consumers; retain and document the owner.
+- `src/shared/toml-structure.js`: 2 direct consumers; retain and document the owner.
+- `src/shared/workspace-execution-authority.js`: 9 direct consumers; retain and document the owner.
+- `src/shared/xml-structure.js`: 2 direct consumers; retain and document the owner.
+- `src/shared/yaml-structure.js`: 2 direct consumers; retain and document the owner.
+
+
+## 2026-10-24 inventory reconciliation
+
+The JSON companion now matches the current owned-file census (204 files). 82 newly added modules received explicit boundary recommendations and actual production-consumer notes. Existing recommendations remain historical design review; this inventory reconciliation does not establish runtime qualification. No code was removed on the basis of static consumer counts.

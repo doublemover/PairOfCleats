@@ -1,4 +1,4 @@
-export const defaultNormalize = (value) => String(value || '').toLowerCase();
+export const defaultNormalize = (value) => String(value ?? '').toLowerCase();
 
 export const normalizeList = (value) => {
   if (!value) return [];
@@ -8,6 +8,10 @@ export const normalizeList = (value) => {
     .map((entry) => entry.trim())
     .filter(Boolean);
 };
+
+/** Each supplied path/name argument is one value, including spaces and commas. */
+export const normalizeArgumentList = value => (Array.isArray(value) ? value : value == null ? [] : [value])
+  .map(entry => String(entry ?? '')).filter(Boolean);
 
 export const normalizePhraseList = (value) => {
   if (!value) return [];

@@ -99,6 +99,18 @@ const getString = (searchParams, ...keys) => {
   return null;
 };
 
+const getHistoricalScalar = (searchParams, errors, ...keys) => {
+  const values = keys.flatMap(key => searchParams.getAll(key)).map(value => String(value).trim());
+  if (!values.length) return undefined;
+  if (values.some(value => value !== values[0])) {
+    errors.push({ path: keys[0], message: `${keys.join('/')} contains conflicting scalar references.` });
+    return undefined;
+  }
+  // Preserve explicit blanks for canonical admission instead of converting
+  // an invalid historical selection into an omitted/current selection.
+  return values[0];
+};
+
 const getStringList = (searchParams, ...keys) => {
   const values = [];
   for (const key of keys) {
@@ -138,11 +150,13 @@ export const buildSearchPayloadFromQuery = (searchParams) => {
   const repo = getString(searchParams, 'repo', 'repoPath');
   if (repo) payload.repo = repo;
 
-  const asOf = getString(searchParams, 'asOf', 'as-of');
-  if (asOf) payload.asOf = asOf;
+  const asOf = getHistoricalScalar(searchParams, errors, 'asOf', 'as-of');
+  if (asOf !== undefined) payload.asOf = asOf;
 
-  const snapshotId = getString(searchParams, 'snapshotId', 'snapshot');
-  if (snapshotId) payload.snapshotId = snapshotId;
+  for (const field of ['snapshotId', 'snapshot']) {
+    const value = getHistoricalScalar(searchParams, errors, field);
+    if (value !== undefined) payload[field] = value;
+  }
   const cursor = getString(searchParams, 'cursor');
   if (cursor) payload.cursor = cursor;
 

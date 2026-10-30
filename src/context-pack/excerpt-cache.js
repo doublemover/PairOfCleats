@@ -6,6 +6,8 @@ import { normalizeOptionalNumber } from '../shared/limits.js';
 import { compareStrings } from '../shared/sort.js';
 import { isRelativePathEscape } from '../shared/file-paths.js';
 import { readVerifiedContainedFileSync } from '../shared/contained-file.js';
+import { throwIfAborted } from '../shared/abort.js';
+import { observeStorageResource } from '../shared/storage/failure-observation.js';
 
 const trimUtf8Buffer = (buffer) => {
   let end = buffer.length;
@@ -28,7 +30,6 @@ const trimUtf8Buffer = (buffer) => {
 const EXCERPT_CACHE_MAX = 128;
 const FILE_RANGE_CACHE_MAX = 64;
 const EXCERPT_HASH_CACHE_MAX = 256;
-const UTF8_TRUNCATION_DETECTION_SLACK_BYTES = 4;
 const CACHE_BYTE_CAP = 8 * 1024 * 1024;
 const excerptCache = new Map();
 const fileRangeCache = new Map();
@@ -77,6 +78,16 @@ const setCachedValue = (cache, key, value, maxSize) => {
 
 const SOURCE_SNAPSHOT_BYTE_CAP = 64 * 1024 * 1024;
 const sourceContexts = new WeakMap();
+const decodedSnapshots = new WeakMap();
+const sourceText = snapshot => {
+  let text = decodedSnapshots.get(snapshot);
+  if (text === undefined) {
+    text = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(snapshot.buffer);
+    decodedSnapshots.set(snapshot, text);
+  }
+  return text;
+};
+const retainedSnapshotBytes = snapshot => snapshot.buffer.length * 3;
 
 /** One assembly owns a bounded point-in-time source view; later requests reverify. */
 export const createExcerptSourceContext = ({ maxBytes = SOURCE_SNAPSHOT_BYTE_CAP } = {}) => {
@@ -91,37 +102,48 @@ export const createExcerptSourceContext = ({ maxBytes = SOURCE_SNAPSHOT_BYTE_CAP
   return context;
 };
 
-const readSourceSnapshot = (filePath, repoRoot, hashAlgorithm = 'sha1', sourceContext = null) => {
+const readSourceSnapshot = (filePath, repoRoot, hashAlgorithm = 'sha1', sourceContext = null, { maxBytes = SOURCE_SNAPSHOT_BYTE_CAP, signal = null } = {}) => {
+  throwIfAborted(signal);
   const state = sourceContexts.get(sourceContext);
   if (state && !state.active) throw new Error('Excerpt source context has ended.');
   const key = JSON.stringify([path.resolve(repoRoot), path.resolve(filePath), hashAlgorithm]);
   const cached = state?.entries.get(key);
   if (cached) {
+    if (cached.buffer.length > maxBytes) throw Object.assign(new Error('Source exceeds the read byte allowance.'), { code: 'ERR_FILE_TOO_LARGE' });
     state.entries.delete(key); state.entries.set(key, cached);
     return cached;
   }
   const snapshot = readVerifiedContainedFileSync(repoRoot, filePath, {
-    maxBytes: SOURCE_SNAPSHOT_BYTE_CAP, hashAlgorithm
+    maxBytes, hashAlgorithm, signal
   });
-  if (state && snapshot.buffer.length <= state.maxBytes) {
-    while (state.entries.size && (state.bytes + snapshot.buffer.length > state.maxBytes
+  const retainedBytes = retainedSnapshotBytes(snapshot);
+  if (state && retainedBytes <= state.maxBytes) {
+    while (state.entries.size && (state.bytes + retainedBytes > state.maxBytes
       || state.entries.size >= FILE_RANGE_CACHE_MAX)) {
       const oldest = state.entries.keys().next().value;
-      state.bytes -= state.entries.get(oldest).buffer.length;
+      state.bytes -= retainedSnapshotBytes(state.entries.get(oldest));
       state.entries.delete(oldest);
     }
-    state.entries.set(key, snapshot); state.bytes += snapshot.buffer.length;
+    state.entries.set(key, snapshot); state.bytes += retainedBytes;
   }
   return snapshot;
 };
-const rangeKey = (filePath, cacheScope, start, end) => `${filePath}|${cacheScope}|${start}|${end}`;
-const readSnapshotRange = (snapshot, filePath, start, end, cacheScope) => {
+const rangeKey = (filePath, cacheScope, start, end) => `utf16-v2|${filePath}|${cacheScope}|${start}|${end}`;
+const readSnapshotRange = (snapshot, filePath, start, end, cacheScope, { cache = true } = {}) => {
   const key = rangeKey(filePath, cacheScope, start, end);
-  const cached = getCachedValue(fileRangeCache, key);
+  const cached = cache ? getCachedValue(fileRangeCache, key) : null;
   if (cached !== null) return cached;
-  const text = trimUtf8Buffer(snapshot.buffer.subarray(Math.max(0, Math.floor(start)),
-    Math.max(0, Math.floor(end)))).toString('utf8');
-  setCachedValue(fileRangeCache, key, text, FILE_RANGE_CACHE_MAX);
+  const source = sourceText(snapshot);
+  const splitSurrogate = index => index > 0 && index < source.length
+    && source.charCodeAt(index) >= 0xDC00 && source.charCodeAt(index) <= 0xDFFF
+    && source.charCodeAt(index - 1) >= 0xD800 && source.charCodeAt(index - 1) <= 0xDBFF;
+  if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end) || start < 0 || end < start
+    || end > source.length || splitSurrogate(start) || splitSurrogate(end)) {
+    throw Object.assign(new Error('Indexed source range is not a valid UTF-16 span in the verified UTF-8 snapshot.'),
+      { code: 'ERR_CONTEXT_PACK_SOURCE_RANGE' });
+  }
+  const text = source.slice(start, end);
+  if (cache) setCachedValue(fileRangeCache, key, text, FILE_RANGE_CACHE_MAX);
   return text;
 };
 
@@ -140,7 +162,8 @@ export const prefetchFileRanges = (ranges, indexSignature, repoRoot = null, sour
       const snapshot = readSourceSnapshot(filePath, repoRoot, 'sha1', sourceContext);
       const cacheScope = `${indexSignature || 'working'}:${snapshot.hash}`;
       for (const range of group) readSnapshotRange(snapshot, filePath, range.start, range.end, cacheScope);
-    } catch {
+    } catch (error) {
+      observeStorageResource(error, { phase: 'context-source-prefetch' }).requireSettled();
       // Direct reads still enforce containment, bounds and current source identity.
     }
   }
@@ -188,9 +211,15 @@ export const resolveExcerpt = ({
   indexSignature = null,
   indexedHash = null,
   hashAlgorithm = 'sha1',
-  sourceContext = null
+  sourceContext = null,
+  taskPolicy = undefined,
+  signal = null,
+  sourceMaxBytes = null,
+  selectRange = null
 }) => {
-  const snapshot = readSourceSnapshot(filePath, repoRoot, hashAlgorithm, sourceContext);
+  const intact = taskPolicy?.task === 'edit-safe';
+  const snapshot = readSourceSnapshot(filePath, repoRoot, hashAlgorithm, sourceContext,
+    { ...(intact ? { maxBytes: sourceMaxBytes ?? maxBytes } : {}), signal });
   const cacheScope = `${indexSignature || 'working'}:${snapshot.hash}`;
   const expectedHash = typeof indexedHash === 'string'
     ? indexedHash.replace(new RegExp(`^${hashAlgorithm}:`), '').toLowerCase() : null;
@@ -200,6 +229,14 @@ export const resolveExcerpt = ({
     indexedHash: expectedHash ? `${hashAlgorithm}:${expectedHash}` : null,
     drift: expectedHash ? (expectedHash === snapshot.hash ? 'unchanged' : 'changed') : 'unknown'
   };
+  if (intact && sourceIdentity.drift !== 'unchanged') throw Object.assign(new Error('Edit source differs from its pinned indexed source hash.'), { code: 'ERR_CONTEXT_PACK_SOURCE_MISMATCH', status: 409 });
+  throwIfAborted(signal);
+  let selectedRange = null;
+  if (selectRange !== null) {
+    if (!intact || typeof selectRange !== 'function') throw new TypeError('Range qualification requires its internal intact-source owner.');
+    selectedRange = selectRange(sourceText(snapshot));
+    [start, end] = selectedRange.span;
+  }
   const cacheKeyInfo = buildLocalCacheKey({
     namespace: 'context-pack-excerpt',
     payload: {
@@ -209,26 +246,26 @@ export const resolveExcerpt = ({
       start: start ?? null,
       end: end ?? null,
       maxBytes: maxBytes ?? null,
-      maxTokens: maxTokens ?? null
+      maxTokens: maxTokens ?? null,
+      taskPolicy: taskPolicy || null
     }
   });
-  const cached = getCachedValue(excerptCache, cacheKeyInfo.key);
+  const cached = intact ? null : getCachedValue(excerptCache, cacheKeyInfo.key);
   if (cached) return cached;
   let text = '';
-  if (Number.isFinite(start) && Number.isFinite(end) && end > start) {
-    const safeMaxBytes = normalizeOptionalNumber(maxBytes);
-    const readEnd = safeMaxBytes
-      ? Math.min(end, start + safeMaxBytes + UTF8_TRUNCATION_DETECTION_SLACK_BYTES)
-      : end;
-    text = readSnapshotRange(snapshot, filePath, start, readEnd, cacheScope);
+  if (start != null || end != null) {
+    text = readSnapshotRange(snapshot, filePath, start, end, cacheScope, { cache: !intact });
   } else {
-    const limit = normalizeOptionalNumber(maxBytes) || snapshot.buffer.length;
-    text = trimUtf8Buffer(snapshot.buffer.subarray(0, limit + UTF8_TRUNCATION_DETECTION_SLACK_BYTES)).toString('utf8');
+    text = sourceText(snapshot);
   }
-  const { excerpt, truncated, truncatedBytes, truncatedTokens } = sliceExcerpt(text, maxBytes, maxTokens);
+  if (intact && (Buffer.byteLength(text) > maxBytes || maxTokens != null && text.split(/\s+/).filter(Boolean).length > maxTokens)) {
+    throw Object.assign(new Error('The mandatory complete edit unit cannot fit the selected byte/token allowance.'), { code: 'ERR_CONTEXT_PACK_UNIT_CANNOT_FIT', status: 413 });
+  }
+  const { excerpt, truncated, truncatedBytes, truncatedTokens } = intact
+    ? { excerpt: text, truncated: false, truncatedBytes: false, truncatedTokens: false } : sliceExcerpt(text, maxBytes, maxTokens);
   const excerptHash = excerpt ? `sha1:${sha1(excerpt)}` : null;
   let deduped = excerpt;
-  if (excerptHash) {
+  if (excerptHash && !intact) {
     const cached = getCachedValue(excerptHashCache, excerptHash);
     if (cached) {
       deduped = cached;
@@ -236,12 +273,17 @@ export const resolveExcerpt = ({
       setCachedValue(excerptHashCache, excerptHash, excerpt, EXCERPT_HASH_CACHE_MAX);
     }
   }
-  const payload = { excerpt: deduped, truncated, excerptHash, truncatedBytes, truncatedTokens, sourceIdentity };
-  setCachedValue(excerptCache, cacheKeyInfo.key, payload, EXCERPT_CACHE_MAX);
+  throwIfAborted(signal);
+  const payload = { excerpt: deduped, truncated, excerptHash, truncatedBytes, truncatedTokens, sourceIdentity, sourceLength: text.length,
+    ...(selectedRange ? { selectedRange, sourceFileLength: sourceText(snapshot).length } : {}) };
+  // Edit units are reverified for each assembly and never publish a partial
+  // request's derived cache state if later assembly or cancellation fails.
+  if (!intact) setCachedValue(excerptCache, cacheKeyInfo.key, payload, EXCERPT_CACHE_MAX);
   return payload;
 };
 
-export const buildPrimaryExcerpt = ({ chunk, repoRoot, maxBytes, maxTokens, indexSignature, warnings }) => {
+export const buildPrimaryExcerpt = ({ chunk, repoRoot, maxBytes, maxTokens, indexSignature, warnings, taskPolicy, signal }) => {
+  throwIfAborted(signal);
   const evidenceWarningCodes = [];
   const pushWarning = (code, message) => {
     warnings.push({ code, message });
@@ -295,16 +337,19 @@ export const buildPrimaryExcerpt = ({ chunk, repoRoot, maxBytes, maxTokens, inde
           maxTokens: maxTokensNum,
           indexSignature,
           indexedHash: chunk.fileHash || null,
-          hashAlgorithm: chunk.fileHashAlgo === 'sha256' ? 'sha256' : 'sha1'
+          hashAlgorithm: chunk.fileHashAlgo === 'sha256' ? 'sha256' : 'sha1',
+          taskPolicy, signal
         });
-      } catch {
+      } catch (error) {
+        observeStorageResource(error, { phase: 'context-primary-source' }).requireSettled();
+        throwIfAborted(signal);
         pushWarning('PRIMARY_PATH_UNAVAILABLE', 'Primary path failed current file identity or containment checks.');
         resolvedExcerpt = { excerpt: '', excerptHash: null, truncated: false, truncatedBytes: false, truncatedTokens: false };
       }
       sourceIdentity = resolvedExcerpt.sourceIdentity || null;
       if (sourceIdentity && sourceIdentity.drift !== 'unchanged') {
         pushWarning(sourceIdentity.drift === 'changed' ? 'PRIMARY_SOURCE_DRIFT' : 'PRIMARY_SOURCE_UNVERIFIED',
-          'Working-tree preview is not verified against the indexed source; indexed line and byte coordinates may have drifted.');
+          'Working-tree preview is not verified against the indexed source; indexed line and UTF-16 coordinates may have drifted.');
       }
       excerpt = resolvedExcerpt.excerpt || '';
       truncated = resolvedExcerpt.truncated;
@@ -422,6 +467,16 @@ export const normalizeTypeFacts = (seedRef, chunk, maxTypeEntries, warnings) => 
       confidence: Number.isFinite(entry.confidence) ? entry.confidence : null
     });
   }
+  // Exact duplicates consume the cap without adding evidence. Preserve distinct
+  // sources/confidences, including disagreements from different providers.
+  const seen = new Set();
+  const uniqueFacts = facts.filter((fact) => {
+    const key = JSON.stringify([fact.role, fact.name, fact.type, fact.source, fact.confidence]);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+  facts.splice(0, facts.length, ...uniqueFacts);
   facts.sort((a, b) => compareStrings(a.role, b.role) || compareStrings(a.type, b.type));
   if (Number.isFinite(maxTypeEntries) && maxTypeEntries >= 0 && facts.length > maxTypeEntries) {
     warnings.push({

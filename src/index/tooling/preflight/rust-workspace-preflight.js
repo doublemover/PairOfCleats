@@ -237,6 +237,7 @@ export const resolveRustWorkspaceMetadataPreflight = async ({
       timeoutMs: command.timeoutMs,
       abortSignal,
       reasonPrefix: 'rust_workspace_metadata',
+      providerId: 'rust-analyzer',
       label: 'rust workspace metadata',
       log: typeof ctx?.logger === 'function' ? ctx.logger : () => {},
       successCache: {

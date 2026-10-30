@@ -1,7 +1,8 @@
 import { loadJsonArrayArtifact } from '../../shared/artifact-io/loaders/core.js';
+import { loadMinhashSignatureRows } from '../../shared/artifact-io/loaders/minhash.js';
 import { loadTokenPostings } from '../../shared/artifact-io/loaders/token-postings.js';
 import { hashDeterministicValues } from '../../shared/invariants.js';
-import { addIssue } from './issues.js';
+import { addIssue, validationErrorMetadata } from './issues.js';
 import {
   normalizeFieldPostings,
   normalizeMinhash,
@@ -22,11 +23,12 @@ export const validateCorePostingsArtifacts = ({
   modeReport,
   chunkMeta,
   postingsConfig,
+  sparseEnabled = true,
   resolvePresence,
   hasLegacyArtifact,
   readJsonArtifact
 }) => {
-  if (postingsConfig.fielded && chunkMeta.length > 0) {
+  if (sparseEnabled && postingsConfig.fielded && chunkMeta.length > 0) {
     const missingFieldArtifacts = [];
     const isMissingFieldArtifact = (name) => {
       if (strict) {
@@ -41,7 +43,7 @@ export const validateCorePostingsArtifacts = ({
       modeReport.ok = false;
       modeReport.missing.push(...missingFieldArtifacts);
       missingFieldArtifacts.forEach((artifact) => {
-        report.issues.push(`[${mode}] missing ${artifact}`);
+        addIssue(report, mode, `missing ${artifact}`, null, 'issues', { state: 'missing', artifact, modeMessage: artifact, code: 'ERR_INDEX_ARTIFACT_MISSING' });
         report.hints.push('Run `pairofcleats index build` to rebuild missing artifacts.');
       });
     }
@@ -51,12 +53,20 @@ export const validateCorePostingsArtifacts = ({
   let phraseNormalized = null;
   let chargramNormalized = null;
 
-  try {
-    const tokenIndex = loadTokenPostings(dir, { manifest, strict });
-    tokenNormalized = normalizeTokenPostings(tokenIndex);
-  } catch (err) {
-    addIssue(report, mode, `token_postings load failed (${err?.code || err?.message || err})`, 'Rebuild index artifacts for this mode.');
-    modeReport.ok = false;
+  // Vector-only profiles intentionally omit sparse output. Still validate any
+  // declared/legacy token artifact; the profile cannot conceal corrupt data.
+  const tokenPresence = !sparseEnabled && strict ? resolvePresence('token_postings') : null;
+  const loadTokens = sparseEnabled || (strict
+    ? tokenPresence && (tokenPresence.error || tokenPresence.format !== 'missing')
+    : hasLegacyArtifact('token_postings'));
+  if (loadTokens) {
+    try {
+      const tokenIndex = loadTokenPostings(dir, { manifest, strict });
+      tokenNormalized = normalizeTokenPostings(tokenIndex);
+    } catch (err) {
+      addIssue(report, mode, `token_postings load failed (${err?.code || err?.message || err})`, 'Rebuild index artifacts for this mode.', 'issues', validationErrorMetadata(err, 'token_postings'));
+      modeReport.ok = false;
+    }
   }
   if (tokenNormalized) {
     validateSchema(
@@ -72,14 +82,14 @@ export const validateCorePostingsArtifacts = ({
       const issue = `token_postings vocabIds mismatch (${vocabIds.length} !== ${tokenNormalized.vocab.length})`;
       modeReport.ok = false;
       modeReport.missing.push(issue);
-      report.issues.push(`[${mode}] ${issue}`);
+      addIssue(report, mode, issue);
     }
     const docLengths = tokenNormalized.docLengths || [];
     if (docLengths.length && chunkMeta.length !== docLengths.length) {
       const issue = `docLengths mismatch (${docLengths.length} !== ${chunkMeta.length})`;
       modeReport.ok = false;
       modeReport.missing.push(issue);
-      report.issues.push(`[${mode}] ${issue}`);
+      addIssue(report, mode, issue);
     }
     validatePostingsDocIds(report, mode, 'token_postings', tokenNormalized.postings, chunkMeta.length);
   }
@@ -131,7 +141,21 @@ export const validateSupplementalPostingsArtifacts = async ({
       const issue = `minhash mismatch (${signatures.length} !== ${chunkMeta.length})`;
       modeReport.ok = false;
       modeReport.missing.push(issue);
-      report.issues.push(`[${mode}] ${issue}`);
+      addIssue(report, mode, issue);
+    }
+  }
+  if (shouldLoadOptional('minhash_signatures')) {
+    try {
+      let rows = 0;
+      for await (const entry of loadMinhashSignatureRows(dir, { manifest, strict, materialize: true })) {
+        if (entry) rows += 1;
+      }
+      if (rows && rows !== chunkMeta.length) {
+        throw new Error(`minhash mismatch (${rows} !== ${chunkMeta.length})`);
+      }
+    } catch (error) {
+      modeReport.ok = false;
+      addIssue(report, mode, `minhash_signatures load failed (${error?.message || error})`, 'Rebuild index artifacts for this mode.', 'issues', validationErrorMetadata(error, 'minhash_signatures'));
     }
   }
 
@@ -140,7 +164,7 @@ export const validateSupplementalPostingsArtifacts = async ({
     try {
       fieldTokens = await loadJsonArrayArtifact(dir, 'field_tokens', { manifest, strict });
     } catch (err) {
-      addIssue(report, mode, `field_tokens load failed (${err?.message || err})`, 'Rebuild index artifacts for this mode.');
+      addIssue(report, mode, `field_tokens load failed (${err?.message || err})`, 'Rebuild index artifacts for this mode.', 'issues', validationErrorMetadata(err, 'field_tokens'));
     }
   }
   if (fieldTokens) {
@@ -149,7 +173,7 @@ export const validateSupplementalPostingsArtifacts = async ({
       const issue = `field_tokens mismatch (${fieldTokens.length} !== ${chunkMeta.length})`;
       modeReport.ok = false;
       modeReport.missing.push(issue);
-      report.issues.push(`[${mode}] ${issue}`);
+      addIssue(report, mode, issue);
     }
   }
 
@@ -165,7 +189,7 @@ export const validateSupplementalPostingsArtifacts = async ({
         const issue = `field_postings docLengths mismatch (${lengths.length} !== ${chunkMeta.length})`;
         modeReport.ok = false;
         modeReport.missing.push(issue);
-        report.issues.push(`[${mode}] ${issue}`);
+        addIssue(report, mode, issue);
       }
     }
   }

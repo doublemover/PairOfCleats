@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import { composeAbortSignals } from '../../../shared/abort.js';
 import { normalizeProviderId } from '../provider-contract.js';
 import {
   TOOLING_PREFLIGHT_REASON_CODES,
@@ -7,6 +8,7 @@ import {
   isValidToolingPreflightTransition
 } from './contract.js';
 import { PREFLIGHT_CLASS } from './manager-config.js';
+import { currentRunResourceScope } from '../../../shared/lifecycle/run-scope.js';
 
 export const TOOLING_PREFLIGHT_STATE = Symbol.for('poc.tooling.preflight.state');
 
@@ -23,6 +25,8 @@ const normalizeOwnershipSegment = (value, fallback) => {
 };
 
 export const resolvePreflightOwnershipId = ({ providerId, preflightId, key }) => {
+  const owner = currentRunResourceScope();
+  owner?.assertAccepting();
   const providerSegment = normalizeOwnershipSegment(providerId, 'provider');
   const preflightSegment = normalizeOwnershipSegment(preflightId, 'preflight');
   const hash = crypto
@@ -30,7 +34,7 @@ export const resolvePreflightOwnershipId = ({ providerId, preflightId, key }) =>
     .update(String(key || `${providerSegment}:${preflightSegment}`))
     .digest('hex')
     .slice(0, 12);
-  return `tooling-preflight:${providerSegment}:${preflightSegment}:${hash}`;
+  return `tooling-preflight:${owner ? `${owner.id}:` : ''}${providerSegment}:${preflightSegment}:${hash}`;
 };
 
 const createSchedulerMetrics = () => ({
@@ -203,9 +207,7 @@ const isAbortSignalLike = (signal) => (
 );
 
 export const resolveRequestedAbortSignal = (ctx, inputs) => {
-  if (isAbortSignalLike(inputs?.abortSignal)) return inputs.abortSignal;
-  if (isAbortSignalLike(ctx?.abortSignal)) return ctx.abortSignal;
-  return null;
+  return composeAbortSignals(ctx?.signal, ctx?.abortSignal, inputs?.signal, inputs?.abortSignal);
 };
 
 export const createManagedAbortBridge = (upstreamSignal) => {

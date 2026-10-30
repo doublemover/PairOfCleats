@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["sqlite", "lmdb", "admission-race", "metadata", "primary-and-metadata", "native-unknown", "scope-authority", "configured-sqlite", "configured-lmdb", "configured-admission-race", "configured-metadata", "configured-primary-and-metadata"]
+}

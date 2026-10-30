@@ -4,6 +4,17 @@
  * @param {object|number[]|null} config
  * @returns {number[]}
  */
+export const parseFtsWeightsOption = input => {
+  if (typeof input !== 'string') return input;
+  const text = input.trim();
+  if (/^[\[{]/u.test(text)) {
+    try { return JSON.parse(text); } catch (cause) { throw new TypeError('Invalid FTS weights JSON.', { cause }); }
+  }
+  if (!text || /(?:^|,)\s*(?:,|$)/u.test(text)) throw new TypeError('FTS weights require one finite number in every position.');
+  return text.split(/[,\s]+/u);
+};
+const finiteWeight = value => (typeof value === 'number' || (typeof value === 'string' && value.trim())) && Number.isFinite(Number(value));
+
 export function resolveFtsWeights(profile, config) {
   const profiles = {
     balanced: {
@@ -36,8 +47,11 @@ export function resolveFtsWeights(profile, config) {
   };
   const base = profiles[profile] || profiles.balanced;
   if (Array.isArray(config)) {
-    const values = config.map((v) => Number(v)).filter((v) => Number.isFinite(v));
-    if (values.length >= 8) return values.slice(0, 8);
+    if (![5, 6, 7, 8].includes(config.length) || !config.every(finiteWeight)) {
+      throw new TypeError('FTS weights require exactly 5, 6, 7 or 8 finite positional values.');
+    }
+    const values = config.map(Number);
+    if (values.length === 8) return values;
     if (values.length === 7) return [0, ...values];
     if (values.length === 6) {
       const [, file, name, kind, headline, tokens] = values;
@@ -67,12 +81,17 @@ export function resolveFtsWeights(profile, config) {
     }
   } else if (config && typeof config === 'object') {
     const merged = { ...base };
+    for (const [key, value] of Object.entries(config)) {
+      if (!['file', 'name', 'signature', 'kind', 'headline', 'doc', 'tokens', 'body'].includes(key) || !finiteWeight(value)) {
+        throw new TypeError(`Invalid FTS weight for ${key}.`);
+      }
+    }
     for (const key of ['file', 'name', 'signature', 'kind', 'headline', 'doc', 'tokens']) {
       if (Number.isFinite(Number(config[key]))) merged[key] = Number(config[key]);
     }
     if (Number.isFinite(Number(config.body))) merged.tokens = Number(config.body);
     return [0, merged.file, merged.name, merged.signature, merged.kind, merged.headline, merged.doc, merged.tokens];
-  }
+  } else if (config != null) throw new TypeError('FTS weights must be a positional array or field object.');
 
   return [0, base.file, base.name, base.signature, base.kind, base.headline, base.doc, base.tokens];
 }

@@ -15,7 +15,18 @@ const shouldKeepFileMetaColumn = (column, values) => {
 const isFingerprintPrimitive = (value) => value == null
   || typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean';
 
-export const computeFileMetaFingerprint = ({ files, fileInfoByPath }) => {
+export const computeFileMetaFingerprint = ({ files, fileInfoByPath, fileMeta = null }) => {
+  // Exact emitted rows include SCM/churn/external docs and encoding dependencies.
+  if (Array.isArray(fileMeta)) {
+    const digest = createHash('sha1');
+    digest.update('[');
+    for (let index = 0; index < fileMeta.length; index += 1) {
+      if (index) digest.update(',');
+      digest.update(stableStringifyForSignature(fileMeta[index]));
+    }
+    digest.update(']');
+    return digest.digest('hex');
+  }
   const list = files.map((file) => {
     const info = fileInfoByPath?.get?.(file) || null;
     return {
@@ -72,6 +83,8 @@ export const buildFileMetaColumnar = (fileMeta) => {
     size: null,
     hash: null,
     hashAlgo: null,
+    recordSource: null,
+    displayPath: null,
     encoding: null,
     encodingFallback: null,
     encodingFallbackClass: null,
@@ -101,6 +114,8 @@ export const buildFileMetaColumnar = (fileMeta) => {
     pushOptionalColumn('size', row?.size ?? null);
     pushOptionalColumn('hash', row?.hash ?? null);
     pushOptionalColumn('hashAlgo', row?.hashAlgo ?? null);
+    pushOptionalColumn('recordSource', row?.recordSource ?? null);
+    pushOptionalColumn('displayPath', row?.displayPath ?? null);
     pushOptionalColumn('encoding', row?.encoding ?? null);
     pushOptionalColumn('encodingFallback', typeof row?.encodingFallback === 'boolean' ? row.encodingFallback : null);
     pushOptionalColumn('encodingFallbackClass', typeof row?.encodingFallbackClass === 'string' ? row.encodingFallbackClass : null);
@@ -156,6 +171,7 @@ export function buildFileMeta(state) {
           size: Number.isFinite(c.fileSize) ? c.fileSize : null,
           hash: c.fileHash || null,
           hashAlgo: c.fileHashAlgo || null,
+          ...(c.recordSource ? { recordSource: c.recordSource, displayPath: c.recordSource.displayPath } : {}),
           externalDocs: c.externalDocs,
           last_modified: c.last_modified,
           last_author: c.last_author,
@@ -198,6 +214,8 @@ export function buildFileMeta(state) {
       size: Number.isFinite(info?.size) ? info.size : entry.size,
       hash: info?.hash || entry.hash || null,
       hashAlgo: info?.hashAlgo || entry.hashAlgo || null,
+      ...(info?.recordSource || entry.recordSource ? { recordSource: info?.recordSource || entry.recordSource,
+        displayPath: (info?.recordSource || entry.recordSource).displayPath } : {}),
       encoding: info?.encoding || null,
       encodingFallback: typeof info?.encodingFallback === 'boolean' ? info.encodingFallback : null,
       encodingFallbackClass: typeof info?.encodingFallbackClass === 'string' ? info.encodingFallbackClass : null,
@@ -212,6 +230,6 @@ export function buildFileMeta(state) {
       churn_commits: entry.churn_commits
     });
   }
-  const fingerprint = computeFileMetaFingerprint({ files, fileInfoByPath });
+  const fingerprint = computeFileMetaFingerprint({ files, fileInfoByPath, fileMeta });
   return { fileMeta, fileIdByPath, fingerprint };
 }

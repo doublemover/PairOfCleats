@@ -1,10 +1,11 @@
-export const SCHEMA_VERSION = 15;
+export const SCHEMA_VERSION = 17;
 
-// Metadata for sampled signatures.
+// Hash family is mandatory for every stored signature; sampling is optional.
 export const CREATE_MINHASH_META_SQL = `
   CREATE TABLE IF NOT EXISTS minhash_meta (
     mode TEXT PRIMARY KEY,
-    sampling TEXT NOT NULL
+    hash_identity TEXT NOT NULL,
+    sampling TEXT
   );
 `;
 
@@ -26,6 +27,8 @@ export const REQUIRED_TABLES = [
 ];
 
 export const CREATE_TABLES_BASE_SQL = `
+  DROP TABLE IF EXISTS chunk_filter_facts_meta;
+  DROP TABLE IF EXISTS chunk_filter_facts;
   DROP TABLE IF EXISTS chunks_fts_trigram;
   DROP TABLE IF EXISTS chunks_fts_porter;
   DROP TABLE IF EXISTS chunks_fts;
@@ -170,6 +173,7 @@ export const CREATE_TABLES_BASE_SQL = `
     mtimeMs INTEGER,
     size INTEGER,
     chunk_count INTEGER,
+    bundle_hash TEXT,
     PRIMARY KEY (mode, file)
   ) WITHOUT ROWID;
 `;

@@ -1,5 +1,11 @@
 import { awaitToolingProviderPreflight } from '../preflight-manager.js';
-import { resolveWorkspaceExecutionAuthority } from '../../../shared/workspace-execution-authority.js';
+import { resolveRequestedAbortSignal } from '../preflight/manager-state.js';
+import { throwIfAborted } from '../../../shared/abort.js';
+import { admitProviderCatalog, createProviderCatalogError, setProviderCatalogOrigin } from '../provider-catalog.js';
+import { resolveProviderWorkspaceExecutionAuthority, isSourcekitProvider } from '../workspace-execution.js';
+import { ensureSourcekitPackageResolutionPreflight } from '../preflight/sourcekit-package-resolution.js';
+import { admitScriptLspInputs } from '../script-lsp-profiles.js';
+import { admitKotlinLspInputs, kotlinLspMigrationDiagnostic } from '../kotlin-lsp-profile.js';
 import {
   mergePreflightChecks,
   resolveCommandProfilePreflightResult,
@@ -16,7 +22,8 @@ import {
   buildConfiguredProviderConfigHash,
   collectAutoPresetServers,
   normalizeServerConfig,
-  normalizeServerId
+  normalizeServerId,
+  hasAnonymousServerIdentity
 } from './normalize.js';
 import {
   resolveLuaWorkspaceConfigPreflight,
@@ -43,9 +50,11 @@ const buildCommandUnavailableCheck = (providerId, requestedCmd) => ({
 
 export const createConfiguredLspProvider = (server) => {
   const providerId = normalizeServerId(server.providerId, `lsp-${server.id}`);
-  const executionAuthorityFor = (ctx) => resolveWorkspaceExecutionAuthority({
+  const executionAuthorityFor = (ctx) => resolveProviderWorkspaceExecutionAuthority({
     repoRoot: ctx?.repoRoot || process.cwd(), providerId, server
   });
+  const admitInputs = inputs => admitKotlinLspInputs({ profileId: server.workspaceExecutionProfile || server.id,
+    inputs: admitScriptLspInputs({ serverId: server.scriptProfileId || server.id, inputs }) });
   const blockedExecutionOutput = (ctx, inputs, authority, owner) => ({
     provider: { id: providerId, version: owner.version, configHash: owner.getConfigHash(ctx) },
     byChunkUid: {},
@@ -75,6 +84,10 @@ export const createConfiguredLspProvider = (server) => {
     version: server.version || '1.0.0',
     priority: Number.isFinite(server.priority) ? server.priority : 80,
     languages: server.languages || [],
+    requiresWorkspaceExecution: server.requiresWorkspaceExecution === true,
+    profileContractVersion: server.profileContractVersion || 1,
+    exclusiveLanguageGroup: server.exclusiveLanguageGroup || null,
+    replacesProviderIds: server.replacesProviderIds || [],
     kinds: Array.isArray(server.kinds) && server.kinds.length
       ? server.kinds.slice()
       : ['types', 'diagnostics'],
@@ -93,6 +106,8 @@ export const createConfiguredLspProvider = (server) => {
       return buildConfiguredProviderConfigHash({ server, ctx });
     },
     async run(ctx, inputs) {
+      const abortSignal = resolveRequestedAbortSignal(ctx, inputs);
+      throwIfAborted(abortSignal);
       const log = typeof ctx?.logger === 'function' ? ctx.logger : (() => {});
       const preChecks = [];
       let requestedCommand = {
@@ -106,10 +121,13 @@ export const createConfiguredLspProvider = (server) => {
           diagnostics: appendDiagnosticChecks(null, preChecks)
         };
       }
+      if (server.retiredKotlinProfile) return blockedExecutionOutput(ctx, inputs, kotlinLspMigrationDiagnostic(), this);
+      const admittedInputs = admitInputs(inputs);
       const preparedInputs = prepareConfiguredProviderInputs({
         providerId,
-        inputs
+        inputs: admittedInputs
       });
+      preChecks.push(...admittedInputs.checks);
       if (!preparedInputs.documents.length || (!preparedInputs.targets.length && !ctx.semanticLspSession?.hasTargetedWork)) {
         return {
           provider: { id: providerId, version: this.version, configHash: this.getConfigHash(ctx) },
@@ -195,6 +213,7 @@ export const createConfiguredLspProvider = (server) => {
         providerId,
         repoRoot: ctx?.repoRoot || process.cwd(),
         toolingConfig: ctx?.toolingConfig || {},
+        signal: abortSignal,
         missingProfileCheck: {
           name: 'lsp_preflight_command_profile_missing',
           status: 'warn',
@@ -244,6 +263,7 @@ export const createConfiguredLspProvider = (server) => {
         server,
         providerId,
         ctx,
+        abortSignal,
         provider: this,
         docs: preparedInputs.documents,
         targets: preparedInputs.targets,
@@ -259,7 +279,8 @@ export const createConfiguredLspProvider = (server) => {
       });
     },
     preparePreflightInputs(_ctx, inputs) {
-      return prepareConfiguredProviderInputs({ providerId, inputs });
+      return prepareConfiguredProviderInputs({ providerId,
+        inputs: admitInputs(inputs) });
     }
   };
   provider.preflightId = server.workspaceMarkerOptions && server.requireWorkspaceModel !== false
@@ -273,8 +294,20 @@ export const createConfiguredLspProvider = (server) => {
   provider.preflightClass = server.preflightClass
     || (server.workspaceMarkerOptions && server.requireWorkspaceModel !== false ? 'workspace' : 'probe');
   provider.preflight = async (ctx, inputs = {}) => {
+    const abortSignal = resolveRequestedAbortSignal(ctx, inputs);
+    throwIfAborted(abortSignal);
+    ctx = { ...ctx, abortSignal };
+    if (server.retiredKotlinProfile) return kotlinLspMigrationDiagnostic();
     const executionAuthority = executionAuthorityFor(ctx);
     if (executionAuthority) return executionAuthority;
+    const admittedInputs = admitInputs(inputs);
+    if (server.workspaceExecutionProfile === 'kotlin-lsp' && !admittedInputs.documents.length) return {
+      state: 'blocked', blockProvider: true, reasonCode: 'kotlin_lsp_no_admitted_sources', checks: admittedInputs.checks
+    };
+    if ((server.scriptProfileId || server.id) === 'bash-language-server' && !admittedInputs.documents.length) return {
+      state: 'blocked', blockProvider: true, reasonCode: 'bash_lsp_no_admitted_dialect', checks: admittedInputs.checks
+    };
+    inputs = admittedInputs;
     const commandPreflight = runCommandProfilePreflight(ctx);
     const luaLibraryPreflight = resolveLuaWorkspaceLibraryPreflight({
       server,
@@ -286,6 +319,12 @@ export const createConfiguredLspProvider = (server) => {
       providerId,
       requirements: server.preflightRuntimeRequirements
     });
+    if (commandPreflight.state === 'ready' && runtimeRequirementPreflight.blockProvider === true) return {
+      ...runtimeRequirementPreflight,
+      requestedCommand: commandPreflight.requestedCommand,
+      commandProfile: commandPreflight.commandProfile,
+      checks: mergePreflightChecks(commandPreflight.checks, runtimeRequirementPreflight.check, runtimeRequirementPreflight.checks)
+    };
     const zlsRuntimeCompatibilityPreflight = resolveZlsRuntimeCompatibilityPreflight({
       server, commandProfile: commandPreflight?.commandProfile,
       runtimeProfiles: runtimeRequirementPreflight?.profiles || []
@@ -317,10 +356,20 @@ export const createConfiguredLspProvider = (server) => {
         ...(checks.length ? { checks } : {})
       };
     }
+    if (isSourcekitProvider({ providerId, server })) {
+      const sourcekitPreflight = await ensureSourcekitPackageResolutionPreflight({ repoRoot: ctx?.repoRoot || process.cwd(),
+        log: typeof ctx?.logger === 'function' ? ctx.logger : () => {}, signal: resolveRequestedAbortSignal(ctx, inputs),
+        sourcekitConfig: ctx?.toolingConfig?.sourcekit || {}, cacheRoot: ctx?.cache?.dir || null,
+        resolutionPlan: ctx?.sourcekitOperationPlan || null });
+      return { ...sourcekitPreflight, blockProvider: sourcekitPreflight.blockSourcekit === true,
+        requestedCommand: commandPreflight.requestedCommand, commandProfile: commandPreflight.commandProfile,
+        checks: mergePreflightChecks(commandPreflight.checks, sourcekitPreflight.check, sourcekitPreflight.checks) };
+    }
     const luaWorkspaceConfigPreflight = await resolveLuaWorkspaceConfigPreflight({
       server,
       repoRoot: ctx?.repoRoot || process.cwd()
     });
+    throwIfAborted(abortSignal);
     return resolveConfiguredWorkspacePreflight({
       ctx,
       server,
@@ -347,21 +396,35 @@ export const createConfiguredLspProviders = (toolingConfig) => {
   const servers = Array.isArray(lsp.servers) ? lsp.servers : [];
   const providers = [];
   const normalizedServers = [];
+  const origins = new WeakMap();
   const configuredServerIds = new Set();
   for (let i = 0; i < servers.length; i += 1) {
     const normalized = normalizeServerConfig(servers[i], i);
     if (!normalized) continue;
-    configuredServerIds.add(normalized.id);
     normalizedServers.push(normalized);
+    origins.set(normalized, { kind: 'configured-lsp', source: `tooling.lsp.servers[${i}]`,
+      rawId: typeof servers[i]?.providerId === 'string' ? servers[i].providerId : servers[i]?.id });
   }
+  const anonymous = normalizedServers.find(hasAnonymousServerIdentity);
+  if (anonymous && normalizedServers.length > 1) {
+    const other = normalizedServers.find(server => server !== anonymous);
+    throw createProviderCatalogError('ERR_TOOLING_PROVIDER_INSTANCE_ID', null,
+      [origins.get(anonymous), origins.get(other)],
+      'Multiple configured LSP servers require explicit id or providerId; array position cannot identify a provider instance.');
+  }
+  // Preserve the legacy single anonymous provider while making its default
+  // independent of invalid entries before it in the configuration.
+  if (anonymous) anonymous.id = 'lsp-1';
+  for (const server of normalizedServers) configuredServerIds.add(server.id);
   const autoServers = collectAutoPresetServers(toolingConfig, configuredServerIds);
   for (let i = 0; i < autoServers.length; i += 1) {
     const normalized = normalizeServerConfig(autoServers[i], servers.length + i);
     if (!normalized) continue;
     normalizedServers.push(normalized);
+    origins.set(normalized, { kind: 'automatic-lsp-preset', source: `tooling.lsp.autoPresets:${normalized.id}`, rawId: normalized.id });
   }
   for (const server of normalizedServers) {
-    providers.push(createConfiguredLspProvider(server));
+    providers.push(setProviderCatalogOrigin(createConfiguredLspProvider(server), origins.get(server)));
   }
-  return providers;
+  return [...admitProviderCatalog(providers).values()];
 };

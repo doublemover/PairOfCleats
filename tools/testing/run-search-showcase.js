@@ -287,7 +287,7 @@ const countEmptyRenderedSections = (text) => {
   return emptyCount;
 };
 
-const loadReviewSurfaceText = (meta, captureMode) => {
+const loadReviewSurfaceText = (meta, captureMode, stdoutOnly = false) => {
   if (captureMode === 'pty') {
     const terminalPlain = meta?.files?.terminalPlain;
     return terminalPlain && fs.existsSync(terminalPlain) ? fs.readFileSync(terminalPlain, 'utf8') : '';
@@ -296,7 +296,7 @@ const loadReviewSurfaceText = (meta, captureMode) => {
   const stderrPlain = meta?.files?.stderrPlain;
   const stdoutText = stdoutPlain && fs.existsSync(stdoutPlain) ? fs.readFileSync(stdoutPlain, 'utf8') : '';
   const stderrText = stderrPlain && fs.existsSync(stderrPlain) ? fs.readFileSync(stderrPlain, 'utf8') : '';
-  return `${stdoutText}${stderrText}`;
+  return stdoutOnly ? stdoutText : `${stdoutText}${stderrText}`;
 };
 
 const evaluateReviewExpectations = (text, reviewExpect = null) => {
@@ -334,6 +334,7 @@ const deriveRunReview = (run) => {
     usedWidth,
     widthOverflow,
     diagnosticPollution,
+    ...(review.machineStdout ? { machineStdout: review.machineStdout } : {}),
     missingExpectedCount,
     emptySectionCount,
     sectionCount,
@@ -360,6 +361,7 @@ export const buildSearchShowcaseReviewReport = (summary) => {
     totalRuns: runs.length,
     overflowCount: scoredRuns.reduce((total, run) => total + run.overflowCount, 0),
     blankPairCount: scoredRuns.reduce((total, run) => total + run.blankPairCount, 0),
+    machineOutputFailureCount: scoredRuns.filter(run => run.machineStdout?.state === 'failed').length,
     diagnosticPollutionCount: scoredRuns.reduce((total, run) => total + run.diagnosticPollution, 0),
     missingExpectedCount: scoredRuns.reduce((total, run) => total + run.missingExpectedCount, 0),
     emptySectionCount: scoredRuns.reduce((total, run) => total + run.emptySectionCount, 0),
@@ -385,12 +387,32 @@ const formatSearchShowcaseReviewReport = (report) => {
   } else {
     for (const run of worstRuns) {
       lines.push(
-        `  ${run.id}@${run.terminalSize} score=${run.score} overflow=${run.overflowCount} blankPairs=${run.blankPairCount} missing=${run.missingExpectedCount} emptySections=${run.emptySectionCount} outputDir=${run.outputDir}`
+        `  ${run.id}@${run.terminalSize} score=${run.score} overflow=${run.overflowCount} blankPairs=${run.blankPairCount} missing=${run.missingExpectedCount} emptySections=${run.emptySectionCount} outputDir=${run.outputDir} machineStdout=${run.machineStdout?.state || 'not-applicable'} parseError=${JSON.stringify(run.machineStdout?.jsonParseError || null)}`
       );
     }
   }
   lines.push('');
   return lines.join('\n');
+};
+
+/** Shared capture owner for the CLI and bounded stream-contract fixtures.
+ * The CLI retains its index admission; this helper does not select a backend. */
+export const captureSearchShowcaseCase = async ({ captureOptions, entry, entrypoint, commandArgs, pty = false, terminalSize = {} }) => {
+  const meta = pty ? await captureSearchDebugRun({ ...captureOptions, searchArgs: commandArgs, pty: true,
+    cols: terminalSize.columns, rows: terminalSize.lines, searchEntrypoint: entrypoint })
+    : await captureCommandDebugRun({ ...captureOptions, command: process.execPath, args: [entrypoint, ...commandArgs],
+      parseStdoutAsJson: entry.category === 'machine' });
+  const expectationReview = evaluateReviewExpectations(loadReviewSurfaceText(meta, meta.mode || 'pipe', entry.category === 'machine'), entry.reviewExpect || null);
+  const review = meta.mode === 'pty' ? {
+    overflowCount: Number(meta.screen?.overflowCount) || 0, blankPairCount: Number(meta.screen?.blankPairCount) || 0,
+    usedWidth: Number(meta.screen?.usedWidth) || 0, ...expectationReview
+  } : {
+    diagnosticPollution: entry.category === 'machine' && meta.stdout?.parsedAsJson !== true ? 1 : 0,
+    machineStdout: { state: entry.category === 'machine' ? meta.stdout?.parsedAsJson === true ? 'passed' : 'failed' : 'not-applicable',
+      jsonParseError: meta.stdout?.jsonParseError || null, stdoutBytes: Number(meta.stdout?.bytes || 0),
+      stderrBytes: Number(meta.stderr?.bytes || 0), rawStdoutPath: meta.files?.stdoutRaw || null }, ...expectationReview
+  };
+  return { meta, review };
 };
 
 const hasUsableIndex = (repoRoot) => {
@@ -490,23 +512,7 @@ export const runSearchShowcaseCli = async (argv = process.argv.slice(2)) => {
         trackedEnvKeys: ['COLUMNS', 'LINES'],
         outputSuffix: sizeLabel
       };
-      const meta = options.pty
-        ? await captureSearchDebugRun({
-          ...commonCaptureOptions,
-          searchArgs: commandArgs,
-          pty: true,
-          cols: terminalSize.columns,
-          rows: terminalSize.lines,
-          searchEntrypoint: entrypoint
-        })
-        : await captureCommandDebugRun({
-          ...commonCaptureOptions,
-          command: process.execPath,
-          args: [entrypoint, ...commandArgs],
-          parseStdoutAsJson: false
-        });
-      const reviewText = loadReviewSurfaceText(meta, meta.mode || 'pipe');
-      const expectationReview = evaluateReviewExpectations(reviewText, entry.reviewExpect || null);
+      const { meta, review } = await captureSearchShowcaseCase({ captureOptions: commonCaptureOptions, entry, entrypoint, commandArgs, pty: options.pty, terminalSize });
       const status = meta.exitCode === expectedExitCode ? 'ok' : 'failed';
       if (status !== 'ok') failures += 1;
       runs.push({
@@ -522,21 +528,7 @@ export const runSearchShowcaseCli = async (argv = process.argv.slice(2)) => {
         outputDir: meta.outputDir,
         query: entry.query || null,
         mode: entry.mode || null,
-        review: meta.mode === 'pty'
-          ? {
-            overflowCount: Number(meta.screen?.overflowCount) || 0,
-            blankPairCount: Number(meta.screen?.blankPairCount) || 0,
-            usedWidth: Number(meta.screen?.usedWidth) || 0,
-            ...expectationReview
-          }
-          : {
-            diagnosticPollution: entry.category === 'machine'
-              && meta.stdout?.parsedAsJson === false
-              && Number(meta.stderr?.bytes || 0) > 0
-              ? 1
-              : 0,
-            ...expectationReview
-          },
+        review,
         terminalSize: {
           id: terminalSize.id,
           columns: terminalSize.columns,

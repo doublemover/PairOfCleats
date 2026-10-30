@@ -1,4 +1,5 @@
 import fs from 'node:fs/promises';
+import { MINHASH_HASH_IDENTITY } from '../../../../src/index/minhash.js';
 import path from 'node:path';
 
 import { writeJsonLinesSharded } from '../../../../src/shared/json-stream/jsonl-sharded.js';
@@ -214,6 +215,7 @@ export const setupSqliteBuildFixture = async ({
     });
 
     await writeJsonObjectFile(path.join(indexDir, 'minhash_signatures.json'), {
+      fields: { hashIdentity: MINHASH_HASH_IDENTITY },
       arrays: {
         signatures: Array.from({ length: chunkCount }, (_, i) => [i, i + 1, i + 2])
       },

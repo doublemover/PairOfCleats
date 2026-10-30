@@ -1,10 +1,14 @@
 #!/usr/bin/env node
 import { guardBootstrapEntry } from '../src/shared/bootstrap-readiness.js';
-await guardBootstrapEntry(import.meta.url);
-const { projectIndexFormatError } = await import('../src/shared/index-format-error.js');
+import { handleCheckoutInformation } from '../tools/setup/checkout-diagnose.js';
+import { isDirectExecution } from '../src/shared/direct-execution.js';
+const checkoutInformationHandled = isDirectExecution(import.meta.url) && await handleCheckoutInformation(process.argv.slice(2));
+if (!checkoutInformationHandled) await guardBootstrapEntry(import.meta.url);
+const loadRuntimeModule = specifier => checkoutInformationHandled ? Promise.resolve({}) : import(specifier);
+const { projectIndexFormatError } = await loadRuntimeModule('../src/shared/index-format-error.js');
 import fs from 'node:fs';
 import path from 'node:path';
-const { getToolVersion, resolveRepoRoot, resolveToolRoot } = await import('../tools/shared/dict-utils.js');
+const { getToolVersion, resolveRepoRoot, resolveToolRoot } = await loadRuntimeModule('../tools/shared/dict-utils.js');
 const {
   CONTEXT_PACK_OPTIONS,
   INDEX_BUILD_OPTIONS,
@@ -13,33 +17,34 @@ const {
   TOOLING_DETECT_OPTIONS,
   TOOLING_INSTALL_OPTIONS,
   resolveCliOptionFlagSets
-} = await import('../src/shared/cli-options.js');
+} = await loadRuntimeModule('../src/shared/cli-options.js');
 const {
   COMMAND_SUPPORT_TIER_LABELS,
   DEFAULT_HELP_SUPPORT_TIERS
-} = await import('../src/shared/command-registry-data.js');
+} = await loadRuntimeModule('../src/shared/command-registry-data.js');
 const {
   describeCommandRegistryEntry,
   listCommandRegistry,
   listCommonWorkflowExamples,
   listHelpSections
-} = await import('../src/shared/command-registry-query.js');
-const { spawnSubprocess } = await import('../src/shared/subprocess/runner.js');
-const { exitLikeChild } = await import('../src/tui/wrapper-exit.js');
-const { buildErrorPayload, ERROR_CODES, isErrorCode } = await import('../src/shared/error-codes.js');
+} = await loadRuntimeModule('../src/shared/command-registry-query.js');
+const { spawnSubprocess } = await loadRuntimeModule('../src/shared/subprocess/runner.js');
+const { exitLikeChild } = await loadRuntimeModule('../src/tui/wrapper-exit.js');
+const { buildErrorPayload, ERROR_CODES, isErrorCode } = await loadRuntimeModule('../src/shared/error-codes.js');
 const {
   getSearchHelp,
   SEARCH_OPTION_NAMES,
   SEARCH_SHORT_VALUE_FLAG_NAMES,
   SEARCH_VALUE_FLAG_NAMES
-} = await import('../src/retrieval/cli-args.js');
-const { resolveDispatchRuntimeEnv } = await import('./dispatch-runtime-env.js');
-const { isDirectExecution } = await import('../src/shared/direct-execution.js');
-const { readFlagValue } = await import('../src/shared/cli/argv.js');
-const { isStrictDispatchEnvEnabled } = await import('../src/shared/env/runtime.js');
+} = await loadRuntimeModule('../src/retrieval/cli-args.js');
+const { resolveDispatchRuntimeEnv, isWorkspaceDispatchScript } = await loadRuntimeModule('./dispatch-runtime-env.js');
+const { readFlagValue } = await loadRuntimeModule('../src/shared/cli/argv.js');
+const { validateBuildRawIntent } = await loadRuntimeModule('../src/shared/cli-option-validators.js');
+const { STORAGE_ACTIONS, STORAGE_OPTIONS } = await loadRuntimeModule('../tools/storage/options.js');
+const { isStrictDispatchEnvEnabled } = await loadRuntimeModule('../src/shared/env/runtime.js');
 
-const ROOT = resolveToolRoot();
-const WORKSPACE_BUILD_FLAGS = Object.keys(INDEX_BUILD_OPTIONS).filter((flag) => flag !== 'repo');
+const ROOT = checkoutInformationHandled ? null : resolveToolRoot();
+const WORKSPACE_BUILD_FLAGS = Object.keys(INDEX_BUILD_OPTIONS || {}).filter((flag) => flag !== 'repo');
 const WORKSPACE_BUILD_ALLOWED_FLAGS = Array.from(new Set([
   'workspace',
   'concurrency',
@@ -108,20 +113,31 @@ function resolveCommand(primary, rest) {
   }
   if (primary === 'index') {
     const sub = rest.shift();
-    if (!sub || isHelpCommand(sub)) {
+    if (!sub) {
+      admitIndexBuildArgs(rest);
       return { script: 'tools/index/cli-entry.js', extraArgs: [], args: rest };
+    }
+    if (sub === 'help' || isHelpCommand(sub)) {
+      return { script: 'tools/index/cli-entry.js', extraArgs: [], args: ['--help', ...rest] };
     }
     if (sub === 'build') {
       if (readFlagValue(rest, 'workspace')) {
         return resolveWorkspaceBuildCommand(rest);
       }
+      admitIndexBuildArgs(rest);
       return { script: 'tools/index/cli-entry.js', extraArgs: [], args: rest };
     }
     if (sub === 'watch') {
+      admitIndexBuildArgs(rest);
       return { script: 'tools/index/cli-entry.js', extraArgs: ['--watch'], args: rest };
     }
     if (sub === 'validate') {
       return { script: 'tools/index/validate.js', extraArgs: [], args: rest };
+    }
+    if (sub === 'recover') {
+      validateArgs(rest, ['repo', 'action', 'operation', 'index-root', 'mode', 'resume-target', 'plan-file', 'graph-capability', 'json'],
+        ['repo', 'action', 'operation', 'index-root', 'mode', 'resume-target', 'plan-file', 'graph-capability']);
+      return { script: 'tools/index/recover.js', extraArgs: [], args: rest };
     }
     if (sub === 'report') {
       validateArgs(rest, ['repo', 'json', 'all', 'runtime', 'index-root', 'build', 'attempt', 'mode', 'explain', 'redact-paths'], ['repo', 'index-root', 'build', 'attempt', 'mode', 'explain']);
@@ -225,7 +241,12 @@ function resolveCommand(primary, rest) {
       );
       return { script: 'tools/index-diff.js', extraArgs: [], args: rest };
     }
-    return { script: 'tools/index/cli-entry.js', extraArgs: [], args: [sub, ...rest] };
+    if (sub.startsWith('-')) {
+      admitIndexBuildArgs([sub, ...rest]);
+      return { script: 'tools/index/cli-entry.js', extraArgs: [], args: [sub, ...rest] };
+    }
+    failCli(`Unknown index command: ${sub}`, { code: ERROR_CODES.INVALID_REQUEST,
+      hint: 'Use pairofcleats index --help for supported commands; use index build to build indexes.' });
   }
   if (primary === 'search') {
     const searchDispatch = resolveSearchDispatchArgs(rest);
@@ -299,10 +320,15 @@ function resolveCommand(primary, rest) {
   if (primary === 'workspace') {
     const sub = rest.shift();
     if (!sub || isHelpCommand(sub)) {
-      failCli('workspace requires a subcommand: manifest, status, build, catalog', {
+      failCli('workspace requires a subcommand: init, add, validate, manifest, status, build, catalog', {
         code: ERROR_CODES.INVALID_REQUEST,
         showHelp: true
       });
+    }
+    if (['init', 'add', 'validate'].includes(sub)) {
+      const allowed = sub === 'validate' ? ['workspace', 'json'] : ['workspace', 'repo', 'alias', 'apply', 'json'];
+      validateArgs(rest, allowed, ['workspace', ...(sub === 'validate' ? [] : ['repo', 'alias'])]);
+      return { script: 'tools/workspace/author.js', extraArgs: ['--operation', sub], args: rest };
     }
     if (sub === 'manifest') {
       validateArgs(rest, ['workspace', 'json'], ['workspace']);
@@ -327,8 +353,23 @@ function resolveCommand(primary, rest) {
   if (primary === 'setup') {
     return { script: 'tools/setup/setup.js', extraArgs: [], args: rest };
   }
+  if (primary === 'checkout') {
+    const sub = rest.shift();
+    if (sub !== 'diagnose') failCli('checkout requires the diagnose subcommand', { code: ERROR_CODES.INVALID_REQUEST });
+    validateArgs(rest, ['json', 'prerequisites'], []);
+    return { script: 'tools/setup/checkout-diagnose.js', extraArgs: [], args: rest };
+  }
   if (primary === 'bootstrap') {
     return { script: 'tools/setup/bootstrap.js', extraArgs: [], args: rest };
+  }
+  if (primary === 'storage') {
+    const action = rest.shift();
+    if (!STORAGE_ACTIONS.includes(action)) failCli(`storage requires an action: ${STORAGE_ACTIONS.join(', ')}`, {
+      code: ERROR_CODES.INVALID_REQUEST, showHelp: true
+    });
+    const { optionNames, valueOptionNames } = resolveCliOptionFlagSets(STORAGE_OPTIONS);
+    validateArgs(rest, optionNames, valueOptionNames);
+    return { script: 'tools/storage/cli.js', extraArgs: [action], args: rest };
   }
   if (primary === 'cache') {
     const sub = rest.shift();
@@ -339,7 +380,7 @@ function resolveCommand(primary, rest) {
       });
     }
     if (sub === 'clear') {
-      validateArgs(rest, ['all', 'force', 'cache-root'], ['cache-root']);
+      validateArgs(rest, ['all', 'force', 'cache-root', 'apply', 'plan', 'plan-id', 'json'], ['cache-root', 'plan', 'plan-id']);
       return { script: 'tools/cache/clear-cache.js', extraArgs: [], args: rest };
     }
     if (sub === 'gc') {
@@ -391,6 +432,13 @@ function resolveCommand(primary, rest) {
           'repo',
           'mode',
           'index-root',
+          'graph-capability',
+          'serve',
+          'input',
+          'port',
+          'no-open',
+          'tls-key',
+          'tls-cert',
           'scope',
           'focus',
           'include',
@@ -420,6 +468,11 @@ function resolveCommand(primary, rest) {
           'repo',
           'mode',
           'index-root',
+          'graph-capability',
+          'input',
+          'port',
+          'tls-key',
+          'tls-cert',
           'scope',
           'focus',
           'include',
@@ -645,6 +698,7 @@ function resolveCommand(primary, rest) {
         'seed',
         'depth',
         'direction',
+        'pathSemantics',
         'format',
         'json',
         'includePaths',
@@ -665,6 +719,7 @@ function resolveCommand(primary, rest) {
         'seed',
         'depth',
         'direction',
+        'pathSemantics',
         'format',
         'graphs',
         'edgeTypes',
@@ -751,6 +806,10 @@ function resolveCommand(primary, rest) {
     validateArgs(rest, ['request', 'all'], ['request']);
     return { script: 'tools/analysis/semantic-' + sub + '.js', extraArgs: [], args: rest };
   }
+  if (primary === 'graph-evidence') {
+    validateArgs(rest, ['request', 'all'], ['request']);
+    return { script: 'tools/analysis/graph-evidence.js', extraArgs: [], args: rest };
+  }
   if (primary === 'context-pack') {
     const { optionNames, valueOptionNames } = resolveCliOptionFlagSets(CONTEXT_PACK_OPTIONS);
     validateArgs(rest, optionNames, valueOptionNames);
@@ -786,6 +845,7 @@ function resolveCommand(primary, rest) {
         'changedFile',
         'depth',
         'direction',
+        'pathSemantics',
         'format',
         'json',
         'graphs',
@@ -807,6 +867,7 @@ function resolveCommand(primary, rest) {
         'changedFile',
         'depth',
         'direction',
+        'pathSemantics',
         'format',
         'graphs',
         'edgeTypes',
@@ -826,7 +887,7 @@ function resolveCommand(primary, rest) {
   if (primary === 'tooling') {
     const sub = rest.shift();
     if (!sub || isHelpCommand(sub)) {
-      failCli('tooling requires a subcommand: doctor, detect, install, navigate, uninstall', {
+      failCli('tooling requires a subcommand: doctor, detect, install, lifecycle, navigate, uninstall', {
         code: ERROR_CODES.INVALID_REQUEST,
         showHelp: true
       });
@@ -834,6 +895,10 @@ function resolveCommand(primary, rest) {
     if (sub === 'doctor') {
       validateArgs(rest, ['repo', 'json', 'strict', 'non-strict'], ['repo']);
       return { script: 'tools/tooling/doctor.js', extraArgs: [], args: rest };
+    }
+    if (sub === 'prepare-sourcekit') {
+      validateArgs(rest, ['repo', 'swift', 'apply', 'json'], ['repo', 'swift']);
+      return { script: 'tools/tooling/prepare-sourcekit.js', extraArgs: [], args: rest };
     }
     if (sub === 'detect') {
       const { optionNames, valueOptionNames } = resolveCliOptionFlagSets(TOOLING_DETECT_OPTIONS);
@@ -846,8 +911,14 @@ function resolveCommand(primary, rest) {
       return { script: 'tools/tooling/install.js', extraArgs: [], args: rest };
     }
     if (sub === 'navigate') {
-      validateArgs(rest, ['repo', 'kind', 'symbol', 'file', 'top', 'json'], ['repo', 'kind', 'symbol', 'file', 'top']);
+      validateArgs(rest, ['repo', 'kind', 'symbol', 'file', 'top', 'json', 'source-hash', 'source-version', 'line', 'column', 'coordinate-unit', 'include-declaration'],
+        ['repo', 'kind', 'symbol', 'file', 'top', 'source-hash', 'source-version', 'line', 'column', 'coordinate-unit', 'include-declaration']);
       return { script: 'tools/tooling/navigation.js', extraArgs: [], args: rest };
+    }
+    if (sub === 'lifecycle') {
+      validateArgs(rest, ['repo', 'tool', 'operation', 'receipt', 'apply-plan', 'json'],
+        ['repo', 'tool', 'operation', 'receipt', 'apply-plan']);
+      return { script: 'tools/tooling/lifecycle.js', extraArgs: [], args: rest };
     }
     if (sub === 'uninstall') {
       validateArgs(rest, ['yes', 'dry-run', 'repo'], ['repo']);
@@ -962,6 +1033,15 @@ function resolveCommand(primary, rest) {
  * @param {string[]} rest
  * @returns {{script:string,extraArgs:string[],args:string[]}}
  */
+function admitIndexBuildArgs(args) {
+  try { validateBuildRawIntent(args); }
+  catch (error) {
+    if (error.code !== 'ERR_BUILD_ARG_VALIDATION') throw error;
+    failCli(error.message, { code: ERROR_CODES.INVALID_REQUEST,
+      hint: 'Use pairofcleats index build --help for supported stage, mode and quality values.' });
+  }
+}
+
 function resolveWorkspaceBuildCommand(rest) {
   validateArgs(rest, WORKSPACE_BUILD_ALLOWED_FLAGS, WORKSPACE_BUILD_VALUE_FLAGS);
   return { script: 'tools/workspace/build.js', extraArgs: [], args: rest };
@@ -1067,6 +1147,12 @@ function resolveSearchDispatchArgs(rest) {
  * @returns {Promise<never>}
  */
 async function runScript(scriptPath, extraArgs, restArgs) {
+  const terminator = restArgs.indexOf('--');
+  const optionArgs = terminator >= 0 ? restArgs.slice(0, terminator) : restArgs;
+  if (optionArgs.includes('-v') || optionArgs.includes('--version')) {
+    console.error(getToolVersion() || '0.0.0');
+    return;
+  }
   const resolved = path.join(ROOT, scriptPath);
   if (!fs.existsSync(resolved)) {
     failCli(`Script not found: ${resolved}`, {
@@ -1154,6 +1240,10 @@ function shouldSkipDispatchRuntimeEnvResolution(scriptPath, restArgs = []) {
   const normalized = String(scriptPath || '').trim().replace(/\\/g, '/');
   return normalized.startsWith('tools/config/')
     || normalized.startsWith('tools/cli/')
+    || isWorkspaceDispatchScript(normalized)
+    || normalized === 'tools/setup/checkout-diagnose.js'
+    || normalized === 'tools/storage/cli.js'
+    || normalized === 'tools/cache/clear-cache.js'
     || (
       normalized === 'tools/mcp/cli-entry.js'
       && restArgs.some((arg) => isHelpCommand(arg) || isVersionCommand(arg))
@@ -1184,7 +1274,7 @@ function isHelpAllCommand(value) {
   return value === '--help-all' || value === 'help-all';
 }
 
-if (isDirectExecution(import.meta.url)) {
+if (!checkoutInformationHandled && isDirectExecution(import.meta.url)) {
   main().catch((err) => {
     const format = projectIndexFormatError(err);
     if (format) {
@@ -1251,6 +1341,9 @@ function printHelp({ includeAll = false, topicTokens = [] } = {}) {
 }
 
 function printRequestedHelp(helpArgs) {
+  validateArgs(helpArgs, ['all', 'json', 'repo'], ['repo']);
+  helpArgs = helpArgs.filter((arg, index) => arg !== '--repo'
+    && !arg.startsWith('--repo=') && helpArgs[index - 1] !== '--repo');
   if (helpArgs.includes('--json')) {
     const all = helpArgs.includes('--all');
     const topic = helpArgs.filter(arg => !['--json', '--all', '--help', '-h'].includes(arg)).join(' ');

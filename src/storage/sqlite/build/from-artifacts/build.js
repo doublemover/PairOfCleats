@@ -1,4 +1,9 @@
+import path from 'node:path';
+import { withSqliteStorageOperation } from '../storage-operation.js';
 import { loadPiecesManifest } from '../../../../shared/artifact-io/manifest-read.js';
+import { throwIfAborted } from '../../../../shared/abort.js';
+import { rebuildSqliteFilterFacts } from '../../filter-facts.js';
+import { setImmediate } from 'node:timers/promises';
 import { openPublishedSemanticStore } from '../../../../semantic/published-store.js';
 import { ingestPublishedSemanticFamily } from '../../semantic/published.js';
 import { prepareVectorAnnTable } from '../../build-helpers.js';
@@ -47,7 +52,12 @@ const ARTIFACT_BUILD_PRAGMA_MIN_BYTES = 128 * 1024 * 1024;
  * @param {object} [params.stats]
  * @returns {Promise<number>}
  */
-export async function buildDatabaseFromArtifacts({
+export const buildDatabaseFromArtifacts = input => withSqliteStorageOperation(input?.storageContext,
+  [input?.outputPath || input?.outPath, input?.indexDir, input?.incrementalData?.bundleDir]
+    .filter(value => typeof value === 'string' && value).map(value => path.resolve(value)),
+  () => buildDatabaseFromArtifactsOwned(input));
+
+async function buildDatabaseFromArtifactsOwned({
   repoRoot = process.cwd(),
   Database,
   outPath,
@@ -68,8 +78,15 @@ export async function buildDatabaseFromArtifacts({
   buildPragmas,
   optimize,
   stats,
-  ftsVariants = []
+  ftsVariants = [],
+  signal = null
 }) {
+  const checkpoint = async () => {
+    throwIfAborted(signal);
+    if (signal) await setImmediate(undefined, { signal });
+    throwIfAborted(signal);
+  };
+  await checkpoint();
   const resolvedOutPath = typeof outputPath === 'string' ? outputPath : outPath;
   if (!resolvedOutPath || typeof resolvedOutPath !== 'string') {
     throw new Error('[sqlite] buildDatabaseFromArtifacts: outputPath must be a string.');
@@ -87,6 +104,7 @@ export async function buildDatabaseFromArtifacts({
   indexDir = resolvedIndexDir;
   loadPiecesManifest(indexDir, { repoRoot });
   if (mode === 'code') await openPublishedSemanticStore({ indexDir, repoRoot });
+  await checkpoint();
   const warn = (message) => {
     if (!emitOutput || !message) return;
     if (logger?.warn) {
@@ -105,7 +123,7 @@ export async function buildDatabaseFromArtifacts({
     resolvedStatementStrategy,
     recordBatch,
     recordTable
-  } = createBuildExecutionContext({ batchSize, inputBytes, statementStrategy, stats });
+  } = createBuildExecutionContext({ batchSize, inputBytes, statementStrategy, stats, signal });
   if (!index && !indexDir) return 0;
   const manifestLookup = normalizeManifestFiles(manifestFiles || {});
   if (emitOutput && manifestLookup.conflicts.length) {
@@ -167,9 +185,11 @@ export async function buildDatabaseFromArtifacts({
   });
 
   let count = 0;
-  let succeeded = false;
+  let succeeded = false, operationFailed = false, operationError;
   try {
     const vectorAnn = prepareVectorAnnTable({ db, indexData: index, mode, vectorConfig });
+    if (batchStats) batchStats.vectorAnn = { enabled: vectorConfig?.enabled === true, ready: Boolean(vectorAnn?.insert),
+      table: vectorAnn?.tableName || vectorConfig?.extension?.table || 'dense_vectors_ann' };
     const {
       insertClause,
       insertTokenVocab,
@@ -378,6 +398,8 @@ export async function buildDatabaseFromArtifacts({
       insertFileMetaStage,
       insertChunkStage,
       insertFileManifest,
+      onChunkIdentity: identity => { if (batchStats) batchStats.chunkIdentity = identity; },
+      outputPath: promotePath || dbPath,
       manifestByNormalized
     });
 
@@ -421,6 +443,7 @@ export async function buildDatabaseFromArtifacts({
       const fileMetaSource = indexData?.fileMeta
         ?? (modeIndexDir ? loadOptionalFileMetaRows(modeIndexDir) : null);
       await chunkIngestor.ingestFileMetaRows(fileMetaSource);
+      await checkpoint();
       let chunkCount = 0;
       let chunkMetaLoaded = false;
       if (modeIndexDir) {
@@ -440,8 +463,10 @@ export async function buildDatabaseFromArtifacts({
         }
         chunkCount = ingestor.finish();
       }
+      await checkpoint();
       chunkIngestor.finalizeChunkIngest(targetMode, chunkCount);
 
+      await checkpoint();
       let tokenIngested = false;
       if (indexData?.tokenPostings) {
         tokenIngestor.ingestTokenIndex(indexData.tokenPostings, targetMode);
@@ -463,6 +488,7 @@ export async function buildDatabaseFromArtifacts({
         }
       }
 
+      await checkpoint();
       tokenIngestor.ingestPostingIndex(
         indexData?.phraseNgrams,
         targetMode,
@@ -487,8 +513,10 @@ export async function buildDatabaseFromArtifacts({
           insertPostingMany: insertChargramPostingMany
         }
       );
+      await checkpoint();
       await vectorIngestor.ingestMinhash(indexData?.minhash, targetMode);
       await vectorIngestor.ingestDense(indexData?.denseVec, targetMode);
+      await checkpoint();
       chunkIngestor.ingestFileManifestFromChunks(targetMode);
       db.exec('DELETE FROM file_meta_stage;');
 
@@ -508,9 +536,12 @@ export async function buildDatabaseFromArtifacts({
     beginSqliteBuildTransaction(db, batchStats);
     try {
       count = await ingestIndex(index, mode, indexDir);
-      if (mode === 'code') await ingestPublishedSemanticFamily({ db, indexDir, repoRoot });
+      if (mode === 'code') await ingestPublishedSemanticFamily({ db, indexDir, repoRoot, signal });
+      await checkpoint();
       validationStats.chunks = count;
       db.exec(CREATE_INDEXES_SQL);
+      await rebuildSqliteFilterFacts(db, mode, { signal });
+      throwIfAborted(signal);
       commitSqliteBuildTransaction(db, batchStats, {
         dbPath,
         stage: 'artifact-build',
@@ -535,7 +566,8 @@ export async function buildDatabaseFromArtifacts({
       telemetry: { source: 'artifacts' }
     });
     succeeded = true;
-  } finally {
+  } catch (error) { operationFailed = true; operationError = error; throw error; }
+  finally {
     if (denseClampStats.totalValues > 0) {
       try {
         warn(
@@ -546,11 +578,14 @@ export async function buildDatabaseFromArtifacts({
     }
     await closeSqliteBuildDatabase({
       db,
+      operationFailed,
+      operationError,
       succeeded,
       pragmaState,
       batchStats,
       dbPath,
       promotePath,
+      signal,
       outPath: resolvedOutPath,
       warn: (err) => warn(`[sqlite] WAL checkpoint failed for ${mode}: ${err?.message || err}`)
     });

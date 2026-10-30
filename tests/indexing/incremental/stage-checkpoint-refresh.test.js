@@ -7,7 +7,7 @@ import { sha1 } from '../../../src/shared/hash.js';
 import { loadIncrementalState, shouldReuseIncrementalIndex } from '../../../src/index/build/incremental/planning.js';
 import { loadCachedBundleForFile, writeBundleForFile } from '../../../src/index/build/file-processor/incremental.js';
 import { captureChunkingCheckpoint, resolveChunkingCheckpoint, resolveStageRefresh, preloadParseCheckpoints } from '../../../src/index/build/incremental/stage-reuse.js';
-const parent = process.env.PAIROFCLEATS_DEPENDENCY_TEST_DIR || path.resolve('temp/tasks/retrieval-dependencies');
+const parent = process.env.PAIROFCLEATS_DEPENDENCY_TEST_DIR || path.resolve('.tmp/tasks/retrieval-dependencies');
 await fs.mkdir(parent, { recursive: true });
 const root = await fs.mkdtemp(path.join(parent, 'stage-checkpoint-'));
 const abs = path.join(root, 'source.js');
@@ -29,7 +29,7 @@ for (const stage of ['lexical','enrichment','embeddings']) {
   assert.ok(refreshed.manifest.files['source.js'],'derived changes retain source bundle');
   assert.equal(refreshed.artifactNeedsRebuild,true);
   const loaded = await loadCachedBundleForFile({runIo:fn=>fn(),incrementalState:refreshed,absPath:abs,relKey:'source.js',fileStat:stat});
-  assert.deepEqual(loaded.cachedBundle.stageRefresh,{parse:false,lexical:stage==='lexical',enrichment:stage==='enrichment',embeddings:stage==='embeddings'});
+  assert.deepEqual(loaded.cachedBundle.stageRefresh,{parse:false,lexical:stage==='lexical',enrichment:stage==='enrichment',embeddings:stage==='embeddings',sourceAdmission:false});
   const eligible = await preloadParseCheckpoints({entries:[{abs,rel:'source.js',stat}],incrementalState:refreshed});
   assert.equal(eligible.has(abs),true);
   assert.equal((await preloadParseCheckpoints({entries:[{abs,rel:'source.js',stat}],incrementalState:refreshed,maxBytes:1})).size,0);

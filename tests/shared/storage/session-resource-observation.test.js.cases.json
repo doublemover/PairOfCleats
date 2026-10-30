@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["success-result", "success-capture", "receipt-pending", "receipt-getter", "receipt-mutation", "observer-error", "mutable-primary", "frozen-primary", "callable-primary", "falsey-primary", "direct-receipt"]
+}

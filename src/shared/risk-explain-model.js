@@ -58,6 +58,7 @@ const normalizeExplainEvidence = (evidence) => (
 );
 
 const normalizeBlockedExpansion = (entry) => ({
+  ...(entry?.repo ? { repo: entry.repo } : {}),
   targetChunkUid: entry?.targetChunkUid || null,
   reason: entry?.reason || null,
   callSiteIds: Array.isArray(entry?.callSiteIds) ? entry.callSiteIds.filter(Boolean) : []
@@ -68,6 +69,7 @@ const normalizeExplainFlow = (flow) => {
   const evidence = flow?.evidence && typeof flow.evidence === 'object' ? flow.evidence : null;
   return {
     flowId: flow.flowId || null,
+    ...(flow.repo ? { repo: flow.repo } : {}),
     confidence: Number.isFinite(flow.confidence) ? flow.confidence : null,
     category: flow.category || flow?.sink?.category || flow?.source?.category || null,
     source: flow.source || null,
@@ -82,10 +84,12 @@ const normalizeExplainPartialFlow = (flow) => {
   const evidence = flow?.evidence && typeof flow.evidence === 'object' ? flow.evidence : null;
   return {
     partialFlowId: flow.partialFlowId || null,
+    ...(flow.repo ? { repo: flow.repo } : {}),
     confidence: Number.isFinite(flow.confidence) ? flow.confidence : null,
     source: flow.source || null,
     frontier: flow.frontier && typeof flow.frontier === 'object'
       ? {
+        ...(flow.frontier.repo ? { repo: flow.frontier.repo } : {}),
         chunkUid: flow.frontier.chunkUid || null,
         terminalReason: flow.frontier.terminalReason || null,
         blockedExpansions: Array.isArray(flow.frontier.blockedExpansions)
@@ -131,13 +135,15 @@ export const formatRiskPath = (pathValue) => {
   return '';
 };
 
-export const buildRiskFlowSelection = (flows, { maxFlows = 3, maxEvidencePerFlow = 3 } = {}) => {
+export const buildRiskFlowSelection = (flows, { maxFlows = 3, maxEvidencePerFlow = 3, totalFlows = null } = {}) => {
   const list = Array.isArray(flows) ? flows : [];
+  if (totalFlows != null && (!Number.isSafeInteger(totalFlows) || totalFlows < list.length)) throw new TypeError('Invalid upstream flow population.');
+  const total = totalFlows ?? list.length;
   const shownFlows = Math.min(list.length, maxFlows);
   return {
-    totalFlows: list.length,
+    totalFlows: total,
     shownFlows,
-    omittedFlows: Math.max(0, list.length - shownFlows),
+    omittedFlows: total - shownFlows,
     maxFlows,
     maxEvidencePerFlow
   };
@@ -145,14 +151,16 @@ export const buildRiskFlowSelection = (flows, { maxFlows = 3, maxEvidencePerFlow
 
 export const buildPartialRiskFlowSelection = (
   partialFlows,
-  { maxPartialFlows = 3, maxEvidencePerFlow = 3 } = {}
+  { maxPartialFlows = 3, maxEvidencePerFlow = 3, totalPartialFlows = null } = {}
 ) => {
   const list = Array.isArray(partialFlows) ? partialFlows : [];
+  if (totalPartialFlows != null && (!Number.isSafeInteger(totalPartialFlows) || totalPartialFlows < list.length)) throw new TypeError('Invalid upstream partial-flow population.');
+  const total = totalPartialFlows ?? list.length;
   const shownPartialFlows = Math.min(list.length, maxPartialFlows);
   return {
-    totalPartialFlows: list.length,
+    totalPartialFlows: total,
     shownPartialFlows,
-    omittedPartialFlows: Math.max(0, list.length - shownPartialFlows),
+    omittedPartialFlows: total - shownPartialFlows,
     maxPartialFlows,
     maxEvidencePerFlow
   };
@@ -236,6 +244,7 @@ export const buildRiskNarrativeSteps = (flow, maxEvidencePerFlow) => {
     if (!evidence && !watchWindow) return null;
     return {
       step: index + 1,
+      ...(flow?.repo ? { repo: flow.repo } : {}),
       evidence: evidence ? evidence.rendered.slice() : [],
       watchWindow
     };
@@ -253,6 +262,7 @@ export const normalizeRiskNarrativeConfidence = (flow) => {
 export const normalizeRiskNarrativeRuleRef = (rule) => (
   rule && typeof rule === 'object'
     ? {
+      ...(rule.repo ? { repo: rule.repo } : {}),
       ruleId: rule.ruleId || null,
       ruleName: rule.ruleName || null,
       ruleRole: rule.ruleRole || rule.ruleType || null,
@@ -285,6 +295,7 @@ export const buildRiskFlowNarrativeList = (
       const path = formatRiskPath(flow?.path) || null;
       return {
         flowId: flow?.flowId || 'flow',
+        ...(flow?.repo ? { repo: flow.repo } : {}),
         ...confidence,
         category: flow?.category || null,
         sourceRule,
@@ -320,6 +331,7 @@ export const buildPartialRiskFlowNarrativeList = (
       const path = formatRiskPath(flow?.path) || null;
       return {
         partialFlowId: flow?.partialFlowId || 'partial-flow',
+        ...(flow?.repo ? { repo: flow.repo } : {}),
         ...confidence,
         source: normalizeRiskNarrativeRuleRef(flow?.source),
         terminalReason: flow?.frontier?.terminalReason || flow?.notes?.terminalReason || null,
@@ -340,7 +352,10 @@ export const buildRiskExplanationModel = ({
   support = null,
   stats = null,
   provenance = null,
+  federation = null,
   analysisStatus = null,
+  flowPopulation = null,
+  partialFlowPopulation = null,
   anchor = null,
   caps = null,
   truncation = null,
@@ -353,7 +368,10 @@ export const buildRiskExplanationModel = ({
   support: support && typeof support === 'object' ? support : null,
   stats: stats && typeof stats === 'object' ? stats : null,
   provenance: provenance && typeof provenance === 'object' ? provenance : null,
+  ...(federation?.enabled === true ? { federation } : {}),
   analysisStatus: analysisStatus && typeof analysisStatus === 'object' ? analysisStatus : null,
+  flowPopulation,
+  partialFlowPopulation,
   anchor: anchor && typeof anchor === 'object' ? anchor : null,
   caps: caps && typeof caps === 'object' ? caps : null,
   truncation: Array.isArray(truncation) ? truncation.slice() : [],
@@ -368,6 +386,9 @@ export const buildRiskExplanationModelFromStandalone = ({
   support = null,
   stats = null,
   provenance = null,
+  analysisStatus = null,
+  selection = null,
+  truncation = null,
   filters = null,
   flows = [],
   partialFlows = []
@@ -377,7 +398,10 @@ export const buildRiskExplanationModelFromStandalone = ({
   support,
   stats: normalizeExplainStats(stats),
   provenance: provenance || stats?.provenance || null,
-  analysisStatus: stats && typeof stats === 'object'
+  flowPopulation: selection?.flows || null,
+  partialFlowPopulation: selection?.partialFlows || null,
+  truncation,
+  analysisStatus: analysisStatus || (stats && typeof stats === 'object'
     ? {
       status: stats.status || null,
       reason: stats.reason || null,
@@ -385,7 +409,7 @@ export const buildRiskExplanationModelFromStandalone = ({
       code: stats.status || null,
       capsHit: Array.isArray(stats.capsHit) ? stats.capsHit.slice() : []
     }
-    : null,
+    : null),
   filters,
   flows,
   partialFlows
@@ -397,6 +421,7 @@ export const buildRiskExplanationModelFromRiskSlice = (risk, { subject = null, f
   support: risk?.support || null,
   stats: normalizeExplainStats(risk?.stats || null),
   provenance: risk?.provenance || null,
+  federation: risk?.federation || null,
   analysisStatus: risk?.analysisStatus || null,
   anchor: risk?.anchor || null,
   caps: risk?.caps || null,

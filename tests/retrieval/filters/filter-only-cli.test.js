@@ -1,6 +1,7 @@
 #!/usr/bin/env node
+import { runNode as runNodeFixture } from '../../helpers/run-node.js';
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
+
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -12,7 +13,7 @@ import { createQueryPlanCache } from '../../../src/retrieval/query-plan-cache.js
 const root = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-filter-only-'));
 applyTestEnv({ cacheRoot: path.join(root, 'cache') });
 try {
-  const indexDir = await createCompatibilityIndex(root, { compatibilityKey: 'filter-only-fixture', profileId: 'default' });
+  const indexDir = await createCompatibilityIndex(root, { published: true, compatibilityKey: 'filter-only-fixture', profileId: 'default' });
   const chunks = Array.from({ length: 17 }, (_, id) => ({ id, file: `src/${id}.ts`, start: 0, end: 1,
     kind: 'FunctionDeclaration', name: `fn${id}`, chunkUid: `uid:${id}`, tokens: ['alpha'],
     docmeta: { returns: id % 2 ? 'boolean' : 'number' }, codeRelations: { calls: [[`fn${id}`, id % 2 ? 'read' : 'write']] } }));
@@ -40,20 +41,22 @@ try {
   assert.deepEqual(reads.code.map((hit) => hit.id), ids);
   assert.deepEqual(writes.code.map((hit) => hit.id), numbers.code.map((hit) => hit.id));
   await assert.rejects(search(['alpha', '--return-type', 'number', '--cursor', 'bad']), /filter-only/);
-  const spawned = spawnSync(process.execPath, ['bin/pairofcleats.js', 'search', '--repo', root, '--mode', 'code',
-    '--backend', 'memory', '--json', '--compact', '--no-comments', '--return-type', 'boolean', '--top', '2'],
-  { encoding: 'utf8', timeout: 10000 });
+  const spawned = runNodeFixture(['bin/pairofcleats.js', 'search', '--repo', root, '--mode', 'code',
+    '--backend', 'memory', '--json', '--compact', '--no-comments', '--return-type', 'boolean', '--top', '2'], 'Node process fixture', process.cwd(), process.env, { stdio: 'pipe', encoding: 'buffer', allowFailure: true, spawnOptions: { encoding: 'utf8', timeout: 10000 } });
   assert.equal(spawned.status, 0, spawned.stderr || spawned.stdout);
   const wrapped = JSON.parse(spawned.stdout);
   assert.equal(wrapped.pagination.total, 8);
   assert.equal(wrapped.code.length, 2);
-  const proseDir = await createCompatibilityIndex(root, {
+  const proseDir = await createCompatibilityIndex(root, { published: true,
     mode: 'prose', compatibilityKey: 'filter-only-fixture', profileId: 'default'
   });
   await fs.writeFile(path.join(proseDir, 'chunk_meta.json'), '[]');
-  await assert.rejects(search(['--return-type', 'boolean'], 'both'), /index-extracted-prose/,
-    'a requested missing index must fail explicitly rather than silently omit a mode');
-  const extractedDir = await createCompatibilityIndex(root, {
+  const missingExtracted = path.join(path.dirname(indexDir), 'index-extracted-prose');
+  await assert.rejects(search(['--return-type', 'boolean'], 'both'), error => error.code === 'NO_INDEX'
+    && error.message.includes(`extracted-prose index not found at ${missingExtracted}.`)
+    && error.message.includes('index build --mode extracted-prose'),
+  'a requested missing index must fail explicitly rather than silently omit a mode');
+  const extractedDir = await createCompatibilityIndex(root, { published: true,
     mode: 'extracted-prose', compatibilityKey: 'filter-only-fixture', profileId: 'default'
   });
   await fs.writeFile(path.join(extractedDir, 'chunk_meta.json'), '[]');

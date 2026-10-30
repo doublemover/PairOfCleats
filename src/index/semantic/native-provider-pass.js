@@ -1,6 +1,7 @@
 import { createSemanticLspSession } from './lsp-session.js';
 import { NATIVE_SEMANTIC_LANGUAGES } from './native-syntax.js';
 import { mergeSemanticProviderOutput } from './merge-provider.js';
+import { combineSemanticProviderOutputs } from '../tooling/result-dispatch.js';
 import { prepareToolingPassDocuments, runToolingPass } from '../type-inference-crossfile/tooling.js';
 import { throwIfAborted } from '../../shared/abort.js';
 import { nativeExecutionAuthority } from './native-execution-context.js';
@@ -28,15 +29,17 @@ export const runNativeSemanticProviders = async ({ state, runtime, toolingConfig
   for (const doc of toolingDocuments.documents) if ((await session.targetsForDocument(doc)).length) { targeted = true; break; }
   if (!targeted) return { ran: false };
   const bytes = [...session.fileTextByFile.values()].reduce((total, text) => total + Buffer.byteLength(text), 0);
+  let output = null;
   const body = async () => {
     throwIfAborted(signal);
-    await runPass({ rootDir: runtime.root, buildRoot: runtime.buildRoot, chunks, entryByUid: new Map(), log,
+    const result = await runPass({ rootDir: runtime.root, buildRoot: runtime.buildRoot, chunks, entryByUid: new Map(), log,
       toolingConfig, toolingDocuments, fileTextByFile: session.fileTextByFile, abortSignal: signal,
       semanticLspSession: session, applyTypes: false });
     throwIfAborted(signal);
-    await mergeSemanticProviderOutput({ output: session.output(), state, runtime, signal });
+    output = combineSemanticProviderOutputs([session.output(), ...(result?.semanticFacts ? [result.semanticFacts] : [])]);
+    await mergeSemanticProviderOutput({ output, state, runtime, signal });
   };
   if (authority) await body();
   else await runtime.scheduler.schedule(SCHEDULER_QUEUE_NAMES.stage2Relations, { cpu: 1, io: 1, mem: 1, bytes: Math.max(1048576, bytes), signal }, body);
-  return { ran: true, output: session.output() };
+  return { ran: true, output };
 };

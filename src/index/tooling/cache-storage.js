@@ -1,27 +1,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { assertNoSymlinkPath, openContainedFileSync } from '../../shared/contained-file.js';
+import { constants as bufferConstants } from 'node:buffer';
+import { assertNoSymlinkPath, withContainedFileSync } from '../../shared/contained-file.js';
 import { atomicWriteJson, atomicWriteJsonSync } from '../../shared/io/atomic-write.js';
-
-const resolveSystemCacheAlias = (resolved, {
-  platform = process.platform,
-  lstat = fs.lstatSync,
-  realpath = fs.realpathSync
-} = {}) => {
-  if (platform !== 'darwin') return resolved;
-  // These root-owned macOS aliases are launch-platform infrastructure, not
-  // permission to canonicalize a repository-controlled cache root/descendant.
-  for (const [alias, canonical] of [['/var', '/private/var'], ['/tmp', '/private/tmp']]) {
-    if (resolved !== alias && !resolved.startsWith(`${alias}/`)) continue;
-    try {
-      const stat = lstat(alias);
-      if (stat.uid === 0 && stat.isSymbolicLink() && realpath(alias) === canonical) {
-        return `${canonical}${resolved.slice(alias.length)}`;
-      }
-    } catch {}
-  }
-  return resolved;
-};
+import { resolveSystemCacheAlias } from '../../shared/system-cache-alias.js';
 
 export const __resolveSystemCacheAliasForTests = resolveSystemCacheAlias;
 
@@ -41,28 +23,32 @@ export const ensureToolingCacheDir = (dir) => {
 
 /** Read a bounded regular, singly linked cache artifact through its checked handle. */
 export const readToolingCacheEntry = (target, maxBytes = 8 * 1024 * 1024) => {
-  const resolved = assertToolingCachePath(target);
-  const fd = openContainedFileSync(path.parse(resolved).root, resolved);
-  try {
-    const stat = fs.fstatSync(fd);
-    if (stat.nlink !== 1 || stat.size > maxBytes) {
+  if (!Number.isSafeInteger(maxBytes) || maxBytes < 0 || maxBytes > bufferConstants.MAX_LENGTH) {
+    throw new TypeError('Tooling cache reads require a bounded nonnegative byte allowance.');
+  }
+  // The contained-file owner performs the full no-link walk both before open
+  // and while binding the descriptor. Preserve alias resolution without adding
+  // a third identical physical ancestor walk for every cache inventory entry.
+  const resolved = resolveSystemCacheAlias(path.resolve(target));
+  return withContainedFileSync(path.parse(resolved).root, resolved, descriptor => {
+    const stat = descriptor.stat();
+    if (!stat.isFile() || stat.nlink !== 1 || !Number.isSafeInteger(stat.size) || stat.size < 0 || stat.size > maxBytes) {
       throw Object.assign(new Error('Unowned or oversized tooling cache artifact.'), { code: 'ERR_TOOLING_CACHE_ENTRY' });
     }
     const bytes = Buffer.alloc(stat.size);
     let offset = 0;
     while (offset < bytes.length) {
-      const read = fs.readSync(fd, bytes, offset, bytes.length - offset, offset);
+      const read = descriptor.read(bytes, offset, bytes.length - offset, offset);
+      if (!Number.isInteger(read) || read < 0 || read > bytes.length - offset) throw new Error('Tooling cache read made invalid progress.');
       if (!read) break;
       offset += read;
     }
-    const after = fs.fstatSync(fd);
-    if (after.size !== stat.size || after.mtimeMs !== stat.mtimeMs) {
+    const after = descriptor.stat();
+    if (offset !== stat.size || ['dev', 'ino', 'size', 'mtimeMs', 'ctimeMs', 'nlink'].some(key => after[key] !== stat[key])) {
       throw new Error('Tooling cache artifact changed during read.');
     }
-    return { payload: JSON.parse(bytes.subarray(0, offset).toString('utf8')), stat };
-  } finally {
-    fs.closeSync(fd);
-  }
+    return { payload: JSON.parse(bytes.toString('utf8')), stat };
+  });
 };
 
 export const writeToolingCacheJson = async (target, payload, options = {}) => {

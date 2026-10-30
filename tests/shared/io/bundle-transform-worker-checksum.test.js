@@ -13,33 +13,22 @@ applyTestEnv({ testing: '1' });
 
 const workerUrl = new URL('../../../src/shared/workers/bundle-transform-worker.js', import.meta.url);
 
-const runNormalizeChecksumWorker = (bundle) => new Promise((resolve, reject) => {
+const runNormalizeChecksumWorker = async (bundle) => {
   const worker = new Worker(workerUrl, {
     type: 'module',
-    workerData: {
-      operation: 'normalize-checksum',
-      payload: { bundle }
-    }
+    resourceLimits: { maxOldGenerationSizeMb: 256, maxYoungGenerationSizeMb: 32 }
   });
-  const timer = setTimeout(() => {
-    reject(new Error('bundle transform worker checksum test timed out'));
-    void worker.terminate();
-  }, 5000);
-  timer.unref?.();
-  worker.once('message', (message) => {
-    clearTimeout(timer);
-    resolve(message);
-  });
-  worker.once('error', (error) => {
-    clearTimeout(timer);
-    reject(error);
-  });
-  worker.once('exit', (code) => {
-    if (code === 0) return;
-    clearTimeout(timer);
-    reject(new Error(`bundle transform worker exited with ${code}`));
-  });
-});
+  let timer;
+  try {
+    return await new Promise((resolve, reject) => {
+      timer = setTimeout(() => reject(new Error('bundle transform worker checksum test timed out')), 5000);
+      worker.once('message', (message) => { assert.equal(message.id, 1); resolve(message); });
+      worker.once('error', reject);
+      worker.once('exit', (code) => reject(new Error(`bundle transform worker exited before result with ${code}`)));
+      worker.postMessage({ id: 1, operation: 'normalize-checksum', payload: { bundle } });
+    });
+  } finally { clearTimeout(timer); await worker.terminate(); }
+};
 
 const bundle = {
   z: 'last',

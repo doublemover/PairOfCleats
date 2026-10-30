@@ -5,6 +5,7 @@ import { createSemanticSourceSnapshot } from '../../../src/index/semantic/source
 import { createSemanticCollector } from '../../../src/index/semantic/javascript-collector.js';
 import { createSyntaxPartitionId } from '../../../src/index/semantic/identity.js';
 import { buildCodeRelations } from '../../../src/lang/javascript.js';
+import { admitImportExtraction, canReuseImportExtraction, getImportExtraction } from '../../../src/shared/import-extraction.js';
 
 const source = [
   'import client from "./client.js";',
@@ -14,7 +15,24 @@ const source = [
 ].join('\n');
 
 const rel = buildCodeRelations(source, 'sample.js') || {};
-const calls = Array.isArray(rel.calls) ? rel.calls : [];
+admitImportExtraction(rel.importExtraction, rel.imports, { text: source });
+assert.equal(getImportExtraction(rel.imports), rel.importExtraction);
+assert.ok(canReuseImportExtraction(rel.importExtraction, rel.imports));
+assert.equal(rel.importExtraction.producer.id, 'javascript-literal-imports');
+assert.equal(rel.importExtraction.reusePolicy, 'retain-qualified-static-subset');
+const staleSource = source.replace('./client.js', './other.js');
+const staleRelations = buildCodeRelations(staleSource, 'sample.js', { ast: parseJavaScriptAst(source) });
+assert.equal(staleRelations.importExtraction.state, 'unqualified');
+assert.equal(canReuseImportExtraction(staleRelations.importExtraction, staleRelations.imports), false,
+  'a source-mismatched syntax tree cannot qualify persisted import facts');
+const injectedRelations = buildCodeRelations(source, 'sample.js', { ast: JSON.parse(JSON.stringify(parseJavaScriptAst(source))) });
+assert.equal(canReuseImportExtraction(injectedRelations.importExtraction, injectedRelations.imports), false,
+  'structural lookalikes do not acquire the parser owner identity');
+const emptyImports = buildCodeRelations('export function only() { return 1; }', 'empty.js');
+assert.deepEqual(emptyImports.imports, []);
+assert.equal(emptyImports.importExtraction.recognition, 'empty');
+assert.ok(canReuseImportExtraction(emptyImports.importExtraction, emptyImports.imports));
+const calls = (Array.isArray(rel.calls) ? rel.calls : []).map(([id, callee]) => [rel.jsDeclarations.records[id].displayName, callee]);
 const callDetails = Array.isArray(rel.callDetails) ? rel.callDetails : [];
 
 assert.equal(calls.some(([from, to]) => from === 'run' && to === 'client.fetch'), true);

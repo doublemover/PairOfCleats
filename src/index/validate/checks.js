@@ -14,9 +14,10 @@ export const validatePostingsDocIds = (report, mode, label, postings, chunkCount
     if (!Array.isArray(posting)) continue;
     for (const entry of posting) {
       const docId = Array.isArray(entry) ? entry[0] : null;
-      if (!Number.isFinite(docId) || docId < 0 || docId >= chunkCount) {
+      if (!Number.isSafeInteger(docId) || docId < 0 || docId >= chunkCount) {
         if (errors < maxErrors) {
-          addIssue(report, mode, `${label} docId out of range (${docId})`, 'Rebuild index artifacts for this mode.');
+          addIssue(report, mode, `${label} docId out of range (${docId})`, 'Rebuild index artifacts for this mode.', 'issues',
+            { artifact: label, code: 'ERR_INDEX_POSTING_ID' });
         }
         errors += 1;
         if (errors >= maxErrors) return;
@@ -31,9 +32,10 @@ export const validateIdPostings = (report, mode, label, postings, chunkCount) =>
   for (const posting of postings || []) {
     if (!Array.isArray(posting)) continue;
     for (const docId of posting) {
-      if (!Number.isFinite(docId) || docId < 0 || docId >= chunkCount) {
+      if (!Number.isSafeInteger(docId) || docId < 0 || docId >= chunkCount) {
         if (errors < maxErrors) {
-          addIssue(report, mode, `${label} docId out of range (${docId})`, 'Rebuild index artifacts for this mode.');
+          addIssue(report, mode, `${label} docId out of range (${docId})`, 'Rebuild index artifacts for this mode.', 'issues',
+            { artifact: label, code: 'ERR_INDEX_POSTING_ID' });
         }
         errors += 1;
         if (errors >= maxErrors) return;
@@ -48,16 +50,16 @@ export const validateChunkIds = (report, mode, chunkMeta) => {
     const entry = chunkMeta[i];
     const id = Number.isFinite(entry?.id) ? entry.id : null;
     if (id === null) {
-      addIssue(report, mode, `chunk_meta missing id at index ${i}`, 'Rebuild index artifacts for this mode.');
+      addIssue(report, mode, `chunk_meta missing id at index ${i}`, 'Rebuild index artifacts for this mode.', 'issues', { artifact: 'chunk_meta', code: 'ERR_INDEX_CHUNK_METADATA' });
       return;
     }
     if (seen.has(id)) {
-      addIssue(report, mode, `chunk_meta duplicate id ${id}`, 'Rebuild index artifacts for this mode.');
+      addIssue(report, mode, `chunk_meta duplicate id ${id}`, 'Rebuild index artifacts for this mode.', 'issues', { artifact: 'chunk_meta', code: 'ERR_INDEX_CHUNK_METADATA' });
       return;
     }
     seen.add(id);
     if (id !== i) {
-      addIssue(report, mode, `chunk_meta id mismatch at index ${i} (id=${id})`, 'Rebuild index artifacts for this mode.');
+      addIssue(report, mode, `chunk_meta id mismatch at index ${i} (id=${id})`, 'Rebuild index artifacts for this mode.', 'issues', { artifact: 'chunk_meta', code: 'ERR_INDEX_CHUNK_METADATA' });
       return;
     }
   }
@@ -79,12 +81,12 @@ export const validateChunkIdentity = (report, mode, chunkMeta) => {
         requireSegmentUid: !!(entry?.metaV2?.segment || entry?.segment)
       });
     } catch (error) {
-      addIssue(report, mode, String(error?.message || error), 'Rebuild index artifacts for this mode.');
+      addIssue(report, mode, String(error?.message || error), 'Rebuild index artifacts for this mode.', 'issues', { artifact: 'chunk_meta', code: 'ERR_INDEX_CHUNK_METADATA' });
       errors += 1;
       continue;
     }
     if (seenUids.has(identity.chunkUid)) {
-      addIssue(report, mode, `chunk_meta duplicate chunkUid (${identity.chunkUid})`, 'Rebuild index artifacts for this mode.');
+      addIssue(report, mode, `chunk_meta duplicate chunkUid (${identity.chunkUid})`, 'Rebuild index artifacts for this mode.', 'issues', { artifact: 'chunk_meta', code: 'ERR_INDEX_CHUNK_METADATA' });
       errors += 1;
       continue;
     }
@@ -93,7 +95,7 @@ export const validateChunkIdentity = (report, mode, chunkMeta) => {
 };
 
 export const validateFileNameCollisions = (report, mode, repoMap) => {
-  const seen = new Set();
+  const seen = new Map();
   for (const entry of Array.isArray(repoMap) ? repoMap : []) {
     const file = entry?.file;
     const name = entry?.name;
@@ -103,28 +105,34 @@ export const validateFileNameCollisions = (report, mode, repoMap) => {
     const lineMarker = Number.isFinite(entry?.startLine)
       ? entry.startLine
       : (Number.isFinite(entry?.start) ? entry.start : '');
-    const key = `${file}::${name}::${kind}::${signature}::${lineMarker}`;
-    if (seen.has(key)) {
+    const key = JSON.stringify([file, name, kind, signature, lineMarker]);
+    const chunkUid = typeof entry?.chunkUid === 'string' && entry.chunkUid ? entry.chunkUid : null;
+    const prior = seen.get(key);
+    // Multiple source-owned chunks can share a display name and line. The
+    // published chunk identity distinguishes them; legacy rows without one
+    // still require the original collision check.
+    if (prior && (!chunkUid || prior.missingUid || prior.uids.has(chunkUid))) {
       addIssue(
         report,
         mode,
         `ERR_ID_COLLISION duplicate file::name identifier: ${file}::${name}`,
-        'Resolve symbol name collisions or update artifact generation.'
+        'Resolve symbol name collisions or update artifact generation.', 'issues', { artifact: 'repo_map', code: 'ERR_ID_COLLISION' }
       );
       return;
     }
-    seen.add(key);
+    if (prior) prior.uids.add(chunkUid);
+    else seen.set(key, { missingUid: !chunkUid, uids: new Set(chunkUid ? [chunkUid] : []) });
   }
 };
 
 const validateTypeEntryList = (report, mode, chunkId, label, entries) => {
   if (!Array.isArray(entries)) {
-    addIssue(report, mode, `metaV2.types invalid ${label} (chunkId=${chunkId})`, 'Rebuild index artifacts for this mode.');
+    addIssue(report, mode, `metaV2.types invalid ${label} (chunkId=${chunkId})`, 'Rebuild index artifacts for this mode.', 'issues', { artifact: 'chunk_meta', code: 'ERR_INDEX_CHUNK_METADATA' });
     return false;
   }
   for (const entry of entries) {
     if (!entry || typeof entry !== 'object' || !entry.type) {
-      addIssue(report, mode, `metaV2.types missing type in ${label} (chunkId=${chunkId})`, 'Rebuild index artifacts for this mode.');
+      addIssue(report, mode, `metaV2.types missing type in ${label} (chunkId=${chunkId})`, 'Rebuild index artifacts for this mode.', 'issues', { artifact: 'chunk_meta', code: 'ERR_INDEX_CHUNK_METADATA' });
       return false;
     }
   }
@@ -146,7 +154,7 @@ export const validateMetaV2Types = (report, mode, chunkMeta) => {
         try { normalizeTypeExpressions(bucket); }
         catch (error) {
           addIssue(report, mode, `metaV2.types invalid expressions (chunkId=${chunkId}): ${error.message}`,
-            'Rebuild index artifacts for this mode.');
+            'Rebuild index artifacts for this mode.', 'issues', { artifact: 'chunk_meta', code: 'ERR_INDEX_CHUNK_METADATA' });
           errors += 1;
         }
         continue;
@@ -214,12 +222,12 @@ export const validateSqliteMetaV2Parity = (report, mode, chunkMeta, sqliteRows, 
     if (id == null) continue;
     const jsonEntry = chunkMeta?.[id];
     if (!jsonEntry) {
-      addIssue(report, mode, `sqlite chunk ${id} missing from JSONL chunk_meta`, 'Rebuild index artifacts for this mode.');
+      addIssue(report, mode, `sqlite chunk ${id} missing from JSONL chunk_meta`, 'Rebuild index artifacts for this mode.', 'issues', { artifact: 'chunks', capability: 'sqlite', code: 'ERR_INDEX_SQLITE_META_PARITY' });
       errors += 1;
       continue;
     }
     if (row.metaV2_json == null || row.metaV2_json === '') {
-      addIssue(report, mode, `sqlite metaV2_json missing (chunkId=${row.chunk_id ?? id})`, 'Rebuild index artifacts for this mode.');
+      addIssue(report, mode, `sqlite metaV2_json missing (chunkId=${row.chunk_id ?? id})`, 'Rebuild index artifacts for this mode.', 'issues', { artifact: 'chunks', capability: 'sqlite', code: 'ERR_INDEX_SQLITE_META_PARITY' });
       errors += 1;
       continue;
     }
@@ -228,7 +236,7 @@ export const validateSqliteMetaV2Parity = (report, mode, chunkMeta, sqliteRows, 
       try {
         sqliteMeta = JSON.parse(row.metaV2_json);
       } catch {
-        addIssue(report, mode, `sqlite metaV2_json invalid (chunkId=${row.chunk_id ?? id})`, 'Rebuild index artifacts for this mode.');
+        addIssue(report, mode, `sqlite metaV2_json invalid (chunkId=${row.chunk_id ?? id})`, 'Rebuild index artifacts for this mode.', 'issues', { artifact: 'chunks', capability: 'sqlite', code: 'ERR_INDEX_SQLITE_META_PARITY' });
         errors += 1;
         continue;
       }
@@ -236,14 +244,14 @@ export const validateSqliteMetaV2Parity = (report, mode, chunkMeta, sqliteRows, 
       sqliteMeta = row.metaV2_json;
     }
     if (sqliteMeta?.chunkId && row.chunk_id && sqliteMeta.chunkId !== row.chunk_id) {
-      addIssue(report, mode, `sqlite metaV2.chunkId mismatch (row=${row.chunk_id}, meta=${sqliteMeta.chunkId})`, 'Rebuild index artifacts for this mode.');
+      addIssue(report, mode, `sqlite metaV2.chunkId mismatch (row=${row.chunk_id}, meta=${sqliteMeta.chunkId})`, 'Rebuild index artifacts for this mode.', 'issues', { artifact: 'chunks', capability: 'sqlite', code: 'ERR_INDEX_SQLITE_META_PARITY' });
       errors += 1;
       continue;
     }
     const expected = pickMeta(jsonEntry.metaV2);
     const actual = pickMeta(sqliteMeta);
-    if (JSON.stringify(expected) !== JSON.stringify(actual)) {
-      addIssue(report, mode, `sqlite metaV2 mismatch for chunk ${id}`, 'Rebuild index artifacts for this mode.');
+    if (stableStringify(expected) !== stableStringify(actual)) {
+      addIssue(report, mode, `sqlite metaV2 mismatch for chunk ${id}`, 'Rebuild index artifacts for this mode.', 'issues', { artifact: 'chunks', capability: 'sqlite', code: 'ERR_INDEX_SQLITE_META_PARITY' });
       errors += 1;
     }
   }
@@ -311,7 +319,7 @@ export const validateMetaV2Equivalence = (report, mode, chunkMeta, options = {})
     sampled += 1;
     if (expected !== actual) {
       const chunkId = entry.metaV2.chunkId || entry.chunkId || entry.id || 'unknown';
-      addIssue(report, mode, `metaV2 finalize mismatch (chunkId=${chunkId})`, 'Rebuild index artifacts for this mode.');
+      addIssue(report, mode, `metaV2 finalize mismatch (chunkId=${chunkId})`, 'Rebuild index artifacts for this mode.', 'issues', { artifact: 'chunk_meta', code: 'ERR_INDEX_CHUNK_METADATA' });
       errors += 1;
     }
   }

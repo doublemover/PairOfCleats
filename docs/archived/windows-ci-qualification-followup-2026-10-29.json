@@ -1,0 +1,919 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-10-29",
+  "kind": "stable-runtime-ci-qualification-followup",
+  "sourceParent": "ac69aa559384ba38258b18f82a75035aa335dbdb",
+  "implementationHead": "6668d69a53b89822d96947924d7c975b07ff3f4d",
+  "branch": "codex/pr557-audit-repairs-20261012",
+  "sourceFiles": [
+    {
+      "path": ".github/workflows/ci.yml",
+      "bytes": 54258,
+      "sha256": "e51e3a3ba2c79ac09b00c800137dfa52706b18a55c151de684147814163cb614"
+    },
+    {
+      "path": "crates/pairofcleats-tui/src/main.rs",
+      "bytes": 165930,
+      "sha256": "b7df33ce8ee60c6516f942f6d6a2a0f1086ee19fdf626e7865eaf538014a9a16"
+    },
+    {
+      "path": "crates/pairofcleats-tui/src/redraw_tests.rs",
+      "bytes": 20940,
+      "sha256": "4a06fa90af53a1c3618e6c3c709829c69c68a50d3a624f2feb4bbedee99c351c"
+    },
+    {
+      "path": "crates/pairofcleats-tui/src/workflow_recovery.rs",
+      "bytes": 4144,
+      "sha256": "442b6b7ad46c5000e2e330343f29d16d73ed2cbe7a2a8fbbcd895b4ca6f4f3ff"
+    },
+    {
+      "path": "docs/archived/windows-ci-qualification-followup-2026-10-29.md",
+      "bytes": 3835,
+      "sha256": "84c158282b1b6fa93429033acb03fe3ee99db5b60df6b7d575ba8c9ceb3fb30c"
+    },
+    {
+      "path": "docs/roadmap.md",
+      "bytes": 19722,
+      "sha256": "6a6d116589b97cf3dc3ad7cb7345bd29b9baf8d830b79669009e79094ddc594a"
+    },
+    {
+      "path": "docs/testing/qualification-matrix.md",
+      "bytes": 90594,
+      "sha256": "5869f1a8da6186964c7eaac96390177cdb6179c2fdc7d6b6da956988bc7dc9b4"
+    },
+    {
+      "path": "patches/tree-sitter+0.25.1.patch",
+      "bytes": 4895,
+      "sha256": "f29d2612d15b0eeefb6b284c2e0040f8a90afd7ce2f270e8894bc43a82233c52"
+    },
+    {
+      "path": "tests/ci/workflow-contract.test.js",
+      "bytes": 33215,
+      "sha256": "0902c580591af4245a46c321bbbf7eeb0ad3c99281e2b2a535c0d9aa137bb5ee"
+    },
+    {
+      "path": "tests/tooling/ci/gopls-provisioning.test.js",
+      "bytes": 4236,
+      "sha256": "de4396b073e444d0c908c9872fb000cbe554a979318d8a5bbec5843815bf9e40"
+    },
+    {
+      "path": "tests/tooling/ci/lsp-runtime-qualification.test.js",
+      "bytes": 9524,
+      "sha256": "8fc4be15e4ff9cd12502dacc02085729a993a1bce4c36d969c5c6339f1bff313"
+    },
+    {
+      "path": "tests/tooling/ci/lsp-runtime-qualification.test.js.cases.json",
+      "bytes": 428,
+      "sha256": "a4cd30dd868e44dc78ac774e922eaa767bb698de46544dff45663f51ca669334"
+    },
+    {
+      "path": "tests/tooling/install/tree-sitter-patch-roundtrip.test.js",
+      "bytes": 3461,
+      "sha256": "e0619fb5e71a584e66c5ebd4eb38e05898af63aaa5de6026728b4e9dd1ff5b3d"
+    },
+    {
+      "path": "tools/ci/provision-gopls.js",
+      "bytes": 4976,
+      "sha256": "ff0c8a4c5cb9e827715c9fbbd60ef50ed0c7fcc8d59131989416c7ddd927bd22"
+    },
+    {
+      "path": "tools/ci/qualify-lsp-runtime.js",
+      "bytes": 13378,
+      "sha256": "1cc18196964312aad28f650f66cae67e059f1a550fc3ede32c3d8b20cecde74f"
+    },
+    {
+      "path": "tools/setup/native-build-plan.js",
+      "bytes": 5520,
+      "sha256": "3a9bdb7385418e53ce9bd8ef9595e8b6cd5686829c9e38cd3ac29753299fcb3a"
+    }
+  ],
+  "runtime": {
+    "node": "v26.13.0",
+    "abi": "147",
+    "platform": "win32",
+    "arch": "x64"
+  },
+  "before": {
+    "receipt": {
+      "path": ".tmp/tasks/ci-and-p1-20261028/csharp-hour-before.json",
+      "bytes": 985,
+      "sha256": "ddccd5a40c32468174d2fe7684fba16c81a7a3d4fc527451688b3f4882e49a8a"
+    },
+    "summary": {
+      "durationMs": 2291,
+      "failed": 1,
+      "passed": 0,
+      "skipped": 0,
+      "total": 1
+    },
+    "cases": [
+      {
+        "id": "tooling/ci/lsp-runtime-qualification/csharp-single-digit-hour",
+        "status": "failed",
+        "durationMs": 2284,
+        "attempts": 1,
+        "exitCode": 1,
+        "timedOut": false
+      }
+    ]
+  },
+  "after": {
+    "receipt": {
+      "path": ".tmp/tasks/ci-and-p1-20261028/csharp-hour-after.json",
+      "bytes": 9078,
+      "sha256": "9fd6e9f8c94ea24d877b9c976606334d07e689379839a5dcb4c0be6d062522f1"
+    },
+    "summary": {
+      "durationMs": 46980,
+      "failed": 0,
+      "passed": 17,
+      "skipped": 0,
+      "total": 17
+    },
+    "cases": [
+      {
+        "id": "tooling/ci/lsp-runtime-qualification/csharp-double-digit-hour",
+        "status": "passed",
+        "durationMs": 2220,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "tooling/ci/lsp-runtime-qualification/csharp-invalid-time",
+        "status": "passed",
+        "durationMs": 2166,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "tooling/ci/lsp-runtime-qualification/csharp-single-digit-hour",
+        "status": "passed",
+        "durationMs": 2236,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "tooling/ci/lsp-runtime-qualification/csharp-warning",
+        "status": "passed",
+        "durationMs": 2162,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "tooling/ci/lsp-runtime-qualification/diagnostics-truncated",
+        "status": "passed",
+        "durationMs": 2139,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "tooling/ci/lsp-runtime-qualification/fixture-without-testing",
+        "status": "passed",
+        "durationMs": 1332,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "tooling/ci/lsp-runtime-qualification/observer-throw",
+        "status": "passed",
+        "durationMs": 1025,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "tooling/ci/lsp-runtime-qualification/phpactor-duplicate-info",
+        "status": "passed",
+        "durationMs": 2248,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "tooling/ci/lsp-runtime-qualification/phpactor-info",
+        "status": "passed",
+        "durationMs": 2271,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "tooling/ci/lsp-runtime-qualification/phpactor-unexpected-stderr",
+        "status": "passed",
+        "durationMs": 2201,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "tooling/ci/lsp-runtime-qualification/success",
+        "status": "passed",
+        "durationMs": 2225,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "tooling/ci/lsp-runtime-qualification/unexpected-stderr",
+        "status": "passed",
+        "durationMs": 2311,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "tooling/ci/lsp-runtime-qualification/unresponsive-initialize",
+        "status": "passed",
+        "durationMs": 5942,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "tooling/ci/lsp-runtime-qualification/unresponsive-shutdown",
+        "status": "passed",
+        "durationMs": 7276,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "tooling/ci/lsp-runtime-qualification/untrusted-command",
+        "status": "passed",
+        "durationMs": 1534,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "tooling/ci/lsp-runtime-qualification/version-timeout",
+        "status": "passed",
+        "durationMs": 6012,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "tooling/ci/lsp-runtime-qualification/workspace-not-trusted",
+        "status": "passed",
+        "durationMs": 1661,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      }
+    ]
+  },
+  "patchAndProvisioning": {
+    "receipt": {
+      "path": ".tmp/tasks/ci-and-p1-20261028/ci-final-patch-controls.json",
+      "bytes": 1734,
+      "sha256": "945ed305f8d4cd71ce04d5d699f38fe6e4bf62a6d62749ea45b74386124198f8"
+    },
+    "summary": {
+      "durationMs": 2489,
+      "failed": 0,
+      "passed": 3,
+      "skipped": 0,
+      "total": 3
+    },
+    "cases": [
+      {
+        "id": "tooling/ci/gopls-provisioning",
+        "status": "passed",
+        "durationMs": 145,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "tooling/install/node-gyp-addon-profile-isolation",
+        "status": "passed",
+        "durationMs": 78,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      },
+      {
+        "id": "tooling/install/tree-sitter-patch-roundtrip",
+        "status": "passed",
+        "durationMs": 2259,
+        "attempts": 1,
+        "exitCode": 0,
+        "timedOut": false
+      }
+    ]
+  },
+  "rust": {
+    "moveIdentity": {
+      "cases": 16,
+      "original": "ac69aa559384ba38258b18f82a75035aa335dbdb",
+      "originalProductionLaunchAssertionsPassed": true,
+      "tokensUnchanged": true,
+      "module": "redraw_tests",
+      "physicalLinkCohortExecutedLocally": false
+    },
+    "tests": {
+      "path": ".tmp/tasks/ci-and-p1-20261028/redraw-move-test.log",
+      "bytes": 1831,
+      "sha256": "b6d17f6b66a2413f683b07b103a53d93f5f1cd828eeb6460abc02a81411b2c53"
+    },
+    "recoveryTests": {
+      "path": ".tmp/tasks/ci-and-p1-20261028/recovery-initializer-final-test.log",
+      "bytes": 520,
+      "sha256": "72a6ea8f50616a14094acfe991b97d0e67db8c1563a8d4c98ac09c1258c974be"
+    },
+    "allTargetsClippy": {
+      "path": ".tmp/tasks/ci-and-p1-20261028/redraw-move-clippy-final.log",
+      "bytes": 177,
+      "sha256": "5ee33bbc007cbf9a6f77081da25e5765a08e9127961cdb613ac85665488fbdc5"
+    },
+    "format": {
+      "path": ".tmp/tasks/ci-and-p1-20261028/redraw-move-fmt-final.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "initialAllTargetsClippyFailure": {
+      "path": ".tmp/tasks/ci-and-p1-20261028/redraw-move-clippy.log",
+      "bytes": 1656,
+      "sha256": "4acb87b60c2e630394d982e1ec5f8083adf908b896f19a248965479b1a899ebc"
+    },
+    "emptyFilterNotPassingEvidence": {
+      "path": ".tmp/tasks/ci-and-p1-20261028/recovery-initializer-test.log",
+      "bytes": 416,
+      "sha256": "aa3f94b46dc7a596983eba22f9a3137da44be341a8680d81484aec90f4ab3fc2"
+    }
+  },
+  "setup": {
+    "lockedBootstrap": {
+      "path": ".tmp/tasks/ci-and-p1-20261028/ci-final-bootstrap.log",
+      "bytes": 21621,
+      "sha256": "ac274d4c33938d7315266e037c752f83aedbf75d1265ad1f978cffa1a7f080a0"
+    },
+    "exitCode": 0,
+    "packages": 37,
+    "languageRoutes": 33,
+    "patches": 7,
+    "targetFiles": 25,
+    "hunks": 59,
+    "remainingWarnings": [
+      "Upstream npm prebuild-install@7.1.3 deprecation"
+    ]
+  },
+  "hosted": {
+    "head": "ac69aa559384ba38258b18f82a75035aa335dbdb",
+    "run": 40829411117,
+    "jobs": [
+      {
+        "id": 123299911741,
+        "name": "gate",
+        "status": "completed",
+        "conclusion": "success",
+        "url": "https://github.com/doublemover/PairOfCleats/actions/runs/40829411117/job/123299911741",
+        "failedSteps": []
+      },
+      {
+        "id": 123300465345,
+        "name": "ubuntu",
+        "status": "completed",
+        "conclusion": "failure",
+        "url": "https://github.com/doublemover/PairOfCleats/actions/runs/40829411117/job/123300465345",
+        "failedSteps": [
+          "Qualify real Csharp language server startup"
+        ]
+      },
+      {
+        "id": 123300465376,
+        "name": "native-inspection (macos-latest)",
+        "status": "completed",
+        "conclusion": "success",
+        "url": "https://github.com/doublemover/PairOfCleats/actions/runs/40829411117/job/123300465376",
+        "failedSteps": []
+      },
+      {
+        "id": 123300465389,
+        "name": "rust-tui",
+        "status": "completed",
+        "conclusion": "success",
+        "url": "https://github.com/doublemover/PairOfCleats/actions/runs/40829411117/job/123300465389",
+        "failedSteps": []
+      },
+      {
+        "id": 123300465414,
+        "name": "macos",
+        "status": "completed",
+        "conclusion": "failure",
+        "url": "https://github.com/doublemover/PairOfCleats/actions/runs/40829411117/job/123300465414",
+        "failedSteps": [
+          "Qualify real Csharp language server startup"
+        ]
+      },
+      {
+        "id": 123300465420,
+        "name": "windows",
+        "status": "completed",
+        "conclusion": "failure",
+        "url": "https://github.com/doublemover/PairOfCleats/actions/runs/40829411117/job/123300465420",
+        "failedSteps": [
+          "Qualify real Csharp language server startup"
+        ]
+      },
+      {
+        "id": 123300465507,
+        "name": "native-inspection (ubuntu-latest)",
+        "status": "completed",
+        "conclusion": "success",
+        "url": "https://github.com/doublemover/PairOfCleats/actions/runs/40829411117/job/123300465507",
+        "failedSteps": []
+      },
+      {
+        "id": 123300465519,
+        "name": "windows-authority",
+        "status": "completed",
+        "conclusion": "failure",
+        "url": "https://github.com/doublemover/PairOfCleats/actions/runs/40829411117/job/123300465519",
+        "failedSteps": [
+          "Strict Windows authority cohort"
+        ]
+      },
+      {
+        "id": 123300465522,
+        "name": "native-inspection (windows-latest)",
+        "status": "completed",
+        "conclusion": "success",
+        "url": "https://github.com/doublemover/PairOfCleats/actions/runs/40829411117/job/123300465522",
+        "failedSteps": []
+      }
+    ],
+    "csharp": [
+      {
+        "job": 123300465345,
+        "source": "8508b2063ec56469f2828c272000e6f8073f2ae8",
+        "platform": "linux",
+        "arch": "x64",
+        "reasons": [
+          "unexpected_stderr"
+        ],
+        "unknownStderr": [
+          "6:32:00.228 info: LifeCycle[0]",
+          "6:32:00.263 info: LifeCycle[0]",
+          "6:32:00.284 info: Roslyn.Solution[0]",
+          "6:32:00.285 info: Roslyn.Solution[0]",
+          "6:32:00.291 info: LifeCycle[0]",
+          "6:32:00.416 info: LifeCycle[0]",
+          "6:32:00.435 info: LifeCycle[0]"
+        ],
+        "version": "csharp-ls, 0.28.0 (Klebiškis)+72671fc7fa810c158864e72485db68e8b9b25c3d\n",
+        "server": {
+          "name": "csharp-ls",
+          "version": "0.28.0.0"
+        },
+        "protocolOk": true,
+        "metrics": {
+          "requests": 2,
+          "succeeded": 2,
+          "failed": 0,
+          "timedOut": 0,
+          "protocolFailed": 0,
+          "localWriteFailed": 0,
+          "latencyMs": {
+            "count": 2,
+            "avg": 286.5,
+            "max": 530,
+            "p50": 43,
+            "p95": 530
+          },
+          "byMethod": {
+            "initialize": {
+              "requests": 1,
+              "succeeded": 1,
+              "failed": 0,
+              "timedOut": 0,
+              "protocolFailed": 0,
+              "localWriteFailed": 0,
+              "latencyMs": {
+                "count": 1,
+                "avg": 530,
+                "max": 530,
+                "p50": 530,
+                "p95": 530
+              }
+            },
+            "shutdown": {
+              "requests": 1,
+              "succeeded": 1,
+              "failed": 0,
+              "timedOut": 0,
+              "protocolFailed": 0,
+              "localWriteFailed": 0,
+              "latencyMs": {
+                "count": 1,
+                "avg": 43,
+                "max": 43,
+                "p50": 43,
+                "p95": 43
+              }
+            }
+          },
+          "termination": {
+            "exitObserved": true,
+            "closeObserved": true,
+            "settled": true,
+            "pending": 0,
+            "pendingChildren": 0,
+            "treeCleanupFailed": false,
+            "unknownSpawnResource": false,
+            "pid": null
+          }
+        },
+        "reaped": [
+          {
+            "pid": 9191,
+            "alive": false
+          }
+        ],
+        "sdkSelection": {
+          "root": "/home/runner/work/_temp/poc-dotnet-sdk",
+          "version": "10.0.403",
+          "reportedPaths": [
+            "/home/runner/work/_temp/poc-dotnet-sdk/sdk/10.0.403"
+          ]
+        },
+        "process": {
+          "exitCode": 1,
+          "signal": null,
+          "durationMs": 1405,
+          "error": null,
+          "errorCode": null,
+          "stderr": "",
+          "outputCapture": {
+            "stdout": {
+              "enabled": true,
+              "maxBytes": 1048576,
+              "observedBytes": 8200,
+              "retainedBytes": 8200,
+              "droppedBytes": 0,
+              "retainedBufferBytes": 8200,
+              "outputBytes": 8200,
+              "encodingLoss": false,
+              "truncated": false
+            },
+            "stderr": {
+              "enabled": true,
+              "maxBytes": 1048576,
+              "observedBytes": 0,
+              "retainedBytes": 0,
+              "droppedBytes": 0,
+              "retainedBufferBytes": 0,
+              "outputBytes": 0,
+              "encodingLoss": false,
+              "truncated": false
+            }
+          }
+        }
+      },
+      {
+        "job": 123300465414,
+        "source": "8508b2063ec56469f2828c272000e6f8073f2ae8",
+        "platform": "darwin",
+        "arch": "arm64",
+        "reasons": [
+          "unexpected_stderr"
+        ],
+        "unknownStderr": [
+          "6:36:30.000 info: LifeCycle[0]",
+          "6:36:30.031 info: LifeCycle[0]",
+          "6:36:30.052 info: Roslyn.Solution[0]",
+          "6:36:30.052 info: Roslyn.Solution[0]",
+          "6:36:30.057 info: LifeCycle[0]",
+          "6:36:30.146 info: LifeCycle[0]",
+          "6:36:30.161 info: LifeCycle[0]"
+        ],
+        "version": "csharp-ls, 0.28.0 (Klebiškis)+72671fc7fa810c158864e72485db68e8b9b25c3d\n",
+        "server": {
+          "name": "csharp-ls",
+          "version": "0.28.0.0"
+        },
+        "protocolOk": true,
+        "metrics": {
+          "requests": 2,
+          "succeeded": 2,
+          "failed": 0,
+          "timedOut": 0,
+          "protocolFailed": 0,
+          "localWriteFailed": 0,
+          "latencyMs": {
+            "count": 2,
+            "avg": 232.5,
+            "max": 432,
+            "p50": 33,
+            "p95": 432
+          },
+          "byMethod": {
+            "initialize": {
+              "requests": 1,
+              "succeeded": 1,
+              "failed": 0,
+              "timedOut": 0,
+              "protocolFailed": 0,
+              "localWriteFailed": 0,
+              "latencyMs": {
+                "count": 1,
+                "avg": 432,
+                "max": 432,
+                "p50": 432,
+                "p95": 432
+              }
+            },
+            "shutdown": {
+              "requests": 1,
+              "succeeded": 1,
+              "failed": 0,
+              "timedOut": 0,
+              "protocolFailed": 0,
+              "localWriteFailed": 0,
+              "latencyMs": {
+                "count": 1,
+                "avg": 33,
+                "max": 33,
+                "p50": 33,
+                "p95": 33
+              }
+            }
+          },
+          "termination": {
+            "exitObserved": true,
+            "closeObserved": true,
+            "settled": true,
+            "pending": 0,
+            "pendingChildren": 0,
+            "treeCleanupFailed": false,
+            "unknownSpawnResource": false,
+            "pid": null
+          }
+        },
+        "reaped": [
+          {
+            "pid": 23708,
+            "alive": false
+          }
+        ],
+        "sdkSelection": {
+          "root": "/Users/runner/work/_temp/poc-dotnet-sdk",
+          "version": "10.0.403",
+          "reportedPaths": [
+            "/Users/runner/work/_temp/poc-dotnet-sdk/sdk/10.0.403"
+          ]
+        },
+        "process": {
+          "exitCode": 1,
+          "signal": null,
+          "durationMs": 1200,
+          "error": null,
+          "errorCode": null,
+          "stderr": "",
+          "outputCapture": {
+            "stdout": {
+              "enabled": true,
+              "maxBytes": 1048576,
+              "observedBytes": 8254,
+              "retainedBytes": 8254,
+              "droppedBytes": 0,
+              "retainedBufferBytes": 8254,
+              "outputBytes": 8254,
+              "encodingLoss": false,
+              "truncated": false
+            },
+            "stderr": {
+              "enabled": true,
+              "maxBytes": 1048576,
+              "observedBytes": 0,
+              "retainedBytes": 0,
+              "droppedBytes": 0,
+              "retainedBufferBytes": 0,
+              "outputBytes": 0,
+              "encodingLoss": false,
+              "truncated": false
+            }
+          }
+        }
+      },
+      {
+        "job": 123300465420,
+        "source": "8508b2063ec56469f2828c272000e6f8073f2ae8",
+        "platform": "win32",
+        "arch": "x64",
+        "reasons": [
+          "unexpected_stderr"
+        ],
+        "unknownStderr": [
+          "6:40:28.691 info: LifeCycle[0]",
+          "6:40:28.745 info: LifeCycle[0]",
+          "6:40:28.774 info: Roslyn.Solution[0]",
+          "6:40:28.775 info: Roslyn.Solution[0]",
+          "6:40:28.782 info: LifeCycle[0]",
+          "6:40:28.929 info: LifeCycle[0]",
+          "6:40:28.955 info: LifeCycle[0]"
+        ],
+        "version": "csharp-ls, 0.28.0 (Klebiskis)+72671fc7fa810c158864e72485db68e8b9b25c3d\r\n",
+        "server": {
+          "name": "csharp-ls",
+          "version": "0.28.0.0"
+        },
+        "protocolOk": true,
+        "metrics": {
+          "requests": 2,
+          "succeeded": 2,
+          "failed": 0,
+          "timedOut": 0,
+          "protocolFailed": 0,
+          "localWriteFailed": 0,
+          "latencyMs": {
+            "count": 2,
+            "avg": 487,
+            "max": 913,
+            "p50": 61,
+            "p95": 913
+          },
+          "byMethod": {
+            "initialize": {
+              "requests": 1,
+              "succeeded": 1,
+              "failed": 0,
+              "timedOut": 0,
+              "protocolFailed": 0,
+              "localWriteFailed": 0,
+              "latencyMs": {
+                "count": 1,
+                "avg": 913,
+                "max": 913,
+                "p50": 913,
+                "p95": 913
+              }
+            },
+            "shutdown": {
+              "requests": 1,
+              "succeeded": 1,
+              "failed": 0,
+              "timedOut": 0,
+              "protocolFailed": 0,
+              "localWriteFailed": 0,
+              "latencyMs": {
+                "count": 1,
+                "avg": 61,
+                "max": 61,
+                "p50": 61,
+                "p95": 61
+              }
+            }
+          },
+          "termination": {
+            "exitObserved": true,
+            "closeObserved": true,
+            "settled": true,
+            "pending": 0,
+            "pendingChildren": 0,
+            "treeCleanupFailed": false,
+            "unknownSpawnResource": false,
+            "pid": null
+          }
+        },
+        "reaped": [
+          {
+            "pid": 1004,
+            "alive": false
+          }
+        ],
+        "sdkSelection": {
+          "root": "D:\\a\\_temp\\poc-dotnet-sdk",
+          "version": "10.0.403",
+          "reportedPaths": [
+            "D:\\a\\_temp\\poc-dotnet-sdk\\sdk\\10.0.403"
+          ]
+        },
+        "process": {
+          "exitCode": 1,
+          "signal": null,
+          "durationMs": 2775,
+          "error": null,
+          "errorCode": null,
+          "stderr": "",
+          "outputCapture": {
+            "stdout": {
+              "enabled": true,
+              "maxBytes": 1048576,
+              "observedBytes": 11320,
+              "retainedBytes": 11320,
+              "droppedBytes": 0,
+              "retainedBufferBytes": 11320,
+              "outputBytes": 11320,
+              "encodingLoss": false,
+              "truncated": false
+            },
+            "stderr": {
+              "enabled": true,
+              "maxBytes": 1048576,
+              "observedBytes": 0,
+              "retainedBytes": 0,
+              "droppedBytes": 0,
+              "retainedBufferBytes": 0,
+              "outputBytes": 0,
+              "encodingLoss": false,
+              "truncated": false
+            }
+          }
+        }
+      }
+    ]
+  },
+  "frontGate": {
+    "checks": [
+      {
+        "log": ".tmp/tasks/ci-and-p1-20261028/ci-qualification-gate-format.log",
+        "exitCode": 0,
+        "durationMs": 41573.202,
+        "sha256": "7b6ecbaa588687ae9361de86fa1be71f8a1c8d6d560b8c05c3d4a36b41040e7a",
+        "command": "npm.cmd run format",
+        "name": "format"
+      },
+      {
+        "log": ".tmp/tasks/ci-and-p1-20261028/ci-qualification-gate-config-budget.log",
+        "exitCode": 0,
+        "durationMs": 1966.6868,
+        "sha256": "f043edbfe9c124df7382a258c37af590664650e6900a3a6b7740327033f42188",
+        "command": "npm.cmd run config:budget",
+        "name": "config-budget"
+      },
+      {
+        "log": ".tmp/tasks/ci-and-p1-20261028/ci-qualification-gate-env-check.log",
+        "exitCode": 0,
+        "durationMs": 1202.4246,
+        "sha256": "fdb1f3a0cc01d0aa4df797ea540d73ba56380464f88cea3f49dfa50bce41dc91",
+        "command": "npm.cmd run env:check",
+        "name": "env-check"
+      },
+      {
+        "log": ".tmp/tasks/ci-and-p1-20261028/ci-qualification-gate-generated-freshness.log",
+        "exitCode": 0,
+        "durationMs": 11150.893,
+        "sha256": "486a1f76702c08378b565b632884d46fc5ffa16210f70a68304925fa5eb818f6",
+        "command": "node tools/docs/generated-surfaces.js --check-freshness",
+        "name": "generated-freshness"
+      },
+      {
+        "log": ".tmp/tasks/ci-and-p1-20261028/ci-qualification-gate-command-surface.log",
+        "exitCode": 0,
+        "durationMs": 2613.4417,
+        "sha256": "f16d35826c0a50a9d9a491bc668b12374018822b83947643d1446cb031bc8577",
+        "command": "node tools/ci/check-command-surface.js",
+        "name": "command-surface"
+      },
+      {
+        "log": ".tmp/tasks/ci-and-p1-20261028/ci-qualification-gate-workflow-contract.log",
+        "exitCode": 0,
+        "durationMs": 222.0743,
+        "sha256": "185b68faaf1903b2526a655b3bf7c5363bb10d447dfdb9e32461d93af831d39f",
+        "command": "node tests/ci/workflow-contract.test.js",
+        "name": "workflow-contract"
+      },
+      {
+        "log": ".tmp/tasks/ci-and-p1-20261028/ci-qualification-gate-gate.log",
+        "exitCode": 0,
+        "durationMs": 6787.6651,
+        "sha256": "da043c6ef27f8c19ef49936ad06a704fd538db2b5ceb19b5faabe0b95f21e889",
+        "command": "node tests/run.js --lane gate --timeout-ms 30000 --retries 0 --native-status-redo=false --report-file .tmp/tasks/ci-and-p1-20261028/ci-qualification-gate.json --log-dir .tmp/tasks/ci-and-p1-20261028/ci-qualification-gate-logs",
+        "name": "gate"
+      },
+      {
+        "log": ".tmp/tasks/ci-and-p1-20261028/ci-qualification-gate-diff-check.log",
+        "exitCode": 0,
+        "durationMs": 96.5776,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "command": "git diff --check",
+        "name": "diff-check"
+      }
+    ],
+    "status": "passed"
+  },
+  "coverage": {
+    "fullSuitePass": false,
+    "finalHostedCandidatePassed": false,
+    "newLocalSymlinks": false,
+    "localLinuxExecution": false,
+    "retries": 0,
+    "nativeStatusRedo": false,
+    "fixtureDeadlineMs": 30000,
+    "publicSurfaceChange": false
+  },
+  "remaining": [
+    "Final hosted startup, original 43-case Windows authority, macOS link and integration execution",
+    "P1 1288, 1315 and 1574 acceptances",
+    "25 historical observed failures and broader release/platform/model/optional-backend qualifications"
+  ],
+  "provenance": ".tmp paths are historical author-workspace observations, unavailable in a clean checkout."
+}

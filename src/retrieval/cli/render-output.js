@@ -32,6 +32,8 @@ export function compactHit(hit, includeExplain = false) {
     'headline',
     'score',
     'scoreType',
+    'scoreSpace',
+    'scoreCoordinateIdentity',
     'sparseScore',
     'sparseType',
     'annScore',
@@ -41,6 +43,11 @@ export function compactHit(hit, includeExplain = false) {
   ];
   for (const field of fields) {
     if (hit[field] !== undefined) compact[field] = hit[field];
+  }
+  // SQLite hydrates stable identity from metaV2. Compact output omits that
+  // object, so project its identity before discarding the representation.
+  if (!compact.chunkUid && typeof hit.metaV2?.chunkUid === 'string' && hit.metaV2.chunkUid.length) {
+    compact.chunkUid = hit.metaV2.chunkUid;
   }
   const typeExpressions = hit.typeExpressions || hit.docmeta?.typeExpressions || hit.metaV2?.types?.expressions;
   if (typeExpressions) compact.typeExpressions = typeExpressions;

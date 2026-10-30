@@ -1,5 +1,8 @@
 import { parseJsonlLine } from '../jsonl.js';
 import { toJsonTooLargeError } from '../limits.js';
+import { StringDecoder } from 'node:string_decoder';
+import { throwIfAborted } from '../../abort.js';
+import { createJsonlLineFramer } from './line-framer.js';
 
 /**
  * Normalize line terminators so CRLF sources are parsed like LF-only sources.
@@ -32,25 +35,6 @@ const forEachCompleteLine = (text, lineNumber, onLine) => {
 };
 
 /**
- * Async variant of {@link forEachCompleteLine}.
- *
- * @param {string} text
- * @param {number} lineNumber
- * @param {(line:string,lineNumber:number)=>Promise<void>} onLine
- * @returns {Promise<{remaining:string,lineNumber:number}>}
- */
-const forEachCompleteLineAsync = async (text, lineNumber, onLine) => {
-  let start = 0;
-  for (let i = 0; i < text.length; i += 1) {
-    if (text.charCodeAt(i) !== 10) continue;
-    lineNumber += 1;
-    await onLine(trimCr(text.slice(start, i)), lineNumber);
-    start = i + 1;
-  }
-  return { remaining: text.slice(start), lineNumber };
-};
-
-/**
  * Emit the final unterminated line segment.
  *
  * @param {string} text
@@ -61,20 +45,6 @@ const forEachCompleteLineAsync = async (text, lineNumber, onLine) => {
 const emitFinalLine = (text, lineNumber, onLine) => {
   lineNumber += 1;
   onLine(trimCr(text), lineNumber);
-  return lineNumber;
-};
-
-/**
- * Async variant of {@link emitFinalLine}.
- *
- * @param {string} text
- * @param {number} lineNumber
- * @param {(line:string,lineNumber:number)=>Promise<void>} onLine
- * @returns {Promise<number>}
- */
-const emitFinalLineAsync = async (text, lineNumber, onLine) => {
-  lineNumber += 1;
-  await onLine(trimCr(text), lineNumber);
   return lineNumber;
 };
 
@@ -103,9 +73,11 @@ export const scanJsonlBuffer = (
     requiredKeys = null,
     validationMode = 'strict',
     onEntry = null,
-    collect = null
+    collect = null,
+    signal = null
   } = {}
 ) => {
+  throwIfAborted(signal);
   if (buffer.length > maxBytes) {
     throw toJsonTooLargeError(sourcePath, buffer.length);
   }
@@ -115,6 +87,7 @@ export const scanJsonlBuffer = (
   let rows = 0;
   let lineNumber = 0;
   const onLine = (line, currentLineNumber) => {
+    throwIfAborted(signal);
     const entry = parseJsonlLine(
       line,
       sourcePath,
@@ -162,15 +135,17 @@ export const scanJsonlStream = async (
     requiredKeys = null,
     validationMode = 'strict',
     onEntry = null,
-    collect = null
+    collect = null,
+    signal = null
   } = {}
 ) => {
-  let buffer = '';
-  let lineNumber = 0;
+  const framer = createJsonlLineFramer();
+  const decoder = new StringDecoder('utf8');
   let rows = 0;
   let bytes = 0;
 
   const onLine = (line, currentLineNumber) => {
+    throwIfAborted(signal);
     const entry = parseJsonlLine(
       line,
       targetPath,
@@ -185,28 +160,29 @@ export const scanJsonlStream = async (
     if (collect) collect.push(entry);
   };
 
-  for await (const chunk of stream) {
-    const text = typeof chunk === 'string' ? chunk : chunk.toString('utf8');
-    bytes += typeof chunk === 'string' ? Buffer.byteLength(text, 'utf8') : chunk.length;
-    if (bytes > maxBytes) {
-      throw toJsonTooLargeError(targetPath, bytes);
+  try {
+    for await (const chunk of stream) {
+      throwIfAborted(signal);
+      const raw = typeof chunk === 'string' ? Buffer.from(chunk, 'utf8') : chunk;
+      bytes += raw.length;
+      if (bytes > maxBytes) {
+        throw toJsonTooLargeError(targetPath, bytes);
+      }
+
+      for (const framed of framer.push(decoder.write(raw))) onLine(framed.line, framed.lineNumber);
+
+      if (framer.pendingCodeUnits > maxBytes) {
+        throw toJsonTooLargeError(targetPath, bytes);
+      }
     }
 
-    buffer += text;
-    const state = forEachCompleteLine(buffer, lineNumber, onLine);
-    buffer = state.remaining;
-    lineNumber = state.lineNumber;
+    throwIfAborted(signal);
+    for (const framed of framer.push(decoder.end())) onLine(framed.line, framed.lineNumber);
+    const final = framer.finish();
+    if (final) onLine(final.line, final.lineNumber);
 
-    if (buffer.length > maxBytes) {
-      throw toJsonTooLargeError(targetPath, Buffer.byteLength(buffer, 'utf8'));
-    }
-  }
-
-  if (buffer.length) {
-    emitFinalLine(buffer, lineNumber, onLine);
-  }
-
-  return { rows, bytes };
+    return { rows, bytes };
+  } finally { framer.dispose(); }
 };
 
 /**
@@ -252,15 +228,17 @@ export const parseJsonlStreamEntries = async (
     maxBytes,
     requiredKeys,
     validationMode,
-    onEntry
+    onEntry,
+    signal = null
   } = {}
 ) => {
-  let buffer = '';
-  let lineNumber = 0;
+  const framer = createJsonlLineFramer();
+  const decoder = new StringDecoder('utf8');
   let rows = 0;
   let bytes = 0;
 
   const onLine = async (line, currentLineNumber) => {
+    throwIfAborted(signal);
     const entry = parseJsonlLine(
       line,
       targetPath,
@@ -272,28 +250,30 @@ export const parseJsonlStreamEntries = async (
     if (entry === null) return;
     rows += 1;
     await onEntry(entry);
+    throwIfAborted(signal);
   };
 
-  for await (const chunk of stream) {
-    const text = typeof chunk === 'string' ? chunk : chunk.toString('utf8');
-    bytes += typeof chunk === 'string' ? Buffer.byteLength(text, 'utf8') : chunk.length;
-    if (bytes > maxBytes) {
-      throw toJsonTooLargeError(targetPath, bytes);
+  try {
+    for await (const chunk of stream) {
+      throwIfAborted(signal);
+      const raw = typeof chunk === 'string' ? Buffer.from(chunk, 'utf8') : chunk;
+      bytes += raw.length;
+      if (bytes > maxBytes) {
+        throw toJsonTooLargeError(targetPath, bytes);
+      }
+
+      for (const framed of framer.push(decoder.write(raw))) await onLine(framed.line, framed.lineNumber);
+
+      if (framer.pendingCodeUnits > maxBytes) {
+        throw toJsonTooLargeError(targetPath, bytes);
+      }
     }
 
-    buffer += text;
-    const state = await forEachCompleteLineAsync(buffer, lineNumber, onLine);
-    buffer = state.remaining;
-    lineNumber = state.lineNumber;
+    throwIfAborted(signal);
+    for (const framed of framer.push(decoder.end())) await onLine(framed.line, framed.lineNumber);
+    const final = framer.finish();
+    if (final) await onLine(final.line, final.lineNumber);
 
-    if (buffer.length > maxBytes) {
-      throw toJsonTooLargeError(targetPath, Buffer.byteLength(buffer, 'utf8'));
-    }
-  }
-
-  if (buffer.length) {
-    await emitFinalLineAsync(buffer, lineNumber, onLine);
-  }
-
-  return { rows, bytes };
+    return { rows, bytes };
+  } finally { framer.dispose(); }
 };

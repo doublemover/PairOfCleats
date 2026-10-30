@@ -4,6 +4,7 @@ import path from 'node:path';
 import { gitProvider } from '../../../src/index/scm/providers/git.js';
 import { getScmRuntimeConfig, setScmRuntimeConfig } from '../../../src/index/scm/runtime.js';
 import { getScmCommandRunner, setScmCommandRunner } from '../../../src/index/scm/runner.js';
+import { completeScmFixtureOutput } from '../../helpers/scm-output.js';
 
 const defaultRunner = getScmCommandRunner();
 const defaultScmConfig = getScmRuntimeConfig();
@@ -11,6 +12,7 @@ const calls = [];
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 let inFlight = 0;
 let maxInFlight = 0;
+let trackedOutput = 'src/a.js\0src/b.js\0';
 
 try {
   setScmRuntimeConfig({ maxConcurrentProcesses: 2 });
@@ -21,10 +23,11 @@ try {
       calls.push({ command, args });
       await sleep(25);
       if (args.includes('ls-files')) {
-        return { exitCode: 0, stdout: 'src\\a.js\0src/b.js\0', stderr: '' };
+        return completeScmFixtureOutput(trackedOutput);
       }
       if (args.includes('diff')) {
-        return { exitCode: 0, stdout: 'src/c.js\nsrc/d.js\n', stderr: '' };
+        assert.ok(args.includes('-z'), 'changed-file output preserves exact Git NUL-delimited paths');
+        return completeScmFixtureOutput('src/c.js\0src/d.js\0');
       }
       return { exitCode: 1, stdout: '', stderr: '' };
     } finally {
@@ -32,9 +35,14 @@ try {
     }
   });
 
-  const repoRoot = path.resolve('C:/repo');
+  const repoRoot = path.resolve('tests/fixtures/scm/jj');
   const listResult = await gitProvider.listTrackedFiles({ repoRoot, subdir: 'src' });
   assert.deepEqual(listResult.filesPosix, ['src/a.js', 'src/b.js']);
+  trackedOutput = 'src\\a.js\0src/b.js\0';
+  const literalResult = await gitProvider.listTrackedFiles({ repoRoot });
+  assert.deepEqual(literalResult.filesPosix, process.platform === 'win32'
+    ? ['src/a.js', 'src/b.js'] : ['src/b.js', 'src\\a.js'], 'NUL-delimited POSIX filename bytes remain distinct');
+  trackedOutput = 'src/a.js\0src/b.js\0';
 
   const diffResult = await gitProvider.getChangedFiles({
     repoRoot,

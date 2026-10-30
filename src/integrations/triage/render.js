@@ -1,14 +1,20 @@
+import { getRecordPackages } from './record-utils.js';
+import { TRIAGE_RENDERER_VERSION, TRIAGE_SUPPORTED_RENDERER_VERSIONS } from '../../contracts/triage-record-publication.js';
 /**
  * Render a triage record to a markdown view.
  * @param {object} record
  * @returns {string}
  */
-export function renderRecordMarkdown(record) {
+export function renderRecordMarkdown(record, { rendererVersion = TRIAGE_RENDERER_VERSION } = {}) {
+  if (!TRIAGE_SUPPORTED_RENDERER_VERSIONS.includes(rendererVersion)) throw new TypeError('Unsupported triage Markdown renderer version.');
   const lines = [];
   const recordType = record?.recordType || 'record';
   const vulnId = record?.vuln?.vulnId || record?.vulnId || record?.recordId || '';
-  const packageName = record?.package?.name || '';
-  const packageVersion = record?.package?.installedVersion || '';
+  // Old immutable publications reconstruct their exact declared title bytes.
+  // New publications derive even the title from the canonical collection.
+  const representative = rendererVersion >= 3 ? getRecordPackages(record)[0] : record?.package;
+  const packageName = representative?.name || '';
+  const packageVersion = representative?.installedVersion || '';
   const service = record?.service || '';
   const env = record?.env || '';
   const severity = record?.vuln?.severity || '';
@@ -61,15 +67,17 @@ export function renderRecordMarkdown(record) {
     lines.push('');
   }
 
-  if (record?.package) {
-    lines.push('## Package');
-    addLine(lines, 'Name', record.package.name);
-    addLine(lines, 'Ecosystem', record.package.ecosystem);
-    addLine(lines, 'Installed version', record.package.installedVersion);
-    addLine(lines, 'Affected range', record.package.affectedRange);
-    addLine(lines, 'Fixed version', record.package.fixedVersion);
-    addLine(lines, 'Manifest path', record.package.manifestPath);
-    addLine(lines, 'PURL', record.package.purl);
+  for (const [index, pkg] of getRecordPackages(record).entries()) {
+    lines.push(getRecordPackages(record).length > 1 ? `## Package ${index + 1}` : '## Package');
+    addLine(lines, 'Name', pkg.name);
+    addLine(lines, 'Ecosystem', pkg.ecosystem);
+    addLine(lines, 'Installed version', pkg.installedVersion);
+    addLine(lines, 'Affected range', pkg.affectedRange);
+    addLine(lines, 'Fixed version', pkg.fixedVersion);
+    addLine(lines, 'Manifest path', pkg.manifestPath);
+    addLine(lines, 'PURL', pkg.purl);
+    addLine(lines, 'Source layer', pkg.sourceLayerHash);
+    addLine(lines, 'Occurrence ID', pkg.occurrenceId);
     lines.push('');
   }
 
@@ -87,6 +95,10 @@ export function renderRecordMarkdown(record) {
 
   if (record?.decision) {
     lines.push('## Decision');
+    if (rendererVersion >= 2) {
+      addLine(lines, 'Finding record', record.decision.findingRecordId);
+      lines.push('- Interpretation: historical decision; applicability and suppression are not inferred.');
+    }
     addLine(lines, 'Status', record.decision.status);
     addLine(lines, 'Justification', record.decision.justification);
     addLine(lines, 'Reviewer', record.decision.reviewer);
