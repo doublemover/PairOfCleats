@@ -3,20 +3,25 @@ import { publishEmbeddingAcquisitionReceipt } from './embedding-acquisition-rece
 import { captureTransformersResource } from './embedding-transformers-resources.js';
 import { preserveEmbeddingCleanupFailure } from './embedding-cache-lifetime.js';
 import { throwIfAborted } from './abort.js';
+import { resolveEmbeddingAcquisitionPlan } from './embedding-acquisition-plan.js';
 
 /** Actual download consumer shares the runtime loader and its cleanup owners. */
 export const prefetchEmbeddingModel = async (mod, { modelId, modelsDir, modelProfile = null, signal = null }) => {
   throwIfAborted(signal);
-  const acquired = await loadEmbeddingModelComponents(mod, { modelId, modelsDir, modelProfile });
+  if (resolveEmbeddingAcquisitionPlan(modelId, modelProfile).exportFiles && typeof mod.ModelRegistry?.get_model_files !== 'function') {
+    throw new Error('Selected model acquisition requires the model file registry.');
+  }
+  const acquired = await loadEmbeddingModelComponents(mod, { modelId, modelsDir, modelProfile, signal });
   const owner = acquired.resourceOwner || captureTransformersResource(acquired.pipeline, 'downloaded embedding pipeline');
   let failure, failed = false, files = null, root = null;
   try {
     throwIfAborted(signal);
-    if (modelProfile || typeof mod.ModelRegistry?.get_model_files === 'function') {
+    if (modelProfile || acquired.plan.exportFiles || typeof mod.ModelRegistry?.get_model_files === 'function') {
+      if (typeof mod.ModelRegistry?.get_model_files !== 'function') throw new Error('Selected model acquisition requires the model file registry.');
       const config = acquired.config || acquired.pipeline?.model?.config;
       if (!config) throw new Error('Selected pipeline did not expose its loaded model configuration for acquisition.');
       files = await mod.ModelRegistry.get_model_files(modelId, {
-        config, dtype: acquired.plan.dtype, ...(modelProfile ? { device: 'cpu' } : {})
+        config, dtype: acquired.plan.dtype, ...(modelProfile || acquired.plan.exportFiles ? { device: 'cpu' } : {})
       });
       root = resolveEmbeddingAcquisitionRoot(modelId, modelsDir, modelProfile);
       if (!root) throw new Error('Selected model acquisition has no unambiguous local asset root.');

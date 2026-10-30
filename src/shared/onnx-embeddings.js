@@ -7,6 +7,7 @@ import { resolveEmbeddingArtifactIdentityAsync } from './embedding-artifact-leas
 import { createDeferredEmbeddingAdapter } from './embedding-deferred-adapter.js';
 import { resolveEmbeddingDenseContract, validateEmbeddingDenseContract, resolveOnnxEmbeddingProcessing } from './embedding-dense-contract.js';
 import { snapshotEmbeddingMetadata, snapshotEmbeddingRequestArguments } from './embedding-selection-snapshot.js';
+import { resolveEmbeddingAcquisitionPlan } from './embedding-acquisition-plan.js';
 import { captureEmbeddingFailureDiagnostics } from './embedding-failure-diagnostics.js';
 import path from 'node:path';
 import { toNativeFilePath } from './file-paths.js';
@@ -216,11 +217,13 @@ export function createOnnxEmbedder({ rootDir, modelId, modelsDir, onnxConfig, di
     { modelArtifact: selectedArtifact, modelPath: resolvedModelPath, lowMemory,
       processing: resolveOnnxEmbeddingProcessing(modelId, { normalize }) }) : null;
   const tokenizerId = normalized.tokenizerId || modelId;
+  const tokenizerRevision = resolveEmbeddingAcquisitionPlan(tokenizerId).revision;
   const cacheKey = JSON.stringify({
     resolvedModelPath,
     // Unknown tokenizer/model provenance is attempt-scoped even when weights exist.
     modelArtifact: selectedArtifact,
     tokenizerId,
+    ...(tokenizerRevision ? { tokenizerRevision } : {}),
     executionProviders: normalized.executionProviders || null,
     lowMemory,
     cpuExecutionProviderTuning: normalized.cpuExecutionProviderTuning !== false,
@@ -250,7 +253,8 @@ export function createOnnxEmbedder({ rootDir, modelId, modelsDir, onnxConfig, di
       try {
         const { AutoTokenizer } = await import('@huggingface/transformers');
         tokenizer = await AutoTokenizer.from_pretrained(tokenizerId, {
-          ...(modelsDir ? { cache_dir: modelsDir } : {}), ...(qualificationSlot ? { local_files_only: true } : {}) });
+          ...(modelsDir ? { cache_dir: modelsDir } : {}), ...(qualificationSlot ? { local_files_only: true } : {}),
+          ...(tokenizerRevision ? { revision: tokenizerRevision } : {}) });
         const { InferenceSession, Tensor } = await import('onnxruntime-node');
         let effectiveSessionOptions = sessionOptions;
         try {

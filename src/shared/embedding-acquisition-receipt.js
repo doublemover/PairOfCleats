@@ -6,6 +6,7 @@ import { stableStringify } from './stable-json.js';
 import { throwIfAborted } from './abort.js';
 import { fingerprintOnnxFile, planOnnxArtifactClosure, verifyOnnxArtifactSnapshot } from './onnx-artifact-closure.js';
 import { safeOnnxRelativePath } from './onnx-installation.js';
+import { assertEmbeddingAcquisitionExport } from './embedding-acquisition-plan.js';
 
 export const EMBEDDING_ACQUISITION_RECEIPT = '.pairofcleats-acquisition.json';
 const REQUIRED = ['config.json', 'tokenizer.json', 'tokenizer_config.json'];
@@ -34,6 +35,7 @@ export const readEmbeddingAcquisitionReceipt = (root, plan) => {
     || receipt.digest !== digest({ plan: receipt.plan, inventory: receipt.inventory })) {
     throw invalid('Selected model acquisition receipt disagrees with its revision, precision or component identity.');
   }
+  assertEmbeddingAcquisitionExport(plan, receipt.inventory);
   return { ...receipt, files };
 };
 
@@ -44,6 +46,10 @@ export const publishEmbeddingAcquisitionReceipt = async ({ root, plan, files, si
   throwIfAborted(signal);
   if (!Array.isArray(files)) throw invalid('Selected model registry omitted its component list.');
   const selected = new Set(admitFiles([...new Set([...files, ...REQUIRED])]));
+  if (plan.exportFiles && (plan.exportFiles.some(row => !selected.has(row.path))
+    || [...selected].filter(file => file.startsWith('onnx/')).length !== plan.exportFiles.length)) {
+    throw invalid('Selected model registry disagrees with its qualified graph and external-data declaration.');
+  }
   const verified = new Map(), observed = [];
   for (const file of [...selected]) {
     throwIfAborted(signal);
@@ -64,6 +70,7 @@ export const publishEmbeddingAcquisitionReceipt = async ({ root, plan, files, si
     if (!identity.bytes) throw invalid('Selected acquisition contains an empty component.');
     inventory.push({ path: file, bytes: identity.bytes, sha256: identity.sha256 });
   }
+  assertEmbeddingAcquisitionExport(plan, inventory);
   const receipt = { version: 1, plan, files: required, inventory, digest: digest({ plan, inventory }) };
   if (Buffer.byteLength(JSON.stringify(receipt)) > 64 * 1024) throw invalid('Selected model acquisition receipt exceeds its byte bound.');
   await verifyOnnxArtifactSnapshot(observed, { signal });

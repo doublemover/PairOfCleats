@@ -2,6 +2,7 @@ import { sha1 } from './hash.js';
 import { stableStringify } from './stable-json.js';
 import { resolveEmbeddingModelProfile } from './embedding-model-profile.js';
 import { isEmbeddingModelRepositoryId } from './embedding-artifact-identity.js';
+import { resolveEmbeddingAcquisitionPlan } from './embedding-acquisition-plan.js';
 import { resolveEmbeddingDenseContract, denseContractFormatting, assertEmbeddingDenseFormatting,
   validateEmbeddingDenseContract } from './embedding-dense-contract.js';
 
@@ -130,6 +131,15 @@ export const buildEmbeddingIdentity = ({
     } : null
   };
   const profile = resolveEmbeddingModelProfile(modelId, modelProfile);
+  const acquisition = resolveEmbeddingAcquisitionPlan(modelId, profile);
+  // This finite recipe changes graph precision/revision, not E5 input bytes.
+  // Persist it even when an artifact digest is supplied so old q8 identities
+  // cannot be reinterpreted as the author's external-data fp32 export.
+  if (provider === 'xenova' && acquisition.exportFiles && stub !== true) identity.acquisition = acquisition;
+  if (provider === 'onnx' && stub !== true) {
+    const tokenizer = resolveEmbeddingAcquisitionPlan(onnxConfig.tokenizerId || modelId);
+    if (tokenizer.exportFiles) identity.tokenizerAcquisition = { modelId: tokenizer.modelId, revision: tokenizer.revision };
+  }
   if (profile) {
     identity.modelProfile = profile;
     if (!modelArtifact && stub !== true) identity.modelArtifact = {

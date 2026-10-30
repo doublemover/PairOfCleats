@@ -39,7 +39,7 @@ if (wantsOnnx && modelProfile) throw new Error('EmbeddingGemma 2 acquisition req
 
 await fs.mkdir(cacheDir, { recursive: true });
 
-// Preserve the quantized model filename used by existing model caches.
+// The shared recipe preserves generic q8 and selects finite author exports.
 const acquisition = await prefetchEmbeddingModel(transformers, { modelId, modelsDir: cacheDir, modelProfile });
 
 let onnxResolvedPath = null;

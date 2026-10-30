@@ -90,19 +90,20 @@ export const planEmbeddingArtifactInventory = ({ provider, modelId, modelsDir, r
   // graph bytes nor numerical meaning; never lend that reusable authority.
   if (modelFileName != null) return { immediate: { ...unknown(), revision: modelProfile?.revision ?? null,
     method: 'custom-model-graph-needs-selected-closure' } };
-  if (modelProfile?.revision) {
+  const acquisition = resolveEmbeddingAcquisitionPlan(modelId, modelProfile);
+  if (modelProfile?.revision || provider === 'xenova' && acquisition.revision) {
     const root = resolveEmbeddingArtifactRoot(modelId, modelsDir);
-    const selectedRoot = root && isEmbeddingModelRepositoryId(modelId) ? path.join(root, modelProfile.revision) : root;
+    const selectedRoot = root && isEmbeddingModelRepositoryId(modelId) ? path.join(root, acquisition.revision) : root;
     let receipt = null;
-    try { if (selectedRoot) receipt = readEmbeddingAcquisitionReceipt(selectedRoot, resolveEmbeddingAcquisitionPlan(modelId, modelProfile)); }
+    try { if (selectedRoot) receipt = readEmbeddingAcquisitionReceipt(selectedRoot, acquisition); }
     catch (error) { if (describeStorageFailure(error, { phase: 'embedding-profile-receipt' }).code !== 'ENOENT') throw error; }
-    if (receipt) return { revision: modelProfile.revision, hasWeights: true, hasTokenizer: true, modelPath: null,
+    if (receipt) return { revision: acquisition.revision, hasWeights: true, hasTokenizer: true, modelPath: null,
       files: receipt.inventory.map(row => ({ rel: row.path, filePath: path.join(selectedRoot, ...row.path.split('/')), expected: row })) };
     if (!isEmbeddingModelRepositoryId(modelId) || !root || inventoryFiles(selectedRoot).length) {
-      return { immediate: { ...unknown(), revision: modelProfile.revision, method: 'profile-assets-need-verified-acquisition' } };
+      return { immediate: { ...unknown(), revision: acquisition.revision, method: 'profile-assets-need-verified-acquisition' } };
     }
     return { immediate: { status: 'immutable-revision', reuse: 'allow',
-      digest: null, revision: modelProfile.revision, method: 'qualified-model-profile' } };
+      digest: null, revision: acquisition.revision, method: 'qualified-model-profile' } };
   }
   const modelPath = provider === 'onnx' ? resolveOnnxModelPath({
     rootDir, modelPath: onnx?.resolvedModelPath || onnx?.modelPath, modelsDir, modelId
@@ -117,7 +118,10 @@ export const planEmbeddingArtifactInventory = ({ provider, modelId, modelsDir, r
       files: receipt.inventory.map(row => ({ rel: row.path, filePath: path.join(modelRoot, ...row.path.split('/')), expected: row })) };
   }
   const tokenizerId = onnx?.tokenizerId || modelId;
-  const tokenizerRoot = resolveEmbeddingArtifactRoot(tokenizerId, modelsDir);
+  const tokenizerBase = resolveEmbeddingArtifactRoot(tokenizerId, modelsDir);
+  const tokenizerRevision = resolveEmbeddingAcquisitionPlan(tokenizerId).revision;
+  const tokenizerRoot = tokenizerBase && tokenizerRevision && isEmbeddingModelRepositoryId(tokenizerId)
+    ? path.join(tokenizerBase, tokenizerRevision) : tokenizerBase;
   const rootFiles = inventoryFiles(provider === 'onnx' ? tokenizerRoot : modelRoot);
   const tokenizerFiles = rootFiles.filter(({ rel, filePath }) => !rel.includes('/')
     && TOKENIZER_FILES.has(path.basename(filePath)));

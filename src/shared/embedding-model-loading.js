@@ -4,6 +4,7 @@ import { bindTransformersResourceProducer, createTransformersResourceScope } fro
 import { preserveEmbeddingCleanupFailure } from './embedding-cache-lifetime.js';
 import { resolveEmbeddingAcquisitionPlan } from './embedding-acquisition-plan.js';
 import { snapshotEmbeddingMetadata } from './embedding-selection-snapshot.js';
+import { throwIfAborted } from './abort.js';
 
 export { EMBEDDING_ACQUISITION_RECEIPT } from './embedding-acquisition-receipt.js';
 
@@ -11,10 +12,11 @@ export { resolveEmbeddingAcquisitionPlan } from './embedding-acquisition-plan.js
 
 export const resolveEmbeddingAcquisitionRoot = (modelId, modelsDir, profile = null) => {
   const root = resolveEmbeddingArtifactRoot(modelId, modelsDir);
-  return root && profile?.revision && isEmbeddingModelRepositoryId(modelId) ? path.join(root, profile.revision) : root;
+  const { revision } = resolveEmbeddingAcquisitionPlan(modelId, profile);
+  return root && revision && isEmbeddingModelRepositoryId(modelId) ? path.join(root, revision) : root;
 };
 
-const loadTextFeatureExtractionPipeline = async (mod, modelId, options) => {
+const loadTextFeatureExtractionPipeline = async (mod, modelId, options, signal = null) => {
   const { AutoTokenizer, AutoModel, FeatureExtractionPipeline } = mod;
   const componentApis = [AutoTokenizer?.from_pretrained, AutoModel?.from_pretrained, FeatureExtractionPipeline];
   // Factory-only injected modules retain their existing test seam. A versioned
@@ -31,8 +33,10 @@ const loadTextFeatureExtractionPipeline = async (mod, modelId, options) => {
   const resourceOwner = createTransformersResourceScope('embedding feature-extraction components', { drainFailuresBeforeResources: true });
   try {
     const tokenizer = resourceOwner.adopt(await AutoTokenizer.from_pretrained(modelId, options), 'embedding tokenizer');
+    throwIfAborted(signal);
     if (typeof tokenizer !== 'function') throw new TypeError('Embedding tokenizer must be callable.');
     const model = resourceOwner.adopt(await AutoModel.from_pretrained(modelId, options), 'embedding text model');
+    throwIfAborted(signal);
     if (typeof model !== 'function') throw new TypeError('Embedding text model must be callable.');
     const pipeline = new FeatureExtractionPipeline({ task: 'feature-extraction', tokenizer, model });
     if (typeof pipeline !== 'function') throw new TypeError('Embedding feature-extraction pipeline must be callable.');
@@ -55,8 +59,9 @@ const loadTextFeatureExtractionPipeline = async (mod, modelId, options) => {
 /** Load only the qualified text components; callers own returned resources. */
 export const loadEmbeddingModelComponents = async (mod, {
   modelId, modelsDir, modelProfile = null, localFilesOnly = false,
-  sessionOptions = {}, modelFileName = null
+  sessionOptions = {}, modelFileName = null, signal = null
 }) => {
+  throwIfAborted(signal);
   modelProfile = snapshotEmbeddingMetadata(modelProfile);
   sessionOptions = snapshotEmbeddingMetadata(sessionOptions);
   const plan = resolveEmbeddingAcquisitionPlan(modelId, modelProfile);
@@ -66,8 +71,28 @@ export const loadEmbeddingModelComponents = async (mod, {
     ...(plan.revision ? { revision: plan.revision } : {})
   };
   if (!modelProfile) {
-    return { plan, ...await loadTextFeatureExtractionPipeline(mod, modelId, { dtype: plan.dtype, ...options,
-      ...(Object.keys(sessionOptions).length ? { session_options: sessionOptions } : {}) }) };
+    let config = null;
+    if (plan.exportFiles) {
+      if (`transformers.js@${mod.env?.version}` !== plan.runtime || typeof mod.AutoConfig?.from_pretrained !== 'function') {
+        throw new Error('Instruction E5 acquisition requires its qualified Transformers.js runtime and config loader.');
+      }
+      if (![mod.AutoTokenizer?.from_pretrained, mod.AutoModel?.from_pretrained, mod.FeatureExtractionPipeline]
+        .every(value => typeof value === 'function')) {
+        throw new Error('Text embeddings require AutoTokenizer, AutoModel and FeatureExtractionPipeline.');
+      }
+      config = await mod.AutoConfig.from_pretrained(modelId, options);
+      throwIfAborted(signal);
+      if (config?.model_type !== 'xlm-roberta' || config.hidden_size !== 1024) {
+        throw new Error('Instruction E5 export has an unexpected model configuration.');
+      }
+      // Copy rather than mutate an upstream memoized/shared config. Both the
+      // native loader and registry must describe the same external-data set.
+      config = { ...config, 'transformers.js_config': { ...config['transformers.js_config'],
+        use_external_data_format: plan.useExternalDataFormat } };
+    }
+    return { plan, ...(config ? { config } : {}), ...await loadTextFeatureExtractionPipeline(mod, modelId, {
+      dtype: plan.dtype, ...options, ...(config ? { config, device: 'cpu', use_external_data_format: plan.useExternalDataFormat } : {}),
+      ...(Object.keys(sessionOptions).length ? { session_options: sessionOptions } : {}) }, signal) };
   }
   const { AutoConfig, AutoTokenizer, AutoModel } = mod;
   if (!mod.EmbeddingGemma2Model || !AutoConfig || !AutoTokenizer || !AutoModel

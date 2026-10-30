@@ -39,6 +39,18 @@ and multilingual E5 retain their existing `query: ` and `passage: ` prefixes.
 Unknown instruction-tuned E5 exports, including E5 Mistral's different last-token
 contract, fail preflight instead of inheriting legacy E5 semantics.
 
+The exact instruct model selects the author's
+[immutable export](https://huggingface.co/intfloat/multilingual-e5-large-instruct/commit/c9e87c786ffac96aeaeb42863276930883923ecb),
+revision `c9e87c786ffac96aeaeb42863276930883923ecb`: a 686,499-byte fp32 graph and
+2,235,367,440-byte `model.onnx_data` file. The loader explicitly declares external
+data before native initialization; prefetch and readiness use the same revision
+root and complete graph/data receipt. Exact author hashes supplement opened-byte
+verification. Earlier q8 receipts and mismatched closures cannot authorize reuse.
+The plain `Xenova/multilingual-e5-large` model keeps its existing q8 selection and
+different text contract. No model substitution or precision fallback occurs.
+The instruct acquisition recipe does not qualify real-model numerical quality or
+resource use; those require the actual external weights and independent evaluation.
+
 The shared identity records the contract ID, output meaning, pooling, token limit
 and exact task/prefix bytes. Inline and Stage3 identity builders consume the same
 projection, and query formatting rejects incompatible persisted contracts with a

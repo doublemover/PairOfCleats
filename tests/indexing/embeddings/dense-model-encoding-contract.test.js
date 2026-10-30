@@ -49,12 +49,26 @@ for (const modelId of [m3, e5]) {
 }
 
 const records = [], wrappers = [];
-const module = { env: {}, pipeline: async (task, modelId) => Object.assign(async (texts, options) => {
-  records.push({ modelId, texts, options });
-  const data = new Float32Array(texts.length * 1024);
-  for (let row = 0; row < texts.length; row++) data[row * 1024 + row] = 1;
-  return { dims: [texts.length, 1024], type: 'float32', data, dispose() { data.fill(NaN); } };
-}, { dispose() {} }) };
+const module = { env: { version: '4.3.2' },
+  AutoConfig: { from_pretrained: async id => { assert.equal(id, e5); return { model_type: 'xlm-roberta', hidden_size: 1024 }; } },
+  AutoTokenizer: { from_pretrained: async () => Object.assign(() => ({}), { dispose() {} }) },
+  AutoModel: { from_pretrained: async (id, options) => {
+    if (id === e5) {
+      assert.equal(options.dtype, 'fp32'); assert.equal(options.revision, 'c9e87c786ffac96aeaeb42863276930883923ecb');
+      assert.equal(options.use_external_data_format, true);
+    } else assert.equal(options.dtype, 'q8');
+    return Object.assign(async () => ({}), { modelId: id, dispose() {} });
+  } },
+  FeatureExtractionPipeline: class {
+    constructor({ model }) {
+      return async (texts, options) => {
+        records.push({ modelId: model.modelId, texts, options });
+        const data = new Float32Array(texts.length * 1024);
+        for (let row = 0; row < texts.length; row++) data[row * 1024 + row] = 1;
+        return { dims: [texts.length, 1024], type: 'float32', data, dispose() { data.fill(NaN); } };
+      };
+    }
+  }, pipeline: () => assert.fail('qualified components must not fall back through factory discovery') };
 __setTransformersModuleLoaderForTests(async () => module);
 try {
   for (const modelId of [m3, e5]) {

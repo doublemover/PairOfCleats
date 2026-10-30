@@ -50,12 +50,14 @@ export const resolveModelSetupReadiness = ({ root, modelConfig, embeddingsConfig
   const onnx = resolveOnnxConfig(embeddingsConfig.onnx || {});
   const modelId = modelConfig.id;
   const modelProfile = resolveEmbeddingModelProfile(modelId, embeddingsConfig.embeddinggemma2);
+  const acquisition = resolveEmbeddingAcquisitionPlan(modelId, modelProfile);
   validateEmbeddingModelProfile(modelProfile, { provider, normalize: embeddingsConfig.normalize !== false });
   const tokenizerId = provider === 'onnx' && onnx.tokenizerId ? onnx.tokenizerId : modelId;
   let modelRoot = null, tokenizerRoot = null, reason = null;
   try {
     modelRoot = resolveEmbeddingArtifactRoot(modelId, modelConfig.dir);
-    tokenizerRoot = resolveEmbeddingArtifactRoot(tokenizerId, modelConfig.dir);
+    tokenizerRoot = resolveEmbeddingAcquisitionRoot(tokenizerId, modelConfig.dir,
+      tokenizerId === modelId ? modelProfile : null);
   } catch (error) {
     describeStorageFailure(error, { phase: 'setup-model-location' });
     throw error;
@@ -68,16 +70,16 @@ export const resolveModelSetupReadiness = ({ root, modelConfig, embeddingsConfig
       : modelRoot ? path.join(modelRoot, 'onnx', 'model_quantized.onnx') : null;
   } catch (error) { reason = describeStorageFailure(error, { phase: 'setup-model-selection' }).message; }
   signal?.throwIfAborted();
-  // The prefetch owner selects q8; the pinned tokenizer loader uses these two files.
+  // Generic prefetch preserves q8; finite recipes require their selected receipt.
   let assets = {
     weights: modelPath,
     tokenizer: tokenizerRoot ? path.join(tokenizerRoot, 'tokenizer.json') : null,
     tokenizerConfig: tokenizerRoot ? path.join(tokenizerRoot, 'tokenizer_config.json') : null,
     ...(provider === 'xenova' ? { modelConfig: modelRoot ? path.join(modelRoot, 'config.json') : null } : {})
   };
-  const selectedRoot = modelProfile ? resolveEmbeddingAcquisitionRoot(modelId, modelConfig.dir, modelProfile) : modelRoot;
+  const selectedRoot = acquisition.revision ? resolveEmbeddingAcquisitionRoot(modelId, modelConfig.dir, modelProfile) : modelRoot;
   const selectedReceipt = selectedRoot ? path.join(selectedRoot, EMBEDDING_ACQUISITION_RECEIPT) : null;
-  if (modelProfile || provider === 'xenova' && hasReceipt(selectedReceipt)) {
+  if (modelProfile || provider === 'xenova' && (acquisition.exportFiles || hasReceipt(selectedReceipt))) {
     assets = {};
     const receiptPath = selectedReceipt;
     try {

@@ -11,6 +11,7 @@ import {
 } from './embedding-adapter-helpers.js';
 import { createEmbeddingProviderAdapter } from './embedding-provider-adapters.js';
 import { loadEmbeddingModelComponents } from './embedding-model-loading.js';
+import { resolveEmbeddingAcquisitionPlan } from './embedding-acquisition-plan.js';
 import { isAbortError } from './abort.js';
 import { createEmbeddingCacheLifetime, observeEmbeddingOwnership, preserveEmbeddingCleanupFailure } from './embedding-cache-lifetime.js';
 import {
@@ -215,7 +216,9 @@ async function loadTransformersModule() {
 }
 
 async function loadPipeline(modelId, modelsDir, modelProfile = null, localFilesOnly = false, sessionOptions = {}, modelFileName = null, modelArtifact = null) {
-  const cacheKey = JSON.stringify([modelId || '', modelsDir || '', modelProfile, localFilesOnly, sessionOptions, modelFileName, modelArtifact]);
+  const acquisition = resolveEmbeddingAcquisitionPlan(modelId, modelProfile);
+  const cacheKey = JSON.stringify([modelId || '', modelsDir || '', modelProfile, localFilesOnly, sessionOptions, modelFileName, modelArtifact,
+    ...(acquisition.exportFiles ? [acquisition] : [])]);
   const now = Date.now();
   pruneCache(pipelineCache, { maxEntries: PIPELINE_CACHE_MAX_ENTRIES, now, onEvict: retirePipelineEntry });
   const cached = pipelineCache.get(cacheKey);
@@ -229,8 +232,7 @@ async function loadPipeline(modelId, modelsDir, modelProfile = null, localFilesO
     expiresAt: now + PIPELINE_CACHE_TTL_MS
   });
   entry.promise = loadTransformersModule()
-  // v2 selected model_quantized.onnx by default. Keep the same weights and
-  // cache identity after the Transformers.js migration (Node defaults to fp32).
+  // Preserve generic v2 q8; the shared plan selects finite qualified exports.
     .then(async (mod) => {
       const components = await loadEmbeddingModelComponents(mod, {
         modelId, modelsDir, modelProfile, localFilesOnly, sessionOptions, modelFileName
