@@ -43,5 +43,17 @@ try {
   await assert.rejects(fs.stat(report.fixtureRoot), { code: 'ENOENT' });
   await assert.rejects(runMapSerializationExperiment({ model: { ...model, summary: { counts: { files: 99, members: 2, edges: 1 } } }, outputParent: dir, runs: 1 }), /summary differs/u);
   await assert.rejects(runMapSerializationExperiment({ model, outputParent: dir, runs: 1.5 }), RangeError);
+  const originalFailure = Object.assign(new Error('original map encoding failure'), { code: 'ERR_FIXTURE_MAP_ENCODING' });
+  const contains = (error, target, seen = new Set()) => {
+    if (error === target) return true;
+    if (!error || typeof error !== 'object' || seen.has(error)) return false;
+    seen.add(error);
+    return contains(error.cause, target, seen) || (Array.isArray(error.errors) && error.errors.some(item => contains(item, target, seen)));
+  };
+  const failingNodes = [{ ...nodes[0], toJSON() { throw originalFailure; } }, nodes[1]];
+  await assert.rejects(runMapSerializationExperiment({ model: { ...model, nodes: failingNodes }, outputParent: dir, runs: 1 }),
+    error => contains(error, originalFailure), 'the actual atomic writer retains its original encoding failure');
+  assert.equal(await fs.readFile(sentinel, 'utf8'), 'caller-owned original');
+  assert.deepEqual(await fs.readdir(dir), ['baseline-1.json'], 'confirmed failed writer cleanup removes only the unique experiment root');
 } finally { await fs.rm(dir, { recursive: true, force: true }); }
 console.log('Map writer experiments use equivalent atomic publication in fresh processes, disclose scoped workload/memory and preserve caller files.');

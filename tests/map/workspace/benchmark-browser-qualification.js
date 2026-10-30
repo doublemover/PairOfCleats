@@ -21,7 +21,8 @@ const receipt = { schemaVersion: 1, scenario: options.scenario, url: url.href, s
   preparation: 'provided launcher artifact', listener: 'pending', moduleGraph: 'pending', viewer: 'pending',
   phases: [], captures: [], requestedRenderer: 'ANGLE SwiftShader', hardwareQualification: 'not-run', fps: 'not-measured' };
 const { chromium } = await import(pathToFileURL(path.resolve(options.playwright)).href);
-let browser, context, error;
+let browser, context, page, diagnostics, error;
+const inspectionFailures = [];
 const started = performance.now();
 const watchdog = setTimeout(() => { error ||= new Error('Benchmark browser qualification exceeded 30 seconds.'); void context?.close(); }, 30000);
 try {
@@ -30,8 +31,8 @@ try {
   browser = await chromium.launch({ executablePath: path.resolve(options.chromium), headless: true, timeout: 5000,
     args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
   context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
-  const page = await context.newPage(); page.setDefaultTimeout(5000);
-  const diagnostics = attachQualificationDiagnostics(page, receipt, `${options.scenario}-desktop`);
+  page = await context.newPage(); page.setDefaultTimeout(5000);
+  diagnostics = attachQualificationDiagnostics(page, receipt, `${options.scenario}-desktop`);
   await page.goto(url.href);
   for (const [name, width, height] of [['desktop', 1440, 1000], ['narrow', 390, 844]]) {
     if (name !== 'desktop') diagnostics.begin(`${options.scenario}-${name}`);
@@ -43,7 +44,38 @@ try {
     receipt.captures.push({ file, frame, viewport: { width, height } });
   }
   receipt.viewer = 'rendered-ready'; receipt.status = 'passed';
-} catch (cause) { error ||= cause; receipt.status = 'failed'; receipt.failure = cause.message; }
+} catch (cause) {
+  error ||= cause; receipt.status = 'failed'; receipt.failure = cause.message;
+  if (page) {
+    try {
+      receipt.failureSnapshot = { pageUrl: page.url(), scope: 'bounded-observation;no-readiness-or-private-owner-authority',
+        ...await page.evaluate(async () => {
+          const { state } = await import('/isomap/state.js');
+          const primitive = value => typeof value === 'string' ? value.slice(0, 256)
+            : typeof value === 'boolean' || typeof value === 'number' && Number.isFinite(value) ? value : null;
+          const summary = document.querySelector('#summary');
+          const hints = {};
+          for (const key of Object.getOwnPropertyNames(state).filter(name => /render|enhanc|attempt|readiness/iu.test(name)).slice(0, 32)) {
+            const value = Object.getOwnPropertyDescriptor(state, key)?.value;
+            hints[key] = primitive(value) ?? { type: typeof value, fields: value && typeof value === 'object'
+              ? Object.fromEntries(['status', 'state', 'ready', 'attempt', 'attemptId'].map(name =>
+                [name, primitive(Object.getOwnPropertyDescriptor(value, name)?.value)])) : null };
+          }
+          return { summary: { text: summary?.textContent?.slice(0, 4096) || null,
+            visibleText: summary?.innerText?.slice(0, 4096) || null },
+          state: { renderer: Boolean(state.renderer), scene: Boolean(state.scene), camera: Boolean(state.camera),
+            fileGroupCount: state.fileGroup?.children?.length ?? null, preparingScene: state.preparingScene ?? null,
+            contextLost: state.contextLost ?? null, invalidateRender: typeof state.invalidateRender,
+            disposeControls: typeof state.disposeControls, disposeScene: typeof state.disposeScene, rendererHints: hints } };
+        }) };
+    } catch (inspection) {
+      inspectionFailures.push(inspection);
+      receipt.failureSnapshotError = { name: inspection.name, message: inspection.message.slice(0, 2048) };
+    }
+    try { diagnostics?.assertClean(); }
+    catch (inspection) { inspectionFailures.push(inspection); }
+  }
+}
 finally {
   clearTimeout(watchdog);
   const cleanupFailures = [];
@@ -55,5 +87,6 @@ finally {
   if (cleanupFailures.length || error) receipt.status = 'failed';
   receipt.cleanupFailures = cleanupFailures;
   await fs.writeFile(path.join(out, `${options.scenario}-browser-qualification.json`), JSON.stringify(receipt, null, 2));
-  if (error || cleanupFailures.length) throw new AggregateError([...(error ? [error] : []), ...cleanupFailures.map(row => new Error(row.message))], 'Benchmark browser qualification failed.');
+  if (error || cleanupFailures.length || inspectionFailures.length) throw new AggregateError([...(error ? [error] : []),
+    ...inspectionFailures, ...cleanupFailures.map(row => new Error(row.message))], 'Benchmark browser qualification failed.', { cause: error });
 }

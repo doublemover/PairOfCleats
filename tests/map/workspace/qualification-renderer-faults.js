@@ -10,8 +10,12 @@ export const qualifyRendererFault = async ({ page, url, diagnostics, scenario })
     method: 'POST', requestKind: 'files', message: 'net::ERR_ABORTED', maxCount: 1 };
   diagnostics.expect(startup);
   const moduleUrl = new URL('/three/three.module.js', url).href;
+  let moduleInterceptions = 0;
   if (fault === 'module-404') {
-    await page.route(moduleUrl, route => route.fulfill({ status: 404, contentType: 'text/javascript', body: 'missing required fixture module' }));
+    await page.route(moduleUrl, route => {
+      moduleInterceptions++;
+      return route.fulfill({ status: 404, contentType: 'text/javascript', body: 'missing required fixture module' });
+    });
     diagnostics.expect({ type: 'http', url: moduleUrl, statuses: [404], maxCount: 1 });
     diagnostics.expect({ type: 'requestfailed', url: moduleUrl, method: 'GET', message: 'net::ERR_ABORTED', maxCount: 1 });
     diagnostics.expect({ type: 'console', url: moduleUrl,
@@ -66,7 +70,17 @@ export const qualifyRendererFault = async ({ page, url, diagnostics, scenario })
   if (fault === 'module-404' || fault === 'fallback-page-error') await page.waitForFunction(() => document.getElementById('summary').textContent.includes('3D unavailable'));
   let priorFrame = null;
   if (fault === 'render-exception' || fault === 'fallback-page-error') {
-    await page.waitForFunction(async () => (await import('/isomap/state.js')).state.graphWorkerReady === true);
+    const stateHandle = await page.evaluateHandle(async () => (await import('/isomap/state.js')).state);
+    let primary;
+    try { await page.waitForFunction(state => state.graphWorkerReady === true, stateHandle); }
+    catch (error) { primary = error; throw error; }
+    finally {
+      try { await stateHandle.dispose(); }
+      catch (cleanup) {
+        if (primary) throw new AggregateError([primary, cleanup], 'Graph worker readiness and handle cleanup failed.', { cause: primary });
+        throw cleanup;
+      }
+    }
     await page.waitForLoadState('networkidle', { timeout: 5000 });
     mark('original source worker and startup requests settled');
   }
@@ -79,6 +93,9 @@ export const qualifyRendererFault = async ({ page, url, diagnostics, scenario })
   await page.locator('#stack-search').fill('build');
   await page.locator('#stack-tree button').filter({ hasText: /^(?:snapshot\.ts \/ )?build(?:$| ·)/u }).first().click();
   await page.waitForFunction(() => document.getElementById('stack-breadcrumb').textContent.includes('build'));
+  // Breadcrumb selection is synchronous; the original source query/detail
+  // requests still own their responses. Finish those before closing the page.
+  await page.waitForLoadState('networkidle', { timeout: 5000 });
   mark('initial source selection ready');
   if (fault === 'render-exception') {
     await page.evaluate(() => { globalThis.__qualificationFault.armed = true; });
@@ -91,10 +108,14 @@ export const qualifyRendererFault = async ({ page, url, diagnostics, scenario })
   try { await captureRenderedViewerFrame(page); }
   catch (error) { rejected = error; }
   assert.ok(rejected, 'an allocated canvas or functioning hierarchy cannot qualify the injected broken renderer');
-  if (fault === 'module-404' || fault === 'fallback-page-error') assert.match(rejected.message, /no original controls submission owner is active/);
+  if (fault === 'module-404' || fault === 'fallback-page-error') {
+    assert.match(rejected.message, /RendererUnavailableError: Renderer unavailable before useful frame:/);
+    if (fault === 'module-404') assert.ok(rejected.message.includes(moduleUrl));
+    else assert.match(rejected.message, /Error creating WebGL context/);
+  }
   else if (fault === 'render-exception') assert.match(rejected.message, /poc-original-render-exception/);
   else assert.match(rejected.message, /pixel invariant failed/);
-  const injection = fault === 'module-404' ? { intercepted: 1 } : await page.evaluate(() => globalThis.__qualificationFault);
+  const injection = fault === 'module-404' ? { intercepted: moduleInterceptions } : await page.evaluate(() => globalThis.__qualificationFault);
   assert.ok(injection.intercepted > 0, 'the actual module/shader/draw operation must encounter the fault');
   if (fault === 'render-exception' || fault === 'fallback-page-error') {
     const marker = fault === 'render-exception' ? 'poc-original-render-exception' : 'poc-fallback-page-exception';
@@ -105,6 +126,7 @@ export const qualifyRendererFault = async ({ page, url, diagnostics, scenario })
     const nextSource = page.locator('#stack-tree button').filter({ hasText: /^(?:snapshot\.ts \/ )?render(?:$| ·)/u }).first();
     await nextSource.focus(); await nextSource.press('Enter');
     await page.waitForFunction(() => document.getElementById('stack-breadcrumb').textContent.includes('render'));
+    await page.waitForLoadState('networkidle', { timeout: 5000 });
     assert.match(await page.locator('#stack-breadcrumb').textContent(), /render/);
   } else if (fault !== 'render-noop') {
     assert.equal(classifyQualificationPhase({ ...diagnostics.phase, expected: [startup] }).ok, false,
@@ -113,6 +135,13 @@ export const qualifyRendererFault = async ({ page, url, diagnostics, scenario })
       ? event.type === 'http' && event.status === 404 && event.url === moduleUrl
       : event.type === 'console' && event.message.startsWith('THREE.WebGLProgram: Shader Error')));
   }
+  diagnostics.phase.preferenceAdmission = await page.evaluate(async () => {
+    const { state } = await import('/isomap/state.js');
+    return { configured: Boolean(state.config?.preferences),
+      availabilityFailed: state.settingsSession?.availabilityFailed ?? null,
+      availabilityError: state.settingsSession?.availabilityError ?? null,
+      status: state.settingsSession?.status ?? null };
+  });
   diagnostics.assertClean();
   return { scenario, outcome: 'broken 3D rejected; source navigation remains available',
     frameRejection: rejected.message, priorFrame, injection, softwareRenderer: true, hardwareQualification: false };

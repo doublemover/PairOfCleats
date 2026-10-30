@@ -62,6 +62,7 @@ export const resolveMapViewerPathUnderBase = (baseDir, requestPath, pathApi = pa
 export const decodeMapViewerPathname = (rawPathname) => decodePathnameSafe(rawPathname);
 
 export const startMapViewerStaticServer = async ({ outPath, port = 0 }) => {
+  const listeningStarted = performance.now();
   const toolRoot = resolveToolRoot();
   const htmlName = path.basename(outPath);
 
@@ -102,11 +103,14 @@ export const startMapViewerStaticServer = async ({ outPath, port = 0 }) => {
 
   const address = server.address();
   const actualPort = typeof address === 'object' && address ? address.port : Number(port) || 0;
+  const originalClose = server.close.bind(server);
+  let closing = null;
 
   return {
     server,
-    close: () => new Promise((resolve, reject) => server.close(error => error ? reject(error) : resolve())),
+    close: () => closing ||= new Promise((resolve, reject) => originalClose(error => error ? reject(error) : resolve())),
     readiness: 'listener-ready',
+    timings: { listenerReadyMs: performance.now() - listeningStarted },
     url: `http://127.0.0.1:${actualPort}/${htmlName}`
   };
 };

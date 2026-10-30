@@ -21,7 +21,7 @@ import { requireBootstrap } from '../../../src/shared/bootstrap-readiness.js';
 const options = Object.fromEntries(Array.from({ length: Math.floor((process.argv.length - 2) / 2) }, (_, i) =>
   [process.argv[2 + i * 2].replace(/^--/, ''), process.argv[3 + i * 2]]));
 for (const key of ['playwright', 'chromium', 'out', 'scenario']) if (!options[key]) throw new Error('Required --' + key);
-assert.ok(['workspace', 'three', 'three-module-404', 'three-shader-failure', 'three-render-noop', 'three-render-exception', 'three-fallback-page-error'].includes(options.scenario), 'Run both explicit --scenario workspace and --scenario three cohorts.');
+assert.ok(['workspace', 'three', 'three-no-webgl', 'three-module-404', 'three-shader-failure', 'three-render-noop', 'three-render-exception', 'three-fallback-page-error'].includes(options.scenario), 'Run both explicit --scenario workspace and --scenario three cohorts.');
 await requireBootstrap();
 const destination = path.resolve(options.out); await fs.mkdir(destination, { recursive: true });
 const root = await fs.mkdtemp(path.join(destination, 'fixture-'));
@@ -50,7 +50,11 @@ const watchdog = setTimeout(() => {
 }, receipt.limits.totalWorkMs);
 const record = name => { checkDeadline(); receipt.tests.push(name); (receipt.steps ||= []).push({ name, elapsedMs: performance.now() - started }); };
 try {
-  const witness = await createPublishedSemanticWitness({ root, abortSignal: deadline.signal }); record('fresh published semantic witness ready');
+  // Renderer capsules retain the actual Node/TypeScript sources and Node type
+  // authority. Their functions use no DOM library; unrelated DOM declarations
+  // need not be sealed into their fresh semantic-generation preparation.
+  const witness = await createPublishedSemanticWitness({ root, abortSignal: deadline.signal,
+    ...(options.scenario.startsWith('three') ? { compilerOptions: { lib: ['ES2022'] } } : {}) }); record('fresh published semantic witness ready');
   if (options.scenario === 'workspace') {
     runtime = await createPublishedRuntimeWitness(witness, { signal: deadline.signal }); checkDeadline();
     receipt.generation = witness.manifest.generation;
@@ -270,31 +274,10 @@ try {
       .then(result => ({ result }), error => ({ error }));
     const isoUrl = await Promise.race([ready, isoResult.then(result => { throw new Error('Three.js launcher ended before readiness: ' + launcherLog + ' ' + (result.error?.message || '')); })]);
     record('independent Three.js CLI server ready');
-    if (options.scenario !== 'three') {
+    if (!['three', 'three-no-webgl'].includes(options.scenario)) {
       receipt.rendererFault = await qualifyRendererFault({ page, url: isoUrl, diagnostics, scenario: options.scenario });
       record('actual browser injected renderer fault: ' + options.scenario);
     } else {
-      diagnostics.begin('three-startup');
-      // initStackNavigation owns the initial direct file query. Worker readiness
-      // supersedes it through that exact owner's AbortController before refreshing.
-      const expectStartupCancellation = (owner, url) => owner.expect({ type: 'requestfailed',
-        url: new URL('/map-snapshot', url).href, method: 'POST', requestKind: 'files',
-        message: 'net::ERR_ABORTED', maxCount: 1 });
-      expectStartupCancellation(diagnostics, isoUrl);
-      await page.setViewportSize({ width: 1440, height: 1000 });
-      await page.goto(isoUrl); await page.waitForFunction(() => document.querySelectorAll('#stack-tree details').length > 0 && document.querySelector('canvas'));
-      const renderer = await page.evaluate(() => {
-        const canvas = document.querySelector('canvas'), gl = canvas.getContext('webgl2'), debug = gl?.getExtension('WEBGL_debug_renderer_info');
-        return { vendor: debug ? gl.getParameter(debug.UNMASKED_VENDOR_WEBGL) : null, renderer: debug ? gl.getParameter(debug.UNMASKED_RENDERER_WEBGL) : null,
-          version: gl?.getParameter(gl.VERSION), contextLost: gl?.isContextLost(), width: canvas.width, height: canvas.height };
-      });
-      receipt.renderedFrames = [await captureRenderedViewerFrame(page)];
-      diagnostics.begin('three-desktop');
-      assert.ok(renderer.width > 0 && renderer.height > 0); assert.equal(renderer.contextLost, false); receipt.renderer = renderer;
-      diagnostics.phase.renderer = { requested: 'ANGLE SwiftShader', effective: renderer.renderer, hardwareQualification: false };
-      await page.getByRole('button', { name: 'Explore', exact: true }).click();
-      await page.locator('#stack-search').fill('build'); const member = page.locator('#stack-tree button').filter({ hasText: /^(?:snapshot\.ts \/ )?build(?:$| ·)/u }).first();
-      await member.focus(); await member.press('Enter'); await page.waitForFunction(() => document.getElementById('stack-breadcrumb').textContent.includes('build'));
       const assertSourceInspector = async current => {
         const trigger = current.getByRole('button', { name: 'Inspect', exact: true });
         if (await trigger.getAttribute('aria-expanded') !== 'true') await trigger.click();
@@ -305,41 +288,71 @@ try {
         const text = await details.textContent();
         assert.match(text, /name: build/); assert.match(text, /kind: FunctionDeclaration/);
       };
-      await assertSourceInspector(page);
-      await page.locator('#stack-mode').selectOption('segments'); await page.locator('#stack-focus').click();
-      receipt.renderedFrames.push(await captureRenderedViewerFrame(page));
-      await page.screenshot({ path: path.join(destination, 'three-selection.png'), fullPage: true }); receipt.screenshots.push('three-selection.png');
-      receipt.captures.push({ file: 'three-selection.png', phase: diagnostics.phase.name, viewport: page.viewportSize(), dpr: receipt.renderedFrames.at(-1).dpr });
-      diagnostics.assertClean();
-      record('independent actual Three.js server/submitted scene frame/keyboard source-member selection');
-      diagnostics.begin('three-narrow');
-      diagnostics.phase.renderer = { requested: 'ANGLE SwiftShader', effective: renderer.renderer, hardwareQualification: false };
-      await page.setViewportSize({ width: 390, height: 844 });
-      receipt.renderedFrames.push(await captureRenderedViewerFrame(page));
-      await page.screenshot({ path: path.join(destination, 'three-narrow.png'), fullPage: true });
-      receipt.screenshots.push('three-narrow.png');
-      receipt.captures.push({ file: 'three-narrow.png', phase: diagnostics.phase.name, viewport: page.viewportSize(), dpr: receipt.renderedFrames.at(-1).dpr });
-      diagnostics.assertClean();
-      const fallback = await context.newPage(); fallback.setDefaultTimeout(5000);
-      const fallbackDiagnostics = attachQualificationDiagnostics(fallback, receipt, 'three-injected-no-webgl');
-      diagnosticOwners.push(fallbackDiagnostics);
-      fallbackDiagnostics.phase.renderer = { requested: 'injected no WebGL', effective: 'source-only', hardwareQualification: false };
-      fallbackDiagnostics.expect({ type: 'console', url: new URL('/three/three.core.js', isoUrl).href, message: 'THREE.WebGLRenderer: THREE.WebGLRenderer: Error creating WebGL context.', maxCount: 1 });
-      await fallback.setViewportSize({ width: 1440, height: 1000 });
-      await fallback.addInitScript(() => {
-        const get = HTMLCanvasElement.prototype.getContext;
-        HTMLCanvasElement.prototype.getContext = function(type, ...args) { return /^webgl/.test(type) ? null : get.call(this, type, ...args); };
-      });
-      expectStartupCancellation(fallbackDiagnostics, isoUrl);
-      await fallback.goto(isoUrl); await fallback.waitForFunction(() => document.getElementById('summary').textContent.includes('3D unavailable'));
-      await fallback.getByRole('button', { name: 'Explore', exact: true }).click();
-      await fallback.locator('#stack-search').fill('build'); await fallback.locator('#stack-tree button').filter({ hasText: /^(?:snapshot\.ts \/ )?build(?:$| ·)/u }).first().click();
-      await fallback.waitForFunction(() => document.getElementById('stack-breadcrumb').textContent.includes('build'));
-      assert.match(await fallback.locator('#stack-breadcrumb').textContent(), /build/); await assertSourceInspector(fallback);
-      await fallback.screenshot({ path: path.join(destination, 'three-no-webgl.png'), fullPage: true }); receipt.screenshots.push('three-no-webgl.png');
-      fallbackDiagnostics.assertClean();
-      receipt.captures.push({ file: 'three-no-webgl.png', phase: fallbackDiagnostics.phase.name, viewport: fallback.viewportSize(), requestedRenderer: 'injected no WebGL', effectiveRenderer: 'source-only' });
-      await fallback.close(); record('injected WebGL unavailability preserves real source hierarchy and inspector');
+      // Independent fresh-process capsules retain the former aggregate's exact
+      // rendered and source-only controls under separate 30-second allowances.
+      receipt.replacementCoverage = { aggregate: 'three with rendered and no-WebGL paths',
+        requiredScenarios: ['three', 'three-no-webgl'], selected: options.scenario,
+        processBoundary: 'fresh witness, server and browser per scenario' };
+      diagnostics.begin('three-startup');
+      // initStackNavigation owns the initial direct file query. Worker readiness
+      // supersedes it through that exact owner's AbortController before refreshing.
+      const expectStartupCancellation = (owner, url) => owner.expect({ type: 'requestfailed',
+        url: new URL('/map-snapshot', url).href, method: 'POST', requestKind: 'files',
+        message: 'net::ERR_ABORTED', maxCount: 1 });
+      if (options.scenario === 'three') {
+        expectStartupCancellation(diagnostics, isoUrl);
+        await page.setViewportSize({ width: 1440, height: 1000 });
+        await page.goto(isoUrl); await page.waitForFunction(() => document.querySelectorAll('#stack-tree details').length > 0 && document.querySelector('canvas'));
+        const renderer = await page.evaluate(() => {
+          const canvas = document.querySelector('canvas'), gl = canvas.getContext('webgl2'), debug = gl?.getExtension('WEBGL_debug_renderer_info');
+          return { vendor: debug ? gl.getParameter(debug.UNMASKED_VENDOR_WEBGL) : null, renderer: debug ? gl.getParameter(debug.UNMASKED_RENDERER_WEBGL) : null,
+            version: gl?.getParameter(gl.VERSION), contextLost: gl?.isContextLost(), width: canvas.width, height: canvas.height };
+        });
+        receipt.renderedFrames = [await captureRenderedViewerFrame(page)];
+        diagnostics.begin('three-desktop');
+        assert.ok(renderer.width > 0 && renderer.height > 0); assert.equal(renderer.contextLost, false); receipt.renderer = renderer;
+        diagnostics.phase.renderer = { requested: 'ANGLE SwiftShader', effective: renderer.renderer, hardwareQualification: false };
+        await page.getByRole('button', { name: 'Explore', exact: true }).click();
+        await page.locator('#stack-search').fill('build'); const member = page.locator('#stack-tree button').filter({ hasText: /^(?:snapshot\.ts \/ )?build(?:$| ·)/u }).first();
+        await member.focus(); await member.press('Enter'); await page.waitForFunction(() => document.getElementById('stack-breadcrumb').textContent.includes('build'));
+        await assertSourceInspector(page);
+        await page.locator('#stack-mode').selectOption('segments'); await page.locator('#stack-focus').click();
+        receipt.renderedFrames.push(await captureRenderedViewerFrame(page));
+        await page.screenshot({ path: path.join(destination, 'three-selection.png'), fullPage: true }); receipt.screenshots.push('three-selection.png');
+        receipt.captures.push({ file: 'three-selection.png', phase: diagnostics.phase.name, viewport: page.viewportSize(), dpr: receipt.renderedFrames.at(-1).dpr });
+        diagnostics.assertClean();
+        record('independent actual Three.js server/submitted scene frame/keyboard source-member selection');
+        diagnostics.begin('three-narrow');
+        diagnostics.phase.renderer = { requested: 'ANGLE SwiftShader', effective: renderer.renderer, hardwareQualification: false };
+        await page.setViewportSize({ width: 390, height: 844 });
+        receipt.renderedFrames.push(await captureRenderedViewerFrame(page));
+        await page.screenshot({ path: path.join(destination, 'three-narrow.png'), fullPage: true });
+        receipt.screenshots.push('three-narrow.png');
+        receipt.captures.push({ file: 'three-narrow.png', phase: diagnostics.phase.name, viewport: page.viewportSize(), dpr: receipt.renderedFrames.at(-1).dpr });
+        diagnostics.assertClean();
+      }
+      if (options.scenario === 'three-no-webgl') {
+        const fallback = await context.newPage(); fallback.setDefaultTimeout(5000);
+        const fallbackDiagnostics = attachQualificationDiagnostics(fallback, receipt, 'three-injected-no-webgl');
+        diagnosticOwners.push(fallbackDiagnostics);
+        fallbackDiagnostics.phase.renderer = { requested: 'injected no WebGL', effective: 'source-only', hardwareQualification: false };
+        fallbackDiagnostics.expect({ type: 'console', url: new URL('/three/three.core.js', isoUrl).href, message: 'THREE.WebGLRenderer: THREE.WebGLRenderer: Error creating WebGL context.', maxCount: 1 });
+        await fallback.setViewportSize({ width: 1440, height: 1000 });
+        await fallback.addInitScript(() => {
+          const get = HTMLCanvasElement.prototype.getContext;
+          HTMLCanvasElement.prototype.getContext = function(type, ...args) { return /^webgl/.test(type) ? null : get.call(this, type, ...args); };
+        });
+        expectStartupCancellation(fallbackDiagnostics, isoUrl);
+        await fallback.goto(isoUrl); await fallback.waitForFunction(() => document.getElementById('summary').textContent.includes('3D unavailable'));
+        await fallback.getByRole('button', { name: 'Explore', exact: true }).click();
+        await fallback.locator('#stack-search').fill('build'); await fallback.locator('#stack-tree button').filter({ hasText: /^(?:snapshot\.ts \/ )?build(?:$| ·)/u }).first().click();
+        await fallback.waitForFunction(() => document.getElementById('stack-breadcrumb').textContent.includes('build'));
+        assert.match(await fallback.locator('#stack-breadcrumb').textContent(), /build/); await assertSourceInspector(fallback);
+        await fallback.screenshot({ path: path.join(destination, 'three-no-webgl.png'), fullPage: true }); receipt.screenshots.push('three-no-webgl.png');
+        fallbackDiagnostics.assertClean();
+        receipt.captures.push({ file: 'three-no-webgl.png', phase: fallbackDiagnostics.phase.name, viewport: fallback.viewportSize(), requestedRenderer: 'injected no WebGL', effectiveRenderer: 'source-only' });
+        await fallback.close(); record('injected WebGL unavailability preserves real source hierarchy and inspector');
+      }
     }
   }
   diagnostics.assertClean();

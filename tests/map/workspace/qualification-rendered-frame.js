@@ -4,12 +4,21 @@ import { randomUUID } from 'node:crypto';
  * same submission. Merely replacing renderer.render misses captured callbacks. */
 export const captureRenderedViewerFrame = async page => {
   const token = randomUUID();
-  let primary, result;
+  let primary, result, stateHandle;
   try {
-    await page.waitForFunction(async () => {
-      const { state } = await import('/isomap/state.js');
-      return state.renderer && state.scene && state.camera && state.fileGroup?.children.length && !state.preparingScene;
-    });
+    stateHandle = await page.evaluateHandle(async () => (await import('/isomap/state.js')).state);
+    await page.waitForFunction(state => Boolean(state.rendererFailure || (state.renderer && state.scene && state.camera
+      && state.fileGroup?.children.length && !state.preparingScene
+      && typeof state.invalidateRender === 'function' && typeof state.disposeControls === 'function')), stateHandle);
+    await page.evaluate(state => {
+      if (!state.rendererFailure) return;
+      const original = state.rendererFailure;
+      const message = typeof original?.message === 'string' ? original.message.slice(0, 1024)
+        : typeof original === 'string' ? original.slice(0, 1024) : 'Original renderer enhancement failed.';
+      const error = new Error(`Renderer unavailable before useful frame: ${message}`, { cause: original });
+      error.name = 'RendererUnavailableError'; error.code = 'ERR_RENDERER_UNAVAILABLE';
+      throw error;
+    }, stateHandle);
     await page.evaluate(async token => {
       const { state } = await import('/isomap/state.js');
       const { observeNextSceneRender } = await import('/isomap/rendering/scene-render-submission.js');
@@ -69,6 +78,7 @@ export const captureRenderedViewerFrame = async page => {
         fidelity: 'software-rendered submitted frame and sampled known-scene pixel variation; hardware/FPS not measured' };
     }, token);
   } catch (error) { primary = error; }
+  const cleanupErrors = [];
   try {
     await page.evaluate(token => {
       const owner = globalThis.__pairofcleatsQualificationFrame;
@@ -76,8 +86,12 @@ export const captureRenderedViewerFrame = async page => {
       owner.cancel?.(); delete globalThis.__pairofcleatsQualificationFrame;
     }, token);
   } catch (cleanup) {
-    if (primary) throw new AggregateError([primary, cleanup], 'Frame observation and cleanup failed.', { cause: primary });
-    throw cleanup;
+    cleanupErrors.push(cleanup);
+  }
+  try { await stateHandle?.dispose(); } catch (cleanup) { cleanupErrors.push(cleanup); }
+  if (cleanupErrors.length) {
+    if (!primary && cleanupErrors.length === 1) throw cleanupErrors[0];
+    throw new AggregateError([...(primary ? [primary] : []), ...cleanupErrors], 'Frame observation and cleanup failed.', { cause: primary || cleanupErrors[0] });
   }
   if (primary) throw primary;
   return result;
