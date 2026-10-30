@@ -11,6 +11,7 @@ import { loadJsonObjectArtifact } from '../../src/shared/artifact-io/loaders.js'
 import { resolveIndexArtifactPolicy } from '../../src/contracts/index-artifact-policy.js';
 import { resolveRequiredArtifactsForProfile } from '../../src/contracts/index-profile.js';
 import { accumulateManifestBytes, summarizeManifestBytes, buildPrefixedPieceStats, missingRequiredStatsFamilies } from './stats-artifacts.js';
+import { logicalPayloadRows, sumKnownCounts } from './stats-artifacts.js';
 import { fromPosix, isRelativePathEscape } from '../../src/shared/file-paths.js';
 import { captureSelectedModeRoots } from '../../src/shared/indexing/selected-mode-roots.js';
 import { getRepoId, loadUserConfig, resolveRepoRootArg } from '../shared/dict-utils.js';
@@ -22,11 +23,6 @@ const argv = createCli({
   scriptName: 'index-stats',
   options: INDEX_STATS_OPTIONS
 }).parse();
-
-const normalizeCount = (value) => {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? Math.max(0, Math.floor(parsed)) : null;
-};
 
 const parseChecksum = (value) => {
   if (typeof value !== 'string') return null;
@@ -96,12 +92,8 @@ const buildFamilyStats = (pieces, {
   const nameSet = new Set(names);
   const selected = pieces.filter((piece) => nameSet.has(String(piece?.name || '')));
   const bytes = selected.reduce((sum, piece) => sum + (Number(piece?.bytes) || 0), 0);
-  const countCandidates = selected
-    .filter((piece) => !countFromName || piece.name === countFromName)
-    .map((piece) => normalizeCount(piece?.count))
-    .filter((value) => value != null);
   return {
-    rows: countCandidates.length ? Math.max(...countCandidates) : null,
+    rows: logicalPayloadRows(selected, countFromName || names[0]),
     bytes
   };
 };
@@ -118,12 +110,12 @@ const buildEmbeddingStats = (pieces) => {
   ));
   const hnswPieces = pieces.filter((piece) => String(piece?.name || '').includes('hnsw'));
   const lancedbPieces = pieces.filter((piece) => String(piece?.name || '').includes('lancedb'));
-  const denseCountCandidates = densePieces
-    .map((piece) => normalizeCount(piece?.count))
-    .filter((value) => value != null);
   return {
     denseVectors: {
-      count: denseCountCandidates.length ? Math.max(...denseCountCandidates) : null,
+      // The primary vector payload owns this total. Binary metadata repeats it;
+      // doc/code channels have independent absence/cardinality and are not rows
+      // to add to, or a replacement maximum for, the primary payload.
+      count: logicalPayloadRows(densePieces, 'dense_vectors'),
       bytes: densePieces.reduce((sum, piece) => sum + (Number(piece?.bytes) || 0), 0)
     },
     hnsw: {
@@ -203,7 +195,7 @@ const aggregateTotals = (modeReports) => {
   const chunkCounts = modeReports.map(mode => mode.chunkMeta.rows);
   const chunkSum = chunkCounts.reduce((sum, count) => sum + count, 0);
   const totalChunkCount = chunkCounts.every(count => Number.isSafeInteger(count) && count >= 0) && Number.isSafeInteger(chunkSum) ? chunkSum : null;
-  const totalFileCount = modeReports.reduce((sum, mode) => sum + (mode.fileMeta.rows || 0), 0);
+  const totalFileCount = sumKnownCounts(modeReports.map(mode => mode.fileMeta.rows));
   const bytesByFamily = {
     chunks: modeReports.reduce((sum, mode) => sum + mode.chunkMeta.bytes, 0),
     postings: modeReports.reduce((sum, mode) => (

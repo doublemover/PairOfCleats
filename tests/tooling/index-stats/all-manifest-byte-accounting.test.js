@@ -31,7 +31,7 @@ try {
   const report = await run();
   assert.equal(report.totals.totalBytes, 150);
   assert.equal(report.totals.manifestPieces, 3);
-  assert.equal(report.totals.fileCount, 0);
+  assert.equal(report.totals.fileCount, null, 'an absent file count is unknown, independently of known physical bytes');
   assert.equal(report.modes.code.fileMeta.bytes, 17);
   manifest.pieces.push({ name: 'unknown', path: 'unknown.bin', format: 'bin' });
   await fs.writeFile(manifestPath, JSON.stringify(manifest));
