@@ -96,7 +96,12 @@ Optional `.pairofcleats.json` settings:
 ```
 
 - Defaults: `fp32`, 768 dimensions, immutable ONNX revision
-  `daa72c51243991dfcaf9f9137d2c573d8f7790c0`, and qualified Transformers.js 4.3.1.
+  `daa72c51243991dfcaf9f9137d2c573d8f7790c0`, and exact Transformers.js 4.3.2.
+  The runtime guard follows the locked dependency. Its identity change refuses
+  old 4.3.1 acquisition receipts and embedding-cache identities; rebuild those
+  derived embeddings without rewriting existing author caches. Historical 4.3.1
+  model/CPU observations remain historical; actual 4.3.2 model and resource
+  qualification requires fresh export-bound receipts.
 - Supported precisions: `fp32`, `q8`, and `q4`. Half-precision variants are not
   enabled by this adapter. Supported dimensions: 128, 256, 512, and 768.
 - An explicit `revision` must be a 40-character commit SHA. Updating revision,

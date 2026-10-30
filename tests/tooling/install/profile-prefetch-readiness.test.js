@@ -23,7 +23,7 @@ try {
     const graphPath = `onnx/selected-${profile.dtype}.onnx`;
     let modelCloses = 0, tokenizerCloses = 0, abortAtRegistry = false;
     const controller = new AbortController();
-    const mod = { env: { version: '4.3.1' }, EmbeddingGemma2Model: class {},
+    const mod = { env: { version: '4.3.2' }, EmbeddingGemma2Model: class {},
       AutoConfig: { from_pretrained: async (id, settings) => {
         calls.push(['config', id, settings]); return { model_type: 'embedding_gemma2', vision_config: {}, audio_config: {} };
       } },
@@ -88,7 +88,7 @@ try {
   const failure = Object.freeze(new Error('frozen selected profile registry failure'));
   const profile = resolveEmbeddingModelProfile(modelId);
   let closes = 0;
-  const mod = { env: { version: '4.3.1' }, EmbeddingGemma2Model: class {},
+  const mod = { env: { version: '4.3.2' }, EmbeddingGemma2Model: class {},
     AutoConfig: { from_pretrained: async () => ({ model_type: 'embedding_gemma2' }) },
     AutoTokenizer: { from_pretrained: async () => ({ dispose() { closes++; } }) },
     AutoModel: { from_pretrained: async () => ({ dispose() { closes++; } }) },

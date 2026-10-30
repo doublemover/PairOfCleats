@@ -6,6 +6,7 @@ const DIMENSIONS = new Set([128, 256, 512, 768]);
 const DTYPES = new Set(['fp32', 'q8', 'q4']);
 // Immutable ONNX export, verified against its upstream model metadata on 2026-10-07.
 export const EMBEDDING_GEMMA2_REVISION = 'daa72c51243991dfcaf9f9137d2c573d8f7790c0';
+export const EMBEDDING_GEMMA2_RUNTIME = 'transformers.js@4.3.2';
 
 export const isEmbeddingGemma2 = (modelId) => (
   EMBEDDING_GEMMA2_PATTERN.test(String(modelId || '').trim())
@@ -34,7 +35,7 @@ export const resolveEmbeddingModelProfile = (modelId, options = null) => {
   }
   return {
     family: 'embeddinggemma2',
-    runtime: 'transformers.js@4.3.1',
+    runtime: EMBEDDING_GEMMA2_RUNTIME,
     dtype,
     dimensions,
     revision: revision.toLowerCase(),

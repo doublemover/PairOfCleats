@@ -121,7 +121,7 @@ assert.equal(failedDisposals, 2, 'a later explicit disposal retries only the cap
 
 const loads = [];
 __setTransformersModuleLoaderForTests(async () => ({
-  Tensor, env: { version: '4.3.1' }, EmbeddingGemma2Model: class {},
+  Tensor, env: { version: '4.3.2' }, EmbeddingGemma2Model: class {},
   AutoConfig: { from_pretrained: async () => ({ model_type: 'embedding_gemma2' }) },
   AutoTokenizer: { from_pretrained: async () => tokenizer },
   AutoModel: { from_pretrained: async (_, request) => { loads.push(request); return model; } }

@@ -39,7 +39,7 @@ const model = async input => {
 };
 model.dispose = async () => { disposals += 1; };
 __setTransformersModuleLoaderForTests(async () => ({
-  Tensor, env: { version: '4.3.1' }, EmbeddingGemma2Model: class {},
+  Tensor, env: { version: '4.3.2' }, EmbeddingGemma2Model: class {},
   AutoConfig: { from_pretrained: async () => ({ model_type: 'embedding_gemma2' }) },
   AutoTokenizer: { from_pretrained: async () => tokenizer },
   AutoModel: { from_pretrained: async () => { loads += 1; return model; } }

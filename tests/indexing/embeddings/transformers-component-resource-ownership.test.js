@@ -21,7 +21,7 @@ try {
       assert.equal(this, tokenizer); tokenizerCloses++; if (tokenizerCloses === 1) throw cleanup;
     };
   } });
-  const mod = { env: { version: '4.3.1' }, EmbeddingGemma2Model: class {},
+  const mod = { env: { version: '4.3.2' }, EmbeddingGemma2Model: class {},
     AutoConfig: { from_pretrained: async () => ({ model_type: 'embedding_gemma2' }) },
     AutoTokenizer: { from_pretrained: async () => tokenizer },
     AutoModel: { from_pretrained: async (_, options) => {

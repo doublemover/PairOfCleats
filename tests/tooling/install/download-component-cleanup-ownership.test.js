@@ -18,7 +18,7 @@ const primary=Object.freeze(new Error('controlled metadata primary'));
 const cleanup=Object.freeze(new Error('controlled unbranded component close'));
 process.on('uncaughtExceptionMonitor',error=>{calls.failure={cause:error.cause===0?0:error.cause?.message,
 pending:error.cacheOwnershipPending===true,cleanupCount:error.cleanupErrors?.[0]?.errors?.length};save();});
-export const env={version:'4.3.1'}; export class EmbeddingGemma2Model {}
+export const env={version:'4.3.2'}; export class EmbeddingGemma2Model {}
 export const AutoConfig={from_pretrained:async()=>({model_type:'embedding_gemma2'})};
 export const AutoTokenizer={from_pretrained:async()=>({dispose:async()=>{calls.tokenizer++;save();if(mode!=='success')throw cleanup;}})};
 export const AutoModel={from_pretrained:async(model,options)=>{

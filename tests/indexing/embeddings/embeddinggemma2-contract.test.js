@@ -64,6 +64,9 @@ const baseIdentity = identity(profile);
 assert.equal(baseIdentity.dims, 128);
 assert.equal(baseIdentity.pooling, 'sentence_embedding');
 const baseKey = buildEmbeddingIdentityKey(baseIdentity);
+assert.notEqual(buildEmbeddingIdentityKey({ ...baseIdentity,
+  modelProfile: { ...baseIdentity.modelProfile, runtime: 'transformers.js@4.3.1' } }), baseKey,
+'saved old-runtime embeddings cannot share the current canonical identity');
 for (const changed of [{ ...profile, dimensions: 256 }, { ...profile, dtype: 'fp32' }, { ...profile, revision: 'a'.repeat(40) }]) {
   assert.notEqual(buildEmbeddingIdentityKey(identity(changed)), baseKey);
 }
@@ -75,7 +78,7 @@ class Tensor {
   dispose() {}
 }
 const fakeModule = {
-  env: { version: '4.3.1' },
+  env: { version: '4.3.2' },
   Tensor,
   EmbeddingGemma2Model: class {},
   AutoConfig: { from_pretrained: async () => ({ model_type: 'embedding_gemma2', vision_config: {}, audio_config: {} }) },

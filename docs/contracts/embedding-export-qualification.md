@@ -22,6 +22,11 @@ closures. Remote acquisition is disabled; it does not download, patch, copy, or
 promote model weights. Supply a previously verified task-owned export.
 
 Prepared inference is currently the explicit EmbeddingGemma2 text-model route.
+Its current profile requires exact Transformers.js 4.3.2, matching the locked
+dependency; other runtimes still fail before component loading. The immutable
+export revision and supported dtype/dimension policies remain unchanged. Older
+4.3.1 acquisition receipts and saved embedding identities do not qualify this
+runtime, and the profile alignment alone is not actual-model acceptance.
 Generic feature-extraction and ONNX adapters do not gain invented prepared
 capability. A requested unsupported route fails its prerequisite. Qualify
 supported exports individually: generic pooled outputs, qualified BGE-M3/E5

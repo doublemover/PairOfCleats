@@ -150,7 +150,7 @@ try {
         : next(url, context); } });
     } else {
       __setTransformersModuleLoaderForTests(async () => prepared ? {
-        env: { version: '4.3.1' }, Tensor, EmbeddingGemma2Model: class {},
+        env: { version: '4.3.2' }, Tensor, EmbeddingGemma2Model: class {},
         AutoConfig: { from_pretrained: async () => ({ model_type: 'embedding_gemma2' }) },
         AutoTokenizer: { from_pretrained: async () => tokenizer }, AutoModel: { from_pretrained: async () => makeModel() }
       } : { env: {}, pipeline: async () => { creates++; return Object.assign(async texts => {
