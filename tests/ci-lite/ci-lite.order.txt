@@ -1873,3 +1873,6 @@ indexing/runtime/worker-retry-evidence-ownership/shared-cache
 indexing/runtime/worker-retry-evidence-ownership/shared-teardown
 indexing/runtime/worker-retry-evidence-ownership/split-cache
 indexing/runtime/worker-retry-evidence-ownership/split-teardown
+perf/bench/tree-sitter-cache-qualification-plan
+lang/contracts/config-native-unavailable-consumers/xml
+lang/contracts/config-native-unavailable-consumers/yaml

@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 1710,
+    "hero": 1713,
     "matrix": 109,
     "meta": 52,
     "soak": 1,
@@ -11245,6 +11245,24 @@
     {
       "id": "indexing/runtime/worker-retry-evidence-ownership/split-teardown",
       "order": 1872,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/bench/tree-sitter-cache-qualification-plan",
+      "order": 1873,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "lang/contracts/config-native-unavailable-consumers/xml",
+      "order": 1874,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "lang/contracts/config-native-unavailable-consumers/yaml",
+      "order": 1875,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }
