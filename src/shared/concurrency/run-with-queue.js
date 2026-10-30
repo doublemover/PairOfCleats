@@ -77,11 +77,23 @@ export async function runWithQueue(queue, items, worker, options = {}) {
     err.retryable = false;
     throw err;
   }
-  let abortError = options.abortError instanceof Error ? options.abortError : null;
+  const abortOverride = options.abortError instanceof Error ? options.abortError : null;
+  let abortError = null;
   const getAbortError = () => {
     if (!abortError) {
-      try { throwIfAborted(signal); } catch (error) { abortError = error; }
-      abortError ||= createAbortError();
+      let originalAbort;
+      try { throwIfAborted(signal); } catch (error) { originalAbort = error; }
+      abortError = abortOverride || originalAbort || createAbortError();
+      // An explicit diagnostic override retains its ordinary identity. Once
+      // queue work is accepted, it cannot erase an unsafe original abort owner
+      // while PQueue's rejection is still being delivered to recordError.
+      if (abortOverride && pendingSignals.size && originalAbort && unsafeRecovery(originalAbort)) {
+        abortError = aggregateQueueFailures([abortOverride, originalAbort],
+          'Queue abort override retained original resource ownership', {
+            originalObservers: [captureQueueOwnership(originalAbort.cause)],
+            primaryDescriptors: captureFailureDescriptors(abortOverride), stopRetry: true
+          });
+      }
     }
     return abortError;
   };

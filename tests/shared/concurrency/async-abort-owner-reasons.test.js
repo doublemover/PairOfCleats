@@ -3,10 +3,13 @@ import PQueue from 'p-queue';
 import { getEventListeners } from 'node:events';
 import { runWithQueue } from '../../../src/shared/concurrency/run-with-queue.js';
 import { runWithTimeout } from '../../../src/shared/promise-timeout.js';
+import { isQueueRecoveryUnsafe } from '../../../src/shared/concurrency/queue-recovery.js';
+import { errorGraphIncludes } from '../../helpers/error-graph.js';
 
 const deferred = () => { let resolve; const promise = new Promise(done => { resolve = done; }); return { promise, resolve }; };
+let pendingSettled = false, retainedOverride;
 const pending = Object.freeze(Object.assign(new Error('original pending abort owner'), {
-  cacheOwnershipPending: true, cacheOwnershipReleased: () => false
+  cacheOwnershipPending: true, cacheOwnershipReleased() { assert.equal(this, pending); return pendingSettled; }
 }));
 const reasons = [undefined, null, false, 0, '', Object.freeze(new Error('exact original reason')), pending];
 const verify = signal => error => error.name === 'AbortError' && error.code === 'ABORT_ERR'
@@ -45,13 +48,29 @@ for (const reason of reasons) {
     }, { signal: signalOwner.signal, ...(override ? { abortError: override } : {}) });
     try {
       if (phase !== 'before') { await started.promise; signalOwner.abort(reason); }
-      await assert.rejects(operation, override ? error => error === override : verify(signalOwner.signal));
+      // PQueue's actual abort rejection may first expose the caller's retained
+      // resource failure. Existing unsafe-owner precedence outranks an ordinary
+      // AbortError or diagnostic override once work has been admitted.
+      await assert.rejects(operation, reason === pending && phase !== 'before'
+        ? error => {
+          if (override && error !== pending) {
+            assert.ok(errorGraphIncludes(error, override));
+            assert.equal(error.cacheOwnershipReleased(), false);
+            retainedOverride = error;
+          }
+          return errorGraphIncludes(error, pending) && isQueueRecoveryUnsafe(error);
+        }
+        : override ? error => error === override : verify(signalOwner.signal));
       assert.equal(calls, phase === 'before' ? 0 : 1); assert.equal(completed, 0);
     } finally { release.resolve(); await queue.onIdle(); }
     assert.equal(completed, phase === 'before' ? 0 : 1);
     assert.deepEqual(getEventListeners(signalOwner.signal, 'abort'), []);
   }
 }
+assert.ok(retainedOverride, 'the actual capacity-abort branch composes both original owners');
+pendingSettled = true;
+assert.equal(retainedOverride.cacheOwnershipReleased(), true, 'only the captured original observer can authorize release');
+assert.equal(isQueueRecoveryUnsafe(retainedOverride), false);
 const inspection = Object.freeze(new Error('original fallible reason inspection'));
 const fallibleSignal = { aborted: true, get reason() { throw inspection; }, addEventListener() {}, removeEventListener() {} };
 for (const execute of [() => runWithTimeout(() => assert.fail('not admitted'), { timeoutMs: 50, signal: fallibleSignal }),
