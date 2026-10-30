@@ -11,7 +11,7 @@ The [current reconciliation](archived/windows-source-cost-closeout-2026-10-30.md
 
 P2/P3 has **313 qualified closures /27 remaining targets /six editor exclusions** from346 reports. The parent and two persistent Sol6.1 High agents share the Windows checkout. Frontload shared-owner repairs, then run affected controls.
 
-The [source-cost closeout](archived/windows-source-cost-closeout-2026-10-30.md) records six comparison and three natural-worker capsules plus all eight publication checks (41 gate passes). The [native/serving follow-up](archived/windows-native-serving-closeout-2026-10-30.md) records19/34 focused passes, original167,936-row SQLite seed19.617s, real inventory browser13.189s and PHP namespace repair (native18/source53). The [runtime window](archived/windows-runtime-qualification-2026-10-30.md) retains MiniLM5routes and18 artifact/37 ownership/9 language/4 builder capsules. SQLite campaign, Python costs, CSS/Lua admission and semantic-drain repeatability remain. Native verification passes37packages/33routes/sevenpatches.
+The [source-consumer window](archived/windows-source-consumer-qualification-2026-10-30.md) records15 affected passes,6 Python costs,6 original/current cache pairs and9 shard-planner capsules; CSS/Lua admission now uses source54. Earlier [source costs](archived/windows-source-cost-closeout-2026-10-30.md) retain6 comparison/3 worker capsules and29 closure readbacks. [Native/serving](archived/windows-native-serving-closeout-2026-10-30.md) retains the original SQLite seed19.617s, browser13.189s and PHP ownership repair. [Runtime](archived/windows-runtime-qualification-2026-10-30.md) retains MiniLM5routes and18 artifact/37 ownership/9 language/4 builder capsules. Full SQLite qualification and semantic-drain repeatability remain; native verification passes37packages/33routes/sevenpatches.
 
 Completed source-bound checks are indexed in the
 [qualification archive](archived/native-runtime-qualification-index-2026-10-27.md)
@@ -42,7 +42,7 @@ await execution; lifecycle policy (#1267) and custom cleanup (#1574) remain.
 The [owner queue](archived/remaining-issue-batches-2026-10-26.json) orders
 implementation by severity and shared dependencies:
 
-1. [P2/P3 closeout](archived/p2-p3-closeout-2026-10-29.md): 56 targets remain; six editor issues are excluded. All 658 mapped correctness checks ran (637 pass/21 fail); focused repairs now pass. P1 #1574 remains outside this request.
+1. [P2/P3 closeout](archived/p2-p3-closeout-2026-10-29.md): 27 targets remain; six editor issues are excluded. All 658 mapped correctness checks ran (637 pass/21 fail); focused repairs now pass. P1 #1574 remains outside this request.
 2. Worker/service ownership and provider installation (#631); [compilation context and report refresh](archived/throughput-materialization-implementation-2026-10-28.md) await qualification.
 3. Language/semantic/replay and retrieval/API evidence contracts; [comment source/demand ownership](archived/comment-pipeline-implementation-2026-10-27.md)
    has 38 authored JS/TS/Rust/import cases. [Frontmatter interiors](archived/frontmatter-content-implementation-2026-10-27.md)
@@ -75,7 +75,7 @@ and forensic drain are wired; native qualification remains.
 Checkpoint 265 completed the full Windows baseline; repair its shared failures.
 Real-tool/model, non-Windows and release checks remain explicit.
 
-Current reconciliation, 2026-10-29: the full baseline is complete; shared-failure
+Current reconciliation, 2026-10-30: the full baseline is complete; shared-failure
 repairs and current qualification continue.
 Gate B1-B7 technical, compatibility, matrix, conformance,
 observability, quality, and security-risk controls need

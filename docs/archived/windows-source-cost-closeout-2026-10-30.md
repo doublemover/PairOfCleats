@@ -46,9 +46,9 @@ configuration budget, command surface, workflow contracts and diff checks.
 The branch was pushed and its exact remote SHA and PR572 summary were read back.
 
 The complete [26-report requirement review](p2-p3-acceptance-review-2026-10-30.json)
-supports twenty-nine completed reports now closed with individual `closed/completed`
+supports twenty completed reports now closed with individual `closed/completed`
 GitHub readbacks: **#798, #985, #1033, #1076, #1437, #1477, #1483, #1493, #1501,
-#1565, #1577, #1578, #1586, #1702, #1750, #1752, #1760, #1761, #1764 and #1766**. The further14-report review confirms nine more closures:
+#1565, #1577, #1578, #1586, #1702, #1750, #1752, #1760, #1761, #1764 and #1766**. The further 14-report review confirms nine more closures:
 **#1753, #1754, #1762, #1763, #1747, #1748, #1757, #1374 and #1375**.
 Original reports/follow-ups remain intact, with a source-bound resolution appended.
 
@@ -58,7 +58,9 @@ exclusions**. Prior ledgers retain their historical counts. Comparison/thread
 follow-up measurements now complete #713/#1102's recorded measurement gaps;
 their closures await publication of this receipt and final requirement readback.
 
-Remaining work includes repaired Python source costs, canonical Python payload-ID
-coverage, CSS/Lua traversal admission, complete SQLite build/update qualification,
-deadline repeatability and issue-specific optional/model/platform requirements.
+At this checkpoint, remaining work included Python source costs, canonical Python
+payload-ID coverage and CSS/Lua traversal admission; the subsequent
+[source-consumer qualification](windows-source-consumer-qualification-2026-10-30.md)
+records their focused results. Complete SQLite build/update qualification,
+deadline repeatability and issue-specific optional/model/platform requirements remain.
 No new full-suite or non-Windows acceptance is claimed.
