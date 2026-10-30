@@ -28,8 +28,10 @@ try {
     assert.equal(commands.length, 2, 'clean provenance needs only before/after Git status observations');
     assert.ok(commands.every(args => args.includes('status') && args.includes('--porcelain=v2')));
   } else {
-    assert.ok(commands.some(args => args.includes('diff')), 'dirty implementation files retain exact content inventory');
-    assert.ok(commands.some(args => args.includes('ls-files')), 'untracked implementation files stay in provenance');
+    assert.equal(commands.length, 4, 'dirty provenance retains two inventories and two status observations');
+    assert.equal(commands.filter(args => args.includes('diff') && args.includes('HEAD')).length, 2);
+    assert.equal(commands.filter(args => args.includes('status') && args.includes('--porcelain=v2')).length, 2);
+    assert.ok(commands.every(args => !args.includes('ls-files') && !args.includes('rev-parse')));
   }
 } finally { childProcess.spawn = originalSpawn; syncBuiltinESMExports(); }
 console.log('Producer provenance retains actual HEAD/bootstrap/dirty authority with bounded clean Git process work.');

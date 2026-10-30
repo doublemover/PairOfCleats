@@ -1,15 +1,19 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
-import os from 'node:os';
 import path from 'node:path';
-import { buildIndex } from '../../../src/integrations/core/index.js';
 import { getIndexDir, loadUserConfig } from '../../../tools/shared/dict-utils.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 import { createFastIndexingTestConfig } from '../../helpers/fast-indexing-config.js';
-import { runSemanticEnrichmentService } from '../../../src/semantic/enrichment.js';
-import { openPublishedSemanticStore } from '../../../src/semantic/published-store.js';
-const temp = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-semantic-phase-drain-'));
+import { prepareIsolatedTestCacheDir } from '../../helpers/test-cache.js';
+import { installPublicationBoundaryDiagnostics } from '../../helpers/publication-boundary-diagnostics.js';
+import { observeStorageResource } from '../../../src/shared/storage/failure-observation.js';
+import { addStorageFailureContext } from '../../../src/shared/storage/operation-error.js';
+const { dir: temp } = await prepareIsolatedTestCacheDir('semantic-phase-drain-production');
+const diagnostics = installPublicationBoundaryDiagnostics();
+const { buildIndex } = await import('../../../src/integrations/core/index.js');
+const { runSemanticEnrichmentService } = await import('../../../src/semantic/enrichment.js');
+const { openPublishedSemanticStore } = await import('../../../src/semantic/published-store.js');
 const repoRoot = path.join(temp, 'repo');
 await fs.mkdir(repoRoot);
 // This source exercises compiler authority/reuse, not DOM or modern library
@@ -22,6 +26,7 @@ applyTestEnv({ cacheRoot: path.join(temp, 'cache'), embeddings: 'stub', testConf
   workerPool: { enabled: false }, semantic: { enabled: true, profile: 'rich', enrichment: { bindings: 'deferred', localFlow: 'deferred', crossFileFlow: 'deferred' } },
   embeddings: { enabled: false }, typeInference: false, typeInferenceCrossFile: false, riskAnalysis: false, treeSitter: { enabled: false }
 } }) });
+let workError;
 try {
   const initialStart = performance.now();
   await buildIndex(repoRoot, { mode: 'code', stage: 'stage2', threads: 1, incremental: false, 'stub-embeddings': true, 'scm-provider': 'none' });
@@ -62,4 +67,15 @@ try {
   await fs.writeFile(path.join(repoRoot, 'tsconfig.json'), JSON.stringify({ compilerOptions: { types: [], strict: true } }));
   await assert.rejects(runSemanticEnrichmentService({ request: { ...request, generation: fresh.generation } }), { code: 'ERR_SEMANTIC_DEPENDENCY_UNSEALED' });
   console.log('source-pinned local/cross flow drain and changed compiler authority contract passed');
-} finally { await fs.rm(temp, { recursive: true, force: true }); }
+} catch (error) { workError = error; }
+finally {
+  diagnostics.finish();
+  try {
+    if (workError) observeStorageResource(workError, { phase: 'phase-drain-fixture-cleanup' }).requireSettled();
+    assert.ok(path.relative(process.cwd(), temp).startsWith('.tmp' + path.sep));
+    await fs.rm(temp, { recursive: true, force: true });
+  } catch (cleanupError) {
+    workError = workError ? addStorageFailureContext(workError, {}, cleanupError, { secondaryPresent: true }) : cleanupError;
+  }
+}
+if (workError) throw workError;

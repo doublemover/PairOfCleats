@@ -4,7 +4,7 @@ import path from 'node:path';
 import { prepareIsolatedTestCacheDir } from '../../helpers/test-cache.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 import { initGitRepo } from '../../helpers/git-fixture.js';
-import { buildIndex } from '../../../src/integrations/core/index.js';
+import { installPublicationBoundaryDiagnostics } from '../../helpers/publication-boundary-diagnostics.js';
 import { spawnSubprocess } from '../../../src/shared/subprocess/runner.js';
 import { getIndexDir, loadUserConfig } from '../../../src/shared/dict-utils.js';
 import { loadJsonArrayArtifactRows } from '../../../src/shared/artifact-io/loaders.js';
@@ -13,6 +13,8 @@ import { validateApiContracts } from '../../../src/contracts/validators/analysis
 
 const selected = process.env.PAIROFCLEATS_TEST_ID?.split('tooling/api-contracts/qualified-target-joins-cli/')[1];
 assert.ok(['js-clean', 'ts-clean', 'js-violation', 'ts-violation'].includes(selected));
+const diagnostics = installPublicationBoundaryDiagnostics();
+const { buildIndex } = await import('../../../src/integrations/core/index.js');
 const [language, operation] = selected.split('-'), type = language === 'ts' ? ': number' : '';
 const root = process.cwd(), { dir } = await prepareIsolatedTestCacheDir(`api-qualified-target-${selected}`);
 const repo = path.join(dir, 'repo'); await fs.mkdir(repo); initGitRepo(repo);
@@ -35,7 +37,10 @@ const env = applyTestEnv({ cacheRoot: path.join(dir, 'cache'), embeddings: 'stub
   typeInference: false, typeInferenceCrossFile: false, riskAnalysis: false, riskAnalysisCrossFile: false },
   tooling: { autoEnableOnDetect: false, lsp: { enabled: false } } }, extraEnv: { PAIROFCLEATS_TRUSTED_CONFIG: null } });
 const signal = AbortSignal.timeout(10000);
-await buildIndex(repo, { mode: 'code', stage: 'stage2', 'stub-embeddings': true, 'scm-provider': 'none', threads: 1, abortSignal: signal });
+diagnostics.observeSignal(signal);
+try {
+  await buildIndex(repo, { mode: 'code', stage: 'stage2', 'stub-embeddings': true, 'scm-provider': 'none', threads: 1, abortSignal: signal });
+} finally { diagnostics.finish(); }
 signal.throwIfAborted();
 const args = [path.join(root, 'bin/pairofcleats.js'), 'api-contracts', '--repo', repo, '--json'];
 const result = await spawnSubprocess(process.execPath, args, { cwd: root, env, timeoutMs: 5000,
