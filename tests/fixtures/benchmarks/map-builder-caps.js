@@ -49,7 +49,7 @@ if (request.command === 'prepare') {
   const buildId = `map-builder-qualification-${marker.runIdentity}`, indexState = { buildId, mode: 'code', stage: 'stage2', artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION };
   await atomicWriteJson(path.join(indexDir, 'index_state.json'), indexState, { createOnly: true });
   const manifestPath = path.join(indexDir, 'pieces', 'manifest.json');
-  await writePiecesManifest({ pieceEntries: pieces, outDir: indexDir, mode: 'code', indexState });
+  await writePiecesManifest({ pieceEntries: pieces, outDir: indexDir, mode: 'code', indexState, log: () => {} });
   const publicationValidation = await writeArtifactPublicationValidationReport({ buildRoot, outDir: indexDir, mode: 'code', buildId, pieceEntries: pieces, manifestPath });
   await writeArtifactPublicationRecord({ buildRoot, outDir: indexDir, mode: 'code', stage: 'stage2', buildId,
     pieceEntries: pieces, manifestPath, publicationValidation });

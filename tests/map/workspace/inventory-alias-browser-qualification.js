@@ -38,49 +38,57 @@ try {
   await page.goto(url.href, { waitUntil: 'domcontentloaded', timeout: 5000 });
   await page.waitForFunction(async () => {
     const { state } = await import('/isomap/state.js');
-    return Boolean(state.sourceIndex?.files.size && state.refreshStackNavigation);
+    return Boolean(state.sourceIndex && state.refreshStackNavigation);
   }, null, { timeout: 5000 });
-  receipt.observations = await page.evaluate(async expectedMap => {
-    const { state } = await import('/isomap/state.js');
-    const { renderSelectionDetails } = await import('/isomap/selection.js');
-    const { scoreMember } = await import('/isomap/layout-utils.js');
-    const { scoringDefaults } = await import('/isomap/defaults.js');
-    const fail = message => { throw new Error(message); };
-    const expectedFiles = expectedMap.nodes.map(file => file.path).sort();
-    if (JSON.stringify([...state.sourceIndex.files.keys()].sort()) !== JSON.stringify(expectedFiles)) fail('Pinned file inventory mismatch.');
-    const files = [], aliases = [];
-    for (const node of expectedMap.nodes) {
-      const actual = state.sourceIndex.files.get(node.path);
-      if (JSON.stringify(actual.members.map(member => member.id)) !== JSON.stringify(node.members.map(member => member.id))) fail('Canonical member identity drift.');
-      // Use the actual browser hierarchy search owner, including its async
-      // worker route when enabled by the real viewer.
-      document.getElementById('stack-search').value = node.path;
-      document.getElementById('stack-search').dispatchEvent(new Event('input'));
-      for (let attempt = 0; attempt < 100 && !document.getElementById('stack-tree').textContent.includes(node.path); attempt++) {
-        await new Promise(resolve => requestAnimationFrame(resolve));
-      }
-      if (!document.getElementById('stack-tree').textContent.includes(node.path)) fail('Inventory file absent from actual hierarchy.');
-      renderSelectionDetails({ type: 'file', file: node.path });
-      const rows = () => [...state.dom.selectionBody.querySelectorAll('.sel-row')];
-      const value = label => rows().find(row => row.querySelector('.sel-label')?.textContent === label)?.querySelector('.sel-value');
-      if (value('Members')?.textContent !== String(node.members.length)) fail('Inspector invented or lost a member.');
-      files.push({ path: node.path, members: node.members.length, hierarchy: true });
-      for (const member of actual.members) {
-        const expectedMember = node.members.find(row => row.id === member.id);
-        const labels = expectedMember.dataflow?.aliases || [];
-        if (JSON.stringify(member.dataflow?.aliases || []) !== JSON.stringify(labels)) fail('Alias meaning drift.');
-        if (!labels.length) continue;
-        renderSelectionDetails({ type: 'member', id: member.id, file: node.path });
-        const pills = [...value('Aliases').querySelectorAll('.sel-pill')].map(pill => pill.textContent);
-        if (JSON.stringify(pills) !== JSON.stringify(labels)) fail('Inspector omitted aliases.');
-        const baseline = scoreMember({ ...member, dataflow: { ...member.dataflow, aliases: [] } }, scoringDefaults);
-        const contribution = scoreMember(member, scoringDefaults) - baseline;
-        if (Math.abs(contribution - labels.length * scoringDefaults.dataflow) >= 1e-9) fail('Alias score drift.');
-        aliases.push({ id: member.id, labels, contribution });
-      }
+  const search = page.locator('#stack-search'), tree = page.locator('#stack-tree');
+  // Manifest counts and the actual paginated hierarchy own full inventory.
+  // The resident sourceIndex intentionally retains only a bounded working set.
+  await search.fill(''); await search.dispatchEvent('input');
+  await page.waitForFunction(count => document.querySelectorAll('#stack-tree > details').length === count, expected.nodes.length);
+  const paths = await tree.locator(':scope > details > summary').allTextContents();
+  assert.deepEqual(paths.map(value => value.split(' · ')[0]).sort(), expected.nodes.map(file => file.path).sort());
+  const counts = await page.evaluate(async () => (await import('/isomap/state.js')).state.sourceIndex.counts);
+  assert.equal(counts.files, expected.nodes.length);
+  assert.equal(counts.members, expected.nodes.reduce((sum, file) => sum + file.members.length, 0));
+  receipt.observations = { files: [], aliases: [], available: counts, inventoryOwner: 'actual hierarchy pages and pinned manifest' };
+  const selectionValue = label => page.locator('#selection-body .sel-row').filter({ has: page.locator('.sel-label', { hasText: label }) }).locator('.sel-value');
+  for (const node of expected.nodes) {
+    await search.fill(node.path);
+    const group = tree.locator(':scope > details').filter({ has: page.locator('summary', { hasText: node.path + ' · ' }) });
+    await group.waitFor();
+    await group.getByRole('button', { name: 'Inspect / focus stack', exact: true }).click();
+    await page.waitForFunction(file => {
+      const rows = [...document.querySelectorAll('#selection-body .sel-row')];
+      return rows.some(row => row.querySelector('.sel-label')?.textContent === 'Path' && row.querySelector('.sel-value')?.textContent === file);
+    }, node.path);
+    assert.equal(await selectionValue('Members').textContent(), String(node.members.length));
+    await group.locator('summary').click();
+    await page.waitForFunction(({ file, count }) => [...document.querySelectorAll('#stack-tree > details')]
+      .find(row => row.querySelector('summary')?.textContent.startsWith(file + ' · '))?.textContent.includes(`of ${count} available members.`),
+    { file: node.path, count: node.members.length });
+    const memberButtons = group.locator('section button');
+    assert.equal(await memberButtons.count(), node.members.length);
+    receipt.observations.files.push({ path: node.path, members: node.members.length, hierarchy: true });
+    for (const member of node.members) {
+      await memberButtons.filter({ hasText: member.name + ' · ' }).click();
+      await page.waitForFunction(async id => Boolean((await import('/isomap/state.js')).state.sourceIndex.member(id)), member.id);
+      const actual = await page.evaluate(async id => (await import('/isomap/state.js')).state.sourceIndex.member(id).member, member.id);
+      assert.equal(actual.id, member.id);
+      const labels = member.dataflow?.aliases || []; assert.deepEqual(actual.dataflow?.aliases || [], labels);
+      if (!labels.length) continue;
+      assert.deepEqual(await selectionValue('Aliases').locator('.sel-pill').allTextContents(), labels);
+      const contribution = await page.evaluate(async id => {
+        const { state } = await import('/isomap/state.js');
+        const { scoreMember } = await import('/isomap/layout-utils.js');
+        const { scoringDefaults } = await import('/isomap/defaults.js');
+        const value = state.sourceIndex.member(id).member;
+        const baseline = scoreMember({ ...value, dataflow: { ...value.dataflow, aliases: [] } }, scoringDefaults);
+        return { actual: scoreMember(value, scoringDefaults) - baseline, expected: value.dataflow.aliases.length * scoringDefaults.dataflow };
+      }, member.id);
+      assert.ok(Math.abs(contribution.actual - contribution.expected) < 1e-9);
+      receipt.observations.aliases.push({ id: member.id, labels, contribution: contribution.actual });
     }
-    return { files, aliases };
-  }, expected);
+  }
   assert.deepEqual(errors, []);
   receipt.screenshot = path.join(out, 'inventory-alias-inspector.png');
   await page.screenshot({ path: receipt.screenshot });
