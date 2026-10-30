@@ -61,7 +61,7 @@ const writePiecesManifestLocked = async ({
       }
       if (!checksum || !checksumAlgo || entry.path === 'index_state.json' || entry.name === 'index_state') {
         try {
-          const result = await checksumFileObservation(absPath, { containedRoot: outDir, signal: effectiveAbortSignal });
+          const result = await checksumFileObservation(absPath, { containedRoot: outDir, signal: effectiveAbortSignal, nativeMetadata: true });
           if (entry.bytes != null && entry.bytes !== result.bytes) throw new Error(`Pieces manifest sealed size mismatch for ${entry.path}`);
           bytes = result.bytes;
           checksum = result?.value || null;

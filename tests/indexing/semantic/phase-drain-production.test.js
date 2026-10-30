@@ -70,10 +70,13 @@ try {
 } catch (error) { workError = error; workFailed = true; }
 finally {
   diagnostics.finish();
+  const cleanupAt = performance.now();
+  console.log(JSON.stringify({ phase: 'fixture-owned-root-cleanup-start' }));
   try {
     if (workFailed) observeStorageResource(workError, { phase: 'phase-drain-fixture-cleanup' }).requireSettled();
     assert.ok(path.relative(process.cwd(), temp).startsWith('.tmp' + path.sep));
     await fs.rm(temp, { recursive: true, force: true });
+    console.log(JSON.stringify({ phase: 'fixture-owned-root-cleanup-settled', elapsedMs: performance.now() - cleanupAt }));
   } catch (cleanupError) {
     workError = workFailed ? addStorageFailureContext(workError, {}, cleanupError, { secondaryPresent: true }) : cleanupError;
     workFailed = true;

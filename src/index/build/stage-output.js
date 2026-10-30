@@ -73,7 +73,7 @@ const inventoryStageOutputUsing = async ({ buildRoot, buildId, mode, signal, sel
     // The unpublished copy checks this exact digest against its actual held
     // source bytes before any completion descriptor can be published. Ordinary
     // inventory/reuse verification still rehashes every physical member.
-    const hash = pinned ? pinned[1].toLowerCase() : await sha256File(filename, { containedRoot: outDir, signal });
+    const hash = pinned ? pinned[1].toLowerCase() : await sha256File(filename, { containedRoot: outDir, signal, nativeMetadata: true });
     bytes += piece.bytes;
     if (!Number.isSafeInteger(bytes)) throw stageFailure('Completed-stage byte total exceeds safe integer range.');
     inventory.push({ path: piece.path, bytes: piece.bytes, hash });
