@@ -465,6 +465,11 @@ if (ownershipStepIndex < 0 || ownershipStepIndex >= windowsJob.steps.findIndex(s
 }
 for (const platform of ['ubuntu', 'windows', 'macos']) {
   const steps = parse(ciWorkflow).jobs[platform].steps;
+  const jj = steps.findIndex(step => step.name === 'Setup qualified Jujutsu');
+  assert.ok(jj >= 0 && jj < steps.findIndex(step => step.name === 'CI Suite')
+    && steps[jj].run === 'node tools/ci/provision-jj.js', `${platform}: provision the actual pinned SCM prerequisite before its native session fixtures`);
+  assert.ok(steps.find(step => step.name === 'Upload quality artifacts').with.path.split(/\r?\n/u)
+    .includes('.diagnostics/jj-provisioning.json'), `${platform}: retain the original Jujutsu executable identity`);
   const crash = steps.findIndex(step => step.name === 'Serial crash-log ownership and latency qualification');
   assert.ok(crash >= 0 && crash < steps.findIndex(step => step.name === 'CI Suite'),
     `${platform}: qualify crash-log ownership and serial latency before the broad suite`);

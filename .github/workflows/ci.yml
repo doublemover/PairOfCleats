@@ -329,6 +329,9 @@ jobs:
         env:
           PAIROFCLEATS_DOWNLOAD_REDIRECT_ORIGINS: '["https://release-assets.githubusercontent.com"]'
         run: node tools/ci/provision-phpactor.js
+      - name: Setup qualified Jujutsu
+        run: node tools/ci/provision-jj.js
+
       - name: Setup qualified .NET SDK
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         env:
@@ -511,6 +514,7 @@ jobs:
             .diagnostics/serial-native-lifecycle.json
             .diagnostics/go-sdk.json
             .diagnostics/gopls-provisioning.json
+            .diagnostics/jj-provisioning.json
             .diagnostics/gopls-startup.json
             .diagnostics/lsp-shutdown-qualification.json
             .diagnostics/crash-log-qualification.json
@@ -604,6 +608,9 @@ jobs:
           }
           node -v
           npm -v
+
+      - name: Setup qualified Jujutsu
+        run: node tools/ci/provision-jj.js
 
       - name: Setup qualified .NET SDK
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
@@ -767,6 +774,7 @@ jobs:
             .diagnostics/serial-native-lifecycle.json
             .diagnostics/go-sdk.json
             .diagnostics/gopls-provisioning.json
+            .diagnostics/jj-provisioning.json
             .diagnostics/gopls-startup.json
             .diagnostics/windows-subprocess-ownership.json
             .diagnostics/lsp-shutdown-qualification.json
@@ -970,6 +978,9 @@ jobs:
         env:
           PAIROFCLEATS_DOWNLOAD_REDIRECT_ORIGINS: '["https://release-assets.githubusercontent.com"]'
         run: node tools/ci/provision-phpactor.js
+      - name: Setup qualified Jujutsu
+        run: node tools/ci/provision-jj.js
+
       - name: Setup qualified .NET SDK
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         env:
@@ -1143,6 +1154,7 @@ jobs:
             .diagnostics/serial-native-lifecycle.json
             .diagnostics/go-sdk.json
             .diagnostics/gopls-provisioning.json
+            .diagnostics/jj-provisioning.json
             .diagnostics/gopls-startup.json
             .diagnostics/lsp-shutdown-qualification.json
             .diagnostics/crash-log-qualification.json

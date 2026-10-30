@@ -1,7 +1,7 @@
 # CI Gate Policy
 
-Status: Active guide v1.3
-Last audited: 2026-10-23 (checked-in workflow inventory; repository protection observation remains dated October 20)
+Status: Active guide v1.4
+Last audited: 2026-10-30 (checked-in workflow inventory; repository protection observation remains dated October 20)
 
 ## Purpose
 
@@ -42,6 +42,14 @@ The merge checks establish:
    contract tests plus the ONNX CPU install-policy check directly, without changing
    broad lane membership.
 2. CI platform jobs: `ubuntu`, `windows`, and `macos`, each running `node tools/ci/run-suite.js --mode ci --skip-prechecks` under Node 26.13.0.
+   Before those suites, `node tools/ci/provision-jj.js` admits the official stable
+   Jujutsu0.46.0 archive pinned in `tools/ci/jj-recipe.js`. The shared download and
+   extraction owners enforce vendor origins, exact bytes/SHA256 and bounded
+   contents. It runs the original executable's version probe, records its binary
+   SHA256 in `.diagnostics/jj-provisioning.json`, then publishes only its new
+   runner-temporary directory to the job PATH. No machine installation or
+   repository workspace creation occurs during provisioning. Actual isolated SCM
+   session fixtures remain required; successful installation is not their pass.
 3. CI TUI job: Rust formatting, check, test, and clippy for the Rust TUI package.
 4. Native inspection matrix: serial real-terminal TUI workflows, PTY disposal,
    parser patch/lifecycle checks and produced index contracts on each supported
