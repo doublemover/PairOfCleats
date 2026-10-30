@@ -16,15 +16,18 @@ import { readSqliteFilterFactPage } from '../../../src/retrieval/sqlite-filter-p
 import { search } from '../../../src/integrations/core/search.js';
 import { LANGUAGE_ROUTE_DESCRIPTORS } from '../../../src/index/language-registry/descriptors.js';
 
-const fixture = await prepareRegisteredLanguage({ ext: '.proto', text: 'syntax="proto3"; message Needle { string needle = 1; }' });
+const { dir } = await prepareIsolatedTestCacheDir('protobuf-alias-consumers');
+const repo = path.join(dir, 'repo'); await fs.mkdir(repo);
+applyTestEnv({ cacheRoot: path.join(dir, 'cache'), embeddings: 'off' });
+// Proto's registered adapter uses its ordinary heuristic declaration owner;
+// the native-declaration helper's strict-parser default is not this route.
+const fixture = await prepareRegisteredLanguage({ ext: '.proto', text: 'syntax="proto3";\nmessage Needle { string needle = 1; }\n',
+  options: { treeSitter: { enabled: true, strict: false } } });
 assert.equal(fixture.lang.id, 'proto');
 const proto = fixture.payloads.find(row => row.name?.includes('Needle'));
 assert.ok(proto); assert.equal(proto.metaV2.lang, 'proto');
 const rows = [{ ...proto, id: 0, tokens: ['needle'] }, { ...proto, id: 1, file: 'other.js', lang: 'javascript',
   chunkUid: 'non-proto-row', metaV2: { ...proto.metaV2, lang: 'javascript' }, tokens: ['needle'] }];
-const { dir } = await prepareIsolatedTestCacheDir('protobuf-alias-consumers');
-const repo = path.join(dir, 'repo'); await fs.mkdir(repo);
-applyTestEnv({ cacheRoot: path.join(dir, 'cache'), embeddings: 'off' });
 const aliases = ['proto', 'protobuf', 'PROTOBUF', 'protocol buffer', 'protocol buffers'];
 for (const descriptor of LANGUAGE_ROUTE_DESCRIPTORS) assert.deepEqual(normalizeLangFilter(descriptor.id), [descriptor.id]);
 const options = args => normalizeSearchOptions({ argv: parseSearchArgs(args), rawArgs: args,
