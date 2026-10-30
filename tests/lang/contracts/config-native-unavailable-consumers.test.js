@@ -53,6 +53,11 @@ try {
     assert.equal(owners.length, 1); assert.equal(owners[0].meta.documentIndex, 1);
     assert.equal(owners[0].meta.nativeRouteReason, 'native-structure-unavailable-or-unselected');
     assert.equal(chunks.at(-1).meta.documentIndex, 2);
+    const { assertYamlEnvelopeBundle } = await import('./yaml-persisted-envelope-fixture.js');
+    await assertYamlEnvelopeBundle({ text, chunks,
+      documentStarts: [0, text.indexOf('---\n- nativedocumentmarker'), text.indexOf('---\n{last:')],
+      markers: [{ token: 'nativedocumentmarker', documentIndex: 1, name: 'document 1' },
+        { token: 'finalflow', documentIndex: 2, name: 'document 2' }] });
   }
   const { context } = createProcessChunksFixtureContext({ text, ext: '.' + language, languageId: language,
     rel: 'stream.' + language, riskAnalysisEnabled: false, typeInferenceEnabled: false, overrides: { sc: chunks } });

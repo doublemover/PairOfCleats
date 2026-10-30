@@ -2,11 +2,18 @@ import assert from 'node:assert/strict';
 import { chunkYaml } from '../../../src/index/chunking/formats/yaml.js';
 import { smartChunk } from '../../../src/index/chunking/dispatch.js';
 import { getNativeTreeSitterParser } from '../../../src/lang/tree-sitter/native-runtime.js';
-import { createProcessChunksFixtureContext,processFixtureChunks } from '../../indexing/file-processor/process-chunks-fixture.js';
+import { assertYamlEnvelopeBundle } from './yaml-persisted-envelope-fixture.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 applyTestEnv();
 const profiles=[['first: alpha\n','- nativedocumentmarker\n','second: beta\n'],
   ['initialscalar\n','','{last: finalflow}\n'],['{first: initialflow}\n','middlescalar\n','- finalsequence\n']];
+const expectedMarkers=[
+  [{token:'alpha',documentIndex:0,name:'first'},{token:'nativedocumentmarker',documentIndex:1,name:'document 1'},
+    {token:'beta',documentIndex:2,name:'second'}],
+  [{token:'initialscalar',documentIndex:0,name:'document 0'},{token:'finalflow',documentIndex:2,name:'document 2'}],
+  [{token:'initialflow',documentIndex:0,name:'document 0'},{token:'middlescalar',documentIndex:1,name:'document 1'},
+    {token:'finalsequence',documentIndex:2,name:'document 2'}]
+];
 for(const newline of ['\n','\r\n'])for(const bodies of profiles) {
   const parts=bodies.map((body,index)=>(index===0?'%YAML 1.2\n---\n# leading 😀\n':'---\n# next document\n')+body
     +(index===2?'...\n# trailing\n':''));
@@ -32,10 +39,9 @@ for(const newline of ['\n','\r\n'])for(const bodies of profiles) {
     const limited=smartChunk({text,ext:'.yaml',relPath:'stream.yaml',mode:'code',context:{...context,chunking:{maxBytes:36,maxLines:2}}});
     assert.equal(limited.map(c=>text.slice(c.start,c.end)).join(''),text);
     for(const chunk of limited)assert.ok(chunk.start>=starts[chunk.meta.documentIndex]&&chunk.end<=(starts[chunk.meta.documentIndex+1]??text.length));
+    const indexed=await assertYamlEnvelopeBundle({text,chunks,documentStarts:starts,markers:expectedMarkers[profiles.indexOf(bodies)]});
     if(bodies[1].includes('nativedocumentmarker')){
-      const {context:processing}=createProcessChunksFixtureContext({text,ext:'.yaml',languageId:'yaml',rel:'stream.yaml',
-        riskAnalysisEnabled:false,typeInferenceEnabled:false,overrides:{sc:chunks}});
-      const indexed=await processFixtureChunks(processing),matches=indexed.chunks.filter(c=>c.tokens.includes('nativedocumentmarker'));
+      const matches=indexed.chunks.filter(c=>c.tokens.includes('nativedocumentmarker'));
       assert.equal(matches.length,1);assert.equal(matches[0].start,starts[1]);assert.equal(matches[0].name,'document 1');
     }
     const root=chunkYaml(text,'stream.yaml',{...context,yamlChunking:{mode:'root'}});
