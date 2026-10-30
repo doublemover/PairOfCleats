@@ -541,8 +541,11 @@ const expandSimpleBraceAlternates = (value) => {
   const roadmapText = await fsPromises.readFile(path.join(root, 'docs', 'roadmap.md'), 'utf8');
   assert.match(roadmapText, /^Last audited: \d{4}-\d{2}-\d{2}$/m, 'current roadmap must identify its latest audit date');
   const roadmapAuditDate = roadmapText.match(/^Last audited: (\d{4}-\d{2}-\d{2})$/m)[1];
-  assert.ok(roadmapText.includes(`Current reconciliation, ${roadmapAuditDate}:`),
-    'current reconciliation must match the roadmap audit date');
+  assert.match(roadmapText, /^Last reconciled: \d{4}-\d{2}-\d{2}$/m, 'current roadmap must identify its issue reconciliation date');
+  const roadmapReconciledDate = roadmapText.match(/^Last reconciled: (\d{4}-\d{2}-\d{2})$/m)[1];
+  assert.ok(roadmapReconciledDate <= roadmapAuditDate, 'issue reconciliation cannot postdate the latest roadmap audit');
+  assert.ok(roadmapText.includes(`Current reconciliation, ${roadmapReconciledDate}:`),
+    'current reconciliation must match its explicitly recorded issue reconciliation date');
   const initiativesTable = readMarkdownTableAfterHeading(roadmapText, '## Current Initiatives');
   assert.deepEqual(initiativesTable.header, ['Initiative', 'Status', 'Done now', 'Remaining / next']);
   const expectedStatuses = new Map([

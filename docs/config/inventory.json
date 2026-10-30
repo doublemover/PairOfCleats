@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-30T00:47:59.868Z",
+  "generatedAt": "2026-10-30T04:59:22.656Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
@@ -3395,6 +3395,7 @@
         "tests/tooling/install/setup-index-detection.test.js",
         "tests/tooling/install/uninstall.test.js",
         "tests/tooling/lsp/sourcekit-package-preflight-abort.test.js",
+        "tests/tooling/reports/compare-models-observed-corpus.test.js",
         "tests/tooling/reports/compare-models-partial-ranks.test.js",
         "tests/tooling/script-coverage/actions/tools.js",
         "tests/tooling/script-coverage/script-coverage.runner.js",
@@ -3727,6 +3728,8 @@
         "tests/indexing/runtime/runtime-attempt-lifecycle.test.js",
         "tests/indexing/runtime/stage-closeout-delayed-child.test.js",
         "tests/indexing/runtime/teardown-original-failure-observations.test.js",
+        "tests/indexing/runtime/worker-cleanup-public-consumers.test.js",
+        "tests/indexing/runtime/worker-retry-evidence-ownership.test.js",
         "tests/indexing/watch/attempts.test.js",
         "tests/indexing/watch/pinned-attempt-retention.test.js",
         "tests/indexing/watch/retained-reader-attempts.test.js",
@@ -4013,6 +4016,8 @@
     {
       "name": "PAIROFCLEATS_MODEL",
       "files": [
+        "tests/helpers/compare-model-publication-hook.js",
+        "tests/tooling/reports/compare-models-observed-corpus.test.js",
         "tests/tooling/reports/compare-models-partial-ranks.test.js",
         "tests/tooling/reports/parity-response-admission.test.js",
         "tests/tooling/reports/summary/summary-build-case-helpers.js",
@@ -4691,8 +4696,10 @@
         "tests/context-pack/risk-hydrated-budget.test.js",
         "tests/context-pack/risk-truncation-contract.test.js",
         "tests/context-pack/token-counter-invocation.test.js",
+        "tests/graph/impact-indexed-source-cli.test.js",
         "tests/helpers/test-env.js",
         "tests/indexing/artifacts/initial-state-publication.test.js",
+        "tests/indexing/artifacts/manifest/checksum-cancellation-owner.test.js",
         "tests/indexing/artifacts/unpublished-copy-native-metadata.test.js",
         "tests/indexing/build-state/append-resource-ownership.test.js",
         "tests/indexing/build-state/queue-resource-ownership.test.js",
@@ -4717,6 +4724,7 @@
         "tests/indexing/fixtures/health-authority.test.js",
         "tests/indexing/forensic-publication-ordering.test.js",
         "tests/indexing/imports/json-collector-admission.test.js",
+        "tests/indexing/incremental/source-caller-authority.test.js",
         "tests/indexing/incremental/tokenization-cache.test.js",
         "tests/indexing/language-registry/metadata-import-boundary.test.js",
         "tests/indexing/language-registry/operation-import-boundary.test.js",
@@ -4727,6 +4735,8 @@
         "tests/indexing/runtime/rejected-preflight-receipt.test.js",
         "tests/indexing/runtime/shared-resource-scope-isolation.test.js",
         "tests/indexing/runtime/stage-closeout-delayed-child.test.js",
+        "tests/indexing/runtime/worker-cleanup-public-consumers.test.js",
+        "tests/indexing/runtime/worker-retry-evidence-ownership.test.js",
         "tests/indexing/segments/comment-import-boundary.test.js",
         "tests/indexing/segments/comment-work-admission.test.js",
         "tests/indexing/segments/embedded-content-views.test.js",
@@ -4734,10 +4744,14 @@
         "tests/indexing/segments/jsx-syntax-ownership.test.js",
         "tests/indexing/segments/parser-comment-occurrences.test.js",
         "tests/indexing/segments/rust-comment-occurrences.test.js",
+        "tests/indexing/semantic/derived-index-owner-composition.test.js",
+        "tests/indexing/semantic/drain-ownership-cancellation-consumers.test.js",
         "tests/indexing/semantic/wasm-flow-policy-construction.test.js",
+        "tests/indexing/stage1/process-files-live-abort-owner.test.js",
         "tests/indexing/stage1/scm-wait-watchdog-consumer.test.js",
         "tests/indexing/tree-sitter/js-ts-export-bindings.test.js",
         "tests/indexing/tree-sitter/parser-session-native-consumer.test.js",
+        "tests/indexing/tree-sitter/persistent-cache-admission.test.js",
         "tests/indexing/tree-sitter/runtime-fanout-admission.test.js",
         "tests/indexing/tree-sitter/worker-session-lifecycle.test.js",
         "tests/indexing/validate/operation-generation-selection.test.js",
@@ -4746,9 +4760,14 @@
         "tests/indexing/workers/coarse-file-analysis-facade.test.js",
         "tests/indexing/workers/coarse-file-analysis-transport.test.js",
         "tests/indexing/workers/process-task-scheduler-retirement.test.js",
+        "tests/indexing/workers/thread-task-facade-cancellation.test.js",
         "tests/integrations/core/embedding-plan-late-binding.test.js",
         "tests/integrations/core/embedding-plan-preflight.test.js",
         "tests/integrations/core/stage2-boolean-background-consumer.test.js",
+        "tests/integrations/mcp/transport-classifier-consumers.test.js",
+        "tests/lang/contracts/config-native-unavailable-consumers.test.js",
+        "tests/lang/contracts/native-perl-package-ownership-consumers.test.js",
+        "tests/lang/contracts/native-projection-bounded-consumers.test.js",
         "tests/lang/javascript/jsdoc-comment-ownership.test.js",
         "tests/map/member-join-work-consumer.test.js",
         "tests/map/scene-render-submission.test.js",
@@ -4763,6 +4782,7 @@
         "tests/perf/crash-log-error-latency.test.js",
         "tests/perf/tooling/bench/sqlite-benchmark-cli.test.js",
         "tests/perf/tooling/bench/sqlite-campaign.test.js",
+        "tests/retrieval/ann/lancedb-outcome-consumers.test.js",
         "tests/retrieval/ann/query-vector-admission.test.js",
         "tests/retrieval/backend/boolean-complement-cli.test.js",
         "tests/retrieval/backend/lmdb-failure-propagation.test.js",
@@ -4772,8 +4792,10 @@
         "tests/retrieval/cli/search-publication-settlement.test.js",
         "tests/retrieval/federation/manifest-caller-cancellation.test.js",
         "tests/retrieval/filters/branch-checkout-index-metrics.test.js",
+        "tests/retrieval/filters/filter-cache-original-resource-consumers.test.js",
         "tests/retrieval/output/summary-source-admission.test.js",
         "tests/retrieval/providers/tantivy-reader-lifetime.test.js",
+        "tests/runner/harness/coverage-physical-source-identity.test.js",
         "tests/runner/run-execution.js",
         "tests/security/download-redirect-deadline.test.js",
         "tests/services/api/semantic-detail-format-compatibility.test.js",
@@ -4815,6 +4837,7 @@
         "tests/storage/lmdb/prefetch-close-ownership.test.js",
         "tests/storage/lmdb/ready-publication.test.js",
         "tests/storage/native-index-state-publication.test.js",
+        "tests/storage/semantic/manifest-serving-consumers.test.js",
         "tests/storage/semantic/published-manifest-cache-authority.test.js",
         "tests/storage/semantic/runtime-source-reference-authority.test.js",
         "tests/storage/semantic/trace-continuation-state.test.js",
@@ -4833,9 +4856,11 @@
         "tests/storage/sqlite/sidecar-settlement.test.js",
         "tests/storage/tantivy/generation-publication.test.js",
         "tests/tooling/api-contracts/export-identity-cli.test.js",
+        "tests/tooling/api-contracts/qualified-target-ambient-scope.test.js",
         "tests/tooling/api-contracts/qualified-target-joins-cli.test.js",
         "tests/tooling/api-contracts/typescript-parameter-cli.test.js",
         "tests/tooling/api-contracts/zero-warning-cap-cli.test.js",
+        "tests/tooling/api-mcp/repository-probe-original-config-owner.test.js",
         "tests/tooling/ci/lsp-runtime-qualification.test.js",
         "tests/tooling/eval/coverage-and-default-datasets.test.js",
         "tests/tooling/fixtures/fixture-eval.test.js",
@@ -4862,6 +4887,7 @@
         "tests/tooling/providers/provider-invocation-profile-join.test.js",
         "tests/tooling/providers/provider-profile-declaration-lifetime.test.js",
         "tests/tooling/providers/tooling-guard-original-lifetime.test.js",
+        "tests/tooling/reports/compare-models-observed-corpus.test.js",
         "tests/tooling/reports/compare-models-partial-ranks.test.js",
         "tests/tooling/reports/diagnostics-report-selection.test.js",
         "tests/tooling/reports/parity-response-admission.test.js",
@@ -4876,6 +4902,7 @@
         "tests/tooling/vfs/consumer-storage-admission.test.js",
         "tests/tooling/vfs/cross-process-publication.test.js",
         "tests/tooling/vfs/provider-session-lifetime.test.js",
+        "tests/tui/flow-queue-saturation-cycles.test.js",
         "tests/tui/native-artifact-actions.test.js",
         "tests/tui/native-index-workflows.test.js",
         "tests/tui/native-job-inspection.test.js",
@@ -5092,6 +5119,7 @@
         "tests/fixtures/benchmarks/vfs-budget-worker.js",
         "tests/fixtures/benchmarks/vfs-phase-worker.js",
         "tests/fixtures/sublime/native-package-host.js",
+        "tests/helpers/compare-model-publication-hook.js",
         "tests/helpers/fixture-health-snapshot.js",
         "tests/helpers/lane-default-test-config.test.js",
         "tests/helpers/test-env-sync-option.test.js",
@@ -5239,6 +5267,7 @@
         "tests/ci/tooling-doctor-gate.smoke.test.js",
         "tests/cli/general/metadata-and-index-admission.test.js",
         "tests/context-pack/risk-truncation-contract.test.js",
+        "tests/embeddings/actual-export-qualification.js",
         "tests/fixtures/sublime/native-package-host.js",
         "tests/fixtures/vscode/native-package-host.js",
         "tests/helpers/extracted-prose-fixture.js",
@@ -5263,6 +5292,7 @@
         "tests/indexing/runtime/rejected-preflight-receipt.test.js",
         "tests/indexing/runtime/shared-resource-scope-isolation.test.js",
         "tests/indexing/runtime/stage-closeout-delayed-child.test.js",
+        "tests/indexing/semantic/drain-ownership-cancellation-consumers.test.js",
         "tests/indexing/semantic/drain-publication-authority.test.js",
         "tests/indexing/semantic/native-authority-read-ownership.test.js",
         "tests/indexing/stage1/scm-wait-watchdog-consumer.test.js",
@@ -5309,6 +5339,7 @@
         "tests/tooling/api-contracts/qualified-target-joins-cli.test.js",
         "tests/tooling/api-contracts/typescript-parameter-cli.test.js",
         "tests/tooling/api-contracts/zero-warning-cap-cli.test.js",
+        "tests/tooling/api-mcp/repository-probe-original-config-owner.test.js",
         "tests/tooling/architecture/rule-input-cli.test.js",
         "tests/tooling/ci/run-suite-script-coverage-plan.test.js",
         "tests/tooling/config/effective-explanation-authority.test.js",
@@ -5319,6 +5350,7 @@
         "tests/tooling/doctor/zls-zig-compatibility.test.js",
         "tests/tooling/index-stats/all-manifest-byte-accounting.test.js",
         "tests/tooling/index-stats/option-admission.test.js",
+        "tests/tooling/index-stats/symbol-family-logical-counts.test.js",
         "tests/tooling/index-stats/verify-manifest-formats.test.js",
         "tests/tooling/index-stats/writer-shard-and-required-payloads.test.js",
         "tests/tooling/index/clean-artifacts-multi-repository.test.js",
@@ -5368,6 +5400,7 @@
         "tests/tooling/lsp/go-workspace-managed-go-resolution.test.js",
         "tests/tooling/providers/provider-invocation-profile-join.test.js",
         "tests/tooling/reports/bench-language-stage-timing-report.test.js",
+        "tests/tooling/reports/compare-models-observed-corpus.test.js",
         "tests/tooling/reports/compare-models-partial-ranks.test.js",
         "tests/tooling/reports/map-graph-capability-consumer.test.js",
         "tests/tooling/reports/map-operational-render.test.js",
@@ -5840,7 +5873,7 @@
   ],
   "envVarsUnknown": [],
   "cliFlags": {
-    "totalFlags": 507,
+    "totalFlags": 509,
     "publicFlags": [
       "all",
       "allow-unauthenticated",
@@ -5927,6 +5960,7 @@
     ],
     "internalFlags": [
       "$unknowns",
+      "abortSignal",
       "action",
       "actionable-unresolved-rate-max",
       "additionalProperties",
@@ -6329,6 +6363,7 @@
       "topKByDegree",
       "translateTime",
       "treeSitter",
+      "treeSitterCacheKey",
       "treeSitterMissingLanguages",
       "trial-root",
       "trust-root",
@@ -6695,6 +6730,20 @@
         ]
       },
       {
+        "file": "tests/fixtures/benchmarks/map-builder-caps.js",
+        "flags": [
+          "include",
+          "mode"
+        ]
+      },
+      {
+        "file": "tests/fixtures/benchmarks/tree-sitter-cache-isolate.js",
+        "flags": [
+          "treeSitter",
+          "treeSitterCacheKey"
+        ]
+      },
+      {
         "file": "tests/fixtures/medium/generate.js",
         "flags": [
           "clean",
@@ -6870,6 +6919,12 @@
         ]
       },
       {
+        "file": "tests/indexing/tree-sitter/persistent-cache-admission.test.js",
+        "flags": [
+          "treeSitterCacheKey"
+        ]
+      },
+      {
         "file": "tests/indexing/tree-sitter/preload-and-planning-contract-matrix.test.js",
         "flags": [
           "log",
@@ -6958,6 +7013,12 @@
         ]
       },
       {
+        "file": "tests/lang/contracts/lua-lexical-header-call-consumers.test.js",
+        "flags": [
+          "treeSitter"
+        ]
+      },
+      {
         "file": "tests/lang/contracts/managed-flow-source-ownership.test.js",
         "flags": [
           "astDataflowEnabled",
@@ -6994,10 +7055,29 @@
         ]
       },
       {
+        "file": "tests/lang/contracts/native-projection-bounded-consumers.test.js",
+        "flags": [
+          "abortSignal",
+          "treeSitter"
+        ]
+      },
+      {
         "file": "tests/lang/contracts/python-declaration-header-ownership.test.js",
         "flags": [
           "astDataflowEnabled",
           "controlFlowEnabled",
+          "pythonAst"
+        ]
+      },
+      {
+        "file": "tests/lang/contracts/python-escaped-triple-import-consumers.test.js",
+        "flags": [
+          "pythonAst"
+        ]
+      },
+      {
+        "file": "tests/lang/contracts/python-inline-suite-import-consumers.test.js",
+        "flags": [
           "pythonAst"
         ]
       },
@@ -7023,6 +7103,19 @@
           "astDataflowEnabled",
           "controlFlowEnabled",
           "pythonAst"
+        ]
+      },
+      {
+        "file": "tests/lang/contracts/python-unicode-import-consumers.test.js",
+        "flags": [
+          "pythonAst"
+        ]
+      },
+      {
+        "file": "tests/lang/contracts/starlark-escaped-triple-import-consumers.test.js",
+        "flags": [
+          "collectorNow",
+          "collectorScanBudget"
         ]
       },
       {
@@ -7096,6 +7189,13 @@
         ]
       },
       {
+        "file": "tests/map/alias-inspector-scoring-consumers.test.js",
+        "flags": [
+          "include",
+          "maxEdges"
+        ]
+      },
+      {
         "file": "tests/map/build-contract-matrix.test.js",
         "flags": [
           "maxEdgeBytes",
@@ -7126,6 +7226,14 @@
         "file": "tests/map/preview-session-inspection-isolation.test.js",
         "flags": [
           "include"
+        ]
+      },
+      {
+        "file": "tests/map/source-inventory-hierarchy-consumers.test.js",
+        "flags": [
+          "focus",
+          "include",
+          "scope"
         ]
       },
       {
@@ -7164,6 +7272,12 @@
           "includeExports",
           "includeImports",
           "includeUsages"
+        ]
+      },
+      {
+        "file": "tests/retrieval/filters/protobuf-alias-consumers.test.js",
+        "flags": [
+          "treeSitter"
         ]
       },
       {
@@ -8800,10 +8914,11 @@
       },
       {
         "flag": "mode",
-        "count": 31,
+        "count": 32,
         "files": [
           "bin/pairofcleats.js",
           "src/lang/typescript/syntax-context.js",
+          "tests/fixtures/benchmarks/map-builder-caps.js",
           "tests/map/build-contract-matrix.test.js",
           "tests/map/workspace/published-fixture.test.js",
           "tests/perf/indexing/validate/stage-usage-checklist.test.js",
@@ -8837,10 +8952,11 @@
       },
       {
         "flag": "treeSitter",
-        "count": 26,
+        "count": 30,
         "files": [
           "src/lang/javascript/chunks.js",
           "src/lang/typescript/chunks.js",
+          "tests/fixtures/benchmarks/tree-sitter-cache-isolate.js",
           "tests/indexing/tree-sitter/adaptive-budget.test.js",
           "tests/indexing/tree-sitter/chunks.test.js",
           "tests/indexing/tree-sitter/csharp-groovy-coverage.test.js",
@@ -8853,18 +8969,41 @@
           "tests/lang/contracts/c-prototype-registry-acceptance.test.js",
           "tests/lang/contracts/clike-registry-prepared-relations.test.js",
           "tests/lang/contracts/html-prepared-source.test.js",
+          "tests/lang/contracts/lua-lexical-header-call-consumers.test.js",
           "tests/lang/contracts/managed-flow-source-ownership.test.js",
           "tests/lang/contracts/native-call-argument-authority.test.js",
           "tests/lang/contracts/native-call-frontier-admission.test.js",
           "tests/lang/contracts/native-call-scope-roles.test.js",
+          "tests/lang/contracts/native-projection-bounded-consumers.test.js",
           "tests/lang/contracts/swift-prepare-tree-sitter-disabled.test.js",
           "tests/lang/contracts/syntax-call-canonical-handoff.test.js",
           "tests/lang/kotlin/perf-guard.test.js",
           "tests/lang/perl/package-chunks.test.js",
           "tests/lang/ruby/modules.test.js",
+          "tests/retrieval/filters/protobuf-alias-consumers.test.js",
           "tests/security/java-workspace-execution-authority.test.js",
           "tests/security/rust-workspace-execution-authority.test.js",
           "tools/bench/index/tree-sitter-load.js"
+        ]
+      },
+      {
+        "flag": "pythonAst",
+        "count": 14,
+        "files": [
+          "tests/indexing/language-registry/python-ast-heavy-skip.test.js",
+          "tests/indexing/language-registry/python-prepared-ast-runtime.test.js",
+          "tests/indexing/language-registry/python-prepared-chunks.test.js",
+          "tests/lang/contracts/python-declaration-header-ownership.test.js",
+          "tests/lang/contracts/python-escaped-triple-import-consumers.test.js",
+          "tests/lang/contracts/python-inline-suite-import-consumers.test.js",
+          "tests/lang/contracts/python-lambda-execution-ownership.test.js",
+          "tests/lang/contracts/python-parenthesized-prefix-coverage.test.js",
+          "tests/lang/contracts/python-repeated-lexical-call-ownership.test.js",
+          "tests/lang/contracts/python-unicode-import-consumers.test.js",
+          "tests/lang/python/positional-defaults.test.js",
+          "tests/lang/python/python-contract-matrix.test.js",
+          "tests/lang/python/registry-relations.test.js",
+          "tests/lang/python/utf8-chunk-ranges.test.js"
         ]
       },
       {
@@ -8957,20 +9096,20 @@
         ]
       },
       {
-        "flag": "pythonAst",
+        "flag": "include",
         "count": 11,
         "files": [
-          "tests/indexing/language-registry/python-ast-heavy-skip.test.js",
-          "tests/indexing/language-registry/python-prepared-ast-runtime.test.js",
-          "tests/indexing/language-registry/python-prepared-chunks.test.js",
-          "tests/lang/contracts/python-declaration-header-ownership.test.js",
-          "tests/lang/contracts/python-lambda-execution-ownership.test.js",
-          "tests/lang/contracts/python-parenthesized-prefix-coverage.test.js",
-          "tests/lang/contracts/python-repeated-lexical-call-ownership.test.js",
-          "tests/lang/python/positional-defaults.test.js",
-          "tests/lang/python/python-contract-matrix.test.js",
-          "tests/lang/python/registry-relations.test.js",
-          "tests/lang/python/utf8-chunk-ranges.test.js"
+          "src/map/build-map.js",
+          "tests/fixtures/benchmarks/map-builder-caps.js",
+          "tests/indexing/file-processor/generated-artifact-content.test.js",
+          "tests/indexing/map/chunkuid-join.test.js",
+          "tests/indexing/map/code-map-contract-matrix.test.js",
+          "tests/map/alias-inspector-scoring-consumers.test.js",
+          "tests/map/preview-session-inspection-isolation.test.js",
+          "tests/map/source-inventory-hierarchy-consumers.test.js",
+          "tests/shared/cache/contract-matrix.test.js",
+          "tests/shared/generated-artifact-discovery.test.js",
+          "tests/shared/generated-artifact-eof-maps.test.js"
         ]
       },
       {
@@ -9033,20 +9172,6 @@
         ]
       },
       {
-        "flag": "include",
-        "count": 8,
-        "files": [
-          "src/map/build-map.js",
-          "tests/indexing/file-processor/generated-artifact-content.test.js",
-          "tests/indexing/map/chunkuid-join.test.js",
-          "tests/indexing/map/code-map-contract-matrix.test.js",
-          "tests/map/preview-session-inspection-isolation.test.js",
-          "tests/shared/cache/contract-matrix.test.js",
-          "tests/shared/generated-artifact-discovery.test.js",
-          "tests/shared/generated-artifact-eof-maps.test.js"
-        ]
-      },
-      {
         "flag": "log",
         "count": 8,
         "files": [
@@ -9072,6 +9197,19 @@
           "tools/reports/parity-matrix.js",
           "tools/reports/show-throughput/options.js",
           "tools/test_times/report.js"
+        ]
+      },
+      {
+        "flag": "scope",
+        "count": 7,
+        "files": [
+          "bin/pairofcleats.js",
+          "tests/map/preview-graph-export-admission.test.js",
+          "tests/map/source-inventory-hierarchy-consumers.test.js",
+          "tests/shared/cache/contract-matrix.test.js",
+          "tools/tooling/install-clangd.js",
+          "tools/tooling/install-lua-language-server.js",
+          "tools/tooling/install-phpactor-phar.js"
         ]
       },
       {
@@ -9108,18 +9246,6 @@
           "tools/build/tantivy-index.js",
           "tools/ci/build-artifacts.js",
           "tools/download/extensions.js"
-        ]
-      },
-      {
-        "flag": "scope",
-        "count": 6,
-        "files": [
-          "bin/pairofcleats.js",
-          "tests/map/preview-graph-export-admission.test.js",
-          "tests/shared/cache/contract-matrix.test.js",
-          "tools/tooling/install-clangd.js",
-          "tools/tooling/install-lua-language-server.js",
-          "tools/tooling/install-phpactor-phar.js"
         ]
       },
       {
@@ -9167,6 +9293,17 @@
           "tools/cache/clear-cache.js",
           "tools/docs/script-inventory.js",
           "tools/index/clean-artifacts.js"
+        ]
+      },
+      {
+        "flag": "collectorNow",
+        "count": 5,
+        "files": [
+          "tests/lang/contracts/handlebars-ast-boundaries.test.js",
+          "tests/lang/contracts/jsonc-structure-boundaries.test.js",
+          "tests/lang/contracts/logical-build-template-import-acceptance.test.js",
+          "tests/lang/contracts/managed-reference-kind-and-owner.test.js",
+          "tests/lang/contracts/starlark-escaped-triple-import-consumers.test.js"
         ]
       },
       {
@@ -9231,16 +9368,6 @@
           "tools/testing/shared-module-cycles.js",
           "tools/testing/shared-module-migration.js",
           "tools/testing/shared-module-performance.js"
-        ]
-      },
-      {
-        "flag": "collectorNow",
-        "count": 4,
-        "files": [
-          "tests/lang/contracts/handlebars-ast-boundaries.test.js",
-          "tests/lang/contracts/jsonc-structure-boundaries.test.js",
-          "tests/lang/contracts/logical-build-template-import-acceptance.test.js",
-          "tests/lang/contracts/managed-reference-kind-and-owner.test.js"
         ]
       },
       {
@@ -9450,6 +9577,15 @@
         ]
       },
       {
+        "flag": "collectorScanBudget",
+        "count": 3,
+        "files": [
+          "tests/lang/contracts/graphql-ast-boundaries.test.js",
+          "tests/lang/contracts/jsonc-structure-boundaries.test.js",
+          "tests/lang/contracts/starlark-escaped-triple-import-consumers.test.js"
+        ]
+      },
+      {
         "flag": "concurrency",
         "count": 3,
         "files": [
@@ -9483,6 +9619,15 @@
           "tools/bench/symbol-resolution-bench.js",
           "tools/bench/vfs/coalesce-docs.js",
           "tools/bench/vfs/io-batching.js"
+        ]
+      },
+      {
+        "flag": "focus",
+        "count": 3,
+        "files": [
+          "src/map/build-map.js",
+          "tests/map/source-inventory-hierarchy-consumers.test.js",
+          "tests/shared/cache/contract-matrix.test.js"
         ]
       },
       {
@@ -9555,6 +9700,15 @@
           "tests/indexing/chunking/preamble-and-unicode-coverage.test.js",
           "tests/indexing/vfs/cdc-min-file-bytes.test.js",
           "tests/indexing/vfs/cdc-segmentation-contract.test.js"
+        ]
+      },
+      {
+        "flag": "maxEdges",
+        "count": 3,
+        "files": [
+          "bin/pairofcleats.js",
+          "tests/map/alias-inspector-scoring-consumers.test.js",
+          "tests/map/canonical-member-inventory.test.js"
         ]
       },
       {
@@ -9705,14 +9859,6 @@
         ]
       },
       {
-        "flag": "collectorScanBudget",
-        "count": 2,
-        "files": [
-          "tests/lang/contracts/graphql-ast-boundaries.test.js",
-          "tests/lang/contracts/jsonc-structure-boundaries.test.js"
-        ]
-      },
-      {
         "flag": "command",
         "count": 2,
         "files": [
@@ -9857,14 +10003,6 @@
         ]
       },
       {
-        "flag": "focus",
-        "count": 2,
-        "files": [
-          "src/map/build-map.js",
-          "tests/shared/cache/contract-matrix.test.js"
-        ]
-      },
-      {
         "flag": "help",
         "count": 2,
         "files": [
@@ -9926,14 +10064,6 @@
         "files": [
           "tools/bench/vfs/io-batching.js",
           "tools/bench/vfs/partial-lsp-open.js"
-        ]
-      },
-      {
-        "flag": "maxEdges",
-        "count": 2,
-        "files": [
-          "bin/pairofcleats.js",
-          "tests/map/canonical-member-inventory.test.js"
         ]
       },
       {
@@ -10209,6 +10339,14 @@
         ]
       },
       {
+        "flag": "treeSitterCacheKey",
+        "count": 2,
+        "files": [
+          "tests/fixtures/benchmarks/tree-sitter-cache-isolate.js",
+          "tests/indexing/tree-sitter/persistent-cache-admission.test.js"
+        ]
+      },
+      {
         "flag": "trial-root",
         "count": 2,
         "files": [
@@ -10307,6 +10445,8 @@
       "src/shared/embedding-model-loading.js",
       "src/shared/onnx-embeddings/qualification.js",
       "src/workspace/child-runtime-env.js",
+      "tests/embeddings/embedding-acquisition-plan.test.js",
+      "tests/embeddings/helpers/minilm-upstream-reference.js",
       "tests/fixtures/sublime/native-package-host.js",
       "tests/helpers/published-runtime-witness.js",
       "tests/helpers/semantic-cache-fixture.js",
@@ -10320,6 +10460,7 @@
       "tests/indexing/lifecycle/build-entry-failure-no-unsettled-warning.test.js",
       "tests/indexing/postings/phrase-hash-spill-failure-ownership.test.js",
       "tests/indexing/registry-borrowed-lock-capability.test.js",
+      "tests/indexing/registry-borrowed-retirement-race.test.js",
       "tests/indexing/runtime/build-intent-and-stage-handoff.test.js",
       "tests/indexing/semantic/compiler-erased-runtime-context.test.js",
       "tests/indexing/semantic/compiler-source-identity-index.test.js",
@@ -10406,6 +10547,7 @@
       "tools/api/server.js",
       "tools/bench/language-matrix.js",
       "tools/bench/language/cli.js",
+      "tools/bench/map/qualification-model.js",
       "tools/bench/map/shared.js",
       "tools/bench/map/worker.js",
       "tools/bench/micro/run.js",
