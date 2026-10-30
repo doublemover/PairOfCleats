@@ -7,11 +7,53 @@ import { SQLITE_FILTER_FACTS_VERSION } from '../../../src/storage/sqlite/filter-
 import { assertCurrentIndexFormat } from '../../../src/contracts/index-format.js';
 import { createSqliteCacheCloseOwner } from '../../../src/retrieval/sqlite-cache-close-owner.js';
 import { addStorageFailureContext } from '../../../src/shared/storage/operation-error.js';
+import { observeStorageResource } from '../../../src/shared/storage/failure-observation.js';
 
 const inputCaches = new WeakMap(), admittedInputs = new WeakMap();
 const manifestDigest = value => createHash('sha256').update(JSON.stringify(value)).digest('hex');
 export const createSqliteBenchInputCache = () => {
   const token = Object.freeze({}); inputCaches.set(token, new Map()); return token;
+};
+
+/** Visit each native posting once. A compact source-token bitset per admitted
+ * document proves both directions of correspondence, including duplicate rows.
+ * No per-file join, retained native row array or extra database index is needed.
+ */
+const validatePostings = (db, mode, documents) => {
+  const statement = db.prepare(`SELECT p.doc_id,v.token,p.tf FROM token_postings p
+    LEFT JOIN token_vocab v ON v.mode=p.mode AND v.token_id=p.token_id WHERE p.mode=?`);
+  let iterator, failed = false, primary, rows = 0;
+  try {
+    iterator = statement.iterate(mode);
+    for (;;) {
+      const next = iterator.next();
+      if (next.done) break;
+      const row = next.value, document = documents.get(row.doc_id);
+      assert.ok(document, 'SQLite benchmark postings differ: unknown document');
+      const tokens = document.tokens, index = tokens.indexOf(row.token);
+      assert.ok(index >= 0, 'SQLite benchmark postings differ: unknown token');
+      let expectedTf = 0;
+      for (const token of tokens) if (token === row.token) expectedTf++;
+      assert.equal(row.tf, expectedTf, 'SQLite benchmark postings differ: term frequency');
+      const word = index >>> 5, bit = 1 << (index & 31);
+      assert.equal(document.seen[word] & bit, 0, 'SQLite benchmark postings differ: duplicate row');
+      document.seen[word] |= bit; document.observed++; rows++;
+    }
+    for (const document of documents.values()) {
+      assert.equal(document.observed, document.expected, 'SQLite benchmark postings differ: missing row');
+    }
+  } catch (error) { failed = true; primary = error; }
+  finally {
+    try {
+      const result = iterator?.return?.();
+      observeStorageResource(result, { phase: 'sqlite-benchmark-postings-iterator-close' }).requireSettled();
+    } catch (cleanup) {
+      primary = failed ? addStorageFailureContext(primary, {}, cleanup, { secondaryPresent: true }) : cleanup;
+      failed = true;
+    }
+  }
+  if (failed) throw primary;
+  return rows;
 };
 
 /** Capture canonical immutable source facts once. A token is an in-process
@@ -57,6 +99,7 @@ export const validateSqliteBenchDatabase = async ({ Database, dbPath, bundleDir,
   const db = new Database(dbPath, { readonly: true, fileMustExist: true });
   const native = createSqliteCacheCloseOwner(db, { canClose: () => true, onClosed() {} });
   const digest = createHash('sha256');
+  const documents = new Map();
   let chunks = 0, postings = 0, failed = false, primary;
   try {
     const filterSeal = db.prepare('SELECT version,row_count FROM chunk_filter_facts_meta WHERE mode=?').get(mode);
@@ -64,8 +107,15 @@ export const validateSqliteBenchDatabase = async ({ Database, dbPath, bundleDir,
       const { entry, chunks: sourceChunks } = input.facts.get(file);
       const expected = sourceChunks.map(chunk => ({ file: chunk.file, start: chunk.start, end: chunk.end,
         startLine: chunk.startLine, endLine: chunk.endLine, kind: chunk.kind, name: chunk.name, tokens: JSON.stringify(chunk.tokens) }));
-      const actual = db.prepare('SELECT file,start,end,startLine,endLine,kind,name,tokens FROM chunks WHERE mode=? AND file=? ORDER BY start,end,name').all(mode, file);
+      const identified = db.prepare('SELECT id,file,start,end,startLine,endLine,kind,name,tokens FROM chunks WHERE mode=? AND file=? ORDER BY start,end,name').all(mode, file);
+      const actual = identified.map(({ id, ...row }) => row);
       assert.deepEqual(actual, expected, `SQLite benchmark chunk contents differ for ${file}`);
+      for (const [index, row] of identified.entries()) {
+        assert.ok(Number.isSafeInteger(row.id) && row.id >= 0 && !documents.has(row.id), 'SQLite benchmark document identity differs');
+        const tokens = sourceChunks[index].tokens;
+        documents.set(row.id, { tokens, expected: new Set(tokens).size,
+          observed: 0, seen: new Uint32Array(Math.ceil(tokens.length / 32)) });
+      }
       if (expected.length) {
         const query = `"${expected[0].name.replace(/"/gu, '""')}"`;
         const matched = db.prepare(`SELECT COUNT(*) AS count FROM chunks_fts JOIN chunks c ON c.id=chunks_fts.rowid
@@ -77,10 +127,6 @@ export const validateSqliteBenchDatabase = async ({ Database, dbPath, bundleDir,
         for (const token of chunk.tokens) frequencies.set(token, (frequencies.get(token) || 0) + 1);
         return [...frequencies].map(([token, tf]) => ({ start: chunk.start, name: chunk.name, token, tf }));
       }).sort((a, b) => a.start - b.start || (a.token < b.token ? -1 : a.token > b.token ? 1 : 0));
-      const actualPostings = db.prepare(`SELECT c.start,c.name,v.token,p.tf FROM token_postings p
-        JOIN token_vocab v ON v.mode=p.mode AND v.token_id=p.token_id
-        JOIN chunks c ON c.mode=p.mode AND c.id=p.doc_id WHERE c.mode=? AND c.file=? ORDER BY c.start,v.token`).all(mode, file);
-      assert.deepEqual(actualPostings, expectedPostings, `SQLite benchmark postings differ for ${file}`);
       const lengths = db.prepare(`SELECT c.start,l.len FROM chunks c JOIN doc_lengths l ON l.mode=c.mode AND l.doc_id=c.id
         WHERE c.mode=? AND c.file=? ORDER BY c.start`).all(mode, file);
       assert.deepEqual(lengths, sourceChunks.map(chunk => ({ start: chunk.start, len: chunk.tokens.length })));
@@ -91,9 +137,13 @@ export const validateSqliteBenchDatabase = async ({ Database, dbPath, bundleDir,
           WHERE c.mode=? AND c.file=? ORDER BY c.start`).all(mode, file);
         assert.deepEqual(facts, sourceChunks.map(chunk => ({ start: chunk.start, file, kind: chunk.kind.toLowerCase() })));
       }
-      chunks += expected.length; postings += actualPostings.length;
-      digest.update(JSON.stringify([file, actual, actualPostings, lengths, fileRow]));
+      chunks += expected.length; postings += expectedPostings.length;
+      // Preserve the original canonical transcript bytes. These source-derived
+      // posting rows are certified by the independent native pass below before
+      // any digest/result can escape; disagreement always rejects the result.
+      digest.update(JSON.stringify([file, actual, expectedPostings, lengths, fileRow]));
     }
+    assert.equal(validatePostings(db, mode, documents), postings);
     assert.equal(db.prepare('SELECT COUNT(*) AS count FROM chunks WHERE mode=?').get(mode).count, chunks);
     assert.equal(db.prepare('SELECT COUNT(*) AS count FROM file_manifest WHERE mode=?').get(mode).count, Object.keys(manifest.files).length);
     assert.equal(db.prepare('SELECT COUNT(*) AS count FROM token_postings WHERE mode=?').get(mode).count, postings);
