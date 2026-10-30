@@ -21,6 +21,8 @@ mod search_failure_catalog;
 mod settings;
 mod supervisor_lifetime;
 mod supervisor_transport;
+#[cfg(test)]
+mod transport_acceptance_tests;
 mod text_editor;
 #[cfg(test)]
 mod viewport_tests;

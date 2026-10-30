@@ -139,6 +139,41 @@ fn replay_seek_and_detach_keep_live_jobs_and_authority_separate() {
         .all(|r| r["op"] == "recording:run" && r["method"] == "discard"));
 }
 
+#[test]
+fn real_live_ingress_latency_does_not_become_saved_replay_latency() {
+    let mut ui = loaded_replay();
+    let mut model = passive_model();
+    model.owns_control_channel = true;
+    model.session.controllable = true;
+    super::transport_acceptance_tests::deliver(
+        b"{\"event\":\"runtime:metrics\",\"flow\":{\"queueDepth\":42}}\n".to_vec(),
+        &mut model,
+        Duration::from_millis(75),
+    );
+    assert_eq!(model.telemetry.event_lag_ms_ewma, Some(75.0));
+    ui.update_view(&mut model);
+    assert_eq!(model.session.mode, "replay");
+    assert_eq!(model.telemetry.event_lag_ms_ewma, None);
+    assert_eq!(model.telemetry.native_inbound_pending, None);
+    assert!(runtime_summary_text(&model, 4096).contains("ingress lag ?ms"));
+    for position in [3, 0, 3] {
+        ui.seek_requested = Some(position);
+        ui.update_view(&mut model);
+        assert_eq!(
+            model.telemetry.event_lag_ms_ewma, None,
+            "saved timestamps and seeks cannot create local residence samples"
+        );
+    }
+    ui.detach_requested = true;
+    ui.update_view(&mut model);
+    assert_eq!(
+        model.telemetry.event_lag_ms_ewma,
+        Some(75.0),
+        "detach restores the independent original live model"
+    );
+    assert_eq!(model.telemetry.queue_depth_ewma, Some(42.0));
+}
+
 fn seek_until_settled(
     ui: &mut recordings::RecordingUi,
     model: &mut AppModel,
