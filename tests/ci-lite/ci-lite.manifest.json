@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 1491,
+    "hero": 1566,
     "matrix": 109,
     "meta": 49,
     "soak": 1,
@@ -9913,6 +9913,456 @@
     {
       "id": "retrieval/cli/request-generation-promotion/lmdb-faults",
       "order": 1650,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/artifacts/stage-producer-git-byte-authority",
+      "order": 1651,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/artifacts/stage-producer-real-git-identity",
+      "order": 1652,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/artifacts/stage-producer-status-framing",
+      "order": 1653,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/artifacts/unpublished-copy-native-metadata/native-eacces",
+      "order": 1654,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/artifacts/unpublished-copy-native-metadata/native-pending",
+      "order": 1655,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/artifacts/unpublished-copy-native-metadata/ordinary",
+      "order": 1656,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/artifacts/unpublished-copy-native-metadata/original-method",
+      "order": 1657,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/artifacts/unpublished-copy-native-metadata/work",
+      "order": 1658,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/piece-assembly/mode-and-cohort-cli-admission",
+      "order": 1659,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/postings/token-field-caller-cancellation",
+      "order": 1660,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/publication/integrity-stream-ownership/equivalent",
+      "order": 1661,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/publication/integrity-stream-ownership/failure-drain",
+      "order": 1662,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/publication/integrity-stream-ownership/mixed-snapshot",
+      "order": 1663,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/runtime/build-cli-selected-outcome/stage1-code",
+      "order": 1664,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/runtime/build-cli-selected-outcome/stage2-prose",
+      "order": 1665,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/runtime/build-cli-selected-outcome/stage3-disabled",
+      "order": 1666,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/runtime/build-cli-selected-outcome/stage4-sqlite",
+      "order": 1667,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/runtime/direct-core-intent-admission",
+      "order": 1668,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/stage1/process-files-setup-resource-ownership",
+      "order": 1669,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/stage1/scm-wait-watchdog-consumer/absent",
+      "order": 1670,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/stage1/scm-wait-watchdog-consumer/negative",
+      "order": 1671,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/stage1/scm-wait-watchdog-consumer/nonzero",
+      "order": 1672,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/workers/lazy-native-startup-ownership",
+      "order": 1673,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "lang/contracts/native-call-frontier-admission",
+      "order": 1674,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "map/member-join-work-consumer/durable",
+      "order": 1675,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "map/member-join-work-consumer/measure",
+      "order": 1676,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "map/member-join-work-consumer/mixed",
+      "order": 1677,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/bench/embedding-bakeoff-observed-resume",
+      "order": 1678,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/bench/representative-workload-consumers/graph-skewed",
+      "order": 1679,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/bench/representative-workload-consumers/graph-skewed-independent",
+      "order": 1680,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/bench/representative-workload-consumers/map-large",
+      "order": 1681,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/bench/representative-workload-consumers/memory-transient",
+      "order": 1682,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/bench/representative-workload-consumers/render",
+      "order": 1683,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/bench/representative-workload-consumers/sqlite-wide-a",
+      "order": 1684,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/bench/representative-workload-consumers/sqlite-wide-b",
+      "order": 1685,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/bench/representative-workload-consumers/sqlite-wide-c1",
+      "order": 1686,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/bench/representative-workload-consumers/sqlite-wide-c2",
+      "order": 1687,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/bench/representative-workload-consumers/vfs-ascii",
+      "order": 1688,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/bench/representative-workload-consumers/vfs-budget",
+      "order": 1689,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/bench/representative-workload-consumers/vfs-many-hot-1",
+      "order": 1690,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/bench/representative-workload-consumers/vfs-many-hot-2",
+      "order": 1691,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/bench/representative-workload-consumers/vfs-many-hot-3",
+      "order": 1692,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/bench/representative-workload-consumers/vfs-many-persisted-1",
+      "order": 1693,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/bench/representative-workload-consumers/vfs-many-persisted-2",
+      "order": 1694,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/bench/representative-workload-consumers/vfs-many-persisted-3",
+      "order": 1695,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/bench/selected-cohort-generation-consumer/publication",
+      "order": 1696,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/bench/selected-cohort-generation-consumer/results",
+      "order": 1697,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/bench/vfs-producer-accounting/coalesce",
+      "order": 1698,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/bench/vfs-producer-accounting/lsp",
+      "order": 1699,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/bench/vfs-producer-accounting/manifest",
+      "order": 1700,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/bench/vfs-producer-accounting/merge",
+      "order": 1701,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/bench/vfs-producer-accounting/segments",
+      "order": 1702,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "retrieval/backend/fts-cooperative-timing-consumer",
+      "order": 1703,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "services/mcp/build-sqlite-core-ownership",
+      "order": 1704,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "services/mcp/build-sqlite-selected-generation",
+      "order": 1705,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/artifact-io/json-row-stream-shape-and-cancellation",
+      "order": 1706,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/hash/stat-work-bound-consumer/exact-work",
+      "order": 1707,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/hash/stat-work-bound-consumer/timestamp-race",
+      "order": 1708,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/hash/stat-work-bound-consumer/unsafe-extent",
+      "order": 1709,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/api-contracts/declared-evidence-admission",
+      "order": 1710,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/bench/generic-diff-consumer",
+      "order": 1711,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/bench/runner-measurement-consumer",
+      "order": 1712,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/bench/waiver-report-count-consumer",
+      "order": 1713,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/eval/coverage-and-default-datasets/datasets",
+      "order": 1714,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/eval/coverage-and-default-datasets/runner",
+      "order": 1715,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/eval/search-plan-generation-consumer",
+      "order": 1716,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/install/ci-build-sqlite-ownership",
+      "order": 1717,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/setup-explicit-target-handoff",
+      "order": 1718,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/setup-git-metadata-target-handoff/submodule",
+      "order": 1719,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/setup-git-metadata-target-handoff/worktree",
+      "order": 1720,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/reports/throughput-focused-mode-consumer",
+      "order": 1721,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/triage/inspector-index-filter-context-consumer/legacy-empty",
+      "order": 1722,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/triage/inspector-index-filter-context-consumer/multi-package",
+      "order": 1723,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/triage/renderer-package-authority",
+      "order": 1724,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/workspace/canonical-child-startup-isolation",
+      "order": 1725,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

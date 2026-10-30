@@ -1,17 +1,17 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-10-29T03:51:33.391Z",
+  "generatedAt": "2026-10-30T00:47:57.270Z",
   "summary": {
     "lanes": 5,
-    "tests": 1676,
+    "tests": 2028,
     "exactDuplicates": 0,
     "hotspotKinds": 10,
-    "families": 388,
+    "families": 402,
     "topSlowest": 10,
     "timingCoverage": {
       "freshArtifactTests": 0,
       "historicalFallbackTests": 74,
-      "missingTests": 1602
+      "missingTests": 1954
     }
   },
   "lanes": [
@@ -20,14 +20,14 @@
       "targetMaxDurationSeconds": 15,
       "orderFile": "tests/gate/gate.order.txt",
       "timingArtifactPath": ".testLogs/gate-testRunTimes.txt",
-      "totalTests": 40,
+      "totalTests": 41,
       "knownDurationTests": 0,
       "knownDurationMs": 0,
       "p50DurationMs": null,
       "p95DurationMs": null,
       "resolvedTimingArtifactPaths": [],
       "timingSources": {
-        "missing": 40
+        "missing": 41
       }
     },
     {
@@ -35,7 +35,7 @@
       "targetMaxDurationSeconds": 15,
       "orderFile": "tests/ci-lite/ci-lite.order.txt",
       "timingArtifactPath": ".testLogs/ci-lite-testRunTimes.txt",
-      "totalTests": 1374,
+      "totalTests": 1725,
       "knownDurationTests": 49,
       "knownDurationMs": 27090,
       "p50DurationMs": 190,
@@ -43,7 +43,7 @@
       "resolvedTimingArtifactPaths": [],
       "timingSources": {
         "historical-test-times": 49,
-        "missing": 1325
+        "missing": 1676
       }
     },
     {
@@ -98,21 +98,21 @@
   "families": [
     {
       "key": "storage/sqlite",
-      "count": 80,
+      "count": 114,
       "knownDurationMs": 25860,
-      "unknownDurationCount": 71
+      "unknownDurationCount": 105
     },
     {
       "key": "indexing/chunking",
-      "count": 12,
+      "count": 16,
       "knownDurationMs": 10530,
-      "unknownDurationCount": 6
+      "unknownDurationCount": 10
     },
     {
       "key": "tooling/triage",
-      "count": 6,
+      "count": 9,
       "knownDurationMs": 10060,
-      "unknownDurationCount": 4
+      "unknownDurationCount": 7
     },
     {
       "key": "indexing/shards",
@@ -122,27 +122,27 @@
     },
     {
       "key": "indexing/file-processor",
-      "count": 10,
+      "count": 12,
       "knownDurationMs": 8370,
-      "unknownDurationCount": 5
+      "unknownDurationCount": 7
     },
     {
       "key": "tooling/install",
-      "count": 46,
+      "count": 54,
       "knownDurationMs": 8330,
-      "unknownDurationCount": 41
+      "unknownDurationCount": 49
     },
     {
       "key": "indexing/type-inference",
-      "count": 16,
+      "count": 18,
       "knownDurationMs": 5700,
-      "unknownDurationCount": 9
+      "unknownDurationCount": 11
     },
     {
       "key": "indexing/imports",
-      "count": 35,
+      "count": 36,
       "knownDurationMs": 5550,
-      "unknownDurationCount": 33
+      "unknownDurationCount": 34
     },
     {
       "key": "cli/general",
@@ -152,15 +152,15 @@
     },
     {
       "key": "indexing/runtime",
-      "count": 8,
+      "count": 15,
       "knownDurationMs": 5040,
-      "unknownDurationCount": 7
+      "unknownDurationCount": 14
     },
     {
       "key": "lang/contracts",
-      "count": 33,
+      "count": 44,
       "knownDurationMs": 5030,
-      "unknownDurationCount": 32
+      "unknownDurationCount": 43
     },
     {
       "key": "indexing/language-fixture",
@@ -170,15 +170,15 @@
     },
     {
       "key": "retrieval/ann",
-      "count": 13,
+      "count": 14,
       "knownDurationMs": 5020,
-      "unknownDurationCount": 12
+      "unknownDurationCount": 13
     },
     {
       "key": "retrieval/filters",
-      "count": 5,
+      "count": 9,
       "knownDurationMs": 5020,
-      "unknownDurationCount": 4
+      "unknownDurationCount": 8
     },
     {
       "key": "shared/encoding",
@@ -188,15 +188,15 @@
     },
     {
       "key": "indexing/metadata",
-      "count": 1,
+      "count": 2,
       "knownDurationMs": 5020,
-      "unknownDurationCount": 0
+      "unknownDurationCount": 1
     },
     {
       "key": "retrieval/ranking",
-      "count": 6,
+      "count": 7,
       "knownDurationMs": 5010,
-      "unknownDurationCount": 5
+      "unknownDurationCount": 6
     },
     {
       "key": "retrieval/contracts",
@@ -212,39 +212,39 @@
     },
     {
       "key": "indexing/artifacts",
-      "count": 55,
+      "count": 67,
       "knownDurationMs": 2990,
-      "unknownDurationCount": 49
+      "unknownDurationCount": 61
     },
     {
       "key": "indexing/workers",
-      "count": 14,
+      "count": 17,
       "knownDurationMs": 1770,
-      "unknownDurationCount": 12
+      "unknownDurationCount": 15
     },
     {
       "key": "indexing/segments",
-      "count": 4,
+      "count": 5,
       "knownDurationMs": 910,
-      "unknownDurationCount": 3
+      "unknownDurationCount": 4
     },
     {
       "key": "tooling/reports",
-      "count": 19,
+      "count": 24,
       "knownDurationMs": 510,
-      "unknownDurationCount": 17
+      "unknownDurationCount": 22
     },
     {
       "key": "shared/hash",
-      "count": 2,
+      "count": 5,
       "knownDurationMs": 250,
-      "unknownDurationCount": 1
+      "unknownDurationCount": 4
     },
     {
       "key": "shared/json-stream",
-      "count": 22,
+      "count": 26,
       "knownDurationMs": 220,
-      "unknownDurationCount": 20
+      "unknownDurationCount": 24
     },
     {
       "key": "tooling/type-inference",
@@ -254,15 +254,15 @@
     },
     {
       "key": "indexing/watch",
-      "count": 18,
+      "count": 24,
       "knownDurationMs": 160,
-      "unknownDurationCount": 17
+      "unknownDurationCount": 23
     },
     {
       "key": "indexing/postings",
-      "count": 22,
+      "count": 35,
       "knownDurationMs": 90,
-      "unknownDurationCount": 21
+      "unknownDurationCount": 34
     },
     {
       "key": "indexing/tokenization",
@@ -290,15 +290,15 @@
     },
     {
       "key": "indexing/embeddings",
-      "count": 45,
+      "count": 50,
       "knownDurationMs": 60,
-      "unknownDurationCount": 44
+      "unknownDurationCount": 49
     },
     {
       "key": "tooling/lsp",
-      "count": 107,
+      "count": 113,
       "knownDurationMs": 0,
-      "unknownDurationCount": 107
+      "unknownDurationCount": 113
     },
     {
       "key": "cli/search",
@@ -307,10 +307,22 @@
       "unknownDurationCount": 88
     },
     {
-      "key": "indexing/tree-sitter",
-      "count": 35,
+      "key": "shared/storage",
+      "count": 63,
       "knownDurationMs": 0,
-      "unknownDurationCount": 35
+      "unknownDurationCount": 63
+    },
+    {
+      "key": "indexing/tree-sitter",
+      "count": 54,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 54
+    },
+    {
+      "key": "perf/bench",
+      "count": 49,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 49
     },
     {
       "key": "integrations/inference-history",
@@ -331,22 +343,28 @@
       "unknownDurationCount": 25
     },
     {
-      "key": "perf/bench",
+      "key": "shared/artifact-io",
       "count": 24,
       "knownDurationMs": 0,
       "unknownDurationCount": 24
     },
     {
       "key": "retrieval/pipeline",
-      "count": 21,
+      "count": 22,
       "knownDurationMs": 0,
-      "unknownDurationCount": 21
+      "unknownDurationCount": 22
     },
     {
-      "key": "shared/artifact-io",
-      "count": 21,
+      "key": "indexing/risk",
+      "count": 20,
       "knownDurationMs": 0,
-      "unknownDurationCount": 21
+      "unknownDurationCount": 20
+    },
+    {
+      "key": "tooling/api-contracts",
+      "count": 20,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 20
     },
     {
       "key": "tooling/ci",
@@ -355,7 +373,7 @@
       "unknownDurationCount": 19
     },
     {
-      "key": "indexing/risk",
+      "key": "indexing/semantic",
       "count": 18,
       "knownDurationMs": 0,
       "unknownDurationCount": 18
@@ -367,19 +385,31 @@
       "unknownDurationCount": 18
     },
     {
+      "key": "indexing/scm",
+      "count": 17,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 17
+    },
+    {
       "key": "shared/subprocess",
       "count": 17,
       "knownDurationMs": 0,
       "unknownDurationCount": 17
     },
     {
-      "key": "indexing/semantic",
+      "key": "indexing/validate",
       "count": 16,
       "knownDurationMs": 0,
       "unknownDurationCount": 16
     },
     {
-      "key": "indexing/validate",
+      "key": "retrieval/cli",
+      "count": 15,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 15
+    },
+    {
+      "key": "retrieval/federation",
       "count": 15,
       "knownDurationMs": 0,
       "unknownDurationCount": 15
@@ -391,28 +421,22 @@
       "unknownDurationCount": 15
     },
     {
-      "key": "indexing/scm",
+      "key": "indexing/incremental",
       "count": 14,
       "knownDurationMs": 0,
       "unknownDurationCount": 14
     },
     {
       "key": "indexing/vfs",
+      "count": 14,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 14
+    },
+    {
+      "key": "retrieval/backend",
       "count": 13,
       "knownDurationMs": 0,
       "unknownDurationCount": 13
-    },
-    {
-      "key": "tooling/api-contracts",
-      "count": 13,
-      "knownDurationMs": 0,
-      "unknownDurationCount": 13
-    },
-    {
-      "key": "indexing/incremental",
-      "count": 12,
-      "knownDurationMs": 0,
-      "unknownDurationCount": 12
     },
     {
       "key": "perf/tooling",
@@ -422,12 +446,30 @@
     },
     {
       "key": "indexing/relations",
+      "count": 11,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 11
+    },
+    {
+      "key": "indexing/stage1",
+      "count": 11,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 11
+    },
+    {
+      "key": "shared/concurrency",
+      "count": 11,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 11
+    },
+    {
+      "key": "storage/semantic",
       "count": 10,
       "knownDurationMs": 0,
       "unknownDurationCount": 10
     },
     {
-      "key": "shared/concurrency",
+      "key": "tooling/index",
       "count": 10,
       "knownDurationMs": 0,
       "unknownDurationCount": 10
@@ -451,7 +493,7 @@
       "unknownDurationCount": 9
     },
     {
-      "key": "retrieval/federation",
+      "key": "shared/io",
       "count": 9,
       "knownDurationMs": 0,
       "unknownDurationCount": 9
@@ -463,19 +505,19 @@
       "unknownDurationCount": 9
     },
     {
+      "key": "indexing/build",
+      "count": 8,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 8
+    },
+    {
       "key": "indexing/state",
       "count": 8,
       "knownDurationMs": 0,
       "unknownDurationCount": 8
     },
     {
-      "key": "retrieval/backend",
-      "count": 8,
-      "knownDurationMs": 0,
-      "unknownDurationCount": 8
-    },
-    {
-      "key": "shared/io",
+      "key": "services/mcp",
       "count": 8,
       "knownDurationMs": 0,
       "unknownDurationCount": 8
@@ -488,12 +530,6 @@
     },
     {
       "key": "indexing/extracted-prose",
-      "count": 7,
-      "knownDurationMs": 0,
-      "unknownDurationCount": 7
-    },
-    {
-      "key": "indexing/stage1",
       "count": 7,
       "knownDurationMs": 0,
       "unknownDurationCount": 7
@@ -523,13 +559,19 @@
       "unknownDurationCount": 7
     },
     {
-      "key": "runner/harness",
+      "key": "embeddings/runner",
       "count": 6,
       "knownDurationMs": 0,
       "unknownDurationCount": 6
     },
     {
-      "key": "services/mcp",
+      "key": "indexing/discovery",
+      "count": 6,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 6
+    },
+    {
+      "key": "runner/harness",
       "count": 6,
       "knownDurationMs": 0,
       "unknownDurationCount": 6
@@ -553,19 +595,19 @@
       "unknownDurationCount": 5
     },
     {
-      "key": "embeddings/runner",
-      "count": 5,
-      "knownDurationMs": 0,
-      "unknownDurationCount": 5
-    },
-    {
-      "key": "indexing/build",
-      "count": 5,
-      "knownDurationMs": 0,
-      "unknownDurationCount": 5
-    },
-    {
       "key": "indexing/determinism",
+      "count": 5,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 5
+    },
+    {
+      "key": "indexing/piece-assembly",
+      "count": 5,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 5
+    },
+    {
+      "key": "lang/python",
       "count": 5,
       "knownDurationMs": 0,
       "unknownDurationCount": 5
@@ -583,19 +625,31 @@
       "unknownDurationCount": 5
     },
     {
+      "key": "tooling/bench",
+      "count": 5,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 5
+    },
+    {
+      "key": "tooling/eval",
+      "count": 5,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 5
+    },
+    {
       "key": "tooling/providers",
       "count": 5,
       "knownDurationMs": 0,
       "unknownDurationCount": 5
     },
     {
-      "key": "context-pack/risk-filters-parity",
-      "count": 4,
+      "key": "tooling/release",
+      "count": 5,
       "knownDurationMs": 0,
-      "unknownDurationCount": 4
+      "unknownDurationCount": 5
     },
     {
-      "key": "indexing/discovery",
+      "key": "context-pack/risk-filters-parity",
       "count": 4,
       "knownDurationMs": 0,
       "unknownDurationCount": 4
@@ -619,13 +673,13 @@
       "unknownDurationCount": 4
     },
     {
-      "key": "indexing/signatures",
+      "key": "indexing/publication",
       "count": 4,
       "knownDurationMs": 0,
       "unknownDurationCount": 4
     },
     {
-      "key": "lang/python",
+      "key": "indexing/signatures",
       "count": 4,
       "knownDurationMs": 0,
       "unknownDurationCount": 4
@@ -637,19 +691,7 @@
       "unknownDurationCount": 4
     },
     {
-      "key": "retrieval/cli",
-      "count": 4,
-      "knownDurationMs": 0,
-      "unknownDurationCount": 4
-    },
-    {
       "key": "smoke/baseline-negative",
-      "count": 4,
-      "knownDurationMs": 0,
-      "unknownDurationCount": 4
-    },
-    {
-      "key": "storage/semantic",
       "count": 4,
       "knownDurationMs": 0,
       "unknownDurationCount": 4
@@ -668,12 +710,6 @@
     },
     {
       "key": "tooling/docs",
-      "count": 4,
-      "knownDurationMs": 0,
-      "unknownDurationCount": 4
-    },
-    {
-      "key": "tooling/release",
       "count": 4,
       "knownDurationMs": 0,
       "unknownDurationCount": 4
@@ -703,7 +739,7 @@
       "unknownDurationCount": 3
     },
     {
-      "key": "indexing/piece-assembly",
+      "key": "indexing/records",
       "count": 3,
       "knownDurationMs": 0,
       "unknownDurationCount": 3
@@ -727,7 +763,19 @@
       "unknownDurationCount": 3
     },
     {
+      "key": "map/member-join-work-consumer",
+      "count": 3,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 3
+    },
+    {
       "key": "retrieval/graph",
+      "count": 3,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 3
+    },
+    {
+      "key": "retrieval/query",
       "count": 3,
       "knownDurationMs": 0,
       "unknownDurationCount": 3
@@ -740,6 +788,12 @@
     },
     {
       "key": "tooling/fixtures",
+      "count": 3,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 3
+    },
+    {
+      "key": "tooling/index-stats",
       "count": 3,
       "knownDurationMs": 0,
       "unknownDurationCount": 3
@@ -763,6 +817,12 @@
       "unknownDurationCount": 2
     },
     {
+      "key": "embeddings/pipeline",
+      "count": 2,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 2
+    },
+    {
       "key": "indexing/language-registry",
       "count": 2,
       "knownDurationMs": 0,
@@ -775,25 +835,25 @@
       "unknownDurationCount": 2
     },
     {
-      "key": "indexing/records",
-      "count": 2,
-      "knownDurationMs": 0,
-      "unknownDurationCount": 2
-    },
-    {
       "key": "indexing/tooling",
       "count": 2,
       "knownDurationMs": 0,
       "unknownDurationCount": 2
     },
     {
-      "key": "integrations/triage",
+      "key": "integrations/core",
       "count": 2,
       "knownDurationMs": 0,
       "unknownDurationCount": 2
     },
     {
-      "key": "retrieval/query",
+      "key": "integrations/mcp",
+      "count": 2,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 2
+    },
+    {
+      "key": "integrations/triage",
       "count": 2,
       "knownDurationMs": 0,
       "unknownDurationCount": 2
@@ -829,12 +889,6 @@
       "unknownDurationCount": 2
     },
     {
-      "key": "tooling/bench",
-      "count": 2,
-      "knownDurationMs": 0,
-      "unknownDurationCount": 2
-    },
-    {
       "key": "tooling/cache",
       "count": 2,
       "knownDurationMs": 0,
@@ -842,18 +896,6 @@
     },
     {
       "key": "tooling/config",
-      "count": 2,
-      "knownDurationMs": 0,
-      "unknownDurationCount": 2
-    },
-    {
-      "key": "tooling/eval",
-      "count": 2,
-      "knownDurationMs": 0,
-      "unknownDurationCount": 2
-    },
-    {
-      "key": "tooling/index-stats",
       "count": 2,
       "knownDurationMs": 0,
       "unknownDurationCount": 2
@@ -914,6 +956,12 @@
     },
     {
       "key": "ci/npm-script-targets",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "ci/ordered-lane-discovery",
       "count": 1,
       "knownDurationMs": 0,
       "unknownDurationCount": 1
@@ -1063,7 +1111,13 @@
       "unknownDurationCount": 1
     },
     {
-      "key": "embeddings/pipeline",
+      "key": "embeddings/onnx",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "embeddings/provider-output-route-admission",
       "count": 1,
       "knownDurationMs": 0,
       "unknownDurationCount": 1
@@ -1153,6 +1207,12 @@
       "unknownDurationCount": 1
     },
     {
+      "key": "graph/manifest-integrity-admission",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
       "key": "graph/memory-plateau",
       "count": 1,
       "knownDurationMs": 0,
@@ -1172,6 +1232,12 @@
     },
     {
       "key": "graph/output-contract-matrix",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "graph/preparation-work-budget",
       "count": 1,
       "knownDurationMs": 0,
       "unknownDurationCount": 1
@@ -1358,6 +1424,12 @@
     },
     {
       "key": "indexing/config",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "indexing/documents",
       "count": 1,
       "knownDurationMs": 0,
       "unknownDurationCount": 1
@@ -2215,6 +2287,12 @@
       "unknownDurationCount": 1
     },
     {
+      "key": "tooling/typescript-library-alias-preflight",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
       "key": "tooling/typescript-root-aliases",
       "count": 1,
       "knownDurationMs": 0,
@@ -2276,6 +2354,12 @@
     },
     {
       "key": "tooling/usr",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "tooling/workspace",
       "count": 1,
       "knownDurationMs": 0,
       "unknownDurationCount": 1
@@ -2428,16 +2512,16 @@
   "hotspots": [
     {
       "key": "index-build-heavy",
-      "count": 473,
+      "count": 576,
       "knownDurationMs": 70250,
-      "unknownDurationCount": 432,
+      "unknownDurationCount": 535,
       "note": "Index construction, replay, and build-heavy setup overlap."
     },
     {
       "key": "sqlite-heavy",
-      "count": 80,
+      "count": 114,
       "knownDurationMs": 25860,
-      "unknownDurationCount": 71,
+      "unknownDurationCount": 105,
       "note": "SQLite maintenance, fail-closed, and migration tests often rebuild the same sample fixture."
     },
     {
@@ -2456,16 +2540,16 @@
     },
     {
       "key": "embeddings-cache",
-      "count": 45,
+      "count": 50,
       "knownDurationMs": 60,
-      "unknownDurationCount": 44,
+      "unknownDurationCount": 49,
       "note": "Embedding cache and stub fast-path families frequently overlap on the same fixture/setup."
     },
     {
       "key": "lsp-bootstrap",
-      "count": 107,
+      "count": 113,
       "knownDurationMs": 0,
-      "unknownDurationCount": 107,
+      "unknownDurationCount": 113,
       "note": "Dedicated/configured provider bootstrap and session reuse."
     },
     {

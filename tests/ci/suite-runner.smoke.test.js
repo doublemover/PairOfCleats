@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
 import { getCombinedOutput } from '../helpers/stdio.js';
 import { runNode } from '../helpers/run-node.js';
 import { applyTestEnv } from '../helpers/test-env.js';
@@ -9,6 +10,11 @@ import { fileURLToPath } from 'node:url';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const runnerPath = path.join(ROOT, 'tools', 'ci', 'run-suite.js');
 const env = applyTestEnv({ syncProcess: false });
+const measuredConsumers = ['map/member-join-work-consumer/measure', 'retrieval/backend/fts-cooperative-timing-consumer'];
+for (const sourceId of ['perf/bench/representative-workload-consumers', 'perf/bench/selected-cohort-generation-consumer']) {
+  const inventory = JSON.parse(await fs.readFile(path.join(ROOT, 'tests', sourceId + '.test.js.cases.json'), 'utf8'));
+  measuredConsumers.push(...inventory.cases.map(caseId => sourceId + '/' + caseId));
+}
 
 const runDrySuite = (mode) => {
   const result = runNode(
@@ -81,6 +87,11 @@ for (const [mode, output] of [['ci', ciOutput], ['nightly', nightlyOutput]]) {
   assert.equal(serial.length, 1);
   assert.ok(serial[0].includes(xmlSelector), `${mode}: the actual XML default APIs retain execution coverage`);
   assert.match(serial[0], /--jobs 1 --pairofcleats-threads 1 --timeout-ms 30000 --retries 0 --native-status-redo=false/);
+  for (const id of measuredConsumers) {
+    const selector = `/^${id.replaceAll('/', '\\/')}$/`;
+    assert.equal(lane[0].split(selector).length - 1, 1, `${mode}: measured consumer is excluded exactly once from concurrent work`);
+    assert.equal(serial[0].split(selector).length - 1, 1, `${mode}: measured consumer retains its strict serial execution owner`);
+  }
   for (const state of ['missing', 'corrupt', 'incomplete', 'legacy']) {
     const selector = `/^smoke\\/baseline-negative\\/${state}$/`;
     assert.equal(lane[0].split(selector).length - 1, 1, `${mode}: exclude each measured diagnostic wrapper exactly once`);

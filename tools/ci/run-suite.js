@@ -22,6 +22,13 @@ const DEFAULT_CACHE_ROOT = resolveDevelopmentArtifactPath(ROOT, 'ci-cache', 'pai
 const DEFAULT_HOME_ROOT = resolveDevelopmentArtifactPath(ROOT, 'ci-home', 'pairofcleats');
 const SERIAL_RUNTIME_BUDGET_IDS = ['tooling/reports/summary/report', 'perf/parsers/toml-cold-budget',
   'perf/parsers/jinja-cold-budget', 'perf/parsers/xml-cold-budget', 'indexing/semantic/compiler-single-cpu-lifecycle',
+  'map/member-join-work-consumer/measure', 'retrieval/backend/fts-cooperative-timing-consumer',
+  ...['render', 'graph-skewed', 'graph-skewed-independent', 'map-large', 'memory-transient', 'vfs-ascii',
+    'vfs-many-persisted-1', 'vfs-many-persisted-2', 'vfs-many-persisted-3',
+    'vfs-many-hot-1', 'vfs-many-hot-2', 'vfs-many-hot-3', 'vfs-budget',
+    'sqlite-wide-a', 'sqlite-wide-b', 'sqlite-wide-c1', 'sqlite-wide-c2']
+    .map(id => `perf/bench/representative-workload-consumers/${id}`),
+  ...['results', 'publication'].map(id => `perf/bench/selected-cohort-generation-consumer/${id}`),
   'smoke/baseline-negative/missing', 'smoke/baseline-negative/corrupt',
   'smoke/baseline-negative/incomplete', 'smoke/baseline-negative/legacy'];
 const SERIAL_ANN_GENERATION_IDS = ['retrieval/ann/generation-publication',
