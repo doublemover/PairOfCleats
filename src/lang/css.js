@@ -6,6 +6,10 @@ import { extractDocComment, sliceSignature } from './shared.js';
 import { getNativeTreeSitterParser } from './tree-sitter/native-runtime.js';
 import { getNamedChild, getNamedChildCount } from './tree-sitter/ast.js';
 import { isTreeSitterEnabled } from './tree-sitter/options.js';
+import { createNativeProjectionWork, isNativeProjectionBudgetFailure } from './tree-sitter/chunking/projection-work.js';
+import { treeSitterState } from './tree-sitter/state.js';
+import { currentRunResourceScope } from '../shared/lifecycle/run-scope.js';
+import { throwIfAborted } from '../shared/abort.js';
 
 export const CSS_RESERVED_WORDS = new Set([
   'all',
@@ -173,52 +177,37 @@ function resolveParseTimeoutMs(options) {
 }
 
 function extractRuleName(text, node) {
-  const selectors = node.childForFieldName?.('selectors')
-    || Array.from({length:getNamedChildCount(node)},(_,i)=>getNamedChild(node,i)).find(child=>child.type === 'selectors');
-  const block = Array.from({length:getNamedChildCount(node)},(_,i)=>getNamedChild(node,i)).find(child=>child.type === 'block');
+  let selectors = node.childForFieldName?.('selectors'), block = null;
+  const count = getNamedChildCount(node);
+  for (let index = 0; index < count; index++) {
+    const child = getNamedChild(node, index);
+    if (!selectors && child?.type === 'selectors') selectors = child;
+    if (!block && child?.type === 'block') block = child;
+    if (selectors && block) break;
+  }
   const end = selectors?.endIndex ?? block?.startIndex ?? node.endIndex;
   // The grammar already resolved punctuation inside strings and selector lists.
   // Keep source spelling as identity, including quoted whitespace; signature is the preview.
   return text.slice(selectors?.startIndex ?? node.startIndex,end).replace(/;\s*$/,'').trim();
 }
 
-function gatherRuleNodes(root, budget) {
+function gatherRuleNodes(root, work) {
   const nodes = [];
-  const stack = [root];
-  let visited = 0;
-  const maxAstNodes = budget?.maxAstNodes ?? DEFAULT_MAX_AST_NODES;
-  const maxAstStack = budget?.maxAstStack ?? DEFAULT_MAX_AST_STACK;
-  const maxChunkNodes = budget?.maxChunkNodes ?? DEFAULT_MAX_CHUNK_NODES;
-
-  while (stack.length) {
-    if (stack.length > maxAstStack) {
-      return { nodes: null, reason: 'maxAstStack', visited, matched: nodes.length };
+  const stack = [work.view(root)]; work.reserve(1);
+  try {
+    while (stack.length) {
+      work.spend('visits'); const node = stack.pop(); work.release(1);
+      if (!node) continue;
+      const missing = typeof node.isMissing === 'function' ? node.isMissing() : node.isMissing;
+      if (missing) continue;
+      if (RULE_NODES.has(node.type)) { work.output(); nodes.push(node); }
+      const count = getNamedChildCount(node);
+      work.reserve(count); let reserved = count;
+      try { for (let index = count - 1; index >= 0; index--) { stack.push(getNamedChild(node, index)); reserved--; } }
+      finally { if (reserved) work.release(reserved); }
     }
-    const node = stack.pop();
-    if (!node) continue;
-
-    visited += 1;
-    if (visited > maxAstNodes) {
-      return { nodes: null, reason: 'maxAstNodes', visited, matched: nodes.length };
-    }
-
-    const missing = typeof node.isMissing === 'function' ? node.isMissing() : node.isMissing;
-    if (missing) continue;
-
-    if (RULE_NODES.has(node.type)) {
-      nodes.push(node);
-      if (nodes.length > maxChunkNodes) {
-        return { nodes: null, reason: 'maxChunkNodes', visited, matched: nodes.length };
-      }
-    }
-
-    const count = getNamedChildCount(node);
-    for (let i = count - 1; i >= 0; i -= 1) {
-      stack.push(getNamedChild(node, i));
-    }
-  }
-
-  return { nodes, reason: null, visited, matched: nodes.length };
+    return nodes;
+  } finally { if (stack.length) work.release(stack.length); }
 }
 
 export function collectCssImports(text, options = {}) {
@@ -229,7 +218,8 @@ export function collectCssImports(text, options = {}) {
 }
 
 export function buildCssChunks(text, options = {}) {
-  if (options.abortSignal?.aborted || options.signal?.aborted) return null;
+  const signal = options.abortSignal || options.signal, runScope = currentRunResourceScope();
+  throwIfAborted(signal); runScope?.assertAccepting();
   // If the caller provides tree-sitter options, respect enable/disable toggles.
   if (options?.treeSitter && !isTreeSitterEnabled(options, 'css')) {
     return buildCssHeuristicChunks(text, options);
@@ -248,6 +238,7 @@ export function buildCssChunks(text, options = {}) {
   }
 
   const traversalBudget = resolveTraversalBudget(options);
+  const work = createNativeProjectionWork(traversalBudget, { signal, assertAccepting: () => runScope?.assertAccepting() });
   let tree = null;
 
   try {
@@ -258,6 +249,7 @@ export function buildCssChunks(text, options = {}) {
       }
       tree = parser.parse(text);
     } catch (err) {
+      throwIfAborted(signal);
       const message = err?.message || String(err);
       if (/timeout/i.test(message)) {
         if (options?.log && !loggedParseTimeouts.has('css')) {
@@ -268,24 +260,10 @@ export function buildCssChunks(text, options = {}) {
       return buildCssHeuristicChunks(text, options);
     }
 
-    const rootNode = tree?.rootNode || null;
+    work.check(); const rootNode = tree?.rootNode || null;
     if (!rootNode) return buildCssHeuristicChunks(text, options);
 
-    const result = gatherRuleNodes(rootNode, traversalBudget);
-    if (!result?.nodes) {
-      const key = `css:${result?.reason || 'budget'}`;
-      if (options?.log && !loggedTraversalBudget.has(key)) {
-        options.log(
-          `Tree-sitter traversal aborted for css (${result?.reason}); `
-            + `visited=${result?.visited ?? 'n/a'} matched=${result?.matched ?? 'n/a'}. `
-            + 'Falling back to heuristic chunking.'
-        );
-        loggedTraversalBudget.add(key);
-      }
-      return buildCssHeuristicChunks(text, options);
-    }
-
-    const nodes = result.nodes;
+    const nodes = gatherRuleNodes(rootNode, work);
     if (!nodes.length) return buildCssHeuristicChunks(text, options);
 
     const lineIndex = buildLineIndex(text);
@@ -293,7 +271,7 @@ export function buildCssChunks(text, options = {}) {
     const chunks = [];
 
     for (const node of nodes) {
-      const name = extractRuleName(text, node);
+      const name = work.project(() => extractRuleName(text, node));
       if (!name) continue;
 
       const start = node.startIndex;
@@ -322,7 +300,22 @@ export function buildCssChunks(text, options = {}) {
     if (!chunks.length) return buildCssHeuristicChunks(text, options);
     chunks.sort((a, b) => a.start - b.start);
     return chunks;
+  } catch (error) {
+    if (!isNativeProjectionBudgetFailure(error)) throw error;
+    const key = `css:${error.reason}`;
+    if (options?.log && !loggedTraversalBudget.has(key)) {
+      options.log(`Tree-sitter projection aborted for css (${error.reason}); complete declaration evidence unavailable.`);
+      loggedTraversalBudget.add(key);
+    }
+    // Do not start an independent full-source lexical scan after exhausting
+    // canonical projection. Preserve addressable source with honest coverage.
+    return [{ start: 0, end: text.length, name: 'file', kind: 'File', meta: { wholeFile: true,
+      syntaxCalls: Object.freeze([]), syntaxCallCoverage: 'partial-projection-budget:' + error.reason } }];
   } finally {
+    for (const [key, value] of Object.entries(work.snapshot())) if (typeof value === 'number' && key !== 'frontier') {
+      const metric = 'projection' + key[0].toUpperCase() + key.slice(1);
+      treeSitterState.metrics[metric] = (treeSitterState.metrics[metric] || 0) + value;
+    }
     // Tree objects can retain parser-side allocations and should be explicitly released.
     try {
       if (tree && typeof tree.delete === 'function') tree.delete();

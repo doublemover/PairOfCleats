@@ -10,6 +10,10 @@ import { getNamedChild, getNamedChildCount } from './tree-sitter/ast.js';
 import { getNativeTreeSitterParser } from './tree-sitter/native-runtime.js';
 import { isTreeSitterEnabled } from './tree-sitter/options.js';
 import { attachSyntaxCallFacts, syntaxRelationsForChunks } from './tree-sitter/call-facts.js';
+import { createNativeProjectionWork, isNativeProjectionBudgetFailure } from './tree-sitter/chunking/projection-work.js';
+import { treeSitterState } from './tree-sitter/state.js';
+import { currentRunResourceScope } from '../shared/lifecycle/run-scope.js';
+import { throwIfAborted } from '../shared/abort.js';
 
 /**
  * Lua language chunking and relations.
@@ -63,6 +67,22 @@ const LUA_TREE_SITTER_NODE_TYPES = new Set([
 ]);
 
 const LUA_TREE_SITTER_LOGGED = new Set();
+// Retain the historical 200000-node Lua default. Stack and output ceilings
+// derive from that admitted extent; explicit global/per-language limits win.
+const resolveLuaTraversalBudget = options => {
+  const config = options?.treeSitter || {}, lua = config.byLanguage?.lua || {};
+  return Object.fromEntries(['maxAstNodes', 'maxAstStack', 'maxChunkNodes'].map(key => {
+    const value = lua[key] ?? config[key] ?? 200000;
+    return [key, Number.isFinite(value) && value > 0 ? Math.floor(value) : 200000];
+  }));
+};
+const findLuaNamedChild = (node, type) => {
+  const count = getNamedChildCount(node);
+  for (let index = 0; index < count; index++) {
+    const child = getNamedChild(node, index); if (child?.type === type) return child;
+  }
+  return null;
+};
 
 function stripLuaComments(text) {
   return text.replace(/--\[\[[\s\S]*?\]\]/g, ' ').replace(/--.*$/gm, ' ');
@@ -210,9 +230,8 @@ const extractLuaTreeSitterName = (node, text) => {
   if (!node || typeof text !== 'string') return null;
   if (node.type === 'function_definition') return null;
   if (node.type === 'assignment_statement') {
-    const children = Array.from({length:getNamedChildCount(node)},(_,i)=>getNamedChild(node,i));
-    const variables = children.find(child=>child.type === 'variable_list');
-    const values = children.find(child=>child.type === 'expression_list');
+    const variables = findLuaNamedChild(node, 'variable_list');
+    const values = findLuaNamedChild(node, 'expression_list');
     if (!variables || !values || getNamedChildCount(variables) !== 1 || getNamedChildCount(values) !== 1
       || getNamedChild(values,0)?.type !== 'function_definition') return null;
     const name = text.slice(variables.startIndex,variables.endIndex).trim();
@@ -234,26 +253,22 @@ const extractLuaTreeSitterName = (node, text) => {
   return null;
 };
 
-const gatherLuaTreeSitterNodes = (root) => {
+const gatherLuaTreeSitterNodes = (root, work) => {
   if (!root) return null;
-  const stack = [root];
+  const stack = [work.view(root)]; work.reserve(1);
   const nodes = [];
-  let visited = 0;
-  const maxNodes = 200_000;
-  while (stack.length) {
-    const node = stack.pop();
-    if (!node) continue;
-    visited += 1;
-    if (visited > maxNodes) return null;
-    if (LUA_TREE_SITTER_NODE_TYPES.has(node.type)) {
-      nodes.push(node);
+  try {
+    while (stack.length) {
+      work.spend('visits'); const node = stack.pop(); work.release(1);
+      if (!node) continue;
+      if (LUA_TREE_SITTER_NODE_TYPES.has(node.type)) nodes.push(node);
+      const count = getNamedChildCount(node);
+      work.reserve(count); let reserved = count;
+      try { for (let index = count - 1; index >= 0; index--) { stack.push(getNamedChild(node, index)); reserved--; } }
+      finally { if (reserved) work.release(reserved); }
     }
-    const childCount = getNamedChildCount(node);
-    for (let i = childCount - 1; i >= 0; i -= 1) {
-      stack.push(getNamedChild(node, i));
-    }
-  }
-  return nodes;
+    return nodes;
+  } finally { if (stack.length) work.release(stack.length); }
 };
 
 const buildLuaTreeSitterChunks = (text, options = {}) => {
@@ -270,7 +285,10 @@ const buildLuaTreeSitterChunks = (text, options = {}) => {
     return null;
   }
 
-  let tree = null;
+  const budget = resolveLuaTraversalBudget(options), signal = options.abortSignal || options.signal;
+  const runScope = currentRunResourceScope();
+  const work = createNativeProjectionWork(budget, { signal, assertAccepting: () => runScope?.assertAccepting() });
+  let tree = null, callWork = null;
   try {
     try {
       const parseTimeoutMs = resolveLuaParseTimeoutMs(options);
@@ -279,6 +297,7 @@ const buildLuaTreeSitterChunks = (text, options = {}) => {
       }
       tree = parser.parse(text);
     } catch (err) {
+      throwIfAborted(signal);
       const message = err?.message || String(err);
       if (/timeout/i.test(message)) {
         logLuaTreeSitterOnce(
@@ -290,25 +309,26 @@ const buildLuaTreeSitterChunks = (text, options = {}) => {
       return null;
     }
 
-    const rootNode = tree?.rootNode || null;
-    const nodes = gatherLuaTreeSitterNodes(rootNode);
+    work.check(); const rootNode = tree?.rootNode || null;
+    const nodes = gatherLuaTreeSitterNodes(rootNode, work);
     if (!Array.isArray(nodes) || !nodes.length) return null;
 
     const lineIndex = buildLineIndex(text);
     const lines = text.split('\n');
     const chunks = [];
     const declarations = new Map();
-    for (const node of nodes) {
-      const rangeOwner = node.type === 'assignment_statement' && node.parent?.type === 'variable_declaration' ? node.parent : node;
+    for (const node of nodes) work.project(() => {
+      const enclosing = node.type === 'assignment_statement' ? node.parent : null;
+      const rangeOwner = enclosing?.type === 'variable_declaration' ? enclosing : node;
       const start = Number(rangeOwner?.startIndex);
       const end = Number(node?.endIndex);
-      if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) continue;
+      if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return;
       const name = extractLuaTreeSitterName(node, text);
-      if (!name) continue;
+      if (!name) return;
       const kind = name.includes('.') ? 'MethodDeclaration' : 'FunctionDeclaration';
       let callable = node;
       if (node.type === 'assignment_statement') {
-        const values = Array.from({length:getNamedChildCount(node)},(_,i)=>getNamedChild(node,i)).find(child=>child.type === 'expression_list');
+        const values = findLuaNamedChild(node, 'expression_list');
         callable = getNamedChild(values,0);
       }
       const parameters = callable.childForFieldName?.('parameters');
@@ -332,9 +352,9 @@ const buildLuaTreeSitterChunks = (text, options = {}) => {
           ...(body ? {bodyStart:body.startIndex,bodyEnd:body.endIndex} : {})
         }
       };
-      chunks.push(chunk);
+      work.output(); chunks.push(chunk);
       declarations.set(`${callable.startIndex}:${callable.endIndex}`,chunk);
-    }
+    });
     if (!chunks.length) return null;
     const unownedFunctions = nodes.filter(node => node.type === 'function_definition'
       && !declarations.has(`${node.startIndex}:${node.endIndex}`)).length;
@@ -342,9 +362,23 @@ const buildLuaTreeSitterChunks = (text, options = {}) => {
       state:unownedFunctions ? 'partial' : 'complete-supported-declaration-roles',
       reason:unownedFunctions ? 'anonymous-or-ambiguous-function-owner' : null,unownedFunctions
     };
-    attachSyntaxCallFacts(rootNode,text,chunks,{maxNodes:200000,declarations});
+    callWork = attachSyntaxCallFacts(work.view(rootNode),text,chunks,{maxNodes:budget.maxAstNodes,maxStack:budget.maxAstStack,declarations});
+    if (callWork.truncated) work.fail('callTraversalBudget');
     return normalizeDeclarationList(chunks);
+  } catch (error) {
+    if (!isNativeProjectionBudgetFailure(error)) throw error;
+    logLuaTreeSitterOnce(options, 'lua:projection-' + error.reason,
+      `Tree-sitter projection aborted for lua (${error.reason}); complete declaration/call evidence unavailable.`);
+    return [{ start: 0, end: text.length, name: 'file', kind: 'File', meta: { wholeFile: true,
+      luaDeclarationCoverage: { state: 'partial', reason: 'projection-budget:' + error.reason },
+      syntaxCalls: Object.freeze([]), syntaxCallCoverage: 'partial-projection-budget:' + error.reason } }];
   } finally {
+    const observation = work.snapshot();
+    for (const [key, value] of Object.entries(observation)) if (typeof value === 'number' && key !== 'frontier') {
+      const metric = 'projection' + key[0].toUpperCase() + key.slice(1);
+      treeSitterState.metrics[metric] = (treeSitterState.metrics[metric] || 0)
+        + (key === 'maxFrontier' ? Math.max(value, callWork?.maxFrontier || 0) : value);
+    }
     try {
       if (tree && typeof tree.delete === 'function') tree.delete();
     } catch {}
@@ -380,6 +414,7 @@ export function collectLuaImports(text) {
  * @returns {Array<{start:number,end:number,name:string,kind:string,meta:Object}>|null}
  */
 export function buildLuaChunks(text, options = {}) {
+  throwIfAborted(options.abortSignal || options.signal); currentRunResourceScope()?.assertAccepting();
   const treeSitterChunks = buildLuaTreeSitterChunks(text, options);
   if (Array.isArray(treeSitterChunks) && treeSitterChunks.length) return treeSitterChunks;
   return buildLuaLexicalChunks(text);

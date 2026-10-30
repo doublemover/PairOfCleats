@@ -15,7 +15,7 @@ export const SEMANTIC_ANALYSIS_VERSIONS = Object.freeze({
   lexicalAnalyzer: '5', importResolution: '29', pieceAssembly: '5',
   recordsProducer: '13', ignoreRules: '5', documentExtraction: '7', discoverySelection: '9',
   repoMapProducer: '2', graphRelations: '3',
-  sourceChunking: '53', typeNormalization: '15', vfsRouting: '8', complexityAnalysis: '3', lintProjection: '3',
+  sourceChunking: '54', typeNormalization: '15', vfsRouting: '8', complexityAnalysis: '3', lintProjection: '3',
   riskPropagation: '7', callSiteIdentity: '3', runtimeClaims: '2',
   compilerBindings: '30', lspBindings: '66', cfgFlow: '32', callFlow: '53',
   valueSlice: '10', storageFlow: '2', workerFlow: '11', boundaryFlow: '12', wasmStructure: '1', wasmFlow: '7', nativeFlow: '3'

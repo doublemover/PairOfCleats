@@ -42,7 +42,7 @@ for(const native of [false,true]) for(const useQueries of [false,true]) {
     }
   }
 }
-assert.equal(SEMANTIC_ANALYSIS_VERSIONS.sourceChunking,'53');
-for(const old of ['50','51','52'])assert.notEqual(semanticAnalysisPolicyIdentity({enrichment:{},storage:{}}),
+assert.equal(SEMANTIC_ANALYSIS_VERSIONS.sourceChunking,'54');
+for(const old of ['50','51','52','53'])assert.notEqual(semanticAnalysisPolicyIdentity({enrichment:{},storage:{}}),
   semanticAnalysisPolicyIdentity({enrichment:{},storage:{}},{...SEMANTIC_ANALYSIS_VERSIONS,sourceChunking:old}));
 console.log('XML native query/traversal and lexical document envelopes preserve inert prolog, mixed content and actual searchable payloads.');
