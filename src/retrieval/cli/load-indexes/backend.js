@@ -9,6 +9,7 @@ import { loadIndexCached } from '../index-loader.js';
 import { EMPTY_INDEX } from '../filter-index.js';
 import { filterRepresentationIdentity } from '../../pipeline/filter-enumeration.js';
 import { readFilterMatchPage } from '../../pipeline/filter-enumeration-cache.js';
+import { observeStorageResource } from '../../../shared/storage/failure-observation.js';
 
 export function createIndexBackendLoader({
   filterOnly = false,
@@ -276,6 +277,7 @@ export function createIndexBackendLoader({
               }
             }
           } catch (error) {
+            observeStorageResource(error, { phase: 'sqlite-filter-page-fallback' }).requireSettled();
             signal?.throwIfAborted();
             if (!allowSqliteFallback) throw error;
             return loadCachedModeIndex(mode, dir, modeLoadOptions);
@@ -289,7 +291,8 @@ export function createIndexBackendLoader({
         if (allowSqliteFallback) {
           try {
             return loadSqlite();
-          } catch {
+          } catch (error) {
+            observeStorageResource(error, { phase: 'sqlite-index-fallback' }).requireSettled();
             return loadCachedModeIndex(mode, dir, modeLoadOptions);
           }
         }

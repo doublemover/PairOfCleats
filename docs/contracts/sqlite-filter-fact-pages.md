@@ -26,3 +26,15 @@ evaluation can still scan fact rows, and existing sparse ordinal arrays still
 reserve their address space. This change claims reduced metadata hydration,
 not measured latency or constant memory. Source and authored regressions are
 UNVALIDATED until the deferred Windows qualification batch runs.
+
+## Optional continuation-cache resource settlement
+
+Authentication-key and payload readers borrow the existing contained descriptor
+owner through admission, bounded reads, post-read identity checks and close.
+Missing, stale, invalid-MAC or corrupt cache bytes remain optional misses after
+all original resources settle. Unconfirmed verification/read/close work propagates
+its original session and failure observations before metadata scanning, SQLite
+fact-page loading, artifact fallback, key replacement or cache publication.
+Cancellation remains independently observable. Recovery closes the original
+resource only; it does not repeat reads or search. The authenticated format and
+physical byte/entry caps are unchanged.
