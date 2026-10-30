@@ -43,6 +43,11 @@ try {
   await assert.rejects(fs.stat(report.fixtureRoot), { code: 'ENOENT' });
   await assert.rejects(runMapSerializationExperiment({ model: { ...model, summary: { counts: { files: 99, members: 2, edges: 1 } } }, outputParent: dir, runs: 1 }), /summary differs/u);
   await assert.rejects(runMapSerializationExperiment({ model, outputParent: dir, runs: 1.5 }), RangeError);
+  await assert.rejects(runMapSerializationExperiment({ model, outputParent: dir, runs: 1 }, { firstRun: -1 }), RangeError);
+  const reversed = await runMapSerializationExperiment({ model, outputParent: dir, runs: 1 }, { firstRun: 1 });
+  assert.deepEqual(reversed.order, [{ run: 2, arm: 'streaming' }, { run: 2, arm: 'baseline' }]);
+  assert.equal(reversed.firstRun, 1); assert.equal(reversed.fixtureCleanup, 'completed');
+  for (const arm of ['baseline', 'streaming']) assert.equal(reversed[arm].samples[0].gcObservation.state, 'observed');
   const originalFailure = Object.assign(new Error('original map encoding failure'), { code: 'ERR_FIXTURE_MAP_ENCODING' });
   const contains = (error, target, seen = new Set()) => {
     if (error === target) return true;

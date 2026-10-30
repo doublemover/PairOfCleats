@@ -13,6 +13,8 @@ import { buildIndexSignature } from '../../../src/retrieval/index-cache.js';
 import { isDirectExecution } from '../../../src/shared/direct-execution.js';
 import { stableStringify } from '../../../src/shared/stable-json.js';
 import { describeMapWorkload, observeMapProcessMemory, MAP_BENCH_KIND, MAP_BENCH_MARKER, MAP_BENCH_INPUT, MAP_BENCH_MAX_BYTES } from './observation.js';
+import { createMapGcObservation } from './gc-observation.js';
+import { addStorageFailureContext } from '../../../src/shared/storage/operation-error.js';
 
 export const writeWholeMapJson = (filePath, model) => withMapJsonPublication(filePath,
   async stream => { await writeChunk(stream, JSON.stringify(model)); });
@@ -37,21 +39,36 @@ export const runMapBenchWorker = async request => {
       || marker.role !== 'writer-sample' || marker.arm !== arm || marker.owner !== parent.owner
       || typeof parent.owner !== 'string' || !/^[a-f0-9-]{36}$/u.test(parent.owner)
       || !Number.isSafeInteger(parent.inputBytes) || parent.inputBytes < 1 || parent.inputBytes > MAP_BENCH_MAX_BYTES) throw new Error('Map worker fixture/input ownership is unconfirmed.');
-    const inputAt = performance.now(), model = await readPreparedModel(parentRoot, parent);
-    const inputAdmissionMs = performance.now() - inputAt, workload = describeMapWorkload(model, parent.inputBytes);
-    const write = arm === 'baseline' ? writeWholeMapJson : writeStreaming;
-    const before = process.memoryUsage(), warmupAt = performance.now();
-    await write(path.join(rootDir, 'warmup.json'), model);
-    const warmupMs = performance.now() - warmupAt, measuredAt = performance.now(), outputPath = path.join(rootDir, 'measured.json');
-    await write(outputPath, model);
-    const elapsedMs = performance.now() - measuredAt, after = process.memoryUsage();
-    const memory = observeMapProcessMemory({ before, after, through: 'measured-atomic-publication-completion;before-consumer-parity' });
-    const output = await readVerifiedContainedFile(rootDir, outputPath, { maxBytes: MAP_BENCH_MAX_BYTES });
-    if (!isDeepStrictEqual(JSON.parse(output.buffer.toString('utf8')), model)) throw new Error('Map serialization changed parsed content.');
-    return { schemaVersion: 2, operation: 'serialize', state: 'qualified-content-and-publication', arm, pid: process.pid,
-      inputHash: parent.inputHash, inputAdmissionMs, warmupMs, elapsedMs, completedOperations: 1, warmupOperations: 1,
-      publication: 'shared-map-atomic-stream-owner', outputBytes: output.buffer.byteLength, outputSha256: output.hash,
-      consumerParity: 'parsed-content-identical', memory, workload };
+    const gc = createMapGcObservation();
+    let failed = false, primary;
+    try {
+      gc.mark('input-admission:start');
+      const inputAt = performance.now(), model = await readPreparedModel(parentRoot, parent), inputEnd = performance.now();
+      const inputAdmissionMs = inputEnd - inputAt, workload = describeMapWorkload(model, parent.inputBytes);
+      gc.mark('input-admission:end');
+      const write = arm === 'baseline' ? writeWholeMapJson : writeStreaming;
+      gc.mark('warmup:start');
+      const before = process.memoryUsage(), warmupAt = performance.now();
+      await write(path.join(rootDir, 'warmup.json'), model);
+      const warmupEnd = performance.now(), warmupMs = warmupEnd - warmupAt;
+      gc.mark('warmup:end'); gc.mark('measured:start');
+      const measuredAt = performance.now(), outputPath = path.join(rootDir, 'measured.json');
+      await write(outputPath, model);
+      const measuredEnd = performance.now(), elapsedMs = measuredEnd - measuredAt, after = process.memoryUsage();
+      const memory = observeMapProcessMemory({ before, after, through: 'measured-atomic-publication-completion;before-consumer-parity' });
+      gc.mark('measured:end');
+      const gcObservation = await gc.complete({ inputAdmission: [inputAt, inputEnd], warmup: [warmupAt, warmupEnd], measured: [measuredAt, measuredEnd] });
+      const output = await readVerifiedContainedFile(rootDir, outputPath, { maxBytes: MAP_BENCH_MAX_BYTES });
+      if (!isDeepStrictEqual(JSON.parse(output.buffer.toString('utf8')), model)) throw new Error('Map serialization changed parsed content.');
+      return { schemaVersion: 2, operation: 'serialize', state: 'qualified-content-and-publication', arm, pid: process.pid,
+        inputHash: parent.inputHash, inputAdmissionMs, warmupMs, elapsedMs, completedOperations: 1, warmupOperations: 1,
+        publication: 'shared-map-atomic-stream-owner', outputBytes: output.buffer.byteLength, outputSha256: output.hash,
+        consumerParity: 'parsed-content-identical', memory, gcObservation, workload };
+    } catch (error) { failed = true; primary = error; throw error; }
+    finally {
+      try { gc.disconnect(); }
+      catch (cleanup) { if (failed) throw addStorageFailureContext(primary, {}, cleanup, { secondaryPresent: true }); throw cleanup; }
+    }
   }
   if (request?.operation === 'build') {
     const { repoRoot, indexDir, buildOptions } = request;

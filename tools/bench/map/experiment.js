@@ -51,8 +51,9 @@ const prepareMapInput = async (root, model) => {
     inputBytes: input.buffer.byteLength, preparationMs: performance.now() - started };
 };
 
-export const runMapSerializationExperiment = async ({ model, outputParent = null, runs, source = null }) => {
+export const runMapSerializationExperiment = async ({ model, outputParent = null, runs, source = null }, { firstRun = 0 } = {}) => {
   runs = resolveRuns(runs);
+  if (!Number.isSafeInteger(firstRun) || firstRun < 0 || !Number.isSafeInteger(firstRun + runs)) throw new RangeError('Invalid private map repetition coordinate.');
   const workloadBeforeSerialization = describeMapWorkload(model);
   const base = outputParent ? path.resolve(outputParent) : resolveDevelopmentArtifactPath(
     fileURLToPath(new URL('../../../', import.meta.url)), 'bench-cache', 'map');
@@ -66,18 +67,19 @@ export const runMapSerializationExperiment = async ({ model, outputParent = null
     await fs.writeFile(path.join(root, MAP_BENCH_MARKER), JSON.stringify(marker));
     const samples = { baseline: [], streaming: [] }, order = [];
     for (let index = 0; index < runs; index++) {
-      for (const arm of index % 2 ? ['streaming', 'baseline'] : ['baseline', 'streaming']) {
-        const rootDir = path.join(root, `s${index + 1}-${arm}`); ensureToolingCacheDir(rootDir);
+      const run = firstRun + index;
+      for (const arm of run % 2 ? ['streaming', 'baseline'] : ['baseline', 'streaming']) {
+        const rootDir = path.join(root, `s${run + 1}-${arm}`); ensureToolingCacheDir(rootDir);
         await fs.writeFile(path.join(rootDir, MAP_BENCH_MARKER), JSON.stringify({ kind: MAP_BENCH_KIND, owner, role: 'writer-sample', arm }), { flag: 'wx' });
         const sample = await runMapWorker({ operation: 'serialize', rootDir, arm });
         if (sample.state !== 'qualified-content-and-publication' || sample.arm !== arm || sample.inputHash !== inputHash
           || sample.consumerParity !== 'parsed-content-identical' || sample.publication !== 'shared-map-atomic-stream-owner'
           || stableStringify(sample.workload) !== stableStringify(workload)) throw new Error('Map sample changed admitted workload/publication.');
-        samples[arm].push(sample); order.push({ run: index + 1, arm });
+        samples[arm].push(sample); order.push({ run: run + 1, arm });
       }
     }
     report = { schemaVersion: 2, kind: 'map-serialization-benchmark', generatedAt: new Date().toISOString(),
-      scope: 'streaming-serialization-of-an-already-materialized-map', source, runs, workload, workloadBeforeSerialization,
+      scope: 'streaming-serialization-of-an-already-materialized-map', source, runs, firstRun, workload, workloadBeforeSerialization,
       inputIdentity: { algorithm: 'sha256', hash: inputHash, bytes: inputBytes }, preparationMs,
       preflight: { state: 'parsed-content-identical', publication: 'shared-map-atomic-stream-owner' },
       processPolicy: 'fresh-serial-node-child-per-arm-per-sample', orderPolicy: 'alternating-arms', osCachePolicy: 'uncontrolled-filesystem-cache',
