@@ -30,6 +30,7 @@ for (const recipe of recipes) {
   for (const row of recipe.artifacts) Object.freeze(row);
   Object.freeze(recipe.artifacts);
   Object.assign(recipe, { runtime: '4.3.2', comparison: 'strict matching input/batch/padding geometry; cross-shape dynamic-quantization drift is descriptive',
+    nativeRuntime: '1.30.0',
     limitation: 'Same verified ONNX export and native runtime, independent scalar author arithmetic; not a PyTorch/export-conversion reference or representative quality claim.' });
   Object.freeze(recipe);
 }
@@ -42,6 +43,7 @@ export const assertDenseReferenceManifest = (manifest, recipe = resolveDenseRefe
   assert.equal(manifest.normalize, true); assert.equal(manifest.tolerance, 1e-5);
   assert.equal(manifest.modelProfile ?? null, null); assert.equal(manifest.onnxConfig ?? null, null);
   assert.equal(manifest.runtime.transformers, recipe.runtime);
+  assert.deepEqual(manifest.providerRuntime, { name: 'onnxruntime-node', version: recipe.nativeRuntime });
   const weights = manifest.artifacts.filter(row => row.path.startsWith('onnx/'));
   assert.deepEqual(weights.toSorted((a, b) => a.path < b.path ? -1 : a.path > b.path ? 1 : 0), recipe.artifacts);
   for (const file of ['config.json', 'tokenizer.json', 'tokenizer_config.json']) {

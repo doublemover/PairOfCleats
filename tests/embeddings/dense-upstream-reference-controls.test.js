@@ -39,12 +39,14 @@ for (const value of [NaN, Infinity]) {
 assert.throws(() => scalarDenseReference({ hidden: { ...hidden, data: new Float32Array(hidden.data.length) }, mask, count: 2, recipe: e5 }));
 const manifestFor = recipe => ({ provider: 'xenova', modelId: recipe.modelId, exportRevision: recipe.revision,
   dimensions: 1024, normalize: true, tolerance: 1e-5, modelProfile: null, onnxConfig: null, modelsDir: 'metadata-only-no-native-model',
-  runtime: { transformers: '4.3.2' }, artifacts: [...recipe.artifacts, ...['config.json', 'tokenizer.json', 'tokenizer_config.json']
+  runtime: { transformers: '4.3.2' }, providerRuntime: { name: 'onnxruntime-node', version: '1.30.0' },
+  artifacts: [...recipe.artifacts, ...['config.json', 'tokenizer.json', 'tokenizer_config.json']
     .map(path => ({ path, bytes: 2, sha256: 'a'.repeat(64) }))] });
 for (const recipe of [m3, e5]) {
   const manifest = manifestFor(recipe); assertDenseReferenceManifest(manifest);
   for (const overrides of [{ exportRevision: 'f'.repeat(40) }, { tolerance: 1e-4 }, { normalize: false },
-    { artifacts: manifest.artifacts.filter(row => !row.path.endsWith('.onnx')) }, { modelProfile: {} }]) {
+    { artifacts: manifest.artifacts.filter(row => !row.path.endsWith('.onnx')) }, { modelProfile: {} },
+    { providerRuntime: { name: 'onnxruntime-node', version: '1.31.1' } }]) {
     assert.throws(() => assertDenseReferenceManifest({ ...manifest, ...overrides }));
   }
   const originalConfig = Object.freeze({ model_type: 'xlm-roberta', hidden_size: 1024 });

@@ -1972,3 +1972,4 @@ tooling/architecture/caps-verdict-cli-consumers/zero-details
 tooling/architecture/caps-verdict-cli-consumers/zero-work
 tooling/architecture/caps-verdict-cli-consumers/unknown-upstream
 embeddings/dense-upstream-reference-controls
+embeddings/provider-runtime-provenance

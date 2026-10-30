@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 1806,
+    "hero": 1807,
     "matrix": 109,
     "meta": 55,
     "soak": 1,
@@ -11839,6 +11839,12 @@
     {
       "id": "embeddings/dense-upstream-reference-controls",
       "order": 1971,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "embeddings/provider-runtime-provenance",
+      "order": 1972,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

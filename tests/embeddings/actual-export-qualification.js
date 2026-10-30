@@ -15,6 +15,7 @@ import { resolveDenseReferenceRecipe, assertDenseReferenceManifest, createDenseU
 import { loadDenseJudgedCorpus } from './helpers/dense-judged-corpus.js';
 import { runDenseJudgedCohort } from './helpers/dense-judged-cohort.js';
 import { captureSweepSource } from '../../tools/bench/ab-sweep-source.js';
+import { captureEmbeddingProviderRuntime } from './helpers/provider-runtime-provenance.js';
 
 /** Explicit offline/native capsule, intentionally outside ordinary test discovery.
  * Missing export/tokenizer/corpus/reference is a prerequisite failure, never a
@@ -128,8 +129,16 @@ try {
     receipt.runtime[name] = metadata.version;
   }
   assert.deepEqual(receipt.runtime, manifest.runtime, 'Freeze actual runtime/binding versions before qualification.');
+  receipt.runtimeScope = 'Legacy runtime fields describe root installed package versions. Actual provider-resolved native provenance is recorded separately in providerRuntime.';
+  receipt.providerRuntime = await phase('verify-provider-native-provenance', () => captureEmbeddingProviderRuntime({
+    provider: manifest.provider, signal: controller.signal }));
+  if (manifest.provider === 'xenova') assert.equal(receipt.providerRuntime.binding.moduleCacheLoaded, true,
+    'The actual imported Transformers runtime must have loaded its originally resolved addon.');
+  if (denseRecipe || manifest.providerRuntime) assert.deepEqual(manifest.providerRuntime,
+    { name: receipt.providerRuntime.name, version: receipt.providerRuntime.version }, 'Freeze the provider-resolved native package, not merely the root installation.');
   for (const file of ['tests/embeddings/actual-export-qualification.js', 'tests/embeddings/run-actual-export-qualification.js',
     'tests/embeddings/helpers/minilm-upstream-reference.js', 'tests/embeddings/helpers/qualification-phase.js', 'tools/bench/qualification-capsule.js',
+    'tests/embeddings/helpers/provider-runtime-provenance.js',
     ...(denseRecipe ? ['tests/embeddings/helpers/dense-upstream-reference.js', 'tests/embeddings/helpers/dense-judged-corpus.js',
       'tests/embeddings/helpers/dense-judged-cohort.js', 'tools/history/eg2-qualify-quality.js',
       'src/shared/embedding-acquisition-plan.js', 'src/shared/embedding-acquisition-receipt.js',
@@ -174,7 +183,7 @@ try {
     receipt.exportSelection = { modelId: denseRecipe.modelId, revision: denseRecipe.revision, precision: denseRecipe.dtype,
       rawOutput: 'last_hidden_state', pooling: denseRecipe.pooling, normalize: true, graphIdentity: denseRecipe.artifacts };
   }
-  if (miniLm) {
+  if (miniLm || manifest.corpusSource?.path === 'tests/fixtures/embeddings/minilm-provider-corpus.json') {
     assert.equal(manifest.corpusSource?.path, 'tests/fixtures/embeddings/minilm-provider-corpus.json');
     assert.match(manifest.corpusSource.sha256, /^[a-f0-9]{64}$/);
     const corpus = await readVerifiedContainedFile(process.cwd(), path.resolve(manifest.corpusSource.path),
@@ -194,6 +203,9 @@ try {
     assert.equal(numericalReference.cohort, options.cohort);
     assert.equal(numericalReference.manifest.sha256, receipt.manifest.sha256);
     assert.deepEqual(numericalReference.runtime, receipt.runtime); assert.deepEqual(numericalReference.modelArtifact, receipt.modelArtifact);
+    if (denseRecipe || numericalReference.providerRuntime) assert.deepEqual(numericalReference.providerRuntime, receipt.providerRuntime,
+      'Raw and product consumers must resolve and load the exact same native addon/package bytes.');
+    else receipt.legacyReferenceRuntimeLimit = 'Historical MiniLM reference omitted provider-resolved native provenance;root package equality alone does not establish that missing evidence.';
     assert.deepEqual(numericalReference.corpus, receipt.corpus);
     for (const source of receipt.sourceOwners.filter(row => row.path.includes('/minilm-upstream-reference.js')
       || row.path.includes('/dense-upstream-reference.js') || row.path.includes('/dense-judged-') || row.path.startsWith('node_modules/'))) {
@@ -340,6 +352,14 @@ try {
     receipt.vectors = baseline.map(vector => [...vector]); receipt.execution = adapter.executionInfo();
   }
   await phase('verify-loaded-original-closure', () => lease.verifyLoaded());
+  if (manifest.provider === 'onnx') {
+    const loadedRuntime = await phase('verify-loaded-provider-native-provenance', () => captureEmbeddingProviderRuntime({
+      provider: manifest.provider, signal: controller.signal }));
+    assert.equal(loadedRuntime.binding.moduleCacheLoaded, true, 'Actual ONNX inference must load its originally resolved addon.');
+    assert.deepEqual(loadedRuntime, { ...receipt.providerRuntime,
+      binding: { ...receipt.providerRuntime.binding, moduleCacheLoaded: true } }, 'Native package/addon bytes changed during direct provider loading.');
+    receipt.providerRuntime = loadedRuntime;
+  }
   if (denseRecipe) assert.deepEqual(captureSweepSource(process.cwd()), receipt.source, 'Source changed during qualification.');
   if (options.reference) {
     const selected = path.resolve(options.reference);
