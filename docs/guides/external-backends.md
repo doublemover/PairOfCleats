@@ -49,9 +49,11 @@ Tantivy rebuilds publish an immutable payload with a schema-2 source receipt.
 An old receipt requires rebuilding against the selected source generation. The
 reader adapter requires synchronous open/search and a handle or module close
 whose completion confirms disposal; unsupported lifetime APIs fail explicitly.
-The optional module is absent from the current installation and lockfile. The
-new publication/lifetime implementation and its protocol regressions await
-execution, and supported native rebuild/readback remains separately unqualified.
+The optional module is absent from the current installation and lockfile.
+Twenty-one deterministic adapter controls pass for source-pinned publication,
+failed/cancelled/concurrent builds, activation and original reader-close
+ownership. Supported native rebuild/readback remains separately unqualified;
+these protocol controls do not establish an installed native backend.
 
 ## Vectors and ANN
 
