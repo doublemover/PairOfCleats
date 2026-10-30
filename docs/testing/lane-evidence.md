@@ -1,6 +1,6 @@
 # Lane Evidence
 
-Generated: 2026-10-30T09:13:22.010Z
+Generated: 2026-10-30T10:29:38.789Z
 
 ## How To Use
 
@@ -13,7 +13,7 @@ Generated: 2026-10-30T09:13:22.010Z
 ## Lane Summary
 
 - `gate`: 41 tests, 0 with timings, 0 ms known duration, p50=n/a ms, p95=n/a ms, target 15s
-- `ci-lite`: 1946 tests, 49 with timings, 27090 ms known duration, p50=190 ms, p95=2140 ms, target 15s
+- `ci-lite`: 1971 tests, 49 with timings, 27090 ms known duration, p50=190 ms, p95=2140 ms, target 15s
 - `ci`: 228 tests, 22 with timings, 101770 ms known duration, p50=5020 ms, p95=5030 ms, target 60s
 - `ci-long`: 23 tests, 3 with timings, 15060 ms known duration, p50=5020 ms, p95=5030 ms, target 180s
 - `usr-full-conformance`: 11 tests, 0 with timings, 0 ms known duration, p50=n/a ms, p95=n/a ms, target 60s
@@ -42,7 +42,7 @@ Generated: 2026-10-30T09:13:22.010Z
 
 ## Setup Hotspots
 
-- `index-build-heavy`: 640 tests, 70250 ms known duration
+- `index-build-heavy`: 654 tests, 70250 ms known duration
   Index construction, replay, and build-heavy setup overlap.
 - `sqlite-heavy`: 116 tests, 25860 ms known duration
   SQLite maintenance, fail-closed, and migration tests often rebuild the same sample fixture.

@@ -9,9 +9,9 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 1783,
+    "hero": 1806,
     "matrix": 109,
-    "meta": 53,
+    "meta": 55,
     "soak": 1,
     "heavy-runtime": 0
   },
@@ -11689,6 +11689,156 @@
     {
       "id": "tooling/index-stats/additional-family-producers/columnar",
       "order": 1946,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "embeddings/instruct-e5-acquisition",
+      "order": 1947,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/artifacts/checksum-native-metadata-consumers",
+      "order": 1948,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/semantic/drain-falsey-failure-ownership/builder-null",
+      "order": 1949,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/semantic/drain-falsey-failure-ownership/builder-undefined",
+      "order": 1950,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/semantic/drain-falsey-failure-ownership/builder-false",
+      "order": 1951,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/semantic/drain-falsey-failure-ownership/builder-zero",
+      "order": 1952,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/semantic/drain-falsey-failure-ownership/builder-empty",
+      "order": 1953,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/semantic/drain-falsey-failure-ownership/builder-nan",
+      "order": 1954,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/semantic/drain-falsey-failure-ownership/release-null",
+      "order": 1955,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/semantic/drain-falsey-failure-ownership/release-undefined",
+      "order": 1956,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/semantic/drain-falsey-failure-ownership/release-false",
+      "order": 1957,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/semantic/drain-falsey-failure-ownership/release-zero",
+      "order": 1958,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/semantic/drain-falsey-failure-ownership/release-empty",
+      "order": 1959,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/semantic/drain-falsey-failure-ownership/release-nan",
+      "order": 1960,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "runner/publication-diagnostic-ownership/boundary",
+      "order": 1961,
+      "suiteCategory": "meta",
+      "suiteCategoryReason": "meta-cohort-prefix"
+    },
+    {
+      "id": "runner/publication-diagnostic-ownership/io",
+      "order": 1962,
+      "suiteCategory": "meta",
+      "suiteCategoryReason": "meta-cohort-prefix"
+    },
+    {
+      "id": "indexing/semantic/drain-falsey-failure-ownership/builder-unicode",
+      "order": 1963,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/architecture/caps-verdict-cli-consumers/omitted-violation",
+      "order": 1964,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/architecture/caps-verdict-cli-consumers/clean",
+      "order": 1965,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/architecture/caps-verdict-cli-consumers/max-violations-only",
+      "order": 1966,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/architecture/caps-verdict-cli-consumers/max-edges-only",
+      "order": 1967,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/architecture/caps-verdict-cli-consumers/zero-details",
+      "order": 1968,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/architecture/caps-verdict-cli-consumers/zero-work",
+      "order": 1969,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/architecture/caps-verdict-cli-consumers/unknown-upstream",
+      "order": 1970,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "embeddings/dense-upstream-reference-controls",
+      "order": 1971,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

@@ -1,17 +1,17 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-10-30T09:13:22.010Z",
+  "generatedAt": "2026-10-30T10:29:38.789Z",
   "summary": {
     "lanes": 5,
-    "tests": 2249,
+    "tests": 2274,
     "exactDuplicates": 0,
     "hotspotKinds": 10,
-    "families": 412,
+    "families": 415,
     "topSlowest": 10,
     "timingCoverage": {
       "freshArtifactTests": 0,
       "historicalFallbackTests": 74,
-      "missingTests": 2175
+      "missingTests": 2200
     }
   },
   "lanes": [
@@ -35,7 +35,7 @@
       "targetMaxDurationSeconds": 15,
       "orderFile": "tests/ci-lite/ci-lite.order.txt",
       "timingArtifactPath": ".testLogs/ci-lite-testRunTimes.txt",
-      "totalTests": 1946,
+      "totalTests": 1971,
       "knownDurationTests": 49,
       "knownDurationMs": 27090,
       "p50DurationMs": 190,
@@ -43,7 +43,7 @@
       "resolvedTimingArtifactPaths": [],
       "timingSources": {
         "historical-test-times": 49,
-        "missing": 1897
+        "missing": 1922
       }
     },
     {
@@ -212,9 +212,9 @@
     },
     {
       "key": "indexing/artifacts",
-      "count": 81,
+      "count": 82,
       "knownDurationMs": 2990,
-      "unknownDurationCount": 75
+      "unknownDurationCount": 76
     },
     {
       "key": "indexing/workers",
@@ -325,16 +325,16 @@
       "unknownDurationCount": 53
     },
     {
+      "key": "indexing/semantic",
+      "count": 48,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 48
+    },
+    {
       "key": "tooling/api-mcp",
       "count": 46,
       "knownDurationMs": 0,
       "unknownDurationCount": 46
-    },
-    {
-      "key": "indexing/semantic",
-      "count": 35,
-      "knownDurationMs": 0,
-      "unknownDurationCount": 35
     },
     {
       "key": "integrations/inference-history",
@@ -470,6 +470,12 @@
     },
     {
       "key": "indexing/relations",
+      "count": 11,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 11
+    },
+    {
+      "key": "tooling/architecture",
       "count": 11,
       "knownDurationMs": 0,
       "unknownDurationCount": 11
@@ -721,12 +727,6 @@
       "unknownDurationCount": 4
     },
     {
-      "key": "tooling/architecture",
-      "count": 4,
-      "knownDurationMs": 0,
-      "unknownDurationCount": 4
-    },
-    {
       "key": "tooling/config-inventory",
       "count": 4,
       "knownDurationMs": 0,
@@ -878,6 +878,12 @@
     },
     {
       "key": "integrations/triage",
+      "count": 2,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 2
+    },
+    {
+      "key": "runner/publication-diagnostic-ownership",
       "count": 2,
       "knownDurationMs": 0,
       "unknownDurationCount": 2
@@ -1141,7 +1147,19 @@
       "unknownDurationCount": 1
     },
     {
+      "key": "embeddings/dense-upstream-reference-controls",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
       "key": "embeddings/feature-extraction-component-admission",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "embeddings/instruct-e5-acquisition",
       "count": 1,
       "knownDurationMs": 0,
       "unknownDurationCount": 1
@@ -2572,9 +2590,9 @@
   "hotspots": [
     {
       "key": "index-build-heavy",
-      "count": 640,
+      "count": 654,
       "knownDurationMs": 70250,
-      "unknownDurationCount": 599,
+      "unknownDurationCount": 613,
       "note": "Index construction, replay, and build-heavy setup overlap."
     },
     {
