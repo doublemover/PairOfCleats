@@ -64,3 +64,20 @@ then reclaim only that generated input/database directory. Canonical parent/run/
 work paths, original directory identities and a private run UUID/marker hash must
 still agree. A caller's `--index-dir` never receives this deletion authority.
 Failed operations or unconfirmed cleanup retain their evidence and remain failed.
+
+The campaign report is version 2. Canonically admitted bundle bytes and row counts
+feed the existing native optimization and batch owners. An opaque validation
+admission captures the original immutable source facts once; it cannot be forged,
+transferred to a different manifest, or presented as a later filesystem read.
+The validator uses the original native close owner and preserves query and close
+failures together. Each arm publishes its compact raw receipt before reclaiming
+its independently owned generated database; failed or pending work is retained.
+
+The explicit `tests/perf/qualification/sqlite-row-shapes.js` helper authors the
+small-low, large-low and large-high source-bundle matrix, six paired trials and
+three successive updates per arm. Changed/new/deleted and shrinking/growing work
+is conserved independently. The high-change shape remains below the production
+35% guard; no threshold override is supplied. Each actual native arm is bounded
+to 30 seconds including validation and cleanup. Its multi-capsule campaign is
+not a single 30-second aggregate or a sustained throughput result. Authored
+helpers and unexecuted plans do not qualify representative performance.

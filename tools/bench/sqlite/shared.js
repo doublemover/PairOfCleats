@@ -6,6 +6,7 @@ import { createHash } from 'node:crypto';
 import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
 import { writeIncrementalBundleSnapshot } from '../../../src/index/build/incremental/bundle-snapshot.js';
 import { setRecordsIncrementalCapability } from '../../../src/storage/sqlite/build/index.js';
+import { createSqliteArtifactWorkOwner } from './artifact-fixture.js';
 
 export const loadSqliteBenchDatabase = async () => {
   try {
@@ -20,14 +21,22 @@ export const loadSqliteBenchDatabase = async () => {
 export const createSqliteBenchWorkspace = async ({ name, sqliteMode = 'code' }) => {
   const tempRoot = resolveDevelopmentArtifactPath(process.cwd(), 'bench-cache', name);
   await fs.mkdir(tempRoot, { recursive: true });
-  const invocationRoot = await fs.mkdtemp(path.join(tempRoot, 'run-'));
-  const bundleDir = path.join(invocationRoot, 'bundles');
+  const createOwned = async prefix => {
+    const invocationRoot = await fs.mkdtemp(path.join(tempRoot, prefix));
+    const workOwner = await createSqliteArtifactWorkOwner({ parentRoot: tempRoot, runRoot: invocationRoot });
+    return { tempRoot: invocationRoot, workRoot: workOwner.workRoot, workOwner };
+  };
+  const owned = await createOwned('run-'), { tempRoot: invocationRoot, workOwner } = owned;
+  const bundleDir = path.join(workOwner.workRoot, 'bundles');
   await fs.mkdir(bundleDir, { recursive: true });
   return {
     tempRoot: invocationRoot,
+    workRoot: workOwner.workRoot,
+    workOwner,
+    createArmWorkspace: () => createOwned('arm-'),
     bundleDir,
-    outPathBaseline: path.join(invocationRoot, `index-${sqliteMode}-baseline.db`),
-    outPathCurrent: path.join(invocationRoot, `index-${sqliteMode}-current.db`)
+    outPathBaseline: path.join(workOwner.workRoot, `index-${sqliteMode}-baseline.db`),
+    outPathCurrent: path.join(workOwner.workRoot, `index-${sqliteMode}-current.db`)
   };
 };
 
