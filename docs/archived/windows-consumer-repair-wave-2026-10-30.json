@@ -6018,6 +6018,132 @@
     "scope": "Fresh required native and patch activation succeeded before these source-only repairs;activation is separate from lifecycle/model/latency qualification.37packages33routes7patches25targets59hunks;exit0/no warnings/errors."
   },
   "publicationGate": {
-    "state": "pending at receipt creation;publish check evidence added separately"
+    "state": "passed-after-document-contract-repair",
+    "candidate": "42d51d88679ad93d4268bf310d1d7a793d04c5b0",
+    "formatting": {
+      "exitCode": 0,
+      "path": ".testLogs/consumer-wave-next-20261030/gate-docs-repair-format.log",
+      "sha256": "7b6ecbaa588687ae9361de86fa1be71f8a1c8d6d560b8c05c3d4a36b41040e7a",
+      "binding": "Formatted worktree was committed as42d51d886;no executable-source edits afterward.Original runner metadata retained its previous7e label;this binding corrects that label."
+    },
+    "checks": [
+      {
+        "executable": "npm.cmd",
+        "durationMs": 2645,
+        "arguments": [
+          "run",
+          "config:budget"
+        ],
+        "name": "config-budget",
+        "exitCode": 0,
+        "log": "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\consumer-wave-next-20261030\\publish-gate-config-budget.log",
+        "candidate": "f01dac2144f7f912c63ffebd635a3551c482e599"
+      },
+      {
+        "executable": "npm.cmd",
+        "durationMs": 1241,
+        "arguments": [
+          "run",
+          "env:check"
+        ],
+        "name": "environment",
+        "exitCode": 0,
+        "log": "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\consumer-wave-next-20261030\\publish-gate-environment.log",
+        "candidate": "f01dac2144f7f912c63ffebd635a3551c482e599"
+      },
+      {
+        "exitCode": 0,
+        "log": "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\consumer-wave-next-20261030\\publish-gate-repaired-1-generated-freshness.log",
+        "executable": "node",
+        "durationMs": 11588,
+        "arguments": [
+          "tools/docs/generated-surfaces.js",
+          "--check-freshness"
+        ],
+        "name": "generated-freshness",
+        "candidate": "42d51d88679ad93d4268bf310d1d7a793d04c5b0"
+      },
+      {
+        "exitCode": 0,
+        "log": "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\consumer-wave-next-20261030\\publish-gate-repaired-1-command-surface.log",
+        "executable": "node",
+        "durationMs": 2658,
+        "arguments": [
+          "tools/ci/check-command-surface.js"
+        ],
+        "name": "command-surface",
+        "candidate": "42d51d88679ad93d4268bf310d1d7a793d04c5b0"
+      },
+      {
+        "exitCode": 0,
+        "log": "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\consumer-wave-next-20261030\\publish-gate-repaired-1-workflow-contract.log",
+        "executable": "node",
+        "durationMs": 239,
+        "arguments": [
+          "tests/ci/workflow-contract.test.js"
+        ],
+        "name": "workflow-contract",
+        "candidate": "42d51d88679ad93d4268bf310d1d7a793d04c5b0"
+      },
+      {
+        "exitCode": 0,
+        "log": "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\consumer-wave-next-20261030\\publish-gate-repaired-1-gate-lane.log",
+        "executable": "node",
+        "durationMs": 21539,
+        "arguments": [
+          "tests/run.js",
+          "--lane",
+          "gate",
+          "--jobs",
+          "1",
+          "--pairofcleats-threads",
+          "1",
+          "--timeout-ms",
+          "30000",
+          "--retries",
+          "0",
+          "--native-status-redo=false",
+          "--report-file",
+          ".testLogs/consumer-wave-next-20261030/publish-gate-lane.json",
+          "--log-dir",
+          ".testLogs/consumer-wave-next-20261030/publish-gate-lane-logs"
+        ],
+        "name": "gate-lane",
+        "candidate": "42d51d88679ad93d4268bf310d1d7a793d04c5b0"
+      },
+      {
+        "exitCode": 0,
+        "log": "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\consumer-wave-next-20261030\\publish-gate-repaired-1-diff-check.log",
+        "executable": "git",
+        "durationMs": 54,
+        "arguments": [
+          "diff",
+          "--check"
+        ],
+        "name": "diff-check",
+        "candidate": "42d51d88679ad93d4268bf310d1d7a793d04c5b0"
+      }
+    ],
+    "initialFailure": {
+      "report": ".testLogs/consumer-wave-next-20261030/publish-gate-first-failed.json",
+      "sha256": "c65b4171f94511a1f6dae908b370287bc08c22381d23eca1a8420fcc52e143df",
+      "reason": "Documentation matrix compared the issue reconciliation checkpoint to the newer technical audit date instead of Last reconciled;generated config inventory also needed refresh."
+    },
+    "repair": {
+      "report": ".testLogs/consumer-wave-next-20261030/publish-gate-repaired-1.json",
+      "sha256": "e7615aa4000b93f46512c27eba6bd6a6ee5bf521f96926bc819e40d68a3f0be8",
+      "scope": "Only date-contract fixture and generated config inventory differ from preceding checkpoint;passed budget/environment inputs retain their observations."
+    },
+    "gateLane": {
+      "summary": {
+        "durationMs": 20780,
+        "failed": 0,
+        "passed": 41,
+        "skipped": 0,
+        "total": 41
+      },
+      "path": ".testLogs/consumer-wave-next-20261030/publish-gate-lane.json",
+      "sha256": "39051e4717558a107dca0d934b01e318182dabd57188fd947a10ca62b2f8a2dd"
+    }
   }
 }

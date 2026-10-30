@@ -23,6 +23,8 @@ The repair campaign's latest observations cover **314 distinct discovered cases:
 
 Fresh native/patch activation verifies **37 required packages, 33 routes, seven patches, 25 targets and 59 hunks** on Node 26.13.0/Windows x64/ABI147, with exit 0 and no warnings/errors. Activation remains separate from runtime lifecycle, model and performance qualification. Test discovery contains 6,593 IDs; ci-lite has 1,875 ordered members, with no missing/duplicate IDs, manifest drift or lane overruns.
 
+The eight-command publication gate passes after the documentation-date contract and generated inventories are corrected, including **41/41 gate cases** at `42d51d88679ad93d4268bf310d1d7a793d04c5b0`. The original failed freshness receipt and repaired check are both retained. This publication checkpoint still carries the three feature deadline blockers above.
+
 ## Remaining work
 
 Finish the three current deadline failures, then run the authored serial native-cache, SQLite, UTF-8 VFS, map and real-browser capsules. Each measured child retains its original 30-second bound; a multi-capsule campaign is not an aggregate latency pass. MiniLM acquisition through the existing downloader succeeds, but independent inference/resource acceptance remains unrun here. Actual prepared EG2, M3/E5 numerical/quality evaluation and optional native Tantivy require their own evidence.
