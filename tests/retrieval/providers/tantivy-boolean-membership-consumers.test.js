@@ -4,6 +4,7 @@ import Database from 'better-sqlite3';
 import { CREATE_TABLES_BASE_SQL } from '../../../src/storage/sqlite/schema.js';
 import { createInsertStatements } from '../../../src/storage/sqlite/build/statements.js';
 import { buildChunkRow } from '../../../src/storage/sqlite/build-helpers.js';
+import { META_V2_SCHEMA_VERSION } from '../../../src/index/metadata/meta-v2.js';
 import { createSqliteHelpers } from '../../../src/retrieval/sqlite-helpers.js';
 import { buildQueryPlan } from '../../../src/retrieval/cli/query-plan.js';
 import { createTantivyProvider } from '../../../src/retrieval/sparse/providers/tantivy.js';
@@ -11,7 +12,8 @@ import { createRetrievalStageTracker } from '../../../src/retrieval/pipeline/sta
 import { createInMemorySearchPipeline } from '../pipeline/helpers/in-memory-search-pipeline-fixture.js';
 
 const texts = ['alpha gamma', 'beta', 'gamma'];
-const chunks = texts.map((text, id) => ({ id, file: `src/${id}.txt`, tokens: text.split(' '), phraseTokens: text.split(' ') }));
+const chunks = texts.map((text, id) => ({ id, file: `src/${id}.txt`, tokens: text.split(' '), phraseTokens: text.split(' '),
+  metaV2: { schemaVersion: META_V2_SCHEMA_VERSION } }));
 const databases = [];
 const originalLoad = Module._load;
 let opened = 0, closed = 0, nativeSearches = 0;
@@ -28,7 +30,8 @@ try {
   const sqliteByMode = new Map(['code', 'prose'].map(mode => {
     const db = new Database(':memory:'); databases.push(db); db.exec(CREATE_TABLES_BASE_SQL);
     const statements = createInsertStatements(db);
-    for (const chunk of [...chunks, { id: 3, file: 'wrong-mode.txt', tokens: ['alpha'], phraseTokens: ['alpha'] }]) {
+    for (const chunk of [...chunks, { id: 3, file: 'wrong-mode.txt', tokens: ['alpha'], phraseTokens: ['alpha'],
+      metaV2: { schemaVersion: META_V2_SCHEMA_VERSION } }]) {
       const row = buildChunkRow(chunk, chunk.id === 3 ? (mode === 'code' ? 'prose' : 'code') : mode, chunk.id);
       statements.insertChunk.run(row); statements.insertFts.run(row);
     }

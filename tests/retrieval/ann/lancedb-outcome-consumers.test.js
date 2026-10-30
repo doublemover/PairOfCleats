@@ -94,6 +94,7 @@ const sessionFor = async f => {
     userConfig: { retrieval: { ann: { adaptiveProviders: false } } }, query: 'alpha', embeddingQueryText: 'alpha',
     searchMode: 'code', runCode: true, runProse: false, runExtractedProse: false, runRecords: false,
     idxCode: idx, annActive: true, annBackend: 'lancedb', lancedbConfig: {}, vectorAnnEnabled: false,
+    vectorExtension: { annMode: null, provider: null, table: null }, createAnnProviders: undefined,
     modelConfig: { dir, dims: 2 }, modelIds: { code: 'fixture-stub' }, embeddingProvider: 'xenova', embeddingOnnx: {},
     contextExpansionEnabled: false, contextExpansionOptions: {}, contextExpansionRespectFilters: true,
     useStubEmbeddings: true, backendLabel: 'memory', cacheFilters: {},
@@ -201,7 +202,7 @@ try {
     const f = await fixture('query'), { context, idx, stageTracker } = buildAnnPipelineFixture();
     idx.lancedb = f.info; idx.denseVec = null; context.lanceAnnState.code.available = true;
     context.annBackend = 'lancedb'; context.createAnnProviders = undefined;
-    context.countAwareAnnPolicy = { enabled: true, exactRows: 0, coordinateWork: 0,
+    context.countAwareAnnPolicy = { enabled: true, exactRows: 0, coordinateWork: 1,
       maxAttempts: 3, requestedHitWork: 64, maxTopN: 32, maxMs: 1000 };
     const result = await createSearchPipeline(context)(idx, 'code', [1, 0]);
     const metrics = stageTracker.stages.filter(row => row.stage === 'ann').at(-1);
