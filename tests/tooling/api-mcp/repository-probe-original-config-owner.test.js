@@ -18,7 +18,7 @@ const { dir } = await prepareIsolatedTestCacheDir(`repository-probe-${selected}`
 const repo = path.join(dir, 'repo'), child = path.join(repo, 'nested'), cache = path.join(dir, 'cache');
 applyTestEnv({ cacheRoot: cache, extraEnv: { PAIROFCLEATS_TRUSTED_CONFIG: null } });
 const originalOpen = fs.openSync, originalRead = fs.readSync, originalStat = fs.fstatSync, originalClose = fs.closeSync;
-const opened = new Set(); let active = false, opens = 0, reads = 0, closes = 0, rootOpens = 0, primaryFailure, asynchronous;
+const opened = new Set(); let active = false, opens = 0, reads = 0, closes = 0, rootOpens = 0, childOpens = 0, primaryFailure, asynchronous;
 const primary = Object.freeze(new Error('original config descriptor operation failed'));
 const closeFailure = Object.freeze(new Error('original config descriptor close remains unknown'));
 const target = path.join(location === 'child' ? child : repo, '.pairofcleats.json');
@@ -45,9 +45,15 @@ try {
   assert.equal(nativePathKey(resolve(repo)), nativePathKey(repo), 'an explicit discovered root bypasses optional selection probes');
   assert.equal(nativePathKey(resolve(child)), nativePathKey(repo), 'settled child absence retains the current ancestor fallback');
   await fsp.mkdir(path.join(childArtifacts, 'index-code'), { recursive: true });
-  assert.equal(nativePathKey(resolve(child)), nativePathKey(child), 'healthy explicit child artifacts retain the repaired explicit-first policy');
+  // Both candidates are healthy: MCP deliberately prefers its ancestor while
+  // shared/API cache managers retain their explicit-child preference.
+  assert.equal(nativePathKey(resolve(child)), nativePathKey(surface === 'mcp' ? repo : child),
+    'dual-healthy precedence remains ancestor-first for MCP and explicit-first for shared/API');
   manager?.closeRepoCaches();
-  if (location === 'root') await fsp.rm(childArtifacts, { recursive: true, force: true });
+  if (location === 'root' && surface !== 'mcp') await fsp.rm(childArtifacts, { recursive: true, force: true });
+  // A child failure is reachable only after MCP's ancestor probe reports a
+  // settled absence. Keep both indexed candidates for its root-failure case.
+  if (location === 'child' && surface === 'mcp') await fsp.rm(parentArtifacts, { recursive: true, force: true });
   if (mode === 'read') {
     const handle = await fsp.open(target, 'r'), close = handle.close.bind(handle); let permitted = false;
     handle.close = async () => { if (!permitted) throw closeFailure; return close(); };
@@ -60,6 +66,7 @@ try {
   fs.openSync = (filename, ...args) => {
     const fd = originalOpen(filename, ...args);
     if (active && typeof filename === 'string' && nativePathKey(filename) === nativePathKey(path.join(repo, '.pairofcleats.json'))) rootOpens++;
+    if (active && typeof filename === 'string' && nativePathKey(filename) === nativePathKey(path.join(child, '.pairofcleats.json'))) childOpens++;
     if (active && typeof filename === 'string' && nativePathKey(filename) === nativePathKey(target)) { opens++; opened.add(fd); }
     return fd;
   };
@@ -73,7 +80,10 @@ try {
   assert.throws(() => resolve(child), error => { failure = error; return true; });
   assert.ok(errorGraphIncludes(failure, primary)); assert.ok(errorGraphIncludes(failure, closeFailure));
   assert.equal(opens, 1, 'failed admission is not replaced by a second config read');
-  if (location === 'child') assert.equal(rootOpens, 0, 'pending child observation prevents the next root probe/cache construction');
+  if (surface === 'mcp') {
+    if (location === 'root') assert.equal(childOpens, 0, 'pending ancestor observation prevents the child probe');
+    else assert.equal(rootOpens, 1, 'only the preceding settled ancestor probe may open its config');
+  } else if (location === 'child') assert.equal(rootOpens, 0, 'pending child observation prevents the next root probe/cache construction');
   const sessions = [...new Set(graph(failure).map(getContainedFileSession).filter(Boolean))];
   assert.ok(sessions.length); assert.equal(failure.cacheOwnershipReleased(), false);
   const beforeReads = reads;

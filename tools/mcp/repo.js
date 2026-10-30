@@ -123,8 +123,9 @@ export function resolveRepoPath(inputPath, { preserveExplicitTarget = false } = 
   if (!inputPath) return resolvedRoot;
 
   if (explicitPath === resolvedRoot) return resolvedRoot;
-  if (hasRepoArtifacts(explicitPath)) return explicitPath;
+  // MCP keeps ancestor-first discovery; explicit build targets bypass it above.
   if (hasRepoArtifacts(resolvedRoot)) return resolvedRoot;
+  if (hasRepoArtifacts(explicitPath)) return explicitPath;
   return resolvedRoot;
 }
 
