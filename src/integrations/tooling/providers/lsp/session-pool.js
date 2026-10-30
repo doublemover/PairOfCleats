@@ -11,6 +11,8 @@ import { currentRunResourceScope } from '../../../../shared/lifecycle/run-scope.
 import { retainRunSession } from './run-ownership.js';
 import { createVfsMaterializationSession } from '../../../../index/tooling/vfs/disk.js';
 import { LSP_SHORT_QUARANTINE_MS, LSP_EXTENDED_QUARANTINE_MS } from './health-policy.js';
+import { describeStorageFailure } from '../../../../shared/storage/failure-observation.js';
+import { readErrorDataProperty } from '../../../../shared/error-data.js';
 
 const DEFAULT_IDLE_TIMEOUT_MS = 1_500;
 const DEFAULT_MAX_LIFETIME_MS = 10 * 60_000;
@@ -19,6 +21,11 @@ const DEFAULT_DISPOSE_TIMEOUT_MS = 8_000;
 const DEFAULT_KILL_TIMEOUT_MS = 4_000;
 const DEFAULT_MAX_SESSION_ENTRIES = 64;
 const DEFAULT_DRAIN_TIMEOUT_MS = 20_000;
+// Node's original DOMException name getter reads its private WeakMap and brand
+// checks the receiver, without consulting receiver properties or coercion.
+// https://github.com/nodejs/node/blob/v26.13.0/lib/internal/per_context/domexception.js
+const nativeDomExceptionName = typeof DOMException === 'function'
+  ? Object.getOwnPropertyDescriptor(DOMException.prototype, 'name')?.get : null;
 const SESSION_STATE = Object.freeze({
   NEW: 'new',
   INITIALIZING: 'initializing',
@@ -245,12 +252,40 @@ const resolveQuarantineForFailure = (reason, lifecycleState, record = null) => {
 
 const emitPoolWarning = (log, message) => {
   if (typeof log === 'function') {
-    try { log(message); } catch { /* Diagnostics cannot replace disposal evidence. */ }
+    try { Promise.resolve(log(message)).catch(() => {}); } catch { /* Diagnostics cannot replace disposal evidence. */ }
     return;
   }
   try {
     process.emitWarning(message, { code: 'LSP_SESSION_POOL_WARNING' });
   } catch {}
+};
+
+const poolFailureSnapshot = error => {
+  // Logging owns no settlement decision. Project only own string data without
+  // calling user getters/coercion; the exact rejection and its resource owner
+  // remain in the disposal barrier and public drain failures, unchanged.
+  const snapshot = Object.create(null);
+  try {
+    if (typeof error === 'string') snapshot.message = error.slice(0, 512);
+    else if (error !== null && ['object', 'function'].includes(typeof error)) {
+      for (const key of ['name', 'code', 'message']) {
+        const value = readErrorDataProperty(error, key);
+        if (typeof value === 'string') snapshot[key] = value.slice(0, 512);
+      }
+    }
+  } catch { /* Proxy descriptor inspection cannot replace the original cause. */ }
+  return snapshot;
+};
+const describePoolFailure = error => describeStorageFailure(poolFailureSnapshot(error),
+  { phase: 'lsp-pool-warning', defaultMessage: 'LSP operation failed.' }).message;
+const isPoolAbortError = error => {
+  const snapshot = poolFailureSnapshot(error);
+  if (isAbortError(snapshot)) return true;
+  if (nativeDomExceptionName && snapshot.name === undefined) {
+    try { return Reflect.apply(nativeDomExceptionName, error, []) === 'AbortError'; }
+    catch { /* A forged/proxied receiver cannot supply native abort identity. */ }
+  }
+  return false;
 };
 
 const resolveMaxSessionEntries = (value) => (
@@ -459,7 +494,7 @@ const withSessionCreationBarrier = async (key, operation, signal) => {
         sessionPoolMetrics.creationBarrierFailures += 1;
         emitPoolWarning(
           null,
-          `[tooling:lsp] session creation barrier failed for key=${normalizedKey}: ${error?.message || error}`
+          `[tooling:lsp] session creation barrier failed for key=${normalizedKey}: ${describePoolFailure(error)}`
         );
       }));
       continue;
@@ -511,7 +546,7 @@ const enqueueSessionDisposal = (session, {
     emitPoolWarning(
       session?.options?.log,
       `[tooling:lsp] session disposal failed for ${session?.lifecycleName || session?.key || 'session'}: ` +
-      `${error?.message || error}`
+      `${describePoolFailure(error)}`
     );
     throw error;
   }));
@@ -798,7 +833,7 @@ const hardKillSessionsSync = (sessionsToKill) => {
     try { killSessionClient(session, { sync: true }); } catch (error) {
       failures.push(error);
       unconfirmedDisposals.set(session.key, session);
-      emitPoolWarning(session?.options?.log, `LSP hard kill failed: ${error?.message || error}`);
+      emitPoolWarning(session?.options?.log, `LSP hard kill failed: ${describePoolFailure(error)}`);
     }
   }
   return failures;
@@ -872,7 +907,7 @@ const ensureCleanupTimer = () => {
         sessionPoolMetrics.cleanupPassFailures += 1;
         emitPoolWarning(
           null,
-          `[tooling:lsp] cleanup pass failed: ${error?.message || error}`
+          `[tooling:lsp] cleanup pass failed: ${describePoolFailure(error)}`
         );
       });
   }, DEFAULT_CLEANUP_INTERVAL_MS);
@@ -1005,7 +1040,7 @@ const acquireSessionTurn = async (options, owner) => {
     } finally { sessionPoolMetrics.leaseQueueWaiters -= 1; }
     return { resolved, barrier };
   } catch (error) {
-    if (isAbortError(error)) sessionPoolMetrics.admissionCancelled += 1;
+    if (isPoolAbortError(error)) sessionPoolMetrics.admissionCancelled += 1;
     throw error;
   } finally {
     sessionPoolMetrics.admissionWaiters -= 1;
@@ -1266,7 +1301,7 @@ const withLspSessionRun = async (options, fn, owner) => {
         emitPoolWarning(
           session?.options?.log,
           `[tooling:lsp] lease-finalizer disposal failed for ${session?.lifecycleName || session?.key || 'session'}: ` +
-          `${error?.message || error}`
+          `${describePoolFailure(error)}`
         );
       });
     }

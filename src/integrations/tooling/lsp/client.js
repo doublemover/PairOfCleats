@@ -16,6 +16,26 @@ import { resolveNearestRankPercentile } from '../../../shared/perf/percentiles.j
 import { createJsonRpcTraceRecorder } from './trace.js';
 import { classifyLspEnvelope } from './response-envelope.js';
 import { addStorageFailureContext } from '../../../shared/storage/operation-error.js';
+import { readErrorDataProperty } from '../../../shared/error-data.js';
+
+const diagnosticMessage = (error, fallback = 'Unknown error.') => {
+  const message = readErrorDataProperty(error, 'message');
+  return typeof message === 'string' && message ? message : typeof error === 'string' ? error : fallback;
+};
+const diagnosticCode = error => {
+  const code = readErrorDataProperty(error, 'code');
+  return ['string', 'number'].includes(typeof code) ? code : null;
+};
+const isClosedWriteFailure = error => isClosedStreamWriteError({ code: diagnosticCode(error), message: diagnosticMessage(error, '') });
+// Diagnostics and independent observers never own transport retirement. Observe
+// returned rejections too; even diagnostic failure reporting must stay guarded.
+const observeDiagnostic = (callback, onFailure = () => {}) => {
+  const failed = error => { try { onFailure(error); } catch {} };
+  try {
+    const result = callback();
+    if (result && (typeof result === 'object' || typeof result === 'function')) Promise.resolve(result).catch(failed);
+  } catch (error) { failed(error); }
+};
 
 /**
  * Convert a local path to a file:// URI.
@@ -195,11 +215,12 @@ export function createLspClient(options) {
     : (process.platform === 'win32' && /\.(cmd|bat)$/i.test(cmd));
   const killTreeDetached = process.platform !== 'win32';
   const resolvedEnv = applyToolchainDaemonPolicyEnv(env || process.env, { cwd });
+  const safeLog = message => observeDiagnostic(() => log(message));
   const traceRecorder = createJsonRpcTraceRecorder({
     tracePath: tracePath || resolvedEnv.POC_LSP_RPC_TRACE || '',
     providerId: providerId || cmd,
     sessionKey: sessionKey || null,
-    log
+    log: safeLog
   });
 
   let proc = null;
@@ -283,19 +304,15 @@ export function createLspClient(options) {
       sessionKey
     });
     if (typeof onLifecycleEvent !== 'function') return;
-    try {
-      onLifecycleEvent({
-        at: Date.now(),
-        ...(event && typeof event === 'object' ? event : {})
-      });
-    } catch {}
+    observeDiagnostic(() => onLifecycleEvent({
+      at: Date.now(),
+      ...(event && typeof event === 'object' ? event : {})
+    }));
   };
 
   const emitStderrLine = (line) => {
     if (typeof onStderrLine !== 'function') return;
-    try {
-      onStderrLine(String(line || ''));
-    } catch {}
+    observeDiagnostic(() => onStderrLine(String(line || '')));
   };
 
   const rejectPending = (err) => {
@@ -543,7 +560,7 @@ export function createLspClient(options) {
       if (writer !== currentWriter || generation !== currentGen) return;
       const evidence = getJsonRpcWriteEvidence(pendingWrite);
       const local = Boolean(evidence?.settled && !evidence.frameStarted && !evidence.streamRetired
-        && !isClosedStreamWriteError(error));
+        && !isClosedWriteFailure(error));
       onWriteFailure?.(error, local, evidence?.frameStarted === true);
       if (!local) {
         writerClosed = true;
@@ -602,7 +619,7 @@ export function createLspClient(options) {
         send({
           jsonrpc: '2.0',
           id: message.id,
-          error: { code: -32603, message: err?.message || 'LSP request failed.' }
+          error: { code: -32603, message: diagnosticMessage(err, 'LSP request failed.') }
         });
       }
       return;
@@ -630,15 +647,17 @@ export function createLspClient(options) {
       }
       return;
     }
-    if (envelope.kind === 'request') { void handleRequest(message); return; }
+    if (envelope.kind === 'request') {
+      observeDiagnostic(() => handleRequest(message), error => safeLog(`[lsp] request handler failed: ${diagnosticMessage(error)}`));
+      return;
+    }
     if (envelope.kind === 'response') { handleResponse(message); return; }
     traceRecorder.recordInbound(message, { providerId: providerId || cmd, sessionKey });
     if (typeof onNotification === 'function') {
-      try { onNotification(message); }
-      catch (error) {
-        log(`[lsp] notification handler failed: ${error?.message || error}`);
-        emitLifecycleEvent({ kind: 'notification_handler_error', message: error?.message || String(error) });
-      }
+      observeDiagnostic(() => onNotification(message), error => {
+        safeLog(`[lsp] notification handler failed: ${diagnosticMessage(error)}`);
+        emitLifecycleEvent({ kind: 'notification_handler_error', message: diagnosticMessage(error) });
+      });
     }
   };
 
@@ -742,17 +761,14 @@ export function createLspClient(options) {
     const childParser = createFramedJsonRpcParser({
       onMessage: handleMessage,
       onError: (err) => {
-        log(`[lsp] parse error: ${err.message}`);
-        emitLifecycleEvent({
-          kind: 'protocol_parse_error',
-          message: err?.message || String(err)
-        });
         trackTreeCleanup(child, killChildProcessTree(child, {
           killTree: true,
           detached: killTreeDetached,
           graceMs: 0,
           awaitGrace: false
         })).catch(() => {});
+        safeLog(`[lsp] parse error: ${diagnosticMessage(err)}`);
+        emitLifecycleEvent({ kind: 'protocol_parse_error', message: diagnosticMessage(err) });
       },
       maxBufferBytes,
       maxHeaderBytes,
@@ -779,13 +795,13 @@ export function createLspClient(options) {
     });
     child.stdout?.on('close', () => {
       if (proc !== child || childGen !== generation) return;
-      log('[lsp] reader closed');
       markTransportClosed('reader_closed');
+      safeLog('[lsp] reader closed');
     });
     child.stdout?.on('error', (err) => {
       if (proc !== child || childGen !== generation) return;
-      log(`[lsp] stdout error: ${err?.message || err}`);
       markTransportClosed('reader_error');
+      safeLog(`[lsp] stdout error: ${diagnosticMessage(err)}`);
     });
     child.stderr?.on('data', (chunk) => {
       if (proc !== child || childGen !== generation) return;
@@ -806,7 +822,7 @@ export function createLspClient(options) {
           } catch {}
         }
         emitStderrLine(nextLine);
-        log(`[lsp] ${nextLine}`);
+        safeLog(`[lsp] ${nextLine}`);
       }
     });
     child.on('error', (err) => {
@@ -823,8 +839,8 @@ export function createLspClient(options) {
       nextStartAt = Date.now() + backoffMs;
       emitLifecycleEvent({
         kind: 'error',
-        code: err?.code || null,
-        message: err?.message || String(err),
+        code: diagnosticCode(err),
+        message: diagnosticMessage(err),
         backoffMs
       });
     });
@@ -920,12 +936,12 @@ export function createLspClient(options) {
       }
       return send({ jsonrpc: '2.0', method, params });
     } catch (err) {
-      if (isClosedStreamWriteError(err)) {
+      if (isClosedWriteFailure(err)) {
         rejectPendingTransportClosed();
         writerClosed = true;
         return false;
       }
-      log(`[lsp] notify failed: ${err?.message || err}`);
+      safeLog(`[lsp] notify failed: ${diagnosticMessage(err)}`);
       return false;
     }
   };
@@ -1082,7 +1098,7 @@ export function createLspClient(options) {
   function notifyResourceSettlement() {
     if (getTerminationEvidence().settled !== true) return;
     for (const observer of resourceSettlementObservers) {
-      try { observer(); } catch (error) { log(`[lsp] resource-settlement observer failed: ${error?.message || error}`); }
+      observeDiagnostic(observer, error => safeLog(`[lsp] resource-settlement observer failed: ${diagnosticMessage(error)}`));
     }
   }
 
