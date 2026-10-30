@@ -1855,3 +1855,9 @@ tui/flow-queue-saturation-cycles/coalesced
 tui/flow-queue-saturation-cycles/mixed
 tui/flow-queue-saturation-cycles/no-log
 tui/flow-queue-saturation-cycles/work
+indexing/metadata/file-scan-sample-failure-admission
+indexing/publication/member-classification-owner
+shared/hash/stat-work-bound-consumer/native-exact-work
+shared/hash/stat-work-bound-consumer/native-timestamp-race
+shared/hash/stat-work-bound-consumer/native-unsafe-extent
+tooling/reports/compare-models-observed-corpus/oversize-generation

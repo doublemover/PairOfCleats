@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 1692,
+    "hero": 1698,
     "matrix": 109,
     "meta": 52,
     "soak": 1,
@@ -11137,6 +11137,42 @@
     {
       "id": "tui/flow-queue-saturation-cycles/work",
       "order": 1854,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/metadata/file-scan-sample-failure-admission",
+      "order": 1855,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/publication/member-classification-owner",
+      "order": 1856,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/hash/stat-work-bound-consumer/native-exact-work",
+      "order": 1857,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/hash/stat-work-bound-consumer/native-timestamp-race",
+      "order": 1858,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/hash/stat-work-bound-consumer/native-unsafe-extent",
+      "order": 1859,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/reports/compare-models-observed-corpus/oversize-generation",
+      "order": 1860,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }
