@@ -354,7 +354,37 @@ export {
 };
 export const processFiles = options => withBundleTransformScope({
   scheduler: options.runtime?.scheduler || null, signal: options.abortSignal || null
-}, () => processFilesInTransformScope(options));
+}, () => withStage1AbortForwarding(options.abortSignal, stageAbortScope =>
+  processFilesInTransformScope({ ...options, stageAbortScope })));
+
+// This lexical owner begins before any Stage1 validation/logger/startup work.
+// Inner resource cleanup can detach early, but every other exit reaches finally.
+const withStage1AbortForwarding = async (abortSignal, operation) => {
+  const controller = typeof AbortController === 'function' ? new AbortController() : null;
+  const signal = controller?.signal || abortSignal || null;
+  let attached = false;
+  const forward = () => {
+    if (signal?.aborted) return;
+    try { controller.abort(abortSignal.reason); } catch { controller.abort(); }
+  };
+  const detach = () => {
+    if (!attached) return;
+    attached = false;
+    abortSignal.removeEventListener('abort', forward);
+  };
+  const abort = (reason = null) => {
+    if (!controller || signal?.aborted) return;
+    try { controller.abort(reason || undefined); } catch { controller.abort(); }
+  };
+  try {
+    if (controller && abortSignal && typeof abortSignal.addEventListener === 'function') {
+      attached = true;
+      abortSignal.addEventListener('abort', forward, { once: true });
+      if (abortSignal.aborted) forward();
+    }
+    return await operation({ signal, abort, detach });
+  } finally { detach(); }
+};
 
 const processFilesInTransformScope = async ({
   mode,
@@ -373,48 +403,10 @@ const processFilesInTransformScope = async ({
   relationsEnabled,
   shardPerfProfile,
   fileTextCache,
-  abortSignal = null
+  stageAbortScope
 }) => {
   const stage1OwnershipPrefix = `${resolveStage1FileSubprocessOwnershipPrefix(runtime, mode)}:`;
-  const stageAbortController = typeof AbortController === 'function'
-    ? new AbortController()
-    : null;
-  const effectiveAbortSignal = stageAbortController?.signal || abortSignal || null;
-  let detachExternalAbort = null;
-  if (stageAbortController && abortSignal && typeof abortSignal.addEventListener === 'function') {
-    /**
-     * Propagate outer abort to file-local controller.
-     *
-     * @returns {void}
-     */
-    const forwardAbort = () => {
-      if (effectiveAbortSignal?.aborted) return;
-      try {
-        stageAbortController.abort(abortSignal.reason);
-      } catch {
-        stageAbortController.abort();
-      }
-    };
-    abortSignal.addEventListener('abort', forwardAbort, { once: true });
-    detachExternalAbort = () => {
-      abortSignal.removeEventListener('abort', forwardAbort);
-    };
-    if (abortSignal.aborted) forwardAbort();
-  }
-  /**
-   * Abort active stage1 processing and trigger runtime cancellation hooks.
-   *
-   * @param {unknown} [reason]
-   * @returns {void}
-   */
-  const abortProcessing = (reason = null) => {
-    if (!stageAbortController || effectiveAbortSignal?.aborted) return;
-    try {
-      stageAbortController.abort(reason || undefined);
-    } catch {
-      stageAbortController.abort();
-    }
-  };
+  const { signal: effectiveAbortSignal, abort: abortProcessing, detach: detachExternalAbort } = stageAbortScope;
 
   throwIfAborted(effectiveAbortSignal);
   log('Processing and indexing files...');
