@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { createLoggerScope } from '../../../src/shared/progress-runtime.js';
 import { requireBootstrap } from '../../../src/shared/bootstrap-readiness.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 await requireBootstrap(); applyTestEnv();
@@ -24,4 +25,10 @@ const { cases } = JSON.parse(await fs.readFile(route.file + '.cases.json', 'utf8
 assert.ok(cases.includes(selected));
 process.env.PAIROFCLEATS_TEST_ID = route.prefix + '/' + selected;
 process.argv.push('--observation', destination);
-await import('../../../' + route.file);
+const logger = createLoggerScope(); let progressLines = 0;
+logger.setProgressHandlers({ log(message) {
+  assert.equal(scenario, 'manifest'); assert.ok(selected.endsWith('-sealed'));
+  assert.equal(message, '→ Wrote pieces manifest (2 entries).'); progressLines++;
+} });
+try { await logger.run(() => import('../../../' + route.file)); } finally { await logger.close(); }
+assert.equal(progressLines, scenario === 'manifest' && selected.endsWith('-sealed') ? 1 : 0);

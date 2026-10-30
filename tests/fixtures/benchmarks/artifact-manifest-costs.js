@@ -3,6 +3,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { performance } from 'node:perf_hooks';
+import { createLoggerScope } from '../../../src/shared/progress-runtime.js';
 import { writePiecesManifest } from '../../../src/index/build/artifacts/checksums.js';
 import { withIndexStatePublicationLock } from '../../../src/shared/index-state-publication.js';
 import { isFileLockPublicationPending } from '../../../src/shared/locks/file-lock.js';
@@ -48,7 +49,11 @@ const observeIo = async (root, operation) => {
 
 export const runScenario = async ({ destination }) => {
   const root = path.join(destination, 'manifest-input'); await fs.mkdir(root);
-  const observations = [];
+  const observations = [], progress = [], logger = createLoggerScope();
+  logger.setProgressHandlers({ log(message) {
+    assert.equal(message, '→ Wrote pieces manifest (18 entries).');
+    assert.ok(progress.length < 64); progress.push(message);
+  } });
   try {
     const { default: xxhashWasm } = await import('xxhash-wasm');
     const { h64Raw } = await xxhashWasm();
@@ -83,7 +88,7 @@ export const runScenario = async ({ destination }) => {
     for (const sealed of [false, true]) {
       const pieceEntries = entries.map(entry => sealed ? { ...entry, bytes: content.get(entry.path).length,
         checksum: `sha256:${sha256(content.get(entry.path))}` } : { ...entry });
-      const operation = () => writePiecesManifest({ outDir: root, mode: 'code', pieceEntries, indexState: { buildId: 'manifest-cost' } });
+      const operation = () => logger.run(() => writePiecesManifest({ outDir: root, mode: 'code', pieceEntries, indexState: { buildId: 'manifest-cost' } }));
       await operation(); await verify(sealed);
       const cleanSamples = [];
       for (let trial = 0; trial < 3; trial++) { cleanSamples.push(await measure(operation)); await verify(sealed); }
@@ -102,6 +107,7 @@ export const runScenario = async ({ destination }) => {
         inputIdentity: [...content].map(([filename, bytes]) => ({ path: filename, bytes: bytes.length, sha256: sha256(bytes) })),
         piecesSha256, cleanSamples, allocation, work, publication: 'original descriptors closed;pending ownership absent;next original lock entered' });
     }
-    return { issue: 1754, claim: 'clean manifest paths only;fault/drain controls are separate original fixtures', observations };
-  } finally { await fs.rm(root, { recursive: true, force: true }); }
+    assert.equal(progress.length, 14);
+    return { issue: 1754, expectedProgress: progress, claim: 'clean manifest paths only;fault/drain controls are separate original fixtures', observations };
+  } finally { await logger.close(); await fs.rm(root, { recursive: true, force: true }); }
 };

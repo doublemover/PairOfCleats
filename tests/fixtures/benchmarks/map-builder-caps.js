@@ -6,6 +6,7 @@ import { requireBootstrap } from '../../../src/shared/bootstrap-readiness.js';
 import { readVerifiedContainedFile } from '../../../src/shared/contained-file.js';
 import { atomicWriteJson } from '../../../src/shared/io/atomic-write.js';
 import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
+import { createLoggerScope } from '../../../src/shared/progress-runtime.js';
 import { writePiecesManifest } from '../../../src/index/build/artifacts/checksums.js';
 import { writeArtifactPublicationRecord, writeArtifactPublicationValidationReport } from '../../../src/index/build/artifact-publication.js';
 import { createRepoMapIterator } from '../../../src/index/build/artifacts/writers/repo-map.js';
@@ -49,7 +50,13 @@ if (request.command === 'prepare') {
   const buildId = `map-builder-qualification-${marker.runIdentity}`, indexState = { buildId, mode: 'code', stage: 'stage2', artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION };
   await atomicWriteJson(path.join(indexDir, 'index_state.json'), indexState, { createOnly: true });
   const manifestPath = path.join(indexDir, 'pieces', 'manifest.json');
-  await writePiecesManifest({ pieceEntries: pieces, outDir: indexDir, mode: 'code', indexState, log: () => {} });
+  const logger = createLoggerScope(); let progressLines = 0;
+  logger.setProgressHandlers({ log(message) {
+    assert.equal(message, '→ Wrote pieces manifest (' + pieces.length + ' entries).'); progressLines++;
+  } });
+  try { await logger.run(() => writePiecesManifest({ pieceEntries: pieces, outDir: indexDir, mode: 'code', indexState })); }
+  finally { await logger.close(); }
+  assert.equal(progressLines, 1);
   const publicationValidation = await writeArtifactPublicationValidationReport({ buildRoot, outDir: indexDir, mode: 'code', buildId, pieceEntries: pieces, manifestPath });
   await writeArtifactPublicationRecord({ buildRoot, outDir: indexDir, mode: 'code', stage: 'stage2', buildId,
     pieceEntries: pieces, manifestPath, publicationValidation });
