@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 1807,
+    "hero": 1822,
     "matrix": 109,
     "meta": 55,
     "soak": 1,
@@ -11845,6 +11845,96 @@
     {
       "id": "embeddings/provider-runtime-provenance",
       "order": 1972,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "embeddings/e5-consumer-contract-controls",
+      "order": 1973,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/embeddings/query-stale-format-admission",
+      "order": 1974,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/tooling/bench/sqlite-qualification-cohorts",
+      "order": 1975,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/semantic/drain-falsey-failure-ownership/builder-hostile",
+      "order": 1976,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/semantic/drain-falsey-failure-ownership/release-hostile",
+      "order": 1977,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/lsp/disposal-diagnostic-causes/async-logger",
+      "order": 1978,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/lsp/disposal-diagnostic-causes/hostile-cause",
+      "order": 1979,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/lsp/disposal-diagnostic-causes/hard-kill-continuation",
+      "order": 1980,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/lsp/disposal-diagnostic-causes/native-abort-classification",
+      "order": 1981,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/lsp/diagnostic-resource-isolation/reader-close-sync",
+      "order": 1982,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/lsp/diagnostic-resource-isolation/reader-close-async",
+      "order": 1983,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/lsp/diagnostic-resource-isolation/reader-error-sync",
+      "order": 1984,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/lsp/diagnostic-resource-isolation/reader-error-async",
+      "order": 1985,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/lsp/diagnostic-resource-isolation/observer-sync",
+      "order": 1986,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/lsp/diagnostic-resource-isolation/observer-async",
+      "order": 1987,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

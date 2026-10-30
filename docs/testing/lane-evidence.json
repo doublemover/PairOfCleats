@@ -1,17 +1,17 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-10-30T10:41:16.713Z",
+  "generatedAt": "2026-10-30T11:22:03.576Z",
   "summary": {
     "lanes": 5,
-    "tests": 2275,
+    "tests": 2290,
     "exactDuplicates": 0,
     "hotspotKinds": 10,
-    "families": 416,
+    "families": 417,
     "topSlowest": 10,
     "timingCoverage": {
       "freshArtifactTests": 0,
       "historicalFallbackTests": 74,
-      "missingTests": 2201
+      "missingTests": 2216
     }
   },
   "lanes": [
@@ -35,7 +35,7 @@
       "targetMaxDurationSeconds": 15,
       "orderFile": "tests/ci-lite/ci-lite.order.txt",
       "timingArtifactPath": ".testLogs/ci-lite-testRunTimes.txt",
-      "totalTests": 1972,
+      "totalTests": 1987,
       "knownDurationTests": 49,
       "knownDurationMs": 27090,
       "p50DurationMs": 190,
@@ -43,7 +43,7 @@
       "resolvedTimingArtifactPaths": [],
       "timingSources": {
         "historical-test-times": 49,
-        "missing": 1923
+        "missing": 1938
       }
     },
     {
@@ -290,15 +290,15 @@
     },
     {
       "key": "indexing/embeddings",
-      "count": 54,
+      "count": 55,
       "knownDurationMs": 60,
-      "unknownDurationCount": 53
+      "unknownDurationCount": 54
     },
     {
       "key": "tooling/lsp",
-      "count": 113,
+      "count": 123,
       "knownDurationMs": 0,
-      "unknownDurationCount": 113
+      "unknownDurationCount": 123
     },
     {
       "key": "cli/search",
@@ -326,9 +326,9 @@
     },
     {
       "key": "indexing/semantic",
-      "count": 48,
+      "count": 50,
       "knownDurationMs": 0,
-      "unknownDurationCount": 48
+      "unknownDurationCount": 50
     },
     {
       "key": "tooling/api-mcp",
@@ -409,6 +409,12 @@
       "unknownDurationCount": 17
     },
     {
+      "key": "perf/tooling",
+      "count": 17,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 17
+    },
+    {
       "key": "shared/subprocess",
       "count": 17,
       "knownDurationMs": 0,
@@ -416,12 +422,6 @@
     },
     {
       "key": "indexing/validate",
-      "count": 16,
-      "knownDurationMs": 0,
-      "unknownDurationCount": 16
-    },
-    {
-      "key": "perf/tooling",
       "count": 16,
       "knownDurationMs": 0,
       "unknownDurationCount": 16
@@ -1148,6 +1148,12 @@
     },
     {
       "key": "embeddings/dense-upstream-reference-controls",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "embeddings/e5-consumer-contract-controls",
       "count": 1,
       "knownDurationMs": 0,
       "unknownDurationCount": 1
@@ -2596,9 +2602,9 @@
   "hotspots": [
     {
       "key": "index-build-heavy",
-      "count": 654,
+      "count": 656,
       "knownDurationMs": 70250,
-      "unknownDurationCount": 613,
+      "unknownDurationCount": 615,
       "note": "Index construction, replay, and build-heavy setup overlap."
     },
     {
@@ -2624,16 +2630,16 @@
     },
     {
       "key": "embeddings-cache",
-      "count": 54,
+      "count": 55,
       "knownDurationMs": 60,
-      "unknownDurationCount": 53,
+      "unknownDurationCount": 54,
       "note": "Embedding cache and stub fast-path families frequently overlap on the same fixture/setup."
     },
     {
       "key": "lsp-bootstrap",
-      "count": 113,
+      "count": 123,
       "knownDurationMs": 0,
-      "unknownDurationCount": 113,
+      "unknownDurationCount": 123,
       "note": "Dedicated/configured provider bootstrap and session reuse."
     },
     {

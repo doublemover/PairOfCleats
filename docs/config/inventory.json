@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-30T10:29:41.204Z",
+  "generatedAt": "2026-10-30T11:22:05.537Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
@@ -4891,6 +4891,8 @@
         "tests/tooling/install/phpactor-download-authority.test.js",
         "tests/tooling/install/setup-git-metadata-target-handoff.test.js",
         "tests/tooling/lsp/compilation-database-admission.test.js",
+        "tests/tooling/lsp/diagnostic-resource-isolation.test.js",
+        "tests/tooling/lsp/disposal-diagnostic-causes.test.js",
         "tests/tooling/lsp/drain-lifetime-matrix.test.js",
         "tests/tooling/lsp/go-rust-signature-boundaries.test.js",
         "tests/tooling/lsp/graceful-exit-after-transport-close.test.js",
@@ -5287,6 +5289,9 @@
         "tests/cli/general/metadata-and-index-admission.test.js",
         "tests/context-pack/risk-truncation-contract.test.js",
         "tests/embeddings/actual-export-qualification.js",
+        "tests/embeddings/e5-generation-qualification.js",
+        "tests/embeddings/helpers/e5-generation-consumers.js",
+        "tests/fixtures/benchmarks/actual-adapter-costs.js",
         "tests/fixtures/benchmarks/artifact-probe-costs.js",
         "tests/fixtures/benchmarks/artifact-stats-costs.js",
         "tests/fixtures/benchmarks/comparison-corpus-costs.js",
