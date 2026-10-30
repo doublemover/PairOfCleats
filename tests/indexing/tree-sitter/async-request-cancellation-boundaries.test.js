@@ -50,9 +50,14 @@ try {
   };
   // Warm cache is real, but an already cancelled request cannot read it.
   const warmController = new AbortController(), warm = options(warmController), cache = ensureChunkCache(warm);
-  storeCachedChunks({ cache: cache.cache, key: resolveChunkCacheKey(warm, 'javascript'), chunks: [row], maxEntries: cache.maxEntries });
+  const warmKey = resolveChunkCacheKey(warm, 'javascript');
+  storeCachedChunks({ cache: cache.cache, key: warmKey, chunks: [row], maxEntries: cache.maxEntries, sourceLength: text.length });
+  assert.deepEqual(treeSitterState.chunkCache.get(warmKey), [row], 'the cancellation control starts with actual admitted warm rows');
+  const hitsBeforeAbort = Number(treeSitterState.metrics.chunkCacheHits) || 0, nativeBeforeAbort = state.nativeCalls;
   warmController.abort(); const acquired = state.acquired;
   await assert.rejects(invoke(warm), { name: 'AbortError' }); assert.equal(state.acquired, acquired);
+  assert.equal(Number(treeSitterState.metrics.chunkCacheHits) || 0, hitsBeforeAbort, 'pre-abort precedes even valid cache-hit admission');
+  assert.equal(state.nativeCalls, nativeBeforeAbort); assert.deepEqual(treeSitterState.chunkCache.get(warmKey), [row]);
   treeSitterState.chunkCache.delete(resolveChunkCacheKey(warm, 'javascript'));
   for (const disposition of ['unavailable-after-admission', 'queue-full', 'wrapped-rejection', 'late-fulfillment']) {
     const controller = new AbortController(), selected = options(controller), before = state.nativeCalls;

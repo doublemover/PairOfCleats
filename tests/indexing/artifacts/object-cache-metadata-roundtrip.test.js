@@ -6,6 +6,8 @@ import { resolveTestCachePath } from '../../helpers/test-cache.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 import { ensureChunkCache, resolveChunkCacheKey, resolvePersistentChunkCacheRoot, resolvePersistentChunkCachePaths, storeCachedChunks, loadCachedChunks } from '../../../src/lang/tree-sitter/chunking/cache.js';
 import { treeSitterState } from '../../../src/lang/tree-sitter/state.js';
+import { TREE_SITTER_CHUNK_VERSION } from '../../../src/lang/tree-sitter/config.js';
+import { CHUNK_CACHE_PERSISTENT_SCHEMA } from '../../../src/lang/tree-sitter/chunking/cache-schema.js';
 import { loadImportResolutionCache, saveImportResolutionCache } from '../../../src/index/build/import-resolution-cache.js';
 import { buildLspRequestCacheKey, loadLspRequestCache, persistLspRequestCache } from '../../../src/integrations/tooling/providers/lsp/hover-types/cache.js';
 import { writePersistentCommandProbeCache, readPersistentCommandProbeCache } from '../../../src/index/tooling/command-probe-persistent-cache.js';
@@ -30,17 +32,31 @@ try {
   const cacheRoot = resolvePersistentChunkCacheRoot(options);
   const key = resolveChunkCacheKey(options, 'javascript');
   const { cache, maxEntries } = ensureChunkCache(options);
-  const chunks = [{ start: 0, end: 12, text: 'const x = 1;', meta: { signature: 'x' } }];
-  storeCachedChunks({ cache, maxEntries, key, chunks, cacheRoot });
+  const text = 'const x = 1;', sourceLength = text.length;
+  const chunks = [{ start: 0, end: sourceLength, name: 'x', kind: 'VariableDeclaration', text, meta: { signature: 'x' } }];
+  storeCachedChunks({ cache, maxEntries, key, chunks, cacheRoot, sourceLength });
   const chunkFile = resolvePersistentChunkCachePaths(cacheRoot, key).canonical;
   const chunkPayload = await inspect(chunkFile, 'tree-sitter-chunks');
+  assert.equal(chunkPayload.schemaVersion, CHUNK_CACHE_PERSISTENT_SCHEMA);
+  assert.equal(chunkPayload.producerVersion, TREE_SITTER_CHUNK_VERSION);
+  assert.deepEqual(chunkPayload.source, { length: sourceLength, encoding: 'utf16le-js-string' });
   for (const legacy of [false, true]) {
     if (legacy) await makeLegacy(chunkFile, chunkPayload);
     cache.clear();
     treeSitterState.persistentChunkCacheMemo.clear();
     treeSitterState.persistentChunkCacheMisses.clear();
-    assert.deepEqual(loadCachedChunks({ cache, key, cacheRoot }), chunks, 'chunk payload parity');
+    assert.deepEqual(loadCachedChunks({ cache, key, cacheRoot, sourceLength }), chunks,
+      'metadata-marked and unmarked current-schema rows preserve admitted chunk payloads');
   }
+  for (const mutate of [payload => { payload.producerVersion = String(Number(TREE_SITTER_CHUNK_VERSION) - 1); },
+    payload => { payload.chunks[0].kind = 42; }]) {
+    const invalid = structuredClone(chunkPayload); mutate(invalid); await fs.writeFile(chunkFile, JSON.stringify(invalid));
+    cacheCleanup();
+    assert.equal(loadCachedChunks({ cache, key, cacheRoot, sourceLength }), null, 'a decorative metadata marker cannot admit old producer meaning or malformed rows');
+  }
+  await fs.writeFile(chunkFile, JSON.stringify(chunkPayload)); cacheCleanup();
+  assert.equal(loadCachedChunks({ cache, key, cacheRoot }), null, 'source extent remains required even for valid marked data');
+  assert.deepEqual(loadCachedChunks({ cache, key, cacheRoot, sourceLength }), chunks);
 
   const incrementalState = { incrementalDir: path.join(root, 'incremental') };
   const initial = await loadImportResolutionCache({ incrementalState });

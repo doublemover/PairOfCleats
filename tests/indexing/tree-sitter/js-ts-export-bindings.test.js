@@ -6,7 +6,7 @@ import { buildTreeSitterChunks, buildTreeSitterChunksAsync, initTreeSitterRuntim
   preloadTreeSitterLanguages, getTreeSitterStats, resetTreeSitterParser,
   shutdownTreeSitterWorkerPool } from '../../../src/lang/tree-sitter.js';
 import { treeSitterState } from '../../../src/lang/tree-sitter/state.js';
-import { resolveChunkCacheKey, resolvePersistentChunkCacheRoot, storeCachedChunks } from '../../../src/lang/tree-sitter/chunking/cache.js';
+import { resolveChunkCacheKey, resolvePersistentChunkCacheRoot, storeCachedChunks, loadCachedChunks } from '../../../src/lang/tree-sitter/chunking/cache.js';
 
 const id = process.env.PAIROFCLEATS_TEST_ID?.split('indexing/tree-sitter/js-ts-export-bindings/')[1];
 assert.ok(['javascript', 'typescript'].includes(id));
@@ -35,8 +35,15 @@ try {
   await preloadTreeSitterLanguages([id], { parallel: false });
   const key = resolveChunkCacheKey(options, id); assert.notEqual(key, legacyKey);
   const cacheRoot = resolvePersistentChunkCacheRoot(options);
+  const obsoleteRows = [{ start: 0, end: text.length, name: 'stale-without-bindings', kind: 'FunctionDeclaration', meta: {} }];
+  // The named captured-key adapter retains valid current schema, so key
+  // isolation is proved against an actual warm product rather than a rejected write.
   storeCachedChunks({ cache: treeSitterState.chunkCache, key: legacyKey,
-    chunks: [{ name: 'stale-without-bindings' }], maxEntries: 8, cacheRoot });
+    chunks: obsoleteRows, sourceLength: text.length, maxEntries: 8, cacheRoot });
+  treeSitterState.chunkCache.clear(); treeSitterState.persistentChunkCacheMemo.clear(); treeSitterState.persistentChunkCacheMisses.clear();
+  assert.deepEqual(loadCachedChunks({ cache: treeSitterState.chunkCache, key: legacyKey, cacheRoot, sourceLength: text.length }), obsoleteRows,
+    'the obsolete producer key has real persisted content before current production');
+  assert.equal(treeSitterState.chunkCache.has(key), false);
   const cold = buildTreeSitterChunks({ text, languageId: id, options }); assertBindings(cold);
   const warm = buildTreeSitterChunks({ text, languageId: id, options }); assert.deepEqual(warm, cold);
   treeSitterState.chunkCache.clear(); treeSitterState.persistentChunkCacheMemo.clear();

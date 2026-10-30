@@ -30,6 +30,13 @@ assert.equal(text.slice(model.importEntries[0].nameRange.start, model.importEntr
 assert.equal(model.sections[0].start, text.lastIndexOf('<include'));
 assert.equal(text.slice(model.sections[0].start, model.sections[0].end), '<include\r\n    href="real.xml"/>');
 assert.deepEqual(collectXmlImports(text), ['real.xml']);
+const sourceChunks = chunkXmlSource(text, {});
+assert.equal(sourceChunks[0].name, 'root-preamble');
+assert.equal(sourceChunks[0].meta.sourceCoverage, 'document-envelope');
+assert.equal(sourceChunks[0].meta.sectionRangeSource, 'application-source-gap');
+assert.equal(sourceChunks[0].start, 0); assert.equal(sourceChunks[0].end, model.sections[0].start);
+assert.equal(text.slice(sourceChunks[0].start, sourceChunks[0].end), text.slice(0, model.sections[0].start),
+  'root/CDATA/comment/instruction prefix remains covered before selecting lexical child sections');
 const chunks = chunkXml(text, {});
 assert.deepEqual(chunks.map((entry) => entry.name), ['include', 'last']);
 assert.ok(chunks.every((entry) => entry.meta.parserCoverage === 'partial'
