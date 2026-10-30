@@ -1,5 +1,17 @@
 # SQLite benchmark workloads
 
+The bounded wide-artifact controls retain six paired trials as two two-trial
+capsules and two one-trial capsules. Each pair still uses 32768 retained-wide
+rows, the unchanged 128 MiB decision, fresh databases, full content validation
+and owned cleanup. The final pair of capsules invokes the same artifact
+benchmark function with a private trial offset, preserving its original
+baseline/current then current/baseline order and trial identifiers. The CLI has
+no new option. This changes a process boundary, not measured work inside an arm;
+it does not establish sustained or end-to-end improvement. The original
+30.66-second aggregate failure remains historical evidence. Representative
+bundle-build and add/delete/shrink/grow/repeated-update qualification remains a
+separate requirement.
+
 `tools/bench/sqlite/build-from-bundles.js` and `incremental-update.js` use the
 canonical artifact surface version and immutable bundle snapshot writer. Source
 hash/size bind deterministic synthetic lexical bytes. Every selected manifest
@@ -25,10 +37,30 @@ and checked as zero. Baseline/current output parity is required before printing 
 smoke delta. The observed-work record reports actual source/bundle bytes,
 files/chunks/postings, lane scope and stable content digest.
 
-The six CLI baseline/current/compare cases and real build/update fixture controls
-are authored but unrun in the implementation-first wave. These small fixed-order,
-single-trial smoke observations do not qualify sustained throughput or WAL gains.
-Issue #1733 remains partial until the harness also offers independently scoped
-changed/new/deleted/shrinking/growing/repeated work, observed threshold/batch
-coverage and repeated alternating trials with separately identified lifecycle
-timing and declared cache conditions. Representative execution remains deferred.
+The CLI baseline/current/compare cases and real build/update fixture controls
+retain their small correctness scope. The lexical/wide campaign profiles offer
+changed/new/deleted/shrinking/growing and repeated work, observed threshold/batch
+coverage and alternating trials with separately identified lifecycle timing and
+declared cache conditions. Smoke observations do not qualify sustained throughput
+or WAL gains; representative execution retains its separate acceptance.
+
+The artifact entrypoint also registers its generated chunks/postings and genuinely
+disabled semantic family through canonical production manifest/family writers.
+Both arms admit the same input and use a fresh database per arm/trial. Every
+sample validates chunks, retained metadata, postings and document lengths outside
+timing. `--trials` alternates arm order and preserves raw checkpoints/final JSON.
+`--profile wide` retains roughly 4.6 KiB of document metadata per row; with
+`--chunks 32768` the actual serialized input crosses the unchanged 128 MiB default
+optimization threshold. `--profile lexical` retains the existing default shape
+and 100,000-row default. Reported threshold eligibility derives from actual file
+bytes. Fresh databases do not imply cold filesystem caches. Small CLI controls
+and separately bounded representative capsules retain their distinct scopes;
+authoring them does not itself qualify sustained performance.
+
+Artifact runs create one private `work/` directory under their unique invocation
+root. After every database and validation owner closes, successful runs preserve
+the compact checkpoint/final receipts, counts, content hashes and raw timings,
+then reclaim only that generated input/database directory. Canonical parent/run/
+work paths, original directory identities and a private run UUID/marker hash must
+still agree. A caller's `--index-dir` never receives this deletion authority.
+Failed operations or unconfirmed cleanup retain their evidence and remain failed.
