@@ -25,7 +25,7 @@ let service;
 if (mode === 'sdk') Server.prototype.setRequestHandler = function (schema, handler) {
   return originalSet.call(this, schema, async (request, context) => {
     const value = await handler(request, context);
-    if (request.method === 'tools/call') { handlerResults.set(request.id, value); handlerDone.get(request.id)?.resolve(value); }
+    if (request.method === 'tools/call') { handlerResults.set(context.requestId, value); handlerDone.get(context.requestId)?.resolve(value); }
     return value;
   });
 };
@@ -92,7 +92,11 @@ try {
   assert.equal(unknown.protocolCode, -32601);
   send({ jsonrpc: '2.0', id: 5, method: 'tools/call', params: {} });
   const invalid = classify(await read(5), mode === 'legacy' ? 'tool-error' : 'protocol-error', mode === 'legacy' ? 'INVALID_REQUEST' : 'INTERNAL');
-  if (mode === 'sdk') assert.equal(invalid.protocolCode, -32602); await idle();
+  // Locked SDK parses the request schema before its tools/call wrapper; that
+  // ordinary schema exception reaches the public protocol InternalError owner.
+  // Classify the actual wire code precisely, without inventing InvalidParams.
+  if (mode === 'sdk') assert.equal(invalid.protocolCode, -32603);
+  assert.equal(calls.some(call => call.id === 5), false, 'malformed params never dispatch mutating work'); await idle();
   const held = ownerFor(6); call(6, 'hold'); await bounded(held.entered.promise);
   const beforeOverload = calls.length; call(7, 'success');
   classify(await read(7), mode === 'legacy' ? 'protocol-error' : 'tool-error', 'QUEUE_OVERLOADED', true);
