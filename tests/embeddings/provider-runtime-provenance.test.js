@@ -13,11 +13,11 @@ applyTestEnv();
 const hfEntry = fileURLToPath(import.meta.resolve('@huggingface/transformers'));
 const hfRequire = createRequire(hfEntry), rootRequire = createRequire(import.meta.url);
 const actualHfEntry = hfRequire.resolve('onnxruntime-node'), actualRootEntry = rootRequire.resolve('onnxruntime-node');
-assert.notEqual(actualHfEntry, actualRootEntry, 'The locked nested and root versions are a discriminating original installation.');
+assert.equal(actualHfEntry, actualRootEntry, 'Both native consumers must resolve the same locked runtime.');
 const before = new Set(Object.keys(rootRequire.cache));
 const nested = await captureEmbeddingProviderRuntime({ provider: 'xenova' });
 const direct = await captureEmbeddingProviderRuntime({ provider: 'onnx' });
-assert.equal(nested.version, '1.30.0'); assert.equal(direct.version, '1.31.1');
+assert.equal(nested.version, '1.30.0'); assert.equal(direct.version, '1.30.0');
 assert.equal(path.resolve(nested.entry.path), actualHfEntry); assert.equal(path.resolve(direct.entry.path), actualRootEntry);
 assert.equal(nested.binding.moduleCacheLoaded, false); assert.equal(direct.binding.moduleCacheLoaded, false);
 assert.deepEqual(new Set(Object.keys(rootRequire.cache)), before, 'Metadata acquisition must not load either original native addon.');
@@ -29,5 +29,6 @@ for (const receipt of [nested, direct]) {
   assert.ok(receipt.packagedLibraries.length > 0);
   assert(receipt.packagedLibraries.every(row => row.bytes > 0 && /^[a-f0-9]{64}$/.test(row.sha256)));
 }
-assert.notEqual(nested.binding.sha256, direct.binding.sha256, 'Different installed addon bytes cannot share a package-only identity.');
-console.log('Real provider-resolved native metadata differs from root installation;no native addon or model was loaded.');
+assert.deepEqual(nested.binding, direct.binding, 'Both consumers must attest the same original addon bytes.');
+assert.deepEqual(nested.packagedLibraries, direct.packagedLibraries, 'Both consumers must attest the same packaged DLLs.');
+console.log('Real provider-resolved native metadata shares one locked runtime;no native addon or model was loaded.');

@@ -94,7 +94,7 @@
     "msgpackr": "^2.1.3",
     "mustache": "4.2.0",
     "node-sql-parser": "^5.4.0",
-    "onnxruntime-node": "^1.31.1",
+    "onnxruntime-node": "1.30.0",
     "p-queue": "10.0.0",
     "parse5": "^8.0.1",
     "pdfjs-dist": "^6.4.299",
@@ -166,6 +166,7 @@
     "xml2js": "0.6.2"
   },
   "overrides": {
+    "onnxruntime-node": "$onnxruntime-node",
     "@azure/identity": {
       "@azure/msal-node": "7.1.2"
     },
@@ -195,7 +196,6 @@
     "msgpackr-extract@3.0.4": true,
     "node-pty@1.1.0": true,
     "onnxruntime-node@1.30.0": true,
-    "onnxruntime-node@1.31.1": true,
     "protobufjs@7.6.6": true,
     "re2@1.27.0": true,
     "tree-sitter-bash@0.25.1": true,

@@ -18,6 +18,7 @@ const write = (relative, text) => {
 const required = ['better-sqlite3', 'tree-sitter', 'tree-sitter-javascript'];
 const inputs = ['.nvmrc', 'tools/setup/checkout-diagnose.js', 'tools/setup/preflight.js', 'src/shared/direct-execution.js', 'tools/setup/apply-patches.js', 'tools/setup/rebuild-native.js',
   'tools/setup/rebuild-native-sqlite.js', 'tools/setup/readiness.js', 'src/shared/native-package-probe.js',
+  'src/shared/native-onnx-probe.js',
   'tools/setup/bootstrap-tasks.js', 'tools/setup/native-build-plan.js',
   'tools/setup/windows-capability.js',
   'src/shared/bootstrap-readiness.js', 'src/lang/tree-sitter/native-runtime.js',
@@ -125,6 +126,12 @@ try {
   write('src/shared/direct-execution.js', `${directExecution}\n// changed entry detection policy\n`);
   assert.equal((await inspectBootstrapReadiness({ root })).ready, false, 'changed entry detection invalidates setup evidence');
   write('src/shared/direct-execution.js', directExecution);
+  record();
+  const onnxProbe = fs.readFileSync(path.join(root, 'src/shared/native-onnx-probe.js'), 'utf8');
+  write('src/shared/native-onnx-probe.js', `${onnxProbe}\n// changed native lifecycle admission\n`);
+  assert.equal((await inspectBootstrapReadiness({ root })).ready, false,
+    'changed mixed-consumer ONNX lifecycle admission invalidates prior setup evidence');
+  write('src/shared/native-onnx-probe.js', onnxProbe);
   record();
   fs.unlinkSync(path.join(root, 'node_modules/tree-sitter/fixture.node'));
   assert.equal((await inspectBootstrapReadiness({ root })).ready, false, 'missing native artifacts reject the receipt');

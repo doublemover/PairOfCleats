@@ -108,6 +108,15 @@ not fabricated proof that your repository contains a symbol.
 
 ## Diagnose readiness
 
+The direct ONNX provider and Transformers share exactly `onnxruntime-node`
+`1.30.0`, matching Transformers `4.3.2`'s native dependency. The package override
+keeps every Node consumer on that single runtime. Update these together:
+Windows can reuse an already loaded `onnxruntime.dll` for a second addon, so
+independent successful imports cannot establish native API compatibility.
+Bootstrap checks both consumer resolutions and runs a small CPU model in both
+import orders, disposing its tensors and sessions before natural child exit.
+That bounded lifecycle check does not qualify every embedding model or backend.
+
 Before bootstrap, the dependency-free front door is available:
 
 ```sh

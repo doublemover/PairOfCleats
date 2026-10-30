@@ -18,7 +18,7 @@ export const DIRECT_MINILM_ARTIFACTS = Object.freeze([
 ].map(Object.freeze));
 export const DIRECT_MINILM_REFERENCE_RECIPE = Object.freeze({
   id: 'direct-minilm-root-ort-mask-mean-l2-v1', modelId: 'Xenova/all-MiniLM-L6-v2', dtype: 'q8', dimensions: 384,
-  runtime: '4.3.2', nativeRuntime: '1.31.1', output: 'last_hidden_state',
+  runtime: '4.3.2', nativeRuntime: '1.30.0', output: 'last_hidden_state',
   source: 'https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2#usage-huggingface-transformers',
   exportSource: 'https://huggingface.co/Xenova/all-MiniLM-L6-v2#usage-transformersjs',
   implementation: 'Raw AutoTokenizer and root ORT InferenceSession; independent feeds, scalar mask mean and L2; no production tokenizer batching, decoding or numeric helper.',
@@ -33,8 +33,8 @@ export const assertDirectMiniLmManifest = manifest => {
   assert.equal(manifest.modelId, DIRECT_MINILM_REFERENCE_RECIPE.modelId); assert.equal(manifest.provider, 'onnx');
   assert.equal(manifest.dimensions, 384); assert.equal(manifest.normalize, true); assert.equal(manifest.tolerance, 1e-5);
   assert.equal(manifest.modelProfile ?? null, null);
-  assert.deepEqual(manifest.runtime, { transformers: '4.3.2', onnxruntimeNode: '1.31.1' });
-  assert.deepEqual(manifest.providerRuntime, { name: 'onnxruntime-node', version: '1.31.1' });
+  assert.deepEqual(manifest.runtime, { transformers: '4.3.2', onnxruntimeNode: '1.30.0' });
+  assert.deepEqual(manifest.providerRuntime, { name: 'onnxruntime-node', version: '1.30.0' });
   assert.ok(path.isAbsolute(manifest.modelsDir)); assert.ok(path.isAbsolute(manifest.onnxConfig?.modelPath));
   assert.equal(path.basename(manifest.onnxConfig.modelPath), 'model_quantized.onnx');
   assert.deepEqual(manifest.onnxConfig, { modelPath: manifest.onnxConfig.modelPath, tokenizerId: manifest.modelId,

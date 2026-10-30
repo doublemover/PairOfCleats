@@ -190,6 +190,10 @@ export const probeNativeGrammarRoutes = (root, routes) => {
 
 export const probeNativePackage = async (root, pkgName, { grammarRoutes = [] } = {}) => {
   if (grammarRoutes.length) return probeNativeGrammarRoutes(root, grammarRoutes);
+  if (pkgName === 'onnxruntime-node') {
+    const { probeNativeOnnxLifecycle } = await import('./native-onnx-probe.js');
+    return probeNativeOnnxLifecycle(root);
+  }
   if (pkgName === 'better-sqlite3') return probeSqliteNative(root);
   if (pkgName === 'node-pty') {
     // Natural probe exit proves that ConPTY closes its connection worker too.

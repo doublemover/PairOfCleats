@@ -65,7 +65,7 @@ for (const cohort of cohorts) {
       assert.equal(receipt.execution.stub, false); assert.equal(receipt.modelArtifact.status, 'verified');
       assert.equal(receipt.provider, manifest.provider); assert.equal(receipt.execution.provider, manifest.provider);
       if (manifest.provider === 'onnx') {
-        assert.equal(receipt.providerRuntime.version, '1.31.1'); assert.equal(receipt.providerRuntime.binding.moduleCacheLoaded, true);
+        assert.equal(receipt.providerRuntime.version, '1.30.0'); assert.equal(receipt.providerRuntime.binding.moduleCacheLoaded, true);
         assert.equal(receipt.execution.fallback, null); assert.equal(receipt.execution.measurements.retainedTensorScopes, 0);
       }
       if (cohort === 'cold') assert.equal(receipt.samples.length, 1);

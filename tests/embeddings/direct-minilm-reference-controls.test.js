@@ -11,7 +11,7 @@ applyTestEnv();
 // lifetime tests only. No installed graph, native binding or inference executes.
 const manifest = { modelId: 'Xenova/all-MiniLM-L6-v2', provider: 'onnx', dimensions: 384, normalize: true, tolerance: 1e-5,
   modelProfile: null, modelsDir: path.resolve('metadata-only-tokenizer-cache'),
-  runtime: { transformers: '4.3.2', onnxruntimeNode: '1.31.1' }, providerRuntime: { name: 'onnxruntime-node', version: '1.31.1' },
+  runtime: { transformers: '4.3.2', onnxruntimeNode: '1.30.0' }, providerRuntime: { name: 'onnxruntime-node', version: '1.30.0' },
   artifacts: structuredClone(DIRECT_MINILM_ARTIFACTS), onnxConfig: { modelPath: path.resolve('metadata-only-install/model_quantized.onnx'),
     tokenizerId: 'Xenova/all-MiniLM-L6-v2', executionProviders: ['cpu'], intraOpNumThreads: 1, interOpNumThreads: 1,
     graphOptimizationLevel: 'basic', cpuExecutionProviderTuning: true } };
@@ -20,8 +20,8 @@ for (const route of ['upstream-reference', 'single', 'batch', 'query', 'resource
 assert.throws(() => assertDirectMiniLmRoute('prepared'), /no public prepare/);
 for (const change of [value => { value.provider = 'xenova'; }, value => { value.modelId = 'local/minilm-alias'; },
   value => { value.dimensions = 383; }, value => { value.normalize = false; }, value => { value.tolerance = 1e-4; },
-  value => { value.modelProfile = {}; }, value => { value.providerRuntime.version = '1.30.0'; },
-  value => { value.runtime.onnxruntimeNode = '1.30.0'; }, value => { value.onnxConfig.intraOpNumThreads = 2; },
+  value => { value.modelProfile = {}; }, value => { value.providerRuntime.version = '1.31.1'; },
+  value => { value.runtime.onnxruntimeNode = '1.31.1'; }, value => { value.onnxConfig.intraOpNumThreads = 2; },
   value => { value.onnxConfig.tokenizerId = 'other/tokenizer'; }, value => { value.onnxConfig.modelPath = 'relative/model_quantized.onnx'; },
   value => { value.artifacts[0].sha256 = 'a'.repeat(64); }, value => { value.artifacts[3].path = 'onnx/model_quantized.onnx'; }]) {
   const changed = structuredClone(manifest); change(changed); assert.throws(() => assertDirectMiniLmManifest(changed));

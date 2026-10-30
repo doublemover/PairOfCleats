@@ -317,7 +317,7 @@ const verifyRequiredPackages = async () => {
     process.exit(1);
   }
 
-  console.error('[verify:native] required packages loadable; registered native language routes parser-activated.');
+  console.error('[verify:native] required packages loadable; registered native language routes parser-activated; mixed-consumer ONNX inference/disposal verified.');
 };
 
 const repairRequiredPackages = async () => {
@@ -393,7 +393,8 @@ const repairRequiredPackages = async () => {
 const recordReadiness = async () => {
   await applyPatchesAsync(root, { verifyOnly: true });
   recordBootstrapReadiness(root, REQUIRED_NATIVE_PACKAGES, {
-    nativeCapabilities: [...nativeCapabilities.values()].flat().sort((a, b) => a.languageId.localeCompare(b.languageId))
+    nativeCapabilities: [...nativeCapabilities.values()].flat().sort((a, b) =>
+      (a.languageId ?? a.id).localeCompare(b.languageId ?? b.id))
   });
   console.error('[bootstrap] Verified readiness receipt saved.');
 };
