@@ -8,6 +8,8 @@ import { createRepoMapIterator } from '../../src/index/build/artifacts/writers/r
 import { prepareArtifactIoTestDir, writePiecesManifest } from '../helpers/artifact-io-fixture.js';
 import { applyTestEnv } from '../helpers/test-env.js';
 import { buildShardedJsonlMetaFields } from '../../src/index/build/artifacts/writers/_common.js';
+import { buildFileMetaColumnar } from '../../src/index/build/artifacts/file-meta.js';
+import { assertMapConsumerComposition } from '../helpers/map-consumer-assertions.js';
 
 const dir = await prepareArtifactIoTestDir('map-canonical-member-inventory');
 applyTestEnv({ cacheRoot: path.join(dir, 'cache') });
@@ -63,6 +65,10 @@ try {
   assert.ok(map.edges.some(edge => edge.type === 'import' && edge.to.file === 'src/empty.js'));
   assert.ok(!map.nodes.some(node => node.path === 'external/pkg.js'));
   assert.equal(map.summary.omittedEndpoints.unavailable, 2);
+  await assertMapConsumerComposition(JSON.parse(JSON.stringify(map)), {
+    emptyFiles: ['src/empty.js', 'src/comment-only.js', 'other/target.js'],
+    aliases: new Map([['sym:v1:alpha', ['a=b', 'c=d', 'e=f', 'g=h', 'i=j']]])
+  });
   for (const collapse of ['file', 'dir']) {
     const collapsed = JSON.parse(JSON.stringify(await buildCodeMap({ repoRoot: dir, indexDir: dir,
       options: { ...options, collapse, topKByDegree: true } })));
@@ -133,7 +139,16 @@ try {
       && edge.from.member === 'sym:v1:alpha' && edge.to.member === 'sym:v1:alpha'),
     'producer alias annotations do not invent dependencies on other symbols');
     assert.deepEqual(actual.nodes.find(node => node.path === 'src/a.js').members[0].dataflow?.aliases || [], expected);
+    await assertMapConsumerComposition(actual, { aliases: new Map([['sym:v1:alpha', expected]]) });
   }
+  // The same inventory-only files must reach real hierarchy/inspector consumers
+  // when the authoritative loader admits canonical columnar metadata.
+  await fs.writeFile(path.join(dir, 'file_meta.columnar.json'), JSON.stringify(buildFileMetaColumnar(fileRows)));
+  await writePiecesManifest(dir, [...pieces.filter(piece => !['file_meta', 'file_meta_meta'].includes(piece.name)),
+    { name: 'file_meta', path: 'file_meta.columnar.json', format: 'columnar' }]);
+  const columnar = JSON.parse(JSON.stringify(await buildCodeMap({ repoRoot: dir, indexDir: dir, options })));
+  assert.deepEqual(columnar.nodes.map(node => node.path), fileRows.map(row => row.file).sort());
+  await assertMapConsumerComposition(columnar, { emptyFiles: ['src/empty.js', 'src/comment-only.js', 'other/target.js'] });
 } finally {
   await fs.rm(dir, { recursive: true, force: true });
 }
