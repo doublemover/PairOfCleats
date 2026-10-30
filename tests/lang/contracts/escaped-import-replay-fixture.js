@@ -32,7 +32,8 @@ export const assertEscapedImportReplay = async ({ name, file, source, expected }
   assert.equal(await read(cold.importScanFingerprint),null,'partial lexical scans retain refresh-required policy');
   assert.deepEqual((await run({enabled:true,manifest,bundleDir,bundleFormat:'json'})).importsByFile[file],expected.toSorted());
   const obsolete=['phantom-from-retired-producer'];
-  manifest.files[file] = await write(fingerprint('26'),obsolete,createImportExtraction({entries:obsolete,text:source,
+  const previousProducer=String(Number(SEMANTIC_ANALYSIS_VERSIONS.importResolution)-1);
+  manifest.files[file] = await write(fingerprint(previousProducer),obsolete,createImportExtraction({entries:obsolete,text:source,
     producerId:'historical-qualified-fixture',parser:{id:'historical-parser',version:'1',available:true},
     parserCoverage:'complete',scope:'historical-producer-output'}));
   assert.equal(await read(cold.importScanFingerprint),null,'old producer cannot replay corrected values as qualified facts');

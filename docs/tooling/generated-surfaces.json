@@ -2,6 +2,21 @@
   "schemaVersion": "1.0.0",
   "surfaces": [
     {
+      "id": "python-identifier-tables",
+      "owner": "language-contracts",
+      "committed": true,
+      "validationMode": "registry-audited",
+      "freshnessExpectation": "regenerate with repository-pinned CPython after identifier profile or generator changes",
+      "freshness": {
+        "mode": "generated-compare",
+        "command": "python src/lang/python/generate-identifier-tables.py --out {output:0}",
+        "outputs": [{ "format": "text" }]
+      },
+      "outputs": ["src/lang/python/identifier-tables.js"],
+      "refresh": { "command": "python src/lang/python/generate-identifier-tables.py" },
+      "audit": { "command": "node tools/docs/generated-surfaces.js --check-freshness --surface python-identifier-tables" }
+    },
+    {
       "id": "tui-search-failures",
       "owner": "tui-contracts",
       "committed": true,
