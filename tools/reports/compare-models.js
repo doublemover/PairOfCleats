@@ -13,7 +13,7 @@ import { COMPARE_MODELS_OPTIONS } from '../../src/shared/cli-options.js';
 import { resolveAnnSetting, resolveBaseline, resolveCompareModels, resolveCompareModelCacheRoot } from '../../src/experimental/compare/config.js';
 import { summarizeRetrievalHitComparison } from '../../src/retrieval/hit-comparison.js';
 import { aggregateRetrievalScoreDeltas } from '../../src/retrieval/score-observation.js';
-import { resolveRetrievalCorpusIdentity } from '../../src/retrieval/corpus-comparison.js';
+import { createComparisonCorpusRegistry } from './compare-model-corpus.js';
 import { readQueryInputPlan, resolveTopNAndLimit } from '../shared/query-file-utils.js';
 import { meanNullable } from '../../src/shared/stats.js';
 import { readJsonFileSyncSafe } from '../../src/shared/file-read.js';
@@ -279,7 +279,7 @@ if (sqliteBackend && buildSqlite) {
 
 const results = queryPlan.cases.map(({ query, caseId, weight }) => ({ query, caseId, weight, runs: {}, comparisons: {} }));
 const warnings = [];
-const corpusByModel = new Map();
+const corpusRegistries = new Map();
 const executionRegistries = new Map();
 const selectedModes = ['code', 'prose'].filter(mode => mode === 'code' ? compareCode : compareProse);
 
@@ -311,23 +311,27 @@ for (const modelId of models) {
     }
   }
 
-  const corpus = {};
-  for (const mode of ['code', 'prose']) {
-    if ((mode === 'code' && !compareCode) || (mode === 'prose' && !compareProse)) continue;
-    corpus[mode] = await resolveRetrievalCorpusIdentity(path.join(resolveModelIndexRoot(modelCacheRoot, mode), `index-${mode}`), mode);
-  }
-  corpusByModel.set(modelId, corpus);
+  const corpusRegistry = createComparisonCorpusRegistry();
+  corpusRegistries.set(modelId,corpusRegistry);
   const registry = createRetrievalEvidenceRegistry();
   executionRegistries.set(modelId, registry);
   for (let i = 0; i < selectedQueries.length; i++) {
     const query = selectedQueries[i];
     const { payload, wallMs } = runSearch(query, env);
     const observed = admitComparisonResponse(payload, selectedModes, { registry, expectedBackend: backend });
+    const corpus = {};
+    for (const mode of selectedModes) {
+      const value=await corpusRegistry.observe({generation:observed.receipt?.generations?.[mode],mode,
+        repoCacheRoot:path.join(resolveVersionedCacheRoot(modelCacheRoot),'repos',repoId)});
+      corpus[mode]={ref:value.ref,comparable:value.comparable,digest:value.digest,policy:value.policy,
+        ...(value.reason?{reason:value.reason}:{})};
+    }
     const codeHits = observed.cohorts?.code ?? null;
     const proseHits = observed.cohorts?.prose ?? null;
     results[i].runs[modelId] = {
       elapsedMs: Number.isFinite(payload?.stats?.elapsedMs) ? payload.stats.elapsedMs : null,
       admission: observed.admission,
+      corpus,
       wallMs,
       codeCount: codeHits?.length ?? null,
       proseCount: proseHits?.length ?? null,
@@ -343,9 +347,9 @@ for (const modelId of models) {
  * @param {Array<object>} otherHits
  * @returns {{overlap:number,avgDelta:number,rankCorr:(number|null),top1Same:boolean}}
  */
-function compareHits(baseRun, otherRun, modelId, mode) {
-  const baseCorpus = corpusByModel.get(baseline)?.[mode];
-  const otherCorpus = corpusByModel.get(modelId)?.[mode];
+function compareHits(baseRun, otherRun, mode) {
+  const baseCorpus = baseRun.corpus?.[mode];
+  const otherCorpus = otherRun.corpus?.[mode];
   if (!baseCorpus?.comparable || !otherCorpus?.comparable || baseCorpus.digest !== otherCorpus.digest) {
     const reason = 'source-or-chunking-corpus-mismatch-or-unverified';
     return { comparable: false, reason, overlap: null, avgDelta: null, rankCorr: null, top1Same: null, baseCorpus, otherCorpus };
@@ -355,10 +359,10 @@ function compareHits(baseRun, otherRun, modelId, mode) {
     overlap: null, avgDelta: null, rankCorr: null, top1Same: null, zeroHits: false };
   const comparison = summarizeRetrievalHitComparison(baseHits, otherHits, { topN, mode, repoScope: repoId });
   const comparable = comparison.comparable && baseRun.admission.byMode[mode].qualified && otherRun.admission.byMode[mode].qualified;
-  return { ...comparison, comparable, reason: comparable ? null : comparison.comparable
+  return { ...comparison, comparable, baseCorpus,otherCorpus,reason: comparable ? null : comparison.comparable
     ? 'observed-execution-unqualified' : 'unknown-hit-identity',
-  overlap: comparison.comparable ? comparison.overlap : null, avgDelta: comparison.comparable ? comparison.avgDelta : null,
-  rankCorr: comparison.comparable ? comparison.rankCorr : null };
+  overlap: comparable ? comparison.overlap : null, avgDelta: comparable ? comparison.avgDelta : null,
+  rankCorr: comparable ? comparison.rankCorr : null,top1Same:comparable?comparison.top1Same:null };
 
 }
 
@@ -369,8 +373,8 @@ for (const entry of results) {
     const otherRun = entry.runs[modelId];
     if (!baseRun || !otherRun) continue;
     entry.comparisons[modelId] = {
-      code: compareCode ? compareHits(baseRun, otherRun, modelId, 'code') : null,
-      prose: compareProse ? compareHits(baseRun, otherRun, modelId, 'prose') : null
+      code: compareCode ? compareHits(baseRun, otherRun, 'code') : null,
+      prose: compareProse ? compareHits(baseRun, otherRun, 'prose') : null
     };
   }
 }
@@ -458,6 +462,7 @@ const outputResults = results.map((entry) => {
     runs[modelId] = {
       elapsedMs: run.elapsedMs ?? null,
       admission: run.admission,
+      corpus: run.corpus,
       wallMs: run.wallMs ?? null,
       codeCount: run.codeCount ?? null,
       proseCount: run.proseCount ?? null
@@ -477,7 +482,8 @@ const requestedComparisons = results.flatMap(entry => Object.values(entry.compar
 const qualifiedComparisons = requestedComparisons.filter(comparison => comparison.comparable);
 const executionEvidence = Object.fromEntries([...executionRegistries].map(([model, registry]) => [model, registry.snapshot()]));
 const output = {
-  schemaVersion: 2,
+  schemaVersion: 3,
+  corpusEvidence:Object.fromEntries([...corpusRegistries].map(([model,registry])=>[model,registry.snapshot()])),
   kind: 'model-retrieval-comparison',
   generatedAt: new Date().toISOString(),
   repo: {
