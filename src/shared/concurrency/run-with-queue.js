@@ -77,7 +77,14 @@ export async function runWithQueue(queue, items, worker, options = {}) {
     err.retryable = false;
     throw err;
   }
-  const abortError = options.abortError instanceof Error ? options.abortError : createAbortError();
+  let abortError = options.abortError instanceof Error ? options.abortError : null;
+  const getAbortError = () => {
+    if (!abortError) {
+      try { throwIfAborted(signal); } catch (error) { abortError = error; }
+      abortError ||= createAbortError();
+    }
+    return abortError;
+  };
   const results = collectResults ? new Array(list.length) : null;
   const pendingSignals = new Set();
   let capacityChange = null, notifyCapacityChange = null;
@@ -235,13 +242,13 @@ export async function runWithQueue(queue, items, worker, options = {}) {
     }
     if (signal.aborted) {
       markAborted();
-      throw abortError;
+      throw getAbortError();
     }
     let onAbort = null;
     const abortedPromise = new Promise((_, reject) => {
       onAbort = () => {
         markAborted();
-        reject(abortError);
+        reject(getAbortError());
       };
       signal.addEventListener('abort', onAbort, { once: true });
     });
@@ -348,7 +355,7 @@ export async function runWithQueue(queue, items, worker, options = {}) {
   const waitForPendingDrainOrAbort = async () => {
     if (!pendingSignals.size) return;
     if (signal?.aborted) {
-      throw abortError;
+      throw getAbortError();
     }
     const pendingDrain = Promise.all(Array.from(pendingSignals));
     const pendingStartedAt = Date.now();
@@ -398,7 +405,7 @@ export async function runWithQueue(queue, items, worker, options = {}) {
       return;
     }
     const aborted = new Promise((_, reject) => {
-      onAbort = () => reject(abortError);
+      onAbort = () => reject(getAbortError());
       signal.addEventListener('abort', onAbort, { once: true });
     });
     raceCandidates.push(aborted);
@@ -418,7 +425,7 @@ export async function runWithQueue(queue, items, worker, options = {}) {
     try { await waitForPendingDrainOrAbort(); }
     catch (error) { if (fatalResourceFailure) throw fatalResourceFailure; throw error; }
     if (fatalResourceFailure) throw fatalResourceFailure;
-    if (signal?.aborted) throw abortError;
+    if (signal?.aborted) throw getAbortError();
     if (firstError) throw firstError;
     if (bestEffort && errors.length) {
       throw aggregateQueueFailures(errors, 'runWithQueue best-effort failures');

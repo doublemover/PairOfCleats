@@ -372,9 +372,9 @@ const withStage1AbortForwarding = async (abortSignal, operation) => {
     attached = false;
     abortSignal.removeEventListener('abort', forward);
   };
-  const abort = (reason = null) => {
+  const abort = (reason = undefined) => {
     if (!controller || signal?.aborted) return;
-    try { controller.abort(reason || undefined); } catch { controller.abort(); }
+    try { controller.abort(reason); } catch { controller.abort(); }
   };
   try {
     if (controller && abortSignal && typeof abortSignal.addEventListener === 'function') {

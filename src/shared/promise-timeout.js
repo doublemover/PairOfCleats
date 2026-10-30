@@ -1,4 +1,4 @@
-import { createAbortError } from './abort.js';
+import { createAbortError, throwIfAborted } from './abort.js';
 
 const toPositiveTimeoutMs = (value, fallbackMs = 0) => {
   const numeric = Number(value);
@@ -44,9 +44,21 @@ export const runWithTimeout = async (operation, input = {}) => {
   const upstreamSignal = input?.signal && typeof input.signal === 'object'
     ? input.signal
     : null;
+  const upstreamAbortError = () => {
+    try { throwIfAborted(upstreamSignal); }
+    catch (error) {
+      // Preserve the existing reason-bearing diagnostic without inspecting the
+      // signal twice or replacing the canonical exact original cause.
+      try {
+        const text = String(error.cause?.message || error.cause || '').trim();
+        if (text) error.message = text;
+      } catch { /* a diagnostic getter cannot discard cancellation authority */ }
+      return error;
+    }
+    return createAbortError();
+  };
   if (upstreamSignal?.aborted) {
-    const reasonText = String(upstreamSignal.reason?.message || upstreamSignal.reason || '').trim();
-    throw createAbortError(reasonText || 'Operation aborted');
+    throw upstreamAbortError();
   }
   if (timeoutMs <= 0) {
     return Promise.resolve().then(() => operation(upstreamSignal));
@@ -73,11 +85,10 @@ export const runWithTimeout = async (operation, input = {}) => {
     const abortPromise = new Promise((_, reject) => {
       if (!upstreamSignal || typeof upstreamSignal.addEventListener !== 'function') return;
       const onAbort = () => {
-        const reasonText = String(upstreamSignal.reason?.message || upstreamSignal.reason || '').trim();
-        const abortError = createAbortError(reasonText || 'Operation aborted');
+        const abortError = upstreamAbortError();
         if (abortController && !timeoutSignal?.aborted) {
           try {
-            abortController.abort(upstreamSignal.reason || abortError);
+            abortController.abort(abortError.cause);
           } catch {
             abortController.abort();
           }
