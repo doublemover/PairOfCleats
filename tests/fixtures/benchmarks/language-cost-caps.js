@@ -6,9 +6,11 @@ import { Session } from 'node:inspector/promises';
 import { requireBootstrap } from '../../../src/shared/bootstrap-readiness.js';
 import { addStorageFailureContext } from '../../../src/shared/storage/operation-error.js';
 import { collectPythonImports } from '../../../src/lang/python/imports.js';
-import { buildLineIndex, createPythonByteColumnResolver } from '../../../src/lang/python/normalize.js';
+import { buildLineIndex } from '../../../src/lang/python/normalize.js';
+import { createPythonByteColumnResolver } from '../../../src/lang/python/byte-columns.js';
 import { chunkYaml } from '../../../src/index/chunking/formats/yaml.js';
 import { treeSitterState } from '../../../src/lang/tree-sitter/state.js';
+import { chunkCacheRetentionObservation } from '../../../src/lang/tree-sitter/chunking/cache.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 
 await requireBootstrap(); applyTestEnv();
@@ -59,21 +61,22 @@ const allocationSample = async (name, operation) => {
     scope: 'separate16-operation V8 Poisson heap-allocation observation, including collected objects;not exact allocations, native bytes, retained heap or clean latency' };
 };
 if (scenario === 'python-inline') {
-  for (const count of [64, 256, 1024]) {
-    const expected = Array.from({ length: count }, (_, index) => `dep_${String(index).padStart(5, '0')}`);
+  for (const count of [64, 256, 1024]) for (const unicode of [false, true]) {
+    const expected = Array.from({ length: count }, (_, index) => `${unicode ? '包' : 'dep'}_${String(index).padStart(5, '0')}`);
     const inline = expected.map(name => `if TYPE_CHECKING: import ${name}; value = {'import phantom': 1}\n`).join('');
     const multiline = expected.map(name => `if TYPE_CHECKING:\n import ${name}\n value = {'import phantom': 1}\n`).join('');
     const check = result => assert.deepEqual(result.imports, expected);
     for (const [shape, text] of [['inline', inline], ['multiline', multiline]]) {
-      const { row } = measure(shape + '-' + count, () => collectPythonImports(text), check);
+      const { row } = measure(shape + '-' + count + (unicode ? '-unicode' : '-ascii'), () => collectPythonImports(text), check);
       row.source = { bytes: Buffer.byteLength(text), sha256: digest(text), imports: count };
       row.allocations = await allocationSample(row.name, () => collectPythonImports(text));
     }
   }
 } else if (scenario === 'python-lines') {
-  for (const size of [8192, 65536, 262144]) for (const newline of ['\n', '\r\n', '\r']) {
+  for (const size of [8192, 65536, 262144]) for (const newline of ['\n', '\r\n', '\r']) for (const unicode of [false, true]) {
     for (const longLine of [false, true]) {
-      const line = longLine ? 'é😀中'.repeat(Math.ceil(size / 9)) : 'é😀中'.repeat(8);
+      const unit = unicode ? 'é😀中' : 'abcd';
+      const line = longLine ? unit.repeat(Math.ceil(size / Buffer.byteLength(unit))) : unit.repeat(8);
       const count = longLine ? 1 : Math.ceil(size / (Buffer.byteLength(line) + Buffer.byteLength(newline)));
       const text = Array.from({ length: count }, () => line).join(newline);
       const starts = []; let offset = 0;
@@ -91,7 +94,7 @@ if (scenario === 'python-inline') {
         assert.deepEqual(result.index, starts);
         assert.deepEqual(result.witnesses, starts.map(start => [start, start + 3, start + line.length]));
       };
-      const { row } = measure(`${longLine ? 'long' : 'many'}-${size}-${digest(newline).slice(0, 6)}`, operation, check);
+      const { row } = measure(`${longLine ? 'long' : 'many'}-${size}-${digest(newline).slice(0, 6)}-${unicode ? 'unicode' : 'ascii'}`, operation, check);
       row.source = { bytes: Buffer.byteLength(text), utf16Units: text.length, lines: count, newline, sha256: digest(text) };
       // Capture actual source-owned checkpoint arrays, separately from clean
       // timing. This counts table payloads, not all JS/native allocations.
@@ -102,19 +105,21 @@ if (scenario === 'python-inline') {
         row.checkpoints = { arrays: tables.length, bytes: tables.reduce((sum, value) => sum + value, 0),
           lineIndexEntries: held.index.length, capturedOriginalUint32ArrayFrom: true,
           scope: 'actual byte/unit checkpoint payloads after touching every physical line;lineIndex is a JS array;no whole-heap attribution' };
-        assert.equal(tables.length, count * 2);
+        assert.equal(tables.length, unicode ? count * 2 : 0);
         assert.ok(row.checkpoints.bytes <= 8 * (Math.ceil(Buffer.byteLength(text) / 256) + count));
       } finally { Uint32Array.from = original; }
       row.allocations = await allocationSample(row.name, operation);
     }
   }
 } else {
-  const body = Array.from({ length: 8 }, (_, document) => `---\n# document ${document} 😀\n`
-    + Array.from({ length: 16 }, (_, index) => `key_${document}_${index}: value_${index}\n`).join('')).join('');
+  const documents = Array.from({ length: 8 }, (_, document) => `---\n# document ${document} 😀\n`
+    + Array.from({ length: 16 }, (_, index) => `key_${document}_${index}: value_${index}\n`).join(''));
+  const body = documents.join('');
   const corpus = Array.from({ length: 32 }, (_, index) => body + '# corpus ' + String(index).padStart(2, '0') + '\n');
   let selectedText;
   const canonical = rows => rows.map(row => ({ start: row.start, end: row.end, name: row.name, kind: row.kind,
-    documentIndex: row.meta.documentIndex, documentRange: row.meta.documentRange }));
+    documentIndex: row.meta.documentIndex,
+    documentRange: { start: row.meta.documentRange.start, end: row.meta.documentRange.end } }));
   const make = (enabled, useQueries, caching) => {
     let cursor = 0;
     return () => {
@@ -124,8 +129,16 @@ if (scenario === 'python-inline') {
           chunkCache: caching, chunkCacheMaxEntries: 128, cachePersistent: false, cacheKey: digest(selectedText) } });
     };
   };
-  const expected = canonical(make(false, false, false)());
-  assert.equal(expected.length, 128);
+  const expected = [];
+  let documentStart = 0;
+  for (const [documentIndex, document] of documents.entries()) {
+    const range = { start: documentStart, end: documentStart + document.length };
+    const headings = Array.from({ length: 16 }, (_, index) => documentStart + document.indexOf(`key_${documentIndex}_${index}:`));
+    for (let index = 0; index < headings.length; index++) expected.push({ start: index === 0 ? documentStart : headings[index],
+      end: headings[index + 1] ?? (documentIndex === documents.length - 1 ? corpus[0].length : range.end),
+      name: `key_${documentIndex}_${index}`, kind: 'ConfigSection', documentIndex, documentRange: range });
+    documentStart = range.end;
+  }
   const nativeWitnesses = new Map();
   const stableNative = rows => rows.map(({ meta, ...row }) => {
     // The canonical YAML owner writes wall-clock parseMetrics per invocation.
@@ -151,15 +164,31 @@ if (scenario === 'python-inline') {
       if (caching) assert.equal(hash, nativeWitnesses.get(key), 'Warm cache retains every native/semantic field beyond invocation timing.');
       else nativeWitnesses.set(key, hash);
     };
+    const retentionBefore = chunkCacheRetentionObservation(), primingBefore = { ...treeSitterState.metrics };
     for (let index = 0; index < corpus.length; index++) verify(operation());
-    const before = { ...treeSitterState.metrics }, { row } = measure(name, operation, verify);
+    const before = { ...treeSitterState.metrics }, canonicalSamples = [];
+    const { row } = measure(name, operation, rows => {
+      verify(rows);
+      const metrics = rows[0].meta.parseMetrics;
+      assert.ok(metrics.tokenCount > 0 && metrics.cstNodeCount > 0 && metrics.nodeCount > 0);
+      canonicalSamples.push({ sourceSha256: digest(selectedText), ...metrics });
+    });
     row.source = { entries: corpus.map(text => ({ bytes: Buffer.byteLength(text), sha256: digest(text) })), documents: 8, headings: 128,
       priorWork: '32 distinct inputs primed;different text avoids the canonical one-entry structure cache;native warm cohorts reuse all32 admitted entries' };
     row.metrics = Object.fromEntries(Object.entries(treeSitterState.metrics).filter(([, value]) => typeof value === 'number')
       .map(([key, value]) => [key, value - (before[key] || 0)]));
+    row.primingMetrics = Object.fromEntries(Object.entries(before).filter(([, value]) => typeof value === 'number')
+      .map(([key, value]) => [key, value - (primingBefore[key] || 0)]));
+    row.canonicalSamples = canonicalSamples;
+    row.cacheRetention = { before: retentionBefore, after: chunkCacheRetentionObservation(),
+      scope: 'canonical logical byte charges and retained copies;not attributed or native heap bytes' };
     if (enabled) row.semanticWitnesses = [...nativeWitnesses].filter(([key]) => JSON.parse(key)[0] === useQueries);
     if (caching) assert.equal(row.metrics.chunkCacheHits, 16);
     else if (enabled) assert.ok(row.metrics.projectionVisits > 0);
+    if (enabled && useQueries && !caching) {
+      assert.ok(row.primingMetrics.projectionQueryExecutions > 0 && row.metrics.projectionQueryExecutions > 0);
+      assert.equal(row.primingMetrics.queryFailures, 0); assert.equal(row.metrics.queryFailures, 0);
+    }
     row.allocations = await allocationSample(name, operation);
   }
 }
