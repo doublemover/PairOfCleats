@@ -2,7 +2,7 @@
 import { guardBootstrapEntry } from '../../../src/shared/bootstrap-readiness.js';
 await guardBootstrapEntry(import.meta.url);
 import { performance } from 'node:perf_hooks';
-import { BENCH_TERMINAL_RECEIPT_VERSION } from '../runner-contract.js';
+const { BENCH_TERMINAL_RECEIPT_VERSION } = await import('../runner-contract.js');
 const { buildFilterIndex, releaseFilterIndexMemory } = await import('../../../src/retrieval/filter-index.js');
 const {
   buildBitmapIndex,

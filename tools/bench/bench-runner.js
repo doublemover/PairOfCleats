@@ -5,15 +5,18 @@ import path from 'node:path';
 import os from 'node:os';
 import { createHash } from 'node:crypto';
 import { isDirectExecution } from '../../src/shared/direct-execution.js';
-import { observeStorageResource } from '../../src/shared/storage/failure-observation.js';
-import { redactDiagnosticText } from '../../src/shared/diagnostic-text.js';
-import { resolveBenchRunnerWorkload, reobserveBenchSources, substituteBenchTokens, readBenchmarkExperiment, BENCH_REPORT_MAX_BYTES } from './runner-workload.js';
-import { atomicWriteText } from '../../src/shared/io/atomic-write.js';
-import { BENCH_RUNNER_REPORT_VERSION } from './runner-contract.js';
-import { classifyBenchOutcome, summarizeBenchOutcomes } from './runner-outcome.js';
-import { collectUtilizationSamples, summarizeUtilization } from './runner-utilization.js';
-import { captureArtifactTiming, qualifyAggregateWorkEstimate } from './runner-timing.js';
 
+// Static imports link before the entry guard executes. Keep workload owners
+// behind verified readiness so incomplete checkouts receive the bootstrap
+// diagnostic before any of their dependency graphs are resolved.
+const { observeStorageResource } = await import('../../src/shared/storage/failure-observation.js');
+const { redactDiagnosticText } = await import('../../src/shared/diagnostic-text.js');
+const { resolveBenchRunnerWorkload, reobserveBenchSources, substituteBenchTokens, readBenchmarkExperiment, BENCH_REPORT_MAX_BYTES } = await import('./runner-workload.js');
+const { atomicWriteText } = await import('../../src/shared/io/atomic-write.js');
+const { BENCH_RUNNER_REPORT_VERSION } = await import('./runner-contract.js');
+const { classifyBenchOutcome, summarizeBenchOutcomes } = await import('./runner-outcome.js');
+const { collectUtilizationSamples, summarizeUtilization } = await import('./runner-utilization.js');
+const { captureArtifactTiming, qualifyAggregateWorkEstimate } = await import('./runner-timing.js');
 const { getEnvConfig } = await import('../../src/shared/env/runtime.js');
 const { spawnSubprocessSync } = await import('../../src/shared/subprocess/runner.js');
 const { parseTrailingJson } = await import('./output.js');
