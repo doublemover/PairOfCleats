@@ -70,6 +70,17 @@ do not establish that mutating work had no effects. Inspect operation state and
 idempotency before deciding whether to submit it again; do not automatically
 replay every failed or disconnected tool call.
 
+The actual transport/classifier fixture exercises success, failed execution,
+overload, invalid parameters, unknown methods, timeout and cancellation in both
+modes. Unknown methods retain JSON-RPC `-32601`; a mode need not attach the same
+application code to that protocol rejection. Legacy cancellation delivers a
+`CANCELLED` failed tool result. The locked SDK's registered handler also produces
+that failed tool result, but its protocol layer suppresses a response after a
+client cancellation notification. Classify a delivered result or the SDK client's
+cancellation outcome at its own boundary; absence of a response is not proof that
+mutating work never ran. Both transports retain admission until original tool
+execution and cleanup settle.
+
 ## Tools
 - `index_status`
 - `config_status`

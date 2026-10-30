@@ -13,6 +13,9 @@ if (outcome.ok) {
   if (outcome.kind === 'protocol-error') {
     const protocolCode: number | null = outcome.protocolCode;
     void protocolCode;
+  } else {
+    // @ts-expect-error tool/malformed failures do not invent a protocol code
+    outcome.protocolCode;
   }
   // @ts-expect-error failed tool responses have no successful result
   outcome.result;
