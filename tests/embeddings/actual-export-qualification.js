@@ -8,7 +8,7 @@ import { readVerifiedContainedFile } from '../../src/shared/contained-file.js';
 import { preserveEmbeddingCleanupFailure } from '../../src/shared/embedding-cache-lifetime.js';
 import { captureEmbeddingFailureDiagnostics, projectEmbeddingFailureDiagnostics } from '../../src/shared/embedding-failure-diagnostics.js';
 import { MINILM_REFERENCE_RECIPE, assertMiniLmReferenceManifest, createMiniLmUpstreamReference,
-  compareMiniLmReferenceVectors } from './helpers/minilm-upstream-reference.js';
+  compareMiniLmReferenceVectors, measureMiniLmVectorDifference } from './helpers/minilm-upstream-reference.js';
 
 /** Explicit offline/native capsule, intentionally outside ordinary test discovery.
  * Missing export/tokenizer/corpus/reference is a prerequisite failure, never a
@@ -167,6 +167,15 @@ try {
     const baseline = await phase('cold-upstream-two-row-batch', () => rawReference.embed(manifest.texts.slice(0, 2)));
     assert.ok(baseline.tokenization.tokenCounts.some(count => count < baseline.rawOutput.dimensions[1]), 'The authored corpus must exercise actual padding masks.');
     receipt.vectors = baseline.vectors.map(vector => [...vector]); receipt.rawBaseline = { tokenization: baseline.tokenization, output: baseline.rawOutput };
+    receipt.batchShapes = { singles: [], reversed: null };
+    for (let index = 0; index < 2; index++) {
+      const result = await phase('upstream-single-' + index, () => rawReference.embed([manifest.texts[index]]));
+      receipt.batchShapes.singles.push({ index, vectors: result.vectors.map(vector => [...vector]),
+        tokenization: result.tokenization, rawOutput: result.rawOutput });
+    }
+    const reversed = await phase('upstream-reversed-two-row-batch', () => rawReference.embed(manifest.texts.slice(0, 2).reverse()));
+    receipt.batchShapes.reversed = { vectors: reversed.vectors.map(vector => [...vector]),
+      tokenization: reversed.tokenization, rawOutput: reversed.rawOutput };
     receipt.largeBatch = [];
     for (let run = 0; run < 3; run++) {
       const began = performance.now(), cpuStart = process.cpuUsage();
@@ -174,7 +183,10 @@ try {
       receipt.largeBatch.push({ run, elapsedMs: performance.now() - began, cpu: process.cpuUsage(cpuStart), outputBytes: result.outputBytes,
         tokenization: result.tokenization, rawOutput: result.rawOutput, vectors: result.vectors.map(vector => [...vector]) });
     }
-    for (const run of receipt.largeBatch) compareMiniLmReferenceVectors(run.vectors.slice(0, 2), receipt.vectors, manifest.tolerance);
+    receipt.crossBatchObservations = { acceptance: 'descriptive export behavior; strict product/reference comparisons use matching batches',
+      singleVersusTwoRows: receipt.batchShapes.singles.map((row, index) =>
+        measureMiniLmVectorDifference(row.vectors, [receipt.vectors[index]], manifest.tolerance)),
+      twoVersusLargeBatch: measureMiniLmVectorDifference(receipt.largeBatch[0].vectors.slice(0, 2), receipt.vectors, manifest.tolerance) };
     for (const run of receipt.largeBatch.slice(1)) compareMiniLmReferenceVectors(run.vectors, receipt.largeBatch[0].vectors, manifest.tolerance);
     receipt.execution = { provider: 'upstream-raw-AutoTokenizer-AutoModel', stub: false, dtype: 'q8', device: 'cpu',
       requestedSessionOptions: { intraOpNumThreads: 1, interOpNumThreads: 1 },
@@ -192,7 +204,10 @@ try {
       ...compareMiniLmReferenceVectors(baseline, numericalReference.vectors, manifest.tolerance) });
     if (options.route === 'single') {
       const actual = []; for (const text of input) actual.push(await phase('warm-real-single', () => adapter.embedOne(text, { signal: controller.signal })));
-      assertEqualVectors(actual, baseline);
+      const expected = numericalReference ? numericalReference.batchShapes.singles.map(row => row.vectors[0]) : baseline;
+      assertEqualVectors(actual, expected);
+      if (numericalReference) receipt.numericalReference.comparisons.push({ phase: 'warm-real-singles',
+        ...compareMiniLmReferenceVectors(actual, expected, manifest.tolerance) });
     } else if (options.route === 'prepared') {
       const prepared = await phase('actual-tokenizer-prepare', () => adapter.prepare(input, { signal: controller.signal }));
       assert.equal(prepared.length, input.length);
@@ -206,7 +221,7 @@ try {
       for (const text of input) {
         const formatted = formatEmbeddingInput(text, { modelId: manifest.modelId, kind: 'query', formatting });
         if (miniLm) assert.equal(formatted, text, 'MiniLM query input is independently defined as the exact raw corpus text.');
-        const expected = numericalReference ? numericalReference.vectors[input.indexOf(text)]
+        const expected = numericalReference ? numericalReference.batchShapes.singles[input.indexOf(text)].vectors[0]
           : await phase('query-format-oracle', () => adapter.embedOne(formatted, { signal: controller.signal }));
         const actual = await phase('actual-query-consumer', () => getQueryEmbedding({ text, modelId: manifest.modelId,
           dims: manifest.dimensions, modelDir: manifest.modelsDir, provider: manifest.provider, rootDir: root,
@@ -239,8 +254,14 @@ try {
       for (const run of runs.slice(1)) assertEqualVectors(run.vectors, runs[0].vectors);
       receipt.largeBatch = runs; receipt.observation = options.observation;
     } else {
-      assertEqualVectors(await phase('warm-reordered-batch', () => adapter.embed([...input].reverse(), { signal: controller.signal })), [...baseline].reverse());
-      assertEqualVectors(await phase('warm-one-row-batch', () => adapter.embed([input[0]], { signal: controller.signal })), [baseline[0]]);
+      const reversed = await phase('warm-reordered-batch', () => adapter.embed([...input].reverse(), { signal: controller.signal }));
+      const oneRow = await phase('warm-one-row-batch', () => adapter.embed([input[0]], { signal: controller.signal }));
+      const expectedReversed = numericalReference ? numericalReference.batchShapes.reversed.vectors : [...baseline].reverse();
+      const expectedSingle = numericalReference ? numericalReference.batchShapes.singles[0].vectors : [baseline[0]];
+      assertEqualVectors(reversed, expectedReversed); assertEqualVectors(oneRow, expectedSingle);
+      if (numericalReference) for (const [name, actual, expected] of [['warm-reordered-batch', reversed, expectedReversed],
+        ['warm-one-row-batch', oneRow, expectedSingle]]) receipt.numericalReference.comparisons.push({ phase: name,
+        ...compareMiniLmReferenceVectors(actual, expected, manifest.tolerance) });
     }
     receipt.vectors = baseline.map(vector => [...vector]); receipt.execution = adapter.executionInfo();
   }

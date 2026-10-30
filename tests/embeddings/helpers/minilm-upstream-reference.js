@@ -5,10 +5,12 @@ import { preserveEmbeddingCleanupFailure } from '../../../src/shared/embedding-c
 import { throwIfAborted } from '../../../src/shared/abort.js';
 
 export const MINILM_REFERENCE_RECIPE = Object.freeze({
-  id: 'minilm-raw-token-mask-mean-l2-v1', modelId: 'Xenova/all-MiniLM-L6-v2', dtype: 'q8', dimensions: 384,
+  id: 'minilm-raw-token-mask-mean-l2-v2', modelId: 'Xenova/all-MiniLM-L6-v2', dtype: 'q8', dimensions: 384,
   source: 'https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2#usage-huggingface-transformers',
   exportSource: 'https://huggingface.co/Xenova/all-MiniLM-L6-v2#usage-transformersjs',
   implementation: 'Direct upstream AutoTokenizer/AutoModel; independent scalar mask-weighted mean and L2 normalization. No pipeline, provider adapter, shared pooling or normalizer.',
+  comparison: 'Match exact input batches and padding geometry; record cross-batch drift separately because dynamic quantization is per tensor.',
+  quantizationSource: 'https://onnx.ai/onnx/operators/onnx__DynamicQuantizeLinear.html',
   limitation: 'Same pinned ONNX export and native runtime; not an independent PyTorch/export-conversion or retrieval-quality qualification.'
 });
 export const assertMiniLmReferenceManifest = manifest => {
@@ -105,7 +107,7 @@ export const createMiniLmUpstreamReference = async ({ transformers, manifest, si
 /** Numeric comparisons independently validate both operands before measuring
  * maximum component error and cosine agreement. No provider decoder is reused.
  */
-export const compareMiniLmReferenceVectors = (actual, expected, tolerance) => {
+export const measureMiniLmVectorDifference = (actual, expected, tolerance) => {
   assert.equal(actual.length, expected.length);
   let maxAbsoluteError = 0, minimumCosine = 1;
   for (let row = 0; row < actual.length; row++) {
@@ -120,8 +122,14 @@ export const compareMiniLmReferenceVectors = (actual, expected, tolerance) => {
     }
     assert.ok(Math.abs(Math.sqrt(actualSquared) - 1) <= tolerance && Math.abs(Math.sqrt(expectedSquared) - 1) <= tolerance);
     const cosine = product / Math.sqrt(actualSquared * expectedSquared); minimumCosine = Math.min(minimumCosine, cosine);
-    assert.ok(cosine >= 1 - tolerance, 'independent raw-model cosine agreement');
   }
-  assert.ok(maxAbsoluteError <= tolerance, `Independent raw-model maximum error ${maxAbsoluteError} exceeds ${tolerance}.`);
   return { rows: actual.length, dimensions: 384, maxAbsoluteError, minimumCosine, tolerance };
+};
+
+export const compareMiniLmReferenceVectors = (actual, expected, tolerance) => {
+  const result = measureMiniLmVectorDifference(actual, expected, tolerance);
+  assert.ok(result.minimumCosine >= 1 - tolerance, 'independent raw-model cosine agreement');
+  assert.ok(result.maxAbsoluteError <= tolerance,
+    `Independent raw-model maximum error ${result.maxAbsoluteError} exceeds ${tolerance}.`);
+  return result;
 };

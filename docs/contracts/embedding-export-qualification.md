@@ -78,6 +78,16 @@ width, unit-norm, maximum absolute error and cosine assertions. MiniLM query
 inputs are independently required to equal the raw corpus text. Prepared
 MiniLM, other exports, EG2, M3 and E5 are explicitly unsupported by this reference.
 
+Recipe `minilm-raw-token-mask-mean-l2-v2` records independent one-row,
+two-row, reversed two-row and32-row results. Each consumer is compared with
+the same input batch and padding shape at the manifest's unchanged tolerance.
+Repeated32-row runs must also agree. The acquired q8 graph contains24
+`DynamicQuantizeLinear` operators. Their [per-tensor activation scale](https://onnx.ai/onnx/operators/onnx__DynamicQuantizeLinear.html)
+depends on the input tensor's extrema, so changing batch composition can change
+the numerical result. Cross-batch differences are retained as descriptive export
+observations, separate from strict product/reference parity. The earlier v1
+cross-shape failure remains historical evidence; v1 receipts cannot qualify v2.
+
 Run each capsule through `tests/embeddings/run-actual-export-qualification.js`.
 It reuses the original subprocess qualification owner with a fixed30-second
 deadline, bounded captures and original process-tree termination evidence. Child
