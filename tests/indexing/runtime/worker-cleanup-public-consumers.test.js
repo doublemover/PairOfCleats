@@ -51,9 +51,7 @@ try {
       const storage = acquireBuildRuntimeStorage(repo, config), cache = resolveRepoCacheRootPath(repo, config);
       const loggerError = Object.freeze(new Error('independent original logger close rejection'));
       let loggerFail = index === 0, loggerAttempts = 0, loggerConfirmed = 0;
-      const originalLoggers = new Set();
-      globalThis.__workerCleanupLogger = (phase, owner) => {
-        originalLoggers.add(owner);
+      globalThis.__workerCleanupLogger = phase => {
         if (phase === 'attempt') { loggerAttempts++; if (loggerFail) throw loggerError; }
         else loggerConfirmed++;
       };
@@ -113,11 +111,6 @@ try {
         await firstCleanup?.catch(() => {});
         try {
           await runtime.workerPools.destroy();
-          // Actual Worker exit callbacks may publish crash evidence during the
-          // explicit retry, after the earlier independent logger close. Join
-          // those original evidence writers before deleting their directory.
-          assert.equal(originalLoggers.size, 1);
-          for (const logger of originalLoggers) await logger.flush();
           releaseBuildRuntimeStorage(runtime);
         }
         catch (failure) {

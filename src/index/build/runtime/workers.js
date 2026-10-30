@@ -699,8 +699,25 @@ export const createRuntimeWorkerPools = async ({
   const destroyWorkerPools = typeof workerPools?.destroy === 'function'
     ? workerPools.destroy.bind(workerPools)
     : async () => {};
+  const originalPoolsSettled = typeof workerPools?.isSettled === 'function'
+    ? workerPools.isSettled.bind(workerPools) : () => false;
+  let workerEvidenceSettled = true;
+  const destroyWorkersAndDrainEvidence = async () => {
+    workerEvidenceSettled = false;
+    const failures = [];
+    try { await destroyWorkerPools(); } catch (error) { failures.push(error); }
+    // A retained worker can exit on explicit retry after the independent logger
+    // has already closed. Its exit callback still publishes original crash
+    // state, so join that evidence before retiring the worker category/lease.
+    try { await workerCrashLogger.flush(); workerEvidenceSettled = true; }
+    catch (error) { failures.push(error); }
+    if (failures.length === 1) throw failures[0];
+    if (failures.length) throw new AggregateError(failures,
+      'Worker destruction and original crash-evidence drain failed.', { cause: failures[0] });
+  };
   const cleanup = createWorkerCleanupGroup([
-    { close: destroyWorkerPools, isSettled: workerPools.isSettled },
+    { close: destroyWorkersAndDrainEvidence,
+      isSettled: () => originalPoolsSettled() && workerEvidenceSettled },
     { close: closeWorkerCrashLogger }
   ]);
   workerPools = {
