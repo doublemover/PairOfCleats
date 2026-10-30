@@ -1,0 +1,8 @@
+export async function readOwnedDocument(descriptor) {
+  try {
+    const document = await descriptor.readFile('utf8');
+    return document;
+  } finally {
+    await descriptor.close();
+  }
+}

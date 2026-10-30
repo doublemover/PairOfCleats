@@ -1,0 +1,7 @@
+export function parseRuntimeConfig(text) {
+  const config = JSON.parse(text);
+  if (config === null || Array.isArray(config) || typeof config !== 'object') {
+    throw new TypeError('Runtime configuration must be a JSON object');
+  }
+  return config;
+}

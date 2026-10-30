@@ -10,6 +10,11 @@ import { captureEmbeddingFailureDiagnostics, projectEmbeddingFailureDiagnostics 
 import { MINILM_REFERENCE_RECIPE, assertMiniLmReferenceManifest, createMiniLmUpstreamReference,
   compareMiniLmReferenceVectors, measureMiniLmVectorDifference } from './helpers/minilm-upstream-reference.js';
 import { runQualificationPhase } from './helpers/qualification-phase.js';
+import { resolveDenseReferenceRecipe, assertDenseReferenceManifest, createDenseUpstreamReference,
+  compareDenseReferenceVectors, measureDenseReferenceVectors, denseReferenceQuery } from './helpers/dense-upstream-reference.js';
+import { loadDenseJudgedCorpus } from './helpers/dense-judged-corpus.js';
+import { runDenseJudgedCohort } from './helpers/dense-judged-cohort.js';
+import { captureSweepSource } from '../../tools/bench/ab-sweep-source.js';
 
 /** Explicit offline/native capsule, intentionally outside ordinary test discovery.
  * Missing export/tokenizer/corpus/reference is a prerequisite failure, never a
@@ -30,13 +35,28 @@ const { buffer: manifestBytes } = await readVerifiedContainedFile(path.dirname(m
   { maxBytes: 1024 * 1024, hashAlgorithm: 'sha256' });
 const manifest = JSON.parse(manifestBytes);
 const miniLm = manifest.modelId === MINILM_REFERENCE_RECIPE.modelId;
+const denseRecipe = resolveDenseReferenceRecipe(manifest.modelId);
+const referenceRecipe = miniLm ? MINILM_REFERENCE_RECIPE : denseRecipe;
+const compareReferenceVectors = miniLm ? compareMiniLmReferenceVectors : compareDenseReferenceVectors;
+const measureReferenceVectors = miniLm ? measureMiniLmVectorDifference : measureDenseReferenceVectors;
+if (denseRecipe) {
+  assertDenseReferenceManifest(manifest, denseRecipe);
+  assert.notEqual(options.route, 'prepared', 'M3/E5 do not acquire an EG2 prepared profile.');
+}
+if (options.cohort) {
+  assert.ok(denseRecipe, 'Judged cohorts require an explicit M3 or instruct-E5 recipe.');
+  assert.ok(['judged-documents', 'judged-queries'].includes(options.cohort));
+  assert.ok(options.route === 'upstream-reference' || options.route === (options.cohort === 'judged-documents' ? 'batch' : 'query'));
+  assert.equal(options.reference, undefined); assert.equal(options.observation, undefined);
+}
 if (miniLm) {
   assertMiniLmReferenceManifest(manifest);
   assert.notEqual(options.route, 'prepared', 'MiniLM has no supported prepared profile; this qualification does not substitute for EG2.');
   if (options.route !== 'upstream-reference') assert.ok(options['numerical-reference'], 'MiniLM consumer qualification requires its independent raw-model receipt.');
 }
-if (options.route === 'upstream-reference') assert.equal(miniLm, true, 'No reference recipe is inferred for EG2, M3, E5 or other exports.');
-if (options.observation === 'upstream-comparison') assert.equal(miniLm, true);
+if (denseRecipe && options.route !== 'upstream-reference') assert.ok(options['numerical-reference'], 'Actual M3/E5 consumers require their independently completed matching raw reference.');
+if (options.route === 'upstream-reference') assert.ok(referenceRecipe, 'No independent reference recipe is inferred for EG2 or another export.');
+if (options.observation === 'upstream-comparison') assert.ok(referenceRecipe);
 assert.equal(manifest.schemaVersion, 1); assert.ok(['xenova', 'onnx'].includes(manifest.provider));
 assert.equal(typeof manifest.modelId, 'string'); assert.ok(path.isAbsolute(manifest.modelsDir));
 assert.ok(Number.isSafeInteger(manifest.dimensions) && manifest.dimensions > 0 && manifest.dimensions <= 8192);
@@ -61,8 +81,8 @@ const receipt = { schemaVersion: 1, status: 'failed', route: options.route, obse
   corpus: { sha256: createHash('sha256').update(JSON.stringify(manifest.texts)).digest('hex'),
     rows: manifest.texts.map((text, index) => ({ index, bytes: Buffer.byteLength(text), sha256: createHash('sha256').update(text).digest('hex') })) },
   qualification: 'actual offline export/tokenizer/provider routes; supplied bounded corpus, no general performance gain claim',
-  acceptance: { modelFamily: miniLm ? 'MiniLM q8' : 'manifest-selected export',
-    numerical: miniLm ? 'independent raw-model reference required with matching input batch shapes' : 'provider self-consistency only; no independent reference recipe implemented',
+  acceptance: { modelFamily: miniLm ? 'MiniLM q8' : denseRecipe ? denseRecipe.id : 'manifest-selected export',
+    numerical: referenceRecipe ? 'independent raw-model reference required with matching input batch shapes' : 'provider self-consistency only; no independent reference recipe implemented',
     judgedRetrieval: 'not measured', prepared: options.route === 'prepared' ? 'qualified EG2 profile required' : 'not exercised by this capsule',
     performance: options.observation === 'candidate' ? 'paired frozen-source comparison required; no gain inferred from completion'
       : 'bounded observation only; no before/after production validation-cost claim' },
@@ -95,6 +115,8 @@ try {
   const { acquireEmbeddingArtifactLease } = await import('../../src/shared/embedding-artifact-lease.js');
   const { getEmbeddingAdapter, disposeEmbeddingAdapterCaches } = await import('../../src/shared/embedding-adapter.js');
   const { getQueryEmbedding } = await import('../../src/retrieval/embedding.js');
+  const createEmbedder = denseRecipe && options.cohort === 'judged-documents'
+    ? (await import('../../src/index/embedding.js')).createEmbedder : null;
   const { admitEmbeddingVector } = await import('../../src/shared/embedding-output-admission.js');
   const { resolveEmbeddingModelProfile } = await import('../../src/shared/embedding-model-profile.js');
   const { formatEmbeddingInput, resolveEmbeddingInputFormatting } = await import('../../src/shared/embedding-input-format.js');
@@ -108,6 +130,14 @@ try {
   assert.deepEqual(receipt.runtime, manifest.runtime, 'Freeze actual runtime/binding versions before qualification.');
   for (const file of ['tests/embeddings/actual-export-qualification.js', 'tests/embeddings/run-actual-export-qualification.js',
     'tests/embeddings/helpers/minilm-upstream-reference.js', 'tests/embeddings/helpers/qualification-phase.js', 'tools/bench/qualification-capsule.js',
+    ...(denseRecipe ? ['tests/embeddings/helpers/dense-upstream-reference.js', 'tests/embeddings/helpers/dense-judged-corpus.js',
+      'tests/embeddings/helpers/dense-judged-cohort.js', 'tools/history/eg2-qualify-quality.js',
+      'src/shared/embedding-acquisition-plan.js', 'src/shared/embedding-acquisition-receipt.js',
+      'src/shared/embedding-artifact-identity.js', 'src/shared/embedding-dense-contract.js',
+      'src/index/embedding.js',
+      'node_modules/@huggingface/transformers/src/models/session.js', 'node_modules/@huggingface/transformers/src/utils/model-loader.js',
+      'node_modules/@huggingface/transformers/src/utils/dtypes.js',
+      'node_modules/@huggingface/transformers/src/models/xlm_roberta/modeling_xlm_roberta.js'] : []),
     'src/shared/embedding-output-admission.js', 'src/shared/embedding-utils.js', 'src/shared/embedding-artifact-lease.js',
     'src/shared/embedding-adapter.js', 'src/shared/embedding-deferred-adapter.js', 'src/shared/embedding-selection-snapshot.js',
     'src/shared/embedding-transformers-resources.js', 'src/shared/embedding-provider-adapters.js', 'src/shared/embedding-model-profile.js',
@@ -133,6 +163,17 @@ try {
   const byPath = rows => [...rows].sort((a, b) => a.path.localeCompare(b.path));
   assert.deepEqual(byPath(lease.artifact.inventory), byPath(manifest.artifacts)); receipt.modelArtifact = lease.artifact;
   let numericalReference = null;
+  let judgedCorpus = null;
+  if (denseRecipe) {
+    receipt.source = captureSweepSource(process.cwd());
+    assert.equal(receipt.source.state, 'clean-revision', 'Actual M3/E5 qualification requires a frozen clean source.');
+    judgedCorpus = await phase('verify-frozen-judged-corpus', () => loadDenseJudgedCorpus({ manifest, signal: controller.signal }));
+    receipt.corpus.source = judgedCorpus.source;
+    receipt.corpus.judgments = { id: judgedCorpus.id, version: judgedCorpus.version, scope: judgedCorpus.scope,
+      documents: judgedCorpus.documents.map(({ text, ...row }) => row), queries: judgedCorpus.queries, grades: judgedCorpus.judgments };
+    receipt.exportSelection = { modelId: denseRecipe.modelId, revision: denseRecipe.revision, precision: denseRecipe.dtype,
+      rawOutput: 'last_hidden_state', pooling: denseRecipe.pooling, normalize: true, graphIdentity: denseRecipe.artifacts };
+  }
   if (miniLm) {
     assert.equal(manifest.corpusSource?.path, 'tests/fixtures/embeddings/minilm-provider-corpus.json');
     assert.match(manifest.corpusSource.sha256, /^[a-f0-9]{64}$/);
@@ -143,17 +184,19 @@ try {
     receipt.corpus.source = { path: manifest.corpusSource.path, sha256: corpus.hash };
   }
   if (options['numerical-reference']) {
-    assert.equal(miniLm, true, 'Each model family needs an explicitly implemented independent reference.');
+    assert.ok(referenceRecipe, 'Each model family needs an explicitly implemented independent reference.');
     const selected = path.resolve(options['numerical-reference']);
     const snapshot = await readVerifiedContainedFile(path.dirname(selected), selected,
       { maxBytes: 16 * 1024 * 1024, hashAlgorithm: 'sha256', signal: controller.signal });
     numericalReference = JSON.parse(snapshot.buffer.toString('utf8'));
     assert.equal(numericalReference.status, 'numerical-reference'); assert.equal(numericalReference.route, 'upstream-reference');
-    assert.deepEqual(numericalReference.referenceRecipe, MINILM_REFERENCE_RECIPE);
+    assert.deepEqual(numericalReference.referenceRecipe, referenceRecipe);
+    assert.equal(numericalReference.cohort, options.cohort);
     assert.equal(numericalReference.manifest.sha256, receipt.manifest.sha256);
     assert.deepEqual(numericalReference.runtime, receipt.runtime); assert.deepEqual(numericalReference.modelArtifact, receipt.modelArtifact);
     assert.deepEqual(numericalReference.corpus, receipt.corpus);
-    for (const source of receipt.sourceOwners.filter(row => row.path.includes('/minilm-upstream-reference.js') || row.path.startsWith('node_modules/'))) {
+    for (const source of receipt.sourceOwners.filter(row => row.path.includes('/minilm-upstream-reference.js')
+      || row.path.includes('/dense-upstream-reference.js') || row.path.includes('/dense-judged-') || row.path.startsWith('node_modules/'))) {
       assert.equal(numericalReference.sourceOwners.find(row => row.path === source.path)?.sha256, source.sha256);
     }
     receipt.numericalReference = { path: selected, sha256: snapshot.hash, sourceOwners: numericalReference.sourceOwners, comparisons: [] };
@@ -166,8 +209,20 @@ try {
     return value;
   } });
   sampleTimer = setInterval(() => observe('sample'), 5); sampleTimer.unref();
-  if (options.route === 'upstream-reference') {
-    await phase('upstream-raw-components-load', () => createMiniLmUpstreamReference({ transformers, manifest, signal: controller.signal }),
+  if (options.cohort) {
+    if (options.route === 'upstream-reference') {
+      await phase('upstream-raw-components-load', () => createDenseUpstreamReference({ transformers, manifest, signal: controller.signal }),
+        value => { rawReference = value; });
+      receipt.referenceRecipe = rawReference.recipe;
+    } else adapter = options.cohort === 'judged-documents'
+      ? createEmbedder({ rootDir: root, provider: manifest.provider, modelId: manifest.modelId, dims: manifest.dimensions,
+        modelsDir: manifest.modelsDir, normalize: true, modelArtifact: lease.artifact, useStubEmbeddings: false })
+      : getEmbeddingAdapter({ rootDir: root, provider: manifest.provider, modelId: manifest.modelId,
+        dims: manifest.dimensions, modelsDir: manifest.modelsDir, useStub: false, normalize: true, modelArtifact: lease.artifact });
+    await runDenseJudgedCohort({ corpus: judgedCorpus, recipe: denseRecipe, options, phase, receipt, numericalReference,
+      rawReference, adapter, getQueryEmbedding, formatEmbeddingInput, root, manifest, modelArtifact: lease.artifact, signal: controller.signal });
+  } else if (options.route === 'upstream-reference') {
+    await phase('upstream-raw-components-load', () => (miniLm ? createMiniLmUpstreamReference : createDenseUpstreamReference)({ transformers, manifest, signal: controller.signal }),
       value => { rawReference = value; });
     receipt.referenceRecipe = rawReference.recipe;
     const baseline = await phase('cold-upstream-two-row-batch', () => rawReference.embed(manifest.texts.slice(0, 2)));
@@ -182,6 +237,15 @@ try {
     const reversed = await phase('upstream-reversed-two-row-batch', () => rawReference.embed(manifest.texts.slice(0, 2).reverse()));
     receipt.batchShapes.reversed = { vectors: reversed.vectors.map(vector => [...vector]),
       tokenization: reversed.tokenization, rawOutput: reversed.rawOutput };
+    if (denseRecipe) {
+      receipt.batchShapes.queries = [];
+      for (let index = 0; index < 2; index++) {
+        const text = denseReferenceQuery(denseRecipe, manifest.texts[index]);
+        const result = await phase('upstream-independent-query-' + index, () => rawReference.embed([text]));
+        receipt.batchShapes.queries.push({ index, vectors: result.vectors.map(vector => [...vector]),
+          inputSha256: createHash('sha256').update(text).digest('hex'), tokenization: result.tokenization, rawOutput: result.rawOutput });
+      }
+    }
     receipt.largeBatch = [];
     for (let run = 0; run < 3; run++) {
       const began = performance.now(), cpuStart = process.cpuUsage();
@@ -193,10 +257,10 @@ try {
     }
     receipt.crossBatchObservations = { acceptance: 'descriptive export behavior; strict product/reference comparisons use matching batches',
       singleVersusTwoRows: receipt.batchShapes.singles.map((row, index) =>
-        measureMiniLmVectorDifference(row.vectors, [receipt.vectors[index]], manifest.tolerance)),
-      twoVersusLargeBatch: measureMiniLmVectorDifference(receipt.largeBatch[0].vectors.slice(0, 2), receipt.vectors, manifest.tolerance) };
-    for (const run of receipt.largeBatch.slice(1)) compareMiniLmReferenceVectors(run.vectors, receipt.largeBatch[0].vectors, manifest.tolerance);
-    receipt.execution = { provider: 'upstream-raw-AutoTokenizer-AutoModel', stub: false, dtype: 'q8', device: 'cpu',
+        measureReferenceVectors(row.vectors, [receipt.vectors[index]], manifest.tolerance)),
+      twoVersusLargeBatch: measureReferenceVectors(receipt.largeBatch[0].vectors.slice(0, 2), receipt.vectors, manifest.tolerance) };
+    for (const run of receipt.largeBatch.slice(1)) compareReferenceVectors(run.vectors, receipt.largeBatch[0].vectors, manifest.tolerance);
+    receipt.execution = { provider: 'upstream-raw-AutoTokenizer-AutoModel', stub: false, dtype: referenceRecipe.dtype, device: 'cpu',
       requestedSessionOptions: { intraOpNumThreads: 1, interOpNumThreads: 1 },
       nativeInternalThreadCounts: 'not observed; upstream option handoff is distinct from native internal measurement' };
   } else {
@@ -209,13 +273,13 @@ try {
     for (const vector of baseline) admitEmbeddingVector(vector, { dimensions: manifest.dimensions });
     assert.equal(adapter.executionInfo().stub, false); assert.equal(adapter.executionInfo().provider, manifest.provider);
     if (numericalReference) receipt.numericalReference.comparisons.push({ phase: 'cold-two-row-batch',
-      ...compareMiniLmReferenceVectors(baseline, numericalReference.vectors, manifest.tolerance) });
+      ...compareReferenceVectors(baseline, numericalReference.vectors, manifest.tolerance) });
     if (options.route === 'single') {
       const actual = []; for (const text of input) actual.push(await phase('warm-real-single', () => adapter.embedOne(text, { signal: controller.signal })));
       const expected = numericalReference ? numericalReference.batchShapes.singles.map(row => row.vectors[0]) : baseline;
       assertEqualVectors(actual, expected);
       if (numericalReference) receipt.numericalReference.comparisons.push({ phase: 'warm-real-singles',
-        ...compareMiniLmReferenceVectors(actual, expected, manifest.tolerance) });
+        ...compareReferenceVectors(actual, expected, manifest.tolerance) });
     } else if (options.route === 'prepared') {
       const prepared = await phase('actual-tokenizer-prepare', () => adapter.prepare(input, { signal: controller.signal }));
       assert.equal(prepared.length, input.length);
@@ -229,7 +293,8 @@ try {
       for (const text of input) {
         const formatted = formatEmbeddingInput(text, { modelId: manifest.modelId, kind: 'query', formatting });
         if (miniLm) assert.equal(formatted, text, 'MiniLM query input is independently defined as the exact raw corpus text.');
-        const expected = numericalReference ? numericalReference.batchShapes.singles[input.indexOf(text)].vectors[0]
+        if (denseRecipe) assert.equal(formatted, denseReferenceQuery(denseRecipe, text), 'Product query bytes must match the independent author template.');
+        const expected = numericalReference ? (denseRecipe ? numericalReference.batchShapes.queries : numericalReference.batchShapes.singles)[input.indexOf(text)].vectors[0]
           : await phase('query-format-oracle', () => adapter.embedOne(formatted, { signal: controller.signal }));
         const actual = await phase('actual-query-consumer', () => getQueryEmbedding({ text, modelId: manifest.modelId,
           dims: manifest.dimensions, modelDir: manifest.modelsDir, provider: manifest.provider, rootDir: root,
@@ -237,7 +302,7 @@ try {
           modelProfile: profile, modelArtifact: lease.artifact }));
         assert.ok(actual, 'Actual query consumer may not silently skip unavailable inference.'); assertEqualVectors([actual], [expected]);
         if (numericalReference) receipt.numericalReference.comparisons.push({ phase: 'actual-query-consumer',
-          ...compareMiniLmReferenceVectors([actual], [expected], manifest.tolerance) });
+          ...compareReferenceVectors([actual], [expected], manifest.tolerance) });
       }
     } else if (options.route === 'resources') {
       assert.ok(manifest.texts.length >= 32, 'Representative large-batch sampling requires32–64 supplied texts.');
@@ -248,7 +313,7 @@ try {
         const elapsedMs = performance.now() - began, runCpu = process.cpuUsage(cpuStart), comparisonStarted = performance.now();
         assert.equal(vectors.length, manifest.texts.length); for (const vector of vectors) admitEmbeddingVector(vector, { dimensions: manifest.dimensions });
         if (numericalReference) receipt.numericalReference.comparisons.push({ phase: 'large-batch-' + run,
-          ...compareMiniLmReferenceVectors(vectors, numericalReference.largeBatch[0].vectors, manifest.tolerance) });
+          ...compareReferenceVectors(vectors, numericalReference.largeBatch[0].vectors, manifest.tolerance) });
         const allocated = allocations.slice(allocationStart), expectedBytes = vectors.length * manifest.dimensions * 4;
         if (miniLm) {
           assert.equal(allocated.length, vectors.length, 'The actual pooled-tensor route exercises one captured owned copy per input row.');
@@ -270,11 +335,12 @@ try {
       assertEqualVectors(reversed, expectedReversed); assertEqualVectors(oneRow, expectedSingle);
       if (numericalReference) for (const [name, actual, expected] of [['warm-reordered-batch', reversed, expectedReversed],
         ['warm-one-row-batch', oneRow, expectedSingle]]) receipt.numericalReference.comparisons.push({ phase: name,
-        ...compareMiniLmReferenceVectors(actual, expected, manifest.tolerance) });
+        ...compareReferenceVectors(actual, expected, manifest.tolerance) });
     }
     receipt.vectors = baseline.map(vector => [...vector]); receipt.execution = adapter.executionInfo();
   }
   await phase('verify-loaded-original-closure', () => lease.verifyLoaded());
+  if (denseRecipe) assert.deepEqual(captureSweepSource(process.cwd()), receipt.source, 'Source changed during qualification.');
   if (options.reference) {
     const selected = path.resolve(options.reference);
     const snapshot = await readVerifiedContainedFile(path.dirname(selected), selected,

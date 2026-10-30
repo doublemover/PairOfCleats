@@ -1,0 +1,371 @@
+{
+  "schemaVersion": 1,
+  "id": "multilingual-code-doc-closed-world-v1",
+  "version": 1,
+  "provenance": "Independently authored source passages, bilingual paraphrases and complete judgments frozen before any M3/E5 model output; not mined from model rankings.",
+  "scope": "Tiny bounded closed-world evaluation; no representative retrieval gain, production corpus coverage, general multilingual quality or PyTorch export-conversion claim.",
+  "rubric": {
+    "3": "Code directly implements the requested behavior.",
+    "2": "Documentation directly explains the requested behavior.",
+    "1": "Useful partial answer; none assigned in this frozen corpus.",
+    "0": "Unrelated or explicitly wrong operation for this query."
+  },
+  "documents": [
+    {
+      "id": "json-code",
+      "path": "json-parser.js.txt",
+      "kind": "code",
+      "language": "en",
+      "bytes": 253,
+      "sha256": "973ca0e900fc44c3a9f8477be83b92f0d7511e5d286908719d57872464d4212b"
+    },
+    {
+      "id": "json-doc",
+      "path": "json-parser.md",
+      "kind": "documentation",
+      "language": "zh",
+      "bytes": 210,
+      "sha256": "7aa71513e9fc66c5810a03a4dee25a9541d9c425c1ef927280ec743c05dec6dc"
+    },
+    {
+      "id": "yaml-code",
+      "path": "yaml-parser.js.txt",
+      "kind": "code",
+      "language": "en",
+      "bytes": 120,
+      "sha256": "727b995f5d2637ad3e5d57c0d80018cbda7f6ed5faaa96fa268c52c86870299f"
+    },
+    {
+      "id": "serialize-doc",
+      "path": "json-serialization.md",
+      "kind": "documentation",
+      "language": "en",
+      "bytes": 229,
+      "sha256": "e2d828b2a9d1ce9cd30214ef51e8ae3437d106352e003a9eb07526756950a203"
+    },
+    {
+      "id": "publish-code",
+      "path": "atomic-publish.js.txt",
+      "kind": "code",
+      "language": "en",
+      "bytes": 287,
+      "sha256": "c21910087603a228c4eb240a66ad6f19a03302ac59f282ef8a279ebb6c601b54"
+    },
+    {
+      "id": "publish-doc",
+      "path": "atomic-publish.md",
+      "kind": "documentation",
+      "language": "zh",
+      "bytes": 257,
+      "sha256": "433692764949621de464ca3bfb69cc720c30fc5f66032161647b30cdb0584c33"
+    },
+    {
+      "id": "inplace-code",
+      "path": "inplace-write.js.txt",
+      "kind": "code",
+      "language": "en",
+      "bytes": 136,
+      "sha256": "39afc03844a7c9b7c20950472ba54f9e9054b294d0db3816c09521eb604d2965"
+    },
+    {
+      "id": "rename-symbol-doc",
+      "path": "rename-symbol.md",
+      "kind": "documentation",
+      "language": "en",
+      "bytes": 206,
+      "sha256": "9e4c78cd4ff01059ad733c10fa08ee0fe66393dbb9d66643ef1d17e8a892a7e7"
+    },
+    {
+      "id": "close-code",
+      "path": "await-close.js.txt",
+      "kind": "code",
+      "language": "en",
+      "bytes": 189,
+      "sha256": "7e363261bae3eedcc7861da796489cefa7f1d828a2d72b6e60a95c262809269c"
+    },
+    {
+      "id": "close-doc",
+      "path": "await-close.md",
+      "kind": "documentation",
+      "language": "zh",
+      "bytes": 236,
+      "sha256": "2243b250c776d1c6bb604145db5c66f5cfba78d589f073468ea01b332fa50b9f"
+    },
+    {
+      "id": "unawaited-close-code",
+      "path": "fire-and-forget-close.js.txt",
+      "kind": "code",
+      "language": "en",
+      "bytes": 165,
+      "sha256": "086a9933c0b40b4dd86164b826fbb581ce80232ad2783a56247e674e5655b1c2"
+    },
+    {
+      "id": "cancel-admission-doc",
+      "path": "cancel-admission.md",
+      "kind": "documentation",
+      "language": "en",
+      "bytes": 173,
+      "sha256": "4bd64a34fea10a6a27583d97823ba76df252003baebd8264cebbda49f124c185"
+    },
+    {
+      "id": "scope-code",
+      "path": "lexical-binding.js.txt",
+      "kind": "code",
+      "language": "en",
+      "bytes": 203,
+      "sha256": "1342b4d456204491e11557b9363b4b68ba0d3966865207a925bbd7c48648fdc0"
+    },
+    {
+      "id": "scope-doc",
+      "path": "lexical-binding.md",
+      "kind": "documentation",
+      "language": "zh",
+      "bytes": 233,
+      "sha256": "69d0e48ecf2382f2e2435030b75ffbcdc2779e66d939347cb3385bdc3f55ddf3"
+    },
+    {
+      "id": "global-name-code",
+      "path": "global-name-lookup.js.txt",
+      "kind": "code",
+      "language": "en",
+      "bytes": 137,
+      "sha256": "2613317d792154ad579eab76d7526fea8c145c42ce516b29392f43983421bc7b"
+    },
+    {
+      "id": "path-doc",
+      "path": "path-case-lookup.md",
+      "kind": "documentation",
+      "language": "en",
+      "bytes": 202,
+      "sha256": "edf451d92db04ef90ec467cf9b7b043ae11b791df2a69268583d8e61c93a7348"
+    }
+  ],
+  "queries": [
+    {
+      "id": "json-en",
+      "language": "en",
+      "text": "Read configuration text as a JSON object and reject arrays or null.",
+      "sha256": "e3e8a322bcb7c91812170b4d97a444b0af6cde7dfa781c7ffffcb887dfa31a87",
+      "hardNegatives": [
+        "yaml-code",
+        "serialize-doc"
+      ]
+    },
+    {
+      "id": "json-zh",
+      "language": "zh",
+      "text": "如何读取运行配置的 JSON 字符串，并拒绝数组和空值？",
+      "sha256": "a56a61c61d6522df2834e5ff8eadb366ada3ae42c7cc03f3b763e3b4aab13060",
+      "hardNegatives": [
+        "yaml-code",
+        "serialize-doc"
+      ]
+    },
+    {
+      "id": "publish-en",
+      "language": "en",
+      "text": "Replace a published file so readers cannot see a partially written replacement.",
+      "sha256": "a1684dd13315456f1a73bb0a6fa70666fd6b1b5d77908f4ae74f61980159a15f",
+      "hardNegatives": [
+        "inplace-code",
+        "rename-symbol-doc"
+      ]
+    },
+    {
+      "id": "publish-zh",
+      "language": "zh",
+      "text": "怎样替换已发布的文件，让读者只能看到旧内容或完整的新内容？",
+      "sha256": "5abcefc20c44fdd8177616915acb42d8e80f303c320dbe593b1685fc7df0368a",
+      "hardNegatives": [
+        "inplace-code",
+        "rename-symbol-doc"
+      ]
+    },
+    {
+      "id": "close-en",
+      "language": "en",
+      "text": "Return a document only after its owned file descriptor has finished closing, including on read failure.",
+      "sha256": "fa15efe1b9fd373aa4333319e0d95fdc4997540a1e209fd2259d14b4490f1627",
+      "hardNegatives": [
+        "unawaited-close-code",
+        "cancel-admission-doc"
+      ]
+    },
+    {
+      "id": "close-zh",
+      "language": "zh",
+      "text": "读取失败时也要等待原始文件描述符关闭完成，应该怎样管理这个资源？",
+      "sha256": "db56025dabd5377598ad8180c36270362b802cbf64a01e43141141862cc4c751",
+      "hardNegatives": [
+        "unawaited-close-code",
+        "cancel-admission-doc"
+      ]
+    },
+    {
+      "id": "scope-en",
+      "language": "en",
+      "text": "Resolve a shadowed variable reference to the nearest declaration in its lexical parent scopes.",
+      "sha256": "e55e61e97525270b1627abb1b7873cd76a7a1d7a18fddc9874256dc209c3b53a",
+      "hardNegatives": [
+        "global-name-code",
+        "path-doc"
+      ]
+    },
+    {
+      "id": "scope-zh",
+      "language": "zh",
+      "text": "嵌套作用域中出现同名变量时，怎样把引用绑定到最近的声明？",
+      "sha256": "5ab0010c00b815217335f0e49c006331d0f8b128d7139656841142406c342a14",
+      "hardNegatives": [
+        "global-name-code",
+        "path-doc"
+      ]
+    }
+  ],
+  "judgments": {
+    "json-en": {
+      "json-code": 3,
+      "json-doc": 2,
+      "yaml-code": 0,
+      "serialize-doc": 0,
+      "publish-code": 0,
+      "publish-doc": 0,
+      "inplace-code": 0,
+      "rename-symbol-doc": 0,
+      "close-code": 0,
+      "close-doc": 0,
+      "unawaited-close-code": 0,
+      "cancel-admission-doc": 0,
+      "scope-code": 0,
+      "scope-doc": 0,
+      "global-name-code": 0,
+      "path-doc": 0
+    },
+    "json-zh": {
+      "json-code": 3,
+      "json-doc": 2,
+      "yaml-code": 0,
+      "serialize-doc": 0,
+      "publish-code": 0,
+      "publish-doc": 0,
+      "inplace-code": 0,
+      "rename-symbol-doc": 0,
+      "close-code": 0,
+      "close-doc": 0,
+      "unawaited-close-code": 0,
+      "cancel-admission-doc": 0,
+      "scope-code": 0,
+      "scope-doc": 0,
+      "global-name-code": 0,
+      "path-doc": 0
+    },
+    "publish-en": {
+      "json-code": 0,
+      "json-doc": 0,
+      "yaml-code": 0,
+      "serialize-doc": 0,
+      "publish-code": 3,
+      "publish-doc": 2,
+      "inplace-code": 0,
+      "rename-symbol-doc": 0,
+      "close-code": 0,
+      "close-doc": 0,
+      "unawaited-close-code": 0,
+      "cancel-admission-doc": 0,
+      "scope-code": 0,
+      "scope-doc": 0,
+      "global-name-code": 0,
+      "path-doc": 0
+    },
+    "publish-zh": {
+      "json-code": 0,
+      "json-doc": 0,
+      "yaml-code": 0,
+      "serialize-doc": 0,
+      "publish-code": 3,
+      "publish-doc": 2,
+      "inplace-code": 0,
+      "rename-symbol-doc": 0,
+      "close-code": 0,
+      "close-doc": 0,
+      "unawaited-close-code": 0,
+      "cancel-admission-doc": 0,
+      "scope-code": 0,
+      "scope-doc": 0,
+      "global-name-code": 0,
+      "path-doc": 0
+    },
+    "close-en": {
+      "json-code": 0,
+      "json-doc": 0,
+      "yaml-code": 0,
+      "serialize-doc": 0,
+      "publish-code": 0,
+      "publish-doc": 0,
+      "inplace-code": 0,
+      "rename-symbol-doc": 0,
+      "close-code": 3,
+      "close-doc": 2,
+      "unawaited-close-code": 0,
+      "cancel-admission-doc": 0,
+      "scope-code": 0,
+      "scope-doc": 0,
+      "global-name-code": 0,
+      "path-doc": 0
+    },
+    "close-zh": {
+      "json-code": 0,
+      "json-doc": 0,
+      "yaml-code": 0,
+      "serialize-doc": 0,
+      "publish-code": 0,
+      "publish-doc": 0,
+      "inplace-code": 0,
+      "rename-symbol-doc": 0,
+      "close-code": 3,
+      "close-doc": 2,
+      "unawaited-close-code": 0,
+      "cancel-admission-doc": 0,
+      "scope-code": 0,
+      "scope-doc": 0,
+      "global-name-code": 0,
+      "path-doc": 0
+    },
+    "scope-en": {
+      "json-code": 0,
+      "json-doc": 0,
+      "yaml-code": 0,
+      "serialize-doc": 0,
+      "publish-code": 0,
+      "publish-doc": 0,
+      "inplace-code": 0,
+      "rename-symbol-doc": 0,
+      "close-code": 0,
+      "close-doc": 0,
+      "unawaited-close-code": 0,
+      "cancel-admission-doc": 0,
+      "scope-code": 3,
+      "scope-doc": 2,
+      "global-name-code": 0,
+      "path-doc": 0
+    },
+    "scope-zh": {
+      "json-code": 0,
+      "json-doc": 0,
+      "yaml-code": 0,
+      "serialize-doc": 0,
+      "publish-code": 0,
+      "publish-doc": 0,
+      "inplace-code": 0,
+      "rename-symbol-doc": 0,
+      "close-code": 0,
+      "close-doc": 0,
+      "unawaited-close-code": 0,
+      "cancel-admission-doc": 0,
+      "scope-code": 3,
+      "scope-doc": 2,
+      "global-name-code": 0,
+      "path-doc": 0
+    }
+  }
+}
