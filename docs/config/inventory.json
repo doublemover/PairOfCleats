@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-30T11:22:05.537Z",
+  "generatedAt": "2026-10-30T13:33:14.073Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
@@ -4774,6 +4774,7 @@
         "tests/integrations/core/embedding-plan-preflight.test.js",
         "tests/integrations/core/stage2-boolean-background-consumer.test.js",
         "tests/integrations/mcp/transport-classifier-consumers.test.js",
+        "tests/lang/contracts/canonical-call-checkpoint-identity.test.js",
         "tests/lang/contracts/config-native-unavailable-consumers.test.js",
         "tests/lang/contracts/native-lexical-scope-consumers.test.js",
         "tests/lang/contracts/native-perl-package-ownership-consumers.test.js",
