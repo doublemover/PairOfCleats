@@ -72,6 +72,14 @@ disables that optimization for the entire alternative set. Effective extension,
 language and visibility facts are shared by exact matching and persisted filter
 indexes (`factsVersion: 2`); stale persisted facts are rebuilt.
 
+Language aliases normalize to the indexed registry ID before predicates and cache
+identity are built. `proto`, `protobuf`, and quoted `protocol buffer` /
+`protocol buffers` all select `proto`; case variants behave identically. CLI
+language flags intersect expression languages after this normalization. Existing
+JavaScript/TypeScript/C++/shell shorthands remain supported. Metadata predicate
+version 4 invalidates older query/continuation policy identities; stored language
+facts and their version are unchanged.
+
 Import and usage filters require complete relation evidence from the selected
 generation, or complete inline facts. Unavailable or corrupt required relations
 are errors, rather than an empty measured relation set. Query-cache identities

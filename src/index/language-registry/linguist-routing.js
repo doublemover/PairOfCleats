@@ -1,4 +1,5 @@
 import { toArray } from '../../shared/iterables.js';
+import { PROTOCOL_BUFFER_ALIASES, PROTOCOL_BUFFER_LANGUAGE_ID } from '../../shared/language-aliases.js';
 
 export const normalizeLinguistName = (value) => String(value || '').trim().toLowerCase();
 const LINGUIST_NAME_TO_ID = new Map([
@@ -40,10 +41,7 @@ const LINGUIST_NAME_TO_ID = new Map([
   ['jinja2', 'jinja'],
   ['django', 'jinja'],
   ['razor', 'razor'],
-  ['protobuf', 'proto'],
-  ['protocol buffer', 'proto'],
-  ['protocol buffers', 'proto'],
-  ['proto', 'proto'],
+  ...PROTOCOL_BUFFER_ALIASES.map(alias => [alias, PROTOCOL_BUFFER_LANGUAGE_ID]),
   ['graphql', 'graphql'],
   ['kotlin', 'kotlin'],
   ['swift', 'swift'],

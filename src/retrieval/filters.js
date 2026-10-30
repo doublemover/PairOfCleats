@@ -1,4 +1,5 @@
 import { mergeFilterLists } from '../shared/filter/merge.js';
+import { PROTOCOL_BUFFER_ALIASES, PROTOCOL_BUFFER_LANGUAGE_ID } from '../shared/language-aliases.js';
 const LANG_ALIAS_MAP = new Map([
   ['javascript', 'javascript'],
   ['js', 'javascript'],
@@ -53,9 +54,7 @@ const LANG_ALIAS_MAP = new Map([
   ['jinja2', 'jinja'],
   ['django', 'jinja'],
   ['razor', 'razor'],
-  ['protobuf', 'protobuf'],
-  ['protocol buffer', 'protobuf'],
-  ['protocol buffers', 'protobuf'],
+  ...PROTOCOL_BUFFER_ALIASES.map(alias => [alias, PROTOCOL_BUFFER_LANGUAGE_ID]),
   ['graphql', 'graphql']
 ]);
 
