@@ -1,50 +1,22 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-import fs from 'node:fs/promises';
-import path from 'node:path';
 import { getIndexDir, loadUserConfig } from '../../../tools/shared/dict-utils.js';
-import { applyTestEnv } from '../../helpers/test-env.js';
-import { createFastIndexingTestConfig } from '../../helpers/fast-indexing-config.js';
-import { prepareIsolatedTestCacheDir } from '../../helpers/test-cache.js';
-import { installPublicationBoundaryDiagnostics } from '../../helpers/publication-boundary-diagnostics.js';
-import { observeStorageResource } from '../../../src/shared/storage/failure-observation.js';
-import { addStorageFailureContext } from '../../../src/shared/storage/operation-error.js';
-const { dir: temp } = await prepareIsolatedTestCacheDir('semantic-phase-drain-production');
-const diagnostics = installPublicationBoundaryDiagnostics();
-const { buildIndex } = await import('../../../src/integrations/core/index.js');
-const { runSemanticEnrichmentService } = await import('../../../src/semantic/enrichment.js');
-const { openPublishedSemanticStore } = await import('../../../src/semantic/published-store.js');
-const repoRoot = path.join(temp, 'repo');
-await fs.mkdir(repoRoot);
-// This source exercises compiler authority/reuse, not DOM or modern library
-// coverage. Retain a real standard library and fresh parses without copying
-// dozens of unrelated declaration inputs through both generation snapshots.
-await fs.writeFile(path.join(repoRoot, 'tsconfig.json'), JSON.stringify({ compilerOptions: { types: [], lib: ['ES5'], target: 'ES2022' }, include: ['*.ts'] }));
-await fs.writeFile(path.join(repoRoot, 'input.ts'), 'export function scale(x:number) { return x*2; } export function run() { const payload={value:scale(3)}; return payload.value; }');
-await fs.writeFile(path.join(repoRoot, 'input.vue'), '<template>Hello</template><script lang="ts">export function wrap(x:number) { return x+1; } const result=wrap(4);</script>');
-applyTestEnv({ cacheRoot: path.join(temp, 'cache'), embeddings: 'stub', testConfig: createFastIndexingTestConfig({ threads: 1, indexing: {
-  workerPool: { enabled: false }, semantic: { enabled: true, profile: 'rich', enrichment: { bindings: 'deferred', localFlow: 'deferred', crossFileFlow: 'deferred' } },
-  embeddings: { enabled: false }, typeInference: false, typeInferenceCrossFile: false, riskAnalysis: false, treeSitter: { enabled: false }
-} }) });
-let workError, workFailed = false;
-try {
-  const initialStart = performance.now();
-  await buildIndex(repoRoot, { mode: 'code', stage: 'stage2', threads: 1, incremental: false, 'stub-embeddings': true, 'scm-provider': 'none' });
-  console.log(JSON.stringify({ phase: 'deferred-source-publication', elapsedMs: performance.now() - initialStart }));
-  const indexDir = getIndexDir(repoRoot, 'code', loadUserConfig(repoRoot));
-  const manifest = JSON.parse(await fs.readFile(path.join(indexDir, 'semantic_manifest.json'), 'utf8'));
-  assert.equal(manifest.completedTasks.length, 0);
-  const request = { schemaVersion: 1, repoRoot, generation: manifest.generation, limits: { maxTasks: 32, maxBytes: 65536, maxMs: 30000, drainMaxMs: 30000 } };
+import { semanticTaskInputHash } from '../../../src/index/semantic/frontier.js';
+import { runDeferredPhaseFixture, readPhaseCompilerWitness } from '../../helpers/semantic-phase-fixture.js';
+
+await runDeferredPhaseFixture('semantic-phase-drain-production', async ({ repoRoot, indexDir, manifest, request, runSemanticEnrichmentService }) => {
   const plan = await runSemanticEnrichmentService({ request });
   assert.deepEqual(plan.supportedExecutors, ['bind', 'localFlow', 'crossFileFlow']);
   const selected = plan.tasks.filter(task => ['localFlow', 'crossFileFlow'].includes(task.kind));
   assert.equal(selected.length, 2);
   assert.ok(selected.every(task => task.executable));
+  const initial = await readPhaseCompilerWitness({ repoRoot, indexDir, generation: manifest.generation });
   const drainStart = performance.now();
   const result = await runSemanticEnrichmentService({ request: { ...request, action: 'drain', taskIds: selected.map(task => task.taskId) } });
   console.log(JSON.stringify({ phase: 'selected-phase-drain', elapsedMs: performance.now() - drainStart }));
   assert.equal(result.status, 'published');
   assert.equal(result.lineage.length, 2);
+  assert.deepEqual(result.lineage.map(row => row.sourceTaskId).sort(), selected.map(row => row.taskId).sort());
   assert.ok(result.workScopes.compilerParseReused.count > 0, 'Selected normal compiler work consumes actual retained preflight trees.');
   assert.ok(result.workScopes.sourceBytesReused > 0);
   assert.ok(result.workScopes.peakRetainedBytes > 0);
@@ -52,8 +24,23 @@ try {
   assert.ok(result.workScopes.compilerParsed, 'Fresh parses are reported alongside verified reuse.');
   assert.notEqual(result.publishedGeneration.baseBuildId, manifest.generation.baseBuildId);
   const freshDir = getIndexDir(repoRoot, 'code', loadUserConfig(repoRoot));
-  const { store, manifest: fresh } = await openPublishedSemanticStore({ indexDir: freshDir, repoRoot, generation: result.publishedGeneration });
+  const current = await readPhaseCompilerWitness({ repoRoot, indexDir: freshDir, generation: result.publishedGeneration });
+  assert.deepEqual(current.verifierInput, initial.verifierInput,
+    'Complete sealed compiler inventory and actual verifier repo/tooling inputs must be identical across deferred and drained generations.');
+  assert.equal(current.authorityHash, initial.authorityHash); assert.equal(current.verifierInputHash, initial.verifierInputHash);
+  const { store, manifest: fresh } = current.inventory;
   assert.equal(fresh.completedTasks.length, 2, 'only selected phases are acknowledged');
+  // The original service's beforePublish + recovery owners reverify authority
+  // and exact replanned inputs. These published receipts are positive fresh
+  // authority evidence, without a redundant full service plan after the drain.
+  for (const line of result.lineage) {
+    const old = initial.inventory.tasks.get(line.sourceTaskId), next = current.inventory.tasks.get(line.replannedTaskId);
+    assert.ok(old && next); assert.notEqual(old.taskId, next.taskId); assert.deepEqual(next.dependencies, old.dependencies);
+    assert.equal(next.policyHash, old.policyHash); assert.equal(line.policyHash, old.policyHash);
+    assert.equal(line.inputHash, semanticTaskInputHash(old)); assert.equal(line.inputHash, semanticTaskInputHash(next));
+    assert.ok(fresh.completedTasks.some(row => row.taskId === next.taskId && row.inputHash === line.inputHash && row.policyHash === line.policyHash
+      && row.baseBuildId === fresh.generation.baseBuildId));
+  }
   const sources = new Map(), coverage = [];
   for (const partition of fresh.partitions) {
     for await (const source of store.iterateRows(partition.partitionId, 'semantic_sources')) sources.set(source.sourceUnitId, source);
@@ -64,22 +51,7 @@ try {
   for (const source of analyzed) for (const phase of ['localFlow', 'crossFileFlow']) {
     assert.ok(coverage.some(row => row.sourceUnitId === source.sourceUnitId && row.phase === phase && ['complete', 'partial'].includes(row.state)), 'each selected source has actual phase output');
   }
-  await fs.writeFile(path.join(repoRoot, 'tsconfig.json'), JSON.stringify({ compilerOptions: { types: [], strict: true } }));
-  await assert.rejects(runSemanticEnrichmentService({ request: { ...request, generation: fresh.generation } }), { code: 'ERR_SEMANTIC_DEPENDENCY_UNSEALED' });
-  console.log('source-pinned local/cross flow drain and changed compiler authority contract passed');
-} catch (error) { workError = error; workFailed = true; }
-finally {
-  diagnostics.finish();
-  const cleanupAt = performance.now();
-  console.log(JSON.stringify({ phase: 'fixture-owned-root-cleanup-start' }));
-  try {
-    if (workFailed) observeStorageResource(workError, { phase: 'phase-drain-fixture-cleanup' }).requireSettled();
-    assert.ok(path.relative(process.cwd(), temp).startsWith('.tmp' + path.sep));
-    await fs.rm(temp, { recursive: true, force: true });
-    console.log(JSON.stringify({ phase: 'fixture-owned-root-cleanup-settled', elapsedMs: performance.now() - cleanupAt }));
-  } catch (cleanupError) {
-    workError = workFailed ? addStorageFailureContext(workError, {}, cleanupError, { secondaryPresent: true }) : cleanupError;
-    workFailed = true;
-  }
-}
-if (workFailed) throw workError;
+  console.log(JSON.stringify({ phase: 'compiler-authority-equivalence', authorityHash: initial.authorityHash,
+    verifierInputHash: initial.verifierInputHash, programSources: initial.programSourceCount, completeInventoryEqual: true, publishedLineage: result.lineage.length }));
+  console.log('source-pinned local/cross flow drain and exact fresh compiler authority contract passed');
+});

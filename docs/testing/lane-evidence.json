@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-10-30T11:43:29.306Z",
+  "generatedAt": "2026-10-30T12:46:55.401Z",
   "summary": {
     "lanes": 5,
-    "tests": 2292,
+    "tests": 2295,
     "exactDuplicates": 0,
     "hotspotKinds": 10,
     "families": 419,
@@ -11,7 +11,7 @@
     "timingCoverage": {
       "freshArtifactTests": 0,
       "historicalFallbackTests": 74,
-      "missingTests": 2218
+      "missingTests": 2221
     }
   },
   "lanes": [
@@ -51,7 +51,7 @@
       "targetMaxDurationSeconds": 60,
       "orderFile": "tests/ci/ci.order.txt",
       "timingArtifactPath": ".testLogs/ci-testRunTimes.txt",
-      "totalTests": 228,
+      "totalTests": 231,
       "knownDurationTests": 22,
       "knownDurationMs": 101770,
       "p50DurationMs": 5020,
@@ -59,7 +59,7 @@
       "resolvedTimingArtifactPaths": [],
       "timingSources": {
         "historical-test-times": 22,
-        "missing": 206
+        "missing": 209
       }
     },
     {
@@ -128,9 +128,9 @@
     },
     {
       "key": "tooling/install",
-      "count": 54,
+      "count": 56,
       "knownDurationMs": 8330,
-      "unknownDurationCount": 49
+      "unknownDurationCount": 51
     },
     {
       "key": "indexing/type-inference",
@@ -326,9 +326,9 @@
     },
     {
       "key": "indexing/semantic",
-      "count": 50,
+      "count": 51,
       "knownDurationMs": 0,
-      "unknownDurationCount": 50
+      "unknownDurationCount": 51
     },
     {
       "key": "tooling/api-mcp",
@@ -2614,9 +2614,9 @@
   "hotspots": [
     {
       "key": "index-build-heavy",
-      "count": 656,
+      "count": 657,
       "knownDurationMs": 70250,
-      "unknownDurationCount": 615,
+      "unknownDurationCount": 616,
       "note": "Index construction, replay, and build-heavy setup overlap."
     },
     {

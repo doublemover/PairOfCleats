@@ -13,6 +13,7 @@
   "knownLanes": ["smoke", "unit", "ci-lite", "ci-long", "integration", "services", "api", "storage", "perf", "mcp", "iq", "ci", "gate", "backcompat", "diagnostics-summary", "decomposed-drift", "usr-full-conformance"],
   "laneRules": [
     { "lane": "perf", "match": ["^perf/"] },
+    { "lane": "integration", "match": ["^indexing/semantic/phase-drain-compiler-revocation$"] },
     { "lane": "iq", "match": ["^retrieval/eval/"] },
     {
       "lane": "ci-long",

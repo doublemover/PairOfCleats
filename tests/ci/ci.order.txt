@@ -227,3 +227,6 @@ cli/search/missing-value-flags-4/signature
 cli/search/missing-value-flags-4/struct-tag
 cli/search/missing-value-flags-4/top-per-repo
 cli/search/missing-value-flags-4/workspace
+indexing/semantic/phase-drain-compiler-revocation
+tooling/install/native-onnx-parity
+tooling/install/native-onnx-lifecycle
