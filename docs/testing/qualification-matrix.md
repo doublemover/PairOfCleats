@@ -21,8 +21,8 @@ M3 quality/single/batch/query and EG2 single/batch/prepared/query/resources.
 All original model/tokenizer hashes, exact vectors, judgments, phase timings,
 output copies and original cleanup remain recorded. The additional E5 direct
 output-name regression fails before repair and passes afterward; revision2
-generation has five passing capsules at6c; the additional warm Stage3 case and
-same-source old/current admission costs remain pending. #1541 is closed with
+generation has five passing capsules at6c. The [model closeout](../archived/windows-model-closeout-2026-11-04.md)
+adds six fresh E5 cases and192 provider-cost children at0a469b42f, all passing. #1541 is closed with
 its full pinned-export dense, judged retrieval and resource observations.
 The [SQLite boundary repair](../archived/windows-sqlite-boundary-repair-2026-11-04.md)
 preserves all60 original arms/132 samples across307 bounded child lifetimes.
@@ -33,7 +33,10 @@ remain separate.
 replace the failing interpreter path with the existing required native process
 binding and retain the2000ms deadline. Ten fresh helpers, actual enumeration
 fault/close controls and11 affected cases pass;37-package/33-route verification
-is clean with26 patch targets/73 hunks. Hosted acceptance remains pending.
+is clean with26 patch targets/73 hunks. Hosted Windows ownership and authority
+pass at0a469b42f. [Terminal follow-up](../archived/windows-terminal-budget-repair-2026-11-04.md)
+retains its original workspace capture failure, actual28.820s repair and ten
+fresh post-exit PTY lifecycles; hosted follow-up acceptance remains pending.
 
 The [native/drain closeout](../archived/windows-native-phase-closeout-2026-10-30.md)
 qualifies clean `b55c76ac4`: both exact-original/current Perl arms, nine historic
