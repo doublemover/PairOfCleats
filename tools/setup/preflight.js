@@ -19,20 +19,33 @@ const versionOrder = (left, right) => {
   return 0;
 };
 const fail = message => { throw new Error(`[bootstrap preflight] ${message} See docs/guides/bootstrap-prerequisites.md.`); };
+export const PREREQUISITE_PROBE_TIMEOUT_MS = 10000;
 
 export const runSetupPreflight = ({ nodeVersion = process.versions.node, platform = process.platform,
   arch = process.arch, env = process.env, run = spawnSync, exists = fs.existsSync, directories = listDirectories } = {}) => {
   const runtimeVersion = /^v?26\.(\d+)\.(\d+)$/.exec(String(nodeVersion));
   if (!runtimeVersion || (Number(runtimeVersion[1]) < 12
     || (Number(runtimeVersion[1]) === 12 && Number(runtimeVersion[2]) < 1))) fail(`Node.js >=26.12.1 <27 is required; found ${nodeVersion}. Use the .nvmrc pin before installing dependencies.`);
+  const probeFailures = [];
+  const failedProbe = (command, args, { status = null, signal = null, code = null } = {}) => {
+    probeFailures.push({ command, args, status, signal, code, timeoutMs: PREREQUISITE_PROBE_TIMEOUT_MS });
+  };
+  const describeProbeFailure = command => {
+    const failure = probeFailures.findLast(row => row.command === command);
+    if (!failure) return '';
+    if (['ETIMEDOUT', 'SUBPROCESS_TIMEOUT'].includes(failure.code)) return ` Probe timed out after ${failure.timeoutMs}ms.`;
+    if (failure.code) return ` Probe launch failed (${failure.code}).`;
+    return ` Probe exit ${failure.status ?? 'unavailable'}${failure.signal ? `; signal ${failure.signal}` : ''}.`;
+  };
   const probe = (command, args) => {
     try {
-      const result = run(command, args, { env, encoding: 'utf8', timeout: 3000, maxBuffer: 65536, windowsHide: true });
+      const result = run(command, args, { env, encoding: 'utf8', timeout: PREREQUISITE_PROBE_TIMEOUT_MS, maxBuffer: 65536, windowsHide: true });
+      if (result.status !== 0 || result.error) failedProbe(command, args, { status: result.status, signal: result.signal, code: result.error?.code });
       return result.status === 0 && !result.error ? String(result.stdout || '').trim() : null;
-    } catch { return null; }
+    } catch (error) { failedProbe(command, args, { code: error?.code || error?.cause?.code || null }); return null; }
   };
   const git = probe('git', ['--version']);
-  if (!git || !/^git version\s/.test(git)) fail('Git is missing or cannot run. Install Git and make it available on PATH.');
+  if (!git || !/^git version\s/.test(git)) fail('Git is missing or cannot run. Install Git and make it available on PATH.' + describeProbeFailure('git'));
   const selectedPython = ['NODE_GYP_FORCE_PYTHON', 'npm_config_python', 'PYTHON'].find(key => String(env[key] || '').trim());
   const pythonCandidates = selectedPython ? [[env[selectedPython], [], selectedPython]] : [
     ...(platform === 'win32' ? [['py', ['-3'], 'py-launcher']] : []), ['python3', [], 'PATH'], ['python', [], 'PATH']
@@ -50,7 +63,7 @@ export const runSetupPreflight = ({ nodeVersion = process.versions.node, platfor
       }
       rejectedPython.push({ command, source, reason: value?.releaselevel && value.releaselevel !== 'final' ? 'prerelease-needs-explicit-selection' : 'incompatible-or-unrecognized-python' });
     } catch { rejectedPython.push({ command, source, reason: 'unavailable-or-invalid-python-probe' }); }
-    if (selectedPython) fail(`Explicit ${selectedPython}=${command} is unavailable or incompatible with Python 3.6+. Repair this selection; no launcher/PATH fallback was used.`);
+    if (selectedPython) fail(`Explicit ${selectedPython}=${command} is unavailable or incompatible with Python 3.6+. Repair this selection; no launcher/PATH fallback was used.` + describeProbeFailure(command));
   }
   if (!python) fail('Python 3.6+ is required for mandatory native source builds. Install a maintained stable Python 3, or explicitly select a compatible interpreter; prerelease PATH candidates are not selected by default.');
   let toolchain;
@@ -105,7 +118,7 @@ export const runSetupPreflight = ({ nodeVersion = process.versions.node, platfor
     toolchain = { compiler, sdk };
   } else {
     const make = probe('make', ['--version']);
-    if (!make) fail('Make is required for native source builds. Install the platform build tools.');
+    if (!make) fail('Make is required for native source builds. Install the platform build tools.' + describeProbeFailure('make'));
     let compiler = null;
     for (const command of [...new Set([env.CXX, 'c++', 'clang++', 'g++'].filter(Boolean))]) {
       const version = probe(command, ['--version']);
@@ -135,7 +148,7 @@ export const runSetupPreflight = ({ nodeVersion = process.versions.node, platfor
     version: /(?:^|\s)npm\/([0-9]+\.[0-9]+\.[0-9]+)(?:\s|$)/.exec(env.npm_config_user_agent || '')?.[1] || null,
     source: env.npm_execpath ? 'npm-launch-environment' : 'not-selected-by-launch', verificationLevel: 'launch-context-not-probed' };
   return { nodeVersion, nodeExecutable: process.execPath, platform, arch, npm, git, python, toolchain,
-    rejectedPython, childEnv, verificationLevel: 'prerequisite-discovery-only' };
+    rejectedPython, probeFailures, childEnv, verificationLevel: 'prerequisite-discovery-only' };
 };
 
 export const formatSetupPreflight = report => [

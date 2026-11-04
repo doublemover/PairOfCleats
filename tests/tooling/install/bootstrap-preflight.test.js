@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
-import { runSetupPreflight } from '../../../tools/setup/preflight.js';
+import { PREREQUISITE_PROBE_TIMEOUT_MS, runSetupPreflight } from '../../../tools/setup/preflight.js';
 import { spawnResolvedSubprocessSync } from '../../../src/shared/subprocess/command-invocation.js';
 import { runNode } from '../../helpers/run-node.js';
 
@@ -10,7 +10,7 @@ const calls = [];
 const python = JSON.stringify({ version: [3, 13, 3], executable: '/fixture/python3', releaselevel: 'final', serial: 0 });
 const run = (command, args, options) => {
   calls.push({ command, args });
-  assert.equal(options.timeout, 3000);
+  assert.equal(options.timeout, PREREQUISITE_PROBE_TIMEOUT_MS);
   assert.equal(options.windowsHide, true);
   const stdout = command === 'git' ? 'git version 2.50.0' : command === 'make' ? 'GNU Make 4.4'
     : command === 'c++' ? 'g++ 14.2.0' : ['python3', 'python', 'py', '/explicit/python'].includes(command) ? python : '';

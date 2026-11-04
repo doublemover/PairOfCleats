@@ -14,6 +14,13 @@ exact interpreter. Local bootstrap still accepts a compatible maintained Python;
 select the pinned version explicitly with `NODE_GYP_FORCE_PYTHON` when installed
 alongside another interpreter. Runtime Python commands use the selected PATH.
 
+Prerequisite discovery gives each selected command one bounded10-second probe.
+Cold interpreter/tool startup receives the same allowance as a warm launch.
+Timeout, launch failure and nonzero exit are reported separately; explicitly
+selected interpreters retain their selection and have no ambient fallback.
+Native build/activation and runtime qualification follow successful discovery.
+Ordinary test capsules retain their separate30-second limits and zero retries.
+
 ## Windows
 
 Install [Python 3](https://www.python.org/downloads/windows/),

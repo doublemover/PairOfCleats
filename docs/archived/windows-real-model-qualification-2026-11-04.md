@@ -46,8 +46,9 @@ Its task/query/passage bytes, mean/L2 arithmetic, graph and precision stay exact
 Old revision1 formatting/identities reject with rebuild guidance. Positive
 selective fetch and masked mean, wrong-name and legacy-identity negatives remain;
 M3's output name and unrelated generic/model recipes remain independently covered.
-All four affected encoding/reference/metadata controls pass. Actual E5 generation
-under revision2 remains pending; the successful earlier cases retain source20e.
+All four affected encoding/reference/metadata controls pass. The revision2
+generation follow-up below records its subsequent actual-model acceptance;
+the successful earlier cases retain source20e.
 
 The direct-provider cost fixture also retained an obsolete1.31.1 assertion.
 It now uses the canonical direct-reference runtime pin; the controller compares
@@ -81,3 +82,11 @@ Diagnostic runs do not qualify the failed case. Its original failure and the
 subsequent source-bound generation checks remain distinct.
 The [witness follow-up receipt](windows-model-source-witness-2026-11-04.json)
 retains the failed invocation, diagnostic Git outcomes and focused controls.
+
+At `6c739774a`, the raw/product judged-query pair and all three original
+generation/cache cases pass:14.753/12.733s and23.156/20.627/24.870s respectively.
+Both boundary Git witnesses are captured and clean; the
+[revision2 receipt](windows-e5-v2-qualification-2026-11-04.json) retains full observations.
+The generation controller additionally retains a separately bounded warm Stage3 reuse case;
+it requires zero indexed inference batches and verified cache-only work before
+the query-cache case. That new warm case remains pending execution.

@@ -40,7 +40,10 @@ if (selection === 'truncation') {
   if (selection === 'generation') {
     assert.ok(process.argv[5], 'An independently completed raw judged-query receipt is required.');
     const stage2 = await run('stage2', worker, ['--operation', 'stage2']);
-    const stage3 = await run('stage3', worker, ['--operation', 'stage3', '--seed', stage2]);
+    await run('stage3', worker, ['--operation', 'stage3', '--seed', stage2]);
+    const stage3 = await run('stage3-cached', worker, ['--operation', 'stage3', '--seed', stage2]);
+    assert.equal(observations.at(-1).receipt.indexedVectorWork, 'cache-only');
+    assert.equal(observations.at(-1).receipt.attempt.embeddings.inferenceBatches, 0);
     await run('query-cache', worker, ['--operation', 'query-cache', '--seed', stage3, '--numerical-reference', path.resolve(process.argv[5])]);
   } else await run(selection, worker, ['--operation', selection,
     ...(selection === 'stage2' ? [] : (assert.ok(process.argv[5]), ['--seed', path.resolve(process.argv[5])])),
