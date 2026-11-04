@@ -32,8 +32,10 @@ await fs.mkdir(destination); applyTestEnv({ embeddings: null, extraEnv: { PAIROF
 const started = performance.now(), cpu = process.cpuUsage(), controller = new AbortController(), phases = [], samples = [];
 const observe = name => samples.push({ phase: name, elapsedMs: performance.now() - started, ...process.memoryUsage() });
 const phase = (name, operation, adopt = null) => runQualificationPhase({ name, operation, adopt, signal: controller.signal, phases, observe });
+const sourceWitnessDiagnostics = { initial: [], final: [] };
 const receipt = { schemaVersion: 1, status: 'failed', operation: options.operation, historicalAuthorWorkspace: true,
-  manifest: { path: manifestPath, sha256: saved.hash }, source: captureSweepSource(process.cwd()),
+  manifest: { path: manifestPath, sha256: saved.hash }, source: captureSweepSource(process.cwd(), { diagnostics: sourceWitnessDiagnostics.initial }),
+  sourceWitnessDiagnostics,
   phases, memorySamples: samples, sourceOwners: [], modelArtifact: null };
 let lease, failure, failed = false;
 const remember = error => { failure = failed ? preserveEmbeddingCleanupFailure(failure, error) : error; failed = true; };
@@ -74,7 +76,8 @@ try {
         reference: options['numerical-reference'], providerRuntime: receipt.providerRuntime, source: receipt.source, signal: controller.signal, phase }));
   }
   await phase('verify-loaded-original-model-bytes', () => lease.verifyLoaded());
-  assert.deepEqual(captureSweepSource(process.cwd()), receipt.source);
+  receipt.finalSource = captureSweepSource(process.cwd(), { diagnostics: sourceWitnessDiagnostics.final });
+  assert.deepEqual(receipt.finalSource, receipt.source);
   receipt.status = 'passed';
 } catch (error) {
   remember(error); const diagnostic = captureEmbeddingFailureDiagnostics(error), projected = {};

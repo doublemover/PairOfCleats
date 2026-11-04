@@ -3,6 +3,7 @@ import { qualifySweepRuns } from '../../../../tools/bench/ab-sweep-admission.js'
 import { BENCH_RUNNER_REPORT_VERSION } from '../../../../tools/bench/runner-contract.js';
 import { BENCH_WORKLOAD_VERSION, BENCH_EXPERIMENT_VERSION, benchmarkFingerprint } from '../../../../tools/bench/runner-workload.js';
 import { BENCH_OBSERVATION_VERSION } from '../../../../tools/bench/runner-observation.js';
+import { captureSweepSource } from '../../../../tools/bench/ab-sweep-source.js';
 
 const identity = benchmarkFingerprint({ independent: 'input' });
 const source = { state: 'observed', sha256: 'b'.repeat(64), bytes: 123 };
@@ -95,3 +96,26 @@ assert.equal(partial.recommendation.bestRunId, 'run-1', 'one-sided skipped work 
 assert.deepEqual(partial.exclusions, []);
 assert.equal(partial.runs[1].eligibility.eligible, false);
 console.log('A/B sweep hard admission test passed');
+const gitResult = stdout => ({ exitCode: 0, signal: null, stdout, stderr: '', outputCapture: {
+  stdout: { enabled: true, truncated: false, encodingLoss: false, droppedBytes: 0 } } });
+const diagnostics = [];
+assert.deepEqual(captureSweepSource('/fixture', { diagnostics, execute: (command, args, options) => {
+  assert.equal(command, 'git'); assert.equal(options.timeoutMs, 5000);
+  return gitResult(args[2] === 'rev-parse' ? 'c'.repeat(40) + '\n' : '');
+} }), witness);
+assert.equal(diagnostics.length, 2);
+const unavailable = [];
+assert.deepEqual(captureSweepSource('/fixture', { diagnostics: unavailable, execute: () =>
+  ({ ...gitResult(''), exitCode: 128, stderr: 'original Git refusal' }) }), { state: 'unavailable', revision: null });
+assert.equal(unavailable.length, 1); assert.equal(unavailable[0].result.stderr, 'original Git refusal');
+const spawnFailure = [];
+assert.deepEqual(captureSweepSource('/fixture', { diagnostics: spawnFailure, execute: () => {
+  throw Object.assign(new Error('original spawn failure'), { cause: { code: 'ENOENT' } });
+} }), { state: 'unavailable', revision: null });
+assert.equal(spawnFailure[0].error.causeCode, 'ENOENT');
+assert.equal(spawnFailure[0].error.message, 'original spawn failure');
+const truncated = [];
+assert.deepEqual(captureSweepSource('/fixture', { diagnostics: truncated, execute: () => {
+  const result = gitResult('c'.repeat(40)); result.outputCapture.stdout.truncated = true; return result;
+} }), { state: 'unavailable', revision: null });
+assert.equal(truncated[0].result.outputCapture.stdout.truncated, true);

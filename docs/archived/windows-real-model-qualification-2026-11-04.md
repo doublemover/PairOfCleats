@@ -56,3 +56,28 @@ inputs remain unchanged. This repairs fixture admission, not a model fallback.
 
 Same-source original/current large-batch copy/allocation/memory/latency trials,
 full SQLite trials and remaining optional/platform scope still need execution.
+
+## Revision2 generation follow-up
+
+At clean `2e87f986a`, the new raw/product judged-query pair and actual Stage2
+pass. Stage3 publishes its successful original attempt, but its final Git
+witness returns unavailable; that original capsule remains failed. The helper
+previously discarded the underlying Git outcome, so its exact cause cannot be
+attributed. A diagnostic load-boundary observation keeps both original Git
+commands and errors without relaxing source admission or adding retries.
+
+Repeated diagnostic Stage3 work exposes a separate fixture assumption: a real
+provider probe may be ready while every indexed vector comes from verified
+cache reuse. Original telemetry records zero indexed inference batches,
+one cache hit/one chunk and no misses/rejections. The fixture now checks these
+work counters independently of provider readiness and reports cache-only
+indexed-vector work explicitly. Ready/probe metadata alone cannot pass; missing
+hits, unverified/missed/rejected cache work, stub readiness and empty work retain
+negative controls. Two focused cache/source-witness controls pass.
+
+Future E5 receipts retain bounded initial/final Git command outcomes and errors,
+with the original5-second command bounds and unchanged strict source equality.
+Diagnostic runs do not qualify the failed case. Its original failure and the
+subsequent source-bound generation checks remain distinct.
+The [witness follow-up receipt](windows-model-source-witness-2026-11-04.json)
+retains the failed invocation, diagnostic Git outcomes and focused controls.

@@ -66,6 +66,21 @@ const configFor = (manifest, cacheRoot) => createFastIndexingTestConfig({ thread
 const applySeed = (seed, manifest) => applyTestEnv({ cacheRoot: seed.cacheRoot, embeddings: null,
   extraEnv: { PAIROFCLEATS_TRUSTED_CONFIG: null }, testConfig: configFor(manifest, seed.cacheRoot) });
 
+export const assertE5Stage3Work = (embeddings, cacheStats) => {
+  for (const key of ['inferenceBatches', 'cacheHits', 'totalChunks']) {
+    assert.ok(Number.isSafeInteger(embeddings[key]) && embeddings[key] >= 0, 'Exact original Stage3 work counter: ' + key);
+  }
+  assert.ok(embeddings.totalChunks > 0);
+  if (embeddings.inferenceBatches > 0) return 'inference';
+  assert.equal(embeddings.cacheHits, embeddings.totalChunks, 'Every indexed chunk must have original verified cache reuse.');
+  assert.equal(cacheStats.hits, embeddings.cacheHits); assert.equal(cacheStats.misses, 0); assert.equal(cacheStats.rejected, 0);
+  const observation = embeddings.observation;
+  assert.ok(observation.state === 'cache-only' && observation.method === 'validated-cache-reuse'
+    || observation.state === 'ready' && observation.method === 'provider-probe' && observation.stub === false,
+  'Provider readiness does not by itself prove indexed-vector work.');
+  return 'cache-only';
+};
+
 const captureProductionLogs = async operation => {
   const scope = createLoggerScope(), logs = [];
   let dropped = 0, value, failure, failed = false;
@@ -134,11 +149,10 @@ export const runE5Stage3 = async ({ seed, manifest, artifact, signal, phase }) =
   const attempt = build.value.runtime.attempts.filter(row => row.stage === 'stage3').at(-1);
   assert.equal(attempt.lifecycle, 'succeeded'); assert.deepEqual(attempt.embeddings.resolvedIdentity, stage2.identity);
   assert.equal(attempt.runtime.writer.pending, 0); assert.equal(attempt.runtime.writer.pendingBytes, 0); assert.equal(attempt.runtime.writer.failed, 0);
-  assert(attempt.embeddings.inferenceBatches > 0 || attempt.embeddings.observation.state === 'cache-only',
-    'Record actual inference or original verified cache reuse;do not relabel cache-only work as native inference.');
+  const indexedVectorWork = assertE5Stage3Work(attempt.embeddings, seed.stage3.state.embeddings.cacheStats);
   assert.equal((await observeIndex(seed.stage2.indexDir, artifact, signal)).stateSha256, stage2.stateSha256);
   await assertSource(seed, signal);
-  return { generationSeed: seed, stage: seed.stage3, attempt, summary, logs, expectedWarnings,
+  return { generationSeed: seed, stage: seed.stage3, attempt, indexedVectorWork, summary, logs, expectedWarnings,
     scope: 'Original Stage3 runner pinned to the same source/build;inference/cache disposition is observed,not forced.' };
 };
 

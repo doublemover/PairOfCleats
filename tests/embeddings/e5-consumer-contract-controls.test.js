@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { E5_BOUNDARY_SOURCE, buildE5BoundaryCases } from './helpers/e5-truncation-cohort.js';
-import { assertE5GenerationIdentity } from './helpers/e5-generation-consumers.js';
+import { assertE5GenerationIdentity, assertE5Stage3Work } from './helpers/e5-generation-consumers.js';
 import { buildEmbeddingIdentity, buildEmbeddingIdentityKey } from '../../src/shared/embedding-identity.js';
 import { applyTestEnv } from '../helpers/test-env.js';
 
@@ -38,3 +38,18 @@ for (const change of [value => { value.embeddings.embeddingIdentity.inputFormatt
   assert.throws(() => assertE5GenerationIdentity(changed, artifact));
 }
 console.log('Independent E5 boundary metadata and persisted-generation identity controls passed;no real-model acceptance implied.');
+const cached = { inferenceBatches: 0, cacheHits: 1, totalChunks: 1,
+  observation: { state: 'ready', method: 'provider-probe', stub: false } };
+const cacheStats = { hits: 1, misses: 0, rejected: 0 };
+assert.equal(assertE5Stage3Work(cached, cacheStats), 'cache-only');
+assert.equal(assertE5Stage3Work({ ...cached, observation: { state: 'cache-only', method: 'validated-cache-reuse' } }, cacheStats), 'cache-only');
+assert.equal(assertE5Stage3Work({ ...cached, inferenceBatches: 1, cacheHits: 0 }, { hits: 0, misses: 1, rejected: 0 }), 'inference');
+for (const change of [value => { value.cacheHits = 0; }, value => { value.totalChunks = 0; },
+  value => { value.observation.method = 'configured'; }, value => { value.observation.stub = true; },
+  value => { value.inferenceBatches = NaN; }]) {
+  const invalid = structuredClone(cached); change(invalid);
+  assert.throws(() => assertE5Stage3Work(invalid, cacheStats));
+}
+for (const invalid of [{ ...cacheStats, hits: 0 }, { ...cacheStats, misses: 1 }, { ...cacheStats, rejected: 1 }]) {
+  assert.throws(() => assertE5Stage3Work(cached, invalid));
+}
