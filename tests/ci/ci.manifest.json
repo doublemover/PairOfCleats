@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 206,
+    "hero": 207,
     "matrix": 27,
     "meta": 4,
     "soak": 0,
@@ -1435,6 +1435,12 @@
     {
       "id": "lang/contracts/canonical-call-checkpoint-identity/generation",
       "order": 237,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "embeddings/tokenizer-special-token-truncation",
+      "order": 238,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

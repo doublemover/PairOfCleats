@@ -236,3 +236,4 @@ lang/contracts/canonical-call-checkpoint-identity/source
 lang/contracts/canonical-call-checkpoint-identity/parser
 lang/contracts/canonical-call-checkpoint-identity/policy
 lang/contracts/canonical-call-checkpoint-identity/generation
+embeddings/tokenizer-special-token-truncation

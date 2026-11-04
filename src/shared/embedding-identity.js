@@ -6,10 +6,12 @@ import { resolveEmbeddingAcquisitionPlan } from './embedding-acquisition-plan.js
 import { resolveEmbeddingDenseContract, denseContractFormatting, assertEmbeddingDenseFormatting,
   validateEmbeddingDenseContract } from './embedding-dense-contract.js';
 
-/** Embedding identity schema version. */
-export const EMBEDDING_IDENTITY_VERSION = 7;
+/** Embedding identity version. V8 retires vectors produced by post-template
+ * truncation that discarded trailing special tokens in Transformers.js.
+ */
+export const EMBEDDING_IDENTITY_VERSION = 8;
 /** Embedding identity fingerprint tag used in cache keys. */
-export const EMBEDDING_IDENTITY_FINGERPRINT = 'embeddings-v7';
+export const EMBEDDING_IDENTITY_FINGERPRINT = 'embeddings-v8';
 
 const normalizeString = (value) => {
   if (typeof value !== 'string') return null;
