@@ -57,7 +57,7 @@ these protocol controls do not establish an installed native backend.
 
 Installing a package named `tantivy` does not establish this adapter contract.
 No third-party native binding is currently pinned or qualified here. For example,
-[`@harperfast/fulltext` 0.7.0](https://github.com/HarperFast/fulltext/blob/v0.7.0/ts/native.ts)
+[`@harperfast/fulltext` 0.9.0](https://github.com/HarperFast/fulltext/blob/v0.9.0/ts/native.ts)
 provides asynchronous readers/search and an `english@2` raw-text analyzer, whereas
 this adapter consumes source-token postings and synchronous ranked ordinals.
 [`@oxdev03/node-tantivy-binding` 0.3.3](https://github.com/oxdev03/node-tantivy-binding/blob/v0.3.3/src/index.rs)

@@ -30,7 +30,7 @@ export const admitSqliteBenchmarkPhaseDiagnostics = ({ stderr, report, request }
     assert.ok(request.command === 'seed' || request.operation === 'build'
       ? ['execute', 'validate'].includes(request.phase)
       : request.operation === 'update' && (request.round === 0 ? request.phase === 'setup'
-        : Number.isSafeInteger(request.round) && request.round >= 1 && request.round <= 3 && request.phase === 'round'));
+        : Number.isSafeInteger(request.round) && request.round >= 1 && request.round <= 3 && ['execute', 'validate'].includes(request.phase)));
     assert.equal(report.phase, request.phase);
     assert.equal(report.status, request.phase === 'execute' ? 'operation-completed-unvalidated' : 'validated');
   } else if (request.command === 'arm') assert.equal(report.status, 'completed');
@@ -88,8 +88,11 @@ export const admitSqliteBenchmarkPhaseDiagnostics = ({ stderr, report, request }
   assert.equal(truncated, summary.droppedRecords > 0, 'SQLite truncation counter disagrees with raw evidence.');
   assert.equal(truncated, false, 'Truncated phase evidence cannot qualify a successful child.');
   assert.deepEqual(active, [], 'Raw SQLite phases remain unfinished.');
-  const required = ['source-admission', 'native-open', 'native-close'];
-  if (request.phase === undefined || ['validate', 'round'].includes(request.phase)) required.push('database-validation');
+  const required = ['native-open', 'native-close'];
+  // An execute-only child uses hash-bound planning statistics;the production
+  // mutation performs its original source admission inside its observed phase.
+  if (request.phase !== 'execute') required.push('source-admission');
+  if (request.phase === undefined || request.phase === 'validate') required.push('database-validation');
   if (request.phase === 'setup') required.push('initial-native-backup', 'initial-validation');
   else if (request.phase !== 'validate') required.push(request.command === 'seed' || request.operation === 'build' ? 'bundle-build' : 'incremental-update');
   for (const phase of required) {

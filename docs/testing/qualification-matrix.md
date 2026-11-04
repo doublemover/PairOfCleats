@@ -25,9 +25,15 @@ generation has five passing capsules at6c; the additional warm Stage3 case and
 same-source old/current admission costs remain pending. #1541 is closed with
 its full pinned-export dense, judged retrieval and resource observations.
 The [SQLite boundary repair](../archived/windows-sqlite-boundary-repair-2026-11-04.md)
-preserves all60 original arms/132 samples across199 bounded child lifetimes.
+preserves all60 original arms/132 samples across307 bounded child lifetimes.
 Its14 affected controls pass; original timeout and full-campaign acceptance
 remain separate.
+
+[Native Windows snapshots](../archived/windows-native-snapshot-repair-2026-11-04.md)
+replace the failing interpreter path with the existing required native process
+binding and retain the2000ms deadline. Ten fresh helpers, actual enumeration
+fault/close controls and11 affected cases pass;37-package/33-route verification
+is clean with26 patch targets/73 hunks. Hosted acceptance remains pending.
 
 The [native/drain closeout](../archived/windows-native-phase-closeout-2026-10-30.md)
 qualifies clean `b55c76ac4`: both exact-original/current Perl arms, nine historic

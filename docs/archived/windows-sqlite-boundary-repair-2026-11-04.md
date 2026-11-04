@@ -66,3 +66,23 @@ pass, including real doc-ID reuse25.0s and update/search23.6s. All eight
 publication checks pass, including41 gate cases. The initial generated-table
 launch used host Python; the preserved refusal passes with the repository
 CPython3.15.2 launch, with no generated-table changes.
+
+## Final lifetime partition
+
+At ec78f3cb2,38 high-change capsules pass before trial5 baseline round2
+times out during full validation. Its native transaction/checkpoint/close
+completes20.706s after3.117s of independent source preparation. The failed
+aggregate remains failed. Every native mutation and its complete validation
+now have separate30-second children, preserving all60 arms and132 samples
+in307 serial cases. Independent update rounds keep the same database and
+original atomic transaction; no mutation or content comparison is dropped.
+
+Preparation captures hash-bound planning statistics for all four immutable
+source states. Mutation-only children use those counts/bytes for the existing
+ingest plan and still execute production snapshot admission. The independent
+validator recaptures canonical source facts and checks the planning values;
+serialized planning metadata never serves as a validation capability. The
+private capture advances to schema2 and rejects old captures. This removes
+duplicate oracle cloning from mutation-only children without changing native
+operation clocks, source authority, workload sizes or latency thresholds.
+The resulting complete campaign remains pending.

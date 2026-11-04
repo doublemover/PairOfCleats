@@ -66,8 +66,8 @@ for (const { shape, operation, trial } of selection.pairs) {
         preparation: 'independent-native-backup-of-closed-validated-seed', observation: setup.observation });
     }
     for (const round of operation === 'build' ? [0] : [1, 2, 3]) {
-      const mutation = await run({ ...coordinate, round, phase: operation === 'build' ? 'execute' : 'round' });
-      const validated = operation === 'build' ? await run({ ...coordinate, round, phase: 'validate' }) : mutation;
+      const mutation = await run({ ...coordinate, round, phase: 'execute' });
+      const validated = await run({ ...coordinate, round, phase: 'validate' });
       assert.equal(validated.status, 'validated');
       assert.equal(validated.manifestSha256, mutation.sample.manifestSha256);
       assert.equal(validated.observation.inputAdmission.manifestSha256, mutation.sample.manifestSha256);
@@ -90,7 +90,7 @@ for (const { shape, operation, trial } of selection.pairs) {
 }
 assert.equal(arms.length, 2 * selection.pairs.length);
 assert.equal(observations.length, selection.shapes.length + 2 * seeds.size
-  + selection.pairs.reduce((count, pair) => count + 2 * (pair.operation === 'build' ? 2 : 4), 0));
+  + selection.pairs.reduce((count, pair) => count + 2 * (pair.operation === 'build' ? 2 : 7), 0));
 assert.deepEqual(captureSweepSource(process.cwd()), source);
 const generatedWork = await workspace.workOwner.reclaim();
 await atomicWriteJson(path.join(output, 'final.json'), { historicalAuthorWorkspace: true, source,
@@ -98,5 +98,5 @@ await atomicWriteJson(path.join(output, 'final.json'), { historicalAuthorWorkspa
   qualification: 'actual repeated native work/content observations;OS-cache-uncontrolled;no latency-gain claim',
   trialsPerShapeAndArm: 6, roundsPerUpdateArm: 3,
   largeHighBuildCoverage: captures.has('large-low') ? 'identical admitted initial manifest to large-low' : 'outside-selected-cohort',
-  boundaryPolicy: 'Closed builds and independent validation are separate;each update round retains its original atomic transaction and full validation;no aggregate-duration PASS.',
+  boundaryPolicy: 'Every closed native mutation and its complete validation are independently bounded;all original update rounds and atomic transactions retained;no aggregate-duration PASS.',
   generatedWork, arms, observations }, { createOnly: true });

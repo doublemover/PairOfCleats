@@ -78,4 +78,11 @@ for (const phase of ['unknown', 'round', 'setup']) {
   const invalid = structuredClone(executeOnly); invalid.request.phase = phase; invalid.report.phase = phase;
   assert.throws(() => admitSqliteBenchmarkPhaseDiagnostics(invalid));
 }
+const updateExecution = structuredClone(executeOnly);
+updateExecution.request = { command: 'arm', operation: 'update', round: 1, phase: 'execute' };
+updateExecution.stderr = updateExecution.stderr.replaceAll('bundle-build', 'incremental-update');
+assert.equal(admitSqliteBenchmarkPhaseDiagnostics(updateExecution).state, 'accepted');
+const incompleteUpdate = structuredClone(updateExecution);
+incompleteUpdate.request.phase = 'validate'; incompleteUpdate.report.phase = 'validate'; incompleteUpdate.report.status = 'validated';
+assert.throws(() => admitSqliteBenchmarkPhaseDiagnostics(incompleteUpdate), /Missing actual SQLite phase: database-validation/);
 console.log('Private SQLite parent admission rejects warnings, unknown stderr, malformed/counter/phase mismatches and unqualified child success.');

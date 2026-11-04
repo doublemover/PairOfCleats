@@ -2633,5 +2633,88 @@
         "sha256": "a935caeb86fa1fc00ae180ef5b7e3c8e4918ae88de255afc2c6f272d6fa4cdf2"
       }
     ]
+  },
+  "closedMutationFollowup": {
+    "source": "ec78f3cb23c9b08452ece9f3a5f786084e2f2d75",
+    "completedCapsules": 38,
+    "failedCapsule": {
+      "schemaVersion": 1,
+      "historicalAuthorWorkspace": true,
+      "state": "failed-capsule;not-resource-settlement-authority",
+      "invocation": {
+        "executable": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\node-v26.13.0-win-x64\\node.exe",
+        "args": [
+          "tests/fixtures/benchmarks/sqlite-row-shape-worker.js",
+          "{\"command\":\"arm\",\"shape\":\"large-high\",\"operation\":\"update\",\"trial\":5,\"label\":\"baseline\",\"capture\":{\"file\":\"C:\\\\Users\\\\sneak\\\\Development\\\\PairOfCleats\\\\.tmp\\\\dev\\\\benchmarks\\\\sqlite-row-shapes\\\\run-ecCAzV\\\\large-high-capture.json\",\"bytes\":1174869,\"sha256\":\"a5bd89e0a3056cc337b0114e51d647a357703d9e5d5c4881041ee0103573bc6a\"},\"armRoot\":\"C:\\\\Users\\\\sneak\\\\Development\\\\PairOfCleats\\\\.tmp\\\\dev\\\\benchmarks\\\\sqlite-row-shapes\\\\arm-7Y2j3o\",\"armIdentity\":\"8782142b-5e4f-40ff-9429-be425f59dc2c\",\"round\":2,\"phase\":\"round\",\"root\":\"C:\\\\Users\\\\sneak\\\\Development\\\\PairOfCleats\\\\.tmp\\\\dev\\\\benchmarks\\\\sqlite-row-shapes\\\\run-ecCAzV\",\"runIdentity\":\"6b093d53-5341-41f5-bf1e-605553f4d0d1\"}"
+        ],
+        "timeoutMs": 30000,
+        "maxOutputBytes": 4194304
+      },
+      "failures": [
+        {
+          "name": "SubprocessTimeoutError",
+          "code": "SUBPROCESS_TIMEOUT",
+          "message": "Subprocess timeout",
+          "thrownType": "object",
+          "result": {
+            "pid": 2412,
+            "exitCode": null,
+            "signal": null,
+            "durationMs": 30292,
+            "termination": {
+              "scope": "spawned-child-close-only",
+              "method": "child-close-event",
+              "closeObserved": true,
+              "closeTimedOut": false,
+              "waitMs": 500,
+              "treeCleanupSettled": true,
+              "treeCleanupFailed": false,
+              "treeCleanupForced": true
+            },
+            "stdout": "",
+            "stderr": "{\"kind\":\"sqlite-qualification-phase\",\"state\":\"start\",\"id\":1,\"phase\":\"source-admission\",\"elapsedMs\":2.3238000000001193}\n{\"kind\":\"sqlite-qualification-phase\",\"state\":\"end\",\"id\":1,\"phase\":\"source-admission\",\"durationMs\":3116.6103000000003,\"elapsedMs\":3118.909}\n{\"kind\":\"sqlite-qualification-phase\",\"state\":\"start\",\"id\":2,\"phase\":\"native-open\",\"elapsedMs\":3119.7517000000003}\n{\"kind\":\"sqlite-qualification-phase\",\"state\":\"end\",\"id\":2,\"phase\":\"native-open\",\"durationMs\":2.5104999999994106,\"elapsedMs\":3122.2549000000004}\n{\"kind\":\"sqlite-qualification-phase\",\"state\":\"start\",\"id\":3,\"phase\":\"native-close\",\"elapsedMs\":3124.582}\n{\"kind\":\"sqlite-qualification-phase\",\"state\":\"end\",\"id\":3,\"phase\":\"native-close\",\"durationMs\":0.15570000000025175,\"elapsedMs\":3124.7332}\n{\"kind\":\"sqlite-qualification-phase\",\"state\":\"start\",\"id\":4,\"phase\":\"incremental-update\",\"elapsedMs\":3133.8636}\n{\"kind\":\"sqlite-qualification-phase\",\"state\":\"start\",\"id\":5,\"phase\":\"native-open\",\"elapsedMs\":3135.6919000000003}\n{\"kind\":\"sqlite-qualification-phase\",\"state\":\"end\",\"id\":5,\"phase\":\"native-open\",\"durationMs\":0.5511000000005879,\"elapsedMs\":3136.2381}\n{\"kind\":\"sqlite-qualification-phase\",\"state\":\"start\",\"id\":6,\"phase\":\"filter-facts-schema\",\"elapsedMs\":4214.584699999999}\n{\"kind\":\"sqlite-qualification-phase\",\"state\":\"end\",\"id\":6,\"phase\":\"filter-facts-schema\",\"durationMs\":1.497599999999693,\"elapsedMs\":4216.0761}\n{\"kind\":\"sqlite-qualification-phase\",\"state\":\"start\",\"id\":7,\"phase\":\"transaction-begin\",\"elapsedMs\":5001.9935000000005}\n{\"kind\":\"sqlite-qualification-phase\",\"state\":\"end\",\"id\":7,\"phase\":\"transaction-begin\",\"durationMs\":0.21419999999943684,\"elapsedMs\":5002.1990000000005}\n{\"kind\":\"sqlite-qualification-phase\",\"state\":\"start\",\"id\":8,\"phase\":\"native-schema\",\"elapsedMs\":5003.1538}\n{\"kind\":\"sqlite-qualification-phase\",\"state\":\"end\",\"id\":8,\"phase\":\"native-schema\",\"durationMs\":0.046000000000276486,\"elapsedMs\":5003.1932}\n{\"kind\":\"sqlite-qualification-phase\",\"state\":\"start\",\"id\":9,\"phase\":\"native-schema\",\"elapsedMs\":5003.218500000001}\n{\"kind\":\"sqlite-qualification-phase\",\"state\":\"end\",\"id\":9,\"phase\":\"native-schema\",\"durationMs\":0.14419999999972788,\"elapsedMs\":5003.361199999999}\n{\"kind\":\"sqlite-qualification-phase\",\"state\":\"start\",\"id\":10,\"phase\":\"native-schema\",\"elapsedMs\":7142.8501}\n{\"kind\":\"sqlite-qualification-phase\",\"state\":\"end\",\"id\":10,\"phase\":\"native-schema\",\"durationMs\":58.90480000000025,\"elapsedMs\":7201.7359}\n{\"kind\":\"sqlite-qualification-phase\",\"state\":\"start\",\"id\":11,\"phase\":\"filter-facts-seal\",\"elapsedMs\":23509.6591}\n{\"kind\":\"sqlite-qualification-phase\",\"state\":\"end\",\"id\":11,\"phase\":\"filter-facts-seal\",\"durationMs\":37.910400000000664,\"elapsedMs\":23547.5609}\n{\"kind\":\"sqlite-qualification-phase\",\"state\":\"start\",\"id\":12,\"phase\":\"filter-facts-seal\",\"elapsedMs\":23547.6722}\n{\"kind\":\"sqlite-qualification-phase\",\"state\":\"end\",\"id\":12,\"phase\":\"filter-facts-seal\",\"durationMs\":93.82890000000043,\"elapsedMs\":23641.5034}\n{\"kind\":\"sqlite-qualification-phase\",\"state\":\"start\",\"id\":13,\"phase\":\"filter-facts-seal-publication\",\"elapsedMs\":23659.5387}\n{\"kind\":\"sqlite-qualification-phase\",\"state\":\"end\",\"id\":13,\"phase\":\"filter-facts-seal-publication\",\"durationMs\":0.06169999999838183,\"elapsedMs\":23659.5981}\n{\"kind\":\"sqlite-qualification-phase\",\"state\":\"start\",\"id\":14,\"phase\":\"transaction-commit\",\"elapsedMs\":23659.64}\n{\"kind\":\"sqlite-qualification-phase\",\"state\":\"end\",\"id\":14,\"phase\":\"transaction-commit\",\"durationMs\":174.39930000000095,\"elapsedMs\":23834.037}\n{\"kind\":\"sqlite-qualification-phase\",\"state\":\"start\",\"id\":15,\"phase\":\"wal-checkpoint\",\"elapsedMs\":23834.7189}\n{\"kind\":\"sqlite-qualification-phase\",\"state\":\"end\",\"id\":15,\"phase\":\"wal-checkpoint\",\"durationMs\":0.1926000000021304,\"elapsedMs\":23834.91}\n{\"kind\":\"sqlite-qualification-phase\",\"state\":\"start\",\"id\":16,\"phase\":\"wal-checkpoint\",\"elapsedMs\":23835.955700000002}\n{\"kind\":\"sqlite-qualification-phase\",\"state\":\"end\",\"id\":16,\"phase\":\"wal-checkpoint\",\"durationMs\":0.07920000000012806,\"elapsedMs\":23836.0334}\n{\"kind\":\"sqlite-qualification-phase\",\"state\":\"start\",\"id\":17,\"phase\":\"native-close\",\"elapsedMs\":23836.606200000002}\n{\"kind\":\"sqlite-qualification-phase\",\"state\":\"end\",\"id\":17,\"phase\":\"native-close\",\"durationMs\":3.255299999997078,\"elapsedMs\":23839.8601}\n{\"kind\":\"sqlite-qualification-phase\",\"state\":\"end\",\"id\":4,\"phase\":\"incremental-update\",\"durationMs\":20706.093999999997,\"elapsedMs\":23839.9527}\n{\"kind\":\"sqlite-qualification-phase\",\"state\":\"start\",\"id\":18,\"phase\":\"database-validation\",\"elapsedMs\":23845.6472}\n{\"kind\":\"sqlite-qualification-phase\",\"state\":\"start\",\"id\":19,\"phase\":\"native-open\",\"elapsedMs\":23847.0658}\n{\"kind\":\"sqlite-qualification-phase\",\"state\":\"end\",\"id\":19,\"phase\":\"native-open\",\"durationMs\":0.9197999999996682,\"elapsedMs\":23847.9836}\n",
+            "outputCapture": {
+              "stdout": {
+                "enabled": true,
+                "maxBytes": 4194304,
+                "observedBytes": 0,
+                "retainedBytes": 0,
+                "droppedBytes": 0,
+                "retainedBufferBytes": 0,
+                "outputBytes": 0,
+                "encodingLoss": false,
+                "truncated": false
+              },
+              "stderr": {
+                "enabled": true,
+                "maxBytes": 4194304,
+                "observedBytes": 4714,
+                "retainedBytes": 4714,
+                "droppedBytes": 0,
+                "retainedBufferBytes": 4714,
+                "outputBytes": 4714,
+                "encodingLoss": false,
+                "truncated": false
+              }
+            }
+          }
+        }
+      ],
+      "failureTraversalTruncated": false
+    },
+    "attribution": "Native transaction/checkpoint/close complete in20.706s after3.117s independent source preparation. Child times out during subsequent complete validation. Original failed capsule remains failed.",
+    "mapping": {
+      "campaignChildren": 307,
+      "preparations": 3,
+      "seedBuildAndValidation": 4,
+      "buildArmPhases": 48,
+      "updateArmPhases": 252,
+      "trialPairs": 30,
+      "arms": 60,
+      "measuredSamples": 132,
+      "roundsPerUpdateArm": 3
+    },
+    "implementation": "Every closed mutation and complete independent validation now occupy separate30s children. Immutable schema2 task capture contains planning statistics only;real production mutation still admits original snapshots,and validation recaptures canonical source facts. No serialized object is accepted as a validation capability.",
+    "remaining": "New staged campaign has not yet executed."
   }
 }

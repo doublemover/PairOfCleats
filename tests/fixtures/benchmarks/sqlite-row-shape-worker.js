@@ -21,13 +21,20 @@ const request = JSON.parse(process.argv[2]), root = path.resolve(request.root);
 const base = resolveDevelopmentArtifactPath(process.cwd(), 'bench-cache', 'sqlite-row-shapes');
 assert.equal(path.dirname(root), base, 'qualification reads only its explicit task-owned source capture');
 const marker = JSON.parse((await readVerifiedContainedFile(root, path.join(root, 'artifact-benchmark-owner.json'), { maxBytes: 8192 })).buffer);
-assert.equal(marker.runIdentity, request.runIdentity); assert.equal(marker.workRoot, path.join(root, 'work'));
+assert.equal(marker.kind, 'sqlite-artifact-benchmark-work-v1'); assert.equal(marker.runIdentity, request.runIdentity); assert.equal(marker.workRoot, path.join(root, 'work'));
 const bundleDir = path.join(marker.workRoot, 'bundles'), plan = sqliteRowQualificationPlan(request.shape);
 if (request.command === 'prepare') {
   const workload = await createSqliteBenchmarkWorkload({ bundleDir, plan, sqliteMode: 'code' });
   assertSqliteRowQualificationWork(workload, request.shape);
+  // These bounded summaries plan native work;they are never validation capabilities.
+  const planningCache = createSqliteBenchInputCache(), planningStatistics = [];
+  for (const step of [workload.initial, ...workload.rounds]) {
+    const admitted = await prepareSqliteBenchValidation({ bundleDir, manifest: step.manifest, cache: planningCache });
+    const { manifestSha256, rows, files, bundleBytes } = admitted;
+    planningStatistics.push({ manifestSha256, rows, files, bundleBytes });
+  }
   const file = path.join(root, `${request.shape}-capture.json`);
-  await atomicWriteJson(file, { schemaVersion: 1, shape: request.shape, plan, workload, bundleDir }, { createOnly: true });
+  await atomicWriteJson(file, { schemaVersion: 2, shape: request.shape, plan, workload, bundleDir, planningStatistics }, { createOnly: true });
   const read = await readVerifiedContainedFile(root, file, { maxBytes: 8 * 1024 * 1024 });
   console.log(JSON.stringify({ command: 'prepare', descriptor: { file, bytes: read.buffer.byteLength, sha256: read.hash },
     initialManifestSha256: workload.initial.manifestSha256, rows: workload.initial.rows }));
@@ -36,7 +43,7 @@ if (request.command === 'prepare') {
   assert.equal(path.dirname(descriptor.file), root);
   const read = await readVerifiedContainedFile(root, descriptor.file, { maxBytes: 8 * 1024 * 1024,
     expectedBytes: descriptor.bytes, expectedHash: descriptor.sha256 });
-  const input = JSON.parse(read.buffer); assert.equal(input.schemaVersion, 1); assert.equal(input.shape, request.shape);
+  const input = JSON.parse(read.buffer); assert.equal(input.schemaVersion, 2); assert.equal(input.shape, request.shape);
   assert.equal(input.bundleDir, bundleDir); assert.deepEqual(input.plan, plan); assertSqliteRowQualificationWork(input.workload, request.shape);
   const { default: NativeDatabase } = await import('better-sqlite3');
   const phaseObserver = createSqliteBenchmarkPhaseObserver({ emit: record => writeSync(2, JSON.stringify(record) + '\n') });
@@ -49,7 +56,7 @@ if (request.command === 'prepare') {
     assert.equal(path.dirname(request.armRoot), base);
     const arm = JSON.parse((await readVerifiedContainedFile(request.armRoot,
       path.join(request.armRoot, 'artifact-benchmark-owner.json'), { maxBytes: 8192 })).buffer);
-    assert.equal(arm.runIdentity, request.armIdentity); assert.equal(arm.workRoot, path.join(request.armRoot, 'work'));
+    assert.equal(arm.kind, 'sqlite-artifact-benchmark-work-v1'); assert.equal(arm.runIdentity, request.armIdentity); assert.equal(arm.workRoot, path.join(request.armRoot, 'work'));
     receiptRoot = request.armRoot; outPath = path.join(arm.workRoot, 'arm.db');
   }
   if (!seed) {
@@ -61,11 +68,17 @@ if (request.command === 'prepare') {
   assert.ok(Number.isSafeInteger(round) && (operation === 'build' ? round === 0 : round >= 0 && round <= 3));
   assert.ok(seed ? ['execute', 'validate'].includes(request.phase)
     : operation === 'build' ? ['execute', 'validate'].includes(request.phase)
-      : round === 0 ? request.phase === 'setup' : request.phase === 'round');
+      : round === 0 ? request.phase === 'setup' : ['execute', 'validate'].includes(request.phase));
   const step = round === 0 ? input.workload.initial : input.workload.rounds[round - 1];
-  const inputCache = createSqliteBenchInputCache();
-  const admission = await phaseObserver.run('source-admission', () => prepareSqliteBenchValidation({ bundleDir,
-    manifest: step.manifest, cache: inputCache }));
+  const planning = input.planningStatistics?.[round];
+  assert.equal(planning?.manifestSha256, step.manifestSha256);
+  assert.equal(planning.rows, step.rows); assert.equal(planning.files, Object.keys(step.manifest.files).length);
+  assert.ok(Number.isSafeInteger(planning.bundleBytes) && planning.bundleBytes > 0);
+  // Mutation still enters the real production snapshot admission. The independent
+  // validator recaptures source facts in its own child;no serialized oracle passes.
+  const admission = request.phase === 'execute' ? null
+    : await phaseObserver.run('source-admission', () => prepareSqliteBenchValidation({ bundleDir, manifest: step.manifest }));
+  if (admission) for (const [key, value] of Object.entries(planning)) assert.equal(admission[key], value);
   const report = { command: request.command, phase: request.phase, shape: request.shape, operation, round,
     trial: seed ? 1 : request.trial, label: seed ? 'current' : request.label,
     status: 'running', manifestSha256: step.manifestSha256 };
@@ -89,7 +102,7 @@ if (request.command === 'prepare') {
       if (operation === 'build') await assert.rejects(fs.stat(outPath), { code: 'ENOENT' });
       report.sample = await runSqliteBenchmarkMutation({ Database, operation, label: report.label, trial: report.trial,
         order: seed ? ['current'] : sqliteTrialArmOrder('compare', request.trial - 1), round, workload: input.workload,
-        bundleDir, outPath, initial: admission, phaseObserver,
+        bundleDir, outPath, initial: planning, phaseObserver,
         onProgress: activeAttempt => atomicWriteJson(checkpoint, { ...report, activeAttempt }) });
       if (operation === 'update') {
         assert.equal(report.sample.mutations.insertedChunks, request.shape === 'large-high' ? 53248 : 2048);
@@ -98,8 +111,7 @@ if (request.command === 'prepare') {
         assert.equal(report.sample.stats.transactionPhases.inserts, true);
       } else assert.equal(report.sample.stats.runtimeTelemetry.plan.rowCount, plan.fileCount * 512);
       assert.ok(report.sample.stats.runtimeTelemetry.plan.inputBytes > 0);
-      if (request.phase === 'round') { await validate('database-validation'); report.status = 'validated'; }
-      else report.status = 'operation-completed-unvalidated';
+      report.status = 'operation-completed-unvalidated';
     }
     await atomicWriteJson(checkpoint, report);
   } catch (error) {
