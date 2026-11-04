@@ -1,0 +1,45 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-11-04",
+  "publishedEvidence": "e7c40c8d092e98fcfb7779587ea2c69869b4b998",
+  "executionSource": "0a469b42f0c24e46c322c00155fff9d92e0f2bc1",
+  "closures": [
+    {
+      "number": 1542,
+      "state": "closed",
+      "stateReason": "completed",
+      "closedAt": "2026-11-04T23:24:19Z"
+    },
+    {
+      "number": 1544,
+      "state": "closed",
+      "stateReason": "completed",
+      "closedAt": "2026-11-04T23:24:21Z"
+    }
+  ],
+  "program": {
+    "total": 791,
+    "closed": 423,
+    "open": 368
+  },
+  "p2p3": {
+    "total": 346,
+    "qualifiedClosures": 335,
+    "remainingTargets": [
+      1384,
+      1413,
+      1627,
+      1733,
+      1767
+    ],
+    "editorExclusions": [
+      762,
+      1290,
+      1291,
+      1292,
+      1378,
+      1543
+    ]
+  },
+  "limits": "1384/1413 retain excluded editor portions;1767 retains physical POSIX filename execution. Optional Tantivy binding remains unselected;SQLite complete execution still pending."
+}
