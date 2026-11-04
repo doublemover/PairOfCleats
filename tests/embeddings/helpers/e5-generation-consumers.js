@@ -13,6 +13,9 @@ import { compareDenseReferenceVectors, resolveDenseReferenceRecipe } from './den
 import { createEmbeddingResolver } from '../../../src/retrieval/cli/run-search-session/embedding-cache.js';
 import { createRetrievalWorkObservation } from '../../../src/contracts/retrieval-work.js';
 import { getEmbeddingArtifactLeaseMetrics } from '../../../src/shared/embedding-artifact-lease.js';
+import { normalizeIdentityPath } from '../../../src/workspace/identity.js';
+import { createLoggerScope } from '../../../src/shared/progress-runtime.js';
+import { preserveEmbeddingCleanupFailure } from '../../../src/shared/embedding-cache-lifetime.js';
 
 const sha = value => createHash('sha256').update(value).digest('hex');
 const queryPrefix = 'Instruct: Given a code search query, retrieve relevant source code or documentation passages that answer the query\nQuery: ';
@@ -63,6 +66,26 @@ const configFor = (manifest, cacheRoot) => createFastIndexingTestConfig({ thread
 const applySeed = (seed, manifest) => applyTestEnv({ cacheRoot: seed.cacheRoot, embeddings: null,
   extraEnv: { PAIROFCLEATS_TRUSTED_CONFIG: null }, testConfig: configFor(manifest, seed.cacheRoot) });
 
+const captureProductionLogs = async operation => {
+  const scope = createLoggerScope(), logs = [];
+  let dropped = 0, value, failure, failed = false;
+  const append = (level, message, meta = null) => {
+    if (logs.length >= 2048) { dropped++; return; }
+    logs.push({ level: meta?.kind === 'warning' ? 'warning' : level, message: String(message), meta });
+  };
+  scope.setProgressHandlers({ log: (message, meta) => append('info', message, meta),
+    logLine: (message, meta) => append('info', message, meta), logError: (message, meta) => append('error', message, meta),
+    showProgress: (step, index, total, meta) => append('progress', step, { index, total, ...meta }) });
+  try { value = await scope.run(operation); } catch (error) { failure = error; failed = true; }
+  try { await scope.close(); } catch (cleanup) { throw failed ? preserveEmbeddingCleanupFailure(failure, cleanup) : cleanup; }
+  if (failed) throw failure;
+  assert.equal(dropped, 0, 'Production log observations must remain complete.');
+  const expected = 'Wordlists disabled: no dictionary files found; identifier splitting will be limited.';
+  assert.deepEqual(logs.filter(row => row.level === 'error' || row.level === 'warning' && row.message !== expected), [],
+    'Unexpected production warnings/errors cannot qualify a model generation.');
+  return { value, logs, expectedWarnings: logs.filter(row => row.level === 'warning') };
+};
+
 export const runE5Stage2 = async ({ destination, manifest, artifact, signal, phase }) => {
   const ownerRoot = path.join(destination, 'owned-generation'), repoRoot = path.join(ownerRoot, 'repo'), cacheRoot = path.join(ownerRoot, 'cache');
   await fs.mkdir(repoRoot, { recursive: true });
@@ -72,13 +95,12 @@ export const runE5Stage2 = async ({ destination, manifest, artifact, signal, pha
     sha256: source.sha256, sha1: createHash('sha1').update(source.text).digest('hex') }] };
   applySeed(seed, manifest);
   const { buildIndex } = await import('../../../src/integrations/core/build-index/index.js');
-  const logs = [], append = line => { if (logs.length < 2048) logs.push(String(line)); };
-  const result = await phase('actual-one-file-stage2-inline', () => buildIndex(repoRoot, { mode: 'code', stage: 'stage2',
+  const { value: result, logs, expectedWarnings } = await captureProductionLogs(() => phase('actual-one-file-stage2-inline', () => buildIndex(repoRoot, { mode: 'code', stage: 'stage2',
     model: manifest.modelId, dims: 1024, threads: 1, incremental: false, progress: 'off', quiet: true,
-    'scm-provider': 'none', abortSignal: signal, log: append }));
+    'scm-provider': 'none', abortSignal: signal })));
   const indexDir = getIndexDir(repoRoot, 'code', loadUserConfig(repoRoot)); seed.indexRoot = path.dirname(indexDir);
   contained(ownerRoot, seed.indexRoot);
-  if (result.buildRoot) assert.equal(path.resolve(result.buildRoot), seed.indexRoot);
+  if (result.buildRoot) assert.equal(normalizeIdentityPath(result.buildRoot), normalizeIdentityPath(seed.indexRoot));
   const observed = await observeIndex(indexDir, artifact, signal);
   const build = await readJson(path.join(seed.indexRoot, 'build_state.json'), signal);
   assert.equal(build.value.buildId, observed.state.buildId);
@@ -93,7 +115,7 @@ export const runE5Stage2 = async ({ destination, manifest, artifact, signal, pha
     buildId: observed.state.buildId, repoRoot, mode: 'code', locator: completed.snapshot, signal }));
   seed.stage2 = await observeIndex(path.join(snapshot.snapshotRoot, 'index-code'), artifact, signal);
   await assertSource(seed, signal);
-  return { generationSeed: seed, stage: observed, attempts, logs,
+  return { generationSeed: seed, stage: observed, attempts, logs, expectedWarnings,
     scope: 'One actual saved JS source,normal inline Stage2 and immutable completion snapshot;no factory,stub or corpus index.' };
 };
 
@@ -102,8 +124,8 @@ export const runE5Stage3 = async ({ seed, manifest, artifact, signal, phase }) =
   const stage2 = await observeIndex(seed.stage2.indexDir, artifact, signal);
   assert.equal(stage2.stateSha256, seed.stage2.stateSha256);
   const { runBuildEmbeddings } = await import('../../../tools/build/embeddings/run.js');
-  const summary = await phase('actual-pinned-stage3', () => runBuildEmbeddings(['--repo', seed.repoRoot, '--index-root', seed.indexRoot,
-    '--mode', 'code', '--model', manifest.modelId, '--dims', '1024', '--threads', '1', '--batch', '1', '--progress', 'off', '--quiet'], { signal }));
+  const { value: summary, logs, expectedWarnings } = await captureProductionLogs(() => phase('actual-pinned-stage3', () => runBuildEmbeddings(['--repo', seed.repoRoot, '--index-root', seed.indexRoot,
+    '--mode', 'code', '--model', manifest.modelId, '--dims', '1024', '--threads', '1', '--batch', '1', '--progress', 'off', '--quiet'], { signal })));
   seed.stage3 = await observeIndex(path.join(seed.indexRoot, 'index-code'), artifact, signal);
   assert.equal(seed.stage3.state.buildId, stage2.state.buildId);
   assert.deepEqual(seed.stage3.identity, stage2.identity, 'Stage2/3 must persist one exact model/input/precision/artifact identity.');
@@ -116,7 +138,7 @@ export const runE5Stage3 = async ({ seed, manifest, artifact, signal, phase }) =
     'Record actual inference or original verified cache reuse;do not relabel cache-only work as native inference.');
   assert.equal((await observeIndex(seed.stage2.indexDir, artifact, signal)).stateSha256, stage2.stateSha256);
   await assertSource(seed, signal);
-  return { generationSeed: seed, stage: seed.stage3, attempt, summary,
+  return { generationSeed: seed, stage: seed.stage3, attempt, summary, logs, expectedWarnings,
     scope: 'Original Stage3 runner pinned to the same source/build;inference/cache disposition is observed,not forced.' };
 };
 

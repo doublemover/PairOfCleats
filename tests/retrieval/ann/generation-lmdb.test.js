@@ -13,9 +13,14 @@ const { dir: root } = await prepareIsolatedTestCacheDir('ann-generation-lmdb');
 const repo = path.join(root, 'repo');
 await fs.mkdir(repo);
 await fs.writeFile(path.join(repo, 'sample.js'), [
+  '/** Computes the fixture answer with declaration-owned documentation. */',
   'export function lmdbGenerationWitness() {',
   '  // Computes the fixture answer inside the indexed function span.',
   '  return 42;',
+  '}',
+  'export function codeOnlyWitness() {',
+  '  // An ordinary body comment does not supply declaration documentation.',
+  '  return 7;',
   '}',
   ''
 ].join('\n'));
@@ -39,10 +44,18 @@ try {
     const helpers = createLmdbHelpers({ getDb: () => db, hnswConfig: { enabled: true },
       denseVectorMode: target, indexDirs: { code: indexDir } });
     const index = helpers.loadIndexFromLmdb('code', { includeFilterIndex: false, includeMinhash: false });
+    const documented = index.chunkMeta.findIndex(chunk => chunk.name === 'lmdbGenerationWitness');
+    const codeOnly = index.chunkMeta.findIndex(chunk => chunk.name === 'codeOnlyWitness');
+    assert.ok(documented >= 0 && codeOnly >= 0 && documented !== codeOnly);
+    assert.match(index.chunkMeta[documented].docmeta.doc, /declaration-owned documentation/);
+    assert.equal(index.chunkMeta[codeOnly].docmeta.doc, '');
+    assert.equal(index.denseVecDoc.vectors[documented].length, 384, 'real documentation produces a document vector');
+    assert.equal(index.denseVecDoc.vectors[codeOnly].length, 0, 'body comments cannot borrow the code channel');
     assert.equal(index.hnsw.available, true, `${target}: actual LMDB build retains the generation-bound native metadata`);
     assert.equal(index.hnsw.meta.variant, target);
     assert.equal(index.hnsw.meta.embeddingGeneration, index.state.embeddings.embeddingGeneration);
     assert.equal(index.hnsw.index.getCurrentCount(), index.hnsw.meta.count);
+    assert.equal(index.hnsw.meta.count, target === 'doc' ? 1 : 2);
   }
 } finally { await db.close(); }
 console.log('A real LMDB build and all three native retrieval variants retain the committed generation binding.');

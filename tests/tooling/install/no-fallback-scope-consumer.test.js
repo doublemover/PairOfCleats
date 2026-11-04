@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { applyTestEnv } from '../../helpers/test-env.js';
 import { prepareIsolatedTestCacheDir } from '../../helpers/test-cache.js';
 import { runNode } from '../../helpers/run-node.js';
@@ -8,7 +9,17 @@ const selected = process.env.PAIROFCLEATS_TEST_ID?.split('tooling/install/no-fal
 assert.ok(['canonical-preview', 'direct-preview', 'canonical-execution', 'direct-execution'].includes(selected));
 const { dir } = await prepareIsolatedTestCacheDir('install-no-fallback-' + selected);
 const direct = selected.startsWith('direct'), preview = selected.endsWith('preview');
+const nodeWrapper = (script, role) => `#!${process.execPath}\nprocess.argv.splice(2,0,${JSON.stringify(role)});import(${JSON.stringify(pathToFileURL(script).href)});\n`;
 try {
+  if (selected === 'canonical-execution') {
+    const probe = path.join(dir, 'extensionless-entry'), body = path.join(dir, 'loader-probe.cjs');
+    await fs.writeFile(body, 'console.log(JSON.stringify(process.argv.slice(2)));');
+    await fs.writeFile(probe, nodeWrapper(body, 'rustup'));
+    const result = runNode([probe, 'show', 'active-toolchain'], 'POSIX extensionless launcher under the ESM checkout',
+      process.cwd(), process.env, { timeoutMs: 5000, stdio: 'pipe' });
+    assert.deepEqual(JSON.parse(result.stdout), ['rustup', 'show', 'active-toolchain']);
+    assert.equal(result.stderr, '');
+  }
   for (const [name, flags, configured, allowed] of [
     ['bare', ['--no-fallback'], true, false], ['equals-true', ['--no-fallback=true'], true, false],
     ['equals-false', ['--no-fallback=false'], true, true], ['omitted', [], true, true],
@@ -19,7 +30,7 @@ try {
     const marker = path.join(root, 'calls.jsonl'), script = path.join(bin, 'fake-tool.cjs');
     const analyzer = path.join(bin, process.platform === 'win32' ? 'rust-analyzer.cmd' : 'rust-analyzer');
     const wrapper = role => process.platform === 'win32' ? `@echo off\r\n"${process.execPath}" "${script}" ${role} %*\r\n`
-      : `#!${process.execPath}\nprocess.argv.splice(2,0,${JSON.stringify(role)});require(${JSON.stringify(script)});\n`;
+      : nodeWrapper(script, role);
     const analyzerWrapper = wrapper('rust-analyzer');
     await fs.writeFile(script, `const fs=require('node:fs');const role=process.argv[2],args=process.argv.slice(3);
       fs.appendFileSync(${JSON.stringify(marker)},JSON.stringify({role,args})+'\\n');

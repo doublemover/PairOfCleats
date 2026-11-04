@@ -1,10 +1,19 @@
 # Platform and performance qualification
 
-Audited: 2026-10-30. Source contracts and workflow definitions describe required
+Audited: 2026-11-04. Source contracts and workflow definitions describe required
 behavior; a configured job is not evidence that the current candidate passed it.
 Current execution evidence and unresolved failures belong to the
 [deep test audit](../archived/deep-test-audit-2026-10-18.md) and the
 [active roadmap](../roadmap.md).
+
+The [November follow-up](../archived/windows-model-and-ci-followup-2026-11-04.md)
+closes #1484 with the published functional/current-binary and comparative
+receipts. Actual E5 documents/queries pass at `077a5a44c`; its later boundary
+case exposes post-template EOS truncation in Transformers4.3.2. The dependency
+repair preserves single-sequence template markers and advances embedding
+identity8. Its focused and actual-model rechecks remain separately recorded;
+old vectors need rebuilding. Remaining Windows model/SQLite qualification and
+the hosted macOS Make-discovery failure are still open.
 
 The [native/drain closeout](../archived/windows-native-phase-closeout-2026-10-30.md)
 qualifies clean `b55c76ac4`: both exact-original/current Perl arms, nine historic

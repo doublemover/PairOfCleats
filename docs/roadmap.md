@@ -1,17 +1,17 @@
 # PairOfCleats Roadmap
 
-Status: Windows P2/P3 checkpoint; execution paused by request
-Last audited: 2026-10-30
-Last reconciled: 2026-10-30
+Status: Windows P2/P3 qualification; solo execution
+Last audited: 2026-11-04
+Last reconciled: 2026-11-04
 Canonical for: initiative status, execution order, and remaining work
 
 ## Current GitHub repair program
 
-The [current reconciliation](archived/windows-p2-p3-closure-followup-2026-10-30.md) records **791 reports: 419 closed /372 open**. Forty-seven further closures have individual GitHub readbacks; prior ledgers retain their dated counts.
+The [current reconciliation](archived/windows-model-and-ci-followup-2026-11-04.md) records **791 reports: 420 closed /371 open**. Forty-eight further closures have individual GitHub readbacks; prior ledgers retain their dated counts.
 
-P2/P3 has **331 qualified closures /nine remaining targets /six editor exclusions** from346 reports. The parent and two persistent Sol6.1 High agents share the Windows checkout. Frontload shared-owner repairs, then run affected controls.
+P2/P3 has **332 qualified closures /eight remaining targets /six editor exclusions** from346 reports. Work continues solo on Windows. Batch shared-owner repairs, then run affected controls.
 
-The [native parity repair](archived/windows-onnx-runtime-parity-2026-10-30.md) records shared ORT1.30.0, ten minimized fresh passes, both public MiniLM orders and13 focused controls. The [native/drain closeout](archived/windows-native-phase-closeout-2026-10-30.md) records Perl counterfactuals, historical traversal comparisons, three complete drain passes and revocation. [Projection acceptance](archived/windows-native-projection-final-qualification-2026-10-30.md) adds seven functional controls,18 fresh-arm memory and18 current-binary query/publication passes. E5 reference output naming is repaired; its actual rerun, remaining model costs and full SQLite qualification remain.
+The [native parity repair](archived/windows-onnx-runtime-parity-2026-10-30.md) records shared ORT1.30.0, ten minimized fresh passes, both public MiniLM orders and13 focused controls. The [native/drain closeout](archived/windows-native-phase-closeout-2026-10-30.md) records Perl counterfactuals, historical traversal comparisons, three complete drain passes and revocation. [Projection acceptance](archived/windows-native-projection-final-qualification-2026-10-30.md) adds seven functional controls,18 fresh-arm memory and18 current-binary query/publication passes. Issue #1484 is closed with the published acceptance receipts. [Model/CI follow-up](archived/windows-model-and-ci-followup-2026-11-04.md) records real E5 quality passes, the EOS truncation repair and remaining model/SQLite qualification.
 
 Completed source-bound checks are indexed in the
 [qualification archive](archived/native-runtime-qualification-index-2026-10-27.md)
@@ -42,7 +42,7 @@ await execution; lifecycle policy (#1267) and custom cleanup (#1574) remain.
 The [owner queue](archived/remaining-issue-batches-2026-10-26.json) orders
 implementation by severity and shared dependencies:
 
-1. [P2/P3 closeout](archived/p2-p3-closeout-2026-10-29.md): 12 targets remain; six editor issues are excluded. All P3 reports are closed. All 658 mapped correctness checks ran (637 pass/21 fail); focused repairs now pass. P1 #1574 remains outside this request.
+1. [P2/P3 closeout](archived/p2-p3-closeout-2026-10-29.md): eight targets remain; six editor issues are excluded. All P3 reports are closed. All 658 mapped correctness checks ran (637 pass/21 fail); focused repairs now pass. P1 #1574 remains outside this request.
 2. Worker/service ownership and provider installation (#631); [compilation context and report refresh](archived/throughput-materialization-implementation-2026-10-28.md) await qualification.
 3. Language/semantic/replay and retrieval/API evidence contracts; [comment source/demand ownership](archived/comment-pipeline-implementation-2026-10-27.md)
    has 38 authored JS/TS/Rust/import cases. [Frontmatter interiors](archived/frontmatter-content-implementation-2026-10-27.md)
@@ -75,7 +75,7 @@ and forensic drain are wired; native qualification remains.
 Checkpoint 265 completed the full Windows baseline; repair its shared failures.
 Real-tool/model, non-Windows and release checks remain explicit.
 
-Current reconciliation, 2026-10-30: the full baseline is complete; shared-failure
+Current reconciliation, 2026-11-04: the full baseline is complete; shared-failure
 repairs and current qualification continue.
 Gate B1-B7 technical, compatibility, matrix, conformance,
 observability, quality, and security-risk controls need
@@ -94,7 +94,7 @@ Its focused checks/front gate passed. Existing indexes need a normal rebuild.
 Continue on `codex/pr557-audit-repairs-20261012` through
 [PR #572](https://github.com/doublemover/PairOfCleats/pull/572), retaining its
 existing `main` base. Node is **26.13.0**. Publication is authorized; no merge is
-authorized. The parent and two persistent Sol agents share the checkout. Frontload
+authorized. Work continues solo. Frontload
 implementation and defer functional execution until each related batch is ready. Formatting and static checks continue. Commit and push completed batches;
 refresh the PR overview at least every 20 commits.
 
