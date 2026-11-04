@@ -65,4 +65,17 @@ const boundedTruncation = input();
 boundedTruncation.stderr = completePrefix.map(row => JSON.stringify(row)).join('\n') + '\n';
 Object.assign(boundedTruncation.report.phaseDiagnostics, { records: 256, droppedRecords: 1 });
 assert.throws(() => admitSqliteBenchmarkPhaseDiagnostics(boundedTruncation), /Truncated phase evidence cannot qualify/);
+const executeOnly = input();
+executeOnly.request.phase = 'execute';
+Object.assign(executeOnly.report, { phase: 'execute', status: 'operation-completed-unvalidated' });
+executeOnly.stderr = original.slice(0, -2).map(row => JSON.stringify(row)).join('\n') + '\n';
+executeOnly.report.phaseDiagnostics.records -= 2;
+assert.equal(admitSqliteBenchmarkPhaseDiagnostics(executeOnly).state, 'accepted');
+const missingValidation = structuredClone(executeOnly);
+missingValidation.request.phase = 'validate'; missingValidation.report.phase = 'validate'; missingValidation.report.status = 'validated';
+assert.throws(() => admitSqliteBenchmarkPhaseDiagnostics(missingValidation), /Missing actual SQLite phase: database-validation/);
+for (const phase of ['unknown', 'round', 'setup']) {
+  const invalid = structuredClone(executeOnly); invalid.request.phase = phase; invalid.report.phase = phase;
+  assert.throws(() => admitSqliteBenchmarkPhaseDiagnostics(invalid));
+}
 console.log('Private SQLite parent admission rejects warnings, unknown stderr, malformed/counter/phase mismatches and unqualified child success.');

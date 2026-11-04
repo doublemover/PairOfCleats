@@ -44,6 +44,54 @@ const probeRuntime = (Database, filename) => withNative(Database, filename, db =
   return { pageSize, journalMode: journalMode.toLowerCase() };
 });
 
+/** One complete original native mutation, including transaction, checkpoint and
+ * disposal. Explicit qualification may validate its closed database in the next
+ * bounded process; callers must not publish a qualified sample before that. */
+export const runSqliteBenchmarkMutation = async ({ Database, operation, label, trial, order, round, workload,
+  sqliteMode = 'code', bundleDir, outPath, initial, phaseObserver = null, onProgress = async () => {} }) => {
+  if (!['build', 'update'].includes(operation) || !['baseline', 'current'].includes(label)
+    || !Number.isSafeInteger(trial) || trial < 1 || trial > 12) throw new TypeError('Invalid private SQLite arm coordinate.');
+  if (!Number.isSafeInteger(round) || (operation === 'build' ? round !== 0 : round < 1 || round > workload.rounds.length)) {
+    throw new TypeError('Invalid private SQLite round coordinate.');
+  }
+  const step = operation === 'build' ? workload.initial : workload.rounds[round - 1];
+  const phase = (name, work) => phaseObserver ? phaseObserver.run(name, work) : work();
+  const baseOptions = { Database, outPath, mode: sqliteMode, ...common, inputBytes: initial.bundleBytes,
+    ...(phaseObserver ? { emitOutput: true, logger: { log: message => phaseObserver.progress(message), warn: message => console.warn(message) } } : {}),
+    batchSize: { inputBytes: initial.bundleBytes, repoBytes: initial.bundleBytes, rowCount: initial.rows, fileCount: initial.files },
+    incrementalData: { manifest: workload.initial.manifest, bundleDir } };
+  const stats = {};
+  let adaptive = null, value;
+  if (operation === 'update') {
+    requireSqliteDb(outPath);
+    const runtime = await probeRuntime(Database, outPath), dbBytes = await fileBytes(outPath), walBytes = await fileBytes(`${outPath}-wal`);
+    const config = { ...runtime, walEnabled: runtime.journalMode === 'wal', walBytes,
+      rowCount: step.insertedChunks, fileCount: step.changedFiles, inputBytes: dbBytes, repoBytes: dbBytes };
+    adaptive = { config, plan: resolveSqliteIngestPlan({ batchSize: config }) };
+  }
+  const activeAttempt = { trial, label, round, phase: operation, dbPath: outPath,
+    manifestSha256: step.manifestSha256, expectedRows: step.rows, stats,
+    expectedMutations: operation === 'update' ? { changedFiles: step.changedFiles, deletedFiles: step.deletedFiles, insertedChunks: step.insertedChunks } : null };
+  await onProgress(activeAttempt); const began = performance.now();
+  if (operation === 'build') value = await phase('bundle-build', () => buildDatabaseFromBundles({ ...baseOptions, buildPragmas: label === 'current', optimize: label === 'current', stats }));
+  else value = await phase('incremental-update', () => incrementalUpdateDatabase({ ...baseOptions, incrementalData: { manifest: step.manifest, bundleDir },
+    inputBytes: adaptive.plan.repoBytes, batchSize: adaptive.config, buildPragmas: label === 'current', stats }));
+  const durationMs = performance.now() - began;
+  activeAttempt.operationMs = durationMs; activeAttempt.phase = 'validation';
+  if (operation === 'build') assert.equal(value.count, step.rows);
+  else {
+    assert.equal(value.used, true, `Incremental update skipped: ${value.reason || 'unknown reason'}`);
+    assert.equal(value.changedFiles, step.changedFiles); assert.equal(value.deletedFiles, step.deletedFiles); assert.equal(value.insertedChunks, step.insertedChunks);
+  }
+  requireSqliteDb(outPath);
+  assert.equal(stats.tables?.chunks?.rows, operation === 'build' ? step.rows : step.insertedChunks,
+    'realized native writes must equal independently requested work');
+  await onProgress(activeAttempt);
+  return { trial, order, label, round, dbPath: outPath, durationMs, manifestSha256: step.manifestSha256, stats,
+    ...(adaptive ? { adaptive } : {}), mutations: operation === 'update'
+      ? { changedFiles: value.changedFiles, deletedFiles: value.deletedFiles, insertedChunks: value.insertedChunks } : null };
+};
+
 /** The original contiguous native operation and complete validation for one
  * arm. Function-only seed/trial coordinates serve explicit qualification; the
  * public benchmark continues to build its own initial database per arm. */
@@ -80,37 +128,13 @@ export const runSqliteBenchmarkArm = async ({ Database, operation, label, trial,
   }
   for (const [index, step] of (operation === 'build' ? [workload.initial] : workload.rounds).entries()) {
     const admission = await prepareSqliteBenchValidation({ bundleDir, manifest: step.manifest, cache: inputCache });
-    const stats = {}, round = operation === 'build' ? 0 : index + 1;
-    let adaptive = null, value;
-    if (operation === 'update') {
-      requireSqliteDb(outPath);
-      const runtime = await probeRuntime(Database, outPath), dbBytes = await fileBytes(outPath), walBytes = await fileBytes(`${outPath}-wal`);
-      const config = { ...runtime, walEnabled: runtime.journalMode === 'wal', walBytes,
-        rowCount: step.insertedChunks, fileCount: step.changedFiles, inputBytes: dbBytes, repoBytes: dbBytes };
-      adaptive = { config, plan: resolveSqliteIngestPlan({ batchSize: config }) };
-    }
-    activeAttempt = { trial, label, round, phase: operation, dbPath: outPath,
-      manifestSha256: step.manifestSha256, expectedRows: step.rows, stats,
-      expectedMutations: operation === 'update' ? { changedFiles: step.changedFiles, deletedFiles: step.deletedFiles, insertedChunks: step.insertedChunks } : null };
-    await publish(); const began = performance.now();
-    if (operation === 'build') value = await phase('bundle-build', () => buildDatabaseFromBundles({ ...baseOptions, buildPragmas: label === 'current', optimize: label === 'current', stats }));
-    else value = await phase('incremental-update', () => incrementalUpdateDatabase({ ...baseOptions, incrementalData: { manifest: step.manifest, bundleDir },
-      inputBytes: adaptive.plan.repoBytes, batchSize: adaptive.config, buildPragmas: label === 'current', stats }));
-    const durationMs = performance.now() - began;
-    activeAttempt.operationMs = durationMs; activeAttempt.phase = 'validation';
-    if (operation === 'build') assert.equal(value.count, step.rows);
-    else {
-      assert.equal(value.used, true, `Incremental update skipped: ${value.reason || 'unknown reason'}`);
-      assert.equal(value.changedFiles, step.changedFiles); assert.equal(value.deletedFiles, step.deletedFiles); assert.equal(value.insertedChunks, step.insertedChunks);
-    }
-    requireSqliteDb(outPath); await publish(); const validationAt = performance.now();
+    const sample = await runSqliteBenchmarkMutation({ Database, operation, label, trial, order,
+      round: operation === 'build' ? 0 : index + 1, workload, sqliteMode, bundleDir, outPath, initial, phaseObserver,
+      onProgress: attempt => { activeAttempt = attempt; return publish(); } });
+    const validationAt = performance.now();
     const observation = await phase('database-validation', () => validateSqliteBenchDatabase({ Database, dbPath: outPath, bundleDir,
       manifest: step.manifest, mode: sqliteMode, expectedRows: step.rows, admission }));
-    assert.equal(stats.tables?.chunks?.rows, operation === 'build' ? step.rows : step.insertedChunks,
-      'realized native writes must equal independently requested work');
-    samples.push({ trial, order, label, round, dbPath: outPath, durationMs, validationMs: performance.now() - validationAt,
-      manifestSha256: step.manifestSha256, observation, stats, ...(adaptive ? { adaptive } : {}),
-      mutations: operation === 'update' ? { changedFiles: value.changedFiles, deletedFiles: value.deletedFiles, insertedChunks: value.insertedChunks } : null });
+    samples.push({ ...sample, validationMs: performance.now() - validationAt, observation });
     activeAttempt = null; await publish();
   }
   return { samples, setups };

@@ -6,10 +6,11 @@ import Database from 'better-sqlite3';
 import { createSqliteBenchmarkPhaseObserver } from '../../../../tools/bench/sqlite/phase-observer.js';
 import { admitSqliteBenchmarkPhaseDiagnostics } from '../../../../tools/bench/sqlite/phase-diagnostics.js';
 import { createSqliteBenchBundleFixture } from '../../../../tools/bench/sqlite/shared.js';
-import { runSqliteBenchmarkArm } from '../../../../tools/bench/sqlite/campaign-arm.js';
+import { runSqliteBenchmarkArm, runSqliteBenchmarkMutation } from '../../../../tools/bench/sqlite/campaign-arm.js';
 import { spawnSubprocess } from '../../../../src/shared/subprocess/runner.js';
 import { prepareIsolatedTestCacheDir } from '../../../helpers/test-cache.js';
 import { applyTestEnv } from '../../../helpers/test-env.js';
+import { prepareSqliteBenchValidation, validateSqliteBenchDatabase } from '../../../../tools/bench/sqlite/validate.js';
 
 const { dir } = await prepareIsolatedTestCacheDir('sqlite-phase-observer');
 applyTestEnv({ cacheRoot: path.join(dir, 'cache') });
@@ -33,6 +34,22 @@ try {
   assert.ok(find('native-close', 'end') < find('bundle-build', 'end'));
   assert.ok(find('bundle-build', 'end') < find('database-validation', 'start'));
   assert.ok(records.some(row => row.state === 'progress' && row.completedFiles === 2 && row.totalFiles === 2));
+  const splitRows = [], splitObserver = createSqliteBenchmarkPhaseObserver({ emit: row => splitRows.push(row) });
+  const splitDatabase = splitObserver.wrapDatabase(Database), splitPath = path.join(dir, 'split.db');
+  const admission = await splitObserver.run('source-admission', () => prepareSqliteBenchValidation({ bundleDir, manifest }));
+  const workload = { initial: { manifest, rows: 4, manifestSha256: admission.manifestSha256 }, rounds: [] };
+  const split = await runSqliteBenchmarkMutation({ Database: splitDatabase, operation: 'build', label: 'current',
+    trial: 1, order: ['current'], round: 0, workload, initial: admission, bundleDir, outPath: splitPath, phaseObserver: splitObserver });
+  assert.equal(Object.hasOwn(split, 'observation'), false, 'A closed mutation is not a validation receipt');
+  assert.ok(splitRows.some(row => row.phase === 'native-close' && row.state === 'end'));
+  assert.equal(admitSqliteBenchmarkPhaseDiagnostics({ stderr: splitRows.map(row => JSON.stringify(row)).join('\n') + '\n',
+    report: { phase: 'execute', status: 'operation-completed-unvalidated', phaseDiagnostics: splitObserver.snapshot() },
+    request: { command: 'seed', phase: 'execute' } }).state, 'accepted');
+  const observed = await validateSqliteBenchDatabase({ Database, dbPath: splitPath, bundleDir, manifest, mode: 'code', expectedRows: 4, admission });
+  assert.deepEqual(observed, result.samples[0].observation, 'Split lifetime retains the exact complete original observation');
+  for (const round of [-1, 1, 0.5, null]) await assert.rejects(runSqliteBenchmarkMutation({ Database,
+    operation: 'build', label: 'current', trial: 1, order: ['current'], round, workload,
+    initial: admission, bundleDir, outPath: splitPath }), /Invalid private SQLite round coordinate/);
   for (const value of [null, false, 0, '', Object.freeze(new Error('exact original phase failure'))]) {
     const rows = [], controlled = createSqliteBenchmarkPhaseObserver({ emit: row => rows.push(row) });
     await assert.rejects(controlled.run('original-failure', () => { throw value; }), error => error === value);

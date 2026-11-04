@@ -45,15 +45,42 @@ const run = async request => {
 for (const shape of selection.shapes) {
   const prepared = await run({ command: 'prepare', shape }); captures.set(shape, prepared);
   if (!seeds.has(prepared.initialManifestSha256)) {
-    await run({ command: 'seed', shape, capture: prepared.descriptor }); seeds.add(prepared.initialManifestSha256);
+    await run({ command: 'seed', phase: 'execute', shape, capture: prepared.descriptor });
+    const validated = await run({ command: 'seed', phase: 'validate', shape, capture: prepared.descriptor });
+    assert.equal(validated.observation.chunks, prepared.rows);
+    seeds.add(prepared.initialManifestSha256);
   }
 }
 if (captures.has('large-low')) assert.equal(captures.get('large-low').initialManifestSha256, captures.get('large-high').initialManifestSha256);
+const arms = [];
 for (const { shape, operation, trial } of selection.pairs) {
-  const arms = [];
-  for (const label of sqliteTrialArmOrder('compare', trial - 1)) arms.push(await run({ command: 'arm', shape, operation, trial, label,
-    capture: captures.get(shape).descriptor }));
-  const baseline = arms.find(row => row.label === 'baseline'), current = arms.find(row => row.label === 'current');
+  const pair = [];
+  for (const label of sqliteTrialArmOrder('compare', trial - 1)) {
+    const owned = await workspace.createArmWorkspace();
+    const coordinate = { command: 'arm', shape, operation, trial, label, capture: captures.get(shape).descriptor,
+      armRoot: owned.tempRoot, armIdentity: owned.workOwner.runIdentity };
+    const report = { ...coordinate, status: 'running', samples: [], setups: [] };
+    if (operation === 'update') {
+      const setup = await run({ ...coordinate, round: 0, phase: 'setup' });
+      report.setups.push({ trial, label, buildMs: setup.buildMs, validationMs: setup.validationMs,
+        preparation: 'independent-native-backup-of-closed-validated-seed', observation: setup.observation });
+    }
+    for (const round of operation === 'build' ? [0] : [1, 2, 3]) {
+      const mutation = await run({ ...coordinate, round, phase: operation === 'build' ? 'execute' : 'round' });
+      const validated = operation === 'build' ? await run({ ...coordinate, round, phase: 'validate' }) : mutation;
+      assert.equal(validated.status, 'validated');
+      assert.equal(validated.manifestSha256, mutation.sample.manifestSha256);
+      assert.equal(validated.observation.inputAdmission.manifestSha256, mutation.sample.manifestSha256);
+      assert.equal(validated.observation.chunks, captures.get(shape).rows);
+      assert.ok(mutation.sample.stats.tables.chunks.rows > 0);
+      report.samples.push({ ...mutation.sample, validationMs: validated.validationMs, observation: validated.observation });
+    }
+    assert.equal(report.samples.length, operation === 'build' ? 1 : 3);
+    report.status = 'completed'; report.generatedWork = await owned.workOwner.reclaim();
+    await atomicWriteJson(path.join(owned.tempRoot, 'final.json'), report, { createOnly: true });
+    pair.push(report); arms.push(report);
+  }
+  const baseline = pair.find(row => row.label === 'baseline'), current = pair.find(row => row.label === 'current');
   assert.equal(baseline.status, 'completed'); assert.equal(current.status, 'completed');
   assert.equal(baseline.samples.length, current.samples.length);
   for (let round = 0; round < baseline.samples.length; round++) {
@@ -61,7 +88,9 @@ for (const { shape, operation, trial } of selection.pairs) {
     assert.equal(baseline.samples[round].manifestSha256, current.samples[round].manifestSha256);
   }
 }
-assert.equal(observations.length, selection.shapes.length + seeds.size + 2 * selection.pairs.length);
+assert.equal(arms.length, 2 * selection.pairs.length);
+assert.equal(observations.length, selection.shapes.length + 2 * seeds.size
+  + selection.pairs.reduce((count, pair) => count + 2 * (pair.operation === 'build' ? 2 : 4), 0));
 assert.deepEqual(captureSweepSource(process.cwd()), source);
 const generatedWork = await workspace.workOwner.reclaim();
 await atomicWriteJson(path.join(output, 'final.json'), { historicalAuthorWorkspace: true, source,
@@ -69,4 +98,5 @@ await atomicWriteJson(path.join(output, 'final.json'), { historicalAuthorWorkspa
   qualification: 'actual repeated native work/content observations;OS-cache-uncontrolled;no latency-gain claim',
   trialsPerShapeAndArm: 6, roundsPerUpdateArm: 3,
   largeHighBuildCoverage: captures.has('large-low') ? 'identical admitted initial manifest to large-low' : 'outside-selected-cohort',
-  generatedWork, observations }, { createOnly: true });
+  boundaryPolicy: 'Closed builds and independent validation are separate;each update round retains its original atomic transaction and full validation;no aggregate-duration PASS.',
+  generatedWork, arms, observations }, { createOnly: true });

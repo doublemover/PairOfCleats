@@ -7,11 +7,11 @@ Canonical for: initiative status, execution order, and remaining work
 
 ## Current GitHub repair program
 
-The [current reconciliation](archived/windows-model-and-ci-followup-2026-11-04.md) records **791 reports: 420 closed /371 open**. Forty-eight further closures have individual GitHub readbacks; prior ledgers retain their dated counts.
+The [current reconciliation](archived/windows-model-and-ci-followup-2026-11-04.md) records **791 reports: 421 closed /370 open**. Forty-nine further closures have individual GitHub readbacks; prior ledgers retain their dated counts.
 
-P2/P3 has **332 qualified closures /eight remaining targets /six editor exclusions** from346 reports. Work continues solo on Windows. Batch shared-owner repairs, then run affected controls.
+P2/P3 has **333 qualified closures /seven remaining targets /six editor exclusions** from346 reports. Work continues solo on Windows. Batch shared-owner repairs, then run affected controls.
 
-The [native parity repair](archived/windows-onnx-runtime-parity-2026-10-30.md) records shared ORT1.30.0, ten minimized fresh passes, both public MiniLM orders and13 focused controls. The [native/drain closeout](archived/windows-native-phase-closeout-2026-10-30.md) records Perl counterfactuals, historical traversal comparisons, three complete drain passes and revocation. [Projection acceptance](archived/windows-native-projection-final-qualification-2026-10-30.md) adds seven functional controls,18 fresh-arm memory and18 current-binary query/publication passes. Issue #1484 is closed. [Real models](archived/windows-real-model-qualification-2026-11-04.md) adds24 serial passes; E5 output revision2, adapter costs and SQLite remain.
+The [native parity repair](archived/windows-onnx-runtime-parity-2026-10-30.md) records shared ORT1.30.0, ten minimized fresh passes, both public MiniLM orders and13 focused controls. The [native/drain closeout](archived/windows-native-phase-closeout-2026-10-30.md) records Perl counterfactuals, historical traversal comparisons, three complete drain passes and revocation. [Projection acceptance](archived/windows-native-projection-final-qualification-2026-10-30.md) adds seven functional controls,18 fresh-arm memory and18 current-binary query/publication passes. Issue #1484 is closed. [Real models](archived/windows-real-model-qualification-2026-11-04.md) adds24 serial passes and five E5 revision2 passes; #1541 is closed. Adapter costs, warm E5 and [SQLite](archived/windows-sqlite-boundary-repair-2026-11-04.md) remain.
 
 Completed source-bound checks are indexed in the
 [qualification archive](archived/native-runtime-qualification-index-2026-10-27.md)
@@ -42,7 +42,7 @@ await execution; lifecycle policy (#1267) and custom cleanup (#1574) remain.
 The [owner queue](archived/remaining-issue-batches-2026-10-26.json) orders
 implementation by severity and shared dependencies:
 
-1. [P2/P3 closeout](archived/p2-p3-closeout-2026-10-29.md): eight targets remain; six editor issues are excluded. All P3 reports are closed. All 658 mapped correctness checks ran (637 pass/21 fail); focused repairs now pass. P1 #1574 remains outside this request.
+1. [P2/P3 closeout](archived/p2-p3-closeout-2026-10-29.md): seven targets remain; six editor issues are excluded. All P3 reports are closed. All 658 mapped correctness checks ran (637 pass/21 fail); focused repairs now pass. P1 #1574 remains outside this request.
 2. Worker/service ownership and provider installation (#631); [compilation context and report refresh](archived/throughput-materialization-implementation-2026-10-28.md) await qualification.
 3. Language/semantic/replay and retrieval/API evidence contracts; [comment source/demand ownership](archived/comment-pipeline-implementation-2026-10-27.md)
    has 38 authored JS/TS/Rust/import cases. [Frontmatter interiors](archived/frontmatter-content-implementation-2026-10-27.md)

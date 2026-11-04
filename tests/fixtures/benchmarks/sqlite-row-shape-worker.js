@@ -6,14 +6,15 @@ import { requireBootstrap } from '../../../src/shared/bootstrap-readiness.js';
 import { readVerifiedContainedFile } from '../../../src/shared/contained-file.js';
 import { atomicWriteJson } from '../../../src/shared/io/atomic-write.js';
 import { addStorageFailureContext } from '../../../src/shared/storage/operation-error.js';
-import { createSqliteBenchWorkspace } from '../../../tools/bench/sqlite/shared.js';
 import { createSqliteBenchmarkWorkload } from '../../../tools/bench/sqlite/workload.js';
-import { runSqliteBenchmarkArm } from '../../../tools/bench/sqlite/campaign-arm.js';
+import { copySqliteBenchSeed, runSqliteBenchmarkMutation } from '../../../tools/bench/sqlite/campaign-arm.js';
 import { sqliteTrialArmOrder } from '../../../tools/bench/sqlite/campaign.js';
 import { sqliteRowQualificationPlan, assertSqliteRowQualificationWork } from '../../../tools/bench/sqlite/qualification-plan.js';
 import { resolveDevelopmentArtifactPath } from '../../../tools/shared/dev-artifacts.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 import { createSqliteBenchmarkPhaseObserver } from '../../../tools/bench/sqlite/phase-observer.js';
+import { createSqliteBenchInputCache, prepareSqliteBenchValidation, validateSqliteBenchDatabase } from '../../../tools/bench/sqlite/validate.js';
+import { performance } from 'node:perf_hooks';
 
 await requireBootstrap(); applyTestEnv();
 const request = JSON.parse(process.argv[2]), root = path.resolve(request.root);
@@ -41,45 +42,71 @@ if (request.command === 'prepare') {
   const phaseObserver = createSqliteBenchmarkPhaseObserver({ emit: record => writeSync(2, JSON.stringify(record) + '\n') });
   const Database = phaseObserver.wrapDatabase(NativeDatabase);
   const seedPath = path.join(marker.workRoot, `seed-${input.workload.initial.manifestSha256}.db`);
-  if (request.command === 'seed') {
-    await assert.rejects(fs.stat(seedPath), { code: 'ENOENT' });
-    const result = await runSqliteBenchmarkArm({ Database, operation: 'build', label: 'current', trial: 1, order: ['current'],
-      bundleDir, workload: input.workload, outPath: seedPath, phaseObserver,
-      onProgress: progress => atomicWriteJson(path.join(root, `seed-${request.shape}-checkpoint.json`), progress) });
-    console.log(JSON.stringify({ command: 'seed', seedPath, result, phaseDiagnostics: phaseObserver.snapshot() }));
-  } else {
-    assert.equal(request.command, 'arm'); assert.ok(['build', 'update'].includes(request.operation));
-    assert.ok(Number.isSafeInteger(request.trial) && request.trial >= 1 && request.trial <= 6);
-    const workspace = await createSqliteBenchWorkspace({ name: 'sqlite-row-shape-arm' });
-    const report = { schemaVersion: 1, shape: request.shape, operation: request.operation, trial: request.trial,
-      label: request.label, expectedTrialCount: 6, completedTrialCount: 0, status: 'running' };
-    let failed = false, primary;
-    try {
-      const result = await runSqliteBenchmarkArm({ Database, operation: request.operation, label: request.label,
-        trial: request.trial, order: sqliteTrialArmOrder('compare', request.trial - 1), bundleDir, workload: input.workload,
-        outPath: path.join(workspace.workRoot, 'arm.db'), seedPath: request.operation === 'update' ? seedPath : null, phaseObserver,
-        onProgress: progress => atomicWriteJson(path.join(workspace.tempRoot, 'checkpoint.json'), { ...report, ...progress }) });
-      assert.equal(result.samples.length, request.operation === 'build' ? 1 : 3);
-      for (const sample of result.samples) {
-        assert.equal(sample.observation.chunks, plan.fileCount * 512);
-        assert.equal(sample.observation.inputAdmission.manifestSha256, sample.manifestSha256);
-        assert.ok(sample.stats.tables.chunks.rows > 0); assert.ok(sample.stats.runtimeTelemetry.plan.inputBytes > 0);
-        if (request.operation === 'update') {
-          assert.equal(sample.mutations.insertedChunks, request.shape === 'large-high' ? 53248 : 2048);
-          assert.equal(sample.stats.runtimeTelemetry.plan.rowCount, sample.mutations.insertedChunks);
-          assert.equal(sample.stats.transactionPhases.deletes, true); assert.equal(sample.stats.transactionPhases.inserts, true);
-        } else assert.equal(sample.stats.runtimeTelemetry.plan.rowCount, plan.fileCount * 512);
-      }
-      Object.assign(report, result, { status: 'completed', completedTrialCount: 1 });
-      await atomicWriteJson(path.join(workspace.tempRoot, 'final.json'), report, { createOnly: true });
-      report.generatedWork = await workspace.workOwner.reclaim();
-      await atomicWriteJson(path.join(workspace.tempRoot, 'cleanup.json'), report.generatedWork, { createOnly: true });
-    } catch (error) { failed = true; primary = error; report.status = 'failed'; report.retainedWorkRoot = workspace.workRoot; }
-    if (failed) {
-      try { await atomicWriteJson(path.join(workspace.tempRoot, 'failure.json'), report, { createOnly: true }); }
-      catch (publication) { throw addStorageFailureContext(primary, {}, publication, { secondaryPresent: true }); }
-      throw primary;
-    }
-    console.log(JSON.stringify({ ...report, receiptRoot: workspace.tempRoot, phaseDiagnostics: phaseObserver.snapshot() }));
+  assert.ok(['seed', 'arm'].includes(request.command));
+  const seed = request.command === 'seed';
+  let receiptRoot = root, outPath = seedPath;
+  if (!seed) {
+    assert.equal(path.dirname(request.armRoot), base);
+    const arm = JSON.parse((await readVerifiedContainedFile(request.armRoot,
+      path.join(request.armRoot, 'artifact-benchmark-owner.json'), { maxBytes: 8192 })).buffer);
+    assert.equal(arm.runIdentity, request.armIdentity); assert.equal(arm.workRoot, path.join(request.armRoot, 'work'));
+    receiptRoot = request.armRoot; outPath = path.join(arm.workRoot, 'arm.db');
   }
+  if (!seed) {
+    assert.ok(Number.isSafeInteger(request.trial) && request.trial >= 1 && request.trial <= 6);
+    assert.ok(['baseline', 'current'].includes(request.label));
+  }
+  const operation = seed ? 'build' : request.operation, round = seed ? 0 : request.round;
+  assert.ok(['build', 'update'].includes(operation));
+  assert.ok(Number.isSafeInteger(round) && (operation === 'build' ? round === 0 : round >= 0 && round <= 3));
+  assert.ok(seed ? ['execute', 'validate'].includes(request.phase)
+    : operation === 'build' ? ['execute', 'validate'].includes(request.phase)
+      : round === 0 ? request.phase === 'setup' : request.phase === 'round');
+  const step = round === 0 ? input.workload.initial : input.workload.rounds[round - 1];
+  const inputCache = createSqliteBenchInputCache();
+  const admission = await phaseObserver.run('source-admission', () => prepareSqliteBenchValidation({ bundleDir,
+    manifest: step.manifest, cache: inputCache }));
+  const report = { command: request.command, phase: request.phase, shape: request.shape, operation, round,
+    trial: seed ? 1 : request.trial, label: seed ? 'current' : request.label,
+    status: 'running', manifestSha256: step.manifestSha256 };
+  const validate = async name => {
+    const at = performance.now();
+    report.observation = await phaseObserver.run(name, () => validateSqliteBenchDatabase({ Database, dbPath: outPath,
+      bundleDir, manifest: step.manifest, mode: 'code', expectedRows: step.rows, admission }));
+    report.validationMs = performance.now() - at;
+  };
+  const checkpoint = path.join(receiptRoot, request.command + '-round-' + round + '-' + request.phase + '.json');
+  try {
+    if (request.phase === 'setup') {
+      await assert.rejects(fs.stat(outPath), { code: 'ENOENT' });
+      const at = performance.now();
+      await phaseObserver.run('initial-native-backup', () => copySqliteBenchSeed(Database, seedPath, outPath));
+      report.buildMs = performance.now() - at;
+      await validate('initial-validation'); report.status = 'validated';
+    } else if (request.phase === 'validate') {
+      await validate('database-validation'); report.status = 'validated';
+    } else {
+      if (operation === 'build') await assert.rejects(fs.stat(outPath), { code: 'ENOENT' });
+      report.sample = await runSqliteBenchmarkMutation({ Database, operation, label: report.label, trial: report.trial,
+        order: seed ? ['current'] : sqliteTrialArmOrder('compare', request.trial - 1), round, workload: input.workload,
+        bundleDir, outPath, initial: admission, phaseObserver,
+        onProgress: activeAttempt => atomicWriteJson(checkpoint, { ...report, activeAttempt }) });
+      if (operation === 'update') {
+        assert.equal(report.sample.mutations.insertedChunks, request.shape === 'large-high' ? 53248 : 2048);
+        assert.equal(report.sample.stats.runtimeTelemetry.plan.rowCount, report.sample.mutations.insertedChunks);
+        assert.equal(report.sample.stats.transactionPhases.deletes, true);
+        assert.equal(report.sample.stats.transactionPhases.inserts, true);
+      } else assert.equal(report.sample.stats.runtimeTelemetry.plan.rowCount, plan.fileCount * 512);
+      assert.ok(report.sample.stats.runtimeTelemetry.plan.inputBytes > 0);
+      if (request.phase === 'round') { await validate('database-validation'); report.status = 'validated'; }
+      else report.status = 'operation-completed-unvalidated';
+    }
+    await atomicWriteJson(checkpoint, report);
+  } catch (error) {
+    report.status = 'failed'; report.retainedWorkRoot = path.dirname(outPath);
+    try { await atomicWriteJson(checkpoint, report); }
+    catch (publication) { throw addStorageFailureContext(error, {}, publication, { secondaryPresent: true }); }
+    throw error;
+  }
+  console.log(JSON.stringify({ ...report, phaseDiagnostics: phaseObserver.snapshot() }));
 }

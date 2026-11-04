@@ -26,7 +26,14 @@ export const admitSqliteBenchmarkPhaseDiagnostics = ({ stderr, report, request }
     return { state: 'accepted', records: [], progressSuppressed: 0 };
   }
   assert.ok(['seed', 'arm'].includes(request.command));
-  if (request.command === 'arm') assert.equal(report.status, 'completed');
+  if (request.phase !== undefined) {
+    assert.ok(request.command === 'seed' || request.operation === 'build'
+      ? ['execute', 'validate'].includes(request.phase)
+      : request.operation === 'update' && (request.round === 0 ? request.phase === 'setup'
+        : Number.isSafeInteger(request.round) && request.round >= 1 && request.round <= 3 && request.phase === 'round'));
+    assert.equal(report.phase, request.phase);
+    assert.equal(report.status, request.phase === 'execute' ? 'operation-completed-unvalidated' : 'validated');
+  } else if (request.command === 'arm') assert.equal(report.status, 'completed');
   const summary = report.phaseDiagnostics;
   keys(summary, ['records', 'droppedRecords', 'progressRecords', 'progressSuppressed', 'active', 'qualification']);
   assert.equal(summary.qualification, 'diagnostics;not-resource-settlement-authority');
@@ -81,8 +88,11 @@ export const admitSqliteBenchmarkPhaseDiagnostics = ({ stderr, report, request }
   assert.equal(truncated, summary.droppedRecords > 0, 'SQLite truncation counter disagrees with raw evidence.');
   assert.equal(truncated, false, 'Truncated phase evidence cannot qualify a successful child.');
   assert.deepEqual(active, [], 'Raw SQLite phases remain unfinished.');
-  for (const phase of ['source-admission', 'native-open', 'native-close', 'database-validation',
-    request.command === 'seed' || request.operation === 'build' ? 'bundle-build' : 'incremental-update']) {
+  const required = ['source-admission', 'native-open', 'native-close'];
+  if (request.phase === undefined || ['validate', 'round'].includes(request.phase)) required.push('database-validation');
+  if (request.phase === 'setup') required.push('initial-native-backup', 'initial-validation');
+  else if (request.phase !== 'validate') required.push(request.command === 'seed' || request.operation === 'build' ? 'bundle-build' : 'incremental-update');
+  for (const phase of required) {
     assert.ok(begun.has(phase) && completed.includes(phase), 'Missing actual SQLite phase: ' + phase);
   }
   assert.equal(completed.filter(phase => phase === 'native-open').length, completed.filter(phase => phase === 'native-close').length);

@@ -90,3 +90,9 @@ Both boundary Git witnesses are captured and clean; the
 The generation controller additionally retains a separately bounded warm Stage3 reuse case;
 it requires zero indexed inference batches and verified cache-only work before
 the query-cache case. That new warm case remains pending execution.
+
+Issue #1541 is closed with verified GitHub readback. Its M3 product batch
+records cold two-row2253.021ms, reordered warm490.749ms, one-row246.063ms
+and process-lifetime OS maxRSS1143724KiB. Full token/output bytes and5ms
+memory samples remain in the original durable receipt; no isolated native
+peak or representative speed/quality gain is claimed.
