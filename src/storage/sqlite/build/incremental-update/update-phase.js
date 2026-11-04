@@ -12,7 +12,7 @@ import {
   resolveVectorEncodingCompatibility,
   toSqliteRowId
 } from '../../vector.js';
-import { deleteDocIds, updateTokenStats } from '../delete.js';
+import { deleteDocIdGroups, updateTokenStats } from '../delete.js';
 import { validateSqliteDatabase } from '../validate.js';
 import { applyCachedSemanticPlan } from '../../semantic/from-cache.js';
 import { throwIfAborted } from '../../../../shared/abort.js';
@@ -198,23 +198,26 @@ export const runIncrementalUpdatePhase = async ({
    * Any ids released here become available to deterministic doc-id allocation.
    */
   const applyDeletes = () => {
+    const staleGroups = [];
     for (const file of deleted) {
       const normalizedFile = file;
       if (!normalizedFile) continue;
       const docIds = resolveExistingDocIds(normalizedFile);
-      deleteDocIds(db, mode, docIds, vectorDeleteTargets);
+      if (docIds.length) staleGroups.push(docIds);
       if (docIds.length) {
         freeDocIdsDeleted.push(...docIds);
       }
-      deleteFileManifest.run(mode, normalizedFile);
     }
 
     for (const record of changed) {
       const normalizedFile = record?.normalized;
       if (!normalizedFile) continue;
       const docIds = resolveExistingDocIds(normalizedFile);
-      deleteDocIds(db, mode, docIds, vectorDeleteTargets);
+      if (docIds.length) staleGroups.push(docIds);
     }
+
+    deleteDocIdGroups(db, mode, staleGroups, vectorDeleteTargets);
+    for (const file of deleted) if (file) deleteFileManifest.run(mode, file);
 
     for (const record of manifestUpdates) {
       const normalizedFile = record.normalized;

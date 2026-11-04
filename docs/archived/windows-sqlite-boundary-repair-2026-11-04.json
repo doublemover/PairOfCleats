@@ -1330,5 +1330,1308 @@
     "state": "closed",
     "stateReason": "completed",
     "closedAt": "2026-11-04T21:20:54Z"
+  },
+  "incrementalOwnerFollowup": {
+    "source": "b5f08e95f370951c0b748a91d6905a10796a93d3",
+    "completedCapsules": 32,
+    "failure": {
+      "schemaVersion": 1,
+      "historicalAuthorWorkspace": true,
+      "state": "failed-capsule;not-resource-settlement-authority",
+      "invocation": {
+        "executable": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\ci-and-p1-20261028\\node-v26.13.0-win-x64\\node.exe",
+        "args": [
+          "tests/fixtures/benchmarks/sqlite-row-shape-worker.js",
+          "{\"command\":\"arm\",\"shape\":\"large-high\",\"operation\":\"update\",\"trial\":1,\"label\":\"baseline\",\"capture\":{\"file\":\"C:\\\\Users\\\\sneak\\\\Development\\\\PairOfCleats\\\\.tmp\\\\dev\\\\benchmarks\\\\sqlite-row-shapes\\\\run-28bvan\\\\large-high-capture.json\",\"bytes\":1174869,\"sha256\":\"854bf344b42f932aba2ff57d98ab13c01d21554410385daaf89cf0f01a83467d\"},\"armRoot\":\"C:\\\\Users\\\\sneak\\\\Development\\\\PairOfCleats\\\\.tmp\\\\dev\\\\benchmarks\\\\sqlite-row-shapes\\\\arm-SD9t8z\",\"armIdentity\":\"98f927ea-da44-4d96-b5b6-8eebc21e6afa\",\"round\":1,\"phase\":\"round\",\"root\":\"C:\\\\Users\\\\sneak\\\\Development\\\\PairOfCleats\\\\.tmp\\\\dev\\\\benchmarks\\\\sqlite-row-shapes\\\\run-28bvan\",\"runIdentity\":\"ad99e65b-07c6-45dc-a6da-46097c8c0f86\"}"
+        ],
+        "timeoutMs": 30000,
+        "maxOutputBytes": 4194304
+      },
+      "failures": [
+        {
+          "name": "SubprocessTimeoutError",
+          "code": "SUBPROCESS_TIMEOUT",
+          "message": "Subprocess timeout",
+          "thrownType": "object",
+          "result": {
+            "pid": 23128,
+            "exitCode": null,
+            "signal": null,
+            "durationMs": 30351,
+            "termination": {
+              "scope": "spawned-child-close-only",
+              "method": "child-close-event",
+              "closeObserved": true,
+              "closeTimedOut": false,
+              "waitMs": 500,
+              "treeCleanupSettled": true,
+              "treeCleanupFailed": false,
+              "treeCleanupForced": true
+            },
+            "stdout": "",
+            "stderr": "{\"kind\":\"sqlite-qualification-phase\",\"state\":\"start\",\"id\":1,\"phase\":\"source-admission\",\"elapsedMs\":3.5236999999999625}\n{\"kind\":\"sqlite-qualification-phase\",\"state\":\"end\",\"id\":1,\"phase\":\"source-admission\",\"durationMs\":3223.6641000000004,\"elapsedMs\":3227.1620999999996}\n{\"kind\":\"sqlite-qualification-phase\",\"state\":\"start\",\"id\":2,\"phase\":\"native-open\",\"elapsedMs\":3227.9182999999994}\n{\"kind\":\"sqlite-qualification-phase\",\"state\":\"end\",\"id\":2,\"phase\":\"native-open\",\"durationMs\":2.1307999999999083,\"elapsedMs\":3230.0419999999995}\n{\"kind\":\"sqlite-qualification-phase\",\"state\":\"start\",\"id\":3,\"phase\":\"native-close\",\"elapsedMs\":3231.7083999999995}\n{\"kind\":\"sqlite-qualification-phase\",\"state\":\"end\",\"id\":3,\"phase\":\"native-close\",\"durationMs\":0.12780000000020664,\"elapsedMs\":3231.8325999999997}\n{\"kind\":\"sqlite-qualification-phase\",\"state\":\"start\",\"id\":4,\"phase\":\"incremental-update\",\"elapsedMs\":3241.2222999999994}\n{\"kind\":\"sqlite-qualification-phase\",\"state\":\"start\",\"id\":5,\"phase\":\"native-open\",\"elapsedMs\":3242.611}\n{\"kind\":\"sqlite-qualification-phase\",\"state\":\"end\",\"id\":5,\"phase\":\"native-open\",\"durationMs\":0.5065999999997075,\"elapsedMs\":3243.1134}\n{\"kind\":\"sqlite-qualification-phase\",\"state\":\"start\",\"id\":6,\"phase\":\"filter-facts-schema\",\"elapsedMs\":4393.097}\n{\"kind\":\"sqlite-qualification-phase\",\"state\":\"end\",\"id\":6,\"phase\":\"filter-facts-schema\",\"durationMs\":1.0534999999999854,\"elapsedMs\":4394.1428}\n{\"kind\":\"sqlite-qualification-phase\",\"state\":\"start\",\"id\":7,\"phase\":\"transaction-begin\",\"elapsedMs\":4918.7946999999995}\n{\"kind\":\"sqlite-qualification-phase\",\"state\":\"end\",\"id\":7,\"phase\":\"transaction-begin\",\"durationMs\":0.15029999999933352,\"elapsedMs\":4918.9365}\n",
+            "outputCapture": {
+              "stdout": {
+                "enabled": true,
+                "maxBytes": 4194304,
+                "observedBytes": 0,
+                "retainedBytes": 0,
+                "droppedBytes": 0,
+                "retainedBufferBytes": 0,
+                "outputBytes": 0,
+                "encodingLoss": false,
+                "truncated": false
+              },
+              "stderr": {
+                "enabled": true,
+                "maxBytes": 4194304,
+                "observedBytes": 1664,
+                "retainedBytes": 1664,
+                "droppedBytes": 0,
+                "retainedBufferBytes": 1664,
+                "outputBytes": 1664,
+                "encodingLoss": false,
+                "truncated": false
+              }
+            }
+          }
+        }
+      ],
+      "failureTraversalTruncated": false
+    },
+    "originalOwnerRegression": {
+      "junit": null,
+      "logDir": "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793827785069-zp68fd",
+      "summary": {
+        "durationMs": 4074,
+        "failed": 1,
+        "passed": 0,
+        "skipped": 0,
+        "total": 1
+      },
+      "tests": [
+        {
+          "attempts": 1,
+          "durationMs": 4064,
+          "exitCode": 1,
+          "id": "storage/sqlite/build-delete",
+          "lane": "storage",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793827785069-zp68fd\\storage_sqlite_build-delete.attempt-1.log",
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793827785069-zp68fd\\storage_sqlite_build-delete.attempt-1.failure.json"
+          ],
+          "path": "storage/sqlite/build-delete.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "failed",
+          "tags": [
+            "sqlite",
+            "storage"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        }
+      ]
+    },
+    "repairedControls": {
+      "junit": null,
+      "logDir": "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793827900486-qfdfjj",
+      "summary": {
+        "durationMs": 9126,
+        "failed": 0,
+        "passed": 4,
+        "skipped": 0,
+        "total": 4
+      },
+      "tests": [
+        {
+          "attempts": 1,
+          "durationMs": 1562,
+          "exitCode": 0,
+          "id": "perf/tooling/bench/sqlite-fixture-admission",
+          "lane": "perf",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793827900486-qfdfjj\\perf_tooling_bench_sqlite-fixture-admission.attempt-1.log"
+          ],
+          "path": "perf/tooling/bench/sqlite-fixture-admission.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "perf",
+            "sqlite",
+            "tooling"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 1452,
+          "exitCode": 0,
+          "id": "perf/tooling/bench/sqlite-phase-observer",
+          "lane": "perf",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793827900486-qfdfjj\\perf_tooling_bench_sqlite-phase-observer.attempt-1.log"
+          ],
+          "path": "perf/tooling/bench/sqlite-phase-observer.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "perf",
+            "sqlite",
+            "tooling"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 5007,
+          "exitCode": 0,
+          "id": "storage/sqlite/build-delete",
+          "lane": "storage",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793827900486-qfdfjj\\storage_sqlite_build-delete.attempt-1.log"
+          ],
+          "path": "storage/sqlite/build-delete.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "sqlite",
+            "storage"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 1094,
+          "exitCode": 0,
+          "id": "storage/sqlite/fts-contentless-schema",
+          "lane": "storage",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793827900486-qfdfjj\\storage_sqlite_fts-contentless-schema.attempt-1.log"
+          ],
+          "path": "storage/sqlite/fts-contentless-schema.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "sqlite",
+            "storage"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        }
+      ]
+    },
+    "coverage": "Nine stale-file groups use one native postings deletion,with all original contents/FTS/filter facts and exactly one outer BEGIN/COMMIT. Injected original delete plus cleanup failures retain both exact errors,BEGIN/ROLLBACK,and full original database parity.",
+    "remaining": "Repaired high-change native campaign and remaining SQLite qualification pending.",
+    "parityControls": {
+      "junit": null,
+      "logDir": "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793828102787-925j1k",
+      "summary": {
+        "durationMs": 54570,
+        "failed": 0,
+        "passed": 7,
+        "skipped": 0,
+        "total": 7
+      },
+      "tests": [
+        {
+          "attempts": 1,
+          "durationMs": 841,
+          "exitCode": 0,
+          "id": "storage/sqlite/bundle-metav2-docid-parity",
+          "lane": "storage",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793828102787-925j1k\\storage_sqlite_bundle-metav2-docid-parity.attempt-1.log"
+          ],
+          "path": "storage/sqlite/bundle-metav2-docid-parity.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "sqlite",
+            "storage"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 911,
+          "exitCode": 0,
+          "id": "storage/sqlite/incremental-transaction-boundary",
+          "lane": "storage",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793828102787-925j1k\\storage_sqlite_incremental-transaction-boundary.attempt-1.log"
+          ],
+          "path": "storage/sqlite/incremental-transaction-boundary.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "sqlite",
+            "storage"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 337,
+          "exitCode": 0,
+          "id": "storage/sqlite/incremental-unicode-prefetch",
+          "lane": "storage",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793828102787-925j1k\\storage_sqlite_incremental-unicode-prefetch.attempt-1.log"
+          ],
+          "path": "storage/sqlite/incremental-unicode-prefetch.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "sqlite",
+            "storage"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 24987,
+          "exitCode": 0,
+          "id": "storage/sqlite/incremental/doc-id-reuse",
+          "lane": "storage",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793828102787-925j1k\\storage_sqlite_incremental_doc-id-reuse.attempt-1.log"
+          ],
+          "path": "storage/sqlite/incremental/doc-id-reuse.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "sqlite",
+            "storage"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 2573,
+          "exitCode": 0,
+          "id": "storage/sqlite/incremental/finalized-metadata-reuse",
+          "lane": "storage",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793828102787-925j1k\\storage_sqlite_incremental_finalized-metadata-reuse.attempt-1.log"
+          ],
+          "path": "storage/sqlite/incremental/finalized-metadata-reuse.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "sqlite",
+            "storage"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 1273,
+          "exitCode": 0,
+          "id": "storage/sqlite/incremental/handle-lifecycle",
+          "lane": "storage",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793828102787-925j1k\\storage_sqlite_incremental_handle-lifecycle.attempt-1.log"
+          ],
+          "path": "storage/sqlite/incremental/handle-lifecycle.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "sqlite",
+            "storage"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 23634,
+          "exitCode": 0,
+          "id": "storage/sqlite/incremental/update-contract-matrix",
+          "lane": "storage",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793828102787-925j1k\\storage_sqlite_incremental_update-contract-matrix.attempt-1.log"
+          ],
+          "path": "storage/sqlite/incremental/update-contract-matrix.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "sqlite",
+            "storage"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        }
+      ]
+    },
+    "publicationChecks": [
+      {
+        "name": "budget",
+        "exitCode": 0,
+        "elapsedMs": 2670
+      },
+      {
+        "name": "env",
+        "exitCode": 0,
+        "elapsedMs": 1432
+      },
+      {
+        "exitCode": 0,
+        "elapsedMs": 14000,
+        "name": "generated"
+      },
+      {
+        "exitCode": 0,
+        "elapsedMs": 4060,
+        "name": "commands"
+      },
+      {
+        "exitCode": 0,
+        "elapsedMs": 352,
+        "name": "workflow"
+      },
+      {
+        "exitCode": 0,
+        "elapsedMs": 8555,
+        "name": "gate"
+      },
+      {
+        "exitCode": 0,
+        "elapsedMs": 88,
+        "name": "diff"
+      }
+    ],
+    "gate": {
+      "junit": null,
+      "logDir": "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793828094189-tgowmh",
+      "summary": {
+        "durationMs": 5841,
+        "failed": 0,
+        "passed": 41,
+        "skipped": 0,
+        "total": 41
+      },
+      "tests": [
+        {
+          "attempts": 1,
+          "durationMs": 105,
+          "exitCode": 0,
+          "id": "indexing/policy/hotpath-membership-guard",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793828094189-tgowmh\\indexing_policy_hotpath-membership-guard.attempt-1.log"
+          ],
+          "path": "indexing/policy/hotpath-membership-guard.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 108,
+          "exitCode": 0,
+          "id": "indexing/policy/module-cache-boundedness-contract",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793828094189-tgowmh\\indexing_policy_module-cache-boundedness-contract.attempt-1.log"
+          ],
+          "path": "indexing/policy/module-cache-boundedness-contract.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 128,
+          "exitCode": 0,
+          "id": "indexing/policy/generated-matrix",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793828094189-tgowmh\\indexing_policy_generated-matrix.attempt-1.log"
+          ],
+          "path": "indexing/policy/generated-matrix.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 106,
+          "exitCode": 0,
+          "id": "indexing/contracts/artifact-surface-version",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793828094189-tgowmh\\indexing_contracts_artifact-surface-version.attempt-1.log"
+          ],
+          "path": "indexing/contracts/artifact-surface-version.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 108,
+          "exitCode": 0,
+          "id": "indexing/contracts/n-minus-one-adapter",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793828094189-tgowmh\\indexing_contracts_n-minus-one-adapter.attempt-1.log"
+          ],
+          "path": "indexing/contracts/n-minus-one-adapter.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 120,
+          "exitCode": 0,
+          "id": "indexing/contracts/public-artifact-surface-doc",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793828094189-tgowmh\\indexing_contracts_public-artifact-surface-doc.attempt-1.log"
+          ],
+          "path": "indexing/contracts/public-artifact-surface-doc.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 270,
+          "exitCode": 0,
+          "id": "indexing/contracts/index-compatibility-key-generation",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793828094189-tgowmh\\indexing_contracts_index-compatibility-key-generation.attempt-1.log"
+          ],
+          "path": "indexing/contracts/index-compatibility-key-generation.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 109,
+          "exitCode": 0,
+          "id": "indexing/contracts/semver-policy-enforced",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793828094189-tgowmh\\indexing_contracts_semver-policy-enforced.attempt-1.log"
+          ],
+          "path": "indexing/contracts/semver-policy-enforced.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 124,
+          "exitCode": 0,
+          "id": "indexing/contracts/index-state-dense-sidecars-present",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793828094189-tgowmh\\indexing_contracts_index-state-dense-sidecars-present.attempt-1.log"
+          ],
+          "path": "indexing/contracts/index-state-dense-sidecars-present.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 245,
+          "exitCode": 0,
+          "id": "contracts/manifest-max-bytes-validation",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793828094189-tgowmh\\contracts_manifest-max-bytes-validation.attempt-1.log"
+          ],
+          "path": "contracts/manifest-max-bytes-validation.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 3290,
+          "exitCode": 0,
+          "id": "indexing/policy/repo-inventory",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793828094189-tgowmh\\indexing_policy_repo-inventory.attempt-1.log"
+          ],
+          "path": "indexing/policy/repo-inventory.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 397,
+          "exitCode": 0,
+          "id": "indexing/policy/shared-module-cycle-guard",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793828094189-tgowmh\\indexing_policy_shared-module-cycle-guard.attempt-1.log"
+          ],
+          "path": "indexing/policy/shared-module-cycle-guard.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 331,
+          "exitCode": 0,
+          "id": "indexing/contracts/loader-matrix-parity",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793828094189-tgowmh\\indexing_contracts_loader-matrix-parity.attempt-1.log"
+          ],
+          "path": "indexing/contracts/loader-matrix-parity.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 486,
+          "exitCode": 0,
+          "id": "indexing/policy/analysis-schema",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793828094189-tgowmh\\indexing_policy_analysis-schema.attempt-1.log"
+          ],
+          "path": "indexing/policy/analysis-schema.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 431,
+          "exitCode": 0,
+          "id": "indexing/contracts/snapshots",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793828094189-tgowmh\\indexing_contracts_snapshots.attempt-1.log"
+          ],
+          "path": "indexing/contracts/snapshots.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 432,
+          "exitCode": 0,
+          "id": "indexing/contracts/builds-current-repo-head-schema",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793828094189-tgowmh\\indexing_contracts_builds-current-repo-head-schema.attempt-1.log"
+          ],
+          "path": "indexing/contracts/builds-current-repo-head-schema.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 456,
+          "exitCode": 0,
+          "id": "indexing/contracts/call-sites-schema",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793828094189-tgowmh\\indexing_contracts_call-sites-schema.attempt-1.log"
+          ],
+          "path": "indexing/contracts/call-sites-schema.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 431,
+          "exitCode": 0,
+          "id": "indexing/contracts/diffs",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793828094189-tgowmh\\indexing_contracts_diffs.attempt-1.log"
+          ],
+          "path": "indexing/contracts/diffs.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 458,
+          "exitCode": 0,
+          "id": "indexing/contracts/additional-properties-policy",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793828094189-tgowmh\\indexing_contracts_additional-properties-policy.attempt-1.log"
+          ],
+          "path": "indexing/contracts/additional-properties-policy.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 835,
+          "exitCode": 0,
+          "id": "indexing/contracts/index-compatibility-key-enforced-on-load",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793828094189-tgowmh\\indexing_contracts_index-compatibility-key-enforced-on-load.attempt-1.log"
+          ],
+          "path": "indexing/contracts/index-compatibility-key-enforced-on-load.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 394,
+          "exitCode": 0,
+          "id": "indexing/contracts/schema-registry-single-source",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793828094189-tgowmh\\indexing_contracts_schema-registry-single-source.attempt-1.log"
+          ],
+          "path": "indexing/contracts/schema-registry-single-source.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 1162,
+          "exitCode": 0,
+          "id": "tooling/api-contracts/caps",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793828094189-tgowmh\\tooling_api-contracts_caps.attempt-1.log"
+          ],
+          "path": "tooling/api-contracts/caps.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "tooling"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 1358,
+          "exitCode": 0,
+          "id": "tooling/api-contracts/schema-validate",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793828094189-tgowmh\\tooling_api-contracts_schema-validate.attempt-1.log"
+          ],
+          "path": "tooling/api-contracts/schema-validate.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "tooling"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 1397,
+          "exitCode": 0,
+          "id": "tooling/api-contracts/fail-on-warn",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793828094189-tgowmh\\tooling_api-contracts_fail-on-warn.attempt-1.log"
+          ],
+          "path": "tooling/api-contracts/fail-on-warn.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "tooling"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 1311,
+          "exitCode": 0,
+          "id": "tooling/api-contracts/optional-params",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793828094189-tgowmh\\tooling_api-contracts_optional-params.attempt-1.log"
+          ],
+          "path": "tooling/api-contracts/optional-params.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "tooling"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 1192,
+          "exitCode": 0,
+          "id": "tooling/api-contracts/large-call-sites",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793828094189-tgowmh\\tooling_api-contracts_large-call-sites.attempt-1.log"
+          ],
+          "path": "tooling/api-contracts/large-call-sites.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "tooling"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 917,
+          "exitCode": 0,
+          "id": "indexing/contracts/embedding-identity-gating-on-load",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793828094189-tgowmh\\indexing_contracts_embedding-identity-gating-on-load.attempt-1.log"
+          ],
+          "path": "indexing/contracts/embedding-identity-gating-on-load.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 1478,
+          "exitCode": 0,
+          "id": "ci/capability-gate.smoke",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793828094189-tgowmh\\ci_capability-gate_smoke.attempt-1.log"
+          ],
+          "path": "ci/capability-gate.smoke.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 2025,
+          "exitCode": 0,
+          "id": "indexing/contracts/index-compatibility-key-federation-block",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793828094189-tgowmh\\indexing_contracts_index-compatibility-key-federation-block.attempt-1.log"
+          ],
+          "path": "indexing/contracts/index-compatibility-key-federation-block.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 115,
+          "exitCode": 0,
+          "id": "indexing/policy/stable-entrypoints",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793828094189-tgowmh\\indexing_policy_stable-entrypoints.attempt-1.log"
+          ],
+          "path": "indexing/policy/stable-entrypoints.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 2249,
+          "exitCode": 0,
+          "id": "indexing/policy/optional-deps",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793828094189-tgowmh\\indexing_policy_optional-deps.attempt-1.log"
+          ],
+          "path": "indexing/policy/optional-deps.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 1533,
+          "exitCode": 0,
+          "id": "indexing/policy/analysis-gating",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793828094189-tgowmh\\indexing_policy_analysis-gating.attempt-1.log"
+          ],
+          "path": "indexing/policy/analysis-gating.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 1899,
+          "exitCode": 0,
+          "id": "ci/tooling-doctor-gate.smoke",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793828094189-tgowmh\\ci_tooling-doctor-gate_smoke.attempt-1.log"
+          ],
+          "path": "ci/tooling-doctor-gate.smoke.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "tooling"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 1146,
+          "exitCode": 0,
+          "id": "tooling/api-contracts/basic",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793828094189-tgowmh\\tooling_api-contracts_basic.attempt-1.log"
+          ],
+          "path": "tooling/api-contracts/basic.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "tooling"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 3650,
+          "exitCode": 0,
+          "id": "contracts/module-export-surface-compat",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793828094189-tgowmh\\contracts_module-export-surface-compat.attempt-1.log"
+          ],
+          "path": "contracts/module-export-surface-compat.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 1921,
+          "exitCode": 0,
+          "id": "indexing/contracts/semantic-foundations",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793828094189-tgowmh\\indexing_contracts_semantic-foundations.attempt-1.log"
+          ],
+          "path": "indexing/contracts/semantic-foundations.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 644,
+          "exitCode": 0,
+          "id": "indexing/contracts/semantic-handoff-contracts",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793828094189-tgowmh\\indexing_contracts_semantic-handoff-contracts.attempt-1.log"
+          ],
+          "path": "indexing/contracts/semantic-handoff-contracts.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 963,
+          "exitCode": 0,
+          "id": "indexing/contracts/runtime-evidence",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793828094189-tgowmh\\indexing_contracts_runtime-evidence.attempt-1.log"
+          ],
+          "path": "indexing/contracts/runtime-evidence.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 2018,
+          "exitCode": 0,
+          "id": "indexing/contracts/index-format-cutover",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793828094189-tgowmh\\indexing_contracts_index-format-cutover.attempt-1.log"
+          ],
+          "path": "indexing/contracts/index-format-cutover.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 1858,
+          "exitCode": 0,
+          "id": "ci/windows-authority-cohort",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793828094189-tgowmh\\ci_windows-authority-cohort.attempt-1.log"
+          ],
+          "path": "ci/windows-authority-cohort.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 408,
+          "exitCode": 0,
+          "id": "ci/ordered-lane-discovery",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793828094189-tgowmh\\ci_ordered-lane-discovery.attempt-1.log"
+          ],
+          "path": "ci/ordered-lane-discovery.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        }
+      ]
+    },
+    "originalValidationLaunch": [
+      {
+        "name": "budget",
+        "exitCode": 0,
+        "elapsedMs": 2670
+      },
+      {
+        "name": "env",
+        "exitCode": 0,
+        "elapsedMs": 1432
+      },
+      {
+        "name": "generated",
+        "exitCode": 1,
+        "elapsedMs": 14101
+      }
+    ],
+    "launchCorrection": "Generated Python tables initially selected host Python;only failed/generated and remaining checks rerun with repository-pinned CPython3.15.2. No generated-table edits.",
+    "implementation": [
+      {
+        "file": "src/storage/sqlite/build/delete.js",
+        "sha256": "a5af787ba64d63e0ee82b03b7bd0c7eaadf8e0a3d76d23e05340506f9d15acd5"
+      },
+      {
+        "file": "src/storage/sqlite/build/incremental-update/update-phase.js",
+        "sha256": "5781a311dadbde2cf04f6bb41f013b219f79faef594c421bfcf336a1d5ab32d9"
+      },
+      {
+        "file": "tests/storage/sqlite/build-delete.test.js",
+        "sha256": "a935caeb86fa1fc00ae180ef5b7e3c8e4918ae88de255afc2c6f272d6fa4cdf2"
+      }
+    ]
   }
 }

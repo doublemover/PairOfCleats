@@ -38,3 +38,31 @@ with the original wrapper; missing validation cannot qualify a mutation.
 The repaired full campaign remains pending. Public CLI/configuration, runtime
 admission, latency thresholds and the all-or-nothing incremental transaction
 are unchanged. Author `.tmp/` and `.testLogs/` paths are historical receipts.
+
+## Native incremental follow-up
+
+At clean b5f08e95f,32 capsules pass before the first large/high update times
+out inside its original transaction. The source owner issues a separate delete
+for every changed/deleted file; postings have a mode-leading key, so each group
+repeats a broad native scan. A real8192-row/32-file regression observes nine
+postings deletes and fails its one-pass work assertion with the original owner.
+
+The update now groups the already-captured stale-file ID arrays and uses the
+existing2000-ID temporary-table path once. It retains references to those arrays
+instead of flattening another full ID copy. Small groups and transformed optional
+ANN targets keep their original binding paths. File identity, deterministic ID
+reuse and all deletion/insertion work remain within one original transaction.
+Temporary-table cleanup failures now remain visible alongside the primary error.
+
+The repaired owner regression proves one native postings delete, complete
+updated content/FTS/filter parity and one outer BEGIN/COMMIT. A forced original
+delete failure plus cleanup failure retains both exact frozen errors and one
+BEGIN/ROLLBACK; full original database observations remain equal afterward.
+All four affected fixture/admission/phase/FTS cases pass. Actual high-change
+requalification remains pending; no time-bound relaxation or retry is used.
+
+Seven further identity, transaction, Unicode, query/update and handle controls
+pass, including real doc-ID reuse25.0s and update/search23.6s. All eight
+publication checks pass, including41 gate cases. The initial generated-table
+launch used host Python; the preserved refusal passes with the repository
+CPython3.15.2 launch, with no generated-table changes.
