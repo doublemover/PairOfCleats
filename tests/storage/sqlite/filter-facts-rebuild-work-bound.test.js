@@ -15,9 +15,13 @@ for (const count of [0, 1, 128, 129, 512]) {
       insert.run(id, 'code', `src/${count - n}-界😀.js`, '.js', 'FunctionDeclaration');
       insert.run(id + 1, 'prose', `docs/${n}.md`, '.md', 'Prose'); expected.push(id);
     }
-    const prepare = db.prepare, pages = [], plans = [];
+    const prepare = db.prepare, pages = [], plans = [], writes = [];
     db.prepare = function (text) {
       const statement = prepare.call(db, text);
+      if (/INSERT OR REPLACE INTO chunk_filter_facts\s/.test(text)) {
+        const run = statement.run;
+        statement.run = function (...bindings) { writes.push(bindings.length); return run.apply(statement, bindings); };
+      }
       if (/SELECT id,chunk_id,mode,file,ext,kind,metaV2_json FROM chunks/.test(text)) {
         plans.push(prepare.call(db, 'EXPLAIN QUERY PLAN ' + text).all('code', -1));
         const all = statement.all;
@@ -27,6 +31,8 @@ for (const count of [0, 1, 128, 129, 512]) {
     };
     const built = await rebuildSqliteFilterFacts(db, 'code');
     assert.equal(built.rows, count); assert.equal(built.complete, true);
+    assert.equal(writes.length, Math.ceil(count / 128), 'A bounded fact page needs one native write, not one call per document.');
+    assert.ok(writes.every(bindings => bindings <= 128 * 7), 'Each fact write stays within the original128-row and999-variable bounds.');
     assert.deepEqual(pages.flat(), expected);
     assert.ok(pages.every(page => page.length <= 128));
     assert.equal(pages.length, Math.ceil(count / 128) + 1);

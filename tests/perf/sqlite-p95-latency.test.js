@@ -34,6 +34,7 @@ const env = applyTestEnv({
   embeddings: 'stub',
   testConfig: createFastIndexingTestConfig(),
   extraEnv: {
+    PAIROFCLEATS_TRUSTED_CONFIG: null,
     PAIROFCLEATS_WORKER_POOL: 'off'
   }
 });

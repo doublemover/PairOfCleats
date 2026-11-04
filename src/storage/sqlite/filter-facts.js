@@ -95,7 +95,12 @@ export const sealSqliteFilterFacts = (db, mode) => {
  * charged to build work, not hidden inside a cold filter query.
  */
 export const rebuildSqliteFilterFacts = async (db, mode, { signal = null } = {}) => {
-  const put = createSqliteFilterFactWriter(db);
+  const { createMultiRowInserter } = await import('./build/multi-row.js');
+  db.exec(schema);
+  const put = createMultiRowInserter(db, {
+    table: 'chunk_filter_facts', insertClause: 'INSERT OR REPLACE', maxRows: 128,
+    columns: ['doc_id', 'mode', 'language', 'extension', 'kind', 'file', 'file_folded']
+  });
   db.prepare('DELETE FROM chunk_filter_facts_meta WHERE mode=?').run(mode);
   db.prepare('DELETE FROM chunk_filter_facts WHERE mode=?').run(mode);
   let rows = 0;
@@ -109,7 +114,15 @@ export const rebuildSqliteFilterFacts = async (db, mode, { signal = null } = {})
     throwIfAborted(signal);
     const batch = select.all(mode, lastId);
     if (!batch.length) break;
-    for (const row of batch) { put(row); rows++; lastId = row.id; }
+    const facts = [];
+    for (const row of batch) {
+      const value = factRow(row);
+      if (value) facts.push([value.doc_id, value.mode, value.language, value.extension, value.kind, value.file, value.file_folded]);
+      rows++; lastId = row.id;
+    }
+    // Reuse the existing native batch owner without enlarging the source page,
+    // variable limit or transaction. SQLite still runs every invalidation trigger.
+    put(facts);
     await new Promise(resolve => setImmediate(resolve));
   }
   throwIfAborted(signal);

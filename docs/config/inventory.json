@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-04T22:30:58.724Z",
+  "generatedAt": "2026-11-04T23:55:04.022Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
@@ -5328,6 +5328,7 @@
         "tests/indexing/validate/mode-finding-verdicts.test.js",
         "tests/perf/bench/artifact-report-admission.test.js",
         "tests/perf/bench/vfs-io-ownership.test.js",
+        "tests/perf/sqlite-p95-latency.test.js",
         "tests/retrieval/ann/query-vector-admission.test.js",
         "tests/retrieval/backend/tantivy-selected-source-admission.test.js",
         "tests/retrieval/parity/partial-ranks-report.test.js",

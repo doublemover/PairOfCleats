@@ -7,11 +7,11 @@ Canonical for: initiative status, execution order, and remaining work
 
 ## Current GitHub repair program
 
-The [current reconciliation](archived/windows-model-and-ci-followup-2026-11-04.md) records **791 reports: 423 closed /368 open**. Fifty-one further closures have individual GitHub readbacks; prior ledgers retain their dated counts.
+The [current reconciliation](archived/windows-model-closure-delta-2026-11-04.json) records **791 reports: 423 closed /368 open**. Fifty-one further closures have individual GitHub readbacks; prior ledgers retain their dated counts.
 
 P2/P3 has **335 qualified closures /five remaining targets /six editor exclusions** from346 reports. Work continues solo on Windows. Batch shared-owner repairs, then run affected controls.
 
-The [native parity repair](archived/windows-onnx-runtime-parity-2026-10-30.md) records exact ORT1.30.0 and minimized/public-consumer acceptance. [Drain](archived/windows-native-phase-closeout-2026-10-30.md) and [projection](archived/windows-native-projection-final-qualification-2026-10-30.md) close #1484. [Model closeout](archived/windows-model-closeout-2026-11-04.md) adds200 actual capsules: E5 generation/cache and192 provider-cost children; #1541/#1542/#1544 are closed. [Snapshots](archived/windows-native-snapshot-repair-2026-11-04.md) pass hosted Windows ownership; [terminal follow-up](archived/windows-terminal-budget-repair-2026-11-04.md) and [SQLite](archived/windows-sqlite-boundary-repair-2026-11-04.md) acceptance continue.
+The [native parity repair](archived/windows-onnx-runtime-parity-2026-10-30.md) records exact ORT1.30.0 and minimized/public-consumer acceptance. [Drain](archived/windows-native-phase-closeout-2026-10-30.md) and [projection](archived/windows-native-projection-final-qualification-2026-10-30.md) close #1484. [Model closeout](archived/windows-model-closeout-2026-11-04.md) adds200 actual capsules: E5 generation/cache and192 provider-cost children; #1541/#1542/#1544 are closed. [Snapshots](archived/windows-native-snapshot-repair-2026-11-04.md) pass hosted Windows ownership; [terminal follow-up](archived/windows-terminal-budget-repair-2026-11-04.md) and [SQLite fact batching](archived/windows-sqlite-fact-batching-repair-2026-11-04.md) acceptance continue.
 
 Completed source-bound checks are indexed in the
 [qualification archive](archived/native-runtime-qualification-index-2026-10-27.md)
