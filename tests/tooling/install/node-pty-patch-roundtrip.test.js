@@ -10,6 +10,14 @@ const patchName = 'node-pty+1.1.0.patch';
 const patch = (await fs.readFile(path.join('patches', patchName), 'utf8')).replace(/\r\n/g, '\n');
 const sections = patch.split(/(?=^diff --git )/m).filter(Boolean);
 assert.equal(sections.length, 6);
+const packagePreimages = new Map([
+  ['node_modules/node-pty/lib/windowsPtyAgent.js', 'a358ffb17'],
+  ['node_modules/node-pty/src/windowsPtyAgent.ts', 'd70544495'],
+  ['node_modules/node-pty/scripts/prebuild.js', '17f1d980e'],
+  ['node_modules/node-pty/lib/worker/conoutSocketWorker.js', '0451e2c6b'],
+  ['node_modules/node-pty/src/worker/conoutSocketWorker.ts', '79a4148dd'],
+  ['node_modules/node-pty/src/win/conpty_console_list.cc', '4c8ab3932']
+]);
 const snapshots = new Map();
 for (const section of sections) {
   const relative = /^diff --git a\/(\S+) b\/\S+/.exec(section)?.[1];
@@ -36,6 +44,7 @@ assert.equal(reversed.exitCode, 0, reversed.stderr);
 for (const section of sections) {
   const relative = /^diff --git a\/(\S+)/.exec(section)[1];
   const originalHash = /^index ([a-f0-9]+)\.\./m.exec(section)[1];
+  assert.equal(originalHash, packagePreimages.get(relative), 'Patch preimage must be the original1.1.0 package, not an earlier patched tree.');
   const value = await fs.readFile(path.join(dir, relative));
   const hash = createHash('sha1').update(Buffer.from(`blob ${value.length}\0`)).update(value).digest('hex');
   assert.ok(hash.startsWith(originalHash), `unpatched package identity differs: ${relative}`);

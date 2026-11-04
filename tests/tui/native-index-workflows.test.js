@@ -88,7 +88,7 @@ const publishedReadMode = ['validate-published', 'search-published'].includes(mo
 const needsCompleteSeed = mode.startsWith('snapshot-') || ['validate-published', 'search-published', 'report', 'stats'].includes(mode);
 const deferredSeed = publishedReadMode
   ? { stage: null, name: 'seed-complete-build' }
-  : process.platform === 'win32' && ['build-search', 'workspace'].includes(mode)
+  : process.platform === 'win32' && mode === 'build-search'
     ? { stage: 'stage2', name: 'seed-partial-build' } : null;
 const seedBuild = async (stage, name) => {
   await recordFixturePhase(`${name}:start`);
@@ -107,6 +107,8 @@ const seedBuild = async (stage, name) => {
     durationMs: Date.now() - started, outcome: result.outcome }, null, 2));
   await recordFixturePhase(`${name}:complete`);
 };
+// Workspace setup is independent of the terminal lifetime. Retain its real
+// seed before capture so its work cannot consume the unchanged26s PTY bound.
 if (['build-search', 'workspace'].includes(mode) && !deferredSeed) {
   await seedBuild('stage2', 'seed-partial-build');
 }

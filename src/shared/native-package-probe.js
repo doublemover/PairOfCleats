@@ -219,7 +219,7 @@ export const probeNativePackage = async (root, pkgName, { grammarRoutes = [] } =
       terminal.onExit(event => {
         clearTimeout(timeout);
         if (event.exitCode !== 0 || !output.includes(marker)) reject(Error('PTY operation returned an unexpected status or output'));
-        else resolve();
+        else { if (process.platform === 'win32') terminal.kill(); resolve(); }
       });
       });
       (async () => { for (const marker of ['PTY_PROBE_FIRST', 'PTY_PROBE_SECOND']) await run(marker); })()

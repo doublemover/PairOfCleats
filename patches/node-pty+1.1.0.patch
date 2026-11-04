@@ -1,9 +1,17 @@
 diff --git a/node_modules/node-pty/lib/windowsPtyAgent.js b/node_modules/node-pty/lib/windowsPtyAgent.js
-index a358ffb17..a0b0b2410 100644
+index a358ffb17..4426241df 100644
 --- a/node_modules/node-pty/lib/windowsPtyAgent.js
 +++ b/node_modules/node-pty/lib/windowsPtyAgent.js
-@@ -139,4 +139,9 @@ var WindowsPtyAgent = /** @class */ (function () {
+@@ -138,5 +138,17 @@ var WindowsPtyAgent = /** @class */ (function () {
+                 this._inSocket.readable = false;
                  this._outSocket.readable = false;
++                // The original exit monitor already confirmed this shell is gone.
++                // Its console cannot be attached, but native/bridge owners still close.
++                if (this._exitCode !== undefined) {
++                  this._ptyNative.kill(this._pty, this._useConptyDll);
++                  this._conoutSocketWorker.dispose();
++                  return;
++                }
                  this._getConsoleProcessList().then(function (consoleProcessList) {
 +                    // Capture the console while it still exists. Destroying it
 +                    // before the helper attaches races AttachConsole and leaks
@@ -12,32 +20,40 @@ index a358ffb17..a0b0b2410 100644
 +                    _this._conoutSocketWorker.dispose();
                      consoleProcessList.forEach(function (pid) {
                          try {
-@@ -148,6 +153,4 @@ var WindowsPtyAgent = /** @class */ (function () {
+@@ -148,6 +160,4 @@ var WindowsPtyAgent = /** @class */ (function () {
                      });
                  });
 -                this._ptyNative.kill(this._pty, this._useConptyDll);
 -                this._conoutSocketWorker.dispose();
              }
              else {
-@@ -244,4 +247,6 @@ var WindowsPtyAgent = /** @class */ (function () {
+@@ -244,4 +254,6 @@ var WindowsPtyAgent = /** @class */ (function () {
          this._outSocket.readable = false;
          this._outSocket.destroy();
 +        this._inSocket.destroy();
 +        this._conoutSocketWorker.dispose();
      };
      return WindowsPtyAgent;
-@@ -318,3 +323,3 @@ function xOr(arg1, arg2) {
+@@ -318,3 +330,3 @@ function xOr(arg1, arg2) {
      return ((arg1 && !arg2) || (!arg1 && arg2));
  }
 -//# sourceMappingURL=windowsPtyAgent.js.map
 \ No newline at end of file
 +//# sourceMappingURL=windowsPtyAgent.js.map
 diff --git a/node_modules/node-pty/src/windowsPtyAgent.ts b/node_modules/node-pty/src/windowsPtyAgent.ts
-index d70544495..c40fc77d3 100644
+index d70544495..0848bbec0 100644
 --- a/node_modules/node-pty/src/windowsPtyAgent.ts
 +++ b/node_modules/node-pty/src/windowsPtyAgent.ts
-@@ -146,4 +146,9 @@ export class WindowsPtyAgent {
+@@ -145,5 +145,17 @@ export class WindowsPtyAgent {
+         this._inSocket.readable = false;
          this._outSocket.readable = false;
++        // The original exit monitor already confirmed this shell is gone.
++        // Its console cannot be attached, but native/bridge owners still close.
++        if (this._exitCode !== undefined) {
++          (this._ptyNative as IConptyNative).kill(this._pty, this._useConptyDll);
++          this._conoutSocketWorker.dispose();
++          return;
++        }
          this._getConsoleProcessList().then(consoleProcessList => {
 +          // Capture the console while it still exists. Destroying it
 +          // before the helper attaches races AttachConsole and leaks
@@ -46,14 +62,14 @@ index d70544495..c40fc77d3 100644
 +          this._conoutSocketWorker.dispose();
            consoleProcessList.forEach((pid: number) => {
              try {
-@@ -154,6 +159,4 @@ export class WindowsPtyAgent {
+@@ -154,6 +166,4 @@ export class WindowsPtyAgent {
            });
          });
 -        (this._ptyNative as IConptyNative).kill(this._pty, this._useConptyDll);
 -        this._conoutSocketWorker.dispose();
        } else {
          // Close the input write handle to signal the end of session.
-@@ -247,4 +250,6 @@ export class WindowsPtyAgent {
+@@ -247,4 +257,6 @@ export class WindowsPtyAgent {
      this._outSocket.readable = false;
      this._outSocket.destroy();
 +    this._inSocket.destroy();

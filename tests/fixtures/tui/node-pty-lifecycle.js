@@ -16,7 +16,10 @@ for (let index = 0; index < 3; index++) {
   const event = await new Promise(resolve => terminal.onExit(resolve)); clearTimeout(timer);
   Object.assign(record, { exitCode: event.exitCode, signal: event.signal, bytes: Buffer.byteLength(output) });
   if (cancel) { assert.equal(record.cancelled, true); assert.notEqual(event.exitCode, 8, 'the fallback fuse cannot count as successful cancellation'); }
-  else { assert.equal(event.exitCode, 0); assert.ok(output.includes('PTY_START')); assert.ok(output.includes('PTY_END')); }
+  else {
+    assert.equal(event.exitCode, 0); assert.ok(output.includes('PTY_START')); assert.ok(output.includes('PTY_END'));
+    if (process.platform === 'win32') { terminal.kill(); record.postExitKill = true; }
+  }
 }
 // No forced exit: the parent also requires natural process completion, including
 // every ConPTY connection worker and native owner after these real operations.

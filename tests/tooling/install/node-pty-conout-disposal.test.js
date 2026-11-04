@@ -10,6 +10,20 @@ import { Worker } from 'node:worker_threads';
 // Exercise the installed ConPTY bridge itself with real pipes. The fake native
 // producer keeps writing after the terminal's output reader has disconnected.
 const require = createRequire(import.meta.url);
+// Confirmed process exit still owns console/pipe disposal, but cannot require
+// attaching another helper to a console that has already disappeared.
+const { WindowsPtyAgent } = require('node-pty/lib/windowsPtyAgent.js');
+for (const exitCode of [undefined, 0, 1]) {
+  const calls = [], agent = Object.create(WindowsPtyAgent.prototype);
+  Object.assign(agent, { _useConpty: true, _useConptyDll: false, _exitCode: exitCode,
+    _inSocket: {}, _outSocket: {}, _pty: 1,
+    _getConsoleProcessList: async () => { calls.push('enumerate'); return []; },
+    _ptyNative: { kill: () => calls.push('native-close') },
+    _conoutSocketWorker: { dispose: () => calls.push('bridge-dispose') } });
+  agent.kill(); await Promise.resolve();
+  assert.deepEqual(calls, exitCode === undefined ? ['enumerate', 'native-close', 'bridge-dispose']
+    : ['native-close', 'bridge-dispose'], 'Only an unconfirmed live shell requires console attachment.');
+}
 const workerPath = path.join(path.dirname(require.resolve('node-pty/package.json')), 'lib/worker/conoutSocketWorker.js');
 // Inject peer EOF precisely between a queued frame and forwarding it. Real
 // sockets still generate EPIPE; only scheduling of the disposal edge is fixed.
