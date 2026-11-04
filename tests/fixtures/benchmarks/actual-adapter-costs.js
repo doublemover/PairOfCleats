@@ -105,7 +105,7 @@ try {
   const providerRuntime = await captureEmbeddingProviderRuntime({ provider: manifest.provider });
   assert.equal(providerRuntime.binding.moduleCacheLoaded, true);
   if (manifest.providerRuntime) assert.deepEqual(manifest.providerRuntime, { name: providerRuntime.name, version: providerRuntime.version });
-  if (direct) assert.equal(providerRuntime.version, '1.31.1');
+  if (direct) assert.equal(providerRuntime.version, directReference.DIRECT_MINILM_REFERENCE_RECIPE.nativeRuntime);
   const { captureSweepSource } = await import('../../../tools/bench/ab-sweep-source.js');
   const source = captureSweepSource(process.cwd()); assert.equal(source.state, 'clean-revision');
   const frozenOwners = [];

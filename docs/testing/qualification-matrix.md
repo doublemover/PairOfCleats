@@ -15,6 +15,14 @@ identity8. Its focused and actual-model rechecks remain separately recorded;
 old vectors need rebuilding. Remaining Windows model/SQLite qualification and
 the hosted macOS Make-discovery failure are still open.
 
+[Real model acceptance](../archived/windows-real-model-qualification-2026-11-04.md)
+adds24 serial passes at `20e274f99`: E5 quality/boundaries/generation-cache,
+M3 quality/single/batch/query and EG2 single/batch/prepared/query/resources.
+All original model/tokenizer hashes, exact vectors, judgments, phase timings,
+output copies and original cleanup remain recorded. The additional E5 direct
+output-name regression fails before repair and passes afterward; revision2
+generation and same-source old/current admission costs remain pending.
+
 The [native/drain closeout](../archived/windows-native-phase-closeout-2026-10-30.md)
 qualifies clean `b55c76ac4`: both exact-original/current Perl arms, nine historic
 traversal comparisons, three complete production drain cases below30seconds,

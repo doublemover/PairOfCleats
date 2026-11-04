@@ -186,6 +186,6 @@ export const runE5QueryCache = async ({ seed, manifest, manifestHash, artifact, 
   assert.deepEqual([observations.at(-1).work.embeddingApiCalls, observations.at(-1).work.embeddingCacheHits], [0, 1]);
   await assertSource(seed, signal);
   return { generationSeed: seed, observations, numericalReference: { path: path.resolve(reference), sha256: raw.sha256 },
-    expectedWarning: '[embeddings] Query embedder unavailable; skipping ANN. Persisted embedding formatting does not match multilingual-e5-large-instruct-code-retrieval-v1. Rebuild the dense index.',
+    expectedWarning: `[embeddings] Query embedder unavailable; skipping ANN. Persisted embedding formatting does not match ${generations[1].identity.denseEncoding.id}. Rebuild the dense index.`,
     scope: 'Original process query-vector-result cache using default public getQueryEmbedding;fresh artifact verification remains included on cache hits;API counters are not native-kernel counters.' };
 };

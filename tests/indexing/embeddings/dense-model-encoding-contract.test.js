@@ -117,6 +117,28 @@ await runOnnxEmbeddingSession({ session: {
   ], run: async (feeds, fetches) => { calls++; assert.deepEqual(fetches, ['last_hidden_state']); return { last_hidden_state: tokenTensor }; }
 }, feeds: {}, denseContract: contract });
 assert.equal(calls, 1);
+// The immutable instruct-E5 graph declares token_embeddings, with a distinct
+// already-pooled sentence_embedding. Do not borrow M3's output name.
+const e5Contract = resolveEmbeddingDenseContract(e5);
+let e5Calls = 0;
+const e5Outputs = await runOnnxEmbeddingSession({ session: {
+  outputNames: ['sentence_embedding', 'token_embeddings'], outputMetadata: [
+    { name: 'sentence_embedding', isTensor: true, type: 'float32', shape: ['batch', 1024] },
+    { name: 'token_embeddings', isTensor: true, type: 'float32', shape: ['batch', 'sequence', 1024] }
+  ], run: async (feeds, fetches) => { e5Calls++; assert.deepEqual(fetches, ['token_embeddings']); return { token_embeddings: tokenTensor }; }
+}, feeds: {}, denseContract: e5Contract });
+assert.equal(e5Calls, 1);
+const e5Vectors = decodeOnnxEmbeddingOutput({ outputs: e5Outputs, count: 2,
+  attentionMask: [[1, 1, 0], [1, 1, 0]], denseContract: e5Contract, normalizeVector: normalizeEmbeddingVectorInPlace });
+assert(Math.abs(e5Vectors[0][0] - 51 / Math.sqrt(2605)) < 1e-6);
+assert(Math.abs(e5Vectors[0][1] - 2 / Math.sqrt(2605)) < 1e-6);
+assert.throws(() => decodeOnnxEmbeddingOutput({ outputs: { last_hidden_state: tokenTensor }, count: 2,
+  attentionMask: [[1, 1, 0], [1, 1, 0]], denseContract: e5Contract }), { code: 'ERR_ONNX_EMBEDDING_OUTPUT' });
+const oldE5 = { ...buildEmbeddingIdentity({ modelId: e5 }),
+  inputFormatting: { family: 'e5-instruct', queryPrefix: instruction, passagePrefix: null,
+    contract: 'multilingual-e5-large-instruct-code-retrieval-v1', templateVersion: 1,
+    task: 'Given a code search query, retrieve relevant source code or documentation passages that answer the query' } };
+assert.throws(() => buildEmbeddingIdentity({ modelId: e5, inputFormatting: oldE5.inputFormatting }), /Rebuild/);
 await assert.rejects(runOnnxEmbeddingSession({ session: { outputNames: ['pooler_output'],
   outputMetadata: [{ name: 'pooler_output', type: 'float32', isTensor: true, shape: ['batch', 1024] }],
   run: () => assert.fail('unsupported dense head must fail before inference') }, feeds: {}, denseContract: contract }), /qualified/);

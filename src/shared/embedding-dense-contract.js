@@ -12,8 +12,8 @@ const CONTRACTS = new Map([
     task: null, source: 'https://huggingface.co/Xenova/bge-m3#usage-transformersjs'
   })],
   ['intfloat/multilingual-e5-large-instruct', Object.freeze({
-    id: 'multilingual-e5-large-instruct-code-retrieval-v1', version: 1, family: 'e5-instruct',
-    pooling: 'mean', output: 'last_hidden_state', rank: 3, dimensions: 1024,
+    id: 'multilingual-e5-large-instruct-code-retrieval-v2', version: 2, family: 'e5-instruct',
+    pooling: 'mean', output: 'token_embeddings', rank: 3, dimensions: 1024,
     maxLength: 512, normalize: true,
     queryPrefix: `Instruct: ${E5_CODE_RETRIEVAL_TASK}\nQuery: `, passagePrefix: null,
     task: E5_CODE_RETRIEVAL_TASK, source: 'https://huggingface.co/intfloat/multilingual-e5-large-instruct#usage'
