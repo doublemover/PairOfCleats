@@ -43,6 +43,7 @@ const parentScript = [
 
 const parent = spawn(process.execPath, ['-e', parentScript, childPidPath, grandchildPidPath], {
   stdio: 'ignore',
+  windowsHide: true,
   detached: false
 });
 

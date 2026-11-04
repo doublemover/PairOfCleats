@@ -200,6 +200,15 @@ export const probeNativePackage = async (root, pkgName, { grammarRoutes = [] } =
     // An unconditional process.exit would hide a leaked native/session owner.
     const script = `
       const pty = require('node-pty');
+      if (process.platform === 'win32') {
+        const assert = require('node:assert/strict');
+        const native = require('node-pty/lib/utils.js').loadNativeModule('conpty_console_list').module;
+        const snapshot = native.getProcessSnapshot(false);
+        assert.equal(snapshot.resourcesClosed, true);
+        assert.ok(snapshot.rows.split(String.fromCharCode(10)).includes(process.pid + ' ' + process.ppid));
+        assert.throws(() => native.getProcessSnapshot(true), error => error.code === 'ERR_WINDOWS_PROCESS_SNAPSHOT_NATIVE'
+          && error.win32Error === 6 && error.resourcesClosed === true && !Object.hasOwn(error, 'rows'));
+      }
       const run = (marker) => new Promise((resolve, reject) => {
       const terminal = pty.spawn(process.execPath, ['-e', 'process.stdout.write(' + JSON.stringify(marker) + ')'], {
         cols: 80, rows: 24, cwd: process.cwd(), env: process.env, useConpty: true

@@ -39,4 +39,9 @@ assert.equal(inspectNativeBuildAdapter(root, '@ganezdragon/tree-sitter-perl'), n
 assert.equal(inspectNativeBuildAdapter(root, 'better-sqlite3'), null, 'SQLite uses its exclusive transaction');
 assert.equal(inspectNativeBuildAdapter(root, '@derekstride/tree-sitter-sql'), null,
   'grammar generation/npm fetching must remain on the serial fallback');
+assert.match(source, /process\.platform === 'win32' && packageNameResult\.pkgName === 'node-pty'[\s\S]*?return rebuildWindowsProcessBindingFromSource\(options\)/,
+  'Windows metadata patches cannot be bypassed by an upstream prebuilt binding');
+assert.match(source, /rebuildWindowsProcessBindingFromSource[\s\S]*?node-gyp', 'bin', 'node-gyp\.js'\), 'rebuild'[\s\S]*?cwd:\s*resolveNodeModulesPath\('node-pty'\)/,
+  'the Windows process binding uses the direct bounded compiler owner without npm legacy flags');
+
 console.log('rebuild native build-from-source contract test passed');

@@ -144,3 +144,73 @@ index 79a4148dd..3ba96db96 100644
 +    });
      conoutSocket.pipe(workerSocket);
    });
+diff --git a/node_modules/node-pty/src/win/conpty_console_list.cc b/node_modules/node-pty/src/win/conpty_console_list.cc
+index 4c8ab3932..f297ea04e 100644
+--- a/node_modules/node-pty/src/win/conpty_console_list.cc
++++ b/node_modules/node-pty/src/win/conpty_console_list.cc
+@@ -6,4 +6,7 @@
+ #include <napi.h>
+ #include <windows.h>
++#include <tlhelp32.h>
++#include <string>
++#include <exception>
+-
++
+ static Napi::Value ApiConsoleProcessList(const Napi::CallbackInfo& info) {
+@@ -37,5 +40,55 @@ static Napi::Value ApiConsoleProcessList(const Napi::CallbackInfo& info) {
+ }
+-
++
++
++// Read lineage without attaching to or detaching from any console. The caller
++// runs this leaf operation in its original bounded helper process.
++static Napi::Value ApiProcessSnapshot(const Napi::CallbackInfo& info) {
++  Napi::Env env(info.Env());
++  if (info.Length() > 1 || (info.Length() == 1 && !info[0].IsBoolean())) {
++    throw Napi::TypeError::New(env, "Usage: getProcessSnapshot([invalidNextHandle])");
++  }
++  const bool invalidNextHandle = info.Length() == 1 && info[0].As<Napi::Boolean>().Value();
++  HANDLE snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
++  DWORD failureCode = snapshot == INVALID_HANDLE_VALUE ? GetLastError() : ERROR_SUCCESS;
++  DWORD cleanupCode = ERROR_SUCCESS;
++  bool closed = snapshot == INVALID_HANDLE_VALUE;
++  std::string rows;
++  uint32_t count = 0;
++  if (snapshot != INVALID_HANDLE_VALUE) {
++    try {
++      PROCESSENTRY32W entry = {};
++      entry.dwSize = sizeof(entry);
++      BOOL more = Process32FirstW(snapshot, &entry);
++      while (more) {
++        if (count == 1048576) { failureCode = ERROR_INSUFFICIENT_BUFFER; break; }
++        rows.append(std::to_string(entry.th32ProcessID)).append(" ")
++          .append(std::to_string(entry.th32ParentProcessID)).append("\n");
++        ++count;
++        more = Process32NextW(invalidNextHandle ? INVALID_HANDLE_VALUE : snapshot, &entry);
++      }
++      if (failureCode == ERROR_SUCCESS) failureCode = GetLastError();
++    } catch (const std::exception&) {
++      failureCode = ERROR_NOT_ENOUGH_MEMORY;
++    }
++    closed = CloseHandle(snapshot) != FALSE;
++    if (!closed) cleanupCode = GetLastError();
++  }
++  if (failureCode != ERROR_NO_MORE_FILES || !closed) {
++    Napi::Error error = Napi::Error::New(env, "Incomplete native Windows process snapshot");
++    error.Value().Set("code", "ERR_WINDOWS_PROCESS_SNAPSHOT_NATIVE");
++    error.Value().Set("win32Error", Napi::Number::New(env, failureCode));
++    error.Value().Set("cleanupWin32Error", Napi::Number::New(env, cleanupCode));
++    error.Value().Set("resourcesClosed", Napi::Boolean::New(env, closed));
++    throw error;
++  }
++  Napi::Object result = Napi::Object::New(env);
++  result.Set("rows", Napi::String::New(env, rows));
++  result.Set("count", Napi::Number::New(env, count));
++  result.Set("resourcesClosed", Napi::Boolean::New(env, true));
++  return result;
++}
++
+ Napi::Object init(Napi::Env env, Napi::Object exports) {
++  exports.Set("getProcessSnapshot", Napi::Function::New(env, ApiProcessSnapshot));
+   exports.Set("getConsoleProcessList", Napi::Function::New(env, ApiConsoleProcessList));
+   return exports;

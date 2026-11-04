@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-30T13:33:14.073Z",
+  "generatedAt": "2026-11-04T22:30:58.724Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
@@ -5906,7 +5906,7 @@
   ],
   "envVarsUnknown": [],
   "cliFlags": {
-    "totalFlags": 510,
+    "totalFlags": 511,
     "publicFlags": [
       "all",
       "allow-unauthenticated",
@@ -6099,6 +6099,7 @@
       "enforce-fts",
       "enforce-gates",
       "engine",
+      "env",
       "errorRecovery",
       "event-log-dir",
       "evidence",
@@ -6742,6 +6743,7 @@
         "file": "src/shared/kill-tree/windows.js",
         "flags": [
           "encoding",
+          "env",
           "input",
           "stdio",
           "timeoutMs",
@@ -10560,6 +10562,7 @@
       "tests/services/api/runtime-claims.test.js",
       "tests/services/api/runtime-evidence.test.js",
       "tests/shared/cli-option-validators-contract.test.js",
+      "tests/shared/kill-tree-windows-snapshot.test.js",
       "tests/storage/semantic/call-site-retained-source-handoff.test.js",
       "tests/storage/semantic/coalesced-durable-parts.test.js",
       "tests/storage/semantic/mixed-source-coverage.test.js",

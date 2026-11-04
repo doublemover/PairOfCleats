@@ -173,10 +173,23 @@ const rebuildPatchedPerlFromSource = (options = {}) => runNativeCommand(process.
   '--jobs=' + (options.compilerJobs || bootstrapBudget.cpuCount)
 ], { ...options, cwd: resolveNodeModulesPath(TREE_SITTER_PERL_PACKAGE) });
 
+// Windows lineage uses a source-patched node-pty metadata export. Always compile
+// that binding; an otherwise loadable upstream prebuild cannot satisfy it.
+const rebuildWindowsProcessBindingFromSource = (options = {}) => runNativeCommand(process.execPath, [
+  path.join(root, 'node_modules', 'node-gyp', 'bin', 'node-gyp.js'), 'rebuild',
+  '--jobs=' + (options.compilerJobs || bootstrapBudget.cpuCount),
+  '--devdir=' + path.join(root, '.cache', 'native-build', 'headers'),
+  '--dist-url=https://nodejs.org/download/release', '--target=' + process.versions.node, '--arch=' + process.arch
+], { ...options, cwd: resolveNodeModulesPath('node-pty') });
+
 const rebuildPackage = async (pkgName, { buildFromSource = false, ...options } = {}) => {
   const packageNameResult = normalizePackageNameResult(pkgName);
   if (!packageNameResult.ok) {
     return packageNameResult;
+  }
+
+  if (process.platform === 'win32' && packageNameResult.pkgName === 'node-pty') {
+    return rebuildWindowsProcessBindingFromSource(options);
   }
 
   if (packageNameResult.pkgName === TREE_SITTER_PERL_PACKAGE && buildFromSource) {

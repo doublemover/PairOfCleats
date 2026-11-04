@@ -9,7 +9,7 @@ const { dir } = await prepareIsolatedTestCacheDir('node-pty-patch-roundtrip');
 const patchName = 'node-pty+1.1.0.patch';
 const patch = (await fs.readFile(path.join('patches', patchName), 'utf8')).replace(/\r\n/g, '\n');
 const sections = patch.split(/(?=^diff --git )/m).filter(Boolean);
-assert.equal(sections.length, 5);
+assert.equal(sections.length, 6);
 const snapshots = new Map();
 for (const section of sections) {
   const relative = /^diff --git a\/(\S+) b\/\S+/.exec(section)?.[1];
@@ -40,7 +40,7 @@ for (const section of sections) {
   const hash = createHash('sha1').update(Buffer.from(`blob ${value.length}\0`)).update(value).digest('hex');
   assert.ok(hash.startsWith(originalHash), `unpatched package identity differs: ${relative}`);
 }
-assert.equal(applyPatches(dir), 5);
-assert.equal(applyPatches(dir, { verifyOnly: true }), 5);
+assert.equal(applyPatches(dir), 6);
+assert.equal(applyPatches(dir, { verifyOnly: true }), 6);
 for (const [relative, value] of snapshots) assert.equal(await fs.readFile(path.join(dir, relative), 'utf8'), value);
-console.log('The exact five-file node-pty patch applies from verified original package blobs and verifies after installation.');
+console.log('The exact six-file node-pty patch applies from verified original package blobs and verifies after installation.');

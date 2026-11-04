@@ -1,5 +1,6 @@
 import { spawnSync } from 'node:child_process';
 import { scheduleUnrefTimer, wait } from './shared.js';
+import { createRequire } from 'node:module';
 import path from 'node:path';
 
 const DEFAULT_WINDOWS_TASKKILL_TIMEOUT_MS = 2000;
@@ -11,87 +12,58 @@ const WINDOWS_DESCENDANT_KILL_BUDGET_MS = 4000;
 // Native leaf helpers never launch application work. Bound them directly so a
 // stalled taskkill/snapshot cannot recursively enter the tree-cleanup owner.
 const runWindowsHelperSync = (command, args, { timeoutMs, ...options }) => {
-  try { return spawnSync(command, args, { ...options, timeout: timeoutMs }); }
+  try {
+    if (command !== process.execPath) {
+      command = resolveWindowsSystemUtility(command);
+      if (!command) throw Object.assign(new Error('Trusted Windows system utility is unavailable.'), { code: 'ERR_WINDOWS_SYSTEM_UTILITY' });
+    }
+    return spawnSync(command, args, { ...options, windowsHide: true, timeout: timeoutMs });
+  }
   catch (error) { return { pid: null, status: null, signal: null, stdout: '', stderr: '', error }; }
 };
 const toSyncCommandExitCode = result => Number.isFinite(result?.status) ? result.status : null;
 
-/** Node 26 supports 64-bit Windows; bind its native system helper, independently of PATH. */
-export const resolveWindowsPowerShellPath = (env = process.env) => {
+/** Finite OS utilities resolve below the parent launch's absolute Windows root.
+ * Neither the working directory nor PATH selects cleanup executables. */
+export const resolveWindowsSystemUtility = (name, env = process.env) => {
+  const filename = name === 'taskkill' ? 'taskkill.exe' : name === 'tasklist' ? 'tasklist.exe' : null;
   const systemRoot = env.SystemRoot || env.SYSTEMROOT || env.windir || env.WINDIR;
-  if (typeof systemRoot !== 'string' || !/^[A-Za-z]:[\\/]/.test(systemRoot)) return null;
-  return path.win32.join(systemRoot, 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe');
+  if (!filename || typeof systemRoot !== 'string' || !/^[A-Za-z]:[\\/]/.test(systemRoot)) return null;
+  return path.win32.join(systemRoot, 'System32', filename);
 };
 
-// Toolhelp reads the native process snapshot without a WMI provider or C# compiler.
-// PROCESSENTRY32W layout: tlhelp32.h; reject anything except complete enumeration.
-export const WINDOWS_PROCESS_SNAPSHOT_SCRIPT = String.raw`$ErrorActionPreference = 'Stop'
-[Console]::Error.WriteLine('lineage:script-start')
-$clock = [Diagnostics.Stopwatch]::StartNew()
-if ([IntPtr]::Size -ne 8) { throw 'Process snapshot requires the supported 64-bit Windows runtime.' }
-$assembly = [AppDomain]::CurrentDomain.DefineDynamicAssembly([Reflection.AssemblyName]::new('PocProcessSnapshot'), [Reflection.Emit.AssemblyBuilderAccess]::Run)
-[Console]::Error.WriteLine('lineage:assembly-ready elapsedMs=' + $clock.ElapsedMilliseconds)
-$module = $assembly.DefineDynamicModule('Native')
-$builder = $module.DefineType('PocProcessSnapshot', [Reflection.TypeAttributes]'Public, Abstract, Sealed')
-$attributeType = [Runtime.InteropServices.DllImportAttribute]
-$constructor = $attributeType.GetConstructor([Type[]]@([string]))
-$fields = [Reflection.FieldInfo[]]@($attributeType.GetField('SetLastError'), $attributeType.GetField('ExactSpelling'))
-$attribute = [Reflection.Emit.CustomAttributeBuilder]::new($constructor, [object[]]@('kernel32.dll'), $fields, [object[]]@($true, $true))
-[Console]::Error.WriteLine('lineage:signature-ready elapsedMs=' + $clock.ElapsedMilliseconds)
-function Add-NativeMethod([string]$name, [Type]$returnType, [Type[]]$parameters) {
-  $method = $builder.DefineMethod($name, [Reflection.MethodAttributes]'Public, Static, PinvokeImpl', $returnType, $parameters)
-  $method.SetCustomAttribute($attribute)
-  $method.SetImplementationFlags([Reflection.MethodImplAttributes]::PreserveSig)
+// The already-required node-pty process metadata binding owns Toolhelp and its
+// original snapshot handle. A fresh Node leaf keeps the two-second OS discovery
+// budget independent of Windows PowerShell startup, stdin and payload parsing.
+const requireFromOwner = createRequire(import.meta.url);
+export const WINDOWS_PROCESS_SNAPSHOT_SCRIPT = String.raw`process.stderr.write('lineage:script-start\n');
+const native = loadNativeModule('conpty_console_list').module;
+let snapshot;
+try { snapshot = native.getProcessSnapshot(false); }
+catch (error) {
+  if (error?.resourcesClosed === true) process.stderr.write('lineage:resources-closed\n');
+  throw error;
 }
-Add-NativeMethod 'CreateToolhelp32Snapshot' ([IntPtr]) ([Type[]]@([uint32], [uint32]))
-Add-NativeMethod 'Process32FirstW' ([bool]) ([Type[]]@([IntPtr], [IntPtr]))
-Add-NativeMethod 'Process32NextW' ([bool]) ([Type[]]@([IntPtr], [IntPtr]))
-Add-NativeMethod 'CloseHandle' ([bool]) ([Type[]]@([IntPtr]))
-$native = $builder.CreateType()
-[Console]::Error.WriteLine('lineage:interop-ready elapsedMs=' + $clock.ElapsedMilliseconds)
-$entrySize = 568
-$parentOffset = 32
-$buffer = [IntPtr]::Zero
-$snapshot = [IntPtr]::new(-1)
-$rows = [Text.StringBuilder]::new()
-try {
-  $buffer = [Runtime.InteropServices.Marshal]::AllocHGlobal($entrySize)
-  [Runtime.InteropServices.Marshal]::WriteInt32($buffer, $entrySize)
-  $snapshot = $native::CreateToolhelp32Snapshot(2, 0)
-  if ($snapshot -eq [IntPtr]::new(-1)) { throw [ComponentModel.Win32Exception]::new([Runtime.InteropServices.Marshal]::GetLastWin32Error()) }
-  [Console]::Error.WriteLine('lineage:snapshot-ready elapsedMs=' + $clock.ElapsedMilliseconds)
-  $more = $native::Process32FirstW($snapshot, $buffer)
-  while ($more) {
-    $processId = [int64][Runtime.InteropServices.Marshal]::ReadInt32($buffer, 8) -band 4294967295L
-    $parentId = [int64][Runtime.InteropServices.Marshal]::ReadInt32($buffer, $parentOffset) -band 4294967295L
-    [void]$rows.Append($processId).Append(' ').Append($parentId).AppendLine()
-    $more = $native::Process32NextW($snapshot, $buffer)
-  }
-  $lastError = [Runtime.InteropServices.Marshal]::GetLastWin32Error()
-  if ($lastError -ne 18) { throw [ComponentModel.Win32Exception]::new($lastError) }
-} finally {
-  if ($buffer -ne [IntPtr]::Zero) { [Runtime.InteropServices.Marshal]::FreeHGlobal($buffer) }
-  if ($snapshot -ne [IntPtr]::new(-1)) {
-    if (!$native::CloseHandle($snapshot)) { throw [ComponentModel.Win32Exception]::new([Runtime.InteropServices.Marshal]::GetLastWin32Error()) }
-  }
-  [Console]::Error.WriteLine('lineage:resources-closed elapsedMs=' + $clock.ElapsedMilliseconds)
-}
-[Console]::Out.Write($rows.ToString())
-[Console]::Error.WriteLine('lineage:rows-written elapsedMs=' + $clock.ElapsedMilliseconds)
+if (snapshot.resourcesClosed !== true || typeof snapshot.rows !== 'string'
+  || !Number.isSafeInteger(snapshot.count) || snapshot.count < 0) throw Error('Invalid native process snapshot');
+process.stderr.write('lineage:snapshot-ready\nlineage:resources-closed\n');
+process.stdout.write(snapshot.rows);
+process.stderr.write('lineage:rows-written\n');
 `;
 
-/** Keep engine startup distinct from parsing/executing the larger native script.
- * The fixed launcher reads a private stdin payload; no shell/PATH lookup occurs.
- * This preserves the production deadline and makes pre-script stalls observable.
- */
 export const createWindowsProcessSnapshotRequest = ({ env = process.env,
   script = WINDOWS_PROCESS_SNAPSHOT_SCRIPT } = {}) => {
-  const command = resolveWindowsPowerShellPath(env);
-  if (!command) return null;
-  return { command, args: ['-NoProfile', '-NonInteractive', '-Command',
-    "[Console]::Error.WriteLine('lineage:engine-ready'); & ([ScriptBlock]::Create([Console]::In.ReadToEnd()))"],
-  options: { input: script, stdio: ['pipe', 'pipe', 'pipe'], encoding: 'utf8', windowsHide: true,
-    timeoutMs: WINDOWS_DESCENDANT_DISCOVERY_TIMEOUT_MS } };
+  let loader;
+  try { loader = requireFromOwner.resolve('node-pty/lib/utils.js'); }
+  catch { return null; }
+  const launcher = "process.stderr.write('lineage:engine-ready\\n');"
+    + "const payload=require('node:fs').readFileSync(0,'utf8');"
+    + "process.stderr.write('lineage:input-ready\\n');"
+    + "new Function('loadNativeModule',payload)(require(" + JSON.stringify(loader) + ').loadNativeModule);';
+  return { command: process.execPath, args: ['--input-type=commonjs', '-e', launcher],
+    options: { input: script, stdio: ['pipe', 'pipe', 'pipe'], encoding: 'utf8', windowsHide: true,
+      env: Object.fromEntries(Object.entries(env).filter(([key]) => key.toUpperCase() !== 'NODE_OPTIONS')),
+      timeoutMs: WINDOWS_DESCENDANT_DISCOVERY_TIMEOUT_MS } };
 };
 
 /** Walk a complete lineage-only snapshot without per-process shell objects. */
@@ -148,7 +120,7 @@ const discoverWindowsDescendantPidsSync = (rootPid) => {
   const startedAt = Date.now();
   const request = createWindowsProcessSnapshotRequest();
   if (!request) return { pids: [], diagnostic: { exitCode: null,
-    errorCode: 'ERR_WINDOWS_SYSTEM_ROOT', durationMs: 0, discoveredCount: 0, stderr: '' } };
+    errorCode: 'ERR_WINDOWS_PROCESS_HELPER_UNAVAILABLE', durationMs: 0, discoveredCount: 0, stderr: '' } };
   const result = runWindowsHelperSync(
     request.command, request.args, request.options
   );
