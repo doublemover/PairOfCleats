@@ -58,12 +58,15 @@ retention/deletion policy is added. Distinct updates retain evidence; common
 lifecycle/quota policy remains owned by #1267. These are per-record product/read
 bounds, not a measured process-memory, throughput or whole-store quota claim.
 
-The 16 `tooling/triage/record-publication/*` cases are **authored and unexecuted**.
+The16 tooling/triage/record-publication cases pass focused Windows qualification
+on2026-11-05, together with five source/replay/service controls. The
+[source-bound receipt](../archived/triage-publication-closeout-2026-11-05.md)
+records all21 cases and publication checks.
 They cover controlled same-ID and actual separate-process interleavings,
 independent IDs, stage/publication failure, exact reimport, source capture,
 receipt/type/hash negatives, unknown namespaces, actual builder generation/hash
 admission with its artifact handoff captured, retained generation reads and
 original pending-resource/metadata recovery. The child fixture explicitly uses
 the current Node executable with hidden windows and bounded IPC/output/lifetime;
-it opens no editor or terminal. Original CLI/index/source/replay fixtures and
-current-candidate functional/native qualification remain pending.
+it opens no editor or terminal. The actual builder boundary is captured before artifact writing; this is a
+coherence/source qualification, not a new complete index or hosted-platform run.

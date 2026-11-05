@@ -8,7 +8,8 @@
     1767,
     672,
     681,
-    668
+    668,
+    1574
   ],
   "scope": "All open issues except user-excluded editor work and native Tantivy; mixed issues retain their non-editor scope",
   "routing": "Initial grouping by issue scope and recorded source owners; source-review-pending is not an implementation or acceptance claim",
@@ -4735,9 +4736,11 @@
       "title": "[P1] Fence clean-artifacts deletion against live cache readers and builders",
       "batch": "storage-publication-lifetimes",
       "scope": "active",
-      "review": "source-review-pending",
-      "recordedDisposition": "Partial. Canonical and configured native lifetimes have focused Windows qualification; custom-backend deletion authority remains incomplete.",
+      "review": "qualified-and-closed",
+      "recordedDisposition": "Closed completed after producer-backed native publication/category cleanup, 164 distinct focused checks, 43 gate fixtures, publication and GitHub readback.",
       "owners": [
+        "docs/archived/windows-native-publication-closeout-2026-11-05.md",
+        "docs/archived/windows-native-publication-closeout-2026-11-05.json",
         "docs/archived/windows-cache-gc-resource-fence-2026-11-05.md",
         "docs/archived/windows-cache-gc-resource-fence-2026-11-05.json",
         "docs/archived/windows-native-cleanup-followup-2026-10-29.md",

@@ -7,7 +7,7 @@ Canonical for: initiative status, execution order, and remaining work
 
 ## Current GitHub repair program
 
-The [complete open-issue intake](archived/open-issue-batches-2026-11-05.json) captures **367 open reports**. #1767 closed using original hosted POSIX evidence, followed by qualified dependency retirements #672/#681 and JSDoc ownership #668; 363 remain open. Thirteen editor/Tantivy-only issues are excluded, and four mixed issues retain their non-editor scope. Prior ledgers retain their dated counts.
+The [complete open-issue intake](archived/open-issue-batches-2026-11-05.json) captures **367 open reports**. #1767 closed using original hosted POSIX evidence, followed by qualified dependency retirements #672/#681 and JSDoc ownership #668; Producer-backed native cleanup #1574 is also closed; 362 remain open. Thirteen editor/Tantivy-only issues are excluded, and four mixed issues retain their non-editor scope. Prior ledgers retain their dated counts.
 
 P2/P3 has **337 qualified closures /two editor-remainder targets /one deferred native target /six editor exclusions** from346 reports. The broader remaining backlog is now in scope. Work continues solo on Windows: implement related owner repairs, then run affected controls.
 
@@ -36,16 +36,18 @@ remaining editor/platform acceptance stays excluded.
 [Crash-log closeout](archived/crash-log-posix-qualification-2026-10-29.md) closes
 #1315 with Windows and both POSIX cohorts. [GC resource fencing](archived/windows-cache-gc-resource-fence-2026-11-05.md)
 repairs modern-session deletion. [Custom native cleanup](archived/windows-native-publication-closeout-2026-11-05.md)
-passes164 focused controls and43 gate fixtures; #1574 awaits publication/closure,
+passes164 focused controls and43 gate fixtures; #1574 is closed after publication/readback,
 while broader lifecycle policy (#1267) remains.
 
 The [November 5 queue](archived/open-issue-batches-2026-11-05.json) routes every captured issue; routing alone is not completion evidence. Work proceeds in this order:
 
-1. Storage/publication lifetimes: #1574's actual SQLite/LMDB publication and eligible category cleanup are locally qualified, including cross-home readers, original native close and journal recovery. Publish/close that batch, then finish lifecycle/quota policy (#1267) and related semantic publication work.
+1. Storage/publication lifetimes: #1574's actual SQLite/LMDB publication and eligible category cleanup are locally qualified, including cross-home readers, original native close and journal recovery. That batch is published and closed; finish lifecycle/quota policy (#1267) and related semantic publication work.
 2. Dependency/parser cutovers: #672/#681's five-root retirement is qualified and closed. [JSDoc ownership](archived/javascript-documentation-closeout-2026-11-05.md) passes21 documentation cases, two declaration/replay controls and the import budget; #668 is closed after publication and GitHub readback. Remaining parser migrations require consumer parity rather than import-only checks.
 3. Setup/tool providers and native operator services: managed acquisition, real executable identity, prerequisite readiness, cancellation and original resource retirement. Fixture commands remain explicitly trusted; real vendor qualification stays distinct.
 4. Language/semantic consumers, retrieval and context evidence: review actual producers and semantic version owners, finish gaps together, then execute their bounded positive/negative fixtures. Historical implementation receipts are starting points, not current acceptance.
 5. Performance/evaluation and shared product architecture: preserve correctness and authority controls before serial measurements. Distinguish budgets, work bounds and measured latency; keep raw samples and unchanged thresholds.
+
+[Triage publication](archived/triage-publication-closeout-2026-11-05.md) passes21 coherence/source controls and43 gate fixtures;19 missing ordered CI memberships are restored. #821 awaits publication/closure. Source review confirms #1234 still needs binary digest propagation, #1240 needs larger measured retention work, and #1634 still stages before reuse.
 
 [Physical filename closeout](archived/coverage-physical-filenames-closeout-2026-11-05.json) closes #1767 with original Ubuntu/macOS physical-consumer logs and matching source blobs; no WSL or replacement platform run was used. Tantivy/editor exclusions remain open under their existing owners. No broad local rerun is scheduled; repair and recheck affected failures.
 

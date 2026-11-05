@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 1955,
+    "hero": 1974,
     "matrix": 109,
     "meta": 54,
     "soak": 1,
@@ -12727,6 +12727,120 @@
     {
       "id": "storage/native-publication-cleanup/lmdb-registered-coordinator-required",
       "order": 2119,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "integrations/triage/records-bundle-reuse-policy",
+      "order": 2120,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "integrations/triage/records-inventory-and-source-contract",
+      "order": 2121,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/triage/record-publication/atomic-generation",
+      "order": 2122,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/triage/record-publication/cancellation",
+      "order": 2123,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/triage/record-publication/cross-process",
+      "order": 2124,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/triage/record-publication/exact-reimport",
+      "order": 2125,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/triage/record-publication/failed-after-json",
+      "order": 2126,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/triage/record-publication/failed-before-commit",
+      "order": 2127,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/triage/record-publication/independent-ids",
+      "order": 2128,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/triage/record-publication/index-generation",
+      "order": 2129,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/triage/record-publication/input-capture",
+      "order": 2130,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/triage/record-publication/inventory-and-retained-source",
+      "order": 2131,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/triage/record-publication/pending-resource",
+      "order": 2132,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/triage/record-publication/pending-resource-value",
+      "order": 2133,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/triage/record-publication/receipt-negatives",
+      "order": 2134,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/triage/record-publication/same-id-interleave",
+      "order": 2135,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/triage/record-publication/tampered-stage",
+      "order": 2136,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/triage/record-publication/unknown-namespace",
+      "order": 2137,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/triage/records-service-embeddings-pending-artifacts",
+      "order": 2138,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }
