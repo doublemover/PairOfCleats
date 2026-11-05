@@ -5,6 +5,8 @@ import { getApplicationHome } from '../cache-roots.js';
 import { acquireStorageSession } from './session.js';
 import { readStorageLocator } from './locator-read.js';
 import { stableStringify } from '../stable-json.js';
+import { acquireConfiguredSharedSession } from './configured-native-coordination.js';
+import { addStorageFailureContext } from './operation-error.js';
 
 const modes = Object.freeze({ sqlite: { code: ['codeDbPath', 'index-code.db'], prose: ['proseDbPath', 'index-prose.db'],
   'extracted-prose': ['extractedProseDbPath', 'index-extracted-prose.db'], records: ['recordsDbPath', 'index-records.db'] },
@@ -43,6 +45,17 @@ export const resolveConfiguredNativeStorageSelection = (target, context) => {
   return null;
 };
 
+export const listConfiguredNativeStorageSelections = context => {
+  const definitions = modes[context.nativeBackend], config = context.userConfig[context.nativeBackend];
+  if (!definitions || !config || typeof config !== 'object' || Array.isArray(config)) return [];
+  const directory = configuredPath(context.repoRoot, config.dbDir);
+  return Object.entries(definitions).flatMap(([mode, [key, basename]]) => {
+    const target = configuredPath(context.repoRoot, config[key]) || (directory ? path.join(directory, basename) : null);
+    const selection = target && resolveConfiguredNativeStorageSelection(target, { ...context, nativeMode: mode });
+    return selection ? [selection] : [];
+  });
+};
+
 export const configuredNativeStorageConfigurationKey = (backend, userConfig) => {
   if (typeof backend !== 'string' || !Object.hasOwn(modes, backend)) return null;
   const config = userConfig[backend];
@@ -50,7 +63,7 @@ export const configuredNativeStorageConfigurationKey = (backend, userConfig) => 
     .map(key => [key, typeof config?.[key] === 'string' ? config[key] : null]));
 };
 
-export const acquireConfiguredNativeStorageSession = (target, context, { scope = null } = {}) => {
+export const acquireConfiguredNativeStorageSession = (target, context, { scope = null, writable = false } = {}) => {
   const selection = resolveConfiguredNativeStorageSelection(target, context);
   if (!selection) return null;
   const launchEnv = { ...(context.env || process.env) };
@@ -63,9 +76,18 @@ export const acquireConfiguredNativeStorageSession = (target, context, { scope =
   const before = locate(), selectedFingerprint = fingerprint(selection);
   const roots = selection.backend === 'sqlite' ? [selection.target, `${selection.target}-wal`, `${selection.target}-shm`, `${selection.target}-journal`]
     : [selection.target];
-  const session = acquireStorageSession({ roots, authorizedRoots: [selection.namespace, state],
-    coordinationRoot: path.join(state, 'storage-access'), scope: scope || `configured-${selection.backend}-reader` });
-  return { session, selection, revalidate: () => {
+  const shared = acquireConfiguredSharedSession(selection, { home, writable });
+  let session;
+  try { session = acquireStorageSession({ roots, authorizedRoots: [selection.namespace, state],
+    coordinationRoot: path.join(state, 'storage-access'), scope: scope || `configured-${selection.backend}-reader` }); }
+  catch (error) {
+    if (shared) {
+      try { shared.releaseAfterSettlement({ resourceId: shared.resourceId, settled: true, pending: false }); }
+      catch (cleanup) { throw addStorageFailureContext(error, {}, cleanup, { secondaryPresent: true }); }
+    }
+    throw error;
+  }
+  return { session, sessions: shared ? [session, shared] : [session], selection, revalidate: () => {
     const current = locate(), selected = resolveConfiguredNativeStorageSelection(target, context);
     if (!selected || fingerprint(selected) !== selectedFingerprint || current.status !== before.status || current.sha256 !== before.sha256) throw selectionFailure();
   } };

@@ -2,6 +2,7 @@
 import { runNativeDatabaseCommand } from '../shared/native-database-lifetime.js';
 import { addStorageFailureContext } from '../../src/shared/storage/operation-error.js';
 import { getSqliteStorageOperation } from '../../src/storage/sqlite/build/storage-operation.js';
+import { prepareExistingConfiguredNativePublication, commitConfiguredNativePublication } from '../../src/shared/storage/native-publication-producer.js';
 import { rebuildSqliteFilterFacts } from '../../src/storage/sqlite/filter-facts.js';
 import { SQLITE_COMPACT_OPTIONS } from '../shared/operator-cli-options.js';
 import { assertSqliteIndexFormat } from '../../src/storage/sqlite/index-format.js';
@@ -660,7 +661,10 @@ if (isDirectRun) {
       let completed = 0;
       for (const target of targets) {
         modeTask.set(completed, targets.length, { message: `compacting ${target.mode}` });
-        await compactDatabase({
+        const nativePublication = !argv['dry-run'] && !argv['keep-backup'] && fs.existsSync(target.path)
+          ? await prepareExistingConfiguredNativePublication({ backend: 'sqlite', mode: target.mode,
+            target: target.path, repoRoot: root, userConfig }) : null;
+        const result = await compactDatabase({
           dbPath: target.path,
           repoRoot: root,
           mode: target.mode,
@@ -670,6 +674,7 @@ if (isDirectRun) {
           indexDir: getIndexDir(root, target.mode, userConfig, { indexRoot }),
           logger
         }, resources);
+        if (!result.skipped) await commitConfiguredNativePublication(nativePublication);
         completed += 1;
         modeTask.set(completed, targets.length, { message: `compacted ${target.mode}` });
       }

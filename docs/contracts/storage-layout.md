@@ -11,8 +11,10 @@ session admission as index writers. Repository, resource and category leases
 precede native access and outlive request leases while a cached handle remains
 open. The original physical close precedes metadata release; explicit metadata
 recovery cannot repeat native close. Cached reuse is bounded by native resource
-and launch namespace. Custom/external backend roots still require registration
-and category-specific publication/deletion owners; no path grants deletion.
+and launch namespace. Configured custom SQLite/LMDB stores use the
+[producer publication and category owner](configured-native-publication.md),
+including a shared store-local coordinator across application homes. Unknown
+external stores remain protected; no path grants deletion.
 
 Canonical LMDB build and SQLite compaction commands also admit that session from
 the effective repository configuration before native access. Their registry

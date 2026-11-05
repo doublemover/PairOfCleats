@@ -9,7 +9,7 @@ import { observeStorageResource } from '../../src/shared/storage/failure-observa
 import { readStorageFailureContext } from '../../src/shared/storage/operation-error.js';
 import { acquireConfiguredNativeStorageSession, configuredNativeStorageConfigurationKey } from '../../src/shared/storage/configured-native-storage.js';
 
-const commands = new Set(['sqlite.compact', 'lmdb.build']);
+const commands = new Set(['sqlite.compact', 'lmdb.build', 'sqlite.cleanup.inspect', 'lmdb.cleanup.inspect']);
 const pendingOwners = new Set();
 export const getPendingNativeDatabaseOwners = () => Object.freeze([...pendingOwners]);
 const objectLike = value => value !== null && (typeof value === 'object' || typeof value === 'function');
@@ -20,6 +20,8 @@ const objectLike = value => value !== null && (typeof value === 'object' || type
  */
 export const runNativeDatabaseCommand = async ({ commandIdentity, delegated = false }, operation) => {
   if (!commands.has(commandIdentity) || typeof operation !== 'function') throw new TypeError('Unknown native database command.');
+  if (delegated && commandIdentity.endsWith('.cleanup.inspect')) throw new TypeError('Cleanup inspection belongs to its existing exclusion owner.');
+  const lmdb = commandIdentity.startsWith('lmdb.');
   const owner = delegated ? getDelegatedRepoCacheOwner() : null;
   if (owner) assertDelegatedNativeCommandIdentity(owner, commandIdentity);
   let scopeAdmitted = !owner;
@@ -139,14 +141,14 @@ export const runNativeDatabaseCommand = async ({ commandIdentity, delegated = fa
             });
           storageAdmissions.push({ session: admission.session, released: false, category: true, revalidate: admission.revalidate });
           admission.revalidate();
-          const backend = commandIdentity === 'lmdb.build' ? 'lmdb' : 'sqlite';
+          const backend = lmdb ? 'lmdb' : 'sqlite';
           const configurationKey = configuredNativeStorageConfigurationKey(backend, scope.userConfig);
           const configuredContext = { repoRoot: scope.repoRoot, userConfig: scope.userConfig, env: scope.env, nativeBackend: backend };
           for (const target of [...new Set(scope.targets)]) {
             if (isPathWithinRoot(target, scope.repoCacheRoot)) continue;
-            const configured = acquireConfiguredNativeStorageSession(target, configuredContext, { scope: `${commandIdentity}-configured-namespace` });
+            const configured = acquireConfiguredNativeStorageSession(target, configuredContext, { scope: `${commandIdentity}-configured-namespace`, writable: true });
             if (!configured) continue;
-            storageAdmissions.push({ session: configured.session, released: false, category: false, revalidate: configured.revalidate });
+            for (const session of configured.sessions) storageAdmissions.push({ session, released: false, category: false, revalidate: configured.revalidate });
             configured.revalidate();
           }
           const revalidate = () => {
@@ -177,7 +179,7 @@ export const runNativeDatabaseCommand = async ({ commandIdentity, delegated = fa
       try {
         originalClose = handle.close;
         if (typeof originalClose !== 'function') throw new TypeError('An owned native database close method is required.');
-        if (commandIdentity === 'lmdb.build') lmdbCloseOwner = createLmdbCloseOwner(handle, originalClose);
+        if (lmdb) lmdbCloseOwner = createLmdbCloseOwner(handle, originalClose);
       } catch (error) { captureFailed = true; captureError = error; observe(error); }
       const close = () => {
         if (state.promise) return state.promise;
@@ -190,7 +192,7 @@ export const runNativeDatabaseCommand = async ({ commandIdentity, delegated = fa
           }
           if (captureFailed) throw captureError;
           state.closeStarted = true;
-          const closed = commandIdentity === 'lmdb.build'
+          const closed = lmdb
             ? await lmdbCloseOwner.close()
             : await originalClose.call(handle);
           if (closed === false) throw new Error('Native database close was explicitly unconfirmed.');

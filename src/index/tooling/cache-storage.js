@@ -68,9 +68,11 @@ export const writeToolingCacheJsonSync = (target, payload, options = {}) => {
 /** Recheck ownership's descriptor identity and containment immediately before unlink. */
 export const removeToolingCacheEntry = (target, expectedStat) => {
   const resolved = assertToolingCachePath(target);
-  const stat = fs.lstatSync(resolved);
-  if (!stat.isFile() || stat.nlink !== 1
-    || ['dev', 'ino', 'size', 'mtimeMs'].some((key) => stat[key] !== expectedStat[key])) return false;
+  const precise = typeof expectedStat?.ino === 'bigint';
+  const stat = fs.lstatSync(resolved, precise ? { bigint: true } : undefined);
+  const keys = precise ? ['dev', 'ino', 'size', 'mtimeNs', 'ctimeNs', 'mode'] : ['dev', 'ino', 'size', 'mtimeMs'];
+  if (!stat.isFile() || stat.nlink !== (precise ? 1n : 1)
+    || keys.some((key) => stat[key] !== expectedStat[key])) return false;
   fs.unlinkSync(resolved);
   return true;
 };

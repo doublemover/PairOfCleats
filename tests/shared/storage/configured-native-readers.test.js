@@ -6,6 +6,7 @@ import { resolveConfiguredNativeStorageSelection } from '../../../src/shared/sto
 import { inspectStorageAccess, withExclusiveStorageAccess } from '../../../src/shared/storage/access.js';
 import { getCacheRoot } from '../../../src/shared/cache-roots.js';
 import { getRepoId } from '../../../src/shared/repo-paths.js';
+import { nativePublicationRegistryPaths } from '../../../src/shared/storage/native-publication-paths.js';
 
 // Original storage protocol/metadata and inert native lifetime;
 // no arbitrary symlinks, copied executables, GUI or native backend invocation.
@@ -92,7 +93,18 @@ try {
     assert.equal((await inspectStorageAccess(protectedNamespace, { coordinationRoot })).protected, false);
     assert.equal(getPendingNativeStorageReaders().includes(owner), false);
   }
-  assert.deepEqual(await fs.readdir(namespace), [], 'reader metadata never creates native files or changes user-selected contents');
+  const configured = !['unregistered', 'canonical-launch'].includes(selected);
+  assert.deepEqual(await fs.readdir(namespace), configured ? ['.poc-native-storage'] : [],
+    'coordination adds only its named sibling metadata; no native target or sidecar is created');
+  if (configured) {
+    const paths = nativePublicationRegistryPaths(target, { home });
+    await assert.rejects(fs.stat(target), { code: 'ENOENT' });
+    await assert.rejects(fs.stat(paths.record), { code: 'ENOENT' }, 'reader admission cannot publish deletion authority');
+    assert.equal((await inspectStorageAccess(target, { coordinationRoot: paths.access })).protected, false);
+    const guard = JSON.parse(await fs.readFile(paths.homeGuard, 'utf8'));
+    assert.deepEqual(Object.keys(guard).sort(), ['homeDigest', 'kind', 'schemaVersion']);
+    assert.equal(guard.kind, 'native-publication-home');
+  }
 } finally {
   nativeClosed = true;
   for (const owner of owners) owner.releaseAfterClosure();

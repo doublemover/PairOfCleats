@@ -14,6 +14,15 @@ retains YAML deadline negatives and places23 compiler/build cases under the
 existing serial30-second owner, with original15-second build CLI limits.
 Current hosted qualification is reported on [PR572](https://github.com/doublemover/PairOfCleats/pull/572).
 
+
+[Configured native cleanup](../archived/windows-native-publication-closeout-2026-11-05.md)
+qualifies164 distinct focused Windows controls, including57 new producer/publication
+cases, the unchanged import budget and43 gate fixtures. Real SQLite/LMDB CLI/MCP
+cleanup retains cross-home readers, saved/current/source evidence and independent
+close-time retention; exact member journals recover interrupted deletion. The
+original CI2165 macOS deadline failures move to the existing serial contract owner
+without relaxed deadlines. Changed-head hosted acceptance remains pending.
+
 [SQLite closeout](../archived/windows-sqlite-final-qualification-2026-11-04.md)
 passes all324 fresh serial children at clean1d53c5262: five row-shape cohorts
 retain30 paired trials,60 arms and132 samples; six above-threshold artifact

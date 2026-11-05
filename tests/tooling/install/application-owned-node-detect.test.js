@@ -46,7 +46,7 @@ await withTemporaryEnv({ PAIROFCLEATS_TRUSTED_REPOS: '[]', PATH: nodeDirectory, 
   const staleMarker = path.join(dir, 'stale-provider-executed');
   await makeProvider(stale.detect.binDirs.find(bin => bin !== applicationBin), staleMarker);
   const staleResult = detectTool(stale);
-  assert.equal(staleResult.found, true);
+  assert.equal(staleResult.found, true, JSON.stringify(staleResult.probe));
   assert.equal(await fs.realpath(staleResult.path), await fs.realpath(expected));
   await assert.rejects(fs.access(staleMarker), { code: 'ENOENT' }, 'an old cache cannot shadow the selected bundled dependency');
 

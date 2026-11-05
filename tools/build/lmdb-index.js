@@ -28,6 +28,7 @@ import { createIndexBuildToolCli } from './index-tool-cli.js';
 import { Packr } from 'msgpackr';
 import { addStorageFailureContext } from '../../src/shared/storage/operation-error.js';
 import { observeStorageResource } from '../../src/shared/storage/failure-observation.js';
+import { prepareConfiguredNativePublication, commitConfiguredNativePublication } from '../../src/shared/storage/native-publication-producer.js';
 
 const require = createRequire(import.meta.url);
 let open = null;
@@ -346,6 +347,8 @@ await runNativeDatabaseCommand({ commandIdentity: 'lmdb.build', delegated: true 
       const readMs = Date.now() - readStart;
       // A rejected selected source must not invalidate an otherwise ready old
       // store or create its replacement target before source admission settles.
+      const nativePublication = await prepareConfiguredNativePublication({ backend: 'lmdb', mode,
+        target: targetPath, indexDir, repoRoot: root, userConfig });
       await fs.mkdir(targetPath, { recursive: true });
       const pendingState = await updateLmdbState(indexDir, {
         enabled: true,
@@ -372,6 +375,7 @@ await runNativeDatabaseCommand({ commandIdentity: 'lmdb.build', delegated: true 
       const finalDb = resources.open(() => open({ path: targetPath, readOnly: false, mapSize: mapSizeBytes }));
       await resources.use(finalDb, () => storeValue(finalDb, LMDB_ARTIFACT_KEYS.indexState, publication.state));
       await publication.commit();
+      await commitConfiguredNativePublication(nativePublication);
 
       const totalMs = Date.now() - buildStart;
       const metrics = {

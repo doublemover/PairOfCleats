@@ -35,11 +35,13 @@ remaining editor/platform acceptance stays excluded.
 
 [Crash-log closeout](archived/crash-log-posix-qualification-2026-10-29.md) closes
 #1315 with Windows and both POSIX cohorts. [GC resource fencing](archived/windows-cache-gc-resource-fence-2026-11-05.md)
-repairs modern-session deletion; lifecycle policy (#1267) and custom-store cleanup (#1574) remain.
+repairs modern-session deletion. [Custom native cleanup](archived/windows-native-publication-closeout-2026-11-05.md)
+passes164 focused controls and43 gate fixtures; #1574 awaits publication/closure,
+while broader lifecycle policy (#1267) remains.
 
 The [November 5 queue](archived/open-issue-batches-2026-11-05.json) routes every captured issue; routing alone is not completion evidence. Work proceeds in this order:
 
-1. Storage/publication lifetimes: finish P1 #1574's producer-backed custom-store registration and eligible cleanup, retaining unknown/current/saved stores; then coordinate lifecycle/quota policy (#1267). The GC reader bypass is repaired.
+1. Storage/publication lifetimes: #1574's actual SQLite/LMDB publication and eligible category cleanup are locally qualified, including cross-home readers, original native close and journal recovery. Publish/close that batch, then finish lifecycle/quota policy (#1267) and related semantic publication work.
 2. Dependency/parser cutovers: #672/#681's five-root retirement is qualified and closed. [JSDoc ownership](archived/javascript-documentation-closeout-2026-11-05.md) passes21 documentation cases, two declaration/replay controls and the import budget; #668 is closed after publication and GitHub readback. Remaining parser migrations require consumer parity rather than import-only checks.
 3. Setup/tool providers and native operator services: managed acquisition, real executable identity, prerequisite readiness, cancellation and original resource retirement. Fixture commands remain explicitly trusted; real vendor qualification stays distinct.
 4. Language/semantic consumers, retrieval and context evidence: review actual producers and semantic version owners, finish gaps together, then execute their bounded positive/negative fixtures. Historical implementation receipts are starting points, not current acceptance.

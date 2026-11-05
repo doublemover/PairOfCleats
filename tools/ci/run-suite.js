@@ -33,11 +33,15 @@ const SERIAL_RUNTIME_BUDGET_IDS = ['tooling/reports/summary/report', 'perf/parse
   'smoke/baseline-negative/incomplete', 'smoke/baseline-negative/legacy'];
 const SERIAL_ANN_GENERATION_IDS = ['retrieval/ann/generation-publication',
   'retrieval/ann/generation-rebuild-failure', 'retrieval/ann/generation-lmdb'];
-const SERIAL_NATIVE_LIFECYCLE_IDS = ['storage/sqlite/build/cancellation'];
+const nativePublicationCases = JSON.parse(await fsPromises.readFile(
+  path.join(ROOT, 'tests/storage/native-publication-cleanup.test.js.cases.json'), 'utf8'));
+const SERIAL_NATIVE_LIFECYCLE_IDS = ['storage/sqlite/build/cancellation',
+  ...nativePublicationCases.cases.map(id => `storage/native-publication-cleanup/${id}`)];
 // These correctness fixtures use whole-case and CLI deadlines.
 // Qualify cold compiler and full build work serially before the parallel correctness lane;
 // they are not latency samples and do not belong to the measured budget report.
 const SERIAL_CLI_CONTRACT_IDS = [
+  'tooling/install/application-owned-node-detect', 'retrieval/parity/partial-ranks-report',
   ...['js-report', 'ts-report', 'js-fail', 'ts-fail',
     'js-default-anonymous', 'js-default-arrow', 'js-default-class',
     'ts-default-anonymous', 'ts-default-arrow', 'ts-default-class']

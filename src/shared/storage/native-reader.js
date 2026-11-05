@@ -68,6 +68,7 @@ export const acquireNativeReaderStorage = (target, storageContext, nativeSettled
     ? acquireRepoStorageSession(repoCacheRoot, storageContext, { scope: 'native-index-reader', resourceRoots: [target] })
     : acquireConfiguredNativeStorageSession(target, storageContext);
   if (!admission) return null;
+  const sessions = admission.sessions || [admission.session], retired = new Set();
   const observations = new Map(), failures = [], described = new WeakSet();
   let started = false, attempted = false, released = false, overflow = false, owner;
   const captureObservation = (value, phase) => observeStorageResource(
@@ -86,7 +87,7 @@ export const acquireNativeReaderStorage = (target, storageContext, nativeSettled
       if (failures.length === 128) overflow = true;
       else {
         failures.push(error);
-        if (!isStorageSessionReleaseFailure(error, admission.session)) {
+        if (!sessions.some(session => isStorageSessionReleaseFailure(error, session))) {
           observations.set(error, captureObservation(error, 'native-reader-storage'));
         }
       }
@@ -123,7 +124,17 @@ export const acquireNativeReaderStorage = (target, storageContext, nativeSettled
         for (const observation of observations.values()) observation.requireSettled();
         if (overflow || !resourceClosed()) throw Object.assign(new Error('Original native reader closure remains unconfirmed.'),
           { code: 'ERR_NATIVE_STORAGE_PENDING', cacheOwnershipPending: true, cacheOwnershipReleased: () => resourceClosed() });
-        admission.session.releaseAfterSettlement({ resourceId: admission.session.resourceId, settled: true, pending: false });
+        const errors = [];
+        for (const session of sessions) if (!retired.has(session)) {
+          try {
+            if (session.releaseAfterSettlement({ resourceId: session.resourceId, settled: true, pending: false }) !== true) {
+              throw new Error('Original native reader metadata closure remains unconfirmed.');
+            }
+            retired.add(session);
+          }
+          catch (error) { retain(error); errors.push(error); }
+        }
+        if (errors.length) throw errors[0];
         released = true; pending.delete(owner); return true;
       } catch (error) { throw retain(error); }
     }

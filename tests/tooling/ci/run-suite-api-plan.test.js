@@ -7,6 +7,9 @@ import { runNode } from '../../helpers/run-node.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 
 const root = process.cwd(), env = applyTestEnv({ syncProcess: false });
+const providerAndParityIds = ['tooling/install/application-owned-node-detect', 'retrieval/parity/partial-ranks-report'];
+const publicationIds = JSON.parse(fs.readFileSync(path.join(root, 'tests/storage/native-publication-cleanup.test.js.cases.json'), 'utf8')).cases
+  .map(id => `storage/native-publication-cleanup/${id}`);
 const workflow = parse(fs.readFileSync('.github/workflows/ci.yml', 'utf8'));
 for (const platform of ['ubuntu', 'windows', 'macos']) {
   const upload = workflow.jobs[platform].steps.find(step => step.uses?.startsWith('actions/upload-artifact@')
@@ -62,8 +65,8 @@ for (const mode of ['ci', 'nightly']) {
           .map(id => `tooling/api-contracts/${family}/${id}`)).sort();
       const outcomeIds = JSON.parse(fs.readFileSync(path.join(root, 'tests/indexing/runtime/build-cli-selected-outcome.test.js.cases.json'), 'utf8')).cases
         .map(id => `indexing/runtime/build-cli-selected-outcome/${id}`);
-      assert.deepEqual(selected.sort(), line === compiler ? [...compilerIds, ...outcomeIds].sort()
-        : line === native ? ['storage/sqlite/build/cancellation']
+      assert.deepEqual(selected.sort(), line === compiler ? [...compilerIds, ...outcomeIds, ...providerAndParityIds].sort()
+        : line === native ? ['storage/sqlite/build/cancellation', ...publicationIds].sort()
           : line === ann ? ['retrieval/ann/generation-lmdb',
             'retrieval/ann/generation-publication', 'retrieval/ann/generation-rebuild-failure']
             : ['indexing/semantic/compiler-single-cpu-lifecycle',
@@ -87,7 +90,7 @@ for (const mode of ['ci', 'nightly']) {
       if (line === compiler) {
         const orderedCompiler = JSON.parse(fs.readFileSync(path.join(root, 'tests/ci-lite/ci-lite.manifest.json'), 'utf8')).tests
           .map(test => test.id).filter(id => compilerFamilies.some(family =>
-            id.startsWith(`tooling/api-contracts/${family}/`)) || outcomeIds.includes(id)).sort();
+            id.startsWith(`tooling/api-contracts/${family}/`)) || outcomeIds.includes(id) || providerAndParityIds.includes(id)).sort();
         assert.deepEqual(selected, orderedCompiler, 'every original ordered case retains its serial execution owner');
       }
     }

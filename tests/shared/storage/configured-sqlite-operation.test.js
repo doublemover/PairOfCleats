@@ -5,6 +5,7 @@ import path from 'node:path';
 import { withSqliteStorageOperation } from '../../../src/storage/sqlite/build/storage-operation.js';
 import { inspectStorageAccess, withExclusiveStorageAccess } from '../../../src/shared/storage/access.js';
 import { repoAccessPaths } from '../../../src/shared/cache/repo-access.js';
+import { nativePublicationRegistryPaths } from '../../../src/shared/storage/native-publication-paths.js';
 
 // Real original lease/session/operation owners; no native writer or
 // recursive removal of user-selected stores. Actual dispatch is separate.
@@ -104,7 +105,14 @@ try {
     });
   }
   await protectedAt(namespace, false);
-  assert.deepEqual(await fsp.readdir(namespace), [], 'coordination cannot create or remove native output files');
+  assert.deepEqual(await fsp.readdir(namespace), selected === 'unregistered' ? [] : ['.poc-native-storage'],
+    'coordination adds only its named sibling metadata; no native output or staging file is created');
+  if (selected !== 'unregistered') {
+    const paths = nativePublicationRegistryPaths(target, { home });
+    await assert.rejects(fsp.stat(target), { code: 'ENOENT' });
+    await assert.rejects(fsp.stat(paths.record), { code: 'ENOENT' }, 'scope admission alone cannot publish deletion authority');
+    assert.equal((await inspectStorageAccess(target, { coordinationRoot: paths.access })).protected, false);
+  }
 } finally {
   denyMetadata = false; fs.rmSync = originalRm;
   if (recovery && !recovery.isSettled()) await recovery.recoverStorageMetadata();

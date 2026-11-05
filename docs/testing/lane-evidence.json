@@ -1,17 +1,17 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-11-05T19:40:59.880Z",
+  "generatedAt": "2026-11-05T21:12:56.970Z",
   "summary": {
     "lanes": 5,
-    "tests": 2378,
+    "tests": 2435,
     "exactDuplicates": 0,
     "hotspotKinds": 10,
-    "families": 422,
+    "families": 423,
     "topSlowest": 10,
     "timingCoverage": {
       "freshArtifactTests": 0,
       "historicalFallbackTests": 74,
-      "missingTests": 2304
+      "missingTests": 2361
     }
   },
   "lanes": [
@@ -35,7 +35,7 @@
       "targetMaxDurationSeconds": 15,
       "orderFile": "tests/ci-lite/ci-lite.order.txt",
       "timingArtifactPath": ".testLogs/ci-lite-testRunTimes.txt",
-      "totalTests": 2062,
+      "totalTests": 2119,
       "knownDurationTests": 49,
       "knownDurationMs": 27090,
       "p50DurationMs": 190,
@@ -43,7 +43,7 @@
       "resolvedTimingArtifactPaths": [],
       "timingSources": {
         "historical-test-times": 49,
-        "missing": 2013
+        "missing": 2070
       }
     },
     {
@@ -314,6 +314,12 @@
     },
     {
       "key": "indexing/tree-sitter",
+      "count": 57,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 57
+    },
+    {
+      "key": "storage/native-publication-cleanup",
       "count": 57,
       "knownDurationMs": 0,
       "unknownDurationCount": 57

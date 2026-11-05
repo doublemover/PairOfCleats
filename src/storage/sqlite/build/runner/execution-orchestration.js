@@ -49,6 +49,7 @@ import { createModeReporter } from './reporting-state-transitions.js';
 import { resolveModeSelectionPlan } from './selection-planning.js';
 import { withSqliteStorageOperation, getSqliteStorageOperation } from '../storage-operation.js';
 import { cleanupFailedSqliteStaging, readSqliteOutputBytes } from './output-files.js';
+import { prepareConfiguredNativePublication, commitConfiguredNativePublication } from '../../../../shared/storage/native-publication-producer.js';
 
 /**
  * Execute sqlite build orchestration for all selected modes.
@@ -161,7 +162,7 @@ const executeSqliteModeBuildsOwned = async ({
       emitOutput,
       logger: { log, error }
     });
-    let tempOutputPath = null;
+    let tempOutputPath = null, nativePublication = null;
     let modeFailure, modeFailed = false;
     try {
       throwIfAborted(signal);
@@ -172,6 +173,10 @@ const executeSqliteModeBuildsOwned = async ({
       throwIfAborted(signal);
 
       const modeIsZeroState = Boolean(stateRoot) && modeChunkCountHint === 0 && modeDenseCountHint === 0;
+      if (stateRoot && (outputExists || !modeIsZeroState)) {
+        nativePublication = await prepareConfiguredNativePublication({ backend: 'sqlite', mode, target: outputPath,
+          indexDir: modeIndexDir, repoRoot: root, userConfig });
+      }
       if (modeIsZeroState) {
         const existingRows = outputExists
           ? readSqliteModeCount({
@@ -196,6 +201,7 @@ const executeSqliteModeBuildsOwned = async ({
             denseCount: modeDenseCountHint,
             zeroStateManifestPath
           });
+          await commitConfiguredNativePublication(nativePublication);
           done += 1;
           buildModeTask.set(done, modeList.length, { message: `${mode} skipped` });
           continue;
@@ -481,6 +487,7 @@ const executeSqliteModeBuildsOwned = async ({
             durationMs,
             sqliteStats
           });
+          await commitConfiguredNativePublication(nativePublication);
           done += 1;
           buildModeTask.set(done, modeList.length, { message: `${mode} done` });
           continue;
@@ -703,6 +710,7 @@ const executeSqliteModeBuildsOwned = async ({
           profile: bundleWorkerProfile
         });
       }
+      await commitConfiguredNativePublication(nativePublication);
       done += 1;
       buildModeTask.set(done, modeList.length, { message: `${mode} done` });
     } catch (err) {

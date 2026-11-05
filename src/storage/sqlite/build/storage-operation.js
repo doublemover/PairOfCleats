@@ -171,8 +171,8 @@ const runSqliteStorageOperation = async ({ targets, action, env, repoRoot, userC
           const external = resolveConfiguredNativeStorageSelection(absolute, configuredContext);
           if (!external) continue;
           if (configuredAdmissions.size === 4) throw new Error('SQLite configured namespace admission budget exceeded.');
-          const configured = acquireConfiguredNativeStorageSession(absolute, configuredContext, { scope: 'sqlite-build-configured-namespace' });
-          sessions.push({ session: configured.session, released: false });
+          const configured = acquireConfiguredNativeStorageSession(absolute, configuredContext, { scope: 'sqlite-build-configured-namespace', writable: true });
+          for (const session of configured.sessions) sessions.push({ session, released: false });
           configuredAdmissions.set(key, configured);
         }
         const namespaces = [...configuredAdmissions.values()].map(entry => entry.selection.namespace);
