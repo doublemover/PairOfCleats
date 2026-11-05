@@ -82,6 +82,14 @@ qualifies the original RSS thresholds using a page-backed transient in another
 fresh child. It adds no dependency, warning suppression or deadline change;
 replacement hosted acceptance remains pending.
 
+[Settings dispatch](../archived/ci-lite-settings-dispatch-repair-2026-11-05.md)
+retains a later40/41 Windows authority result atdcdbec347: the config child
+produces no output before its10-second limit. Real process tracing proves a
+redundant general-CLI dispatch hop. A private guarded worker keeps the canonical
+dump owner, environment, signals, byte caps and all authority checks with one
+command entry. Seven portable settings/config controls pass; capable hosted
+authority and remaining OS qualification are pending.
+
 The following dated receipts retain their original candidate identities and
 limits; their earlier pending counts are historical.
 

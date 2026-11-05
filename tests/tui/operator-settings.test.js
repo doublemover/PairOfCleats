@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { createTuiSettingsSession } from '../../tools/tui/operator/settings.js';
 import { prepareIsolatedTestCacheDir } from '../helpers/test-cache.js';
 import { applyTestEnv } from '../helpers/test-env.js';
@@ -25,11 +26,19 @@ const source = `{
 }\n`;
 await fs.writeFile(fileA, source);
 await fs.writeFile(path.join(repoB, '.pairofcleats.json'), '{"threads":1}\n');
+const processWitness = path.join(dir, 'config-processes.jsonl');
+const preload = path.join(dir, 'config-process-witness.mjs');
+await fs.writeFile(preload, `import fs from 'node:fs';
+fs.appendFileSync(${JSON.stringify(processWitness)}, JSON.stringify({ script: process.argv[1] || '' }) + '\\n');\n`);
 const env = applyTestEnv({ cacheRoot: path.join(dir, 'cache'), embeddings: 'off',
-  syncProcess: false, extraEnv: { PAIROFCLEATS_TRUSTED_REPOS: '[]' } });
+  syncProcess: false, extraEnv: { PAIROFCLEATS_TRUSTED_REPOS: '[]',
+    NODE_OPTIONS: [process.env.NODE_OPTIONS || '', `--import=${pathToFileURL(preload).href}`].filter(Boolean).join(' ') } });
 const session = createTuiSettingsSession({ toolRoot: root, env });
 const selected = await session.selectScope({ kind: 'repo', target: repoA });
 const inspected = await session.inspectConfig({ scopeId: selected.id });
+const invoked = (await fs.readFile(processWitness, 'utf8')).trim().split(/\r?\n/).map(line => JSON.parse(line).script.replaceAll('\\', '/'));
+const configCommands = invoked.filter(script => /\/(?:bin\/pairofcleats|tools\/config\/dump|tools\/tui\/operator\/config-worker)\.js$/.test(script));
+assert.equal(configCommands.length, 1, 'one inspection must run one guarded canonical command, without another CLI dispatcher');
 assert.equal(inspected.validation.ok, true, JSON.stringify(inspected.validation));
 assert.deepEqual(inspected.diagnostics, []);
 assert.ok(inspected.fields.length > 300, 'the catalog comes from the complete canonical schema');

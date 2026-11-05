@@ -211,8 +211,8 @@ export const createTuiSettingsSession = ({ toolRoot, schemaPath = path.join(tool
     let effective = null;
     let diagnostics = [];
     if (validation.ok) {
-      const child = await spawnSubprocess(process.execPath, [path.join(toolRoot, 'bin/pairofcleats.js'),
-        'config', 'dump', '--repo', selected.configRoot, '--json'], {
+      const child = await spawnSubprocess(process.execPath, [path.join(toolRoot, 'tools/tui/operator/config-worker.js'),
+        '--repo', selected.configRoot, '--json'], {
         cwd: selected.configRoot, env, signal, timeoutMs: 10000,
         stdio: ['ignore', 'pipe', 'pipe'], maxOutputBytes: MAX_CONFIG_BYTES, rejectOnNonZeroExit: true
       });

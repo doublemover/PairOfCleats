@@ -23,7 +23,7 @@ and [qualification matrix](testing/qualification-matrix.md).
 and [focused repairs](archived/windows-comment-and-handoff-failure-repairs-2026-10-28.md)
 retain original failures and source identities. No new full-suite run is scheduled.
 
-[CI repair](archived/ci-lite-memory-owner-repair-2026-11-05.md) retains all30 compiler/API passes and Ubuntu success at7fc3ba3f6. At31173fe6f, macOS passes all six SQLite pairs and31/32 serial controls: Buffer disposal is proven while RSS remains resident. Separate Buffer-disposal and page-backed RSS controls retain original bounds. Windows scheduler ownership is repaired; hosted acceptance remains pending.
+[CI repair](archived/ci-lite-settings-dispatch-repair-2026-11-05.md) retains the inventory/compiler, scheduler-close, SQLite capsule and memory-owner repairs. A later Windows authority run exposes a silent settings-child timeout. One guarded canonical dump worker removes its proven redundant dispatch hop while retaining10-second child/30-second case limits. Seven portable controls pass; hosted authority and OS acceptance remain pending.
 [Stable upgrades](archived/windows-stable-upgrades-2026-10-29.md)
 and Rust 1.99.1 are locally qualified; remaining P1 acceptances follow.
 

@@ -30,6 +30,7 @@ entries.push('tools/analysis/graph-evidence.js');
 // linking even its lightweight repository helpers.
 entries.push('tools/ci/run-suite.js');
 entries.push('tools/build/embeddings.js');
+entries.push('tools/tui/operator/config-worker.js');
 for (const directory of ['tools/bench/index', 'tools/bench/sqlite']) {
   for (const name of fs.readdirSync(path.join(sourceRoot, directory)).sort()) {
     if (!name.endsWith('.js')) continue;
