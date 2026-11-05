@@ -53,10 +53,11 @@ for (const mode of ['ci', 'nightly']) {
         assert.ok(selected.includes(id), `${mode}: ${id} must actually resolve`);
       }
     } else {
-      const compilerIds = ['js-report', 'ts-report', 'js-fail', 'ts-fail',
-        'js-default-anonymous', 'js-default-arrow', 'js-default-class',
-        'ts-default-anonymous', 'ts-default-arrow', 'ts-default-class']
-        .map(id => `tooling/api-contracts/export-identity-cli/${id}`).sort();
+      const compilerFamilies = ['export-identity-cli', 'zero-warning-cap-cli',
+        'typescript-parameter-cli', 'qualified-target-joins-cli'];
+      const compilerIds = compilerFamilies.flatMap(family =>
+        JSON.parse(fs.readFileSync(path.join(root, `tests/tooling/api-contracts/${family}.test.js.cases.json`), 'utf8')).cases
+          .map(id => `tooling/api-contracts/${family}/${id}`)).sort();
       assert.deepEqual(selected.sort(), line === compiler ? compilerIds
         : line === native ? ['storage/sqlite/build/cancellation']
           : line === ann ? ['retrieval/ann/generation-lmdb',
@@ -81,7 +82,8 @@ for (const mode of ['ci', 'nightly']) {
       }
       if (line === compiler) {
         const orderedCompiler = JSON.parse(fs.readFileSync(path.join(root, 'tests/ci-lite/ci-lite.manifest.json'), 'utf8')).tests
-          .map(test => test.id).filter(id => id.startsWith('tooling/api-contracts/export-identity-cli/')).sort();
+          .map(test => test.id).filter(id => compilerFamilies.some(family =>
+            id.startsWith(`tooling/api-contracts/${family}/`))).sort();
         assert.deepEqual(selected, orderedCompiler, 'every original ordered case retains its serial execution owner');
       }
     }

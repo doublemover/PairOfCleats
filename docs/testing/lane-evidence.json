@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-11-05T08:01:46.941Z",
+  "generatedAt": "2026-11-05T09:09:41.532Z",
   "summary": {
     "lanes": 5,
-    "tests": 2341,
+    "tests": 2347,
     "exactDuplicates": 0,
     "hotspotKinds": 10,
     "families": 421,
@@ -11,7 +11,7 @@
     "timingCoverage": {
       "freshArtifactTests": 0,
       "historicalFallbackTests": 74,
-      "missingTests": 2267
+      "missingTests": 2273
     }
   },
   "lanes": [
@@ -35,7 +35,7 @@
       "targetMaxDurationSeconds": 15,
       "orderFile": "tests/ci-lite/ci-lite.order.txt",
       "timingArtifactPath": ".testLogs/ci-lite-testRunTimes.txt",
-      "totalTests": 2025,
+      "totalTests": 2031,
       "knownDurationTests": 49,
       "knownDurationMs": 27090,
       "p50DurationMs": 190,
@@ -43,7 +43,7 @@
       "resolvedTimingArtifactPaths": [],
       "timingSources": {
         "historical-test-times": 49,
-        "missing": 1976
+        "missing": 1982
       }
     },
     {
@@ -349,6 +349,12 @@
       "unknownDurationCount": 29
     },
     {
+      "key": "tooling/api-contracts",
+      "count": 28,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 28
+    },
+    {
       "key": "shared/artifact-io",
       "count": 27,
       "knownDurationMs": 0,
@@ -362,12 +368,6 @@
     },
     {
       "key": "retrieval/pipeline",
-      "count": 22,
-      "knownDurationMs": 0,
-      "unknownDurationCount": 22
-    },
-    {
-      "key": "tooling/api-contracts",
       "count": 22,
       "knownDurationMs": 0,
       "unknownDurationCount": 22

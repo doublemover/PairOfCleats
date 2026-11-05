@@ -25,7 +25,7 @@ for (const [file, bytes] of Object.entries(qualifiedTargetSources(language, oper
 // The actual JS/TS ambient-scope comparator qualifies these exact source bytes,
 // local symbols/signatures and target joins under ES5 and ES2022, and retains
 // a modern-builtin discriminator. Keep the real minimal standard library.
-await fs.writeFile(path.join(repo, 'tsconfig.json'), JSON.stringify({ compilerOptions: { types: [], lib: ['es5'] } }));
+await fs.writeFile(path.join(repo, 'tsconfig.json'), JSON.stringify({ compilerOptions: { types: [], lib: ['es5'], allowJs: language === 'js' } }));
 // Exact API joins need completed compiler bindings. Default manual/deferred
 // enrichment deliberately leaves same-name targets ambiguous.
 // Keep the actual semantic compiler bindings; legacy cross-file type
@@ -35,12 +35,18 @@ const env = applyTestEnv({ cacheRoot: path.join(dir, 'cache'), embeddings: 'stub
     enrichment: { bindings: 'eager', localFlow: 'off', crossFileFlow: 'off' } }, embeddings: { enabled: false },
   typeInference: false, typeInferenceCrossFile: false, riskAnalysis: false, riskAnalysisCrossFile: false },
   tooling: { autoEnableOnDetect: false, lsp: { enabled: false } } }, extraEnv: { PAIROFCLEATS_TRUSTED_CONFIG: null } });
-const signal = AbortSignal.timeout(10000);
-diagnostics.observeSignal(signal);
+// Keep real publication diagnostics; the serial runner bounds the complete
+// correctness case at 30 seconds and each CLI still has its five-second limit.
+const buildStartedAt = performance.now();
+console.log(JSON.stringify({ selected, phase: 'build:start' }));
 try {
-  await buildIndex(repo, { mode: 'code', stage: 'stage2', 'stub-embeddings': true, 'scm-provider': 'none', threads: 1, abortSignal: signal });
-} finally { diagnostics.finish(); }
-signal.throwIfAborted();
+  await buildIndex(repo, { mode: 'code', stage: 'stage2', 'stub-embeddings': true,
+    'scm-provider': 'none', threads: 1 });
+} finally {
+  diagnostics.finish();
+  console.log(JSON.stringify({ selected, phase: 'build:settled',
+    elapsedMs: Math.round(performance.now() - buildStartedAt) }));
+}
 const args = [path.join(root, 'bin/pairofcleats.js'), 'api-contracts', '--repo', repo, '--json'];
 const result = await spawnSubprocess(process.execPath, args, { cwd: root, env, timeoutMs: 5000,
   maxOutputBytes: 256 * 1024, rejectOnNonZeroExit: false });

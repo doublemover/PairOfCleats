@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 1861,
+    "hero": 1867,
     "matrix": 109,
     "meta": 54,
     "soak": 1,
@@ -12165,6 +12165,42 @@
       "order": 2025,
       "suiteCategory": "meta",
       "suiteCategoryReason": "meta-cohort-prefix"
+    },
+    {
+      "id": "tooling/api-contracts/typescript-parameter-cli/policy",
+      "order": 2026,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/api-contracts/typescript-parameter-cli/clean",
+      "order": 2027,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/api-contracts/qualified-target-joins-cli/js-clean",
+      "order": 2028,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/api-contracts/qualified-target-joins-cli/ts-clean",
+      "order": 2029,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/api-contracts/qualified-target-joins-cli/js-violation",
+      "order": 2030,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/api-contracts/qualified-target-joins-cli/ts-violation",
+      "order": 2031,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
     }
   ]
 }

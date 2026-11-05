@@ -23,7 +23,7 @@ and [qualification matrix](testing/qualification-matrix.md).
 and [focused repairs](archived/windows-comment-and-handoff-failure-repairs-2026-10-28.md)
 retain original failures and source identities. No new full-suite run is scheduled.
 
-[CI closeout](archived/ci-lite-final-contract-repairs-2026-11-05.md) records full Ubuntu/Windows success, macOS CI-lite/32 serial passes and41/41 Windows authority at4ca484bb6. The remaining macOS API failure is a stale two-source Clangd fixture expectation: Darwin also admits Objective-C. Exact platform controls and successful raw-sample retention are repaired; replacement hosted acceptance remains pending.
+[CI closeout](archived/ci-lite-compiler-family-repair-2026-11-05.md) records full Ubuntu/Windows success, all32 macOS runtime controls,70 native passes per OS and41 Windows authority passes at8b3bf4203. macOS exposes two more nested setup aborts. All19 compiler/API cases now share a strict30-second serial owner, preserving CLI limits and assertions; hosted acceptance is pending.
 [Stable upgrades](archived/windows-stable-upgrades-2026-10-29.md)
 and Rust 1.99.1 are locally qualified; remaining P1 acceptances follow.
 

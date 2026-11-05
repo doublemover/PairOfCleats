@@ -62,11 +62,11 @@ The merge checks establish:
 6. Targeted suites for touched areas, using `node tests/run.js --match '<selector>' --lane all --timeout-ms 30000 --retries 0`.
 7. Contract/docs drift and generated-surface freshness within their owning gates.
 
-The platform suite runs the ten eager JS/TS compiler/API export fixtures in a
+The platform suite runs all19 JS/TS compiler/API export, warning-cap, parameter
+and qualified-target fixtures in a
 serial correctness cohort before its parallel lane. The complete case has a
 30-second process limit and the public CLI keeps its five-second limit. The
-retired 10-second setup timer predates mandatory immutable-stage sealing; it
-was not a latency qualification. Every case retains
+retired nested 10-second setup timers did not qualify API latency. Every case retains
 its ordered-lane membership and executes exactly once. Its report is retained
 separately from measured runtime budgets. Serial scheduling supplies independent
 qualification of these resource bounds, not a production latency claim.

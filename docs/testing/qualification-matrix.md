@@ -99,6 +99,18 @@ all exact/ambiguous/unknown negatives. Successful quality archives now retain
 raw bench35 JSON receipts, with a front-gate regression for all three uploads.
 Replacement hosted acceptance remains pending.
 
+[Compiler-family completion](../archived/ci-lite-compiler-family-repair-2026-11-05.md)
+records full Ubuntu/Windows success, all32 macOS runtime controls and70 native
+passes per OS at8b3bf4203. Successful quality artifacts retain all seven critical
+raw memory/SQLite receipts. macOS exposes two more nested setup aborts in the
+warning-cap CLI family, before any report command runs. All19 export, warning-cap,
+parameter and qualified-target cases now have the same strict30-second serial
+owner. Each CLI retains five seconds; the obsolete setup-only cutoff is retired
+without claiming its latency target. Original assertions and ordered membership
+remain. The nine newly isolated cases are excluded exactly once from the broad
+lane. Six parameter/qualified-target cases gain ordered CI membership; all13
+original ordered cases remain. Replacement hosted qualification remains pending.
+
 The following dated receipts retain their original candidate identities and
 limits; their earlier pending counts are historical.
 

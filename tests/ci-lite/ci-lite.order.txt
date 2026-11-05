@@ -2026,3 +2026,9 @@ storage/tantivy/generation-publication/returned-settled
 storage/tantivy/generation-publication/returned-unreadable
 storage/tantivy/generation-publication/source-lease
 tooling/script-coverage/tools/build-tantivy-index-help
+tooling/api-contracts/typescript-parameter-cli/policy
+tooling/api-contracts/typescript-parameter-cli/clean
+tooling/api-contracts/qualified-target-joins-cli/js-clean
+tooling/api-contracts/qualified-target-joins-cli/ts-clean
+tooling/api-contracts/qualified-target-joins-cli/js-violation
+tooling/api-contracts/qualified-target-joins-cli/ts-violation

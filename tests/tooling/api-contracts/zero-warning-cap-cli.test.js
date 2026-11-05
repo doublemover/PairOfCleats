@@ -19,17 +19,25 @@ export function run() { return doThing(${selected === 'clean' ? '1,2' : '1'}); }
 `);
 // The fixture is a closed source project. Parent checkout ambient @types and
 // browser/standard libraries are not inputs to these local callable assertions.
-await fs.writeFile(path.join(repo, 'tsconfig.json'), JSON.stringify({ compilerOptions: { types: [], noLib: true } }));
+await fs.writeFile(path.join(repo, 'tsconfig.json'), JSON.stringify({ compilerOptions: { types: [], noLib: true, allowJs: true } }));
 // Exact API target joins use the semantic compiler's eager binding owner.
 const env = applyTestEnv({ cacheRoot: path.join(dir, 'cache'), embeddings: 'stub',
   testConfig: createFastIndexingTestConfig({ threads: 1, extraIgnore: ['tsconfig.json'], indexing: {
     semantic: { enabled: true, enrichment: { bindings: 'eager', localFlow: 'off', crossFileFlow: 'off' } },
     workerPool: { enabled: false }, embeddings: { enabled: false } } }),
   extraEnv: { PAIROFCLEATS_TRUSTED_CONFIG: null } });
-const signal = AbortSignal.timeout(10000);
-await buildIndex(repo, { mode: 'code', stage: 'stage2', 'stub-embeddings': true,
-  'scm-provider': 'none', threads: 1, abortSignal: signal });
-signal.throwIfAborted();
+// The serial runner owns the entire 30-second correctness case, including
+// immutable publication and all CLI calls. Each command keeps its five-second
+// limit; the old nested setup cutoff did not measure this warning-cap contract.
+const buildStartedAt = performance.now();
+console.log(JSON.stringify({ selected, phase: 'build:start' }));
+try {
+  await buildIndex(repo, { mode: 'code', stage: 'stage2', 'stub-embeddings': true,
+    'scm-provider': 'none', threads: 1 });
+} finally {
+  console.log(JSON.stringify({ selected, phase: 'build:settled',
+    elapsedMs: Math.round(performance.now() - buildStartedAt) }));
+}
 for (const cap of selected === 'violation' ? [1, 0] : selected === 'clean' ? [0] : []) {
   const artifactDir = path.join(dir, `report-artifact-${cap}`);
   if (selected === 'violation' && cap === 1) await fs.mkdir(artifactDir);

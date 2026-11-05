@@ -34,13 +34,19 @@ const SERIAL_RUNTIME_BUDGET_IDS = ['tooling/reports/summary/report', 'perf/parse
 const SERIAL_ANN_GENERATION_IDS = ['retrieval/ann/generation-publication',
   'retrieval/ann/generation-rebuild-failure', 'retrieval/ann/generation-lmdb'];
 const SERIAL_NATIVE_LIFECYCLE_IDS = ['storage/sqlite/build/cancellation'];
-// These correctness fixtures retain their whole-case and CLI deadlines.
+// These correctness fixtures use whole-case and CLI deadlines.
 // Qualify cold eager compiler work serially before the parallel correctness lane;
 // they are not latency samples and do not belong to the measured budget report.
-const SERIAL_COMPILER_API_IDS = ['js-report', 'ts-report', 'js-fail', 'ts-fail',
-  'js-default-anonymous', 'js-default-arrow', 'js-default-class',
-  'ts-default-anonymous', 'ts-default-arrow', 'ts-default-class']
-  .map(id => `tooling/api-contracts/export-identity-cli/${id}`);
+const SERIAL_COMPILER_API_IDS = [
+  ...['js-report', 'ts-report', 'js-fail', 'ts-fail',
+    'js-default-anonymous', 'js-default-arrow', 'js-default-class',
+    'ts-default-anonymous', 'ts-default-arrow', 'ts-default-class']
+    .map(id => `tooling/api-contracts/export-identity-cli/${id}`),
+  ...['violation', 'clean', 'markdown'].map(id => `tooling/api-contracts/zero-warning-cap-cli/${id}`),
+  ...['policy', 'clean'].map(id => `tooling/api-contracts/typescript-parameter-cli/${id}`),
+  ...['js-clean', 'ts-clean', 'js-violation', 'ts-violation']
+    .map(id => `tooling/api-contracts/qualified-target-joins-cli/${id}`)
+];
 const API_CONTRACT_IDS = ['services/api/router-contract-matrix', 'services/api/core',
   'services/api/repo-authorization', 'services/api/server-stream', 'services/api/search-contract-matrix',
   'services/api/federated-search-validation-matrix', 'services/api/federated-filter-enumeration',

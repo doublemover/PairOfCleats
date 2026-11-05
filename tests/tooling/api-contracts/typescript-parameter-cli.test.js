@@ -30,9 +30,17 @@ const env = applyTestEnv({ cacheRoot: path.join(dir, 'cache'), embeddings: 'stub
   testConfig: { threads: 1, indexing: { semantic: { enabled: true }, embeddings: { enabled: false },
     typeInference: false, typeInferenceCrossFile: true, riskAnalysis: false, riskAnalysisCrossFile: false },
   tooling: { autoEnableOnDetect: false, lsp: { enabled: false } } }, extraEnv: { PAIROFCLEATS_TRUSTED_CONFIG: null } });
-const signal = AbortSignal.timeout(10000);
-await buildIndex(repo, { mode: 'code', stage: 'stage2', 'stub-embeddings': true, 'scm-provider': 'none', threads: 1, abortSignal: signal });
-signal.throwIfAborted();
+// Qualify the complete correctness case under the serial runner's 30-second
+// bound. The CLI retains five seconds; setup is not a separate latency claim.
+const buildStartedAt = performance.now();
+console.log(JSON.stringify({ selected, phase: 'build:start' }));
+try {
+  await buildIndex(repo, { mode: 'code', stage: 'stage2', 'stub-embeddings': true,
+    'scm-provider': 'none', threads: 1 });
+} finally {
+  console.log(JSON.stringify({ selected, phase: 'build:settled',
+    elapsedMs: Math.round(performance.now() - buildStartedAt) }));
+}
 const result = await spawnSubprocess(process.execPath, [path.join(process.cwd(), 'bin/pairofcleats.js'),
   'api-contracts', '--repo', repo, '--json', '--onlyExports', '--failOnWarn'],
 { cwd: process.cwd(), env, timeoutMs: 5000, maxOutputBytes: 256 * 1024, rejectOnNonZeroExit: false });
