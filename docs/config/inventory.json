@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-05T21:31:01.430Z",
+  "generatedAt": "2026-11-05T21:59:53.719Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
@@ -4818,6 +4818,7 @@
         "tests/security/download-redirect-deadline.test.js",
         "tests/services/api/semantic-detail-format-compatibility.test.js",
         "tests/services/indexer/embedding-replay-publication.test.js",
+        "tests/shared/artifact-io/binary-frame-checksum-receipts.test.js",
         "tests/shared/concurrency/scheduler-exact-ready-replay.test.js",
         "tests/shared/dense-vector-binary-writes.test.js",
         "tests/shared/hash/exact-file-observation.test.js",
@@ -6932,6 +6933,12 @@
         "file": "tests/indexing/semantic/proto-linked-descriptor-evidence.test.js",
         "flags": [
           "$unknowns"
+        ]
+      },
+      {
+        "file": "tests/indexing/semantic/sealed-piece-manifest-work.test.js",
+        "flags": [
+          "partition"
         ]
       },
       {
@@ -10270,6 +10277,14 @@
         "files": [
           "bin/pairofcleats.js",
           "tools/history/eg2-qualify.js"
+        ]
+      },
+      {
+        "flag": "partition",
+        "count": 2,
+        "files": [
+          "tests/indexing/semantic/sealed-piece-manifest-work.test.js",
+          "tests/storage/semantic/source-retention-partition-work.test.js"
         ]
       },
       {

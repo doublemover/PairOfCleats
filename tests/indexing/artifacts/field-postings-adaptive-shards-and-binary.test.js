@@ -2,9 +2,10 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { createHash } from 'node:crypto';
 import { buildPostings } from '../../../src/index/build/postings.js';
-import { writeIndexArtifacts } from '../../../src/index/build/artifacts.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
+import { createManifestWorkProbe } from '../../helpers/manifest-work-probe.js';
 
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 
@@ -84,33 +85,53 @@ const userConfig = {
 };
 
 const timing = { start: Date.now() };
-await writeIndexArtifacts({
-  outDir,
-  mode: 'code',
-  state: createState(),
-  postings,
-  postingsConfig: {},
-  modelId: 'stub',
-  useStubEmbeddings: true,
-  dictSummary: null,
-  timing,
-  root: testRoot,
-  userConfig,
-  incrementalEnabled: false,
-  fileCounts: { candidates: 0 },
-  perfProfile: {
-    artifactWriteThroughputBytesPerSec: 64 * 1024
-  },
-  indexState: {
-    buildId: 'artifact-fixture',
-    generatedAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    counts: { files: 0, chunks: 0 },
-    mode: 'code'
-  },
-  graphRelations: null,
-  stageCheckpoints: null
-});
+const manifestProbe = createManifestWorkProbe();
+const { writeIndexArtifacts } = await import('../../../src/index/build/artifacts.js');
+try {
+  await writeIndexArtifacts({
+    outDir,
+    mode: 'code',
+    state: createState(),
+    postings,
+    postingsConfig: {},
+    modelId: 'stub',
+    useStubEmbeddings: true,
+    dictSummary: null,
+    timing,
+    root: testRoot,
+    userConfig,
+    incrementalEnabled: false,
+    fileCounts: { candidates: 0 },
+    perfProfile: {
+      artifactWriteThroughputBytesPerSec: 64 * 1024
+    },
+    indexState: {
+      buildId: 'artifact-fixture',
+      generatedAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      counts: { files: 0, chunks: 0 },
+      mode: 'code'
+    },
+    graphRelations: null,
+    stageCheckpoints: null
+  });
+} finally { manifestProbe.close(); }
+
+const manifest = JSON.parse(await fs.readFile(path.join(outDir, 'pieces', 'manifest.json'), 'utf8'));
+const frames = manifest.pieces.filter(piece => /field_postings_binary_columnar(?:_offsets|_lengths)?$/u.test(piece.name));
+assert.equal(frames.length, 3);
+for (const piece of frames) {
+  const bytes = await fs.readFile(path.join(outDir, piece.path));
+  assert.equal(piece.bytes, bytes.length);
+  assert.equal(piece.checksum, 'sha256:' + createHash('sha256').update(bytes).digest('hex'));
+  assert.equal(manifestProbe.metrics.checksums.some(call => path.resolve(call.filename) === path.resolve(outDir, piece.path)), false,
+    'manifest construction cannot reread the completed binary writer member');
+}
+assert.ok(manifestProbe.metrics.manifests.length > 0, 'the actual manifest phase is observed');
+assert.ok(manifestProbe.metrics.checksums.some(call => call.filename.endsWith('field_postings.binary-columnar.meta.json')),
+  'ordinary metadata still uses the original checksum path');
+console.log(JSON.stringify({ manifestConstruction: manifestProbe.metrics, binaryMembers: frames.length,
+  scope: 'manifest-only CPU/I/O; independent integrity verification remains outside this probe' }));
 
 const shardsMetaPath = path.join(outDir, 'field_postings.shards.meta.json');
 const shardsMeta = JSON.parse(await fs.readFile(shardsMetaPath, 'utf8'));

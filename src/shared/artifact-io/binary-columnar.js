@@ -1,5 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { createHash } from 'node:crypto';
 
 import { decodeVarint64List, encodeVarint64Into, encodeVarint64List } from './varint.js';
 import { throwIfAborted } from '../abort.js';
@@ -8,10 +9,27 @@ import { observeStorageResource } from '../storage/failure-observation.js';
 import { persistenceFileIdentity, assertPersistenceFileIdentity } from '../io/file-identity.js';
 import { assertDirectoryIdentity, syncParentDirectory } from '../io/directory-sync.js';
 import { readPersistenceFailureCode, retainPersistenceFailure } from '../io/persistence-helpers.js';
+import { assertNoSymlinkPath } from '../contained-file.js';
 
 const OFFSET_BYTES = 8;
 const MAX_SAFE_BIGINT = BigInt(Number.MAX_SAFE_INTEGER);
 const MAX_BINARY_COLUMNAR_PREALLOCATE_BYTES = 1024 * 1024 * 1024;
+const completedFrames = new WeakMap();
+const framePathKey = filename => process.platform === 'win32' ? path.resolve(filename).toLowerCase() : path.resolve(filename);
+
+/** Only the original completed writer result can supply a stored-byte digest.
+ * Recheck the finalized file and its admitted parent; no copied fields or
+ * pathname cache can replace the writer's exact ownership evidence. */
+export const readBinaryRowFrameMetadata = async (result, filename) => {
+  const member = completedFrames.get(result)?.get(framePathKey(filename));
+  if (!member) throw Object.assign(new Error('Binary frame checksum requires its original completed writer and exact member.'), {
+    code: 'ERR_BINARY_COLUMNAR_RECEIPT'
+  });
+  assertNoSymlinkPath(path.parse(member.filename).root, member.filename);
+  assertDirectoryIdentity(await fs.lstat(path.dirname(member.filename), { bigint: true }), member.parent);
+  assertPersistenceFileIdentity(await fs.lstat(member.filename, { bigint: true }), member.identity);
+  return Object.freeze({ bytes: member.bytes, checksum: member.checksum, checksumAlgo: 'sha256' });
+};
 
 const toSafeNonNegativeInt = (value, label) => {
   const parsed = Number(value);
@@ -153,7 +171,7 @@ const openRowSource = rows => {
     }
   });
 };
-const writeAllToHandle = async (handle, payload, position) => {
+const writeAllToHandle = async (handle, payload, position, hash) => {
   let offset = 0;
   while (offset < payload.length) {
     const result = await handle.write(payload, offset, payload.length - offset,
@@ -163,6 +181,7 @@ const writeAllToHandle = async (handle, payload, position) => {
       new Error('Failed to write full binary payload: invalid write progress.'), { code: 'ERR_BINARY_COLUMNAR_SHORT_WRITE' });
     offset += bytesWritten;
   }
+  hash.update(payload);
 };
 
 /**
@@ -201,7 +220,8 @@ export const writeBinaryRowFrames = async ({
     }
   };
   const create = async final => {
-    const temp = createTempPath(final), entry = { temp, final, owner: null, original: null, sealed: null, published: false, expectedBytes: null };
+    const temp = createTempPath(final), entry = { temp, final, owner: null, original: null, sealed: null, published: false,
+      expectedBytes: null, hash: createHash('sha256') };
     entries.push(entry); requireOriginals();
     entry.tempParent = await fs.lstat(path.dirname(temp), { bigint: true }); assertDirectoryIdentity(entry.tempParent);
     entry.finalParent = await fs.lstat(path.dirname(final), { bigint: true }); assertDirectoryIdentity(entry.finalParent);
@@ -223,9 +243,9 @@ export const writeBinaryRowFrames = async ({
     const flush = async () => {
       if (!batchRows) return;
       throwIfAborted(signal); requireOriginals(); const started = Date.now();
-      if (dataUsed) await writeAllToHandle(dataHandle, dataBlock.subarray(0, dataUsed), batchStart);
-      await writeAllToHandle(offsetsHandle, offsetBlock.subarray(0, batchRows * OFFSET_BYTES), null);
-      await writeAllToHandle(lengthsHandle, lengthBlock.subarray(0, lengthUsed), null);
+      if (dataUsed) await writeAllToHandle(dataHandle, dataBlock.subarray(0, dataUsed), batchStart, data.hash);
+      await writeAllToHandle(offsetsHandle, offsetBlock.subarray(0, batchRows * OFFSET_BYTES), null, offsets.hash);
+      await writeAllToHandle(lengthsHandle, lengthBlock.subarray(0, lengthUsed), null, lengths.hash);
       totalLengthBytes += lengthUsed; flushMs += Math.max(0, Date.now() - started);
       dataUsed = 0; batchRows = 0; lengthUsed = 0; batchStart = cursor;
     };
@@ -237,7 +257,16 @@ export const writeBinaryRowFrames = async ({
       const rowOffset = cursor; cursor += payload.length;
       if (!Number.isSafeInteger(cursor) || !Number.isSafeInteger(count + 1)) throw new RangeError('Binary row offsets exceed safe numeric bounds.');
       if (payload.length > dataBlock.length) {
-        const started = Date.now(); await writeAllToHandle(dataHandle, payload, rowOffset); flushMs += Math.max(0, Date.now() - started);
+        const started = Date.now();
+        // Own each bounded block through its original writes and digest update.
+        // A borrowed oversized Buffer cannot change the bytes being hashed while
+        // a native write is pending. Ordinary batches already own their slabs.
+        for (let offset = 0; offset < payload.length; offset += 65536) {
+          throwIfAborted(signal); requireOriginals();
+          const block = Buffer.from(payload.subarray(offset, Math.min(payload.length, offset + 65536)));
+          await writeAllToHandle(dataHandle, block, rowOffset + offset, data.hash);
+        }
+        flushMs += Math.max(0, Date.now() - started);
       } else { payload.copy(dataBlock, dataUsed); dataUsed += payload.length; }
       offsetBlock.writeBigUInt64LE(BigInt(rowOffset), batchRows * OFFSET_BYTES);
       lengthUsed += encodeVarint64Into(payload.length, lengthBlock, lengthUsed); batchRows++; count++;
@@ -282,6 +311,7 @@ export const writeBinaryRowFrames = async ({
     assertDirectoryIdentity(await fs.lstat(path.dirname(entry.temp), { bigint: true }), entry.tempParent); requireMetadata();
     voidResult(await fs.rm(entry.temp, { force: true }), 'cleanup'); requireMetadata();
   };
+  const receipts = new Map();
   if (!primaryPresent) {
     try {
       requireMetadata(); throwIfAborted(signal);
@@ -299,6 +329,17 @@ export const writeBinaryRowFrames = async ({
         requireMetadata(); assertPersistenceFileIdentity(await fs.lstat(entry.temp, { bigint: true }), entry.sealed); requireMetadata();
         await replaceFile(entry.temp, entry.final, { keepBackup: false, requireSettled: requireMetadata }); entry.published = true;
         await syncParentDirectory(entry.final, { expectedParent: entry.finalParent }); requireMetadata();
+      }
+      for (const entry of entries) {
+        requireMetadata(); throwIfAborted(signal);
+        assertNoSymlinkPath(path.parse(path.resolve(entry.final)).root, path.resolve(entry.final));
+        assertDirectoryIdentity(await fs.lstat(path.dirname(entry.final), { bigint: true }), entry.finalParent);
+        const identity = sameObject(await fs.lstat(entry.final, { bigint: true }), entry.original);
+        if (identity.size !== String(entry.expectedBytes) || identity.mtime !== entry.sealed.mtime) {
+          throw new Error('Final binary frame changed after its original completed writes.');
+        }
+        receipts.set(framePathKey(entry.final), { filename: path.resolve(entry.final), parent: entry.finalParent,
+          identity, bytes: entry.expectedBytes, checksum: entry.hash.digest('hex') });
       }
       publishMs += Math.max(0, Date.now() - started);
     } catch (error) { remember(error, 'binary-frame-publication'); }
@@ -330,9 +371,11 @@ export const writeBinaryRowFrames = async ({
     Object.defineProperty(failure, 'binaryColumnarSourceClose', { value: sourceClose, configurable: false, writable: false, enumerable: false });
     throw failure;
   }
-  return { count, totalBytes: cursor, preallocatedBytes: resolvedPreallocateBytes, phaseTimings: {
+  const result = { count, totalBytes: cursor, preallocatedBytes: resolvedPreallocateBytes, phaseTimings: {
     computeMs: 0, serializationMs: 0, compressionMs: 0, flushMs, fsyncMs, publishMs, manifestWaitMs: 0, backpressureWaitMs: 0
   } };
+  completedFrames.set(result, receipts);
+  return result;
 };
 
 /**

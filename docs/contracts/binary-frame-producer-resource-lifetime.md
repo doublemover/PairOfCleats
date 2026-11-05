@@ -1,9 +1,10 @@
 # Binary row-frame producer resource lifetime
 
-Status: UNVALIDATED source and authored actual-consumer controls. No runtime,
-native, worker, cross-process, physical-link, import-budget or performance checks
-were run. Existing bounded-batch, positive-short-write, codec and timing fixtures
-remain unchanged and unexecuted for this source batch.
+Status: focused Windows producer/iterator, bounded-batch, short-write, codec
+and original resource controls pass on2026-11-05. The
+[source-bound receipt](../archived/sealed-checksum-closeout-2026-11-05.md)
+records exact coverage and final checks; cross-platform and general latency
+acceptance remain separate.
 
 The public binary row-frame producer retains its one-MiB payload buffer, 256-row
 offset/length batches, preallocation cap, exact output formats and existing

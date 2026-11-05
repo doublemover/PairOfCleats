@@ -9,7 +9,7 @@ import { TOKEN_ID_META } from '../../../shared/token-id.js';
 import { DEFAULT_PACKED_BLOCK_SIZE } from '../../../shared/packed-postings.js';
 import { writePackedTfPostings } from '../../../shared/packed-postings-write.js';
 import { encodeVarint64List } from '../../../shared/artifact-io/varint.js';
-import { writeBinaryRowFrames } from '../../../shared/artifact-io/binary-columnar.js';
+import { writeBinaryRowFrames, readBinaryRowFrameMetadata } from '../../../shared/artifact-io/binary-columnar.js';
 import { removePathWithRetry } from '../../../shared/io/remove-path-with-retry.js';
 import { estimatePostingsBytes, formatBytes } from './helpers.js';
 import { planTokenPostingsRepresentations, assertTokenPostingsRepresentationPlan } from './sparse-representation-plan.js';
@@ -401,6 +401,9 @@ export async function enqueueTokenPostingsArtifacts({
           },
           atomic: true
         });
+        if (typeof updatePieceMetadata === 'function') for (const filename of [binaryDataPath, binaryOffsetsPath, binaryLengthsPath]) {
+          updatePieceMetadata(formatArtifactLabel(filename), await readBinaryRowFrameMetadata(frames, filename));
+        }
         return {
           bytes: Number.isFinite(Number(frames?.totalBytes)) ? Number(frames.totalBytes) : null,
           serializationMs: null,

@@ -10,7 +10,7 @@ import {
   expandMetaPartPaths
 } from '../../../../../shared/artifact-io/manifest.js';
 import { MAX_JSON_BYTES } from '../../../../../shared/artifact-io/constants.js';
-import { writeBinaryRowFrames } from '../../../../../shared/artifact-io/binary-columnar.js';
+import { writeBinaryRowFrames, readBinaryRowFrameMetadata } from '../../../../../shared/artifact-io/binary-columnar.js';
 import { ensureDiskSpace, formatBytes } from '../../../../../shared/disk-space.js';
 import {
   extractChunkMetaColdFields,
@@ -72,6 +72,7 @@ export const enqueueChunkMetaArtifacts = async ({
   enqueueJsonArray,
   enqueueWrite,
   addPieceFile,
+  updatePieceMetadata = null,
   formatArtifactLabel,
   stageCheckpoints
 }) => {
@@ -923,6 +924,9 @@ export const enqueueChunkMetaArtifacts = async ({
           },
           atomic: true
         });
+        if (typeof updatePieceMetadata === 'function') for (const filename of [binaryDataPath, binaryOffsetsPath, binaryLengthsPath]) {
+          updatePieceMetadata(formatArtifactLabel(filename), await readBinaryRowFrameMetadata(frames, filename));
+        }
         const publishMs = (Number(framePhaseTimings.publishMs) || 0) + Math.max(0, Date.now() - publishStartedAt);
         return {
           bytes: Number.isFinite(Number(metaWriteResult?.bytes)) ? Number(metaWriteResult.bytes) : null,

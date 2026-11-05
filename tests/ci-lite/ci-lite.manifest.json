@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 1980,
+    "hero": 1997,
     "matrix": 109,
     "meta": 54,
     "soak": 1,
@@ -12877,6 +12877,108 @@
     {
       "id": "storage/semantic/source-retention-partition-work/distinct-16",
       "order": 2144,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/artifacts/binary-frame-manifest-integrity",
+      "order": 2145,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/artifacts/chunk-meta-binary-eager-start",
+      "order": 2146,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/artifacts/field-postings-adaptive-shards-and-binary",
+      "order": 2147,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/semantic/sealed-piece-manifest-work",
+      "order": 2148,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/artifact-io/binary-frame-checksum-receipts/changed",
+      "order": 2149,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/artifact-io/binary-frame-checksum-receipts/empty",
+      "order": 2150,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/artifact-io/binary-frame-checksum-receipts/forged",
+      "order": 2151,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/artifact-io/binary-frame-checksum-receipts/oversized",
+      "order": 2152,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/artifact-io/binary-frame-checksum-receipts/parent-changed",
+      "order": 2153,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/artifact-io/binary-frame-checksum-receipts/partial",
+      "order": 2154,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/artifact-io/binary-frame-checksum-receipts/positive",
+      "order": 2155,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/artifact-io/binary-frame-checksum-receipts/replaced",
+      "order": 2156,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/semantic/publication-recovery",
+      "order": 2157,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/artifact-io/binary-columnar-phase-timings",
+      "order": 2158,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/artifact-io/binary-frame-bounded-batches",
+      "order": 2159,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/artifact-io/binary-frame-producer-resource-lifetime",
+      "order": 2160,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/artifact-io/binary-frame-resource-lifetime",
+      "order": 2161,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

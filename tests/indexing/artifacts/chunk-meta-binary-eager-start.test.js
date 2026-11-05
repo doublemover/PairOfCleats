@@ -2,6 +2,8 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { createHash } from 'node:crypto';
+import { createArtifactPieceRegistry } from '../../../src/index/build/artifacts/piece-registry.js';
 import { createChunkMetaIterator } from '../../../src/index/build/artifacts/writers/chunk-meta.js';
 import { enqueueChunkMetaArtifacts } from '../../../src/index/build/artifacts/writers/chunk-meta/writer.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
@@ -32,6 +34,7 @@ const chunkMetaIterator = createChunkMetaIterator({
 });
 
 const queued = [];
+const registry = createArtifactPieceRegistry({ outDir: tempRoot });
 
 await enqueueChunkMetaArtifacts({
   outDir: tempRoot,
@@ -56,8 +59,7 @@ await enqueueChunkMetaArtifacts({
   enqueueWrite: (label, job, meta = {}) => {
     queued.push({ label, job, meta });
   },
-  addPieceFile: () => {},
-  formatArtifactLabel: (filePath) => path.relative(tempRoot, filePath).replace(/\\/g, '/'),
+  ...registry,
   stageCheckpoints: null
 });
 
@@ -65,6 +67,16 @@ const binaryMetaWrite = queued.find((entry) => String(entry?.label || '').includ
 assert.ok(binaryMetaWrite, 'expected binary-columnar bundle write entry to be queued');
 assert.equal(binaryMetaWrite.meta?.eagerStart, true, 'expected chunk_meta binary writer to eager-start');
 assert.equal(binaryMetaWrite.meta?.laneHint, 'massive', 'expected chunk_meta binary writer to use massive lane hint');
+const before = registry.listPieceEntries().map(piece => piece.layout.order);
+await binaryMetaWrite.job();
+assert.deepEqual(registry.listPieceEntries().map(piece => piece.layout.order), before);
+const frames = registry.listPieceEntries().filter(piece => /chunk_meta_binary_columnar(?:_offsets|_lengths)?$/u.test(piece.name));
+assert.equal(frames.length, 3);
+for (const piece of frames) {
+  const bytes = await fs.readFile(path.join(tempRoot, piece.path));
+  assert.equal(piece.bytes, bytes.length);
+  assert.equal(piece.checksum, 'sha256:' + createHash('sha256').update(bytes).digest('hex'));
+}
 
 await fs.rm(tempRoot, { recursive: true, force: true });
 

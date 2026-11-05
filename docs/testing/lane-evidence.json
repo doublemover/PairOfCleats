@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-11-05T21:30:59.158Z",
+  "generatedAt": "2026-11-05T21:59:51.193Z",
   "summary": {
     "lanes": 5,
-    "tests": 2460,
+    "tests": 2477,
     "exactDuplicates": 0,
     "hotspotKinds": 10,
     "families": 423,
@@ -11,7 +11,7 @@
     "timingCoverage": {
       "freshArtifactTests": 0,
       "historicalFallbackTests": 74,
-      "missingTests": 2386
+      "missingTests": 2403
     }
   },
   "lanes": [
@@ -35,7 +35,7 @@
       "targetMaxDurationSeconds": 15,
       "orderFile": "tests/ci-lite/ci-lite.order.txt",
       "timingArtifactPath": ".testLogs/ci-lite-testRunTimes.txt",
-      "totalTests": 2144,
+      "totalTests": 2161,
       "knownDurationTests": 49,
       "knownDurationMs": 27090,
       "p50DurationMs": 190,
@@ -43,7 +43,7 @@
       "resolvedTimingArtifactPaths": [],
       "timingSources": {
         "historical-test-times": 49,
-        "missing": 2095
+        "missing": 2112
       }
     },
     {
@@ -212,9 +212,9 @@
     },
     {
       "key": "indexing/artifacts",
-      "count": 82,
+      "count": 85,
       "knownDurationMs": 2990,
-      "unknownDurationCount": 76
+      "unknownDurationCount": 79
     },
     {
       "key": "indexing/workers",
@@ -332,15 +332,21 @@
     },
     {
       "key": "indexing/semantic",
-      "count": 51,
+      "count": 53,
       "knownDurationMs": 0,
-      "unknownDurationCount": 51
+      "unknownDurationCount": 53
     },
     {
       "key": "tooling/api-mcp",
       "count": 46,
       "knownDurationMs": 0,
       "unknownDurationCount": 46
+    },
+    {
+      "key": "shared/artifact-io",
+      "count": 39,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 39
     },
     {
       "key": "integrations/inference-history",
@@ -359,12 +365,6 @@
       "count": 28,
       "knownDurationMs": 0,
       "unknownDurationCount": 28
-    },
-    {
-      "key": "shared/artifact-io",
-      "count": 27,
-      "knownDurationMs": 0,
-      "unknownDurationCount": 27
     },
     {
       "key": "indexing/contracts",
@@ -2638,9 +2638,9 @@
   "hotspots": [
     {
       "key": "index-build-heavy",
-      "count": 674,
+      "count": 679,
       "knownDurationMs": 70250,
-      "unknownDurationCount": 633,
+      "unknownDurationCount": 638,
       "note": "Index construction, replay, and build-heavy setup overlap."
     },
     {

@@ -1,6 +1,10 @@
 # Binary frame iterator resource lifetime
 
-Status: UNVALIDATED source and authored controls, 2026-10-22.
+Status: focused Windows producer/iterator, bounded-batch, short-write, codec
+and original resource controls pass on2026-11-05. The
+[source-bound receipt](../archived/sealed-checksum-closeout-2026-11-05.md)
+records exact coverage and final checks; cross-platform and general latency
+acceptance remain separate.
 
 The binary-columnar frame generator borrows the existing contained-file resource
 owner across synchronous yields in both strict and legacy path modes. Sidecar

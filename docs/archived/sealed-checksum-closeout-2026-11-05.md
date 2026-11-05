@@ -1,0 +1,25 @@
+# Sealed semantic and binary checksum closeout
+
+The #1234 follow-up is implemented and qualified on Windows,2026-11-05. The [machine receipt](sealed-checksum-closeout-2026-11-05.json) binds exact sources, original failures, actual producer/validator boundaries and raw CPU/I/O observations.
+
+## Delivered behavior
+
+Binary row-frame data, offsets and lengths receive SHA256 digests during their actual original writes. Private weak receipts bind the completed writer result, exact member, admitted parent and finalized ordinary-file identity. Copied/serialized results, foreign paths, same-size changes, replacement files and replaced parents cannot supply metadata. Original iterator/FileHandle work and physical closure still precede publication; unknown native work cannot acquire a receipt. Zero rows, preallocation truncation and positive short writes retain exact stored bytes. Ordinary1MiB/256-row batches remain; oversized buffers use bounded64KiB owned blocks while writing/hashing.
+
+Chunk metadata and token postings update existing registry metadata in place. Field postings reuse the existing write queue success callback and publication templates. Registration order/layout and binary payload formats are preserved. Ordinary JSON continues through its original checksum path. Manifest records use the supported SHA256 algorithm for these receipt-backed members, replacing their previous manifest-time xxh64 reread; no schema relaxation or public configuration is added. Semantic data/offset hashes already propagated through their actual producer and are now qualified with multipart and empty-partition controls. [Ownership contract](../contracts/sealed-publication-checksums.md).
+
+## Proof and measurements
+
+Restoring the four published producer files from48ab658730e1a74c3bcf5cf0b04e4552e136c9cc makes the new actual token-publication case fail: manifest construction performs three additional binary member reads totaling11 bytes. Current code performs zero binary rereads and still hashes the298-byte generated JSON metadata. Exact candidate bytes are restored in finally with SHA256 checks; original failure/status and a recovery copy remain historical evidence.
+
+A separate above-one-MiB case registers1,060,962 finalized binary bytes with zero manifest-only binary reads, while its ordinary19-byte metadata file still receives full hashing. The actual128-field producer also publishes all three exact stored-byte checksums without manifest rereads. The semantic fixture registers12 sealed multipart data/offset pieces and performs zero manifest-only reads of those pieces; a full3,361-byte stored-byte SHA256 control produces the same manifest except generatedAt. Its empty partition invents no rows/offsets. Canonical stored binary bytes match an independent encoder.
+
+Manifest-only elapsed/CPU samples and actual hash-read calls/bytes are recorded separately from independent integrity verification. The independent full-index validator accepts a complete producer family, then rejects same-size binary corruption. A fresh semantic store independently rejects same-size sealed-part corruption. No process-global pathname cache or skipped post-publication validation is used. Single elapsed samples do not establish a general latency or end-to-end speedup.
+
+All24 distinct focused cases pass, including eight new receipt cases, three actual binary producers, actual manifest/full-index integrity, actual semantic multipart publication, original reader/producer lifetime faults, short writes, codecs/timings, semantic publication recovery/frontier ordering, unchanged import budgets and exact CI/nightly scheduling. The original13-case batch passed12; its new semantic fixture exceeded its own one-row batch limit. It now submits three ordered one-row batches, preserving that limit and every assertion. One later CI-plan attempt inherited a stale trusted-config environment path and correctly failed admission; the affected case passes with the same cleaned test-launch environment used elsewhere. Both original failures remain recorded; neither is hidden by retries or relaxed authority.
+
+## Publication and scope
+
+All eight publication checks pass, including43 gate fixtures. One job,30-second fixture bounds, zero retries/native-status redo; zero final failures, timeouts or skips. Seventeen missing ordered CI memberships are restored; four measured-work fixtures execute under the existing serial resource-budget owner, with exact broad-lane exclusions. Lane governance reports no missing IDs, duplicates, mismatches or overruns; ci-lite contains2161 cases. Locked dependencies remain unchanged on Node26.13.0 Windowsx64/ABI147.
+
+This closes the sealed-piece/binary digest propagation and requested work/integrity qualification. It does not change semantic meaning or weaken artifact schemas, deletion authority or error contracts. Hosted/platform, optional-backend and release qualifications remain separate. Author-workspace .tmp/.testLogs paths are historical provenance, not clean-checkout promises.

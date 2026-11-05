@@ -70,6 +70,9 @@ for (const mode of ['ci', 'nightly']) {
           : line === ann ? ['retrieval/ann/generation-lmdb',
             'retrieval/ann/generation-publication', 'retrieval/ann/generation-rebuild-failure']
             : ['indexing/semantic/compiler-single-cpu-lifecycle',
+              'indexing/artifacts/binary-frame-manifest-integrity', 'indexing/semantic/sealed-piece-manifest-work',
+              'indexing/artifacts/field-postings-adaptive-shards-and-binary',
+              'shared/artifact-io/binary-frame-checksum-receipts/oversized',
               ...['shared-1', 'shared-4', 'shared-16', 'distinct-1', 'distinct-4', 'distinct-16']
                 .map(id => `storage/semantic/source-retention-partition-work/${id}`),
               'map/member-join-work-consumer/measure',

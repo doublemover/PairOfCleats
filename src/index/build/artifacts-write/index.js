@@ -74,7 +74,8 @@ import { CHARGRAM_HASH_META } from '../../../shared/chargram-hash.js';
 import { computePackedChecksum } from '../../../shared/artifact-io/checksum.js';
 import {
   resolveBinaryColumnarWriteHints,
-  writeBinaryRowFrames
+  writeBinaryRowFrames,
+  readBinaryRowFrameMetadata
 } from '../../../shared/artifact-io/binary-columnar.js';
 import {
   INDEX_PROFILE_VECTOR_ONLY,
@@ -1431,6 +1432,7 @@ async function writeIndexArtifactsInCodecScope(input) {
     enqueueJsonArray: chunkMetaWrites.enqueueJsonArray,
     enqueueWrite: chunkMetaWrites.enqueueWrite,
     addPieceFile,
+    updatePieceMetadata,
     formatArtifactLabel,
     stageCheckpoints
   });
@@ -1724,6 +1726,44 @@ async function writeIndexArtifactsInCodecScope(input) {
       && fieldPostingsEstimatedBytes >= fieldPostingsBinaryColumnarThresholdBytes
       && fieldNames.length > 0;
     if (shouldWriteFieldPostingsBinary) {
+      let fieldFrames = null;
+      const fieldBinaryPieces = [
+        {
+          entry: {
+            type: 'postings',
+            name: 'field_postings_binary_columnar',
+            format: 'binary-columnar',
+            count: fieldNames.length
+          },
+          filePath: fieldPostingsBinaryDataPath
+        },
+        {
+          entry: {
+            type: 'postings',
+            name: 'field_postings_binary_columnar_offsets',
+            format: 'binary',
+            count: fieldNames.length
+          },
+          filePath: fieldPostingsBinaryOffsetsPath
+        },
+        {
+          entry: {
+            type: 'postings',
+            name: 'field_postings_binary_columnar_lengths',
+            format: 'varint',
+            count: fieldNames.length
+          },
+          filePath: fieldPostingsBinaryLengthsPath
+        },
+        {
+          entry: {
+            type: 'postings',
+            name: 'field_postings_binary_columnar_meta',
+            format: 'json'
+          },
+          filePath: fieldPostingsBinaryMetaPath
+        }
+      ];
       fieldPostingWrites.enqueueWrite(
         fieldPostingsBinaryTaskLabel,
         async ({ setPhase } = {}) => {
@@ -1752,6 +1792,7 @@ async function writeIndexArtifactsInCodecScope(input) {
             lengthsPath: fieldPostingsBinaryLengthsPath,
             writeHints: binaryWriteHints
           });
+          fieldFrames = frames;
           const framePhaseTimings = typeof frames?.phaseTimings === 'object' ? frames.phaseTimings : {};
           setPhase?.('publish:field-postings-binary-meta');
           const publishStartedAt = Date.now();
@@ -1794,43 +1835,13 @@ async function writeIndexArtifactsInCodecScope(input) {
         {
           priority: 223,
           estimatedBytes: Math.max(fieldPostingsEstimatedBytes, fieldNames.length * 96),
-          publishedPieces: [
-            {
-              entry: {
-                type: 'postings',
-                name: 'field_postings_binary_columnar',
-                format: 'binary-columnar',
-                count: fieldNames.length
-              },
-              filePath: fieldPostingsBinaryDataPath
-            },
-            {
-              entry: {
-                type: 'postings',
-                name: 'field_postings_binary_columnar_offsets',
-                format: 'binary',
-                count: fieldNames.length
-              },
-              filePath: fieldPostingsBinaryOffsetsPath
-            },
-            {
-              entry: {
-                type: 'postings',
-                name: 'field_postings_binary_columnar_lengths',
-                format: 'varint',
-                count: fieldNames.length
-              },
-              filePath: fieldPostingsBinaryLengthsPath
-            },
-            {
-              entry: {
-                type: 'postings',
-                name: 'field_postings_binary_columnar_meta',
-                format: 'json'
-              },
-              filePath: fieldPostingsBinaryMetaPath
+          onSuccess: async () => {
+            for (const piece of fieldBinaryPieces.slice(0, 3)) {
+              const metadata = await readBinaryRowFrameMetadata(fieldFrames, piece.filePath);
+              Object.assign(piece.entry, { bytes: metadata.bytes, checksum: `sha256:${metadata.checksum}` });
             }
-          ]
+          },
+          publishedPieces: fieldBinaryPieces
         }
       );
     } else {
