@@ -23,9 +23,12 @@ retain ten fresh helpers and original enumeration/close faults. Required native
 verification passes37 packages,33 routes and seven patches/26 targets/73 hunks
 without warnings/errors; legacy source-build diagnostics remain separately
 reported. The Windows authority job also passes. [Broader Windows CI](../archived/windows-ci-fixture-followup-2026-11-04.md)
-passes1952 correctness cases with zero failures/timeouts and three exclusions,
-then fails serial worker cancellation. Its corrected canonical CPU admission
-and installer isolation pass focused Windows controls; hosted recheck remains.
+at00a644129 passes1987 correctness cases,30 serial runtime budgets, three ANN
+generation cases, real SQLite cancellation and nine API contracts. There are
+zero failures/timeouts and three explicit optional/platform exclusions in the
+correctness lane. Native inspection separately passes35 terminal cases before
+GitHub cancellation; its remaining cohorts are not qualified by that job.
+[Hosted results and scope decision](../archived/windows-tantivy-native-deferral-2026-11-04.json).
 
 [Real model acceptance](../archived/windows-real-model-qualification-2026-11-04.md)
 retains24 E5/M3/EG2 capsules at20e274f99; E5 revision2 adds five at6c.
@@ -42,7 +45,8 @@ adds original dispatch/result ownership before activation and failure unwind,
 with pending/unreadable/replaced/revoked observations and retained writer/source
 protection. Build identity2 requires rebuilding earlier meaning. The37-case
 protocol cohort is mandatory in ci-lite; compatible native rebuild/readback
-remains unqualified and separate.
+is explicitly deferred by user decision; Tantivy remains experimental and
+#1627 stays open. That deferral does not alter mandatory protocol coverage.
 
 The following dated receipts retain their original candidate identities and
 limits; their earlier pending counts are historical.

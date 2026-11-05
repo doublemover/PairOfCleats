@@ -50,6 +50,10 @@ An old receipt requires rebuilding against the selected source generation. The
 reader adapter requires synchronous open/search and a handle or module close
 whose completion confirms disposal; unsupported lifetime APIs fail explicitly.
 The optional module is absent from the current installation and lockfile.
+**Native qualification is deferred by user decision.** Tantivy remains
+experimental; #1627 stays open for that deferred acceptance. Existing native-free
+protocol controls remain mandatory. See the
+[scope decision](../archived/windows-tantivy-native-deferral-2026-11-04.json).
 The mandatory native-free CI cohort covers 21 source-publication cases, nine
 reader-lifetime cases and seven query/source/cache/CLI controls. Build-contract
 identity 2 captures original dispatch and fulfilled-result settlement observations

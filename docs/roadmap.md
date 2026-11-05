@@ -1,6 +1,6 @@
 # PairOfCleats Roadmap
 
-Status: Windows P2/P3 qualification; solo execution
+Status: Windows CI closeout; native Tantivy qualification deferred
 Last audited: 2026-11-04
 Last reconciled: 2026-11-04
 Canonical for: initiative status, execution order, and remaining work
@@ -9,33 +9,32 @@ Canonical for: initiative status, execution order, and remaining work
 
 The [current reconciliation](archived/windows-sqlite-closure-delta-2026-11-04.json) records **791 reports: 424 closed /367 open**. Fifty-two further closures have individual GitHub readbacks; prior ledgers retain their dated counts.
 
-P2/P3 has **336 qualified closures /four remaining targets /six editor exclusions** from346 reports. Work continues solo on Windows. Batch shared-owner repairs, then run affected controls.
+P2/P3 has **336 qualified closures /three external targets /one deferred native target /six editor exclusions** from346 reports. Work continues solo on Windows. Batch shared-owner repairs, then run affected controls.
 
-The [native parity repair](archived/windows-onnx-runtime-parity-2026-10-30.md) retains CDB attribution and exact ORT1.30.0. [Model closeout](archived/windows-model-closeout-2026-11-04.md) completes200 capsules and closes #1542/#1544; drain/projection close #1484. [Windows terminals](archived/windows-terminal-budget-repair-2026-11-04.md) pass70 hosted cases. [SQLite](archived/windows-sqlite-final-qualification-2026-11-04.md) passes324 children at1d53c5262 and closes #1733.
+[Native parity](archived/windows-onnx-runtime-parity-2026-10-30.md) records CDB attribution and ORT1.30.0. [Models](archived/windows-model-closeout-2026-11-04.md) close #1542/#1544; drain/projection close #1484. [Windows terminals](archived/windows-terminal-budget-repair-2026-11-04.md) pass70 cases. [SQLite](archived/windows-sqlite-final-qualification-2026-11-04.md) passes324 children and closes #1733.
 
-[Tantivy build settlement](archived/windows-tantivy-build-settlement-2026-11-04.md) repairs original dispatch/result observations before activation and failure unwind; build identity2 rejects earlier meaning. Native binding qualification remains #1627.
+[Tantivy build settlement](archived/windows-tantivy-build-settlement-2026-11-04.md) repairs original dispatch/result observations before activation and failure unwind; build identity2 rejects earlier meaning. [Native Tantivy qualification is deferred by user decision](archived/windows-tantivy-native-deferral-2026-11-04.json); #1627 remains open and experimental.
 
 Completed source-bound checks are indexed in the
 [qualification archive](archived/native-runtime-qualification-index-2026-10-27.md)
 and [qualification matrix](testing/qualification-matrix.md).
 
-[Historical Windows campaigns](archived/windows-full-validation-checkpoint-265-2026-10-28.md)
-and their [focused repairs](archived/windows-comment-and-handoff-failure-repairs-2026-10-28.md)
-retain original failures and source identities. Continue affected rechecks; no new
-full-suite run is scheduled.
+[Windows campaign receipts](archived/windows-full-validation-checkpoint-265-2026-10-28.md)
+and [focused repairs](archived/windows-comment-and-handoff-failure-repairs-2026-10-28.md)
+retain original failures and source identities. No new full-suite run is scheduled.
 
 [CI](archived/windows-ci-failure-repairs-2026-10-29.md),
 [paths](archived/windows-ci-native-path-followup-2026-10-29.md),
 [VSIX #1288](archived/vscode-native-closeout-2026-10-29.md) and
-[Git admission](archived/windows-git-admission-deadlock-2026-10-29.md) retain receipts; [current CI](archived/windows-ci-fixture-followup-2026-11-04.md) passes1952 Windows cases; serial worker-fixture admission is repaired, awaiting hosted recheck.
+[Git admission](archived/windows-git-admission-deadlock-2026-10-29.md) retain receipts; [current CI](archived/windows-ci-fixture-followup-2026-11-04.md) passes1987 Windows cases plus serial budgets/ANN/cancellation/API cohorts at00a644129; native inspection passes35 cases before cancellation.
 [Stable upgrades](archived/windows-stable-upgrades-2026-10-29.md)
 and Rust 1.99.1 are locally qualified; remaining P1 acceptances follow.
 
-[Earlier retirements](archived/dependency-ownership-implementation-2026-10-27.md)
-removed 110 lock records; runtime qualification remains separate.
+[Dependency retirements](archived/dependency-ownership-implementation-2026-10-27.md)
+removed110 lock records; runtime qualification stays separate.
 
-[Sublime #1289](archived/sublime-native-closeout-2026-10-29.md) closes after all
-three Windows native package cases; broader editor/platform acceptance remains.
+[Sublime #1289](archived/sublime-native-closeout-2026-10-29.md) is closed;
+remaining editor/platform acceptance stays excluded.
 
 [Crash-log closeout](archived/crash-log-posix-qualification-2026-10-29.md) closes
 #1315 with Windows and both POSIX cohorts. [Storage repairs](archived/storage-space-implementation-2026-10-27.md)
@@ -44,7 +43,7 @@ await execution; lifecycle policy (#1267) and custom cleanup (#1574) remain.
 The [owner queue](archived/remaining-issue-batches-2026-10-26.json) orders
 implementation by severity and shared dependencies:
 
-1. [P2/P3 closeout](archived/p2-p3-closeout-2026-10-29.md): four targets remain; six editor issues are excluded. All P3 reports are closed. All 658 mapped correctness checks ran (637 pass/21 fail); focused repairs now pass. P1 #1574 remains outside this request.
+1. [P2/P3 closeout](archived/p2-p3-closeout-2026-10-29.md): three external targets remain; native Tantivy qualification is deferred and six editor issues are excluded. All P3 reports are closed. P1 #1574 remains outside this request.
 2. Worker/service ownership and provider installation (#631); [compilation context and report refresh](archived/throughput-materialization-implementation-2026-10-28.md) await qualification.
 3. Language/semantic/replay and retrieval/API evidence contracts; [comment source/demand ownership](archived/comment-pipeline-implementation-2026-10-27.md)
    has 38 authored JS/TS/Rust/import cases. [Frontmatter interiors](archived/frontmatter-content-implementation-2026-10-27.md)
