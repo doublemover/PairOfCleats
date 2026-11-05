@@ -13,6 +13,8 @@ for (const platform of ['ubuntu', 'windows', 'macos']) {
     && step.with.path?.includes('.diagnostics/serial-runtime-budgets.json'));
   assert.ok(upload?.with.path.includes('.diagnostics/serial-compiler-api-contracts.json'),
     `${platform}: retain the independently scheduled compiler report`);
+  assert.ok(upload.with.path.split(/\r?\n/).includes('.testLogs/bench35-*.json'),
+    `${platform}: successful runs must retain raw benchmark receipts, not only log pointers`);
 }
 for (const mode of ['ci', 'nightly']) {
   const plan = runNode(['tools/ci/run-suite.js', '--mode', mode, '--dry-run', '--skip-prechecks'],

@@ -700,6 +700,7 @@ tooling/lsp/configured-provider-runtime-requirement-preflight-degraded
 tooling/lsp/dedicated-provider-command-fallback-matrix
 perf/bench/language-process-idle-timeout
 tooling/lsp/latency-microbench-contract
+tooling/lsp/default-tooling-diagnostics
 tooling/service/subprocess-contract-matrix
 tooling/doctor/runtime-requirements-provider-matrix
 indexing/tree-sitter/scheduler-swift-subprocess

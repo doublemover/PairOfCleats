@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-11-05T06:17:04.608Z",
+  "generatedAt": "2026-11-05T08:01:46.941Z",
   "summary": {
     "lanes": 5,
-    "tests": 2340,
+    "tests": 2341,
     "exactDuplicates": 0,
     "hotspotKinds": 10,
     "families": 421,
@@ -11,7 +11,7 @@
     "timingCoverage": {
       "freshArtifactTests": 0,
       "historicalFallbackTests": 74,
-      "missingTests": 2266
+      "missingTests": 2267
     }
   },
   "lanes": [
@@ -35,7 +35,7 @@
       "targetMaxDurationSeconds": 15,
       "orderFile": "tests/ci-lite/ci-lite.order.txt",
       "timingArtifactPath": ".testLogs/ci-lite-testRunTimes.txt",
-      "totalTests": 2024,
+      "totalTests": 2025,
       "knownDurationTests": 49,
       "knownDurationMs": 27090,
       "p50DurationMs": 190,
@@ -43,7 +43,7 @@
       "resolvedTimingArtifactPaths": [],
       "timingSources": {
         "historical-test-times": 49,
-        "missing": 1975
+        "missing": 1976
       }
     },
     {
@@ -296,9 +296,9 @@
     },
     {
       "key": "tooling/lsp",
-      "count": 123,
+      "count": 124,
       "knownDurationMs": 0,
-      "unknownDurationCount": 123
+      "unknownDurationCount": 124
     },
     {
       "key": "cli/search",
@@ -2661,9 +2661,9 @@
     },
     {
       "key": "lsp-bootstrap",
-      "count": 123,
+      "count": 124,
       "knownDurationMs": 0,
-      "unknownDurationCount": 123,
+      "unknownDurationCount": 124,
       "note": "Dedicated/configured provider bootstrap and session reuse."
     },
     {

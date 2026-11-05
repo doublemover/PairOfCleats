@@ -90,6 +90,15 @@ dump owner, environment, signals, byte caps and all authority checks with one
 command entry. Seven portable settings/config controls pass; capable hosted
 authority and remaining OS qualification are pending.
 
+[Final contract repairs](../archived/ci-lite-final-contract-repairs-2026-11-05.md)
+record full Ubuntu success, all32 macOS serial controls and41/41 Windows
+authority at4ca484bb6. macOS CI-lite passes1976 cases; its later API helper
+incorrectly expects two Clangd documents where Darwin correctly admits the
+fixture’s third Objective-C source. Explicit three-platform controls preserve
+all exact/ambiguous/unknown negatives. Successful quality archives now retain
+raw bench35 JSON receipts, with a front-gate regression for all three uploads.
+Replacement hosted acceptance remains pending.
+
 The following dated receipts retain their original candidate identities and
 limits; their earlier pending counts are historical.
 

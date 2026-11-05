@@ -23,7 +23,7 @@ and [qualification matrix](testing/qualification-matrix.md).
 and [focused repairs](archived/windows-comment-and-handoff-failure-repairs-2026-10-28.md)
 retain original failures and source identities. No new full-suite run is scheduled.
 
-[CI repair](archived/ci-lite-settings-dispatch-repair-2026-11-05.md) retains the inventory/compiler, scheduler-close, SQLite capsule and memory-owner repairs. A later Windows authority run exposes a silent settings-child timeout. One guarded canonical dump worker removes its proven redundant dispatch hop while retaining10-second child/30-second case limits. Seven portable controls pass; hosted authority and OS acceptance remain pending.
+[CI closeout](archived/ci-lite-final-contract-repairs-2026-11-05.md) records full Ubuntu/Windows success, macOS CI-lite/32 serial passes and41/41 Windows authority at4ca484bb6. The remaining macOS API failure is a stale two-source Clangd fixture expectation: Darwin also admits Objective-C. Exact platform controls and successful raw-sample retention are repaired; replacement hosted acceptance remains pending.
 [Stable upgrades](archived/windows-stable-upgrades-2026-10-29.md)
 and Rust 1.99.1 are locally qualified; remaining P1 acceptances follow.
 

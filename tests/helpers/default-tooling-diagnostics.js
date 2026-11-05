@@ -12,7 +12,11 @@ const EXPECTED_WARNINGS = new Map([
   ['rust-analyzer', new Set(['rust_workspace_trust_required', 'lsp_command_unavailable'])]
 ]);
 
-export const assertDefaultToolingDiagnostics = async ({ repoCacheRoot, startedAt, messages = null }) => {
+export const assertDefaultToolingDiagnostics = async ({ repoCacheRoot, startedAt, messages = null,
+  platform = process.platform }) => {
+  // The fixture owns C, C++ and Objective-C sources. The established provider
+  // admits Objective-C on Darwin; other hosts intentionally retain C/C++ only.
+  const clangdDocuments = platform === 'darwin' ? 3 : 2;
   const filename = path.join(repoCacheRoot, 'tooling-cache', 'diagnostics', 'tooling.json');
   const report = JSON.parse(await fs.readFile(filename, 'utf8'));
   assert.equal(report.schemaVersion, 1);
@@ -31,13 +35,13 @@ export const assertDefaultToolingDiagnostics = async ({ repoCacheRoot, startedAt
       assert.equal(contexts.length, 1, 'the sample retains its actual compilation-context observation');
       const context = contexts[0];
       // This published surface intentionally projects name/status/message.
-      // The two C/C++ sample sources have no database, and their virtual paths
+      // The selected sample sources have no database, and their virtual paths
       // cannot borrow exact physical compilation authority.
       assert.equal(context.status, 'warn');
-      assert.equal(context.message, 'clangd compilation database=missing; exact=0/2, ambiguous=0, unknown=2.',
+      assert.equal(context.message, `clangd compilation database=missing; exact=0/${clangdDocuments}, ambiguous=0, unknown=${clangdDocuments}.`,
         'invalid selection and mixed/exact compilation claims remain unexpected');
       for (const plan of record.checks.filter(check => check.name === 'clangd_compile_context_request_plan')) {
-        assert.equal(plan.message, 'clangd planned 0 exact and 2 weak-context documents.');
+        assert.equal(plan.message, `clangd planned 0 exact and ${clangdDocuments} weak-context documents.`);
       }
     }
     assert.ok(!record.checks.some(check => check.status === 'error'), JSON.stringify(record));
