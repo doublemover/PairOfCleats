@@ -4,6 +4,11 @@ Audited: 2026-11-05. Contracts and configured workflows describe requirements;
 execution receipts below bind actual results to their source. The
 [roadmap](../roadmap.md) owns current scope and remaining work.
 
+[CI2157](../archived/ci-lite-download-worker-followup-2026-11-05.md) qualifies
+the complete Windows pipeline,70 native cases per OS,41 Windows authority cases
+and43 gate cases at07a1. Download reporting is repaired; both POSIX worker
+survivor hangs remain under diagnosis. Replacement hosted acceptance is pending.
+
 [SQLite closeout](../archived/windows-sqlite-final-qualification-2026-11-04.md)
 passes all324 fresh serial children at clean1d53c5262: five row-shape cohorts
 retain30 paired trials,60 arms and132 samples; six above-threshold artifact

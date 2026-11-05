@@ -30,6 +30,7 @@ for (const mode of ['ci', 'nightly']) {
   assert.ok(ann);
   const native = lines.find(line => line.startsWith('[dry-run] Serial native lifecycle:'));
   assert.ok(native);
+  assert.ok(lines.indexOf(native) < lines.indexOf(serial), 'terminal lifecycle failures must precede measured qualification');
   const compiler = lines.find(line => line.startsWith('[dry-run] Serial compiler API contracts:'));
   assert.ok(compiler, `${mode}: bounded compiler/API cases need an independent serial owner`);
   assert.ok(lines.indexOf(compiler) < lines.findIndex(line => line.startsWith('[dry-run] CI test lane:')));
@@ -59,7 +60,7 @@ for (const mode of ['ci', 'nightly']) {
         JSON.parse(fs.readFileSync(path.join(root, `tests/tooling/api-contracts/${family}.test.js.cases.json`), 'utf8')).cases
           .map(id => `tooling/api-contracts/${family}/${id}`)).sort();
       assert.deepEqual(selected.sort(), line === compiler ? compilerIds
-        : line === native ? ['storage/sqlite/build/cancellation']
+        : line === native ? ['indexing/workers/worker-fatal-runtime', 'storage/sqlite/build/cancellation']
           : line === ann ? ['retrieval/ann/generation-lmdb',
             'retrieval/ann/generation-publication', 'retrieval/ann/generation-rebuild-failure']
             : ['indexing/semantic/compiler-single-cpu-lifecycle',

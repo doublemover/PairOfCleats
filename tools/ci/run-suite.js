@@ -33,7 +33,7 @@ const SERIAL_RUNTIME_BUDGET_IDS = ['tooling/reports/summary/report', 'perf/parse
   'smoke/baseline-negative/incomplete', 'smoke/baseline-negative/legacy'];
 const SERIAL_ANN_GENERATION_IDS = ['retrieval/ann/generation-publication',
   'retrieval/ann/generation-rebuild-failure', 'retrieval/ann/generation-lmdb'];
-const SERIAL_NATIVE_LIFECYCLE_IDS = ['storage/sqlite/build/cancellation'];
+const SERIAL_NATIVE_LIFECYCLE_IDS = ['storage/sqlite/build/cancellation', 'indexing/workers/worker-fatal-runtime'];
 // These correctness fixtures use whole-case and CLI deadlines.
 // Qualify cold eager compiler work serially before the parallel correctness lane;
 // they are not latency samples and do not belong to the measured budget report.
@@ -318,6 +318,13 @@ const main = async () => {
     },
     ...buildUsrGateSteps(diagnosticsDir),
     {
+      label: 'Serial native lifecycle',
+      command: process.execPath,
+      args: ['tests/run.js', '--lane', 'all', ...exactSelectors(SERIAL_NATIVE_LIFECYCLE_IDS),
+        '--jobs', '1', '--pairofcleats-threads', '1', '--timeout-ms', '30000', '--retries', '0',
+        '--native-status-redo=false', '--report-file', path.join(diagnosticsDir, 'serial-native-lifecycle.json')]
+    },
+    {
       label: 'Serial compiler API contracts',
       command: process.execPath,
       args: ['tests/run.js', '--lane', 'all', ...exactSelectors(SERIAL_COMPILER_API_IDS),
@@ -377,13 +384,6 @@ const main = async () => {
       args: ['tests/run.js', '--lane', 'all', ...exactSelectors(SERIAL_ANN_GENERATION_IDS),
         '--jobs', '1', '--pairofcleats-threads', '1', '--timeout-ms', '30000', '--retries', '0',
         '--native-status-redo=false', '--report-file', path.join(diagnosticsDir, 'serial-ann-generation.json')]
-    },
-    {
-      label: 'Serial native lifecycle',
-      command: process.execPath,
-      args: ['tests/run.js', '--lane', 'all', ...exactSelectors(SERIAL_NATIVE_LIFECYCLE_IDS),
-        '--jobs', '1', '--pairofcleats-threads', '1', '--timeout-ms', '30000', '--retries', '0',
-        '--native-status-redo=false', '--report-file', path.join(diagnosticsDir, 'serial-native-lifecycle.json')]
     },
     {
       label: 'API contract cohort',

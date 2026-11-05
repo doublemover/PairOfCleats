@@ -23,7 +23,7 @@ and [qualification matrix](testing/qualification-matrix.md).
 and [focused repairs](archived/windows-comment-and-handoff-failure-repairs-2026-10-28.md)
 retain original failures and source identities. No new full-suite run is scheduled.
 
-[CI watcher repair](archived/ci-lite-watcher-capabilities-repair-2026-11-05.md) isolates watcher selection from PDF/DOCX/MCP and unrelated native probing after the hosted stall is narrowed to that boundary. Original/current probe controls and full-report parity pass; strict native controls pass locally. Cold bootstrap succeeds atdc04; final hosted acceptance is pending.
+[CI follow-up](archived/ci-lite-download-worker-followup-2026-11-05.md) records complete Windows CI and70 native passes per OS at07a1, including watch/workspace. Download diagnostics retain the configured deadline; both POSIX worker survivor hangs await attribution. Strict controls and early serial lifecycle diagnostics retain coverage.
 [Stable upgrades](archived/windows-stable-upgrades-2026-10-29.md)
 and Rust 1.99.1 are locally qualified; remaining P1 acceptances follow.
 

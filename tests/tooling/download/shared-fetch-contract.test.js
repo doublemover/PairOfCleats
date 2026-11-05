@@ -34,6 +34,11 @@ const server = http.createServer((req, res) => {
       res.setHeader('Location', '/ok');
       res.end();
       return;
+    case '/redirect-slow':
+      res.statusCode = 302;
+      res.setHeader('Location', '/slow');
+      res.end();
+      return;
     case '/redirect-loop':
       res.statusCode = 302;
       res.setHeader('Location', '/redirect-loop');
@@ -114,6 +119,23 @@ try {
     scheduledTimeouts.includes(30000),
     'downloads should have a bounded default request timeout'
   );
+
+  // Admission and redirects consume the one deadline. Report the configured
+  // budget consistently even when the current request has less time left.
+  for (const [route, expectedTimers] of [['/slow', [49]], ['/redirect-slow', [49, 48]]]) {
+    let reads = 0;
+    const timers = [];
+    Date.now = () => fixedNow + reads++;
+    global.setTimeout = (handler, timeout, ...args) => {
+      if (timeout < 50) timers.push(timeout);
+      return originalSetTimeout(handler, timeout, ...args);
+    };
+    try {
+      await assert.rejects(() => fetchDownloadUrl(`${baseUrl}${route}`, { timeoutMs: 50 }),
+        error => error.code === 'ERR_DOWNLOAD_TIMEOUT' && /timeout after 50ms/.test(error.message));
+      assert.deepEqual(timers, expectedTimers, 'redirects must not reset the shared request budget');
+    } finally { global.setTimeout = originalSetTimeout; Date.now = originalNow; }
+  }
 
   const redirected = await fetchDownloadUrl(`${baseUrl}/redirect`);
   assert.equal(redirected.statusCode, 200, 'redirected request should resolve to 200');
