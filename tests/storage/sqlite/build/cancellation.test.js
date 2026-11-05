@@ -14,6 +14,8 @@ import { replaceSqliteDatabase } from '../../../../src/storage/sqlite/utils.js';
 import { buildDatabaseFromBundles } from '../../../../src/storage/sqlite/build/from-bundles.js';
 import { writeBundleFile } from '../../../../src/shared/bundle-io.js';
 import { ARTIFACT_SURFACE_VERSION } from '../../../../src/contracts/versioning.js';
+import { resolveCurrentProcessRuntimeEnvelope } from '../../../../src/shared/runtime-envelope/resolve-current-process-envelope.js';
+import { projectSqliteThreadLimits, resolveBundleProducerBudget } from '../../../../src/storage/sqlite/build/bundle-budget.js';
 
 const root = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'poc-sqlite-build-cancel-')));
 applyTestEnv({ cacheRoot: path.join(root, 'cache'), embeddings: 'off' });
@@ -143,13 +145,19 @@ try {
     chunks: [{ file: 'sample.js', start: 0, end: 1, tokens: ['alpha'] }]
   } });
   reset('worker');
+  // A one-file input window is not a CPU grant. Explicitly admit the two
+  // workers this lifecycle case needs through the canonical envelope owner.
+  const workerThreadLimits = { ...projectSqliteThreadLimits(resolveCurrentProcessRuntimeEnvelope({
+    argv: { threads: 2 }, rawArgv: ['--threads', '2'], env: {}, userConfig: {}
+  })), fileConcurrency: 1 };
+  assert.equal(resolveBundleProducerBudget(workerThreadLimits).limit, 2);
   let outcome;
   workerStart = performance.now();
   markWorker('build-enter');
   const pending = buildDatabaseFromBundles({ repoRoot: root, Database: TrackingDatabase, outPath: path.join(root, 'worker.db'),
     mode: 'code', incrementalData: { bundleDir: root, manifest: { artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
       files: { 'sample.js': { bundles: ['bundle.json'], hash: 'alpha', mtimeMs: 1, size: 1 } } } },
-    workerPath: worker, envConfig: { bundleThreads: 2 }, threadLimits: { fileConcurrency: 1 },
+    workerPath: worker, envConfig: { bundleThreads: 2 }, threadLimits: workerThreadLimits,
     signal: controller.signal, modelConfig: { id: null }, vectorConfig: { enabled: false }, emitOutput: true,
     logger: { log: message => markWorker(message), warn: message => { throw new Error(`Unexpected worker-build warning: ${message}`); } },
     validateMode: 'off', optimize: false, buildPragmas: false })

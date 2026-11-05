@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-04T23:55:04.022Z",
+  "generatedAt": "2026-11-05T00:53:50.311Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
@@ -3799,6 +3799,7 @@
         "tests/tooling/install/download-component-cleanup-ownership.test.js",
         "tests/tooling/install/download-model-selection.test.js",
         "tests/tooling/install/download-selected-closure.test.js",
+        "tests/tooling/install/go-sdk-explicit-pin.test.js",
         "tests/tooling/install/go-sdk-frozen-recovery.test.js",
         "tests/tooling/install/gopls-allocation-recipe.test.js",
         "tests/tooling/install/install-allocation-admission.test.js",

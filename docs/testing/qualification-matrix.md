@@ -22,8 +22,10 @@ retains the original workspace timeout and confirmed-exit cleanup regression.
 retain ten fresh helpers and original enumeration/close faults. Required native
 verification passes37 packages,33 routes and seven patches/26 targets/73 hunks
 without warnings/errors; legacy source-build diagnostics remain separately
-reported. The Windows authority job also passes. The broader Windows CI suite
-is not implied by these completed jobs.
+reported. The Windows authority job also passes. [Broader Windows CI](../archived/windows-ci-fixture-followup-2026-11-04.md)
+passes1952 correctness cases with zero failures/timeouts and three exclusions,
+then fails serial worker cancellation. Its corrected canonical CPU admission
+and installer isolation pass focused Windows controls; hosted recheck remains.
 
 [Real model acceptance](../archived/windows-real-model-qualification-2026-11-04.md)
 retains24 E5/M3/EG2 capsules at20e274f99; E5 revision2 adds five at6c.

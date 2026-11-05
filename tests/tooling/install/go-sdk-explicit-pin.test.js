@@ -3,7 +3,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { prepareIsolatedTestCacheDir } from '../../helpers/test-cache.js';
-import { ensureTestingEnv } from '../../helpers/test-env.js';
+import { ensureTestingEnv, withTemporaryEnv } from '../../helpers/test-env.js';
 import { ensureManagedGoSdk } from '../../../tools/tooling/install-go-sdk.js';
 import { applyManagedGoEnvironment, GO_RELEASE_INDEX_URL, resolveGoSdkTarget } from '../../../src/shared/managed-go.js';
 import { applyToolchainDaemonPolicyEnv } from '../../../src/shared/toolchain-env.js';
@@ -17,7 +17,9 @@ const bytes = Buffer.from('inert SDK contract fixture, never executed');
 const filename = `${version}.${target.os}-${target.arch}.${target.archiveType}`;
 const releases = [{ version, stable: true, files: [{ version, filename, ...target, kind: 'archive',
   size: bytes.length, sha256: createHash('sha256').update(bytes).digest('hex') }] }];
-const sdk = await ensureManagedGoSdk({ toolingRoot: dir, cwd: dir,
+// Own the coordinator as well as the SDK payload; parallel installer fixtures
+// must not contend on the launch home's real storage-admission lock.
+const sdk = await withTemporaryEnv({ PAIROFCLEATS_HOME: path.join(dir, 'home') }, () => ensureManagedGoSdk({ toolingRoot: dir, cwd: dir,
   storageEstimate: { complete: true, writes: [{ destination: 'artifacts', requiredBytes: 1024 * 1024 }] }, dependencies: {
     download: async ({ url }) => ({ sourceUrl: url, body: url === GO_RELEASE_INDEX_URL
       ? Buffer.from(JSON.stringify(releases)) : bytes }),
@@ -31,7 +33,7 @@ const sdk = await ensureManagedGoSdk({ toolingRoot: dir, cwd: dir,
       await fs.writeFile(path.join(destination, 'go/VERSION'), version);
     },
     probe: async (_command, { resourceId }) => ({ ok: true, status: 0, stdout: `go version ${version} ${target.os}/${target.arch}\n`, settlement: { resourceId, settled: true, pending: false } })
-  } });
+  } }));
 const explicit = { PATH: path.join(dir, 'selected-path'), GOROOT: path.join(dir, 'selected-sdk'),
   GOTOOLCHAIN: 'go1.26.4+path' };
 const original = { ...explicit };
