@@ -40,8 +40,8 @@ const crashLogger = await createCrashLogger({
   enabled: true
 });
 
+let scheduler = null;
 try {
-  let scheduler = null;
   await withTemporaryEnv({ PAIROFCLEATS_TEST_TREE_SITTER_SCHEDULER_CRASH: 'perl' }, async () => {
     scheduler = await runTreeSitterScheduler({
       mode: 'code',
@@ -80,7 +80,11 @@ try {
     await fs.access(durableCrashPath);
   }
 } finally {
-  await crashLogger.close?.();
+  try {
+    await scheduler?.close();
+  } finally {
+    await crashLogger.close?.();
+  }
 }
 
 console.log('perl scheduler crash recovery ok');

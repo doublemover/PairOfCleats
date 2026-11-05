@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-11-05T05:15:33.552Z",
+  "generatedAt": "2026-11-05T06:17:04.608Z",
   "summary": {
     "lanes": 5,
-    "tests": 2338,
+    "tests": 2340,
     "exactDuplicates": 0,
     "hotspotKinds": 10,
     "families": 421,
@@ -11,7 +11,7 @@
     "timingCoverage": {
       "freshArtifactTests": 0,
       "historicalFallbackTests": 74,
-      "missingTests": 2264
+      "missingTests": 2266
     }
   },
   "lanes": [
@@ -35,7 +35,7 @@
       "targetMaxDurationSeconds": 15,
       "orderFile": "tests/ci-lite/ci-lite.order.txt",
       "timingArtifactPath": ".testLogs/ci-lite-testRunTimes.txt",
-      "totalTests": 2022,
+      "totalTests": 2024,
       "knownDurationTests": 49,
       "knownDurationMs": 27090,
       "p50DurationMs": 190,
@@ -43,7 +43,7 @@
       "resolvedTimingArtifactPaths": [],
       "timingSources": {
         "historical-test-times": 49,
-        "missing": 1973
+        "missing": 1975
       }
     },
     {
@@ -320,9 +320,9 @@
     },
     {
       "key": "perf/bench",
-      "count": 53,
+      "count": 55,
       "knownDurationMs": 0,
-      "unknownDurationCount": 53
+      "unknownDurationCount": 55
     },
     {
       "key": "indexing/semantic",

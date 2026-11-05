@@ -22,6 +22,8 @@ for (const mode of ['ci', 'nightly']) {
   assert.ok(api, `${mode}: portable API authorization and search require a scheduled owner`);
   const serial = lines.find(line => line.startsWith('[dry-run] Serial runtime budgets:'));
   assert.ok(serial);
+  assert.ok(lines.indexOf(serial) < lines.findIndex(line => line.startsWith('[dry-run] CI test lane:')),
+    'bounded serial qualification must report failures before the large parallel lane');
   const ann = lines.find(line => line.startsWith('[dry-run] Serial ANN generation:'));
   assert.ok(ann);
   const native = lines.find(line => line.startsWith('[dry-run] Serial native lifecycle:'));
@@ -62,7 +64,7 @@ for (const mode of ['ci', 'nightly']) {
               ...['render', 'graph-skewed', 'graph-skewed-independent', 'map-large', 'memory-transient', 'vfs-ascii',
                 'vfs-many-persisted-1', 'vfs-many-persisted-2', 'vfs-many-persisted-3',
                 'vfs-many-hot-1', 'vfs-many-hot-2', 'vfs-many-hot-3', 'vfs-budget',
-                'sqlite-wide-a', 'sqlite-wide-b', 'sqlite-wide-c1', 'sqlite-wide-c2']
+                'sqlite-wide-a1', 'sqlite-wide-a2', 'sqlite-wide-b1', 'sqlite-wide-b2', 'sqlite-wide-c1', 'sqlite-wide-c2']
                 .map(id => `perf/bench/representative-workload-consumers/${id}`),
               ...['results', 'publication'].map(id => `perf/bench/selected-cohort-generation-consumer/${id}`),
               'perf/parsers/jinja-cold-budget', 'perf/parsers/toml-cold-budget', 'perf/parsers/xml-cold-budget',

@@ -23,7 +23,7 @@ and [qualification matrix](testing/qualification-matrix.md).
 and [focused repairs](archived/windows-comment-and-handoff-failure-repairs-2026-10-28.md)
 retain original failures and source identities. No new full-suite run is scheduled.
 
-[CI closeout](archived/ci-lite-cross-platform-repairs-2026-11-05.md) records hosted70/70 Windows native and41/41 authority passes at9eeb281146. It repairs all-platform job-inventory drift and the macOS API fixture’s obsolete setup timer. Ten compiler cases retain all assertions in a strict30-second serial cohort;15 focused checks pass. Replacement hosted acceptance is pending.
+[CI repair](archived/ci-lite-scheduler-and-budget-repairs-2026-11-05.md) verifies all30 compiler/API cases across three OSes and the full Ubuntu pipeline at7fc3ba3f6. Windows native70/70 and authority41/41 pass. Follow-up closes five fixture scheduler owners, bounds all six SQLite pairs separately and strengthens transient-memory release witnesses. Eight scheduler and nine performance/plan controls pass; hosted acceptance is pending.
 [Stable upgrades](archived/windows-stable-upgrades-2026-10-29.md)
 and Rust 1.99.1 are locally qualified; remaining P1 acceptances follow.
 

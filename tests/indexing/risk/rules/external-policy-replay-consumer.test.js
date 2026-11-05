@@ -31,6 +31,7 @@ const hook = registerHooks({
 });
 const { createFileProcessorForTest, createScannedFileEntry } = await import('../../file-processor/file-processor-fixture.js');
 const { dir: root } = await prepareIsolatedTestCacheDir('risk-policy-replay-consumer');
+let treeSitterScheduler = null;
 try {
   const filename = path.join(root, 'work.js'), rulesPath = path.join(root, 'rules.json');
   const text = 'function work() {\n const value = source_a;\n SINK(value);\n}\n'; await fs.writeFile(filename, text);
@@ -40,7 +41,7 @@ try {
   const raw = { rules: { includeDefaults: false, rulesPath }, caps: { maxMs: 1000 } };
   const languageOptions = { javascript: { parser: 'babel' }, treeSitter: { enabled: true, strict: true,
     scheduler: { maxWorkers: 1, maxWorkersPerGrammar: 1 } } };
-  const treeSitterScheduler = await runTreeSitterScheduler({ mode: 'code', runtime: { root, languageOptions },
+  treeSitterScheduler = await runTreeSitterScheduler({ mode: 'code', runtime: { root, languageOptions },
     entries: [filename], outDir: path.join(root, 'scheduler') });
   const run = async (regex = { flags: 'i' }) => {
     const riskConfig = normalizeRiskConfig({ ...raw, regex }, { rootDir: root });
@@ -84,5 +85,13 @@ try {
   await fs.writeFile(rulesPath, JSON.stringify({ sources: [], sinks: [], sanitizers: [] }));
   const empty = await run(); assert.equal(empty.riskConfig.rules.inputReceipt.outcome, 'complete'); assert.deepEqual(rulePairs(empty), []);
   await fs.writeFile(rulesPath, JSON.stringify(policy('B'))); assert.deepEqual(rulePairs(await run()), [['source.B', 'sink.B']]);
-} finally { hook.deregister(); delete globalThis[counter]; await fs.rm(root, { recursive: true, force: true }); }
+} finally {
+  try {
+    await treeSitterScheduler?.close();
+  } finally {
+    hook.deregister();
+    delete globalThis[counter];
+  }
+  await fs.rm(root, { recursive: true, force: true });
+}
 console.log('Effective risk policy changes re-enrich real persisted source while preserving parse/lexical reuse, exact rule evidence and requested-input failures.');

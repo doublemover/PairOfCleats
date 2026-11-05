@@ -26,7 +26,7 @@ const SERIAL_RUNTIME_BUDGET_IDS = ['tooling/reports/summary/report', 'perf/parse
   ...['render', 'graph-skewed', 'graph-skewed-independent', 'map-large', 'memory-transient', 'vfs-ascii',
     'vfs-many-persisted-1', 'vfs-many-persisted-2', 'vfs-many-persisted-3',
     'vfs-many-hot-1', 'vfs-many-hot-2', 'vfs-many-hot-3', 'vfs-budget',
-    'sqlite-wide-a', 'sqlite-wide-b', 'sqlite-wide-c1', 'sqlite-wide-c2']
+    'sqlite-wide-a1', 'sqlite-wide-a2', 'sqlite-wide-b1', 'sqlite-wide-b2', 'sqlite-wide-c1', 'sqlite-wide-c2']
     .map(id => `perf/bench/representative-workload-consumers/${id}`),
   ...['results', 'publication'].map(id => `perf/bench/selected-cohort-generation-consumer/${id}`),
   'smoke/baseline-negative/missing', 'smoke/baseline-negative/corrupt',
@@ -34,7 +34,7 @@ const SERIAL_RUNTIME_BUDGET_IDS = ['tooling/reports/summary/report', 'perf/parse
 const SERIAL_ANN_GENERATION_IDS = ['retrieval/ann/generation-publication',
   'retrieval/ann/generation-rebuild-failure', 'retrieval/ann/generation-lmdb'];
 const SERIAL_NATIVE_LIFECYCLE_IDS = ['storage/sqlite/build/cancellation'];
-// These correctness fixtures retain their independent build/CLI deadlines.
+// These correctness fixtures retain their whole-case and CLI deadlines.
 // Qualify cold eager compiler work serially before the parallel correctness lane;
 // they are not latency samples and do not belong to the measured budget report.
 const SERIAL_COMPILER_API_IDS = ['js-report', 'ts-report', 'js-fail', 'ts-fail',
@@ -319,6 +319,13 @@ const main = async () => {
         '--native-status-redo=false', '--report-file', path.join(diagnosticsDir, 'serial-compiler-api-contracts.json')]
     },
     {
+      label: 'Serial runtime budgets',
+      command: process.execPath,
+      args: ['tests/run.js', '--lane', 'all', ...exactSelectors(SERIAL_RUNTIME_BUDGET_IDS),
+        '--jobs', '1', '--pairofcleats-threads', '1', '--timeout-ms', '30000', '--retries', '0',
+        '--native-status-redo=false', '--report-file', path.join(diagnosticsDir, 'serial-runtime-budgets.json')]
+    },
+    {
       label: 'CI test lane',
       command: process.execPath,
       args: [
@@ -357,13 +364,6 @@ const main = async () => {
         '--log-dir',
         logDir
       ]
-    },
-    {
-      label: 'Serial runtime budgets',
-      command: process.execPath,
-      args: ['tests/run.js', '--lane', 'all', ...exactSelectors(SERIAL_RUNTIME_BUDGET_IDS),
-        '--jobs', '1', '--pairofcleats-threads', '1', '--timeout-ms', '30000', '--retries', '0',
-        '--native-status-redo=false', '--report-file', path.join(diagnosticsDir, 'serial-runtime-budgets.json')]
     },
     {
       label: 'Serial ANN generation',

@@ -19,17 +19,16 @@ import { addStorageFailureContext } from '../../../src/shared/storage/operation-
 
 applyTestEnv();
 const selected = process.env.PAIROFCLEATS_TEST_ID?.split('perf/bench/representative-workload-consumers/')[1];
-assert.ok(['render', 'graph-skewed', 'graph-skewed-independent', 'map-large', 'memory-transient', 'vfs-ascii', 'vfs-many-persisted-1', 'vfs-many-persisted-2', 'vfs-many-persisted-3', 'vfs-many-hot-1', 'vfs-many-hot-2', 'vfs-many-hot-3', 'vfs-budget', 'sqlite-wide-a', 'sqlite-wide-b', 'sqlite-wide-c1', 'sqlite-wide-c2'].includes(selected));
+assert.ok(['render', 'graph-skewed', 'graph-skewed-independent', 'map-large', 'memory-transient', 'vfs-ascii', 'vfs-many-persisted-1', 'vfs-many-persisted-2', 'vfs-many-persisted-3', 'vfs-many-hot-1', 'vfs-many-hot-2', 'vfs-many-hot-3', 'vfs-budget', 'sqlite-wide-a1', 'sqlite-wide-a2', 'sqlite-wide-b1', 'sqlite-wide-b2', 'sqlite-wide-c1', 'sqlite-wide-c2'].includes(selected));
 const { dir } = await prepareIsolatedTestCacheDir(`bench-representative-${selected}`);
 let evidence, cleanupAllowed = true;
 try {
   if (selected.startsWith('sqlite-wide-')) {
-    // Four separately bounded capsules retain six alternating paired trials.
-    // The threshold is crossed by real retained metadata, never a byte override.
-    const split = /^sqlite-wide-c[12]$/u.test(selected), trialOffset = selected === 'sqlite-wide-c2' ? 1 : 0;
-    const trials = split ? 1 : 2;
-    const args = split ? ['tests/fixtures/benchmarks/sqlite-artifact-trial-worker.js', JSON.stringify({ trialOffset })]
-      : ['tools/bench/sqlite/build-from-artifacts.js', '--chunks', '32768', '--profile', 'wide', '--trials', '2', '--mode', 'compare'];
+    // Six fresh-process capsules retain all six paired trials and twelve arms.
+    // Input size and per-case limits stay unchanged; setup is repeated per pair.
+    const trialOffset = selected.endsWith('2') ? 1 : 0;
+    const trials = 1;
+    const args = ['tests/fixtures/benchmarks/sqlite-artifact-trial-worker.js', JSON.stringify({ trialOffset })];
     const result = runNode(args, selected, process.cwd(), process.env,
       { stdio: 'pipe', allowFailure: true, timeoutMs: 30000 });
     assert.equal(result.status, 0, result.stderr || result.stdout);
@@ -45,8 +44,7 @@ try {
     await assert.rejects(fs.stat(evidence.generatedWork.workRoot), { code: 'ENOENT' });
     assert.equal(evidence.workload.trialOffset, trialOffset);
     assert.equal(evidence.samples.length, trials * 2); assert.equal(evidence.paired.length, trials);
-    assert.deepEqual(evidence.samples.map(row => row.label), split
-      ? trialOffset ? ['current', 'baseline'] : ['baseline', 'current'] : ['baseline', 'current', 'current', 'baseline']);
+    assert.deepEqual(evidence.samples.map(row => row.label), trialOffset ? ['current', 'baseline'] : ['baseline', 'current']);
     assert.deepEqual(evidence.paired.map(row => row.trial), Array.from({ length: trials }, (_, index) => trialOffset + index + 1));
     assert.equal(new Set(evidence.samples.map(row => row.observation.contentSha256)).size, 1);
     for (const sample of evidence.samples) {
@@ -142,6 +140,14 @@ try {
       timeoutMs: 30000, maxOutputBytes: 65536, outputMode: 'string', captureStdout: true, captureStderr: true, rejectOnNonZeroExit: true });
     assert.equal(result.stderr, ''); assert.equal(result.outputCapture.stdout.truncated, false);
     evidence = JSON.parse(result.stdout);
+    console.log(JSON.stringify({ transientMemory: evidence }));
+    assert.equal(evidence.requestedBytes, 128 * 1024 * 1024);
+    assert.equal(evidence.touchedBytes, evidence.requestedBytes);
+    assert.equal(evidence.touchedChecksum, evidence.requestedBytes);
+    assert.ok(evidence.during.arrayBuffers >= evidence.before.arrayBuffers + evidence.requestedBytes);
+    assert.ok(evidence.during.arrayBuffers - evidence.after.arrayBuffers >= evidence.requestedBytes,
+      'the owned backing store must be released before observing the final boundary');
+    assert.equal(evidence.preparationCollections, 2); assert.equal(evidence.releaseCollections, 2);
     assert.equal(evidence.checksum, 2);
     assert.ok(evidence.during.rss > evidence.before.rss + 64 * 1024 * 1024);
     assert.ok(evidence.after.rss < evidence.during.rss - 32 * 1024 * 1024, 'control must actually release a transient allocation');
@@ -250,9 +256,9 @@ try {
     }
   }
   const receipt = { historicalAuthorWorkspace: true, source: captureSweepSource(process.cwd()), selected,
-    ...(selected.startsWith('sqlite-wide-c') ? { partition: { series: 'wide32768-six-paired-trials',
-      requiredCapsules: ['sqlite-wide-a', 'sqlite-wide-b', 'sqlite-wide-c1', 'sqlite-wide-c2'],
-      changedBoundary: 'third two-trial process split into two fresh processes; original alternating arm order retained', latencyGainClaim: false } } : {}),
+    ...(selected.startsWith('sqlite-wide-') ? { partition: { series: 'wide32768-six-paired-trials',
+      requiredCapsules: ['sqlite-wide-a1', 'sqlite-wide-a2', 'sqlite-wide-b1', 'sqlite-wide-b2', 'sqlite-wide-c1', 'sqlite-wide-c2'],
+      changedBoundary: 'each original two-trial process has two fresh-process paired capsules; all six pairs and original alternating arm order retained', latencyGainClaim: false } } : {}),
     ...(selected.startsWith('vfs-many-') ? { partition: { series: 'utf8-256-documents-8191-bytes', repetition: Number(selected.at(-1)),
       requiredRepetitions: 3, requiredPhases: ['persisted', 'hot'],
       changedBoundary: 'independent persisted-pair and fresh-root hot-access capsules; full alternating three-mode schedule remains unqualified', latencyGainClaim: false } } : {}),

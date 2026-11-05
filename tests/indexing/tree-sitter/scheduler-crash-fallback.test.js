@@ -41,8 +41,8 @@ const crashLogger = await createCrashLogger({
   enabled: true
 });
 
+let scheduler = null;
 try {
-  let scheduler = null;
   let schedulerError = null;
   let skippedForMissingGrammar = false;
   await withTemporaryEnv({ PAIROFCLEATS_TEST_TREE_SITTER_SCHEDULER_CRASH: 'perl' }, async () => {
@@ -164,7 +164,11 @@ try {
     assert.equal(cpuResult?.skip, null, 'expected no skip despite injected parser crash');
   }
 } finally {
-  await crashLogger.close?.();
+  try {
+    await scheduler?.close();
+  } finally {
+    await crashLogger.close?.();
+  }
 }
 
 console.log('tree-sitter scheduler crash fallback ok');

@@ -65,7 +65,14 @@ fails a shared required-job inventory check on all three OSes and the macOS
 API fixture’s obsolete setup timer. The repair preserves every API assertion
 and the five-second CLI limit, uses a strict30-second serial cohort for all ten
 compiler cases, and moves policy/selection checks into the43-case front gate.
-All15 focused Windows checks pass; replacement hosted acceptance is pending.
+All15 focused Windows checks pass. [The hosted follow-up](../archived/ci-lite-scheduler-and-budget-repairs-2026-11-05.md)
+verifies all30 compiler/API cases across the three OS jobs and full Ubuntu
+success at7fc3ba3f6. Windows fails an unclosed fixture scheduler reader; macOS
+passes CI-lite but fails later memory/aggregate SQLite controls. Five fixture
+callers now close explicitly; six independent SQLite capsules retain all six
+pairs/twelve arms; transient memory keeps its original RSS thresholds and gains
+settled backing-store witnesses. Eight scheduler and nine performance/plan
+controls pass. Replacement hosted qualification remains pending.
 
 The following dated receipts retain their original candidate identities and
 limits; their earlier pending counts are historical.

@@ -1682,8 +1682,10 @@ perf/bench/representative-workload-consumers/graph-skewed-independent
 perf/bench/representative-workload-consumers/map-large
 perf/bench/representative-workload-consumers/memory-transient
 perf/bench/representative-workload-consumers/render
-perf/bench/representative-workload-consumers/sqlite-wide-a
-perf/bench/representative-workload-consumers/sqlite-wide-b
+perf/bench/representative-workload-consumers/sqlite-wide-a1
+perf/bench/representative-workload-consumers/sqlite-wide-a2
+perf/bench/representative-workload-consumers/sqlite-wide-b1
+perf/bench/representative-workload-consumers/sqlite-wide-b2
 perf/bench/representative-workload-consumers/sqlite-wide-c1
 perf/bench/representative-workload-consumers/sqlite-wide-c2
 perf/bench/representative-workload-consumers/vfs-ascii
