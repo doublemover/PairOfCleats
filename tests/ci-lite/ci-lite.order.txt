@@ -2033,3 +2033,7 @@ tooling/api-contracts/qualified-target-joins-cli/ts-clean
 tooling/api-contracts/qualified-target-joins-cli/js-violation
 tooling/api-contracts/qualified-target-joins-cli/ts-violation
 tooling/install/piscina-patch-roundtrip
+tooling/cache/gc-modern-resource-ownership/live
+tooling/cache/gc-modern-resource-ownership/unknown
+tooling/cache/gc-modern-resource-ownership/admission-race
+tooling/cache/gc-modern-resource-ownership/exclusion-barrier

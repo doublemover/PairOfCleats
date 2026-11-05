@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["live", "unknown", "admission-race", "exclusion-barrier"]
+}

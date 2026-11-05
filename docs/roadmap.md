@@ -1,6 +1,6 @@
 # PairOfCleats Roadmap
 
-Status: Cross-platform CI closeout; native Tantivy qualification deferred
+Status: P1 storage ownership repairs; native Tantivy qualification deferred
 Last audited: 2026-11-05
 Last reconciled: 2026-11-04
 Canonical for: initiative status, execution order, and remaining work
@@ -23,7 +23,7 @@ and [qualification matrix](testing/qualification-matrix.md).
 and [focused repairs](archived/windows-comment-and-handoff-failure-repairs-2026-10-28.md)
 retain original failures and source identities. No new full-suite run is scheduled.
 
-[CI closeout](archived/ci-lite-macos-contract-qualification-2026-11-05.md) isolates YAML syntax comparisons from preemption and qualifies all23 compiler/build CLI cases with unchanged child bounds. [Resource repairs](archived/ci-lite-resource-retirement-repairs-2026-11-05.md) retire confirmed ConPTY timers and retain pending FileHandles. [Piscina fatal-exit repair](archived/piscina-fatal-exit-ownership-2026-11-05.md) proves and fixes premature destroy on Worker error, with ten fresh Windows process passes; hosted acceptance is pending.
+[CI closeout](archived/ci-lite-macos-contract-qualification-2026-11-05.md) qualifies all23 compiler/build cases with original bounds. [Resource repairs](archived/ci-lite-resource-retirement-repairs-2026-11-05.md) retire ConPTY timers and retain pending FileHandles. [Piscina repair](archived/piscina-fatal-exit-ownership-2026-11-05.md) passes ten fresh processes and all three hosted OS suites; [CI2161](https://github.com/doublemover/PairOfCleats/actions/runs/42076477831) passes allten jobs at66176cb9a.
 [Stable upgrades](archived/windows-stable-upgrades-2026-10-29.md)
 and Rust 1.99.1 are locally qualified; remaining P1 acceptances follow.
 
@@ -34,8 +34,8 @@ removed110 lock records; runtime qualification stays separate.
 remaining editor/platform acceptance stays excluded.
 
 [Crash-log closeout](archived/crash-log-posix-qualification-2026-10-29.md) closes
-#1315 with Windows and both POSIX cohorts. [Storage repairs](archived/storage-space-implementation-2026-10-27.md)
-await execution; lifecycle policy (#1267) and custom cleanup (#1574) remain.
+#1315 with Windows and both POSIX cohorts. [GC resource fencing](archived/windows-cache-gc-resource-fence-2026-11-05.md)
+repairs modern-session deletion; lifecycle policy (#1267) and custom-store cleanup (#1574) remain.
 
 The [owner queue](archived/remaining-issue-batches-2026-10-26.json) orders
 implementation by severity and shared dependencies:

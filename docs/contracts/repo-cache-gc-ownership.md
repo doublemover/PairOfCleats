@@ -1,7 +1,10 @@
 # Legacy repository GC ownership
 
-Source authored, **UNVALIDATED**. No test or GC command was run and no user
-cache/index was inspected or removed as implementation acceptance.
+Windows focused qualification, 2026-11-05: four actual collector/CLI/MCP
+regressions and 25 adjacent controls pass. The
+[repair receipt](../archived/windows-cache-gc-resource-fence-2026-11-05.md)
+preserves the four original failures and resulting source identities. All
+mutation controls use disposable fixture caches.
 
 Inactive process leases, old directory timestamps and a quota excess do not
 prove that a whole repository cache is disposable. Repository cache roots also
@@ -28,7 +31,16 @@ and mixed roots stay protected until their actual manifest/category owner
 provides complete disposal proof; this change does not guess that all bytes
 inside a named build directory are rebuildable.
 
-Apply reuses the existing repo exclusion and generated-file removal owner.
+Planning inspects both the legacy repository reader namespace and the
+launch-selected `home/state/storage-access` resource namespace. Either a live
+resource or an unreadable owner protects the repository without scanning its
+changing contents. Apply uses the existing composed repository cleanup owner:
+both exclusion namespaces remain held, and the selected cache/repos categories
+stay leased against relocation until actual file work and metadata settle. A
+modern reader admitted after planning therefore prevents deletion, and neither
+legacy nor modern readers can enter the admitted removal transaction.
+
+Apply reuses the existing generated-file removal owner.
 It removes only the exact requalified generated files, then attempts `rmdir`
 on exact empty directories. No recursive root removal remains in this legacy
 path. A newly created ordinary file after revalidation makes empty-directory
@@ -49,6 +61,7 @@ reader exits. The positive collector regression now uses the actual registered
 Tree-sitter generated-cache metadata/path contract; its changed authority is
 explicit. Additional source regressions preserve every saved-evidence class,
 unknown and unreadable data, malformed metadata, incomplete scans, unmarked
-container bytes, pins, late ordinary-file creation and replacement roots. All
-runtime, locked-file/UNC/junction, disk-full and failure-injection acceptance
-remains deferred under the current user instruction.
+container bytes, pins, late ordinary-file creation and replacement roots.
+Custom native-store publication/deletion remains outside this generated-file
+adapter; configured paths and caller labels do not grant deletion authority.
+Broader platform and disk-full acceptance require their own receipts.

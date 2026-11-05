@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-05T00:53:50.311Z",
+  "generatedAt": "2026-11-05T18:53:38.966Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
@@ -3785,6 +3785,7 @@
         "tests/storage/sqlite/runner-exit-listener-lifetime.test.js",
         "tests/storage/sqlite/sidecar-settlement.test.js",
         "tests/storage/tantivy/generation-publication.test.js",
+        "tests/tooling/cache/gc-modern-resource-ownership.test.js",
         "tests/tooling/cache/tooling-cache-contained-resource.test.js",
         "tests/tooling/ci/run-suite-script-coverage-plan.test.js",
         "tests/tooling/index/clean-artifacts-multi-repository.test.js",
@@ -4878,6 +4879,7 @@
         "tests/tooling/api-mcp/repository-probe-original-config-owner.test.js",
         "tests/tooling/api-mcp/repository-probe-settled-controls.test.js",
         "tests/tooling/architecture/caps-verdict-cli-consumers.test.js",
+        "tests/tooling/cache/gc-modern-resource-ownership.test.js",
         "tests/tooling/ci/lsp-runtime-qualification.test.js",
         "tests/tooling/eval/coverage-and-default-datasets.test.js",
         "tests/tooling/fixtures/fixture-eval.test.js",
@@ -5374,6 +5376,7 @@
         "tests/tooling/api-mcp/repository-probe-settled-controls.test.js",
         "tests/tooling/architecture/caps-verdict-cli-consumers.test.js",
         "tests/tooling/architecture/rule-input-cli.test.js",
+        "tests/tooling/cache/gc-modern-resource-ownership.test.js",
         "tests/tooling/ci/run-suite-script-coverage-plan.test.js",
         "tests/tooling/config/effective-explanation-authority.test.js",
         "tests/tooling/config/source-metadata.test.js",

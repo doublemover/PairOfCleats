@@ -30,11 +30,11 @@ import {
 } from '../../src/shared/cache-cas/metadata.js';
 import { isPathWithinRoot, isRootPath } from '../../src/shared/file-paths.js';
 import { getEnvConfig } from '../../src/shared/env/runtime.js';
-import { normalizeLegacyCacheRootPath } from '../../src/shared/cache-roots.js';
+import { getApplicationHome, normalizeLegacyCacheRootPath } from '../../src/shared/cache-roots.js';
 import { getCacheRoot, resolveRepoConfig } from '../shared/dict-utils.js';
 import { assertSafeCacheDeletion } from '../../src/shared/cache-deletion.js';
-import { withExclusiveRepoCacheCleanup } from '../../src/shared/cache/repo-access.js';
 import { inspectStorageAccess } from '../../src/shared/storage/access.js';
+import { withRepoCleanupExclusion } from '../../src/shared/storage/repo-cleanup-exclusion.js';
 import { resolveRepoCacheRootPath } from '../../src/shared/repo-paths.js';
 import { inspectRepoStorageProtection, removeDerivedRepoCache } from '../../src/shared/storage/repo-protection.js';
 
@@ -74,6 +74,7 @@ const resolveMs = (value, fallbackMs = 0) => {
 const runLegacyRepoGc = async ({ cacheRoot, maxBytes, maxAgeDays, scopedRepo = null }) => {
   const dryRun = argv.apply !== true || argv['dry-run'] === true;
   const repoRoot = path.join(cacheRoot, 'repos');
+  const coordinationRoot = path.join(getApplicationHome(), 'state', 'storage-access');
   const selectedCache = scopedRepo ? resolveRepoCacheRootPath(scopedRepo, { cache: { root: cacheRoot } }) : null;
 
   if (maxBytes == null && maxAgeDays == null) {
@@ -107,6 +108,11 @@ const runLegacyRepoGc = async ({ cacheRoot, maxBytes, maxAgeDays, scopedRepo = n
     const access = await inspectStorageAccess(repoPath);
     if (access.protected) {
       protectedRepos.push({ id: entry.name, reason: 'active-process-lease', bytes: null, owners: access.owners });
+      continue;
+    }
+    const resources = await inspectStorageAccess(repoPath, { coordinationRoot });
+    if (resources.protected) {
+      protectedRepos.push({ id: entry.name, reason: 'active-or-unknown-resource', bytes: null, owners: resources.owners });
       continue;
     }
     const locks = await fs.readdir(path.join(repoPath, 'locks')).catch((error) => {
@@ -192,14 +198,14 @@ const runLegacyRepoGc = async ({ cacheRoot, maxBytes, maxAgeDays, scopedRepo = n
         code: 'ERR_CACHE_IN_USE', message: 'Ownership appeared after planning; cache preserved.', attempts: 0 });
       continue;
     }
-    const cleanup = await withExclusiveRepoCacheCleanup(repo.path, async () => {
+    const cleanup = await withRepoCleanupExclusion({ repoCacheRoot: repo.path, cacheRoot, action: async () => {
       // Recheck legacy writer locks inside the admission barrier as well.
       const locks = await fs.readdir(path.join(repo.path, 'locks')).catch((error) => (
         error.code === 'ENOENT' ? [] : ['unreadable-lock-directory']
       ));
       if (locks.length) return { ok: false, error: { code: 'ERR_CACHE_IN_USE', message: 'Writer lock present.' }, attempts: 0 };
       return removeDerivedRepoCache(repo.protection, { cacheRoot });
-    });
+    } });
     const deleteResult = cleanup.protected
       ? { ok: false, error: { code: 'ERR_CACHE_IN_USE', message: cleanup.reason }, attempts: 0 }
       : cleanup.result;
