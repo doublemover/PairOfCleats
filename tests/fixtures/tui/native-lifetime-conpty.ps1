@@ -19,12 +19,12 @@ function Read-PocConsoleMode {
 }
 $beforeInput = Read-PocConsoleMode -10
 $beforeOutput = Read-PocConsoleMode -11
-$seedName = if ($Mode -in @('validate-published', 'search-published')) { 'seed-complete-build.json' }
+$seedName = if ($Mode -in @('validate-published', 'search-published')) { 'seed-native-admission.json' }
   elseif ($Mode -in @('build-search', 'workspace')) { 'seed-partial-build.json' }
   else { $null }
 if ($seedName) {
-  # Initialize the independent console observer while the canonical seed builds.
-  # Start the native lifetime only after the seed owner has actually completed.
+  # Catalog/form setup is independent of the final seed phase. The JS owner
+  # still joins the full seed before every read, preview or launch.
   $seedDeadline = [DateTime]::UtcNow.AddSeconds(20)
   while (!(Test-Path -LiteralPath (Join-Path $FixtureRoot $seedName))) {
     if ([DateTime]::UtcNow -gt $seedDeadline) { throw 'Canonical workflow seed did not complete' }

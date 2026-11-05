@@ -14,6 +14,7 @@ import { buildSearchRequestArgs } from '../../src/shared/search-request.js';
 import { getIndexDir, loadUserConfig } from '../../src/shared/dict-utils.js';
 import { createPointerSnapshot, listSnapshots } from '../../src/index/snapshots/create.js';
 import { freezeSnapshot } from '../../src/index/snapshots/freeze.js';
+import { createLoggerScope } from '../../src/shared/progress-runtime.js';
 
 const mode = process.env.PAIROFCLEATS_TEST_ID?.split('tui/native-index-workflows/')[1];
 assert.ok(['build-search', 'validate-published', 'search-published', 'watch-cancel', 'build-cancel', 'preview-cancel', 'workspace', 'snapshot',
@@ -86,7 +87,8 @@ const cli = async (args, name) => {
 };
 const publishedReadMode = ['validate-published', 'search-published'].includes(mode);
 const needsCompleteSeed = mode.startsWith('snapshot-') || ['validate-published', 'search-published', 'report', 'stats'].includes(mode);
-const deferredSeed = publishedReadMode
+const overlappedSeed = process.platform === 'win32' && needsCompleteSeed;
+const deferredSeed = publishedReadMode && !overlappedSeed
   ? { stage: null, name: 'seed-complete-build' }
   : process.platform === 'win32' && mode === 'build-search'
     ? { stage: 'stage2', name: 'seed-partial-build' } : null;
@@ -112,7 +114,7 @@ const seedBuild = async (stage, name) => {
 if (['build-search', 'workspace'].includes(mode) && !deferredSeed) {
   await seedBuild('stage2', 'seed-partial-build');
 }
-if (needsCompleteSeed && !publishedReadMode) {
+if (needsCompleteSeed && !publishedReadMode && !overlappedSeed) {
   await seedBuild(null, 'seed-complete-build');
 }
 // Setup calls the same canonical owners as the snapshot CLI. The operations
@@ -123,21 +125,50 @@ const seedSnapshot = async (snapshotId, name, metadata = {}) => {
   const result = await createPointerSnapshot(input);
   await fs.writeFile(path.join(dir, `${name}.json`), JSON.stringify({ owner: 'createPointerSnapshot', input, result }, null, 2));
 };
-if (['snapshot-show', 'snapshot-list-populated'].includes(mode)) {
-  await seedSnapshot('snap-native-created', 'seed-labeled-snapshot', { tags: ['native-test', 'operator'], label: 'native label' });
+const prepareSnapshots = async () => {
+  if (['snapshot-show', 'snapshot-list-populated'].includes(mode)) {
+    await seedSnapshot('snap-native-created', 'seed-labeled-snapshot', { tags: ['native-test', 'operator'], label: 'native label' });
+  }
+  if (['snapshot-freeze', 'snapshot-remove', 'snapshot-prune', 'snapshot-gc'].includes(mode)) {
+    await seedSnapshot('snap-native-kept', 'seed-snapshot');
+  }
+  if (['snapshot-remove', 'snapshot-list-populated'].includes(mode)) {
+    const input = { repoRoot: repo, userConfig: loadUserConfig(repo, { env }),
+      snapshotId: mode === 'snapshot-remove' ? 'snap-native-kept' : 'snap-native-created', modes: ['code'] };
+    const result = await freezeSnapshot(input);
+    await fs.writeFile(path.join(dir, 'seed-frozen-snapshot.json'), JSON.stringify({ owner: 'freezeSnapshot', input, result }, null, 2));
+  }
+  if (['snapshot-prune', 'snapshot-gc'].includes(mode)) {
+    await seedSnapshot('snap-native-new', 'seed-newer-snapshot');
+  }
+};
+let seedAdmission = Promise.resolve(), seedCompletion = null;
+if (overlappedSeed) {
+  let admit;
+  seedAdmission = new Promise(resolve => { admit = resolve; });
+  const scope = createLoggerScope({ enabled: false });
+  scope.setProgressHandlers({ log: message => {
+    console.log(message);
+    // This signal schedules independent console/catalog work only. The actual
+    // build result, native-backend checks and snapshot seeds still gate every
+    // read, preview and launch; a status line grants no artifact authority.
+    if (message === 'Indexing stage4 (sqlite/ann pass) running.') admit();
+  } });
+  seedCompletion = scope.run(async () => {
+    try { await seedBuild(null, 'seed-complete-build'); await prepareSnapshots(); }
+    finally { await scope.close(); }
+  }).then(() => ({ ok: true }), error => ({ ok: false, error })).finally(() => admit());
+} else await prepareSnapshots();
+await seedAdmission;
+if (overlappedSeed) {
+  await fs.writeFile(path.join(dir, 'seed-native-admission.json'), JSON.stringify({ mode, owner: 'canonical-seed-stage4-or-settlement' }));
+  await recordFixturePhase('seed-native-admission');
 }
-if (['snapshot-freeze', 'snapshot-remove', 'snapshot-prune', 'snapshot-gc'].includes(mode)) {
-  await seedSnapshot('snap-native-kept', 'seed-snapshot');
-}
-if (['snapshot-remove', 'snapshot-list-populated'].includes(mode)) {
-  const input = { repoRoot: repo, userConfig: loadUserConfig(repo, { env }),
-    snapshotId: mode === 'snapshot-remove' ? 'snap-native-kept' : 'snap-native-created', modes: ['code'] };
-  const result = await freezeSnapshot(input);
-  await fs.writeFile(path.join(dir, 'seed-frozen-snapshot.json'), JSON.stringify({ owner: 'freezeSnapshot', input, result }, null, 2));
-}
-if (['snapshot-prune', 'snapshot-gc'].includes(mode)) {
-  await seedSnapshot('snap-native-new', 'seed-newer-snapshot');
-}
+const awaitSeed = async () => {
+  if (!seedCompletion) return;
+  const result = await seedCompletion;
+  if (!result.ok) throw result.error;
+};
 const fixtureDeadline = Date.now() + 22000;
 let verifiedPublication = null;
 // Mutation cases read their persisted result through the CLI's canonical list
@@ -188,7 +219,10 @@ try {
         assert.equal(end.resultState, 'complete', JSON.stringify(end));
         assert.equal(end.result.method, method); return end.result.data;
       };
-      const operation = async (method, input) => { const after = await last('native-workflow-'); terminal.write(input); return settled('native-workflow-', method, after); };
+      const operation = async (method, input) => {
+        await awaitSeed();
+        const after = await last('native-workflow-'); terminal.write(input); return settled('native-workflow-', method, after);
+      };
       const currentStatus = async () => {
         const result = await operation('status', 't');
         await rendered('Published generation observation; independent of process success');
@@ -423,5 +457,8 @@ try {
   await fs.writeFile(path.join(dir, 'fixture-settlement.json'), JSON.stringify({ mode, at: new Date().toISOString(),
     resources: process.getActiveResourcesInfo() }, null, 2));
 } finally {
-  for (const row of await lines('pids.jsonl')) if (row.proxy && isProcessAlive(row.proxy)) await killProcessTree(row.proxy);
+  try { await awaitSeed(); }
+  finally {
+    for (const row of await lines('pids.jsonl')) if (row.proxy && isProcessAlive(row.proxy)) await killProcessTree(row.proxy);
+  }
 }

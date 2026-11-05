@@ -52,7 +52,11 @@ is explicitly deferred by user decision; Tantivy remains experimental and
 conserves70 native cases in49/21-case jobs after the original20-minute job
 cancelled before later cohorts. Exact cached dependencies still require native/
 patch verification; cold setup, fixture bounds and evidence uploads remain.
-New-head hosted partition acceptance is pending.
+[Seed/terminal lifetime repair](../archived/windows-native-seed-overlap-2026-11-04.md)
+overlaps independent Windows console/catalog/form setup with final Stage4,
+then joins the full canonical seed before any read/preview/launch. The bounded
+ConPTY drain is preserved; its timer is not a demonstrated leak. All 11 affected
+cases pass locally with no failures/timeouts/skips; hosted acceptance is pending.
 
 The following dated receipts retain their original candidate identities and
 limits; their earlier pending counts are historical.
