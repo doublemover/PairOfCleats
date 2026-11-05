@@ -894,6 +894,8 @@ export async function watchIndex({
     };
 
     const skippedByMode = {};
+    const discoveryStartedAt = Date.now();
+    log('[watch] Initial discovery starting.');
     const discoveredByMode = await observeStartup(() => resolvedDeps.discoverFilesForModes({
       root,
       modes,
@@ -910,6 +912,7 @@ export async function watchIndex({
       maxDepth: maxDepthCap,
       maxFiles: maxFilesCap
     }));
+    log(`[watch] Initial discovery completed (${Date.now() - discoveryStartedAt}ms).`);
     if (shouldExit) return;
     for (const mode of modes) {
       const entries = Array.isArray(discoveredByMode[mode]) ? discoveredByMode[mode] : [];

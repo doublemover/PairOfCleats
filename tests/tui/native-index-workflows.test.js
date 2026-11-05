@@ -87,7 +87,7 @@ const cli = async (args, name) => {
 };
 const publishedReadMode = ['validate-published', 'search-published'].includes(mode);
 const needsCompleteSeed = mode.startsWith('snapshot-') || ['validate-published', 'search-published', 'report', 'stats'].includes(mode);
-const overlappedSeed = process.platform === 'win32' && needsCompleteSeed;
+const overlappedSeed = process.platform === 'win32' && (needsCompleteSeed || mode === 'workspace');
 const deferredSeed = publishedReadMode && !overlappedSeed
   ? { stage: null, name: 'seed-complete-build' }
   : process.platform === 'win32' && mode === 'build-search'
@@ -109,9 +109,9 @@ const seedBuild = async (stage, name) => {
     durationMs: Date.now() - started, outcome: result.outcome }, null, 2));
   await recordFixturePhase(`${name}:complete`);
 };
-// Workspace setup is independent of the terminal lifetime. Retain its real
-// seed before capture so its work cannot consume the unchanged26s PTY bound.
-if (['build-search', 'workspace'].includes(mode) && !deferredSeed) {
+// Seed before capture where setup does not overlap. Windows workspace keeps
+// this same real seed, overlapping only independent console/catalog work below.
+if (['build-search', 'workspace'].includes(mode) && !deferredSeed && !overlappedSeed) {
   await seedBuild('stage2', 'seed-partial-build');
 }
 if (needsCompleteSeed && !publishedReadMode && !overlappedSeed) {
@@ -144,6 +144,8 @@ const prepareSnapshots = async () => {
 };
 let seedAdmission = Promise.resolve(), seedCompletion = null;
 if (overlappedSeed) {
+  const partialSeed = mode === 'workspace';
+  const admissionMessage = partialSeed ? '[chunk_meta] writing JSON' : 'Indexing stage4 (sqlite/ann pass) running.';
   let admit;
   seedAdmission = new Promise(resolve => { admit = resolve; });
   const scope = createLoggerScope({ enabled: false });
@@ -152,16 +154,20 @@ if (overlappedSeed) {
     // This signal schedules independent console/catalog work only. The actual
     // build result, native-backend checks and snapshot seeds still gate every
     // read, preview and launch; a status line grants no artifact authority.
-    if (message === 'Indexing stage4 (sqlite/ann pass) running.') admit();
+    if (message === admissionMessage) admit();
   } });
   seedCompletion = scope.run(async () => {
-    try { await seedBuild(null, 'seed-complete-build'); await prepareSnapshots(); }
+    try {
+      await seedBuild(partialSeed ? 'stage2' : null, partialSeed ? 'seed-partial-build' : 'seed-complete-build');
+      await prepareSnapshots();
+    }
     finally { await scope.close(); }
   }).then(() => ({ ok: true }), error => ({ ok: false, error })).finally(() => admit());
 } else await prepareSnapshots();
 await seedAdmission;
 if (overlappedSeed) {
-  await fs.writeFile(path.join(dir, 'seed-native-admission.json'), JSON.stringify({ mode, owner: 'canonical-seed-stage4-or-settlement' }));
+  await fs.writeFile(path.join(dir, 'seed-native-admission.json'), JSON.stringify({ mode,
+    owner: mode === 'workspace' ? 'canonical-partial-seed-output-or-settlement' : 'canonical-seed-stage4-or-settlement' }));
   await recordFixturePhase('seed-native-admission');
 }
 const awaitSeed = async () => {

@@ -194,6 +194,7 @@ jobs:
       - name: Locked bootstrap
         if: runner.os != 'Windows' || steps.node-modules-cache.outputs.cache-hit != 'true'
         env:
+          npm_config_logs_dir: ${{ github.workspace }}/.diagnostics/native-bootstrap/npm-logs
           NODE_GYP_FORCE_PYTHON: ${{ steps.python-runtime.outputs.python-path }}
         run: npm run bootstrap:ci
       - name: Native and patch verification
@@ -219,6 +220,7 @@ jobs:
           name: native-inspection-${{ matrix.os }}
           path: |
             .diagnostics/native-inspection/**
+            .diagnostics/native-bootstrap/**
             .testLogs/**
             .tmp/dev/tests/cache/ni-*/native-source-identity.json
             .tmp/dev/tests/cache/ni-*/terminal-receipt*.json
@@ -279,6 +281,7 @@ jobs:
       - name: Locked bootstrap
         if: runner.os != 'Windows' || steps.node-modules-cache.outputs.cache-hit != 'true'
         env:
+          npm_config_logs_dir: ${{ github.workspace }}/.diagnostics/native-bootstrap/npm-logs
           NODE_GYP_FORCE_PYTHON: ${{ steps.python-runtime.outputs.python-path }}
         run: npm run bootstrap:ci
       - name: Native and patch verification
@@ -294,6 +297,7 @@ jobs:
           name: native-index-workflows-windows
           path: |
             .diagnostics/native-inspection/**
+            .diagnostics/native-bootstrap/**
             .testLogs/**
             .tmp/dev/tests/cache/ni-*/native-source-identity.json
             .tmp/dev/tests/cache/ni-*/terminal-receipt*.json

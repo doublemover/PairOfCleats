@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 import { resolveBootstrapBudget, runBootstrapTasks } from '../../../tools/setup/bootstrap-tasks.js';
 import { createNativeBuildTasks } from '../../../tools/setup/native-build-plan.js';
+import { summarizeNativeBuildResults } from '../../../tools/setup/rebuild-native-exit.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 
 applyTestEnv();
@@ -59,17 +60,26 @@ const failure = await runBootstrapTasks([
     cancelledAndDrained = true;
   } },
   { id: 'failure', run: async () => { await started.promise; throw new Error('compiler failed'); } },
-  { id: 'dependent', dependsOn: ['failure'], run: async () => { dependentRan = true; } }
+  { id: 'dependent', dependsOn: ['failure'], run: async () => { dependentRan = true; } },
+  { id: 'cancelled', dependsOn: [{ id: 'failure', settled: true }], run: async () => {
+    assert.fail('required failure must prevent admission even after a settled dependency');
+  } }
 ], { budget });
 assert.equal(failure.ok, false);
 assert.equal(dependentRan, false);
 assert.equal(cancelledAndDrained, true, 'required failure drains already running owners before returning');
+assert.deepEqual(summarizeNativeBuildResults(failure.results), {
+  required: { failed: 1, cancelled: 1, blocked: 1 }, optional: { failed: 0, cancelled: 0, blocked: 0 }
+}, 'one failed compiler cannot be reported as three compilation failures');
 const optional = await runBootstrapTasks([
   { id: 'optional', required: false, run: async () => ({ ok: false, message: 'optional unavailable' }) },
   { id: 'required', dependsOn: [{ id: 'optional', settled: true }], run: async () => ({ ok: true }) }
 ], { budget: serial });
 assert.equal(optional.ok, true);
 assert.equal(optional.results[1].status, 'succeeded');
+assert.deepEqual(summarizeNativeBuildResults(optional.results), {
+  required: { failed: 0, cancelled: 0, blocked: 0 }, optional: { failed: 1, cancelled: 0, blocked: 0 }
+});
 await assert.rejects(runBootstrapTasks([{ id: 'cycle', dependsOn: ['cycle'], run: async () => {} }], { budget }), /cycle/);
 await assert.rejects(runBootstrapTasks([{ id: 'oversize', bytes: budget.memoryBytes + 1, run: async () => {} }], { budget }), /budget/);
 console.log('bootstrap task ownership test passed');

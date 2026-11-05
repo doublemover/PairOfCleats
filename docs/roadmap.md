@@ -23,7 +23,7 @@ and [qualification matrix](testing/qualification-matrix.md).
 and [focused repairs](archived/windows-comment-and-handoff-failure-repairs-2026-10-28.md)
 retain original failures and source identities. No new full-suite run is scheduled.
 
-[CI closeout](archived/ci-lite-compiler-family-repair-2026-11-05.md) records full Ubuntu/Windows success, all32 macOS runtime controls,70 native passes per OS and41 Windows authority passes at8b3bf4203. macOS exposes two more nested setup aborts. All19 compiler/API cases now share a strict30-second serial owner, preserving CLI limits and assertions; hosted acceptance is pending.
+[CI follow-up](archived/ci-lite-native-followup-2026-11-05.md) retains the19-case compiler repair, a later cold SQL installer failure and Windows native watch/workspace failures. Installer diagnostics/counts, workspace setup overlap and honest watch startup phases are repaired. Original bounds, backends and assertions remain; final hosted qualification is pending.
 [Stable upgrades](archived/windows-stable-upgrades-2026-10-29.md)
 and Rust 1.99.1 are locally qualified; remaining P1 acceptances follow.
 

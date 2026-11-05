@@ -31,6 +31,8 @@ const assertPreparation = job => {
   assert.equal(cache.with.key, "node-modules-${{ runner.os }}-${{ runner.arch }}-node-26.13.0-headers-v1-${{ hashFiles('package-lock.json', 'patches/**/*.patch') }}");
   assert.equal(cache.with['restore-keys'], undefined);
   const bootstrap = steps.find(step => step.run === 'npm run bootstrap:ci');
+  assert.equal(bootstrap.env.npm_config_logs_dir, '${{ github.workspace }}/.diagnostics/native-bootstrap/npm-logs',
+    'failed nested npm installers must leave job-owned diagnostic logs');
   assert.equal(bootstrap.if, "runner.os != 'Windows' || steps.node-modules-cache.outputs.cache-hit != 'true'",
     'missing/partial Windows caches and every non-Windows launch retain locked bootstrap');
   const verify = steps.find(step => step.run === 'node tools/setup/rebuild-native.js --verify');
@@ -45,6 +47,8 @@ const assertPreparation = job => {
   assert.equal(upload.with['include-hidden-files'], true);
   assert.equal(upload.with['retention-days'], 7);
   assert.ok(upload.with.path.includes('.testLogs/**'));
+  assert.ok(upload.with.path.trim().split('\n').includes('.diagnostics/native-bootstrap/**'),
+    'a bootstrap failure must retain diagnostics before any native fixture runs');
   for (const witness of ['native-source-identity.json', 'terminal-receipt*.json', 'screen-*.txt',
     'pids.jsonl', 'fixture-phases.jsonl', 'index-workflow-native-*.jsonl', 'fixture-settlement.json']) {
     assert.ok(upload.with.path.includes(witness), 'missing bounded native witness: ' + witness);
@@ -56,7 +60,10 @@ assert.notEqual(inspection.steps.at(-1).with.name, workflows.steps.at(-1).with.n
 for (const mutation of [
   job => { job.steps.find(step => step.run === 'node tools/setup/rebuild-native.js --verify').if = "steps.node-modules-cache.outputs.cache-hit != 'true'"; },
   job => { job.steps.find(step => step.id === 'node-modules-cache').with.key = 'unqualified-old-cache'; },
-  job => { job.steps.find(step => step.run === 'npm run bootstrap:ci').if = "steps.node-modules-cache.outputs.cache-hit == 'true'"; }
+  job => { job.steps.find(step => step.run === 'npm run bootstrap:ci').if = "steps.node-modules-cache.outputs.cache-hit == 'true'"; },
+  job => { delete job.steps.find(step => step.run === 'npm run bootstrap:ci').env.npm_config_logs_dir; },
+  job => { const upload = job.steps.find(step => step.uses?.startsWith('actions/upload-artifact@'));
+    upload.with.path = upload.with.path.replace('.diagnostics/native-bootstrap/**', ''); }
 ]) {
   const invalid = structuredClone(workflows); mutation(invalid);
   assert.throws(() => assertPreparation(invalid), 'cache state cannot waive preparation/admission');

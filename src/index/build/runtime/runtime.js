@@ -1193,7 +1193,6 @@ async function createBuildRuntimeImpl({
       try {
         await fs.mkdir(buildRoot, { recursive: true });
       } catch {}
-      logInit('runtime ready', initStartedAt);
 
       const runtime = {
         runtimeAttempt,
@@ -1361,8 +1360,11 @@ async function createBuildRuntimeImpl({
         verboseCache,
         importGraphEnabled
       };
+      const receiptStartedAt = Date.now();
       await refreshRuntimeReceipt(runtime);
+      logInit('runtime receipt', receiptStartedAt);
       indexRuntimeStorage.revalidate();
+      logInit('runtime ready', initStartedAt);
       return runtime;
     });
   } catch (error) {

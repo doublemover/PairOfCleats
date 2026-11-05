@@ -111,6 +111,18 @@ remain. The nine newly isolated cases are excluded exactly once from the broad
 lane. Six parameter/qualified-target cases gain ordered CI membership; all13
 original ordered cases remain. Replacement hosted qualification remains pending.
 
+[Native CI follow-up](../archived/ci-lite-native-followup-2026-11-05.md) retains
+the later Ubuntu cold SQL installer exit and Windows native19/21 result at50ac7f059.
+The SQL cause is absent from the original log; a failed installer cancelled the
+remaining tasks, rather than failing30 independent builds. Nested installer
+output/log retention and exact failed/cancelled/blocked counts are repaired.
+Workspace overlaps independent terminal setup with its unchanged partial seed,
+then joins publication before any read, preview or launch. Real native workspace
+passes23.6s locally; watch passes locally before/after, with its hosted startup
+stall still unattributed. Runtime-ready follows durable receipt completion and
+initial watch discovery has explicit phase logs. No deadline/retry/backend change.
+Replacement hosted qualification remains pending.
+
 The following dated receipts retain their original candidate identities and
 limits; their earlier pending counts are historical.
 

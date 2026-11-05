@@ -6,7 +6,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { spawnResolvedSubprocess } from '../../src/shared/subprocess/command-invocation.js';
-import { formatSpawnFailureReason } from './rebuild-native-exit.js';
+import { formatSpawnFailureReason, summarizeNativeBuildResults } from './rebuild-native-exit.js';
 import { probeSqliteNative, rebuildSqliteNativeFromSourceAsync } from './rebuild-native-sqlite.js';
 import { listNativeTreeSitterGrammarModuleNames, NATIVE_GRAMMAR_MODULES } from '../../src/lang/tree-sitter/native-runtime.js';
 import { resolveBootstrapBudget, runBootstrapTasks } from './bootstrap-tasks.js';
@@ -121,6 +121,8 @@ const buildNpmEnv = ({ buildFromSource = false } = {}) => {
     env[key] = typeof value === 'string' ? value : String(value);
   }
   env.npm_config_ignore_scripts = 'false';
+  // Nested npx installers otherwise hide the cause behind an outer exit 1.
+  env.npm_config_foreground_scripts = 'true';
   if (buildFromSource) {
     env.npm_config_build_from_source = 'true';
   }
@@ -484,26 +486,27 @@ console.error('[rebuild:native] dependency plan: ' + JSON.stringify({
 const outcome = await runBootstrapTasks(createNativeBuildTasks({
   packages, adapters, budget: bootstrapBudget, prepareHeaders, buildLocal, buildFallback
 }), { budget: bootstrapBudget });
-let requiredFailures = 0, optionalFailures = 0;
+const buildCounts = summarizeNativeBuildResults(outcome.results);
+const unsuccessful = counts => counts.failed + counts.cancelled + counts.blocked;
 // Report in dependency/input order regardless of completion order.
 for (const row of outcome.results) {
   if (row.result?.stdout) process.stdout.write(row.result.stdout);
   if (row.result?.stderr) process.stderr.write(row.result.stderr);
   console.error('[rebuild:native] ' + row.id + ': ' + row.status
     + (row.error ? ' (' + row.error.message + ')' : ''));
-  if (row.status !== 'succeeded') {
-    if (row.required) requiredFailures++;
-    else optionalFailures++;
-  }
 }
 for (const packageName of OPTIONAL_NATIVE_PACKAGES.filter(name => !isInstalled(name))) {
   console.error('[rebuild:native] optional package not installed; skipping: ' + packageName);
 }
-if (requiredFailures > 0) {
-  console.error('[rebuild:native] failed with ' + requiredFailures + ' required rebuild failure(s).');
+if (unsuccessful(buildCounts.required) > 0) {
+  console.error('[rebuild:native] failed with ' + buildCounts.required.failed
+    + ' required rebuild failure(s); ' + buildCounts.required.cancelled + ' cancelled and '
+    + buildCounts.required.blocked + ' blocked required task(s).');
   process.exit(1);
 }
-if (optionalFailures > 0) console.error('[rebuild:native] completed with ' + optionalFailures + ' optional rebuild failure(s).');
+if (unsuccessful(buildCounts.optional) > 0) console.error('[rebuild:native] completed with '
+  + buildCounts.optional.failed + ' optional rebuild failure(s); ' + buildCounts.optional.cancelled
+  + ' cancelled and ' + buildCounts.optional.blocked + ' blocked optional task(s).');
 else console.error('[rebuild:native] completed successfully.');
 await verifyRequiredPackages();
 await recordReadiness();

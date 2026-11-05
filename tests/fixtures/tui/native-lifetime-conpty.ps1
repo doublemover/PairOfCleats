@@ -19,8 +19,8 @@ function Read-PocConsoleMode {
 }
 $beforeInput = Read-PocConsoleMode -10
 $beforeOutput = Read-PocConsoleMode -11
-$seedName = if ($Mode -in @('validate-published', 'search-published')) { 'seed-native-admission.json' }
-  elseif ($Mode -in @('build-search', 'workspace')) { 'seed-partial-build.json' }
+$seedName = if ($Mode -in @('validate-published', 'search-published', 'workspace')) { 'seed-native-admission.json' }
+  elseif ($Mode -eq 'build-search') { 'seed-partial-build.json' }
   else { $null }
 if ($seedName) {
   # Catalog/form setup is independent of the final seed phase. The JS owner
