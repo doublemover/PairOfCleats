@@ -1,42 +1,42 @@
 # Platform and performance qualification
 
-Audited: 2026-11-04. Source contracts and workflow definitions describe required
-behavior; a configured job is not evidence that the current candidate passed it.
-Current execution evidence and unresolved failures belong to the
-[deep test audit](../archived/deep-test-audit-2026-10-18.md) and the
-[active roadmap](../roadmap.md).
+Audited: 2026-11-04. Contracts and configured workflows describe requirements;
+execution receipts below bind actual results to their source. The
+[roadmap](../roadmap.md) owns current scope and remaining work.
 
-The [November follow-up](../archived/windows-model-and-ci-followup-2026-11-04.md)
-closes #1484 with the published functional/current-binary and comparative
-receipts. Actual E5 documents/queries pass at `077a5a44c`; its later boundary
-case exposes post-template EOS truncation in Transformers4.3.2. The dependency
-repair preserves single-sequence template markers and advances embedding
-identity8. Its focused and actual-model rechecks remain separately recorded;
-old vectors need rebuilding. Remaining Windows model/SQLite qualification and
-hosted acceptance of the bounded cold-prerequisite repair remain open.
+[SQLite closeout](../archived/windows-sqlite-final-qualification-2026-11-04.md)
+passes all324 fresh serial children at clean1d53c5262: five row-shape cohorts
+retain30 paired trials,60 arms and132 samples; six above-threshold artifact
+trials retain12 complete builds and full independent output parity. Every child
+stays below30seconds, with zero retries, timeouts or native crashes. Raw costs,
+exact inputs, realized work and original failed campaigns remain recorded.
+The strengthened positive-hit latency bound also passes; its concurrent
+formatter excludes an isolated speedup claim. Optional sqlite-vec remains outside
+this acceptance.
+
+[Hosted Windows native closeout](../archived/windows-hosted-native-closeout-2026-11-04.json)
+passes all70 terminal/index/PTY/parser/typed-producer cases at the same source.
+The [terminal repair](../archived/windows-terminal-budget-repair-2026-11-04.md)
+retains the original workspace timeout and confirmed-exit cleanup regression.
+[Native snapshots](../archived/windows-native-snapshot-repair-2026-11-04.md)
+retain ten fresh helpers and original enumeration/close faults. Required native
+verification passes37 packages,33 routes and seven patches/26 targets/73 hunks
+without warnings/errors; legacy source-build diagnostics remain separately
+reported. The Windows authority job also passes. The broader Windows CI suite
+is not implied by these completed jobs.
 
 [Real model acceptance](../archived/windows-real-model-qualification-2026-11-04.md)
-adds24 serial passes at `20e274f99`: E5 quality/boundaries/generation-cache,
-M3 quality/single/batch/query and EG2 single/batch/prepared/query/resources.
-All original model/tokenizer hashes, exact vectors, judgments, phase timings,
-output copies and original cleanup remain recorded. The additional E5 direct
-output-name regression fails before repair and passes afterward; revision2
-generation has five passing capsules at6c. The [model closeout](../archived/windows-model-closeout-2026-11-04.md)
-adds six fresh E5 cases and192 provider-cost children at0a469b42f, all passing. #1541 is closed with
-its full pinned-export dense, judged retrieval and resource observations.
-The [SQLite boundary repair](../archived/windows-sqlite-boundary-repair-2026-11-04.md)
-preserves all60 original arms/132 samples across307 bounded child lifetimes.
-Its14 affected controls pass; original timeout and full-campaign acceptance
-remain separate.
+retains24 E5/M3/EG2 capsules at20e274f99; E5 revision2 adds five at6c.
+The [model closeout](../archived/windows-model-closeout-2026-11-04.md) adds200
+fresh capsules at0a469b42f, including six E5 generation/cache cases, two raw
+MiniLM references and192 provider-cost children. #1541/#1542/#1544 are closed.
+Full vectors, exact template/token boundaries, bilingual judgments, generation/
+cache negatives, allocation profiles and original cleanup remain recorded.
+ORT stays exact1.30.0 alongside Transformers4.3.2; activation and actual model
+qualification remain distinct. Model identity8 requires rebuilding old vectors.
 
-[Native Windows snapshots](../archived/windows-native-snapshot-repair-2026-11-04.md)
-replace the failing interpreter path with the existing required native process
-binding and retain the2000ms deadline. Ten fresh helpers, actual enumeration
-fault/close controls and11 affected cases pass;37-package/33-route verification
-is clean with26 patch targets/73 hunks. Hosted Windows ownership and authority
-pass at0a469b42f. [Terminal follow-up](../archived/windows-terminal-budget-repair-2026-11-04.md)
-retains its original workspace capture failure, actual28.820s repair and ten
-fresh post-exit PTY lifecycles; hosted follow-up acceptance remains pending.
+The following dated receipts retain their original candidate identities and
+limits; their earlier pending counts are historical.
 
 The [native/drain closeout](../archived/windows-native-phase-closeout-2026-10-30.md)
 qualifies clean `b55c76ac4`: both exact-original/current Perl arms, nine historic

@@ -41,3 +41,15 @@ Scratch paths are historical author-workspace receipts.
 
 All eight publication checks pass for this batch, including41 gate cases.
 The machine receipt binds final tested implementation files and verification.
+
+## Hosted Windows closeout
+
+Exact source1d53c5262 passes all70 native-inspection cases:35 actual terminal/
+artifact/index workflows,12 PTY disposal/patch controls,19 parser lifecycle/
+native patch controls and four typed producer contracts. Workspace passes23.9s.
+There are zero failures, timeouts or skips. The [hosted receipt](windows-hosted-native-closeout-2026-11-04.json)
+retains the complete verification/test log segment and exact job/source. Fresh
+37-package/33-route verification passes seven patches,26 targets and73 hunks
+without warnings/errors. Source compilation separately retains247 legacy
+WinPTY compiler warnings and one transitive npm deprecation; those are not
+clean verification output. The broad Windows CI suite remains separate.
