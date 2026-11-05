@@ -9,9 +9,9 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 1824,
+    "hero": 1858,
     "matrix": 109,
-    "meta": 55,
+    "meta": 56,
     "soak": 1,
     "heavy-runtime": 0
   },
@@ -11949,6 +11949,216 @@
       "order": 1989,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "retrieval/backend/cli-sparse-preflight-tantivy-bypass",
+      "order": 1990,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "retrieval/backend/tantivy-selected-source-admission",
+      "order": 1991,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "retrieval/providers/tantivy-boolean-and-failure",
+      "order": 1992,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "retrieval/providers/tantivy-deep-filter-recall",
+      "order": 1993,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "retrieval/providers/tantivy-reader-lifetime/async-query",
+      "order": 1994,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "retrieval/providers/tantivy-reader-lifetime/failed-close",
+      "order": 1995,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "retrieval/providers/tantivy-reader-lifetime/missing-close",
+      "order": 1996,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "retrieval/providers/tantivy-reader-lifetime/module-close",
+      "order": 1997,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "retrieval/providers/tantivy-reader-lifetime/ordinal",
+      "order": 1998,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "retrieval/providers/tantivy-reader-lifetime/original-close",
+      "order": 1999,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "retrieval/providers/tantivy-reader-lifetime/pending-close",
+      "order": 2000,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "retrieval/providers/tantivy-reader-lifetime/pending-query",
+      "order": 2001,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "retrieval/providers/tantivy-reader-lifetime/search-finalizer",
+      "order": 2002,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/tantivy/generation-publication/activation-failure",
+      "order": 2003,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/tantivy/generation-publication/cancelled-build",
+      "order": 2004,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/tantivy/generation-publication/concurrent-builds",
+      "order": 2005,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/tantivy/generation-publication/failed-build",
+      "order": 2006,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/tantivy/generation-publication/legacy-build-contract",
+      "order": 2007,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/tantivy/generation-publication/legacy-metadata",
+      "order": 2008,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/tantivy/generation-publication/manifest",
+      "order": 2009,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/tantivy/generation-publication/mapping",
+      "order": 2010,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/tantivy/generation-publication/mutated-input",
+      "order": 2011,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/tantivy/generation-publication/payload",
+      "order": 2012,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/tantivy/generation-publication/pending-build",
+      "order": 2013,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/tantivy/generation-publication/promise-pending",
+      "order": 2014,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/tantivy/generation-publication/promise-rejected",
+      "order": 2015,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/tantivy/generation-publication/repository",
+      "order": 2016,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/tantivy/generation-publication/returned-capture",
+      "order": 2017,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/tantivy/generation-publication/returned-error",
+      "order": 2018,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/tantivy/generation-publication/returned-pending",
+      "order": 2019,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/tantivy/generation-publication/returned-revoked",
+      "order": 2020,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/tantivy/generation-publication/returned-settled",
+      "order": 2021,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/tantivy/generation-publication/returned-unreadable",
+      "order": 2022,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/tantivy/generation-publication/source-lease",
+      "order": 2023,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/script-coverage/tools/build-tantivy-index-help",
+      "order": 2024,
+      "suiteCategory": "meta",
+      "suiteCategoryReason": "meta-cohort-prefix"
     }
   ]
 }

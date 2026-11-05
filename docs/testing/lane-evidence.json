@@ -1,17 +1,17 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-10-30T13:33:12.339Z",
+  "generatedAt": "2026-11-05T01:08:55.018Z",
   "summary": {
     "lanes": 5,
-    "tests": 2301,
+    "tests": 2338,
     "exactDuplicates": 0,
     "hotspotKinds": 10,
-    "families": 419,
+    "families": 421,
     "topSlowest": 10,
     "timingCoverage": {
       "freshArtifactTests": 0,
       "historicalFallbackTests": 74,
-      "missingTests": 2227
+      "missingTests": 2264
     }
   },
   "lanes": [
@@ -35,7 +35,7 @@
       "targetMaxDurationSeconds": 15,
       "orderFile": "tests/ci-lite/ci-lite.order.txt",
       "timingArtifactPath": ".testLogs/ci-lite-testRunTimes.txt",
-      "totalTests": 1989,
+      "totalTests": 2024,
       "knownDurationTests": 49,
       "knownDurationMs": 27090,
       "p50DurationMs": 190,
@@ -43,7 +43,7 @@
       "resolvedTimingArtifactPaths": [],
       "timingSources": {
         "historical-test-times": 49,
-        "missing": 1940
+        "missing": 1975
       }
     },
     {
@@ -51,7 +51,7 @@
       "targetMaxDurationSeconds": 60,
       "orderFile": "tests/ci/ci.order.txt",
       "timingArtifactPath": ".testLogs/ci-testRunTimes.txt",
-      "totalTests": 237,
+      "totalTests": 239,
       "knownDurationTests": 22,
       "knownDurationMs": 101770,
       "p50DurationMs": 5020,
@@ -59,7 +59,7 @@
       "resolvedTimingArtifactPaths": [],
       "timingSources": {
         "historical-test-times": 22,
-        "missing": 215
+        "missing": 217
       }
     },
     {
@@ -128,9 +128,9 @@
     },
     {
       "key": "tooling/install",
-      "count": 56,
+      "count": 57,
       "knownDurationMs": 8330,
-      "unknownDurationCount": 51
+      "unknownDurationCount": 52
     },
     {
       "key": "indexing/type-inference",
@@ -379,6 +379,12 @@
       "unknownDurationCount": 21
     },
     {
+      "key": "storage/tantivy",
+      "count": 21,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 21
+    },
+    {
       "key": "indexing/risk",
       "count": 20,
       "knownDurationMs": 0,
@@ -433,6 +439,12 @@
       "unknownDurationCount": 15
     },
     {
+      "key": "retrieval/backend",
+      "count": 15,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 15
+    },
+    {
       "key": "retrieval/cli",
       "count": 15,
       "knownDurationMs": 0,
@@ -457,10 +469,10 @@
       "unknownDurationCount": 14
     },
     {
-      "key": "retrieval/backend",
-      "count": 13,
+      "key": "retrieval/providers",
+      "count": 14,
       "knownDurationMs": 0,
-      "unknownDurationCount": 13
+      "unknownDurationCount": 14
     },
     {
       "key": "shared/concurrency",
@@ -799,12 +811,6 @@
       "unknownDurationCount": 3
     },
     {
-      "key": "retrieval/providers",
-      "count": 3,
-      "knownDurationMs": 0,
-      "unknownDurationCount": 3
-    },
-    {
       "key": "retrieval/query",
       "count": 3,
       "knownDurationMs": 0,
@@ -818,6 +824,12 @@
     },
     {
       "key": "tooling/fixtures",
+      "count": 3,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 3
+    },
+    {
+      "key": "tooling/script-coverage",
       "count": 3,
       "knownDurationMs": 0,
       "unknownDurationCount": 3
@@ -932,12 +944,6 @@
     },
     {
       "key": "tooling/paths",
-      "count": 2,
-      "knownDurationMs": 0,
-      "unknownDurationCount": 2
-    },
-    {
-      "key": "tooling/script-coverage",
       "count": 2,
       "knownDurationMs": 0,
       "unknownDurationCount": 2
@@ -1202,6 +1208,12 @@
     },
     {
       "key": "embeddings/qualification-phase-resource-adoption",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "embeddings/tokenizer-special-token-truncation",
       "count": 1,
       "knownDurationMs": 0,
       "unknownDurationCount": 1

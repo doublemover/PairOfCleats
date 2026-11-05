@@ -50,9 +50,12 @@ An old receipt requires rebuilding against the selected source generation. The
 reader adapter requires synchronous open/search and a handle or module close
 whose completion confirms disposal; unsupported lifetime APIs fail explicitly.
 The optional module is absent from the current installation and lockfile.
-Twenty-one deterministic adapter controls pass for source-pinned publication,
-failed/cancelled/concurrent builds, activation and original reader-close
-ownership. Supported native rebuild/readback remains separately unqualified;
+The mandatory native-free CI cohort covers 21 source-publication cases, nine
+reader-lifetime cases and seven query/source/cache/CLI controls. Build-contract
+identity 2 captures original dispatch and fulfilled-result settlement observations
+before publication or failure unwind; earlier build meaning requires rebuilding.
+A resolved Promise alone does not certify native writer disposal. See the
+[build-settlement repair](../archived/windows-tantivy-build-settlement-2026-11-04.md). Supported native rebuild/readback remains separately unqualified;
 these protocol controls do not establish an installed native backend.
 
 Installing a package named `tantivy` does not establish this adapter contract.

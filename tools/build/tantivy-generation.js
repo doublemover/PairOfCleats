@@ -13,6 +13,7 @@ import { createTantivySource, readTantivyManifest, tantivySourceKey, sameTantivy
 import { readTantivyReceipt, TANTIVY_RECEIPT_MAX_BYTES } from '../../src/shared/tantivy-receipt.js';
 import { withTantivyStorage } from '../../src/shared/tantivy-storage.js';
 import { observeStorageResource } from '../../src/shared/storage/failure-observation.js';
+import { addStorageFailureContext } from '../../src/shared/storage/operation-error.js';
 
 const pending = new Map();
 const failure = message => Object.assign(new Error(message), { code: 'ERR_TANTIVY_PUBLICATION' });
@@ -30,6 +31,20 @@ export const buildTantivyGeneration = async ({ repoRoot, indexDir, mode, config 
   if (pending.size >= 16) throw failure('Tantivy build queue is full.');
   const task = Symbol('tantivy-build'); pending.set(task, null);
   let retained = null;
+  const nativeObservations = [];
+  const requireNativeSettlement = () => {
+    for (const observation of nativeObservations) observation.requireSettled();
+  };
+  const retainNativeFailure = error => {
+    let failure = error;
+    for (const native of nativeObservations) {
+      try { native.requireSettled(); }
+      catch (cleanup) {
+        failure = addStorageFailureContext(failure, {}, cleanup, { secondaryPresent: true });
+      }
+    }
+    return failure;
+  };
   try {
     const context = { repoRoot, userConfig, env: { ...process.env } };
     return await withTantivyStorage(indexDir, context, async () => {
@@ -62,21 +77,35 @@ export const buildTantivyGeneration = async ({ repoRoot, indexDir, mode, config 
           const dir = path.join(generations, publicationId);
           await fs.mkdir(dir);
           log(`[tantivy] Building ${mode} generation ${publicationId}...`);
-          await Promise.resolve(buildIndex({ indexPath: dir, mode, vocab: tokenPostings.vocab,
-            postings: tokenPostings.postings, docLengths: tokenPostings.docLengths,
-            avgDocLen: tokenPostings.avgDocLen, totalDocs: tokenPostings.totalDocs, chunkMeta }));
-          await unchanged({ verifyInputs: true });
-          const inventory = await inventoryBackendPayload({ dir, signal });
-          if (!inventory || !inventory.entries.some(row => row.kind === 'file')) throw failure('Tantivy returned no bounded completed native payload.');
-          const meta = { schemaVersion: TANTIVY_SCHEMA_VERSION, mode, createdAt: new Date().toISOString(),
-            publicationId, sourceKey, source, chunkCount: source.chunkCount, docCount: source.docCount,
-            vocabCount: source.vocabCount, inventory };
-          if (Buffer.byteLength(JSON.stringify(meta)) > TANTIVY_RECEIPT_MAX_BYTES) throw failure('Tantivy receipt exceeds its bounded admission size.');
-          await unchanged();
-          throwIfAborted(signal);
-          await atomicWriteJson(paths.metaPath, meta, { signal });
-          log(`[tantivy] Activated ${paths.metaPath}`);
-          return { ...paths, dir, meta, available: true, reason: null, reused: false };
+          try {
+            const originalBuild = buildIndex({ indexPath: dir, mode, vocab: tokenPostings.vocab,
+              postings: tokenPostings.postings, docLengths: tokenPostings.docLengths,
+              avgDocLen: tokenPostings.avgDocLen, totalDocs: tokenPostings.totalDocs, chunkMeta });
+            // A returned Promise and its fulfilled value can independently retain
+            // native work. Capture each original observation before further callbacks.
+            nativeObservations.push(observeStorageResource(originalBuild, { phase: 'tantivy-native-dispatch' }));
+            const completedBuild = await originalBuild;
+            if (completedBuild !== originalBuild) nativeObservations.push(
+              observeStorageResource(completedBuild, { phase: 'tantivy-native-result' }));
+            requireNativeSettlement();
+            await unchanged({ verifyInputs: true });
+            const inventory = await inventoryBackendPayload({ dir, signal });
+            if (!inventory || !inventory.entries.some(row => row.kind === 'file')) throw failure('Tantivy returned no bounded completed native payload.');
+            const meta = { schemaVersion: TANTIVY_SCHEMA_VERSION, mode, createdAt: new Date().toISOString(),
+              publicationId, sourceKey, source, chunkCount: source.chunkCount, docCount: source.docCount,
+              vocabCount: source.vocabCount, inventory };
+            if (Buffer.byteLength(JSON.stringify(meta)) > TANTIVY_RECEIPT_MAX_BYTES) throw failure('Tantivy receipt exceeds its bounded admission size.');
+            await unchanged();
+            throwIfAborted(signal);
+            requireNativeSettlement();
+            await atomicWriteJson(paths.metaPath, meta, { signal });
+            log(`[tantivy] Activated ${paths.metaPath}`);
+            return { ...paths, dir, meta, available: true, reason: null, reused: false };
+          } catch (error) {
+            // Retain native prerequisites before the writer lock and either
+            // storage scope considers releasing its original protection.
+            throw retainNativeFailure(error);
+          }
         });
       });
     });

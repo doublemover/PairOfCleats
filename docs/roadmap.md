@@ -11,7 +11,9 @@ The [current reconciliation](archived/windows-sqlite-closure-delta-2026-11-04.js
 
 P2/P3 has **336 qualified closures /four remaining targets /six editor exclusions** from346 reports. Work continues solo on Windows. Batch shared-owner repairs, then run affected controls.
 
-The [native parity repair](archived/windows-onnx-runtime-parity-2026-10-30.md) records exact ORT1.30.0 and minimized/public-consumer acceptance. [Drain](archived/windows-native-phase-closeout-2026-10-30.md) and [projection](archived/windows-native-projection-final-qualification-2026-10-30.md) close #1484. [Model closeout](archived/windows-model-closeout-2026-11-04.md) adds200 actual capsules: E5 generation/cache and192 provider-cost children; #1541/#1542/#1544 are closed. [Windows terminal inspection](archived/windows-terminal-budget-repair-2026-11-04.md) passes all70 hosted cases. [SQLite closeout](archived/windows-sqlite-final-qualification-2026-11-04.md) passes324 children at1d53c5262; #1733 is closed.
+The [native parity repair](archived/windows-onnx-runtime-parity-2026-10-30.md) retains CDB attribution and exact ORT1.30.0. [Model closeout](archived/windows-model-closeout-2026-11-04.md) completes200 capsules and closes #1542/#1544; drain/projection close #1484. [Windows terminals](archived/windows-terminal-budget-repair-2026-11-04.md) pass70 hosted cases. [SQLite](archived/windows-sqlite-final-qualification-2026-11-04.md) passes324 children at1d53c5262 and closes #1733.
+
+[Tantivy build settlement](archived/windows-tantivy-build-settlement-2026-11-04.md) repairs original dispatch/result observations before activation and failure unwind; build identity2 rejects earlier meaning. Native binding qualification remains #1627.
 
 Completed source-bound checks are indexed in the
 [qualification archive](archived/native-runtime-qualification-index-2026-10-27.md)

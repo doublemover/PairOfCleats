@@ -1,0 +1,678 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-11-04",
+  "historicalAuthorWorkspace": true,
+  "baseRevision": "7ef5b3711485e641b3b7a58bf86e5ea31bbb857d",
+  "runtime": {
+    "node": "v26.13.0",
+    "platform": "win32",
+    "arch": "x64",
+    "abi": 147
+  },
+  "scope": "Tantivy publication/lifetime protocol;no optional native package installed or qualified",
+  "originalOwner": {
+    "gitRevision": "7ef5b3711485e641b3b7a58bf86e5ea31bbb857d",
+    "path": "tools/build/tantivy-generation.js",
+    "sha256": "13ae547b153df149088f60745a2981026ce7198187da919b86e797d2d965b8ed",
+    "source": "import fs from 'node:fs/promises';\nimport path from 'node:path';\nimport { randomUUID } from 'node:crypto';\nimport { loadChunkMeta, loadTokenPostings } from '../../src/shared/artifact-io/loaders.js';\nimport { MAX_JSON_BYTES } from '../../src/shared/artifact-io/constants.js';\nimport { inventoryBackendPayload } from '../../src/shared/artifact-io/backend-payload-inventory.js';\nimport { assertNoSymlinkPath } from '../../src/shared/contained-file.js';\nimport { atomicWriteJson } from '../../src/shared/io/atomic-write.js';\nimport { withFileLock } from '../../src/shared/locks/file-lock.js';\nimport { throwIfAborted } from '../../src/shared/abort.js';\nimport { resolveTantivyPaths, TANTIVY_SCHEMA_VERSION } from '../../src/shared/tantivy.js';\nimport { createTantivySource, readTantivyManifest, tantivySourceKey, sameTantivySource } from '../../src/shared/tantivy-source.js';\nimport { readTantivyReceipt, TANTIVY_RECEIPT_MAX_BYTES } from '../../src/shared/tantivy-receipt.js';\nimport { withTantivyStorage } from '../../src/shared/tantivy-storage.js';\nimport { observeStorageResource } from '../../src/shared/storage/failure-observation.js';\n\nconst pending = new Map();\nconst failure = message => Object.assign(new Error(message), { code: 'ERR_TANTIVY_PUBLICATION' });\nconst sourceChanged = () => failure('The selected Tantivy source changed during materialization or native build.');\n\n/** Build only a private generation. The atomic receipt is the sole activation\n * point. Unreferenced generations are retained; neither this invocation nor a\n * reader can delete an earlier payload whose native handle may still be live.\n * The optional adapter must settle all writes before its build Promise returns. */\nexport const buildTantivyGeneration = async ({ repoRoot, indexDir, mode, config = {}, userConfig,\n  buildIndex, signal = null, log = () => {} }) => {\n  if (typeof buildIndex !== 'function') throw new TypeError('Tantivy requires an explicit native builder.');\n  throwIfAborted(signal);\n  for (const [task, observation] of pending) if (observation?.isSettled()) pending.delete(task);\n  if (pending.size >= 16) throw failure('Tantivy build queue is full.');\n  const task = Symbol('tantivy-build'); pending.set(task, null);\n  let retained = null;\n  try {\n    const context = { repoRoot, userConfig, env: { ...process.env } };\n    return await withTantivyStorage(indexDir, context, async () => {\n      const selected = await readTantivyManifest(indexDir, { repoRoot, signal });\n      const chunkMeta = await loadChunkMeta(indexDir, { maxBytes: MAX_JSON_BYTES, manifest: selected.manifest, strict: true });\n      const tokenPostings = loadTokenPostings(indexDir, { maxBytes: MAX_JSON_BYTES, manifest: selected.manifest, strict: true });\n      const sourceInput = { repoRoot, indexDir, mode, chunkMeta, tokenPostings, signal, manifestSha256: selected.sha256 };\n      const source = await createTantivySource(sourceInput), sourceKey = tantivySourceKey(source);\n      const unchanged = async ({ verifyInputs = false } = {}) => {\n        throwIfAborted(signal);\n        if ((await readTantivyManifest(indexDir, { repoRoot, signal })).sha256 !== selected.sha256\n          || verifyInputs && !sameTantivySource(source, await createTantivySource(sourceInput))) throw sourceChanged();\n      };\n      await unchanged();\n      const paths = resolveTantivyPaths(indexDir, mode, config);\n      return withTantivyStorage(paths.dir, context, async () => {\n        assertNoSymlinkPath(path.parse(paths.dir).root, paths.dir, { allowMissing: true });\n        await fs.mkdir(paths.dir, { recursive: true });\n        return withFileLock({ lockPath: path.join(paths.dir, 'writer.lock'), waitMs: 10000, signal,\n          timeoutBehavior: 'throw', metadata: { sourceKey, mode, scope: 'tantivy-generation-writer' } }, async () => {\n          await unchanged();\n          const existing = await readTantivyReceipt({ indexDir, mode, config, source, signal });\n          if (existing.available) return { ...existing, reused: true };\n          const generations = path.join(paths.dir, 'generations');\n          assertNoSymlinkPath(paths.dir, generations, { allowMissing: true });\n          await fs.mkdir(generations, { recursive: true });\n          const publicationId = randomUUID();\n          // The UUID directory itself is the private staging target. It becomes\n          // served only when its completed receipt is committed below.\n          const dir = path.join(generations, publicationId);\n          await fs.mkdir(dir);\n          log(`[tantivy] Building ${mode} generation ${publicationId}...`);\n          await Promise.resolve(buildIndex({ indexPath: dir, mode, vocab: tokenPostings.vocab,\n            postings: tokenPostings.postings, docLengths: tokenPostings.docLengths,\n            avgDocLen: tokenPostings.avgDocLen, totalDocs: tokenPostings.totalDocs, chunkMeta }));\n          await unchanged({ verifyInputs: true });\n          const inventory = await inventoryBackendPayload({ dir, signal });\n          if (!inventory || !inventory.entries.some(row => row.kind === 'file')) throw failure('Tantivy returned no bounded completed native payload.');\n          const meta = { schemaVersion: TANTIVY_SCHEMA_VERSION, mode, createdAt: new Date().toISOString(),\n            publicationId, sourceKey, source, chunkCount: source.chunkCount, docCount: source.docCount,\n            vocabCount: source.vocabCount, inventory };\n          if (Buffer.byteLength(JSON.stringify(meta)) > TANTIVY_RECEIPT_MAX_BYTES) throw failure('Tantivy receipt exceeds its bounded admission size.');\n          await unchanged();\n          throwIfAborted(signal);\n          await atomicWriteJson(paths.metaPath, meta, { signal });\n          log(`[tantivy] Activated ${paths.metaPath}`);\n          return { ...paths, dir, meta, available: true, reason: null, reused: false };\n        });\n      });\n    });\n  } catch (error) {\n    const observation = observeStorageResource(error, { phase: 'tantivy-build-slot' });\n    if (!observation.isSettled()) retained = observation;\n    throw error;\n  } finally {\n    if (retained) pending.set(task, retained);\n    else pending.delete(task);\n  }\n};\n"
+  },
+  "regressionBefore": {
+    "passed": 0,
+    "failed": 7,
+    "timeouts": 0,
+    "skips": 0,
+    "fixtureState": "Initial20-case fixture;before explicit retained-writer-lock assertion and the separate legacy-build-contract case were added",
+    "log": "\r\n         ╶╶╴-╴-╶-╶╶╶-=---╶---=--╶--=---=--=-=-=--=---=--╶--=---╶---=-╴╴╴-╴-╶-╶╴╴\r\n               \u001b[94mLanes:\u001b[0m \u001b[37mapi\u001b[0m, \u001b[37mbackcompat\u001b[0m, \u001b[37mci\u001b[0m, \u001b[37mci-lite\u001b[0m, \u001b[37mci-long\u001b[0m,       | \u001b[32mTests:\u001b[0m \u001b[37m   7\u001b[0m      \r\n                      \u001b[37mdecomposed-drift\u001b[0m, \u001b[37mdiagnostics-summary\u001b[0m, \u001b[37mgate\u001b[0m,|                   \r\n                      \u001b[37mintegration\u001b[0m, \u001b[37miq\u001b[0m, \u001b[37mmcp\u001b[0m, \u001b[37mperf\u001b[0m, \u001b[37mservices\u001b[0m, \u001b[37msmoke\u001b[0m,|                   \r\n                      \u001b[37mstorage\u001b[0m, \u001b[37munit\u001b[0m, \u001b[37musr-full-conformance\u001b[0m         |                   \r\n         ╶╶╴-╴-╶-╶╶╶-=---╶---=--╶--=---=--=-=-=--=---=--╶--=---╶---=-╴╴╴-╴-╶-╶╴╴\r\n\r\nFAIL [ 643ms] storage/tantivy/generation-publication/promise-pending exit 1\r\nLOG:          ./.testLogs/run-1793840764852-3eu7cd/storage_tantivy_generation-publication_promise-pending.attempt-1.failure.json\r\n  node:internal/modules/run_main:111\r\n      triggerUncaughtException(\r\n      ^\r\n  AssertionError [ERR_ASSERTION]: Missing expected rejection: resolved output and promise settlement cannot certify outstanding original native work\r\n      at async file:///C:/Users/sneak/Development/PairOfCleats/tests/storage/tantivy/generation-publication.test.js:103:12 {\r\n    generatedMessage: false,\r\n    code: 'ERR_ASSERTION',\r\n  ... trimmed 5 lines\r\n\r\nFAIL [ 636ms] storage/tantivy/generation-publication/promise-rejected exit 1\r\nLOG:          ./.testLogs/run-1793840764852-3eu7cd/storage_tantivy_generation-publication_promise-rejected.attempt-1.failure.json\r\n  node:internal/modules/run_main:111\r\n      triggerUncaughtException(\r\n      ^\r\n  AssertionError [ERR_ASSERTION]: C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\tantivy-publication-promise-rejected-8836-1793840765782-a7uhb0\\cache\r\n  false !== true\r\n      at protectedSource (file:///C:/Users/sneak/Development/PairOfCleats/tests/storage/tantivy/generation-publication.test.js:37:12)\r\n      at async file:///C:/Users/sneak/Development/PairOfCleats/tests/storage/tantivy/generation-publication.test.js:113:7 {\r\n  ... trimmed 7 lines\r\n\r\nFAIL [ 635ms] storage/tantivy/generation-publication/returned-capture exit 1\r\nLOG:          ./.testLogs/run-1793840764852-3eu7cd/storage_tantivy_generation-publication_returned-capture.attempt-1.failure.json\r\n  node:internal/modules/run_main:111\r\n      triggerUncaughtException(\r\n      ^\r\n  AssertionError [ERR_ASSERTION]: Missing expected rejection: resolved output and promise settlement cannot certify outstanding original native work\r\n      at async file:///C:/Users/sneak/Development/PairOfCleats/tests/storage/tantivy/generation-publication.test.js:103:12 {\r\n    generatedMessage: false,\r\n    code: 'ERR_ASSERTION',\r\n  ... trimmed 5 lines\r\n\r\nFAIL [ 629ms] storage/tantivy/generation-publication/returned-error exit 1\r\nLOG:          ./.testLogs/run-1793840764852-3eu7cd/storage_tantivy_generation-publication_returned-error.attempt-1.failure.json\r\n  node:internal/modules/run_main:111\r\n      triggerUncaughtException(\r\n      ^\r\n  AssertionError [ERR_ASSERTION]: C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\tantivy-publication-returned-error-6560-1793840767050-13z45y\\cache\r\n  false !== true\r\n      at protectedSource (file:///C:/Users/sneak/Development/PairOfCleats/tests/storage/tantivy/generation-publication.test.js:37:12)\r\n      at async file:///C:/Users/sneak/Development/PairOfCleats/tests/storage/tantivy/generation-publication.test.js:113:7 {\r\n  ... trimmed 7 lines\r\n\r\nFAIL [ 639ms] storage/tantivy/generation-publication/returned-pending exit 1\r\nLOG:          ./.testLogs/run-1793840764852-3eu7cd/storage_tantivy_generation-publication_returned-pending.attempt-1.failure.json\r\n  node:internal/modules/run_main:111\r\n      triggerUncaughtException(\r\n      ^\r\n  AssertionError [ERR_ASSERTION]: Missing expected rejection: resolved output and promise settlement cannot certify outstanding original native work\r\n      at async file:///C:/Users/sneak/Development/PairOfCleats/tests/storage/tantivy/generation-publication.test.js:103:12 {\r\n    generatedMessage: false,\r\n    code: 'ERR_ASSERTION',\r\n  ... trimmed 5 lines\r\n\r\nFAIL [ 624ms] storage/tantivy/generation-publication/returned-revoked exit 1\r\nLOG:          ./.testLogs/run-1793840764852-3eu7cd/storage_tantivy_generation-publication_returned-revoked.attempt-1.failure.json\r\n  node:internal/modules/run_main:111\r\n      triggerUncaughtException(\r\n      ^\r\n  AssertionError [ERR_ASSERTION]: Missing expected rejection: resolved output and promise settlement cannot certify outstanding original native work\r\n      at async file:///C:/Users/sneak/Development/PairOfCleats/tests/storage/tantivy/generation-publication.test.js:103:12 {\r\n    generatedMessage: false,\r\n    code: 'ERR_ASSERTION',\r\n  ... trimmed 5 lines\r\n\r\nFAIL [ 635ms] storage/tantivy/generation-publication/returned-unreadable exit 1\r\nLOG:          ./.testLogs/run-1793840764852-3eu7cd/storage_tantivy_generation-publication_returned-unreadable.attempt-1.failure.json\r\n  node:internal/modules/run_main:111\r\n      triggerUncaughtException(\r\n      ^\r\n  AssertionError [ERR_ASSERTION]: Missing expected rejection: resolved output and promise settlement cannot certify outstanding original native work\r\n      at async file:///C:/Users/sneak/Development/PairOfCleats/tests/storage/tantivy/generation-publication.test.js:103:12 {\r\n    generatedMessage: false,\r\n    code: 'ERR_ASSERTION',\r\n  ... trimmed 5 lines\r\n\r\n\r\nLOGS: ./.testLogs/run-1793840764852-3eu7cd\r\n\r\n  Failures:\r\n     - [ 643ms] storage/tantivy/generation-publication/promise-pending (exit 1)\r\n         node:internal/modules/run_main:111\r\n         LOG: ./.testLogs/run-1793840764852-3eu7cd/storage_tantivy_generation-publication_promise-pending.attempt-1.failure.json\r\n\r\n     - [ 636ms] storage/tantivy/generation-publication/promise-rejected (exit 1)\r\n         node:internal/modules/run_main:111\r\n         LOG: ./.testLogs/run-1793840764852-3eu7cd/storage_tantivy_generation-publication_promise-rejected.attempt-1.failure.json\r\n\r\n     - [ 635ms] storage/tantivy/generation-publication/returned-capture (exit 1)\r\n         node:internal/modules/run_main:111\r\n         LOG: ./.testLogs/run-1793840764852-3eu7cd/storage_tantivy_generation-publication_returned-capture.attempt-1.failure.json\r\n\r\n     - [ 629ms] storage/tantivy/generation-publication/returned-error (exit 1)\r\n         node:internal/modules/run_main:111\r\n         LOG: ./.testLogs/run-1793840764852-3eu7cd/storage_tantivy_generation-publication_returned-error.attempt-1.failure.json\r\n\r\n     - [ 639ms] storage/tantivy/generation-publication/returned-pending (exit 1)\r\n         node:internal/modules/run_main:111\r\n         LOG: ./.testLogs/run-1793840764852-3eu7cd/storage_tantivy_generation-publication_returned-pending.attempt-1.failure.json\r\n\r\n     - [ 624ms] storage/tantivy/generation-publication/returned-revoked (exit 1)\r\n         node:internal/modules/run_main:111\r\n         LOG: ./.testLogs/run-1793840764852-3eu7cd/storage_tantivy_generation-publication_returned-revoked.attempt-1.failure.json\r\n\r\n     - [ 635ms] storage/tantivy/generation-publication/returned-unreadable (exit 1)\r\n         node:internal/modules/run_main:111\r\n         LOG: ./.testLogs/run-1793840764852-3eu7cd/storage_tantivy_generation-publication_returned-unreadable.attempt-1.failure.json\r\n\r\n\r\n         ╶╶╴-╴-╶-╶╶╶-=---╶---=--╶--=---=--=-=-=--=---=--╶--=---╶---=-╴╴╴-╴-╶-╶╴╴\r\n                                      Test Complete!\r\n\r\n         ╶╶╴-╴-╶-╶╶╶-=---╶---=--╶--=---=--=-=-=--=---=--╶--=---╶---=-╴╴╴-╴-╶-╶╴╴\r\n                   Summary : \u001b[97m0\u001b[0m \u001b[32mPassed\u001b[0m | \u001b[97m7\u001b[0m \u001b[31mFailed\u001b[0m | \u001b[97m0\u001b[0m \u001b[38;5;214mTimeouts\u001b[0m | \u001b[97m0\u001b[0m \u001b[38;5;213mSkipped\u001b[0m\r\n                   Duration: 4.46s\r\n                   Slowest : \u001b[97mstorage/tantivy/generation-publication/promise-pending\u001b[0m | \u001b[31mFAIL\u001b[0m [ 643ms]\r\n         ╶╶╴-╴-╶-╶╶╶-=---╶---=--╶--=---=--=-=-=--=---=--╶--=---╶---=-╴╴╴-╴-╶-╶╴╴\r\n"
+  },
+  "initialRepair": {
+    "passed": 8,
+    "failed": 0,
+    "timeouts": 0,
+    "skips": 0,
+    "log": "\r\n         ╶╶╴-╴-╶-╶╶╶-=---╶---=--╶--=---=--=-=-=--=---=--╶--=---╶---=-╴╴╴-╴-╶-╶╴╴\r\n               \u001b[94mLanes:\u001b[0m \u001b[37mapi\u001b[0m, \u001b[37mbackcompat\u001b[0m, \u001b[37mci\u001b[0m, \u001b[37mci-lite\u001b[0m, \u001b[37mci-long\u001b[0m,       | \u001b[32mTests:\u001b[0m \u001b[37m   8\u001b[0m      \r\n                      \u001b[37mdecomposed-drift\u001b[0m, \u001b[37mdiagnostics-summary\u001b[0m, \u001b[37mgate\u001b[0m,|                   \r\n                      \u001b[37mintegration\u001b[0m, \u001b[37miq\u001b[0m, \u001b[37mmcp\u001b[0m, \u001b[37mperf\u001b[0m, \u001b[37mservices\u001b[0m, \u001b[37msmoke\u001b[0m,|                   \r\n                      \u001b[37mstorage\u001b[0m, \u001b[37munit\u001b[0m, \u001b[37musr-full-conformance\u001b[0m         |                   \r\n         ╶╶╴-╴-╶-╶╶╶-=---╶---=--╶--=---=--=-=-=--=---=--╶--=---╶---=-╴╴╴-╴-╶-╶╴╴\r\n\r\nPASS [ 777ms] storage/tantivy/generation-publication/promise-pending\r\nPASS [ 804ms] storage/tantivy/generation-publication/promise-rejected\r\nPASS [ 790ms] storage/tantivy/generation-publication/returned-capture\r\nPASS [ 799ms] storage/tantivy/generation-publication/returned-error\r\nPASS [ 799ms] storage/tantivy/generation-publication/returned-pending\r\nPASS [ 771ms] storage/tantivy/generation-publication/returned-revoked\r\nPASS [ 677ms] storage/tantivy/generation-publication/returned-settled\r\nPASS [ 771ms] storage/tantivy/generation-publication/returned-unreadable\r\n\r\nLOGS: ./.testLogs/run-1793840824215-ccnp2d\r\n\r\n         ╶╶╴-╴-╶-╶╶╶-=---╶---=--╶--=---=--=-=-=--=---=--╶--=---╶---=-╴╴╴-╴-╶-╶╴╴\r\n                                      Test Complete!\r\n\r\n         ╶╶╴-╴-╶-╶╶╶-=---╶---=--╶--=---=--=-=-=--=---=--╶--=---╶---=-╴╴╴-╴-╶-╶╴╴\r\n                   Summary : \u001b[97m8\u001b[0m \u001b[32mPassed\u001b[0m | \u001b[97m0\u001b[0m \u001b[31mFailed\u001b[0m | \u001b[97m0\u001b[0m \u001b[38;5;214mTimeouts\u001b[0m | \u001b[97m0\u001b[0m \u001b[38;5;213mSkipped\u001b[0m\r\n                   Duration: 6.20s\r\n                   Slowest : \u001b[97mstorage/tantivy/generation-publication/promise-rejected\u001b[0m | \u001b[32mPASS\u001b[0m [ 804ms]\r\n         ╶╶╴-╴-╶-╶╶╶-=---╶---=--╶--=---=--=-=-=--=---=--╶--=---╶---=-╴╴╴-╴-╶-╶╴╴\r\n"
+  },
+  "finalFocused": {
+    "passed": 37,
+    "failed": 0,
+    "timeouts": 0,
+    "skips": 0,
+    "ids": [
+      "retrieval/backend/cli-sparse-preflight-tantivy-bypass",
+      "retrieval/backend/tantivy-selected-source-admission",
+      "retrieval/providers/tantivy-boolean-and-failure",
+      "retrieval/providers/tantivy-boolean-membership-consumers",
+      "retrieval/providers/tantivy-deep-filter-recall",
+      "retrieval/providers/tantivy-outcome-cache-consumers",
+      "retrieval/providers/tantivy-reader-lifetime/async-query",
+      "retrieval/providers/tantivy-reader-lifetime/failed-close",
+      "retrieval/providers/tantivy-reader-lifetime/missing-close",
+      "retrieval/providers/tantivy-reader-lifetime/module-close",
+      "retrieval/providers/tantivy-reader-lifetime/ordinal",
+      "retrieval/providers/tantivy-reader-lifetime/original-close",
+      "retrieval/providers/tantivy-reader-lifetime/pending-close",
+      "retrieval/providers/tantivy-reader-lifetime/pending-query",
+      "retrieval/providers/tantivy-reader-lifetime/search-finalizer",
+      "storage/tantivy/generation-publication/activation-failure",
+      "storage/tantivy/generation-publication/cancelled-build",
+      "storage/tantivy/generation-publication/concurrent-builds",
+      "storage/tantivy/generation-publication/failed-build",
+      "storage/tantivy/generation-publication/legacy-build-contract",
+      "storage/tantivy/generation-publication/legacy-metadata",
+      "storage/tantivy/generation-publication/manifest",
+      "storage/tantivy/generation-publication/mapping",
+      "storage/tantivy/generation-publication/mutated-input",
+      "storage/tantivy/generation-publication/payload",
+      "storage/tantivy/generation-publication/pending-build",
+      "storage/tantivy/generation-publication/promise-pending",
+      "storage/tantivy/generation-publication/promise-rejected",
+      "storage/tantivy/generation-publication/repository",
+      "storage/tantivy/generation-publication/returned-capture",
+      "storage/tantivy/generation-publication/returned-error",
+      "storage/tantivy/generation-publication/returned-pending",
+      "storage/tantivy/generation-publication/returned-revoked",
+      "storage/tantivy/generation-publication/returned-settled",
+      "storage/tantivy/generation-publication/returned-unreadable",
+      "storage/tantivy/generation-publication/source-lease",
+      "tooling/script-coverage/tools/build-tantivy-index-help"
+    ],
+    "excluded": [
+      {
+        "id": "smoke/tantivy",
+        "reason": "Requires the explicitly installed and selected optional native binding;not represented by protocol controls"
+      }
+    ],
+    "log": "\r\n         ╶╶╴-╴-╶-╶╶╶-=---╶---=--╶--=---=--=-=-=--=---=--╶--=---╶---=-╴╴╴-╴-╶-╶╴╴\r\n               \u001b[94mLanes:\u001b[0m \u001b[37mapi\u001b[0m, \u001b[37mbackcompat\u001b[0m, \u001b[37mci\u001b[0m, \u001b[37mci-lite\u001b[0m, \u001b[37mci-long\u001b[0m,       | \u001b[32mTests:\u001b[0m \u001b[37m  37\u001b[0m      \r\n                      \u001b[37mdecomposed-drift\u001b[0m, \u001b[37mdiagnostics-summary\u001b[0m, \u001b[37mgate\u001b[0m,|                   \r\n                      \u001b[37mintegration\u001b[0m, \u001b[37miq\u001b[0m, \u001b[37mmcp\u001b[0m, \u001b[37mperf\u001b[0m, \u001b[37mservices\u001b[0m, \u001b[37msmoke\u001b[0m,|                   \r\n                      \u001b[37mstorage\u001b[0m, \u001b[37munit\u001b[0m, \u001b[37musr-full-conformance\u001b[0m         |                   \r\n         ╶╶╴-╴-╶-╶╶╶-=---╶---=--╶--=---=--=-=-=--=---=--╶--=---╶---=-╴╴╴-╴-╶-╶╴╴\r\n\r\nPASS [  93ms] retrieval/backend/cli-sparse-preflight-tantivy-bypass\r\nPASS [ 1.15s] retrieval/backend/tantivy-selected-source-admission\r\nPASS [ 532ms] retrieval/providers/tantivy-boolean-and-failure\r\nPASS [ 750ms] retrieval/providers/tantivy-boolean-membership-consumers\r\nPASS [  94ms] retrieval/providers/tantivy-deep-filter-recall\r\nPASS [ 694ms] retrieval/providers/tantivy-outcome-cache-consumers\r\nPASS [ 310ms] retrieval/providers/tantivy-reader-lifetime/async-query\r\nPASS [ 259ms] retrieval/providers/tantivy-reader-lifetime/failed-close\r\nPASS [ 253ms] retrieval/providers/tantivy-reader-lifetime/missing-close\r\nPASS [ 254ms] retrieval/providers/tantivy-reader-lifetime/module-close\r\nPASS [ 256ms] retrieval/providers/tantivy-reader-lifetime/ordinal\r\nPASS [ 257ms] retrieval/providers/tantivy-reader-lifetime/original-close\r\nPASS [ 325ms] retrieval/providers/tantivy-reader-lifetime/pending-close\r\nPASS [ 289ms] retrieval/providers/tantivy-reader-lifetime/pending-query\r\nPASS [ 260ms] retrieval/providers/tantivy-reader-lifetime/search-finalizer\r\nPASS [ 950ms] storage/tantivy/generation-publication/activation-failure\r\nPASS [ 843ms] storage/tantivy/generation-publication/cancelled-build\r\nPASS [ 1.08s] storage/tantivy/generation-publication/concurrent-builds\r\nPASS [ 810ms] storage/tantivy/generation-publication/failed-build\r\nPASS [ 699ms] storage/tantivy/generation-publication/legacy-build-contract\r\nPASS [ 576ms] storage/tantivy/generation-publication/legacy-metadata\r\nPASS [ 581ms] storage/tantivy/generation-publication/manifest\r\nPASS [ 574ms] storage/tantivy/generation-publication/mapping\r\nPASS [ 739ms] storage/tantivy/generation-publication/mutated-input\r\nPASS [ 585ms] storage/tantivy/generation-publication/payload\r\nPASS [ 814ms] storage/tantivy/generation-publication/pending-build\r\nPASS [ 770ms] storage/tantivy/generation-publication/promise-pending\r\nPASS [ 838ms] storage/tantivy/generation-publication/promise-rejected\r\nPASS [ 563ms] storage/tantivy/generation-publication/repository\r\nPASS [ 865ms] storage/tantivy/generation-publication/returned-capture\r\nPASS [ 787ms] storage/tantivy/generation-publication/returned-error\r\nPASS [ 844ms] storage/tantivy/generation-publication/returned-pending\r\nPASS [ 781ms] storage/tantivy/generation-publication/returned-revoked\r\nPASS [ 768ms] storage/tantivy/generation-publication/returned-settled\r\nPASS [ 796ms] storage/tantivy/generation-publication/returned-unreadable\r\nPASS [ 836ms] storage/tantivy/generation-publication/source-lease\r\nPASS [ 782ms] tooling/script-coverage/tools/build-tantivy-index-help\r\n\r\nLOGS: ./.testLogs/run-1793841139550-x2r5qj\r\n\r\n         ╶╶╴-╴-╶-╶╶╶-=---╶---=--╶--=---=--=-=-=--=---=--╶--=---╶---=-╴╴╴-╴-╶-╶╴╴\r\n                                      Test Complete!\r\n\r\n         ╶╶╴-╴-╶-╶╶╶-=---╶---=--╶--=---=--=-=-=--=---=--╶--=---╶---=-╴╴╴-╴-╶-╶╴╴\r\n                   Summary : \u001b[97m37\u001b[0m \u001b[32mPassed\u001b[0m | \u001b[97m0\u001b[0m \u001b[31mFailed\u001b[0m | \u001b[97m0\u001b[0m \u001b[38;5;214mTimeouts\u001b[0m | \u001b[97m0\u001b[0m \u001b[38;5;213mSkipped\u001b[0m\r\n                   Duration: 22.7s\r\n                   Slowest : \u001b[97mretrieval/backend/tantivy-selected-source-admission\u001b[0m | \u001b[32mPASS\u001b[0m [ 1.15s]\r\n         ╶╶╴-╴-╶-╶╶╶-=---╶---=--╶--=---=--=-=-=--=---=--╶--=---╶---=-╴╴╴-╴-╶-╶╴╴\r\n"
+  },
+  "ciOwnership": {
+    "lane": "ci-lite",
+    "before": 1989,
+    "after": 2024,
+    "addedIds": [
+      "retrieval/backend/cli-sparse-preflight-tantivy-bypass",
+      "retrieval/backend/tantivy-selected-source-admission",
+      "retrieval/providers/tantivy-boolean-and-failure",
+      "retrieval/providers/tantivy-deep-filter-recall",
+      "retrieval/providers/tantivy-reader-lifetime/async-query",
+      "retrieval/providers/tantivy-reader-lifetime/failed-close",
+      "retrieval/providers/tantivy-reader-lifetime/missing-close",
+      "retrieval/providers/tantivy-reader-lifetime/module-close",
+      "retrieval/providers/tantivy-reader-lifetime/ordinal",
+      "retrieval/providers/tantivy-reader-lifetime/original-close",
+      "retrieval/providers/tantivy-reader-lifetime/pending-close",
+      "retrieval/providers/tantivy-reader-lifetime/pending-query",
+      "retrieval/providers/tantivy-reader-lifetime/search-finalizer",
+      "storage/tantivy/generation-publication/activation-failure",
+      "storage/tantivy/generation-publication/cancelled-build",
+      "storage/tantivy/generation-publication/concurrent-builds",
+      "storage/tantivy/generation-publication/failed-build",
+      "storage/tantivy/generation-publication/legacy-build-contract",
+      "storage/tantivy/generation-publication/legacy-metadata",
+      "storage/tantivy/generation-publication/manifest",
+      "storage/tantivy/generation-publication/mapping",
+      "storage/tantivy/generation-publication/mutated-input",
+      "storage/tantivy/generation-publication/payload",
+      "storage/tantivy/generation-publication/pending-build",
+      "storage/tantivy/generation-publication/promise-pending",
+      "storage/tantivy/generation-publication/promise-rejected",
+      "storage/tantivy/generation-publication/repository",
+      "storage/tantivy/generation-publication/returned-capture",
+      "storage/tantivy/generation-publication/returned-error",
+      "storage/tantivy/generation-publication/returned-pending",
+      "storage/tantivy/generation-publication/returned-revoked",
+      "storage/tantivy/generation-publication/returned-settled",
+      "storage/tantivy/generation-publication/returned-unreadable",
+      "storage/tantivy/generation-publication/source-lease",
+      "tooling/script-coverage/tools/build-tantivy-index-help"
+    ],
+    "all37RequiredIdsPresent": true
+  },
+  "producerIdentity": {
+    "receiptSchema": 2,
+    "inputContractBefore": 1,
+    "inputContractAfter": 2,
+    "buildSettlement": "original-dispatch-and-result-observations-v1",
+    "oldReceiptPolicy": "Valid schema2/old build-contract1 cannot be reused;fresh publication required",
+    "semanticExtractionMeaningChanged": false
+  },
+  "rawFiles": [
+    {
+      "path": ".testLogs/run-1793840764852-3eu7cd/storage_tantivy_generation-publication_promise-pending.attempt-1.failure.json",
+      "bytes": 2350,
+      "sha256": "b0dcba61f5fcbd99fd6fe62bcf63455cb009beb792f1221f595bb2a8f1e6ec69",
+      "text": "{\n  \"schemaVersion\": 1,\n  \"testId\": \"storage/tantivy/generation-publication/promise-pending\",\n  \"attempt\": 1,\n  \"recordedBy\": \"test-runner-parent\",\n  \"invocation\": {\n    \"executable\": \"C:\\\\Users\\\\sneak\\\\Development\\\\PairOfCleats\\\\.tmp\\\\tasks\\\\ci-and-p1-20261028\\\\node-v26.13.0-win-x64\\\\node.exe\",\n    \"resolvedExecutable\": \"C:\\\\Users\\\\sneak\\\\Development\\\\PairOfCleats\\\\.tmp\\\\tasks\\\\ci-and-p1-20261028\\\\node-v26.13.0-win-x64\\\\node.exe\",\n    \"arguments\": [\n      \"C:\\\\Users\\\\sneak\\\\Development\\\\PairOfCleats\\\\tests\\\\storage\\\\tantivy\\\\generation-publication.test.js\"\n    ],\n    \"argumentsRedacted\": false,\n    \"cwd\": \"C:\\\\Users\\\\sneak\\\\Development\\\\PairOfCleats\",\n    \"runtime\": {\n      \"node\": \"v26.13.0\",\n      \"v8\": \"14.6.202.34-node.40\",\n      \"modules\": \"147\",\n      \"platform\": \"win32\",\n      \"arch\": \"x64\",\n      \"basis\": \"same executable as parent\"\n    }\n  },\n  \"process\": {\n    \"parentPid\": 22704,\n    \"childPid\": 24836,\n    \"startedAt\": \"2026-11-05T01:06:04.860Z\",\n    \"endedAt\": \"2026-11-05T01:06:05.503Z\"\n  },\n  \"outcome\": {\n    \"status\": \"failed\",\n    \"rawExitStatus\": 1,\n    \"unsignedDecimal\": 1,\n    \"signedDecimal\": 1,\n    \"hex\": \"0x00000001\",\n    \"interpretation\": null,\n    \"signal\": null,\n    \"spawnError\": null,\n    \"timedOut\": false,\n    \"termination\": null,\n    \"interruption\": null,\n    \"statusSource\": \"test-process-close-event\",\n    \"propagation\": \"Parent recorded the directly spawned test process status; descendant status propagation is not inferred.\"\n  },\n  \"phase\": {\n    \"crashPhase\": \"unknown\",\n    \"lastObservedMarker\": null,\n    \"basis\": \"Last captured child log marker; not a native stack or proof of crash location.\"\n  },\n  \"output\": {\n    \"logPath\": \"C:\\\\Users\\\\sneak\\\\Development\\\\PairOfCleats\\\\.testLogs\\\\run-1793840764852-3eu7cd\\\\storage_tantivy_generation-publication_promise-pending.attempt-1.log\",\n    \"captured\": true,\n    \"stdout\": {\n      \"observedStringUnits\": 0,\n      \"retainedStringUnits\": 0,\n      \"truncated\": false,\n      \"configuredLimit\": 5242880,\n      \"limitUnit\": \"javascript-string-units\"\n    },\n    \"stderr\": {\n      \"observedStringUnits\": 526,\n      \"retainedStringUnits\": 526,\n      \"truncated\": false,\n      \"configuredLimit\": 5242880,\n      \"limitUnit\": \"javascript-string-units\"\n    },\n    \"streamOrdering\": \"stdout and stderr are captured separately; no total ordering guaranteed\"\n  }\n}\n"
+    },
+    {
+      "path": ".testLogs/run-1793840764852-3eu7cd/storage_tantivy_generation-publication_promise-pending.attempt-1.log",
+      "bytes": 759,
+      "sha256": "cd87fd3472185cc1db87aa85bf11f25273bf5d0276cb5839b3433034f50da83e",
+      "text": "id: storage/tantivy/generation-publication/promise-pending\npath: storage/tantivy/generation-publication.test.js\nattempt: 1\nstatus: failed\nexit: 1\nsignal: null\ntimedOut: false\ntimeoutClass: \nskipReason: \ntermination: \n\n--- stderr ---\nnode:internal/modules/run_main:111\r\n    triggerUncaughtException(\r\n    ^\r\n\r\nAssertionError [ERR_ASSERTION]: Missing expected rejection: resolved output and promise settlement cannot certify outstanding original native work\r\n    at async file:///C:/Users/sneak/Development/PairOfCleats/tests/storage/tantivy/generation-publication.test.js:103:12 {\r\n  generatedMessage: false,\r\n  code: 'ERR_ASSERTION',\r\n  actual: undefined,\r\n  expected: [Function (anonymous)],\r\n  operator: 'rejects',\r\n  diff: 'simple'\r\n}\r\n\r\nNode.js v26.13.0\r\n"
+    },
+    {
+      "path": ".testLogs/run-1793840764852-3eu7cd/storage_tantivy_generation-publication_promise-rejected.attempt-1.failure.json",
+      "bytes": 2351,
+      "sha256": "d29c512ec4b09061a4dfbca698f2b80a0dd46f4794380ed0e1e436c5292d4e77",
+      "text": "{\n  \"schemaVersion\": 1,\n  \"testId\": \"storage/tantivy/generation-publication/promise-rejected\",\n  \"attempt\": 1,\n  \"recordedBy\": \"test-runner-parent\",\n  \"invocation\": {\n    \"executable\": \"C:\\\\Users\\\\sneak\\\\Development\\\\PairOfCleats\\\\.tmp\\\\tasks\\\\ci-and-p1-20261028\\\\node-v26.13.0-win-x64\\\\node.exe\",\n    \"resolvedExecutable\": \"C:\\\\Users\\\\sneak\\\\Development\\\\PairOfCleats\\\\.tmp\\\\tasks\\\\ci-and-p1-20261028\\\\node-v26.13.0-win-x64\\\\node.exe\",\n    \"arguments\": [\n      \"C:\\\\Users\\\\sneak\\\\Development\\\\PairOfCleats\\\\tests\\\\storage\\\\tantivy\\\\generation-publication.test.js\"\n    ],\n    \"argumentsRedacted\": false,\n    \"cwd\": \"C:\\\\Users\\\\sneak\\\\Development\\\\PairOfCleats\",\n    \"runtime\": {\n      \"node\": \"v26.13.0\",\n      \"v8\": \"14.6.202.34-node.40\",\n      \"modules\": \"147\",\n      \"platform\": \"win32\",\n      \"arch\": \"x64\",\n      \"basis\": \"same executable as parent\"\n    }\n  },\n  \"process\": {\n    \"parentPid\": 22704,\n    \"childPid\": 8836,\n    \"startedAt\": \"2026-11-05T01:06:05.508Z\",\n    \"endedAt\": \"2026-11-05T01:06:06.144Z\"\n  },\n  \"outcome\": {\n    \"status\": \"failed\",\n    \"rawExitStatus\": 1,\n    \"unsignedDecimal\": 1,\n    \"signedDecimal\": 1,\n    \"hex\": \"0x00000001\",\n    \"interpretation\": null,\n    \"signal\": null,\n    \"spawnError\": null,\n    \"timedOut\": false,\n    \"termination\": null,\n    \"interruption\": null,\n    \"statusSource\": \"test-process-close-event\",\n    \"propagation\": \"Parent recorded the directly spawned test process status; descendant status propagation is not inferred.\"\n  },\n  \"phase\": {\n    \"crashPhase\": \"unknown\",\n    \"lastObservedMarker\": null,\n    \"basis\": \"Last captured child log marker; not a native stack or proof of crash location.\"\n  },\n  \"output\": {\n    \"logPath\": \"C:\\\\Users\\\\sneak\\\\Development\\\\PairOfCleats\\\\.testLogs\\\\run-1793840764852-3eu7cd\\\\storage_tantivy_generation-publication_promise-rejected.attempt-1.log\",\n    \"captured\": true,\n    \"stdout\": {\n      \"observedStringUnits\": 0,\n      \"retainedStringUnits\": 0,\n      \"truncated\": false,\n      \"configuredLimit\": 5242880,\n      \"limitUnit\": \"javascript-string-units\"\n    },\n    \"stderr\": {\n      \"observedStringUnits\": 675,\n      \"retainedStringUnits\": 675,\n      \"truncated\": false,\n      \"configuredLimit\": 5242880,\n      \"limitUnit\": \"javascript-string-units\"\n    },\n    \"streamOrdering\": \"stdout and stderr are captured separately; no total ordering guaranteed\"\n  }\n}\n"
+    },
+    {
+      "path": ".testLogs/run-1793840764852-3eu7cd/storage_tantivy_generation-publication_promise-rejected.attempt-1.log",
+      "bytes": 909,
+      "sha256": "4a65fae30ce52a2e7f43b482231874c36933dc61b51c0061677b247bfa4be324",
+      "text": "id: storage/tantivy/generation-publication/promise-rejected\npath: storage/tantivy/generation-publication.test.js\nattempt: 1\nstatus: failed\nexit: 1\nsignal: null\ntimedOut: false\ntimeoutClass: \nskipReason: \ntermination: \n\n--- stderr ---\nnode:internal/modules/run_main:111\r\n    triggerUncaughtException(\r\n    ^\r\n\r\nAssertionError [ERR_ASSERTION]: C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\tantivy-publication-promise-rejected-8836-1793840765782-a7uhb0\\cache\r\n\r\nfalse !== true\r\n\r\n    at protectedSource (file:///C:/Users/sneak/Development/PairOfCleats/tests/storage/tantivy/generation-publication.test.js:37:12)\r\n    at async file:///C:/Users/sneak/Development/PairOfCleats/tests/storage/tantivy/generation-publication.test.js:113:7 {\r\n  generatedMessage: false,\r\n  code: 'ERR_ASSERTION',\r\n  actual: false,\r\n  expected: true,\r\n  operator: 'strictEqual',\r\n  diff: 'simple'\r\n}\r\n\r\nNode.js v26.13.0\r\n"
+    },
+    {
+      "path": ".testLogs/run-1793840764852-3eu7cd/storage_tantivy_generation-publication_returned-capture.attempt-1.failure.json",
+      "bytes": 2351,
+      "sha256": "aa7b995523dfcc22071cda59d22252c72fca7fc58f675cc1b2009711062d9873",
+      "text": "{\n  \"schemaVersion\": 1,\n  \"testId\": \"storage/tantivy/generation-publication/returned-capture\",\n  \"attempt\": 1,\n  \"recordedBy\": \"test-runner-parent\",\n  \"invocation\": {\n    \"executable\": \"C:\\\\Users\\\\sneak\\\\Development\\\\PairOfCleats\\\\.tmp\\\\tasks\\\\ci-and-p1-20261028\\\\node-v26.13.0-win-x64\\\\node.exe\",\n    \"resolvedExecutable\": \"C:\\\\Users\\\\sneak\\\\Development\\\\PairOfCleats\\\\.tmp\\\\tasks\\\\ci-and-p1-20261028\\\\node-v26.13.0-win-x64\\\\node.exe\",\n    \"arguments\": [\n      \"C:\\\\Users\\\\sneak\\\\Development\\\\PairOfCleats\\\\tests\\\\storage\\\\tantivy\\\\generation-publication.test.js\"\n    ],\n    \"argumentsRedacted\": false,\n    \"cwd\": \"C:\\\\Users\\\\sneak\\\\Development\\\\PairOfCleats\",\n    \"runtime\": {\n      \"node\": \"v26.13.0\",\n      \"v8\": \"14.6.202.34-node.40\",\n      \"modules\": \"147\",\n      \"platform\": \"win32\",\n      \"arch\": \"x64\",\n      \"basis\": \"same executable as parent\"\n    }\n  },\n  \"process\": {\n    \"parentPid\": 22704,\n    \"childPid\": 1812,\n    \"startedAt\": \"2026-11-05T01:06:06.146Z\",\n    \"endedAt\": \"2026-11-05T01:06:06.781Z\"\n  },\n  \"outcome\": {\n    \"status\": \"failed\",\n    \"rawExitStatus\": 1,\n    \"unsignedDecimal\": 1,\n    \"signedDecimal\": 1,\n    \"hex\": \"0x00000001\",\n    \"interpretation\": null,\n    \"signal\": null,\n    \"spawnError\": null,\n    \"timedOut\": false,\n    \"termination\": null,\n    \"interruption\": null,\n    \"statusSource\": \"test-process-close-event\",\n    \"propagation\": \"Parent recorded the directly spawned test process status; descendant status propagation is not inferred.\"\n  },\n  \"phase\": {\n    \"crashPhase\": \"unknown\",\n    \"lastObservedMarker\": null,\n    \"basis\": \"Last captured child log marker; not a native stack or proof of crash location.\"\n  },\n  \"output\": {\n    \"logPath\": \"C:\\\\Users\\\\sneak\\\\Development\\\\PairOfCleats\\\\.testLogs\\\\run-1793840764852-3eu7cd\\\\storage_tantivy_generation-publication_returned-capture.attempt-1.log\",\n    \"captured\": true,\n    \"stdout\": {\n      \"observedStringUnits\": 0,\n      \"retainedStringUnits\": 0,\n      \"truncated\": false,\n      \"configuredLimit\": 5242880,\n      \"limitUnit\": \"javascript-string-units\"\n    },\n    \"stderr\": {\n      \"observedStringUnits\": 526,\n      \"retainedStringUnits\": 526,\n      \"truncated\": false,\n      \"configuredLimit\": 5242880,\n      \"limitUnit\": \"javascript-string-units\"\n    },\n    \"streamOrdering\": \"stdout and stderr are captured separately; no total ordering guaranteed\"\n  }\n}\n"
+    },
+    {
+      "path": ".testLogs/run-1793840764852-3eu7cd/storage_tantivy_generation-publication_returned-capture.attempt-1.log",
+      "bytes": 760,
+      "sha256": "447e9c0c26a5500173dc82e502ae1705ff448781ff6c5666f335aa41c7d2015d",
+      "text": "id: storage/tantivy/generation-publication/returned-capture\npath: storage/tantivy/generation-publication.test.js\nattempt: 1\nstatus: failed\nexit: 1\nsignal: null\ntimedOut: false\ntimeoutClass: \nskipReason: \ntermination: \n\n--- stderr ---\nnode:internal/modules/run_main:111\r\n    triggerUncaughtException(\r\n    ^\r\n\r\nAssertionError [ERR_ASSERTION]: Missing expected rejection: resolved output and promise settlement cannot certify outstanding original native work\r\n    at async file:///C:/Users/sneak/Development/PairOfCleats/tests/storage/tantivy/generation-publication.test.js:103:12 {\r\n  generatedMessage: false,\r\n  code: 'ERR_ASSERTION',\r\n  actual: undefined,\r\n  expected: [Function (anonymous)],\r\n  operator: 'rejects',\r\n  diff: 'simple'\r\n}\r\n\r\nNode.js v26.13.0\r\n"
+    },
+    {
+      "path": ".testLogs/run-1793840764852-3eu7cd/storage_tantivy_generation-publication_returned-error.attempt-1.failure.json",
+      "bytes": 2347,
+      "sha256": "487edddd1b54ba83dd65570779fe9628866e21b96588e7d5eb5ffb80b4e8c3e1",
+      "text": "{\n  \"schemaVersion\": 1,\n  \"testId\": \"storage/tantivy/generation-publication/returned-error\",\n  \"attempt\": 1,\n  \"recordedBy\": \"test-runner-parent\",\n  \"invocation\": {\n    \"executable\": \"C:\\\\Users\\\\sneak\\\\Development\\\\PairOfCleats\\\\.tmp\\\\tasks\\\\ci-and-p1-20261028\\\\node-v26.13.0-win-x64\\\\node.exe\",\n    \"resolvedExecutable\": \"C:\\\\Users\\\\sneak\\\\Development\\\\PairOfCleats\\\\.tmp\\\\tasks\\\\ci-and-p1-20261028\\\\node-v26.13.0-win-x64\\\\node.exe\",\n    \"arguments\": [\n      \"C:\\\\Users\\\\sneak\\\\Development\\\\PairOfCleats\\\\tests\\\\storage\\\\tantivy\\\\generation-publication.test.js\"\n    ],\n    \"argumentsRedacted\": false,\n    \"cwd\": \"C:\\\\Users\\\\sneak\\\\Development\\\\PairOfCleats\",\n    \"runtime\": {\n      \"node\": \"v26.13.0\",\n      \"v8\": \"14.6.202.34-node.40\",\n      \"modules\": \"147\",\n      \"platform\": \"win32\",\n      \"arch\": \"x64\",\n      \"basis\": \"same executable as parent\"\n    }\n  },\n  \"process\": {\n    \"parentPid\": 22704,\n    \"childPid\": 6560,\n    \"startedAt\": \"2026-11-05T01:06:06.783Z\",\n    \"endedAt\": \"2026-11-05T01:06:07.412Z\"\n  },\n  \"outcome\": {\n    \"status\": \"failed\",\n    \"rawExitStatus\": 1,\n    \"unsignedDecimal\": 1,\n    \"signedDecimal\": 1,\n    \"hex\": \"0x00000001\",\n    \"interpretation\": null,\n    \"signal\": null,\n    \"spawnError\": null,\n    \"timedOut\": false,\n    \"termination\": null,\n    \"interruption\": null,\n    \"statusSource\": \"test-process-close-event\",\n    \"propagation\": \"Parent recorded the directly spawned test process status; descendant status propagation is not inferred.\"\n  },\n  \"phase\": {\n    \"crashPhase\": \"unknown\",\n    \"lastObservedMarker\": null,\n    \"basis\": \"Last captured child log marker; not a native stack or proof of crash location.\"\n  },\n  \"output\": {\n    \"logPath\": \"C:\\\\Users\\\\sneak\\\\Development\\\\PairOfCleats\\\\.testLogs\\\\run-1793840764852-3eu7cd\\\\storage_tantivy_generation-publication_returned-error.attempt-1.log\",\n    \"captured\": true,\n    \"stdout\": {\n      \"observedStringUnits\": 0,\n      \"retainedStringUnits\": 0,\n      \"truncated\": false,\n      \"configuredLimit\": 5242880,\n      \"limitUnit\": \"javascript-string-units\"\n    },\n    \"stderr\": {\n      \"observedStringUnits\": 673,\n      \"retainedStringUnits\": 673,\n      \"truncated\": false,\n      \"configuredLimit\": 5242880,\n      \"limitUnit\": \"javascript-string-units\"\n    },\n    \"streamOrdering\": \"stdout and stderr are captured separately; no total ordering guaranteed\"\n  }\n}\n"
+    },
+    {
+      "path": ".testLogs/run-1793840764852-3eu7cd/storage_tantivy_generation-publication_returned-error.attempt-1.log",
+      "bytes": 905,
+      "sha256": "158e86d219cac8f932d9f6d8bf054b3e88a6082667c96f85a27658f23f981db5",
+      "text": "id: storage/tantivy/generation-publication/returned-error\npath: storage/tantivy/generation-publication.test.js\nattempt: 1\nstatus: failed\nexit: 1\nsignal: null\ntimedOut: false\ntimeoutClass: \nskipReason: \ntermination: \n\n--- stderr ---\nnode:internal/modules/run_main:111\r\n    triggerUncaughtException(\r\n    ^\r\n\r\nAssertionError [ERR_ASSERTION]: C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\tantivy-publication-returned-error-6560-1793840767050-13z45y\\cache\r\n\r\nfalse !== true\r\n\r\n    at protectedSource (file:///C:/Users/sneak/Development/PairOfCleats/tests/storage/tantivy/generation-publication.test.js:37:12)\r\n    at async file:///C:/Users/sneak/Development/PairOfCleats/tests/storage/tantivy/generation-publication.test.js:113:7 {\r\n  generatedMessage: false,\r\n  code: 'ERR_ASSERTION',\r\n  actual: false,\r\n  expected: true,\r\n  operator: 'strictEqual',\r\n  diff: 'simple'\r\n}\r\n\r\nNode.js v26.13.0\r\n"
+    },
+    {
+      "path": ".testLogs/run-1793840764852-3eu7cd/storage_tantivy_generation-publication_returned-pending.attempt-1.failure.json",
+      "bytes": 2352,
+      "sha256": "22e818947474a84e3e8ecec424c416328f1bc350e61f410f846f6d2a15136731",
+      "text": "{\n  \"schemaVersion\": 1,\n  \"testId\": \"storage/tantivy/generation-publication/returned-pending\",\n  \"attempt\": 1,\n  \"recordedBy\": \"test-runner-parent\",\n  \"invocation\": {\n    \"executable\": \"C:\\\\Users\\\\sneak\\\\Development\\\\PairOfCleats\\\\.tmp\\\\tasks\\\\ci-and-p1-20261028\\\\node-v26.13.0-win-x64\\\\node.exe\",\n    \"resolvedExecutable\": \"C:\\\\Users\\\\sneak\\\\Development\\\\PairOfCleats\\\\.tmp\\\\tasks\\\\ci-and-p1-20261028\\\\node-v26.13.0-win-x64\\\\node.exe\",\n    \"arguments\": [\n      \"C:\\\\Users\\\\sneak\\\\Development\\\\PairOfCleats\\\\tests\\\\storage\\\\tantivy\\\\generation-publication.test.js\"\n    ],\n    \"argumentsRedacted\": false,\n    \"cwd\": \"C:\\\\Users\\\\sneak\\\\Development\\\\PairOfCleats\",\n    \"runtime\": {\n      \"node\": \"v26.13.0\",\n      \"v8\": \"14.6.202.34-node.40\",\n      \"modules\": \"147\",\n      \"platform\": \"win32\",\n      \"arch\": \"x64\",\n      \"basis\": \"same executable as parent\"\n    }\n  },\n  \"process\": {\n    \"parentPid\": 22704,\n    \"childPid\": 23944,\n    \"startedAt\": \"2026-11-05T01:06:07.415Z\",\n    \"endedAt\": \"2026-11-05T01:06:08.054Z\"\n  },\n  \"outcome\": {\n    \"status\": \"failed\",\n    \"rawExitStatus\": 1,\n    \"unsignedDecimal\": 1,\n    \"signedDecimal\": 1,\n    \"hex\": \"0x00000001\",\n    \"interpretation\": null,\n    \"signal\": null,\n    \"spawnError\": null,\n    \"timedOut\": false,\n    \"termination\": null,\n    \"interruption\": null,\n    \"statusSource\": \"test-process-close-event\",\n    \"propagation\": \"Parent recorded the directly spawned test process status; descendant status propagation is not inferred.\"\n  },\n  \"phase\": {\n    \"crashPhase\": \"unknown\",\n    \"lastObservedMarker\": null,\n    \"basis\": \"Last captured child log marker; not a native stack or proof of crash location.\"\n  },\n  \"output\": {\n    \"logPath\": \"C:\\\\Users\\\\sneak\\\\Development\\\\PairOfCleats\\\\.testLogs\\\\run-1793840764852-3eu7cd\\\\storage_tantivy_generation-publication_returned-pending.attempt-1.log\",\n    \"captured\": true,\n    \"stdout\": {\n      \"observedStringUnits\": 0,\n      \"retainedStringUnits\": 0,\n      \"truncated\": false,\n      \"configuredLimit\": 5242880,\n      \"limitUnit\": \"javascript-string-units\"\n    },\n    \"stderr\": {\n      \"observedStringUnits\": 526,\n      \"retainedStringUnits\": 526,\n      \"truncated\": false,\n      \"configuredLimit\": 5242880,\n      \"limitUnit\": \"javascript-string-units\"\n    },\n    \"streamOrdering\": \"stdout and stderr are captured separately; no total ordering guaranteed\"\n  }\n}\n"
+    },
+    {
+      "path": ".testLogs/run-1793840764852-3eu7cd/storage_tantivy_generation-publication_returned-pending.attempt-1.log",
+      "bytes": 760,
+      "sha256": "c0acb99e3d3c8fc516c08daea42408dedf58048b2bf2bbf28469b4c5adb85b49",
+      "text": "id: storage/tantivy/generation-publication/returned-pending\npath: storage/tantivy/generation-publication.test.js\nattempt: 1\nstatus: failed\nexit: 1\nsignal: null\ntimedOut: false\ntimeoutClass: \nskipReason: \ntermination: \n\n--- stderr ---\nnode:internal/modules/run_main:111\r\n    triggerUncaughtException(\r\n    ^\r\n\r\nAssertionError [ERR_ASSERTION]: Missing expected rejection: resolved output and promise settlement cannot certify outstanding original native work\r\n    at async file:///C:/Users/sneak/Development/PairOfCleats/tests/storage/tantivy/generation-publication.test.js:103:12 {\r\n  generatedMessage: false,\r\n  code: 'ERR_ASSERTION',\r\n  actual: undefined,\r\n  expected: [Function (anonymous)],\r\n  operator: 'rejects',\r\n  diff: 'simple'\r\n}\r\n\r\nNode.js v26.13.0\r\n"
+    },
+    {
+      "path": ".testLogs/run-1793840764852-3eu7cd/storage_tantivy_generation-publication_returned-revoked.attempt-1.failure.json",
+      "bytes": 2352,
+      "sha256": "fa6bd560df8f553bf9e7e396abd56cc8b02adf6bb5ba8adbaddb859d24684acd",
+      "text": "{\n  \"schemaVersion\": 1,\n  \"testId\": \"storage/tantivy/generation-publication/returned-revoked\",\n  \"attempt\": 1,\n  \"recordedBy\": \"test-runner-parent\",\n  \"invocation\": {\n    \"executable\": \"C:\\\\Users\\\\sneak\\\\Development\\\\PairOfCleats\\\\.tmp\\\\tasks\\\\ci-and-p1-20261028\\\\node-v26.13.0-win-x64\\\\node.exe\",\n    \"resolvedExecutable\": \"C:\\\\Users\\\\sneak\\\\Development\\\\PairOfCleats\\\\.tmp\\\\tasks\\\\ci-and-p1-20261028\\\\node-v26.13.0-win-x64\\\\node.exe\",\n    \"arguments\": [\n      \"C:\\\\Users\\\\sneak\\\\Development\\\\PairOfCleats\\\\tests\\\\storage\\\\tantivy\\\\generation-publication.test.js\"\n    ],\n    \"argumentsRedacted\": false,\n    \"cwd\": \"C:\\\\Users\\\\sneak\\\\Development\\\\PairOfCleats\",\n    \"runtime\": {\n      \"node\": \"v26.13.0\",\n      \"v8\": \"14.6.202.34-node.40\",\n      \"modules\": \"147\",\n      \"platform\": \"win32\",\n      \"arch\": \"x64\",\n      \"basis\": \"same executable as parent\"\n    }\n  },\n  \"process\": {\n    \"parentPid\": 22704,\n    \"childPid\": 23972,\n    \"startedAt\": \"2026-11-05T01:06:08.056Z\",\n    \"endedAt\": \"2026-11-05T01:06:08.680Z\"\n  },\n  \"outcome\": {\n    \"status\": \"failed\",\n    \"rawExitStatus\": 1,\n    \"unsignedDecimal\": 1,\n    \"signedDecimal\": 1,\n    \"hex\": \"0x00000001\",\n    \"interpretation\": null,\n    \"signal\": null,\n    \"spawnError\": null,\n    \"timedOut\": false,\n    \"termination\": null,\n    \"interruption\": null,\n    \"statusSource\": \"test-process-close-event\",\n    \"propagation\": \"Parent recorded the directly spawned test process status; descendant status propagation is not inferred.\"\n  },\n  \"phase\": {\n    \"crashPhase\": \"unknown\",\n    \"lastObservedMarker\": null,\n    \"basis\": \"Last captured child log marker; not a native stack or proof of crash location.\"\n  },\n  \"output\": {\n    \"logPath\": \"C:\\\\Users\\\\sneak\\\\Development\\\\PairOfCleats\\\\.testLogs\\\\run-1793840764852-3eu7cd\\\\storage_tantivy_generation-publication_returned-revoked.attempt-1.log\",\n    \"captured\": true,\n    \"stdout\": {\n      \"observedStringUnits\": 0,\n      \"retainedStringUnits\": 0,\n      \"truncated\": false,\n      \"configuredLimit\": 5242880,\n      \"limitUnit\": \"javascript-string-units\"\n    },\n    \"stderr\": {\n      \"observedStringUnits\": 526,\n      \"retainedStringUnits\": 526,\n      \"truncated\": false,\n      \"configuredLimit\": 5242880,\n      \"limitUnit\": \"javascript-string-units\"\n    },\n    \"streamOrdering\": \"stdout and stderr are captured separately; no total ordering guaranteed\"\n  }\n}\n"
+    },
+    {
+      "path": ".testLogs/run-1793840764852-3eu7cd/storage_tantivy_generation-publication_returned-revoked.attempt-1.log",
+      "bytes": 760,
+      "sha256": "5685914bae6da30a8f88829573d838f551497b29eb7b36eae7d7e2e540c98983",
+      "text": "id: storage/tantivy/generation-publication/returned-revoked\npath: storage/tantivy/generation-publication.test.js\nattempt: 1\nstatus: failed\nexit: 1\nsignal: null\ntimedOut: false\ntimeoutClass: \nskipReason: \ntermination: \n\n--- stderr ---\nnode:internal/modules/run_main:111\r\n    triggerUncaughtException(\r\n    ^\r\n\r\nAssertionError [ERR_ASSERTION]: Missing expected rejection: resolved output and promise settlement cannot certify outstanding original native work\r\n    at async file:///C:/Users/sneak/Development/PairOfCleats/tests/storage/tantivy/generation-publication.test.js:103:12 {\r\n  generatedMessage: false,\r\n  code: 'ERR_ASSERTION',\r\n  actual: undefined,\r\n  expected: [Function (anonymous)],\r\n  operator: 'rejects',\r\n  diff: 'simple'\r\n}\r\n\r\nNode.js v26.13.0\r\n"
+    },
+    {
+      "path": ".testLogs/run-1793840764852-3eu7cd/storage_tantivy_generation-publication_returned-unreadable.attempt-1.failure.json",
+      "bytes": 2357,
+      "sha256": "f1519f7e03c12780a59cfb5565d0b4c6dc34b2c548cfe6a9802deec5fafd1a5f",
+      "text": "{\n  \"schemaVersion\": 1,\n  \"testId\": \"storage/tantivy/generation-publication/returned-unreadable\",\n  \"attempt\": 1,\n  \"recordedBy\": \"test-runner-parent\",\n  \"invocation\": {\n    \"executable\": \"C:\\\\Users\\\\sneak\\\\Development\\\\PairOfCleats\\\\.tmp\\\\tasks\\\\ci-and-p1-20261028\\\\node-v26.13.0-win-x64\\\\node.exe\",\n    \"resolvedExecutable\": \"C:\\\\Users\\\\sneak\\\\Development\\\\PairOfCleats\\\\.tmp\\\\tasks\\\\ci-and-p1-20261028\\\\node-v26.13.0-win-x64\\\\node.exe\",\n    \"arguments\": [\n      \"C:\\\\Users\\\\sneak\\\\Development\\\\PairOfCleats\\\\tests\\\\storage\\\\tantivy\\\\generation-publication.test.js\"\n    ],\n    \"argumentsRedacted\": false,\n    \"cwd\": \"C:\\\\Users\\\\sneak\\\\Development\\\\PairOfCleats\",\n    \"runtime\": {\n      \"node\": \"v26.13.0\",\n      \"v8\": \"14.6.202.34-node.40\",\n      \"modules\": \"147\",\n      \"platform\": \"win32\",\n      \"arch\": \"x64\",\n      \"basis\": \"same executable as parent\"\n    }\n  },\n  \"process\": {\n    \"parentPid\": 22704,\n    \"childPid\": 4416,\n    \"startedAt\": \"2026-11-05T01:06:08.682Z\",\n    \"endedAt\": \"2026-11-05T01:06:09.317Z\"\n  },\n  \"outcome\": {\n    \"status\": \"failed\",\n    \"rawExitStatus\": 1,\n    \"unsignedDecimal\": 1,\n    \"signedDecimal\": 1,\n    \"hex\": \"0x00000001\",\n    \"interpretation\": null,\n    \"signal\": null,\n    \"spawnError\": null,\n    \"timedOut\": false,\n    \"termination\": null,\n    \"interruption\": null,\n    \"statusSource\": \"test-process-close-event\",\n    \"propagation\": \"Parent recorded the directly spawned test process status; descendant status propagation is not inferred.\"\n  },\n  \"phase\": {\n    \"crashPhase\": \"unknown\",\n    \"lastObservedMarker\": null,\n    \"basis\": \"Last captured child log marker; not a native stack or proof of crash location.\"\n  },\n  \"output\": {\n    \"logPath\": \"C:\\\\Users\\\\sneak\\\\Development\\\\PairOfCleats\\\\.testLogs\\\\run-1793840764852-3eu7cd\\\\storage_tantivy_generation-publication_returned-unreadable.attempt-1.log\",\n    \"captured\": true,\n    \"stdout\": {\n      \"observedStringUnits\": 0,\n      \"retainedStringUnits\": 0,\n      \"truncated\": false,\n      \"configuredLimit\": 5242880,\n      \"limitUnit\": \"javascript-string-units\"\n    },\n    \"stderr\": {\n      \"observedStringUnits\": 526,\n      \"retainedStringUnits\": 526,\n      \"truncated\": false,\n      \"configuredLimit\": 5242880,\n      \"limitUnit\": \"javascript-string-units\"\n    },\n    \"streamOrdering\": \"stdout and stderr are captured separately; no total ordering guaranteed\"\n  }\n}\n"
+    },
+    {
+      "path": ".testLogs/run-1793840764852-3eu7cd/storage_tantivy_generation-publication_returned-unreadable.attempt-1.log",
+      "bytes": 763,
+      "sha256": "1834030b362d1d3836dad7dfe07b361c13b4a36324e42deeb15f837eba6b94d0",
+      "text": "id: storage/tantivy/generation-publication/returned-unreadable\npath: storage/tantivy/generation-publication.test.js\nattempt: 1\nstatus: failed\nexit: 1\nsignal: null\ntimedOut: false\ntimeoutClass: \nskipReason: \ntermination: \n\n--- stderr ---\nnode:internal/modules/run_main:111\r\n    triggerUncaughtException(\r\n    ^\r\n\r\nAssertionError [ERR_ASSERTION]: Missing expected rejection: resolved output and promise settlement cannot certify outstanding original native work\r\n    at async file:///C:/Users/sneak/Development/PairOfCleats/tests/storage/tantivy/generation-publication.test.js:103:12 {\r\n  generatedMessage: false,\r\n  code: 'ERR_ASSERTION',\r\n  actual: undefined,\r\n  expected: [Function (anonymous)],\r\n  operator: 'rejects',\r\n  diff: 'simple'\r\n}\r\n\r\nNode.js v26.13.0\r\n"
+    },
+    {
+      "path": ".testLogs/run-1793840824215-ccnp2d/storage_tantivy_generation-publication_promise-pending.attempt-1.log",
+      "bytes": 338,
+      "sha256": "ecd002661d239491b49c4d9db9c0f7a4081092a253b5f3e6dcaa6af45f9a58d2",
+      "text": "id: storage/tantivy/generation-publication/promise-pending\npath: storage/tantivy/generation-publication.test.js\nattempt: 1\nstatus: passed\nexit: 0\nsignal: null\ntimedOut: false\ntimeoutClass: \nskipReason: \ntermination: \n\n--- stdout ---\nTantivy generation publication promise-pending: deterministic protocol fixture, no native qualification.\n"
+    },
+    {
+      "path": ".testLogs/run-1793840824215-ccnp2d/storage_tantivy_generation-publication_promise-rejected.attempt-1.log",
+      "bytes": 340,
+      "sha256": "743df2647ad78e824b12890eb3360ca83bef3d15f401972a9ad81f89304a71fc",
+      "text": "id: storage/tantivy/generation-publication/promise-rejected\npath: storage/tantivy/generation-publication.test.js\nattempt: 1\nstatus: passed\nexit: 0\nsignal: null\ntimedOut: false\ntimeoutClass: \nskipReason: \ntermination: \n\n--- stdout ---\nTantivy generation publication promise-rejected: deterministic protocol fixture, no native qualification.\n"
+    },
+    {
+      "path": ".testLogs/run-1793840824215-ccnp2d/storage_tantivy_generation-publication_returned-capture.attempt-1.log",
+      "bytes": 340,
+      "sha256": "d0394ebe796361328e0f1f6f77b479d55f27bc0753f06c540767ddf59be6d9bd",
+      "text": "id: storage/tantivy/generation-publication/returned-capture\npath: storage/tantivy/generation-publication.test.js\nattempt: 1\nstatus: passed\nexit: 0\nsignal: null\ntimedOut: false\ntimeoutClass: \nskipReason: \ntermination: \n\n--- stdout ---\nTantivy generation publication returned-capture: deterministic protocol fixture, no native qualification.\n"
+    },
+    {
+      "path": ".testLogs/run-1793840824215-ccnp2d/storage_tantivy_generation-publication_returned-error.attempt-1.log",
+      "bytes": 336,
+      "sha256": "b626da34aab7db29c71c44d2f2552bf1177b8c5be73c46556ef638ba5d8925ff",
+      "text": "id: storage/tantivy/generation-publication/returned-error\npath: storage/tantivy/generation-publication.test.js\nattempt: 1\nstatus: passed\nexit: 0\nsignal: null\ntimedOut: false\ntimeoutClass: \nskipReason: \ntermination: \n\n--- stdout ---\nTantivy generation publication returned-error: deterministic protocol fixture, no native qualification.\n"
+    },
+    {
+      "path": ".testLogs/run-1793840824215-ccnp2d/storage_tantivy_generation-publication_returned-pending.attempt-1.log",
+      "bytes": 340,
+      "sha256": "ff81e796652822b56c91b3d1fbd6a312f700ff7e17744240b3ea1e728853a5d4",
+      "text": "id: storage/tantivy/generation-publication/returned-pending\npath: storage/tantivy/generation-publication.test.js\nattempt: 1\nstatus: passed\nexit: 0\nsignal: null\ntimedOut: false\ntimeoutClass: \nskipReason: \ntermination: \n\n--- stdout ---\nTantivy generation publication returned-pending: deterministic protocol fixture, no native qualification.\n"
+    },
+    {
+      "path": ".testLogs/run-1793840824215-ccnp2d/storage_tantivy_generation-publication_returned-revoked.attempt-1.log",
+      "bytes": 340,
+      "sha256": "525f036aabb8bff52b8134c4226fcd8bd518ad0dd64b6120b5de7e2475d1d5ab",
+      "text": "id: storage/tantivy/generation-publication/returned-revoked\npath: storage/tantivy/generation-publication.test.js\nattempt: 1\nstatus: passed\nexit: 0\nsignal: null\ntimedOut: false\ntimeoutClass: \nskipReason: \ntermination: \n\n--- stdout ---\nTantivy generation publication returned-revoked: deterministic protocol fixture, no native qualification.\n"
+    },
+    {
+      "path": ".testLogs/run-1793840824215-ccnp2d/storage_tantivy_generation-publication_returned-settled.attempt-1.log",
+      "bytes": 340,
+      "sha256": "43184e6bc9e4d0ec93b1bfb9931fdf2d452d257bb12131110ee478df5cd23ce0",
+      "text": "id: storage/tantivy/generation-publication/returned-settled\npath: storage/tantivy/generation-publication.test.js\nattempt: 1\nstatus: passed\nexit: 0\nsignal: null\ntimedOut: false\ntimeoutClass: \nskipReason: \ntermination: \n\n--- stdout ---\nTantivy generation publication returned-settled: deterministic protocol fixture, no native qualification.\n"
+    },
+    {
+      "path": ".testLogs/run-1793840824215-ccnp2d/storage_tantivy_generation-publication_returned-unreadable.attempt-1.log",
+      "bytes": 346,
+      "sha256": "79a942bef66545304a75554a03beec8241daa320a40a3761b168238419baf950",
+      "text": "id: storage/tantivy/generation-publication/returned-unreadable\npath: storage/tantivy/generation-publication.test.js\nattempt: 1\nstatus: passed\nexit: 0\nsignal: null\ntimedOut: false\ntimeoutClass: \nskipReason: \ntermination: \n\n--- stdout ---\nTantivy generation publication returned-unreadable: deterministic protocol fixture, no native qualification.\n"
+    },
+    {
+      "path": ".testLogs/run-1793841139550-x2r5qj/retrieval_backend_cli-sparse-preflight-tantivy-bypass.attempt-1.log",
+      "bytes": 295,
+      "sha256": "31deee00c07088fedef57e1fb9a38e7cef15a5a07bb78c79f4841bb815156d08",
+      "text": "id: retrieval/backend/cli-sparse-preflight-tantivy-bypass\npath: retrieval/backend/cli-sparse-preflight-tantivy-bypass.test.js\nattempt: 1\nstatus: passed\nexit: 0\nsignal: null\ntimedOut: false\ntimeoutClass: \nskipReason: \ntermination: \n\n--- stdout ---\ncli sparse preflight tantivy bypass test passed\n"
+    },
+    {
+      "path": ".testLogs/run-1793841139550-x2r5qj/retrieval_backend_tantivy-selected-source-admission.attempt-1.log",
+      "bytes": 370,
+      "sha256": "769e36198d8beae47575b864f91e9bc79d8051266de2e111d665ccbdff193829",
+      "text": "id: retrieval/backend/tantivy-selected-source-admission\npath: retrieval/backend/tantivy-selected-source-admission.test.js\nattempt: 1\nstatus: passed\nexit: 0\nsignal: null\ntimedOut: false\ntimeoutClass: \nskipReason: \ntermination: \n\n--- stdout ---\nTantivy auto-build retains selected source, value admission and owned async cancellation; native publication remains separate.\n"
+    },
+    {
+      "path": ".testLogs/run-1793841139550-x2r5qj/retrieval_providers_tantivy-boolean-and-failure.attempt-1.log",
+      "bytes": 347,
+      "sha256": "f8abb0dc5ae48ae8e4afed57844f3ec3d5ff629f4316b48e057e4969285b9b71",
+      "text": "id: retrieval/providers/tantivy-boolean-and-failure\npath: retrieval/providers/tantivy-boolean-and-failure.test.js\nattempt: 1\nstatus: passed\nexit: 0\nsignal: null\ntimedOut: false\ntimeoutClass: \nskipReason: \ntermination: \n\n--- stdout ---\nTantivy Boolean completion and genuine native failures retain eligibility, cancellation and fallback authority.\n"
+    },
+    {
+      "path": ".testLogs/run-1793841139550-x2r5qj/retrieval_providers_tantivy-boolean-membership-consumers.attempt-1.log",
+      "bytes": 365,
+      "sha256": "7a39ba8485fd74adc19ce3b7f03a91a4f8c764d4f154c6cebc669495a2378dc3",
+      "text": "id: retrieval/providers/tantivy-boolean-membership-consumers\npath: retrieval/providers/tantivy-boolean-membership-consumers.test.js\nattempt: 1\nstatus: passed\nexit: 0\nsignal: null\ntimedOut: false\ntimeoutClass: \nskipReason: \ntermination: \n\n--- stdout ---\nIndependent Tantivy, JS BM25 and actual SQLite FTS memberships preserve complement scope and work/cancellation.\n"
+    },
+    {
+      "path": ".testLogs/run-1793841139550-x2r5qj/retrieval_providers_tantivy-deep-filter-recall.attempt-1.log",
+      "bytes": 269,
+      "sha256": "e6a30206f646f17eabff70ca8d049fb7a2ab4157d8c2cc76623e12fc93d6de8c",
+      "text": "id: retrieval/providers/tantivy-deep-filter-recall\npath: retrieval/providers/tantivy-deep-filter-recall.test.js\nattempt: 1\nstatus: passed\nexit: 0\nsignal: null\ntimedOut: false\ntimeoutClass: \nskipReason: \ntermination: \n\n--- stdout ---\nTantivy deep filtered recall passed\n"
+    },
+    {
+      "path": ".testLogs/run-1793841139550-x2r5qj/retrieval_providers_tantivy-outcome-cache-consumers.attempt-1.log",
+      "bytes": 356,
+      "sha256": "10edb16b7ebbdc1f3fd8bd482042af4dfb4764e7b5358c697c511856d505f43c",
+      "text": "id: retrieval/providers/tantivy-outcome-cache-consumers\npath: retrieval/providers/tantivy-outcome-cache-consumers.test.js\nattempt: 1\nstatus: passed\nexit: 0\nsignal: null\ntimedOut: false\ntimeoutClass: \nskipReason: \ntermination: \n\n--- stdout ---\nActual Tantivy availability, empty/failure pipeline outcomes and repeated query-cache admission remain distinct.\n"
+    },
+    {
+      "path": ".testLogs/run-1793841139550-x2r5qj/retrieval_providers_tantivy-reader-lifetime_async-query.attempt-1.log",
+      "bytes": 328,
+      "sha256": "bdfd4665b5973ee71419e5221ddc8ee75dc66382ddd2888cc4b9dea874a2b1b4",
+      "text": "id: retrieval/providers/tantivy-reader-lifetime/async-query\npath: retrieval/providers/tantivy-reader-lifetime.test.js\nattempt: 1\nstatus: passed\nexit: 0\nsignal: null\ntimedOut: false\ntimeoutClass: \nskipReason: \ntermination: \n\n--- stdout ---\nTantivy reader lifetime async-query: explicit protocol adapter, no native qualification.\n"
+    },
+    {
+      "path": ".testLogs/run-1793841139550-x2r5qj/retrieval_providers_tantivy-reader-lifetime_failed-close.attempt-1.log",
+      "bytes": 330,
+      "sha256": "e8ced95d6dba719ccfecdd8a8b70f8de77b0ee782bd1de50c9e086b3c4e16c4f",
+      "text": "id: retrieval/providers/tantivy-reader-lifetime/failed-close\npath: retrieval/providers/tantivy-reader-lifetime.test.js\nattempt: 1\nstatus: passed\nexit: 0\nsignal: null\ntimedOut: false\ntimeoutClass: \nskipReason: \ntermination: \n\n--- stdout ---\nTantivy reader lifetime failed-close: explicit protocol adapter, no native qualification.\n"
+    },
+    {
+      "path": ".testLogs/run-1793841139550-x2r5qj/retrieval_providers_tantivy-reader-lifetime_missing-close.attempt-1.log",
+      "bytes": 332,
+      "sha256": "cae108c19360c4300ba9d86339cc3dd04064fd5cfcf9b4ef63175311bbf3de71",
+      "text": "id: retrieval/providers/tantivy-reader-lifetime/missing-close\npath: retrieval/providers/tantivy-reader-lifetime.test.js\nattempt: 1\nstatus: passed\nexit: 0\nsignal: null\ntimedOut: false\ntimeoutClass: \nskipReason: \ntermination: \n\n--- stdout ---\nTantivy reader lifetime missing-close: explicit protocol adapter, no native qualification.\n"
+    },
+    {
+      "path": ".testLogs/run-1793841139550-x2r5qj/retrieval_providers_tantivy-reader-lifetime_module-close.attempt-1.log",
+      "bytes": 330,
+      "sha256": "9a6a381fdbdd184ec2a4db9bb8f8e1ecf70cf7cb69a5a51cf235a6b4bbad2e2b",
+      "text": "id: retrieval/providers/tantivy-reader-lifetime/module-close\npath: retrieval/providers/tantivy-reader-lifetime.test.js\nattempt: 1\nstatus: passed\nexit: 0\nsignal: null\ntimedOut: false\ntimeoutClass: \nskipReason: \ntermination: \n\n--- stdout ---\nTantivy reader lifetime module-close: explicit protocol adapter, no native qualification.\n"
+    },
+    {
+      "path": ".testLogs/run-1793841139550-x2r5qj/retrieval_providers_tantivy-reader-lifetime_ordinal.attempt-1.log",
+      "bytes": 320,
+      "sha256": "0aa98303e5231848a17b8b81c1c521cf965f1ee05c7e9d104544a4acff41603e",
+      "text": "id: retrieval/providers/tantivy-reader-lifetime/ordinal\npath: retrieval/providers/tantivy-reader-lifetime.test.js\nattempt: 1\nstatus: passed\nexit: 0\nsignal: null\ntimedOut: false\ntimeoutClass: \nskipReason: \ntermination: \n\n--- stdout ---\nTantivy reader lifetime ordinal: explicit protocol adapter, no native qualification.\n"
+    },
+    {
+      "path": ".testLogs/run-1793841139550-x2r5qj/retrieval_providers_tantivy-reader-lifetime_original-close.attempt-1.log",
+      "bytes": 334,
+      "sha256": "3c99a3f954376abc2ce0ffbfd7e03f403d323157e19fc489a76d437f7f4b2a88",
+      "text": "id: retrieval/providers/tantivy-reader-lifetime/original-close\npath: retrieval/providers/tantivy-reader-lifetime.test.js\nattempt: 1\nstatus: passed\nexit: 0\nsignal: null\ntimedOut: false\ntimeoutClass: \nskipReason: \ntermination: \n\n--- stdout ---\nTantivy reader lifetime original-close: explicit protocol adapter, no native qualification.\n"
+    },
+    {
+      "path": ".testLogs/run-1793841139550-x2r5qj/retrieval_providers_tantivy-reader-lifetime_pending-close.attempt-1.log",
+      "bytes": 332,
+      "sha256": "791578580bc4bc9a853c96b9c4e722c36035f4df669b3970155ddb15602c7ab7",
+      "text": "id: retrieval/providers/tantivy-reader-lifetime/pending-close\npath: retrieval/providers/tantivy-reader-lifetime.test.js\nattempt: 1\nstatus: passed\nexit: 0\nsignal: null\ntimedOut: false\ntimeoutClass: \nskipReason: \ntermination: \n\n--- stdout ---\nTantivy reader lifetime pending-close: explicit protocol adapter, no native qualification.\n"
+    },
+    {
+      "path": ".testLogs/run-1793841139550-x2r5qj/retrieval_providers_tantivy-reader-lifetime_pending-query.attempt-1.log",
+      "bytes": 332,
+      "sha256": "f9ed5cbf7b1936084dc1cb86b74795a44be6d30cdb1e28dc8908e86655d10b03",
+      "text": "id: retrieval/providers/tantivy-reader-lifetime/pending-query\npath: retrieval/providers/tantivy-reader-lifetime.test.js\nattempt: 1\nstatus: passed\nexit: 0\nsignal: null\ntimedOut: false\ntimeoutClass: \nskipReason: \ntermination: \n\n--- stdout ---\nTantivy reader lifetime pending-query: explicit protocol adapter, no native qualification.\n"
+    },
+    {
+      "path": ".testLogs/run-1793841139550-x2r5qj/retrieval_providers_tantivy-reader-lifetime_search-finalizer.attempt-1.log",
+      "bytes": 338,
+      "sha256": "5eedf370d96d1b69f99af65bfe7a7774256654ada742613fcb093bfed2a04ef5",
+      "text": "id: retrieval/providers/tantivy-reader-lifetime/search-finalizer\npath: retrieval/providers/tantivy-reader-lifetime.test.js\nattempt: 1\nstatus: passed\nexit: 0\nsignal: null\ntimedOut: false\ntimeoutClass: \nskipReason: \ntermination: \n\n--- stdout ---\nTantivy reader lifetime search-finalizer: explicit protocol adapter, no native qualification.\n"
+    },
+    {
+      "path": ".testLogs/run-1793841139550-x2r5qj/storage_tantivy_generation-publication_activation-failure.attempt-1.log",
+      "bytes": 344,
+      "sha256": "d9625eaa9c88ae4c5f0ba83b2a6c4300eba6c0fd617c4e92d11bc90ae2ae9589",
+      "text": "id: storage/tantivy/generation-publication/activation-failure\npath: storage/tantivy/generation-publication.test.js\nattempt: 1\nstatus: passed\nexit: 0\nsignal: null\ntimedOut: false\ntimeoutClass: \nskipReason: \ntermination: \n\n--- stdout ---\nTantivy generation publication activation-failure: deterministic protocol fixture, no native qualification.\n"
+    },
+    {
+      "path": ".testLogs/run-1793841139550-x2r5qj/storage_tantivy_generation-publication_cancelled-build.attempt-1.log",
+      "bytes": 338,
+      "sha256": "90ed07b591c6a51caa4c93421207d0337cc9b7947b80682bb82f1d76a2c607fb",
+      "text": "id: storage/tantivy/generation-publication/cancelled-build\npath: storage/tantivy/generation-publication.test.js\nattempt: 1\nstatus: passed\nexit: 0\nsignal: null\ntimedOut: false\ntimeoutClass: \nskipReason: \ntermination: \n\n--- stdout ---\nTantivy generation publication cancelled-build: deterministic protocol fixture, no native qualification.\n"
+    },
+    {
+      "path": ".testLogs/run-1793841139550-x2r5qj/storage_tantivy_generation-publication_concurrent-builds.attempt-1.log",
+      "bytes": 342,
+      "sha256": "289559662714be432cc3ae754bb0ee7d4e986909091bcd89909220ef74810a64",
+      "text": "id: storage/tantivy/generation-publication/concurrent-builds\npath: storage/tantivy/generation-publication.test.js\nattempt: 1\nstatus: passed\nexit: 0\nsignal: null\ntimedOut: false\ntimeoutClass: \nskipReason: \ntermination: \n\n--- stdout ---\nTantivy generation publication concurrent-builds: deterministic protocol fixture, no native qualification.\n"
+    },
+    {
+      "path": ".testLogs/run-1793841139550-x2r5qj/storage_tantivy_generation-publication_failed-build.attempt-1.log",
+      "bytes": 332,
+      "sha256": "47e11fe8da3b9765186db5895eb331bc555c0d6761105e5d33cf31b58193e342",
+      "text": "id: storage/tantivy/generation-publication/failed-build\npath: storage/tantivy/generation-publication.test.js\nattempt: 1\nstatus: passed\nexit: 0\nsignal: null\ntimedOut: false\ntimeoutClass: \nskipReason: \ntermination: \n\n--- stdout ---\nTantivy generation publication failed-build: deterministic protocol fixture, no native qualification.\n"
+    },
+    {
+      "path": ".testLogs/run-1793841139550-x2r5qj/storage_tantivy_generation-publication_legacy-build-contract.attempt-1.log",
+      "bytes": 350,
+      "sha256": "a105b8f54bd626671c9af7dc9cec358b8c2c8871f31a36939be3ff9337fa8370",
+      "text": "id: storage/tantivy/generation-publication/legacy-build-contract\npath: storage/tantivy/generation-publication.test.js\nattempt: 1\nstatus: passed\nexit: 0\nsignal: null\ntimedOut: false\ntimeoutClass: \nskipReason: \ntermination: \n\n--- stdout ---\nTantivy generation publication legacy-build-contract: deterministic protocol fixture, no native qualification.\n"
+    },
+    {
+      "path": ".testLogs/run-1793841139550-x2r5qj/storage_tantivy_generation-publication_legacy-metadata.attempt-1.log",
+      "bytes": 338,
+      "sha256": "64f43697549bf0fa05af07b44659d47cc3f1f87454ad6b33bed75847454872bf",
+      "text": "id: storage/tantivy/generation-publication/legacy-metadata\npath: storage/tantivy/generation-publication.test.js\nattempt: 1\nstatus: passed\nexit: 0\nsignal: null\ntimedOut: false\ntimeoutClass: \nskipReason: \ntermination: \n\n--- stdout ---\nTantivy generation publication legacy-metadata: deterministic protocol fixture, no native qualification.\n"
+    },
+    {
+      "path": ".testLogs/run-1793841139550-x2r5qj/storage_tantivy_generation-publication_manifest.attempt-1.log",
+      "bytes": 324,
+      "sha256": "9de7d35f082c3b63f6b9724ced151a344ba463b16eccb45c23aeba90f2fc05d0",
+      "text": "id: storage/tantivy/generation-publication/manifest\npath: storage/tantivy/generation-publication.test.js\nattempt: 1\nstatus: passed\nexit: 0\nsignal: null\ntimedOut: false\ntimeoutClass: \nskipReason: \ntermination: \n\n--- stdout ---\nTantivy generation publication manifest: deterministic protocol fixture, no native qualification.\n"
+    },
+    {
+      "path": ".testLogs/run-1793841139550-x2r5qj/storage_tantivy_generation-publication_mapping.attempt-1.log",
+      "bytes": 322,
+      "sha256": "669fc0739c692c8b0c1e451411867f97fffdb5aec0420d48334210d83278de3f",
+      "text": "id: storage/tantivy/generation-publication/mapping\npath: storage/tantivy/generation-publication.test.js\nattempt: 1\nstatus: passed\nexit: 0\nsignal: null\ntimedOut: false\ntimeoutClass: \nskipReason: \ntermination: \n\n--- stdout ---\nTantivy generation publication mapping: deterministic protocol fixture, no native qualification.\n"
+    },
+    {
+      "path": ".testLogs/run-1793841139550-x2r5qj/storage_tantivy_generation-publication_mutated-input.attempt-1.log",
+      "bytes": 334,
+      "sha256": "b48683a0422063cfb726bea602a6b8c15f10b57155a7f4d1ff6860d61bc86881",
+      "text": "id: storage/tantivy/generation-publication/mutated-input\npath: storage/tantivy/generation-publication.test.js\nattempt: 1\nstatus: passed\nexit: 0\nsignal: null\ntimedOut: false\ntimeoutClass: \nskipReason: \ntermination: \n\n--- stdout ---\nTantivy generation publication mutated-input: deterministic protocol fixture, no native qualification.\n"
+    },
+    {
+      "path": ".testLogs/run-1793841139550-x2r5qj/storage_tantivy_generation-publication_payload.attempt-1.log",
+      "bytes": 322,
+      "sha256": "f63c30f68f749ef4a290b32184571c73431a1f311000ccf5848e591f24eed198",
+      "text": "id: storage/tantivy/generation-publication/payload\npath: storage/tantivy/generation-publication.test.js\nattempt: 1\nstatus: passed\nexit: 0\nsignal: null\ntimedOut: false\ntimeoutClass: \nskipReason: \ntermination: \n\n--- stdout ---\nTantivy generation publication payload: deterministic protocol fixture, no native qualification.\n"
+    },
+    {
+      "path": ".testLogs/run-1793841139550-x2r5qj/storage_tantivy_generation-publication_pending-build.attempt-1.log",
+      "bytes": 334,
+      "sha256": "656bb66fdbdcc6f8cb881593ba2d9905bd9519ec4156130df513c1fe0df5b8a0",
+      "text": "id: storage/tantivy/generation-publication/pending-build\npath: storage/tantivy/generation-publication.test.js\nattempt: 1\nstatus: passed\nexit: 0\nsignal: null\ntimedOut: false\ntimeoutClass: \nskipReason: \ntermination: \n\n--- stdout ---\nTantivy generation publication pending-build: deterministic protocol fixture, no native qualification.\n"
+    },
+    {
+      "path": ".testLogs/run-1793841139550-x2r5qj/storage_tantivy_generation-publication_promise-pending.attempt-1.log",
+      "bytes": 338,
+      "sha256": "ecd002661d239491b49c4d9db9c0f7a4081092a253b5f3e6dcaa6af45f9a58d2",
+      "text": "id: storage/tantivy/generation-publication/promise-pending\npath: storage/tantivy/generation-publication.test.js\nattempt: 1\nstatus: passed\nexit: 0\nsignal: null\ntimedOut: false\ntimeoutClass: \nskipReason: \ntermination: \n\n--- stdout ---\nTantivy generation publication promise-pending: deterministic protocol fixture, no native qualification.\n"
+    },
+    {
+      "path": ".testLogs/run-1793841139550-x2r5qj/storage_tantivy_generation-publication_promise-rejected.attempt-1.log",
+      "bytes": 340,
+      "sha256": "743df2647ad78e824b12890eb3360ca83bef3d15f401972a9ad81f89304a71fc",
+      "text": "id: storage/tantivy/generation-publication/promise-rejected\npath: storage/tantivy/generation-publication.test.js\nattempt: 1\nstatus: passed\nexit: 0\nsignal: null\ntimedOut: false\ntimeoutClass: \nskipReason: \ntermination: \n\n--- stdout ---\nTantivy generation publication promise-rejected: deterministic protocol fixture, no native qualification.\n"
+    },
+    {
+      "path": ".testLogs/run-1793841139550-x2r5qj/storage_tantivy_generation-publication_repository.attempt-1.log",
+      "bytes": 328,
+      "sha256": "d02dc5b6e10f771c324cdccd71d373c9613de0c6547fb8c07da9b62cf652172a",
+      "text": "id: storage/tantivy/generation-publication/repository\npath: storage/tantivy/generation-publication.test.js\nattempt: 1\nstatus: passed\nexit: 0\nsignal: null\ntimedOut: false\ntimeoutClass: \nskipReason: \ntermination: \n\n--- stdout ---\nTantivy generation publication repository: deterministic protocol fixture, no native qualification.\n"
+    },
+    {
+      "path": ".testLogs/run-1793841139550-x2r5qj/storage_tantivy_generation-publication_returned-capture.attempt-1.log",
+      "bytes": 340,
+      "sha256": "d0394ebe796361328e0f1f6f77b479d55f27bc0753f06c540767ddf59be6d9bd",
+      "text": "id: storage/tantivy/generation-publication/returned-capture\npath: storage/tantivy/generation-publication.test.js\nattempt: 1\nstatus: passed\nexit: 0\nsignal: null\ntimedOut: false\ntimeoutClass: \nskipReason: \ntermination: \n\n--- stdout ---\nTantivy generation publication returned-capture: deterministic protocol fixture, no native qualification.\n"
+    },
+    {
+      "path": ".testLogs/run-1793841139550-x2r5qj/storage_tantivy_generation-publication_returned-error.attempt-1.log",
+      "bytes": 336,
+      "sha256": "b626da34aab7db29c71c44d2f2552bf1177b8c5be73c46556ef638ba5d8925ff",
+      "text": "id: storage/tantivy/generation-publication/returned-error\npath: storage/tantivy/generation-publication.test.js\nattempt: 1\nstatus: passed\nexit: 0\nsignal: null\ntimedOut: false\ntimeoutClass: \nskipReason: \ntermination: \n\n--- stdout ---\nTantivy generation publication returned-error: deterministic protocol fixture, no native qualification.\n"
+    },
+    {
+      "path": ".testLogs/run-1793841139550-x2r5qj/storage_tantivy_generation-publication_returned-pending.attempt-1.log",
+      "bytes": 340,
+      "sha256": "ff81e796652822b56c91b3d1fbd6a312f700ff7e17744240b3ea1e728853a5d4",
+      "text": "id: storage/tantivy/generation-publication/returned-pending\npath: storage/tantivy/generation-publication.test.js\nattempt: 1\nstatus: passed\nexit: 0\nsignal: null\ntimedOut: false\ntimeoutClass: \nskipReason: \ntermination: \n\n--- stdout ---\nTantivy generation publication returned-pending: deterministic protocol fixture, no native qualification.\n"
+    },
+    {
+      "path": ".testLogs/run-1793841139550-x2r5qj/storage_tantivy_generation-publication_returned-revoked.attempt-1.log",
+      "bytes": 340,
+      "sha256": "525f036aabb8bff52b8134c4226fcd8bd518ad0dd64b6120b5de7e2475d1d5ab",
+      "text": "id: storage/tantivy/generation-publication/returned-revoked\npath: storage/tantivy/generation-publication.test.js\nattempt: 1\nstatus: passed\nexit: 0\nsignal: null\ntimedOut: false\ntimeoutClass: \nskipReason: \ntermination: \n\n--- stdout ---\nTantivy generation publication returned-revoked: deterministic protocol fixture, no native qualification.\n"
+    },
+    {
+      "path": ".testLogs/run-1793841139550-x2r5qj/storage_tantivy_generation-publication_returned-settled.attempt-1.log",
+      "bytes": 340,
+      "sha256": "43184e6bc9e4d0ec93b1bfb9931fdf2d452d257bb12131110ee478df5cd23ce0",
+      "text": "id: storage/tantivy/generation-publication/returned-settled\npath: storage/tantivy/generation-publication.test.js\nattempt: 1\nstatus: passed\nexit: 0\nsignal: null\ntimedOut: false\ntimeoutClass: \nskipReason: \ntermination: \n\n--- stdout ---\nTantivy generation publication returned-settled: deterministic protocol fixture, no native qualification.\n"
+    },
+    {
+      "path": ".testLogs/run-1793841139550-x2r5qj/storage_tantivy_generation-publication_returned-unreadable.attempt-1.log",
+      "bytes": 346,
+      "sha256": "79a942bef66545304a75554a03beec8241daa320a40a3761b168238419baf950",
+      "text": "id: storage/tantivy/generation-publication/returned-unreadable\npath: storage/tantivy/generation-publication.test.js\nattempt: 1\nstatus: passed\nexit: 0\nsignal: null\ntimedOut: false\ntimeoutClass: \nskipReason: \ntermination: \n\n--- stdout ---\nTantivy generation publication returned-unreadable: deterministic protocol fixture, no native qualification.\n"
+    },
+    {
+      "path": ".testLogs/run-1793841139550-x2r5qj/storage_tantivy_generation-publication_source-lease.attempt-1.log",
+      "bytes": 332,
+      "sha256": "97c357cc6b7e9ea64108f22e2b975982ce641e126025cf7cf90abb5b92023b44",
+      "text": "id: storage/tantivy/generation-publication/source-lease\npath: storage/tantivy/generation-publication.test.js\nattempt: 1\nstatus: passed\nexit: 0\nsignal: null\ntimedOut: false\ntimeoutClass: \nskipReason: \ntermination: \n\n--- stdout ---\nTantivy generation publication source-lease: deterministic protocol fixture, no native qualification.\n"
+    },
+    {
+      "path": ".testLogs/run-1793841139550-x2r5qj/tooling_script-coverage_tools_build-tantivy-index-help.attempt-1.log",
+      "bytes": 1195,
+      "sha256": "2e09f8a19cd23cf2b2bccdce4b32bfee07d93ccc68dc3b6b85bf8a79e1dfb769",
+      "text": "id: tooling/script-coverage/tools/build-tantivy-index-help\npath: tooling/script-coverage/tools.test.js\nattempt: 1\nstatus: passed\nexit: 0\nsignal: null\ntimedOut: false\ntimeoutClass: \nskipReason: \ntermination: \n\n--- stdout ---\n[script-coverage] build-tantivy-index-help\nOptions:\n      --mode                                                               [string] [default: \"all\"]\n      --repo                                                                                [string]\n      --index-root                                                                          [string]\n      --progress                                                          [string] [default: \"auto\"]\n      --verbose                                                           [boolean] [default: false]\n      --quiet                                                             [boolean] [default: false]\n  -h, --help        Show help                                                              [boolean]\n  -v, --version     Show version number                                                    [boolean]\nscript coverage: 0 covered, 0 skipped\ntier B coverage: 0 covered, 0 missing\nscript coverage group tools passed\n"
+    }
+  ],
+  "sourceFiles": [
+    {
+      "path": "tools/build/tantivy-generation.js",
+      "bytes": 7564,
+      "sha256": "d41059c2d904d97c8474983a2c48bab4ed07f6c9abc2d2850efa706956db7b12"
+    },
+    {
+      "path": "src/shared/tantivy-source.js",
+      "bytes": 4993,
+      "sha256": "19dbbda0840ed46a7ad82fe255c5f7221beef17416636b223efba1d97e3dfab9"
+    },
+    {
+      "path": "tests/storage/tantivy/generation-publication.test.js",
+      "bytes": 13750,
+      "sha256": "1aa28ce51e77437151047aa9964afa0d0acce63768214bad67e375c7e620b820"
+    },
+    {
+      "path": "tests/storage/tantivy/generation-publication.test.js.cases.json",
+      "bytes": 418,
+      "sha256": "6233d654ce55cf24cd702830d2ea131bce7bfee1242b5637160ef21375b67203"
+    },
+    {
+      "path": "tests/ci-lite/ci-lite.order.txt",
+      "bytes": 93856,
+      "sha256": "254a693034c65b971acd565a8b8ce13c691cf0b497adc4f47f2acdfd435c7776"
+    },
+    {
+      "path": "tests/ci-lite/ci-lite.manifest.json",
+      "bytes": 373590,
+      "sha256": "35b383e81ab5199cc0f8e3e159fcf9e54b761d36df0d557141805ae968943c08"
+    }
+  ],
+  "limits": [
+    "Protocol fixtures do not establish actual native Tantivy payload schema,ranking or physical native disposal",
+    "A compatible maintained binding and Windows rebuild/readback are still required for full #1627 closure",
+    "No editor or local Linux/macOS qualification",
+    "Native binding direction was requested from the user;this independent publication repair does not depend on that choice"
+  ],
+  "finalValidation": {
+    "checks": [
+      {
+        "arguments": [
+          "run",
+          "format"
+        ],
+        "name": "format",
+        "exitCode": 0,
+        "log": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\q-1104\\tantivy-final-format.log",
+        "executable": "npm.cmd",
+        "basis": "completed separately before this focused/publication batch",
+        "rawLog": "\r\n> pairofcleats@0.3.0 format\r\n> eslint . --fix\r\n\r\n"
+      },
+      {
+        "arguments": [
+          "tests/run.js",
+          "--lane",
+          "all",
+          "--match",
+          "tantivy",
+          "--exclude",
+          "/^smoke\\/tantivy$/",
+          "--jobs",
+          "1",
+          "--pairofcleats-threads",
+          "1",
+          "--timeout-ms",
+          "30000",
+          "--retries",
+          "0",
+          "--native-status-redo=false"
+        ],
+        "durationMs": 23780.4165,
+        "startedAt": "2026-11-05T01:12:18.4935798Z",
+        "name": "focused",
+        "exitCode": 0,
+        "log": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\q-1104\\tantivy-final-focused.log",
+        "executable": "node",
+        "rawLog": "\r\n         ╶╶╴-╴-╶-╶╶╶-=---╶---=--╶--=---=--=-=-=--=---=--╶--=---╶---=-╴╴╴-╴-╶-╶╴╴\r\n               \u001b[94mLanes:\u001b[0m \u001b[37mapi\u001b[0m, \u001b[37mbackcompat\u001b[0m, \u001b[37mci\u001b[0m, \u001b[37mci-lite\u001b[0m, \u001b[37mci-long\u001b[0m,       | \u001b[32mTests:\u001b[0m \u001b[37m  37\u001b[0m      \r\n                      \u001b[37mdecomposed-drift\u001b[0m, \u001b[37mdiagnostics-summary\u001b[0m, \u001b[37mgate\u001b[0m,|                   \r\n                      \u001b[37mintegration\u001b[0m, \u001b[37miq\u001b[0m, \u001b[37mmcp\u001b[0m, \u001b[37mperf\u001b[0m, \u001b[37mservices\u001b[0m, \u001b[37msmoke\u001b[0m,|                   \r\n                      \u001b[37mstorage\u001b[0m, \u001b[37munit\u001b[0m, \u001b[37musr-full-conformance\u001b[0m         |                   \r\n         ╶╶╴-╴-╶-╶╶╶-=---╶---=--╶--=---=--=-=-=--=---=--╶--=---╶---=-╴╴╴-╴-╶-╶╴╴\r\n\r\nPASS [  93ms] retrieval/backend/cli-sparse-preflight-tantivy-bypass\r\nPASS [ 1.15s] retrieval/backend/tantivy-selected-source-admission\r\nPASS [ 532ms] retrieval/providers/tantivy-boolean-and-failure\r\nPASS [ 750ms] retrieval/providers/tantivy-boolean-membership-consumers\r\nPASS [  94ms] retrieval/providers/tantivy-deep-filter-recall\r\nPASS [ 694ms] retrieval/providers/tantivy-outcome-cache-consumers\r\nPASS [ 310ms] retrieval/providers/tantivy-reader-lifetime/async-query\r\nPASS [ 259ms] retrieval/providers/tantivy-reader-lifetime/failed-close\r\nPASS [ 253ms] retrieval/providers/tantivy-reader-lifetime/missing-close\r\nPASS [ 254ms] retrieval/providers/tantivy-reader-lifetime/module-close\r\nPASS [ 256ms] retrieval/providers/tantivy-reader-lifetime/ordinal\r\nPASS [ 257ms] retrieval/providers/tantivy-reader-lifetime/original-close\r\nPASS [ 325ms] retrieval/providers/tantivy-reader-lifetime/pending-close\r\nPASS [ 289ms] retrieval/providers/tantivy-reader-lifetime/pending-query\r\nPASS [ 260ms] retrieval/providers/tantivy-reader-lifetime/search-finalizer\r\nPASS [ 950ms] storage/tantivy/generation-publication/activation-failure\r\nPASS [ 843ms] storage/tantivy/generation-publication/cancelled-build\r\nPASS [ 1.08s] storage/tantivy/generation-publication/concurrent-builds\r\nPASS [ 810ms] storage/tantivy/generation-publication/failed-build\r\nPASS [ 699ms] storage/tantivy/generation-publication/legacy-build-contract\r\nPASS [ 576ms] storage/tantivy/generation-publication/legacy-metadata\r\nPASS [ 581ms] storage/tantivy/generation-publication/manifest\r\nPASS [ 574ms] storage/tantivy/generation-publication/mapping\r\nPASS [ 739ms] storage/tantivy/generation-publication/mutated-input\r\nPASS [ 585ms] storage/tantivy/generation-publication/payload\r\nPASS [ 814ms] storage/tantivy/generation-publication/pending-build\r\nPASS [ 770ms] storage/tantivy/generation-publication/promise-pending\r\nPASS [ 838ms] storage/tantivy/generation-publication/promise-rejected\r\nPASS [ 563ms] storage/tantivy/generation-publication/repository\r\nPASS [ 865ms] storage/tantivy/generation-publication/returned-capture\r\nPASS [ 787ms] storage/tantivy/generation-publication/returned-error\r\nPASS [ 844ms] storage/tantivy/generation-publication/returned-pending\r\nPASS [ 781ms] storage/tantivy/generation-publication/returned-revoked\r\nPASS [ 768ms] storage/tantivy/generation-publication/returned-settled\r\nPASS [ 796ms] storage/tantivy/generation-publication/returned-unreadable\r\nPASS [ 836ms] storage/tantivy/generation-publication/source-lease\r\nPASS [ 782ms] tooling/script-coverage/tools/build-tantivy-index-help\r\n\r\nLOGS: ./.testLogs/run-1793841139550-x2r5qj\r\n\r\n         ╶╶╴-╴-╶-╶╶╶-=---╶---=--╶--=---=--=-=-=--=---=--╶--=---╶---=-╴╴╴-╴-╶-╶╴╴\r\n                                      Test Complete!\r\n\r\n         ╶╶╴-╴-╶-╶╶╶-=---╶---=--╶--=---=--=-=-=--=---=--╶--=---╶---=-╴╴╴-╴-╶-╶╴╴\r\n                   Summary : \u001b[97m37\u001b[0m \u001b[32mPassed\u001b[0m | \u001b[97m0\u001b[0m \u001b[31mFailed\u001b[0m | \u001b[97m0\u001b[0m \u001b[38;5;214mTimeouts\u001b[0m | \u001b[97m0\u001b[0m \u001b[38;5;213mSkipped\u001b[0m\r\n                   Duration: 22.7s\r\n                   Slowest : \u001b[97mretrieval/backend/tantivy-selected-source-admission\u001b[0m | \u001b[32mPASS\u001b[0m [ 1.15s]\r\n         ╶╶╴-╴-╶-╶╶╶-=---╶---=--╶--=---=--=-=-=--=---=--╶--=---╶---=-╴╴╴-╴-╶-╶╴╴\r\n"
+      },
+      {
+        "arguments": [
+          "run",
+          "config:budget"
+        ],
+        "durationMs": 3101.2152,
+        "startedAt": "2026-11-05T01:12:42.3030930Z",
+        "name": "config-budget",
+        "exitCode": 0,
+        "log": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\q-1104\\tantivy-final-config-budget.log",
+        "executable": "npm.cmd",
+        "rawLog": "\r\n> pairofcleats@0.3.0 config:budget\r\n> node tools/config/inventory.js --check\r\n\r\n"
+      },
+      {
+        "arguments": [
+          "run",
+          "env:check"
+        ],
+        "durationMs": 1661.3672,
+        "startedAt": "2026-11-05T01:12:45.4089555Z",
+        "name": "env-check",
+        "exitCode": 0,
+        "log": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\q-1104\\tantivy-final-env-check.log",
+        "executable": "npm.cmd",
+        "rawLog": "\r\n> pairofcleats@0.3.0 env:check\r\n> node tools/ci/check-env-usage.js\r\n\r\n"
+      },
+      {
+        "arguments": [
+          "tools/docs/generated-surfaces.js",
+          "--check-freshness"
+        ],
+        "durationMs": 15967.4481,
+        "startedAt": "2026-11-05T01:12:47.0732547Z",
+        "name": "generated-freshness",
+        "exitCode": 0,
+        "log": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\q-1104\\tantivy-final-generated-freshness.log",
+        "executable": "node",
+        "rawLog": "generated surfaces freshness check passed\r\n"
+      },
+      {
+        "arguments": [
+          "tools/ci/check-command-surface.js"
+        ],
+        "durationMs": 3432.5106,
+        "startedAt": "2026-11-05T01:13:03.0445897Z",
+        "name": "command-surface",
+        "exitCode": 0,
+        "log": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\q-1104\\tantivy-final-command-surface.log",
+        "executable": "node",
+        "rawLog": "command surface audit passed (scripts=21, replacements=0, cli=93, capability=45)\r\n"
+      },
+      {
+        "arguments": [
+          "tests/ci/workflow-contract.test.js"
+        ],
+        "durationMs": 337.1891,
+        "startedAt": "2026-11-05T01:13:06.4800333Z",
+        "name": "workflow-contract",
+        "exitCode": 0,
+        "log": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\q-1104\\tantivy-final-workflow-contract.log",
+        "executable": "node",
+        "rawLog": "workflow contract test passed (ci, ci-long, nightly, release)\r\n"
+      },
+      {
+        "arguments": [
+          "tests/run.js",
+          "--lane",
+          "gate",
+          "--jobs",
+          "1",
+          "--timeout-ms",
+          "30000",
+          "--retries",
+          "0",
+          "--native-status-redo=false"
+        ],
+        "durationMs": 35575.266,
+        "startedAt": "2026-11-05T01:13:06.8202489Z",
+        "name": "gate",
+        "exitCode": 0,
+        "log": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\q-1104\\tantivy-final-gate.log",
+        "executable": "node",
+        "rawLog": "\r\n         ╶╶╴-╴-╶-╶╶╶-=---╶---=--╶--=---=--=-=-=--=---=--╶--=---╶---=-╴╴╴-╴-╶-╶╴╴\r\n               \u001b[94mLanes:\u001b[0m \u001b[37mgate\u001b[0m | \u001b[32mTests:\u001b[0m \u001b[37m  41\u001b[0m                                              \r\n         ╶╶╴-╴-╶-╶╶╶-=---╶---=--╶--=---=--=-=-=--=---=--╶--=---╶---=-╴╴╴-╴-╶-╶╴╴\r\n\r\nPASS [  87ms] indexing/policy/hotpath-membership-guard\r\nPASS [  94ms] indexing/policy/module-cache-boundedness-contract\r\nPASS [ 106ms] indexing/policy/generated-matrix\r\nPASS [  86ms] indexing/contracts/artifact-surface-version\r\nPASS [  80ms] indexing/contracts/n-minus-one-adapter\r\nPASS [  79ms] indexing/contracts/public-artifact-surface-doc\r\nPASS [ 197ms] indexing/contracts/index-compatibility-key-generation\r\nPASS [  90ms] indexing/contracts/semver-policy-enforced\r\nPASS [ 103ms] indexing/contracts/index-state-dense-sidecars-present\r\nPASS [ 196ms] contracts/manifest-max-bytes-validation\r\nPASS [ 2.03s] indexing/policy/repo-inventory\r\nPASS [ 271ms] indexing/policy/shared-module-cycle-guard\r\nPASS [ 231ms] indexing/contracts/loader-matrix-parity\r\nPASS [ 312ms] indexing/policy/analysis-schema\r\nPASS [ 329ms] indexing/contracts/snapshots\r\nPASS [ 339ms] indexing/contracts/builds-current-repo-head-schema\r\nPASS [ 311ms] indexing/contracts/call-sites-schema\r\nPASS [ 318ms] indexing/contracts/diffs\r\nPASS [ 313ms] indexing/contracts/additional-properties-policy\r\nPASS [ 575ms] indexing/contracts/index-compatibility-key-enforced-on-load\r\nPASS [ 307ms] indexing/contracts/schema-registry-single-source\r\nPASS [ 859ms] tooling/api-contracts/caps\r\nPASS [ 1.49s] tooling/api-contracts/schema-validate\r\nPASS [ 2.06s] tooling/api-contracts/fail-on-warn\r\nPASS [ 1.09s] tooling/api-contracts/optional-params\r\nPASS [ 753ms] tooling/api-contracts/large-call-sites\r\nPASS [ 605ms] indexing/contracts/embedding-identity-gating-on-load\r\nPASS [ 909ms] ci/capability-gate.smoke\r\nPASS [ 1.23s] indexing/contracts/index-compatibility-key-federation-block\r\nPASS [  74ms] indexing/policy/stable-entrypoints\r\nPASS [ 1.44s] indexing/policy/optional-deps\r\nPASS [ 990ms] indexing/policy/analysis-gating\r\nPASS [ 1.20s] ci/tooling-doctor-gate.smoke\r\nPASS [ 728ms] tooling/api-contracts/basic\r\nPASS [ 2.57s] contracts/module-export-surface-compat\r\nPASS [ 3.44s] indexing/contracts/semantic-foundations\r\nPASS [ 1.69s] indexing/contracts/semantic-handoff-contracts\r\nPASS [ 1.07s] indexing/contracts/runtime-evidence\r\nPASS [ 2.97s] indexing/contracts/index-format-cutover\r\nPASS [ 2.56s] ci/windows-authority-cohort\r\nPASS [ 306ms] ci/ordered-lane-discovery\r\n\r\nLOGS: ./.testLogs/run-1793841187716-x0sm6r\r\n\r\n         ╶╶╴-╴-╶-╶╶╶-=---╶---=--╶--=---=--=-=-=--=---=--╶--=---╶---=-╴╴╴-╴-╶-╶╴╴\r\n                                      GATE Lane Complete!\r\n\r\n         ╶╶╴-╴-╶-╶╶╶-=---╶---=--╶--=---=--=-=-=--=---=--╶--=---╶---=-╴╴╴-╴-╶-╶╴╴\r\n                   Summary : \u001b[97m41\u001b[0m \u001b[32mPassed\u001b[0m | \u001b[97m0\u001b[0m \u001b[31mFailed\u001b[0m | \u001b[97m0\u001b[0m \u001b[38;5;214mTimeouts\u001b[0m | \u001b[97m0\u001b[0m \u001b[38;5;213mSkipped\u001b[0m\r\n                   Duration: 34.7s\r\n                   Slowest : \u001b[97mindexing/contracts/semantic-foundations\u001b[0m | \u001b[32mPASS\u001b[0m [ 3.44s]\r\n         ╶╶╴-╴-╶-╶╶╶-=---╶---=--╶--=---=--=-=-=--=---=--╶--=---╶---=-╴╴╴-╴-╶-╶╴╴\r\n"
+      },
+      {
+        "arguments": [
+          "diff",
+          "--check"
+        ],
+        "durationMs": 118.4232,
+        "startedAt": "2026-11-05T01:13:42.3985304Z",
+        "name": "diff-check",
+        "exitCode": 0,
+        "log": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\tasks\\q-1104\\tantivy-final-diff-check.log",
+        "executable": "git",
+        "rawLog": ""
+      }
+    ],
+    "gate": {
+      "passed": 41,
+      "failed": 0,
+      "timeouts": 0,
+      "skipped": 0
+    },
+    "documentation": "Roadmap remains below20000bytes;generated lanes and freshness checks pass"
+  }
+}

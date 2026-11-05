@@ -8,9 +8,10 @@ import { throwIfAborted } from './abort.js';
 
 // The builder consumes the already-tokenized postings, not raw text. Changing
 // either interpretation must invalidate receipts even if the source is unchanged.
-export const TANTIVY_INPUT_CONTRACT = Object.freeze({ version: 1,
+export const TANTIVY_INPUT_CONTRACT = Object.freeze({ version: 2,
   documents: 'chunk-meta-array-ordinal-v1', analyzer: 'source-token-postings-v1',
-  postings: 'sorted-doc-id-positive-tf-v1', adapter: 'synchronous-ranked-ordinal-close-v1' });
+  postings: 'sorted-doc-id-positive-tf-v1', adapter: 'synchronous-ranked-ordinal-close-v1',
+  buildSettlement: 'original-dispatch-and-result-observations-v1' });
 const invalid = message => Object.assign(new Error(message), { code: 'ERR_TANTIVY_SOURCE' });
 const identityPath = value => process.platform === 'win32' ? path.resolve(value).toLowerCase() : path.resolve(value);
 const hash = value => createHash('sha256').update(value).digest('hex');

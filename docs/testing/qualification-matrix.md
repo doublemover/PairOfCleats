@@ -37,6 +37,13 @@ cache negatives, allocation profiles and original cleanup remain recorded.
 ORT stays exact1.30.0 alongside Transformers4.3.2; activation and actual model
 qualification remain distinct. Model identity8 requires rebuilding old vectors.
 
+[Tantivy settlement](../archived/windows-tantivy-build-settlement-2026-11-04.md)
+adds original dispatch/result ownership before activation and failure unwind,
+with pending/unreadable/replaced/revoked observations and retained writer/source
+protection. Build identity2 requires rebuilding earlier meaning. The37-case
+protocol cohort is mandatory in ci-lite; compatible native rebuild/readback
+remains unqualified and separate.
+
 The following dated receipts retain their original candidate identities and
 limits; their earlier pending counts are historical.
 

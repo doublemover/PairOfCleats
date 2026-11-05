@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { buildTantivyGeneration } from '../../../tools/build/tantivy-generation.js';
-import { createTantivySource, readTantivyManifest } from '../../../src/shared/tantivy-source.js';
+import { createTantivySource, readTantivyManifest, tantivySourceKey } from '../../../src/shared/tantivy-source.js';
 import { readTantivyReceipt } from '../../../src/shared/tantivy-receipt.js';
 import { resolveTantivyPaths } from '../../../src/shared/tantivy.js';
 import { resolveRepoCacheRootPath } from '../../../src/shared/repo-paths.js';
@@ -12,8 +12,13 @@ import { applyTestEnv } from '../../helpers/test-env.js';
 import { writeTantivySourceFixture, writeTantivyPayloadFixture } from '../../helpers/tantivy-generation.js';
 
 const selected = process.env.PAIROFCLEATS_TEST_ID?.split('generation-publication/')[1];
-assert.ok(['mapping', 'manifest', 'repository', 'payload', 'failed-build', 'cancelled-build',
-  'concurrent-builds', 'mutated-input', 'source-lease', 'pending-build', 'legacy-metadata', 'activation-failure'].includes(selected));
+const cases = ['mapping', 'manifest', 'repository', 'payload', 'failed-build', 'cancelled-build',
+  'concurrent-builds', 'mutated-input', 'source-lease', 'pending-build', 'legacy-metadata', 'activation-failure',
+  'returned-pending', 'returned-capture', 'returned-unreadable', 'returned-revoked', 'returned-error',
+  'returned-settled', 'promise-pending', 'promise-rejected', 'legacy-build-contract'];
+assert.ok(cases.includes(selected));
+assert.deepEqual(JSON.parse(await fs.readFile(new URL('./generation-publication.test.js.cases.json', import.meta.url))),
+  { schemaVersion: 1, cases });
 const { dir } = await prepareIsolatedTestCacheDir(`tantivy-publication-${selected}`);
 const repoRoot = path.join(dir, 'repo'), cache = path.join(dir, 'cache'), home = path.join(dir, 'home');
 await fs.mkdir(repoRoot);
@@ -54,11 +59,84 @@ if (selected === 'mapping') {
 } else if (selected === 'legacy-metadata') {
   await fs.writeFile(paths.metaPath, JSON.stringify({ ...first.meta, schemaVersion: 1 }));
   assert.equal((await admit()).reason, 'missing-or-incompatible-metadata');
+} else if (selected === 'legacy-build-contract') {
+  const legacy = structuredClone(first.meta.source);
+  legacy.contract.version = 1; delete legacy.contract.buildSettlement;
+  await fs.writeFile(paths.metaPath, JSON.stringify({ ...first.meta, source: legacy, sourceKey: tantivySourceKey(legacy) }));
+  assert.equal((await admit()).reason, 'source-identity-mismatch');
+  const rebuilt = await buildTantivyGeneration(options);
+  assert.equal(rebuilt.reused, false, 'old native build settlement meaning requires a fresh publication');
+  assert.notEqual(rebuilt.dir, first.dir);
+  assert.equal((await admit()).available, true);
 } else {
   // A distinct full source requires a real build, rather than reusing A's receipt.
   idx = await writeTantivySourceFixture(indexDir, { buildId: 'source-B' });
   const originalPointer = await fs.readFile(paths.metaPath, 'utf8');
-  if (selected === 'activation-failure') {
+  if (selected.startsWith('returned-') || selected.startsWith('promise-')) {
+    let nativeSettled = ['returned-settled', 'returned-revoked', 'returned-error'].includes(selected);
+    let armed = false, staging, returned;
+    const original = Object.freeze(new Error(`original ${selected} native observation`));
+    const open = fs.open;
+    fs.open = async (file, ...args) => {
+      if (armed && (selected === 'returned-error' && path.resolve(String(file)) === path.join(indexDir, 'pieces', 'manifest.json')
+        || selected === 'returned-revoked' && path.resolve(String(file)) === path.join(staging, 'native-protocol-fixture.json'))) {
+        nativeSettled = false;
+        if (selected === 'returned-error') throw original;
+      }
+      return open(file, ...args);
+    };
+    const work = buildTantivyGeneration({ ...options, buildIndex: input => {
+      staging = input.indexPath;
+      if (selected.startsWith('promise-')) {
+        returned = selected === 'promise-rejected' ? Promise.reject(original) : writeTantivyPayloadFixture(input);
+        Object.defineProperties(returned, { cacheOwnershipPending: { value: true },
+          cacheOwnershipReleased: { value: () => nativeSettled } });
+        return returned;
+      }
+      return writeTantivyPayloadFixture(input).then(() => {
+        armed = true;
+        returned = { cacheOwnershipReleased: () => nativeSettled };
+        if (selected === 'returned-capture') Object.defineProperty(returned, 'cacheOwnershipPending', {
+          get() { returned.cacheOwnershipReleased = () => true; return true; }
+        });
+        else if (selected === 'returned-unreadable') Object.defineProperty(returned, 'cacheOwnershipPending', {
+          get() { throw original; }
+        });
+        else returned.cacheOwnershipPending = true;
+        return returned;
+      });
+    } });
+    let failure;
+    try {
+      if (selected === 'returned-settled') assert.equal((await work).available, true);
+      else await assert.rejects(work, error => { failure = error; return true; },
+        'resolved output and promise settlement cannot certify outstanding original native work');
+    } finally { fs.open = open; }
+    if (selected === 'returned-settled') {
+      assert.equal((await admit()).available, true);
+      assert.notEqual(await fs.readFile(paths.metaPath, 'utf8'), originalPointer);
+      await protectedSource(false);
+    } else {
+      assert.equal(await fs.readFile(paths.metaPath, 'utf8'), originalPointer);
+      assert.equal((await admit()).available, false, 'the prior source cannot be relabeled as the requested generation');
+      await protectedSource(true);
+      assert.equal((await inspectStorageAccess(paths.dir, { coordinationRoot })).protected, true);
+      assert.equal((await fs.stat(path.join(paths.dir, 'writer.lock'))).isFile(), true,
+        'outstanding native work retains the original publication writer lock');
+      assert.equal(failure.cacheOwnershipReleased(), false, 'the original native prerequisite remains live');
+      const queue = [failure], seen = new Set();
+      while (queue.length) {
+        const error = queue.pop();
+        if (!error || seen.has(error)) continue;
+        seen.add(error); queue.push(error.cause, ...(Array.isArray(error.errors) ? error.errors : []));
+      }
+      if (['returned-unreadable', 'returned-error', 'promise-rejected'].includes(selected)) assert.ok(seen.has(original));
+      assert.deepEqual(JSON.parse(await fs.readFile(path.join(first.dir, 'native-protocol-fixture.json'), 'utf8')), ['alpha', 'beta']);
+      // No native writer exists in this protocol control. Changing its witness
+      // does not claim recovery of the retained original leases or writer lock.
+      nativeSettled = true;
+    }
+  } else if (selected === 'activation-failure') {
     const rename = fs.rename;
     const error = Object.freeze(Object.assign(new Error('receipt activation failed'), { code: 'EIO' }));
     fs.rename = async (from, to) => { if (to === paths.metaPath) throw error; return rename(from, to); };
@@ -123,6 +201,6 @@ if (selected === 'mapping') {
     // of the retained publication lock or claim those resource leases released.
     settled = true;
   }
-  if (selected !== 'pending-build') await protectedSource(false);
+  if (selected !== 'pending-build' && !selected.startsWith('returned-') && !selected.startsWith('promise-')) await protectedSource(false);
 }
 console.log(`Tantivy generation publication ${selected}: deterministic protocol fixture, no native qualification.`);
