@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 1867,
+    "hero": 1868,
     "matrix": 109,
     "meta": 54,
     "soak": 1,
@@ -12201,6 +12201,12 @@
       "order": 2031,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/install/piscina-patch-roundtrip",
+      "order": 2032,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     }
   ]
 }

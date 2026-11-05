@@ -2032,3 +2032,4 @@ tooling/api-contracts/qualified-target-joins-cli/js-clean
 tooling/api-contracts/qualified-target-joins-cli/ts-clean
 tooling/api-contracts/qualified-target-joins-cli/js-violation
 tooling/api-contracts/qualified-target-joins-cli/ts-violation
+tooling/install/piscina-patch-roundtrip
