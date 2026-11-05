@@ -123,6 +123,15 @@ stall still unattributed. Runtime-ready follows durable receipt completion and
 initial watch discovery has explicit phase logs. No deadline/retry/backend change.
 Replacement hosted qualification remains pending.
 
+[Watcher capability isolation](../archived/ci-lite-watcher-capabilities-repair-2026-11-05.md)
+retains the repeated Windows native19/21 result atdc04cd436. New phase evidence
+shows15ms receipt and19ms discovery before synchronous full-capability selection.
+That owner activates PDF/DOCX/MCP and unrelated natives. Selection now probes
+only its two watcher modules, sharing refresh evidence with the complete report.
+The original owner fails the probe-boundary regression; the repair passes it
+and preserves the actual full capability JSON byte-for-byte. Four portable
+controls and both strict real native fixtures pass locally; hosted closure is pending.
+
 The following dated receipts retain their original candidate identities and
 limits; their earlier pending counts are historical.
 

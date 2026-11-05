@@ -4,6 +4,7 @@ import { toArray } from './iterables.js';
 
 let cached = null;
 let cachedBackends = null;
+let cachedWatchers = null;
 
 /**
  * Stable defaults used when capability providers are missing or when we skip probing.
@@ -84,6 +85,15 @@ export const getExternalBackendCapabilities = (options = {}) => {
   return cachedBackends;
 };
 
+/** Watch selection must not activate extractors, MCP or unrelated native modules. */
+export const getWatcherCapabilities = (options = {}) => {
+  if (!cachedWatchers || options.refresh === true) {
+    const opts = { verbose: options.verbose === true, logger: options.logger };
+    cachedWatchers = { chokidar: check('chokidar', opts), parcel: check('@parcel/watcher', opts) };
+  }
+  return cachedWatchers;
+};
+
 /**
  * Probe optional runtime capabilities once and cache the result unless `refresh` is requested.
  * @param {{refresh?:boolean,verbose?:boolean,logger?:object}} [options]
@@ -132,8 +142,7 @@ export function getCapabilities(options = {}) {
       featureBits: defaults.nativeAccel.featureBits
     }
   };
-  cached.watcher.chokidar = check('chokidar', opts);
-  cached.watcher.parcel = check('@parcel/watcher', opts);
+  cached.watcher = getWatcherCapabilities(options);
   cached.regex.re2 = check('re2', opts);
   cached.regex.re2js = check('re2js', opts);
   cached.hash.nodeRsXxhash = check('@node-rs/xxhash', opts);
