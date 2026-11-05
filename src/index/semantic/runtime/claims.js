@@ -18,6 +18,7 @@ import { RUNTIME_QUERY_LIMITS_SCHEMA } from '../../../contracts/schemas/runtime-
 import { addStorageFailureContext } from '../../../shared/storage/operation-error.js';
 import { createRuntimeClaimPublicationState } from '../../../shared/runtime-claim-publication.js';
 import { createRuntimeClaimVerification } from '../../../shared/runtime-claim-verification.js';
+import { createRuntimePublicationWork, publishRuntimeControl, isMissingRuntimeMember } from './publication-reuse.js';
 
 const domain = 'pairofcleats.runtime.claim-family.v1';
 const fail = message => { throw runtimeImportError(message, 'ERR_RUNTIME_CLAIMS_INTEGRITY'); };
@@ -66,12 +67,12 @@ const bounded = async (operation, check) => {
   try { return await operation(); } catch (error) { throw runtimeClaimsFailure(error, check); }
 };
 
-const writeClaimMember = async (filename, bytes, check) => {
+const writeClaimMember = async (filename, bytes, check, work) => {
   check();
   const handle = await fs.open(filename, 'wx');
   let failed = false, failure;
   try {
-    check(); await handle.writeFile(bytes);
+    check(); await handle.writeFile(bytes); work?.add('fileWriteBytes', Buffer.byteLength(bytes));
     check(); await handle.sync(); check();
   } catch (error) { failed = true; failure = error; throw error; }
   finally { await closeRuntimeResources([handle], failure, { hasOperationError: failed }); }
@@ -79,7 +80,7 @@ const writeClaimMember = async (filename, bytes, check) => {
 
 /** Bounded authoritative citations. Observation IDs must identify one pinned capture, never an inferred claim. */
 const verifyCitations = async ({ destination, inputs, citations, repositoryNamespace, generation, limits, signal, check,
-  verification = createRuntimeClaimVerification({ maxHydratedBytes: limits.maxBytes }, { maxMs: limits.maxMs }) }) => {
+  verification = createRuntimeClaimVerification({ maxHydratedBytes: limits.maxBytes }, { maxMs: limits.maxMs }), work = null }) => {
   const records = new Map(), rawChecked = new Set();
   if (new Set(inputs.map(row => row.generationId)).size !== inputs.length
     || new Set(inputs.map(row => row.captureId)).size !== inputs.length) fail('Claim input capture identities must be distinct.');
@@ -132,6 +133,7 @@ const verifyCitations = async ({ destination, inputs, citations, repositoryNames
     verification.markVerified();
     return { records, diskReserveBytes };
   } catch (error) { throw verification.retainFailure(error); }
+  finally { work?.add('verifiedBytes', verification.metrics.verificationBytes + verification.metrics.rawVerificationBytes); }
 };
 
 const validateClaims = (claims, records) => {
@@ -154,13 +156,13 @@ const validateClaims = (claims, records) => {
 
 /** Separate immutable derived family. Publishing never changes direct evidence or source index pointers. */
 const persistRuntimeDerivedClaimsOwned = async ({ destination, repositoryNamespace, generation, inputs, citations, claims,
-  limits, signal = null, diskAccount, check, publicationState }) => {
+  limits, signal = null, diskAccount, check, publicationState, work }) => {
   check();
   assertRuntimeClaims('request', { schemaVersion: 1, repositoryNamespace, generation, claimGeneration: '0'.repeat(64), limits, cursor: null });
   if (!claims.length || claims.length > 64 || citations.length > Math.min(128, limits.maxRecords)) fail('Claim inventory exceeds allowance.');
   assertRuntimeClaims('manifest', { schemaVersion: 1, artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
     repositoryNamespace, generation, claimGeneration: '0'.repeat(64), inputs, citations, rows: [], evidenceHash: '0'.repeat(64), offsetsHash: '0'.repeat(64), byteLength: 0 });
-  const verified = await verifyCitations({ destination, repositoryNamespace, generation, inputs, citations, limits, signal, check });
+  const verified = await verifyCitations({ destination, repositoryNamespace, generation, inputs, citations, limits, signal, check, work });
   validateClaims(claims, verified.records);
   const chunks = [], rows = []; let byteLength = 0;
   for (const claim of claims) {
@@ -181,21 +183,43 @@ const persistRuntimeDerivedClaimsOwned = async ({ destination, repositoryNamespa
   if (manifestBytes.length + byteLength + offsets.length > limits.maxBytes) fail('Derived family exceeds byte allowance.');
   check(); await fs.mkdir(path.join(destination, 'claims'), { recursive: true }); check();
   const root = await resolveSemanticPartPath(destination, 'claims');
+  const final = path.join(root, manifest.claimGeneration);
+  const verifyExisting = async () => {
+    check();
+    const old = (await readRuntimeMemberBytes({ root, relativePath: manifest.claimGeneration + '/manifest.json',
+      maxBytes: limits.maxBytes, signal, metrics: work.reads })).buffer;
+    if (!old.equals(manifestBytes)) fail('Existing immutable claim family differs.');
+    await hashRuntimeFile({ filename: await resolveSemanticPartPath(root, manifest.claimGeneration + '/claims.jsonl'),
+      expectedHash: manifest.evidenceHash, expectedBytes: byteLength, maxBytes: limits.maxBytes, signal, metrics: work.reads });
+    await hashRuntimeFile({ filename: await resolveSemanticPartPath(root, manifest.claimGeneration + '/claims.offsets'),
+      expectedHash: manifest.offsetsHash, expectedBytes: offsets.length, maxBytes: limits.maxBytes, signal, metrics: work.reads });
+    check();
+  };
+  let existing = false;
+  try { await fs.lstat(final); existing = true; }
+  catch (error) { if (!isMissingRuntimeMember(error)) throw error; }
+  if (existing) {
+    await verifyExisting(); publicationState.familyState = 'reused'; work.add('reusedFamilies');
+    if (await publishRuntimeControl({ root, relativePath: 'current.json',
+      bytes: Buffer.from(canonicalSemanticJson({ schemaVersion: 1, claimGeneration: manifest.claimGeneration,
+        manifestHash: runtimeByteHash(manifestBytes) })), account: diskAccount,
+      diskReserveBytes: verified.diskReserveBytes, signal, check, publicationState, work })) work.add('pointerOnlyRepairs');
+    return manifest.claimGeneration;
+  }
   await assertRuntimeDiskReserve({ destination, diskReserveBytes: verified.diskReserveBytes, additionalBytes: manifestBytes.length + byteLength + offsets.length });
   check();
   const reservation = manifestBytes.length + evidence.length + offsets.length + 1024;
   diskAccount.reserve(reservation);
   let retained = false;
   let pending = null;
-  const final = path.join(root, manifest.claimGeneration);
   let pointerTemporary = null;
   let operationFailed = false, operationError;
   try {
-    check(); pending = await fs.mkdtemp(path.join(root, '.pending-')); check();
+    check(); pending = await fs.mkdtemp(path.join(root, '.pending-')); work.add('rebuiltFamilies'); check();
     pointerTemporary = path.join(root, '.current-' + path.basename(pending));
     for (const [name, bytes] of [['claims.jsonl', evidence], ['claims.offsets', offsets], ['manifest.json', manifestBytes]]) {
       await assertRuntimeDiskReserve({ destination, diskReserveBytes: verified.diskReserveBytes, additionalBytes: bytes.length });
-      await writeClaimMember(path.join(pending, name), bytes, check);
+      await writeClaimMember(path.join(pending, name), bytes, check, work);
     }
     check();
     await assertRuntimeDiskReserve({ destination, diskReserveBytes: verified.diskReserveBytes, additionalBytes: 512 });
@@ -203,19 +227,12 @@ const persistRuntimeDerivedClaimsOwned = async ({ destination, repositoryNamespa
     try { await fs.rename(pending, final); retained = true; publicationState.familyState = 'promoted'; }
     catch (error) {
       if (!['EEXIST', 'ENOTEMPTY', 'EPERM'].includes(error.code)) throw error;
-      check();
-      const old = (await readRuntimeMemberBytes({ root, relativePath: manifest.claimGeneration + '/manifest.json',
-        maxBytes: limits.maxBytes, signal })).buffer;
-      if (!old.equals(manifestBytes)) fail('Existing immutable claim family differs.');
-      await hashRuntimeFile({ filename: await resolveSemanticPartPath(root, manifest.claimGeneration + '/claims.jsonl'),
-        expectedHash: manifest.evidenceHash, expectedBytes: byteLength, maxBytes: limits.maxBytes, signal });
-      await hashRuntimeFile({ filename: await resolveSemanticPartPath(root, manifest.claimGeneration + '/claims.offsets'),
-        expectedHash: manifest.offsetsHash, expectedBytes: offsets.length, maxBytes: limits.maxBytes, signal });
+      await verifyExisting();
       publicationState.familyState = 'reused'; retained = false;
     }
     check();
     await writeClaimMember(pointerTemporary, canonicalSemanticJson({ schemaVersion: 1, claimGeneration: manifest.claimGeneration,
-      manifestHash: runtimeByteHash(manifestBytes) }), check);
+      manifestHash: runtimeByteHash(manifestBytes) }), check, work);
     check(); publicationState.pointerState = 'commit-unconfirmed';
     await fs.rename(pointerTemporary, path.join(root, 'current.json'));
     publicationState.pointerState = 'committed'; check();
@@ -324,11 +341,12 @@ export const persistRuntimeDerivedClaims = async input => {
     claimGeneration: '0'.repeat(64), limits: options.limits, cursor: null });
   const check = runtimeClaimsBudget(options.limits, options.signal, options.budget ?? null);
   const publication = createRuntimeClaimPublicationState();
+  const work = createRuntimePublicationWork(options.publicationMetrics);
   budgets.get(check).publicationState = publication;
   try {
     const result = await withRuntimeDestinationWriter({ destination: options.destination, maxDiskWorkingSetBytes: null,
-      diskAccount: options.diskAccount, signal: check.signal, checkAdmission: check, remainingMs: check.remainingMs }, ({ destination, account }) =>
-      persistRuntimeDerivedClaimsOwned({ ...options, destination, diskAccount: account, signal: check.signal, check, publicationState: publication.state }));
+      diskAccount: options.diskAccount, signal: check.signal, checkAdmission: check, remainingMs: check.remainingMs, work }, ({ destination, account }) =>
+      persistRuntimeDerivedClaimsOwned({ ...options, destination, diskAccount: account, signal: check.signal, check, publicationState: publication.state, work }));
     check(); return result;
   } catch (error) { throw runtimeClaimsFailure(error, check); }
 };

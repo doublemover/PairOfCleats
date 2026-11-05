@@ -15,6 +15,12 @@ existing serial30-second owner, with original15-second build CLI limits.
 Current hosted qualification is reported on [PR572](https://github.com/doublemover/PairOfCleats/pull/572).
 
 
+[Runtime family reuse](../archived/runtime-family-reuse-closeout-2026-11-05.md)
+qualifies63 focused Windows controls, including fresh-process retained-family reuse,
+original near-cap/work counterexamples and hardlink-safe control accounting.
+Real source/operation authority, raw/support integrity, compiler binding publication
+and30s/no-retry bounds remain covered; changed-head hosted execution is separate.
+
 [Configured native cleanup](../archived/windows-native-publication-closeout-2026-11-05.md)
 qualifies164 distinct focused Windows controls, including57 new producer/publication
 cases, the unchanged import budget and43 gate fixtures. Real SQLite/LMDB CLI/MCP

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-05T22:33:26.023Z",
+  "generatedAt": "2026-11-05T23:19:40.967Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
@@ -4860,6 +4860,9 @@
         "tests/storage/semantic/manifest-serving-consumers.test.js",
         "tests/storage/semantic/published-manifest-cache-authority.test.js",
         "tests/storage/semantic/query-index-intake.test.js",
+        "tests/storage/semantic/runtime-claims-reuse.test.js",
+        "tests/storage/semantic/runtime-control-replacement-accounting.test.js",
+        "tests/storage/semantic/runtime-import-reuse.test.js",
         "tests/storage/semantic/runtime-source-reference-authority.test.js",
         "tests/storage/semantic/source-retention-partition-work.test.js",
         "tests/storage/semantic/trace-continuation-state.test.js",
@@ -5921,7 +5924,7 @@
   ],
   "envVarsUnknown": [],
   "cliFlags": {
-    "totalFlags": 512,
+    "totalFlags": 515,
     "publicFlags": [
       "all",
       "allow-unauthenticated",
@@ -6057,6 +6060,7 @@
       "chunk-meta-size",
       "ci-statuses",
       "ci-test-summary",
+      "citations",
       "clean",
       "code",
       "codeDir",
@@ -6164,6 +6168,7 @@
       "identity",
       "impliedNodeFormat",
       "import-rate",
+      "importOptions",
       "in",
       "include",
       "include-lmdb",
@@ -6329,6 +6334,7 @@
       "release-tag",
       "repeats",
       "report",
+      "repositoryNamespace",
       "request",
       "requestedBatchSize",
       "require",
@@ -7436,6 +7442,22 @@
           "require-dicts",
           "require-index",
           "require-sqlite"
+        ]
+      },
+      {
+        "file": "tests/storage/semantic/runtime-claims-reuse.test.js",
+        "flags": [
+          "citations",
+          "generation",
+          "inputs",
+          "limits",
+          "repositoryNamespace"
+        ]
+      },
+      {
+        "file": "tests/storage/semantic/runtime-import-reuse.test.js",
+        "flags": [
+          "importOptions"
         ]
       },
       {
@@ -10090,6 +10112,14 @@
         ]
       },
       {
+        "flag": "generation",
+        "count": 2,
+        "files": [
+          "tests/storage/semantic/runtime-claims-reuse.test.js",
+          "tools/ingest/runtime-evidence.js"
+        ]
+      },
+      {
         "flag": "help",
         "count": 2,
         "files": [
@@ -10111,6 +10141,14 @@
         "files": [
           "tools/bench/graph-caps-harness.js",
           "tools/bench/graph/shared.js"
+        ]
+      },
+      {
+        "flag": "inputs",
+        "count": 2,
+        "files": [
+          "tests/storage/semantic/runtime-claims-reuse.test.js",
+          "tools/index/assemble-pieces.js"
         ]
       },
       {
@@ -10151,6 +10189,14 @@
         "files": [
           "tools/bench/vfs/io-batching.js",
           "tools/bench/vfs/partial-lsp-open.js"
+        ]
+      },
+      {
+        "flag": "limits",
+        "count": 2,
+        "files": [
+          "tests/perf/bench/map-publication-and-memory.test.js",
+          "tests/storage/semantic/runtime-claims-reuse.test.js"
         ]
       },
       {

@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 1999,
+    "hero": 2037,
     "matrix": 109,
     "meta": 54,
     "soak": 1,
@@ -9287,3710 +9287,3938 @@
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "storage/semantic/runtime-source-reference-authority/projection-order-forward",
+      "id": "storage/semantic/runtime-source-reference-authority/cli-generation-repo-only",
       "order": 1546,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "storage/semantic/runtime-source-reference-authority/projection-order-reverse",
+      "id": "storage/semantic/runtime-source-reference-authority/cli-generation-generation-only",
       "order": 1547,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "storage/semantic/runtime-source-reference-authority/source-authority",
+      "id": "storage/semantic/runtime-source-reference-authority/cli-generation-stale",
       "order": 1548,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/index-stats/writer-shard-and-required-payloads",
+      "id": "storage/semantic/runtime-source-reference-authority/projection-order-forward",
       "order": 1549,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/index/selected-mode-consumer-matrix",
+      "id": "storage/semantic/runtime-source-reference-authority/projection-order-reverse",
       "order": 1550,
-      "suiteCategory": "matrix",
-      "suiteCategoryReason": "matrix-filename"
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/lsp/boxed-type-identity-consumer",
+      "id": "storage/semantic/runtime-source-reference-authority/source-authority",
       "order": 1551,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/lsp/inlay-role-consumer",
+      "id": "storage/semantic/runtime-source-reference-foreign-generation",
       "order": 1552,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/reports/selected-scope-health-integrity",
+      "id": "tooling/index-stats/writer-shard-and-required-payloads",
       "order": 1553,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/artifacts/gzip-family-configuration",
+      "id": "tooling/index/selected-mode-consumer-matrix",
       "order": 1554,
-      "suiteCategory": "hero",
-      "suiteCategoryReason": "default-standalone-behavior"
+      "suiteCategory": "matrix",
+      "suiteCategoryReason": "matrix-filename"
     },
     {
-      "id": "indexing/build/preprocess-cancel-lock-consumer",
+      "id": "tooling/lsp/boxed-type-identity-consumer",
       "order": 1555,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/discovery/generated-include-traversal-consumer",
+      "id": "tooling/lsp/inlay-role-consumer",
       "order": 1556,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/discovery/root-markdown-build-watch-consumer",
+      "id": "tooling/reports/selected-scope-health-integrity",
       "order": 1557,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/documents/docx-structural-provider-consumer",
+      "id": "indexing/artifacts/gzip-family-configuration",
       "order": 1558,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/piece-assembly/persisted-metadata-and-field-tokens",
+      "id": "indexing/build/preprocess-cancel-lock-consumer",
       "order": 1559,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/postings/phrase-hash-resource-observations/collision-hashed-none",
+      "id": "indexing/discovery/generated-include-traversal-consumer",
       "order": 1560,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/postings/phrase-hash-resource-observations/collision-hashed-bytes",
+      "id": "indexing/discovery/root-markdown-build-watch-consumer",
       "order": 1561,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/postings/phrase-hash-resource-observations/collision-hashed-unique",
+      "id": "indexing/documents/docx-structural-provider-consumer",
       "order": 1562,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/postings/phrase-hash-resource-observations/collision-legacy-none",
+      "id": "indexing/piece-assembly/persisted-metadata-and-field-tokens",
       "order": 1563,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/postings/phrase-hash-resource-observations/collision-legacy-bytes",
+      "id": "indexing/postings/phrase-hash-resource-observations/collision-hashed-none",
       "order": 1564,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/postings/phrase-hash-resource-observations/collision-legacy-unique",
+      "id": "indexing/postings/phrase-hash-resource-observations/collision-hashed-bytes",
       "order": 1565,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/postings/phrase-hash-resource-observations/unique-hashed-none",
+      "id": "indexing/postings/phrase-hash-resource-observations/collision-hashed-unique",
       "order": 1566,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/postings/phrase-hash-resource-observations/unique-hashed-bytes",
+      "id": "indexing/postings/phrase-hash-resource-observations/collision-legacy-none",
       "order": 1567,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/postings/phrase-hash-resource-observations/unique-hashed-unique",
+      "id": "indexing/postings/phrase-hash-resource-observations/collision-legacy-bytes",
       "order": 1568,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/postings/phrase-hash-resource-observations/unique-legacy-none",
+      "id": "indexing/postings/phrase-hash-resource-observations/collision-legacy-unique",
       "order": 1569,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/postings/phrase-hash-resource-observations/unique-legacy-bytes",
+      "id": "indexing/postings/phrase-hash-resource-observations/unique-hashed-none",
       "order": 1570,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/postings/phrase-hash-resource-observations/unique-legacy-unique",
+      "id": "indexing/postings/phrase-hash-resource-observations/unique-hashed-bytes",
       "order": 1571,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/risk/interprocedural/upstream-coverage-replay-piece-consumer",
+      "id": "indexing/postings/phrase-hash-resource-observations/unique-hashed-unique",
       "order": 1572,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/tree-sitter/async-request-cancellation-boundaries",
+      "id": "indexing/postings/phrase-hash-resource-observations/unique-legacy-none",
       "order": 1573,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "retrieval/cli/request-generation-promotion/memory",
+      "id": "indexing/postings/phrase-hash-resource-observations/unique-legacy-bytes",
       "order": 1574,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "retrieval/cli/request-generation-promotion/sqlite",
+      "id": "indexing/postings/phrase-hash-resource-observations/unique-legacy-unique",
       "order": 1575,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "retrieval/cli/request-generation-promotion/lmdb",
+      "id": "indexing/risk/interprocedural/upstream-coverage-replay-piece-consumer",
       "order": 1576,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "retrieval/filters/required-relations-production",
+      "id": "indexing/tree-sitter/async-request-cancellation-boundaries",
       "order": 1577,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "retrieval/query/match-policy-backend-cache-consumers",
+      "id": "retrieval/cli/request-generation-promotion/memory",
       "order": 1578,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "shared/json-stream/jsonl-byte-authority-and-bounds",
+      "id": "retrieval/cli/request-generation-promotion/sqlite",
       "order": 1579,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "shared/json-stream/sharded-serialization-work/plain",
+      "id": "retrieval/cli/request-generation-promotion/lmdb",
       "order": 1580,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "shared/json-stream/sharded-serialization-work/gzip",
+      "id": "retrieval/filters/required-relations-production",
       "order": 1581,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "shared/json-stream/sharded-serialization-work/zstd",
+      "id": "retrieval/query/match-policy-backend-cache-consumers",
       "order": 1582,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "storage/sqlite/quantization/dense-validity-consumer-snapshots",
+      "id": "shared/json-stream/jsonl-byte-authority-and-bounds",
       "order": 1583,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "storage/sqlite/quantization/dense-validity-work-ladder",
+      "id": "shared/json-stream/sharded-serialization-work/plain",
       "order": 1584,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/install/no-fallback-scope-consumer/canonical-preview",
+      "id": "shared/json-stream/sharded-serialization-work/gzip",
       "order": 1585,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/json-stream/sharded-serialization-work/zstd",
+      "order": 1586,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/sqlite/quantization/dense-validity-consumer-snapshots",
+      "order": 1587,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/sqlite/quantization/dense-validity-work-ladder",
+      "order": 1588,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/install/no-fallback-scope-consumer/canonical-preview",
+      "order": 1589,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
       "id": "tooling/install/no-fallback-scope-consumer/direct-preview",
-      "order": 1586,
+      "order": 1590,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
       "id": "tooling/install/no-fallback-scope-consumer/canonical-execution",
-      "order": 1587,
+      "order": 1591,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
       "id": "tooling/install/no-fallback-scope-consumer/direct-execution",
-      "order": 1588,
+      "order": 1592,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
       "id": "tooling/lsp/drain-lifetime-matrix/kill-timeout",
-      "order": 1589,
-      "suiteCategory": "hero",
-      "suiteCategoryReason": "default-standalone-behavior"
-    },
-    {
-      "id": "tooling/lsp/drain-lifetime-matrix/graceful-timeout-force",
-      "order": 1590,
-      "suiteCategory": "hero",
-      "suiteCategoryReason": "default-standalone-behavior"
-    },
-    {
-      "id": "tooling/lsp/drain-lifetime-matrix/delayed-close",
-      "order": 1591,
-      "suiteCategory": "hero",
-      "suiteCategoryReason": "default-standalone-behavior"
-    },
-    {
-      "id": "tooling/lsp/drain-lifetime-matrix/real-server-exit",
-      "order": 1592,
-      "suiteCategory": "hero",
-      "suiteCategoryReason": "default-standalone-behavior"
-    },
-    {
-      "id": "retrieval/filters/branch-checkout-index-metrics/checkout-recovery",
       "order": 1593,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "retrieval/filters/branch-checkout-index-metrics/mixed-historical",
+      "id": "tooling/lsp/drain-lifetime-matrix/graceful-timeout-force",
       "order": 1594,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/build/stage4-mixed-mode-generations/code",
+      "id": "tooling/lsp/drain-lifetime-matrix/delayed-close",
       "order": 1595,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/build/stage4-mixed-mode-generations/prose",
+      "id": "tooling/lsp/drain-lifetime-matrix/real-server-exit",
       "order": 1596,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "embeddings/onnx/downloader-installation-consumer",
+      "id": "retrieval/filters/branch-checkout-index-metrics/checkout-recovery",
       "order": 1597,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/artifacts/symbols/path-identity-consumer",
+      "id": "retrieval/filters/branch-checkout-index-metrics/mixed-historical",
       "order": 1598,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/file-processor/lint-real-session-costs",
+      "id": "indexing/build/stage4-mixed-mode-generations/code",
       "order": 1599,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/runtime/fd-unavailable-build-consumer",
+      "id": "indexing/build/stage4-mixed-mode-generations/prose",
       "order": 1600,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/runtime/queue-cap-admission-consumer",
+      "id": "embeddings/onnx/downloader-installation-consumer",
       "order": 1601,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/scm/jj-native-read-sessions",
+      "id": "indexing/artifacts/symbols/path-identity-consumer",
       "order": 1602,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/scm/read-session-consumer",
+      "id": "indexing/file-processor/lint-real-session-costs",
       "order": 1603,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/scm/registered-metadata-key-consumer",
+      "id": "indexing/runtime/fd-unavailable-build-consumer",
       "order": 1604,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/tree-sitter/parser-session-native-consumer/tree-worker",
+      "id": "indexing/runtime/queue-cap-admission-consumer",
       "order": 1605,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/tree-sitter/parser-session-native-consumer/python",
+      "id": "indexing/scm/jj-native-read-sessions",
       "order": 1606,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/tree-sitter/runtime-fanout-admission/cpu-1",
+      "id": "indexing/scm/read-session-consumer",
       "order": 1607,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/tree-sitter/runtime-fanout-admission/cpu-2",
+      "id": "indexing/scm/registered-metadata-key-consumer",
       "order": 1608,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/tree-sitter/runtime-fanout-admission/cpu-8",
+      "id": "indexing/tree-sitter/parser-session-native-consumer/tree-worker",
       "order": 1609,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/tree-sitter/runtime-fanout-admission/fd",
+      "id": "indexing/tree-sitter/parser-session-native-consumer/python",
       "order": 1610,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/tree-sitter/runtime-fanout-admission/memory",
+      "id": "indexing/tree-sitter/runtime-fanout-admission/cpu-1",
       "order": 1611,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/tree-sitter/runtime-fanout-admission/affinity",
+      "id": "indexing/tree-sitter/runtime-fanout-admission/cpu-2",
       "order": 1612,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/tree-sitter/runtime-fanout-admission/scheduler-off",
+      "id": "indexing/tree-sitter/runtime-fanout-admission/cpu-8",
       "order": 1613,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/tree-sitter/scheduler-retained-child-admission",
+      "id": "indexing/tree-sitter/runtime-fanout-admission/fd",
       "order": 1614,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/tree-sitter/wave-order-permutation",
+      "id": "indexing/tree-sitter/runtime-fanout-admission/memory",
       "order": 1615,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/tree-sitter/worker-session-lifecycle/same-config",
+      "id": "indexing/tree-sitter/runtime-fanout-admission/affinity",
       "order": 1616,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/tree-sitter/worker-session-lifecycle/conflicting-config",
+      "id": "indexing/tree-sitter/runtime-fanout-admission/scheduler-off",
       "order": 1617,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/tree-sitter/worker-session-lifecycle/shutdown-import",
+      "id": "indexing/tree-sitter/scheduler-retained-child-admission",
       "order": 1618,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/tree-sitter/worker-session-lifecycle/shutdown-reconfigure",
+      "id": "indexing/tree-sitter/wave-order-permutation",
       "order": 1619,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/tree-sitter/worker-session-lifecycle/import-failure-retry",
+      "id": "indexing/tree-sitter/worker-session-lifecycle/same-config",
       "order": 1620,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/tree-sitter/worker-session-lifecycle/destroy-failure",
+      "id": "indexing/tree-sitter/worker-session-lifecycle/conflicting-config",
       "order": 1621,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/tree-sitter/worker-session-lifecycle/stale-close-failure",
+      "id": "indexing/tree-sitter/worker-session-lifecycle/shutdown-import",
       "order": 1622,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/watch/native-backend-source-consumer/chokidar",
+      "id": "indexing/tree-sitter/worker-session-lifecycle/shutdown-reconfigure",
       "order": 1623,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/watch/native-backend-source-consumer/parcel",
+      "id": "indexing/tree-sitter/worker-session-lifecycle/import-failure-retry",
       "order": 1624,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/watch/startup-close-settlement",
+      "id": "indexing/tree-sitter/worker-session-lifecycle/destroy-failure",
       "order": 1625,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/workers/cleanup-rejection-owner-retry",
+      "id": "indexing/tree-sitter/worker-session-lifecycle/stale-close-failure",
       "order": 1626,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/workers/task-specific-runtime-observations",
+      "id": "indexing/watch/native-backend-source-consumer/chokidar",
       "order": 1627,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "integrations/core/stage2-boolean-background-consumer/queue",
+      "id": "indexing/watch/native-backend-source-consumer/parcel",
       "order": 1628,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "integrations/core/stage2-boolean-background-consumer/fallback",
+      "id": "indexing/watch/startup-close-settlement",
       "order": 1629,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "lang/python/shutdown-admission-consumer",
+      "id": "indexing/workers/cleanup-rejection-owner-retry",
       "order": 1630,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "retrieval/cli/dictionary-language-consumer/disabled",
+      "id": "indexing/workers/task-specific-runtime-observations",
       "order": 1631,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "retrieval/cli/dictionary-language-consumer/javascript",
+      "id": "integrations/core/stage2-boolean-background-consumer/queue",
       "order": 1632,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "retrieval/cli/dictionary-language-consumer/default",
+      "id": "integrations/core/stage2-boolean-background-consumer/fallback",
       "order": 1633,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "retrieval/cli/dictionary-language-consumer/alias",
+      "id": "lang/python/shutdown-admission-consumer",
       "order": 1634,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "retrieval/cli/dictionary-language-consumer/identity-partitions",
+      "id": "retrieval/cli/dictionary-language-consumer/disabled",
       "order": 1635,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "retrieval/federation/manifest-caller-cancellation/initial",
+      "id": "retrieval/cli/dictionary-language-consumer/javascript",
       "order": 1636,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "retrieval/federation/manifest-caller-cancellation/ranked-revalidation",
+      "id": "retrieval/cli/dictionary-language-consumer/default",
       "order": 1637,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "retrieval/federation/manifest-caller-cancellation/enumeration-revalidation",
+      "id": "retrieval/cli/dictionary-language-consumer/alias",
       "order": 1638,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "retrieval/federation/manifest-caller-cancellation/pending-reader",
+      "id": "retrieval/cli/dictionary-language-consumer/identity-partitions",
       "order": 1639,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "retrieval/federation/manifest-caller-cancellation/pre-aborted",
+      "id": "retrieval/federation/manifest-caller-cancellation/initial",
       "order": 1640,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "retrieval/federation/published-watch-root-consumer",
+      "id": "retrieval/federation/manifest-caller-cancellation/ranked-revalidation",
       "order": 1641,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "retrieval/filters/expression-grammar-consumer",
+      "id": "retrieval/federation/manifest-caller-cancellation/enumeration-revalidation",
       "order": 1642,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "storage/sqlite/bundle-producer-budget-consumer",
+      "id": "retrieval/federation/manifest-caller-cancellation/pending-reader",
       "order": 1643,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/watch/source-observation-replay/chokidar",
+      "id": "retrieval/federation/manifest-caller-cancellation/pre-aborted",
       "order": 1644,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/watch/source-observation-replay/parcel",
+      "id": "retrieval/federation/published-watch-root-consumer",
       "order": 1645,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/watch/source-observation-replay/ownership",
+      "id": "retrieval/filters/expression-grammar-consumer",
       "order": 1646,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "retrieval/cli/request-generation-promotion/memory-faults",
+      "id": "storage/sqlite/bundle-producer-budget-consumer",
       "order": 1647,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "retrieval/cli/request-generation-promotion/sqlite-faults",
+      "id": "indexing/watch/source-observation-replay/chokidar",
       "order": 1648,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "retrieval/cli/request-generation-promotion/lmdb-faults",
+      "id": "indexing/watch/source-observation-replay/parcel",
       "order": 1649,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/artifacts/stage-producer-git-byte-authority",
+      "id": "indexing/watch/source-observation-replay/ownership",
       "order": 1650,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/artifacts/stage-producer-real-git-identity",
+      "id": "retrieval/cli/request-generation-promotion/memory-faults",
       "order": 1651,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/artifacts/stage-producer-status-framing",
+      "id": "retrieval/cli/request-generation-promotion/sqlite-faults",
       "order": 1652,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/artifacts/unpublished-copy-native-metadata/native-eacces",
+      "id": "retrieval/cli/request-generation-promotion/lmdb-faults",
       "order": 1653,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/artifacts/unpublished-copy-native-metadata/native-pending",
+      "id": "indexing/artifacts/stage-producer-git-byte-authority",
       "order": 1654,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/artifacts/unpublished-copy-native-metadata/ordinary",
+      "id": "indexing/artifacts/stage-producer-real-git-identity",
       "order": 1655,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/artifacts/unpublished-copy-native-metadata/original-method",
+      "id": "indexing/artifacts/stage-producer-status-framing",
       "order": 1656,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/artifacts/unpublished-copy-native-metadata/work",
+      "id": "indexing/artifacts/unpublished-copy-native-metadata/native-eacces",
       "order": 1657,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/piece-assembly/mode-and-cohort-cli-admission",
+      "id": "indexing/artifacts/unpublished-copy-native-metadata/native-pending",
       "order": 1658,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/postings/token-field-caller-cancellation",
+      "id": "indexing/artifacts/unpublished-copy-native-metadata/ordinary",
       "order": 1659,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/publication/integrity-stream-ownership/equivalent",
+      "id": "indexing/artifacts/unpublished-copy-native-metadata/original-method",
       "order": 1660,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/publication/integrity-stream-ownership/failure-drain",
+      "id": "indexing/artifacts/unpublished-copy-native-metadata/work",
       "order": 1661,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/publication/integrity-stream-ownership/mixed-snapshot",
+      "id": "indexing/piece-assembly/mode-and-cohort-cli-admission",
       "order": 1662,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/runtime/build-cli-selected-outcome/stage1-code",
+      "id": "indexing/postings/token-field-caller-cancellation",
       "order": 1663,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/runtime/build-cli-selected-outcome/stage2-prose",
+      "id": "indexing/publication/integrity-stream-ownership/equivalent",
       "order": 1664,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/runtime/build-cli-selected-outcome/stage3-disabled",
+      "id": "indexing/publication/integrity-stream-ownership/failure-drain",
       "order": 1665,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/runtime/build-cli-selected-outcome/stage4-sqlite",
+      "id": "indexing/publication/integrity-stream-ownership/mixed-snapshot",
       "order": 1666,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/runtime/direct-core-intent-admission",
+      "id": "indexing/runtime/build-cli-selected-outcome/stage1-code",
       "order": 1667,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/stage1/process-files-setup-resource-ownership",
+      "id": "indexing/runtime/build-cli-selected-outcome/stage2-prose",
       "order": 1668,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/stage1/scm-wait-watchdog-consumer/absent",
+      "id": "indexing/runtime/build-cli-selected-outcome/stage3-disabled",
       "order": 1669,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/stage1/scm-wait-watchdog-consumer/negative",
+      "id": "indexing/runtime/build-cli-selected-outcome/stage4-sqlite",
       "order": 1670,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/stage1/scm-wait-watchdog-consumer/nonzero",
+      "id": "indexing/runtime/direct-core-intent-admission",
       "order": 1671,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/workers/lazy-native-startup-ownership",
+      "id": "indexing/stage1/process-files-setup-resource-ownership",
       "order": 1672,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "lang/contracts/native-call-frontier-admission",
+      "id": "indexing/stage1/scm-wait-watchdog-consumer/absent",
       "order": 1673,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "map/member-join-work-consumer/durable",
+      "id": "indexing/stage1/scm-wait-watchdog-consumer/negative",
       "order": 1674,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "map/member-join-work-consumer/measure",
+      "id": "indexing/stage1/scm-wait-watchdog-consumer/nonzero",
       "order": 1675,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "map/member-join-work-consumer/mixed",
+      "id": "indexing/workers/lazy-native-startup-ownership",
       "order": 1676,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "perf/bench/embedding-bakeoff-observed-resume",
+      "id": "lang/contracts/native-call-frontier-admission",
       "order": 1677,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "perf/bench/representative-workload-consumers/graph-skewed",
+      "id": "map/member-join-work-consumer/durable",
       "order": 1678,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "perf/bench/representative-workload-consumers/graph-skewed-independent",
+      "id": "map/member-join-work-consumer/measure",
       "order": 1679,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "perf/bench/representative-workload-consumers/map-large",
+      "id": "map/member-join-work-consumer/mixed",
       "order": 1680,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "perf/bench/representative-workload-consumers/memory-transient",
+      "id": "perf/bench/embedding-bakeoff-observed-resume",
       "order": 1681,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "perf/bench/representative-workload-consumers/render",
+      "id": "perf/bench/representative-workload-consumers/graph-skewed",
       "order": 1682,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "perf/bench/representative-workload-consumers/sqlite-wide-a1",
+      "id": "perf/bench/representative-workload-consumers/graph-skewed-independent",
       "order": 1683,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "perf/bench/representative-workload-consumers/sqlite-wide-a2",
+      "id": "perf/bench/representative-workload-consumers/map-large",
       "order": 1684,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "perf/bench/representative-workload-consumers/sqlite-wide-b1",
+      "id": "perf/bench/representative-workload-consumers/memory-transient",
       "order": 1685,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "perf/bench/representative-workload-consumers/sqlite-wide-b2",
+      "id": "perf/bench/representative-workload-consumers/render",
       "order": 1686,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "perf/bench/representative-workload-consumers/sqlite-wide-c1",
+      "id": "perf/bench/representative-workload-consumers/sqlite-wide-a1",
       "order": 1687,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "perf/bench/representative-workload-consumers/sqlite-wide-c2",
+      "id": "perf/bench/representative-workload-consumers/sqlite-wide-a2",
       "order": 1688,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "perf/bench/representative-workload-consumers/vfs-ascii",
+      "id": "perf/bench/representative-workload-consumers/sqlite-wide-b1",
       "order": 1689,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "perf/bench/representative-workload-consumers/vfs-budget",
+      "id": "perf/bench/representative-workload-consumers/sqlite-wide-b2",
       "order": 1690,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "perf/bench/representative-workload-consumers/vfs-many-hot-1",
+      "id": "perf/bench/representative-workload-consumers/sqlite-wide-c1",
       "order": 1691,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "perf/bench/representative-workload-consumers/vfs-many-hot-2",
+      "id": "perf/bench/representative-workload-consumers/sqlite-wide-c2",
       "order": 1692,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "perf/bench/representative-workload-consumers/vfs-many-hot-3",
+      "id": "perf/bench/representative-workload-consumers/vfs-ascii",
       "order": 1693,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "perf/bench/representative-workload-consumers/vfs-many-persisted-1",
+      "id": "perf/bench/representative-workload-consumers/vfs-budget",
       "order": 1694,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "perf/bench/representative-workload-consumers/vfs-many-persisted-2",
+      "id": "perf/bench/representative-workload-consumers/vfs-many-hot-1",
       "order": 1695,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "perf/bench/representative-workload-consumers/vfs-many-persisted-3",
+      "id": "perf/bench/representative-workload-consumers/vfs-many-hot-2",
       "order": 1696,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "perf/bench/selected-cohort-generation-consumer/publication",
+      "id": "perf/bench/representative-workload-consumers/vfs-many-hot-3",
       "order": 1697,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "perf/bench/selected-cohort-generation-consumer/results",
+      "id": "perf/bench/representative-workload-consumers/vfs-many-persisted-1",
       "order": 1698,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "perf/bench/vfs-producer-accounting/coalesce",
+      "id": "perf/bench/representative-workload-consumers/vfs-many-persisted-2",
       "order": 1699,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "perf/bench/vfs-producer-accounting/lsp",
+      "id": "perf/bench/representative-workload-consumers/vfs-many-persisted-3",
       "order": 1700,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "perf/bench/vfs-producer-accounting/manifest",
+      "id": "perf/bench/selected-cohort-generation-consumer/publication",
       "order": 1701,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "perf/bench/vfs-producer-accounting/merge",
+      "id": "perf/bench/selected-cohort-generation-consumer/results",
       "order": 1702,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "perf/bench/vfs-producer-accounting/segments",
+      "id": "perf/bench/vfs-producer-accounting/coalesce",
       "order": 1703,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "retrieval/backend/fts-cooperative-timing-consumer",
+      "id": "perf/bench/vfs-producer-accounting/lsp",
       "order": 1704,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "services/mcp/build-sqlite-core-ownership",
+      "id": "perf/bench/vfs-producer-accounting/manifest",
       "order": 1705,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "services/mcp/build-sqlite-selected-generation",
+      "id": "perf/bench/vfs-producer-accounting/merge",
       "order": 1706,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "shared/artifact-io/json-row-stream-shape-and-cancellation",
+      "id": "perf/bench/vfs-producer-accounting/segments",
       "order": 1707,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "shared/hash/stat-work-bound-consumer/exact-work",
+      "id": "retrieval/backend/fts-cooperative-timing-consumer",
       "order": 1708,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "shared/hash/stat-work-bound-consumer/timestamp-race",
+      "id": "services/mcp/build-sqlite-core-ownership",
       "order": 1709,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "shared/hash/stat-work-bound-consumer/unsafe-extent",
+      "id": "services/mcp/build-sqlite-selected-generation",
       "order": 1710,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/api-contracts/declared-evidence-admission",
+      "id": "shared/artifact-io/json-row-stream-shape-and-cancellation",
       "order": 1711,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/bench/generic-diff-consumer",
+      "id": "shared/hash/stat-work-bound-consumer/exact-work",
       "order": 1712,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/bench/runner-measurement-consumer",
+      "id": "shared/hash/stat-work-bound-consumer/timestamp-race",
       "order": 1713,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/bench/waiver-report-count-consumer",
+      "id": "shared/hash/stat-work-bound-consumer/unsafe-extent",
       "order": 1714,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/eval/coverage-and-default-datasets/datasets",
+      "id": "tooling/api-contracts/declared-evidence-admission",
       "order": 1715,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/eval/coverage-and-default-datasets/runner",
+      "id": "tooling/bench/generic-diff-consumer",
       "order": 1716,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/eval/search-plan-generation-consumer",
+      "id": "tooling/bench/runner-measurement-consumer",
       "order": 1717,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/install/ci-build-sqlite-ownership",
+      "id": "tooling/bench/waiver-report-count-consumer",
       "order": 1718,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/eval/coverage-and-default-datasets/datasets",
+      "order": 1719,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/eval/coverage-and-default-datasets/runner",
+      "order": 1720,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/eval/search-plan-generation-consumer",
+      "order": 1721,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/install/ci-build-sqlite-ownership",
+      "order": 1722,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
       "id": "tooling/install/setup-explicit-target-handoff",
-      "order": 1719,
+      "order": 1723,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
       "id": "tooling/install/setup-git-metadata-target-handoff/submodule",
-      "order": 1720,
+      "order": 1724,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
       "id": "tooling/install/setup-git-metadata-target-handoff/worktree",
-      "order": 1721,
+      "order": 1725,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
       "id": "tooling/reports/throughput-focused-mode-consumer",
-      "order": 1722,
-      "suiteCategory": "hero",
-      "suiteCategoryReason": "default-standalone-behavior"
-    },
-    {
-      "id": "tooling/triage/inspector-index-filter-context-consumer/legacy-empty",
-      "order": 1723,
-      "suiteCategory": "hero",
-      "suiteCategoryReason": "default-standalone-behavior"
-    },
-    {
-      "id": "tooling/triage/inspector-index-filter-context-consumer/multi-package",
-      "order": 1724,
-      "suiteCategory": "hero",
-      "suiteCategoryReason": "default-standalone-behavior"
-    },
-    {
-      "id": "tooling/triage/renderer-package-authority",
-      "order": 1725,
-      "suiteCategory": "hero",
-      "suiteCategoryReason": "default-standalone-behavior"
-    },
-    {
-      "id": "tooling/workspace/canonical-child-startup-isolation",
       "order": 1726,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "ci/eslint-source-inventory",
+      "id": "tooling/triage/inspector-index-filter-context-consumer/legacy-empty",
       "order": 1727,
-      "suiteCategory": "meta",
-      "suiteCategoryReason": "meta-cohort-prefix"
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "graph/impact-indexed-source-cli/calls",
+      "id": "tooling/triage/inspector-index-filter-context-consumer/multi-package",
       "order": 1728,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "graph/impact-indexed-source-cli/imports",
+      "id": "tooling/triage/renderer-package-authority",
       "order": 1729,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/artifacts/manifest/checksum-cancellation-owner/borrowed-close",
+      "id": "tooling/workspace/canonical-child-startup-isolation",
       "order": 1730,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/artifacts/manifest/checksum-cancellation-owner/borrowed-close-failure",
+      "id": "ci/eslint-source-inventory",
       "order": 1731,
-      "suiteCategory": "hero",
-      "suiteCategoryReason": "default-standalone-behavior"
+      "suiteCategory": "meta",
+      "suiteCategoryReason": "meta-cohort-prefix"
     },
     {
-      "id": "indexing/artifacts/manifest/checksum-cancellation-owner/borrowed-preabort",
+      "id": "graph/impact-indexed-source-cli/calls",
       "order": 1732,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/artifacts/manifest/checksum-cancellation-owner/borrowed-read",
+      "id": "graph/impact-indexed-source-cli/imports",
       "order": 1733,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/artifacts/manifest/checksum-cancellation-owner/borrowed-sealed",
+      "id": "indexing/artifacts/manifest/checksum-cancellation-owner/borrowed-close",
       "order": 1734,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/artifacts/manifest/checksum-cancellation-owner/borrowed-siblings",
+      "id": "indexing/artifacts/manifest/checksum-cancellation-owner/borrowed-close-failure",
       "order": 1735,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/artifacts/manifest/checksum-cancellation-owner/borrowed-siblings-close-failure",
+      "id": "indexing/artifacts/manifest/checksum-cancellation-owner/borrowed-preabort",
       "order": 1736,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/artifacts/manifest/checksum-cancellation-owner/ordinary-close",
+      "id": "indexing/artifacts/manifest/checksum-cancellation-owner/borrowed-read",
       "order": 1737,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/artifacts/manifest/checksum-cancellation-owner/ordinary-close-failure",
+      "id": "indexing/artifacts/manifest/checksum-cancellation-owner/borrowed-sealed",
       "order": 1738,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/artifacts/manifest/checksum-cancellation-owner/ordinary-preabort",
+      "id": "indexing/artifacts/manifest/checksum-cancellation-owner/borrowed-siblings",
       "order": 1739,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/artifacts/manifest/checksum-cancellation-owner/ordinary-read",
+      "id": "indexing/artifacts/manifest/checksum-cancellation-owner/borrowed-siblings-close-failure",
       "order": 1740,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/artifacts/manifest/checksum-cancellation-owner/ordinary-sealed",
+      "id": "indexing/artifacts/manifest/checksum-cancellation-owner/ordinary-close",
       "order": 1741,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/artifacts/manifest/checksum-cancellation-owner/ordinary-siblings",
+      "id": "indexing/artifacts/manifest/checksum-cancellation-owner/ordinary-close-failure",
       "order": 1742,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/artifacts/manifest/checksum-cancellation-owner/ordinary-siblings-close-failure",
+      "id": "indexing/artifacts/manifest/checksum-cancellation-owner/ordinary-preabort",
       "order": 1743,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/incremental/source-caller-authority/completion",
+      "id": "indexing/artifacts/manifest/checksum-cancellation-owner/ordinary-read",
       "order": 1744,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/incremental/source-caller-authority/imports",
+      "id": "indexing/artifacts/manifest/checksum-cancellation-owner/ordinary-sealed",
       "order": 1745,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/incremental/source-caller-authority/missing-checkpoint",
+      "id": "indexing/artifacts/manifest/checksum-cancellation-owner/ordinary-siblings",
       "order": 1746,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/incremental/source-caller-authority/missing-semantic",
+      "id": "indexing/artifacts/manifest/checksum-cancellation-owner/ordinary-siblings-close-failure",
       "order": 1747,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/incremental/source-caller-authority/nonsemantic",
+      "id": "indexing/incremental/source-caller-authority/completion",
       "order": 1748,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/incremental/source-caller-authority/prefix",
+      "id": "indexing/incremental/source-caller-authority/imports",
       "order": 1749,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/incremental/source-caller-authority/semantic",
+      "id": "indexing/incremental/source-caller-authority/missing-checkpoint",
       "order": 1750,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/registry-borrowed-retirement-race",
+      "id": "indexing/incremental/source-caller-authority/missing-semantic",
       "order": 1751,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/runtime/worker-cleanup-public-consumers/shared-cache",
+      "id": "indexing/incremental/source-caller-authority/nonsemantic",
       "order": 1752,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/runtime/worker-cleanup-public-consumers/shared-teardown",
+      "id": "indexing/incremental/source-caller-authority/prefix",
       "order": 1753,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/runtime/worker-cleanup-public-consumers/split-cache",
+      "id": "indexing/incremental/source-caller-authority/semantic",
       "order": 1754,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/runtime/worker-cleanup-public-consumers/split-teardown",
+      "id": "indexing/registry-borrowed-retirement-race",
       "order": 1755,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/stage1/process-files-abort-listener-lifetime",
+      "id": "indexing/runtime/worker-cleanup-public-consumers/shared-cache",
       "order": 1756,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/stage1/process-files-await-abort-owner",
+      "id": "indexing/runtime/worker-cleanup-public-consumers/shared-teardown",
       "order": 1757,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/stage1/process-files-live-abort-owner/complete",
+      "id": "indexing/runtime/worker-cleanup-public-consumers/split-cache",
       "order": 1758,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/stage1/process-files-live-abort-owner/mid-stage-abort",
+      "id": "indexing/runtime/worker-cleanup-public-consumers/split-teardown",
       "order": 1759,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/tree-sitter/persistent-cache-admission/native-replay",
+      "id": "indexing/stage1/process-files-abort-listener-lifetime",
       "order": 1760,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/tree-sitter/persistent-cache-admission/opened-resource",
+      "id": "indexing/stage1/process-files-await-abort-owner",
       "order": 1761,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/tree-sitter/persistent-cache-admission/schema-and-bytes",
+      "id": "indexing/stage1/process-files-live-abort-owner/complete",
       "order": 1762,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/workers/thread-task-association-native",
+      "id": "indexing/stage1/process-files-live-abort-owner/mid-stage-abort",
       "order": 1763,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/workers/thread-task-association-recording",
+      "id": "indexing/tree-sitter/persistent-cache-admission/native-replay",
       "order": 1764,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/workers/thread-task-facade-cancellation/analysis",
+      "id": "indexing/tree-sitter/persistent-cache-admission/opened-resource",
       "order": 1765,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/workers/thread-task-facade-cancellation/batch",
+      "id": "indexing/tree-sitter/persistent-cache-admission/schema-and-bytes",
       "order": 1766,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/workers/thread-task-facade-cancellation/quantize",
+      "id": "indexing/workers/thread-task-association-native",
       "order": 1767,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/workers/thread-task-facade-cancellation/single",
+      "id": "indexing/workers/thread-task-association-recording",
       "order": 1768,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/workers/thread-task-public-api-types",
+      "id": "indexing/workers/thread-task-facade-cancellation/analysis",
       "order": 1769,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/workers/worker-cleanup-group-conformance",
+      "id": "indexing/workers/thread-task-facade-cancellation/batch",
       "order": 1770,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "integrations/mcp/transport-classifier-consumers/legacy",
+      "id": "indexing/workers/thread-task-facade-cancellation/quantize",
       "order": 1771,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "integrations/mcp/transport-classifier-consumers/sdk",
+      "id": "indexing/workers/thread-task-facade-cancellation/single",
       "order": 1772,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "lang/contracts/go-transparent-type-role-consumers",
+      "id": "indexing/workers/thread-task-public-api-types",
       "order": 1773,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "lang/contracts/lua-lexical-header-call-consumers",
+      "id": "indexing/workers/worker-cleanup-group-conformance",
       "order": 1774,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "lang/contracts/managed-reference-core-publication",
+      "id": "integrations/mcp/transport-classifier-consumers/legacy",
       "order": 1775,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "lang/contracts/native-perl-package-ownership-consumers/braced",
+      "id": "integrations/mcp/transport-classifier-consumers/sdk",
       "order": 1776,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "lang/contracts/native-perl-package-ownership-consumers/nested",
+      "id": "lang/contracts/go-transparent-type-role-consumers",
       "order": 1777,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "lang/contracts/native-perl-package-ownership-consumers/unbraced",
+      "id": "lang/contracts/lua-lexical-header-call-consumers",
       "order": 1778,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "lang/contracts/native-projection-bounded-consumers/declarations",
+      "id": "lang/contracts/managed-reference-core-publication",
       "order": 1779,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "lang/contracts/native-projection-bounded-consumers/deep",
+      "id": "lang/contracts/native-perl-package-ownership-consumers/braced",
       "order": 1780,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "lang/contracts/native-projection-bounded-consumers/unicode",
+      "id": "lang/contracts/native-perl-package-ownership-consumers/nested",
       "order": 1781,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "lang/contracts/native-projection-bounded-consumers/wide",
+      "id": "lang/contracts/native-perl-package-ownership-consumers/unbraced",
       "order": 1782,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "lang/contracts/native-projection-work-admission",
+      "id": "lang/contracts/native-projection-bounded-consumers/declarations",
       "order": 1783,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "lang/contracts/python-escaped-triple-import-consumers",
+      "id": "lang/contracts/native-projection-bounded-consumers/deep",
       "order": 1784,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "lang/contracts/python-inline-suite-import-consumers",
+      "id": "lang/contracts/native-projection-bounded-consumers/unicode",
       "order": 1785,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "lang/contracts/python-physical-line-source-consumers",
+      "id": "lang/contracts/native-projection-bounded-consumers/wide",
       "order": 1786,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "lang/contracts/python-unicode-import-consumers",
+      "id": "lang/contracts/native-projection-work-admission",
       "order": 1787,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "lang/contracts/shell-literal-suffix-resolution",
+      "id": "lang/contracts/python-escaped-triple-import-consumers",
       "order": 1788,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "lang/contracts/starlark-escaped-triple-import-consumers",
+      "id": "lang/contracts/python-inline-suite-import-consumers",
       "order": 1789,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "lang/contracts/xml-native-document-envelope-consumers",
+      "id": "lang/contracts/python-physical-line-source-consumers",
       "order": 1790,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "lang/contracts/yaml-native-document-envelope-consumers",
+      "id": "lang/contracts/python-unicode-import-consumers",
       "order": 1791,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "map/alias-inspector-scoring-consumers",
+      "id": "lang/contracts/shell-literal-suffix-resolution",
       "order": 1792,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "map/source-inventory-hierarchy-consumers",
+      "id": "lang/contracts/starlark-escaped-triple-import-consumers",
       "order": 1793,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "perf/bench/map-gc-observation",
+      "id": "lang/contracts/xml-native-document-envelope-consumers",
       "order": 1794,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "perf/bench/vfs-series-owner",
+      "id": "lang/contracts/yaml-native-document-envelope-consumers",
       "order": 1795,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "perf/tooling/bench/sqlite-admitted-validation",
+      "id": "map/alias-inspector-scoring-consumers",
       "order": 1796,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "retrieval/ann/lancedb-outcome-consumers/count-aware",
+      "id": "map/source-inventory-hierarchy-consumers",
       "order": 1797,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "retrieval/ann/lancedb-outcome-consumers/missing-package",
+      "id": "perf/bench/map-gc-observation",
       "order": 1798,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "retrieval/ann/lancedb-outcome-consumers/native-outcomes",
+      "id": "perf/bench/vfs-series-owner",
       "order": 1799,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "retrieval/ann/lancedb-outcome-consumers/session-cache",
+      "id": "perf/tooling/bench/sqlite-admitted-validation",
       "order": 1800,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "retrieval/ann/lancedb-outcome-consumers/unsupported-api",
+      "id": "retrieval/ann/lancedb-outcome-consumers/count-aware",
       "order": 1801,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "retrieval/filters/filter-cache-original-resource-consumers/cancelled-key-read",
+      "id": "retrieval/ann/lancedb-outcome-consumers/missing-package",
       "order": 1802,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "retrieval/filters/filter-cache-original-resource-consumers/cancelled-payload-read",
+      "id": "retrieval/ann/lancedb-outcome-consumers/native-outcomes",
       "order": 1803,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "retrieval/filters/filter-cache-original-resource-consumers/key-admission",
+      "id": "retrieval/ann/lancedb-outcome-consumers/session-cache",
       "order": 1804,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "retrieval/filters/filter-cache-original-resource-consumers/key-close",
+      "id": "retrieval/ann/lancedb-outcome-consumers/unsupported-api",
       "order": 1805,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "retrieval/filters/filter-cache-original-resource-consumers/key-read",
+      "id": "retrieval/filters/filter-cache-original-resource-consumers/cancelled-key-read",
       "order": 1806,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "retrieval/filters/filter-cache-original-resource-consumers/payload-admission",
+      "id": "retrieval/filters/filter-cache-original-resource-consumers/cancelled-payload-read",
       "order": 1807,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "retrieval/filters/filter-cache-original-resource-consumers/payload-close",
+      "id": "retrieval/filters/filter-cache-original-resource-consumers/key-admission",
       "order": 1808,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "retrieval/filters/filter-cache-original-resource-consumers/payload-read",
+      "id": "retrieval/filters/filter-cache-original-resource-consumers/key-close",
       "order": 1809,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "retrieval/filters/filter-cache-original-resource-consumers/persist-key",
+      "id": "retrieval/filters/filter-cache-original-resource-consumers/key-read",
       "order": 1810,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "retrieval/filters/filter-cache-original-resource-consumers/sqlite-fallback",
+      "id": "retrieval/filters/filter-cache-original-resource-consumers/payload-admission",
       "order": 1811,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "retrieval/filters/protobuf-alias-consumers",
+      "id": "retrieval/filters/filter-cache-original-resource-consumers/payload-close",
       "order": 1812,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "retrieval/providers/tantivy-boolean-membership-consumers",
+      "id": "retrieval/filters/filter-cache-original-resource-consumers/payload-read",
       "order": 1813,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "retrieval/providers/tantivy-outcome-cache-consumers",
+      "id": "retrieval/filters/filter-cache-original-resource-consumers/persist-key",
       "order": 1814,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "runner/harness/coverage-physical-source-identity/identity-adapter",
+      "id": "retrieval/filters/filter-cache-original-resource-consumers/sqlite-fallback",
       "order": 1815,
-      "suiteCategory": "meta",
-      "suiteCategoryReason": "meta-cohort-prefix"
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "runner/harness/coverage-physical-source-identity/physical-consumer",
+      "id": "retrieval/filters/protobuf-alias-consumers",
       "order": 1816,
-      "suiteCategory": "meta",
-      "suiteCategoryReason": "meta-cohort-prefix"
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "services/queue/completion-confirmed-authority",
+      "id": "retrieval/providers/tantivy-boolean-membership-consumers",
       "order": 1817,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "shared/artifact-io/columnar-envelope-consumers",
+      "id": "retrieval/providers/tantivy-outcome-cache-consumers",
       "order": 1818,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "shared/artifact-io/json-array-shape-consumers",
+      "id": "runner/harness/coverage-physical-source-identity/identity-adapter",
       "order": 1819,
-      "suiteCategory": "hero",
-      "suiteCategoryReason": "default-standalone-behavior"
+      "suiteCategory": "meta",
+      "suiteCategoryReason": "meta-cohort-prefix"
     },
     {
-      "id": "shared/artifact-io/offsets-canonical-count-consumers",
+      "id": "runner/harness/coverage-physical-source-identity/physical-consumer",
       "order": 1820,
-      "suiteCategory": "hero",
-      "suiteCategoryReason": "default-standalone-behavior"
+      "suiteCategory": "meta",
+      "suiteCategoryReason": "meta-cohort-prefix"
     },
     {
-      "id": "storage/semantic/manifest-serving-consumers/detail",
+      "id": "services/queue/completion-confirmed-authority",
       "order": 1821,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "storage/semantic/manifest-serving-consumers/explain-artifact",
+      "id": "shared/artifact-io/columnar-envelope-consumers",
       "order": 1822,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "storage/semantic/manifest-serving-consumers/explain-sqlite",
+      "id": "shared/artifact-io/json-array-shape-consumers",
       "order": 1823,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "storage/semantic/manifest-serving-consumers/find-artifact",
+      "id": "shared/artifact-io/offsets-canonical-count-consumers",
       "order": 1824,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "storage/semantic/manifest-serving-consumers/find-sqlite",
+      "id": "storage/semantic/manifest-serving-consumers/detail",
       "order": 1825,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/api-contracts/qualified-target-ambient-scope/js",
+      "id": "storage/semantic/manifest-serving-consumers/explain-artifact",
       "order": 1826,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/api-contracts/qualified-target-ambient-scope/ts",
+      "id": "storage/semantic/manifest-serving-consumers/explain-sqlite",
       "order": 1827,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/api-mcp/repo-cache-async-shutdown",
+      "id": "storage/semantic/manifest-serving-consumers/find-artifact",
       "order": 1828,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/api-mcp/repository-probe-original-config-owner/api-child-close",
+      "id": "storage/semantic/manifest-serving-consumers/find-sqlite",
       "order": 1829,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/api-mcp/repository-probe-original-config-owner/api-child-read",
+      "id": "tooling/api-contracts/qualified-target-ambient-scope/js",
       "order": 1830,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/api-mcp/repository-probe-original-config-owner/api-root-close",
+      "id": "tooling/api-contracts/qualified-target-ambient-scope/ts",
       "order": 1831,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/api-mcp/repository-probe-original-config-owner/api-root-read",
+      "id": "tooling/api-mcp/repo-cache-async-shutdown",
       "order": 1832,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/api-mcp/repository-probe-original-config-owner/mcp-child-close",
+      "id": "tooling/api-mcp/repository-probe-original-config-owner/api-child-close",
       "order": 1833,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/api-mcp/repository-probe-original-config-owner/mcp-child-read",
+      "id": "tooling/api-mcp/repository-probe-original-config-owner/api-child-read",
       "order": 1834,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/api-mcp/repository-probe-original-config-owner/mcp-root-close",
+      "id": "tooling/api-mcp/repository-probe-original-config-owner/api-root-close",
       "order": 1835,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/api-mcp/repository-probe-original-config-owner/mcp-root-read",
+      "id": "tooling/api-mcp/repository-probe-original-config-owner/api-root-read",
       "order": 1836,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/api-mcp/repository-probe-original-config-owner/shared-child-close",
+      "id": "tooling/api-mcp/repository-probe-original-config-owner/mcp-child-close",
       "order": 1837,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/api-mcp/repository-probe-original-config-owner/shared-child-read",
+      "id": "tooling/api-mcp/repository-probe-original-config-owner/mcp-child-read",
       "order": 1838,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/api-mcp/repository-probe-original-config-owner/shared-root-close",
+      "id": "tooling/api-mcp/repository-probe-original-config-owner/mcp-root-close",
       "order": 1839,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/api-mcp/repository-probe-original-config-owner/shared-root-read",
+      "id": "tooling/api-mcp/repository-probe-original-config-owner/mcp-root-read",
       "order": 1840,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/bench/qualification-capsule-errors",
+      "id": "tooling/api-mcp/repository-probe-original-config-owner/shared-child-close",
       "order": 1841,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/bench/usr-named-source-digest",
+      "id": "tooling/api-mcp/repository-probe-original-config-owner/shared-child-read",
       "order": 1842,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/index-stats/symbol-family-logical-counts",
+      "id": "tooling/api-mcp/repository-probe-original-config-owner/shared-root-close",
       "order": 1843,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/reports/compare-models-observed-corpus/between-queries",
+      "id": "tooling/api-mcp/repository-probe-original-config-owner/shared-root-read",
       "order": 1844,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/reports/compare-models-observed-corpus/changed-generation",
+      "id": "tooling/bench/qualification-capsule-errors",
       "order": 1845,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/reports/compare-models-observed-corpus/independent-modes",
+      "id": "tooling/bench/usr-named-source-digest",
       "order": 1846,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/reports/compare-models-observed-corpus/missing-generation",
+      "id": "tooling/index-stats/symbol-family-logical-counts",
       "order": 1847,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/reports/compare-models-observed-corpus/promotion",
+      "id": "tooling/reports/compare-models-observed-corpus/between-queries",
       "order": 1848,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/reports/compare-models-observed-corpus/retired-generation",
+      "id": "tooling/reports/compare-models-observed-corpus/changed-generation",
       "order": 1849,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tui/flow-queue-saturation-cycles/all-log",
+      "id": "tooling/reports/compare-models-observed-corpus/independent-modes",
       "order": 1850,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tui/flow-queue-saturation-cycles/chunks",
+      "id": "tooling/reports/compare-models-observed-corpus/missing-generation",
       "order": 1851,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tui/flow-queue-saturation-cycles/coalesced",
+      "id": "tooling/reports/compare-models-observed-corpus/promotion",
       "order": 1852,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tui/flow-queue-saturation-cycles/mixed",
+      "id": "tooling/reports/compare-models-observed-corpus/retired-generation",
       "order": 1853,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tui/flow-queue-saturation-cycles/no-log",
+      "id": "tui/flow-queue-saturation-cycles/all-log",
       "order": 1854,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tui/flow-queue-saturation-cycles/work",
+      "id": "tui/flow-queue-saturation-cycles/chunks",
       "order": 1855,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/metadata/file-scan-sample-failure-admission",
+      "id": "tui/flow-queue-saturation-cycles/coalesced",
       "order": 1856,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/publication/member-classification-owner",
+      "id": "tui/flow-queue-saturation-cycles/mixed",
       "order": 1857,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "shared/hash/stat-work-bound-consumer/native-exact-work",
+      "id": "tui/flow-queue-saturation-cycles/no-log",
       "order": 1858,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "shared/hash/stat-work-bound-consumer/native-timestamp-race",
+      "id": "tui/flow-queue-saturation-cycles/work",
       "order": 1859,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "shared/hash/stat-work-bound-consumer/native-unsafe-extent",
+      "id": "indexing/metadata/file-scan-sample-failure-admission",
       "order": 1860,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/reports/compare-models-observed-corpus/oversize-generation",
+      "id": "indexing/publication/member-classification-owner",
       "order": 1861,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/semantic/derived-index-owner-composition/failure-drain",
+      "id": "shared/hash/stat-work-bound-consumer/native-exact-work",
       "order": 1862,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/semantic/derived-index-owner-composition/parity",
+      "id": "shared/hash/stat-work-bound-consumer/native-timestamp-race",
       "order": 1863,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/semantic/drain-ownership-cancellation-consumers/lost-lease",
+      "id": "shared/hash/stat-work-bound-consumer/native-unsafe-extent",
       "order": 1864,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/semantic/drain-ownership-cancellation-consumers/mid-abort",
+      "id": "tooling/reports/compare-models-observed-corpus/oversize-generation",
       "order": 1865,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/semantic/drain-ownership-cancellation-consumers/pre-abort",
+      "id": "indexing/semantic/derived-index-owner-composition/failure-drain",
       "order": 1866,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/semantic/drain-ownership-cancellation-consumers/revoked-loaded",
+      "id": "indexing/semantic/derived-index-owner-composition/parity",
       "order": 1867,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/semantic/drain-ownership-cancellation-consumers/revoked-supplied",
+      "id": "indexing/semantic/drain-ownership-cancellation-consumers/lost-lease",
       "order": 1868,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "shared/concurrency/async-abort-owner-reasons",
+      "id": "indexing/semantic/drain-ownership-cancellation-consumers/mid-abort",
       "order": 1869,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/runtime/worker-retry-evidence-ownership/shared-cache",
+      "id": "indexing/semantic/drain-ownership-cancellation-consumers/pre-abort",
       "order": 1870,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/runtime/worker-retry-evidence-ownership/shared-teardown",
+      "id": "indexing/semantic/drain-ownership-cancellation-consumers/revoked-loaded",
       "order": 1871,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/runtime/worker-retry-evidence-ownership/split-cache",
+      "id": "indexing/semantic/drain-ownership-cancellation-consumers/revoked-supplied",
       "order": 1872,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/runtime/worker-retry-evidence-ownership/split-teardown",
+      "id": "shared/concurrency/async-abort-owner-reasons",
       "order": 1873,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "perf/bench/tree-sitter-cache-qualification-plan",
+      "id": "indexing/runtime/worker-retry-evidence-ownership/shared-cache",
       "order": 1874,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "lang/contracts/config-native-unavailable-consumers/xml",
+      "id": "indexing/runtime/worker-retry-evidence-ownership/shared-teardown",
       "order": 1875,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "lang/contracts/config-native-unavailable-consumers/yaml",
+      "id": "indexing/runtime/worker-retry-evidence-ownership/split-cache",
       "order": 1876,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "embeddings/feature-extraction-component-admission",
+      "id": "indexing/runtime/worker-retry-evidence-ownership/split-teardown",
       "order": 1877,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "embeddings/qualification-phase-resource-adoption",
+      "id": "perf/bench/tree-sitter-cache-qualification-plan",
       "order": 1878,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/embeddings/adapter-callable-invocation/adapter-methods",
+      "id": "lang/contracts/config-native-unavailable-consumers/xml",
       "order": 1879,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/embeddings/adapter-callable-invocation/pipeline-absent",
+      "id": "lang/contracts/config-native-unavailable-consumers/yaml",
       "order": 1880,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/embeddings/adapter-callable-invocation/pipeline-inert",
+      "id": "embeddings/feature-extraction-component-admission",
       "order": 1881,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/embeddings/adapter-callable-invocation/pipeline-poisoned",
+      "id": "embeddings/qualification-phase-resource-adoption",
       "order": 1882,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/semantic/validated-family-frontier-order/bad-target",
+      "id": "indexing/embeddings/adapter-callable-invocation/adapter-methods",
       "order": 1883,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/semantic/validated-family-frontier-order/frontier-order",
+      "id": "indexing/embeddings/adapter-callable-invocation/pipeline-absent",
       "order": 1884,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/semantic/validated-family-frontier-order/late-completion",
+      "id": "indexing/embeddings/adapter-callable-invocation/pipeline-inert",
       "order": 1885,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/semantic/validated-index-fusion/abort-drain",
+      "id": "indexing/embeddings/adapter-callable-invocation/pipeline-poisoned",
       "order": 1886,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/semantic/validated-index-fusion/late-count",
+      "id": "indexing/semantic/validated-family-frontier-order/bad-target",
       "order": 1887,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/semantic/validated-index-fusion/late-hash",
+      "id": "indexing/semantic/validated-family-frontier-order/frontier-order",
       "order": 1888,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/semantic/validated-index-fusion/late-reference",
+      "id": "indexing/semantic/validated-family-frontier-order/late-completion",
       "order": 1889,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/semantic/validated-index-fusion/late-source",
+      "id": "indexing/semantic/validated-index-fusion/abort-drain",
       "order": 1890,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/semantic/validated-index-fusion/observer-drain",
+      "id": "indexing/semantic/validated-index-fusion/late-count",
       "order": 1891,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/semantic/validated-index-fusion/parity",
+      "id": "indexing/semantic/validated-index-fusion/late-hash",
       "order": 1892,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "lang/contracts/native-lexical-scope-consumers/groovy",
+      "id": "indexing/semantic/validated-index-fusion/late-reference",
       "order": 1893,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "lang/contracts/native-lexical-scope-consumers/php",
+      "id": "indexing/semantic/validated-index-fusion/late-source",
       "order": 1894,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "lang/contracts/native-lexical-scope-consumers/r",
+      "id": "indexing/semantic/validated-index-fusion/observer-drain",
       "order": 1895,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "lang/contracts/native-lexical-scope-consumers/ruby",
+      "id": "indexing/semantic/validated-index-fusion/parity",
       "order": 1896,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "lang/contracts/native-lexical-scope-consumers/scala",
+      "id": "lang/contracts/native-lexical-scope-consumers/groovy",
       "order": 1897,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "map/remote-alias-detail-consumers",
+      "id": "lang/contracts/native-lexical-scope-consumers/php",
       "order": 1898,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "perf/bench/sqlite-published-manifest-identity",
+      "id": "lang/contracts/native-lexical-scope-consumers/r",
       "order": 1899,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "perf/tooling/bench/sqlite-phase-diagnostic-admission",
+      "id": "lang/contracts/native-lexical-scope-consumers/ruby",
       "order": 1900,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "perf/tooling/bench/sqlite-phase-observer",
+      "id": "lang/contracts/native-lexical-scope-consumers/scala",
       "order": 1901,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "perf/tooling/bench/sqlite-validator-single-pass-parity",
+      "id": "map/remote-alias-detail-consumers",
       "order": 1902,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "retrieval/filters/filter-cache-original-resource-consumers/sqlite-no-fallback",
+      "id": "perf/bench/sqlite-published-manifest-identity",
       "order": 1903,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "storage/semantic/query-index-intake/append-drain",
+      "id": "perf/tooling/bench/sqlite-phase-diagnostic-admission",
       "order": 1904,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "storage/semantic/query-index-intake/pending-close",
+      "id": "perf/tooling/bench/sqlite-phase-observer",
       "order": 1905,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "storage/semantic/query-index-intake/row-allowance",
+      "id": "perf/tooling/bench/sqlite-validator-single-pass-parity",
       "order": 1906,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "storage/sqlite/build/bundle-multi-row-parity",
+      "id": "retrieval/filters/filter-cache-original-resource-consumers/sqlite-no-fallback",
       "order": 1907,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "storage/sqlite/filter-facts-rebuild-work-bound",
+      "id": "storage/semantic/query-index-intake/append-drain",
       "order": 1908,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/api-mcp/repository-probe-original-config-owner/api-child-aborted",
+      "id": "storage/semantic/query-index-intake/pending-close",
       "order": 1909,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/api-mcp/repository-probe-original-config-owner/api-child-false",
+      "id": "storage/semantic/query-index-intake/row-allowance",
       "order": 1910,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/api-mcp/repository-probe-original-config-owner/api-child-null",
+      "id": "storage/sqlite/build/bundle-multi-row-parity",
       "order": 1911,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/api-mcp/repository-probe-original-config-owner/api-child-undefined",
+      "id": "storage/sqlite/filter-facts-rebuild-work-bound",
       "order": 1912,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/api-mcp/repository-probe-original-config-owner/api-child-zero",
+      "id": "tooling/api-mcp/repository-probe-original-config-owner/api-child-aborted",
       "order": 1913,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/api-mcp/repository-probe-original-config-owner/api-root-aborted",
+      "id": "tooling/api-mcp/repository-probe-original-config-owner/api-child-false",
       "order": 1914,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/api-mcp/repository-probe-original-config-owner/api-root-false",
+      "id": "tooling/api-mcp/repository-probe-original-config-owner/api-child-null",
       "order": 1915,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/api-mcp/repository-probe-original-config-owner/api-root-null",
+      "id": "tooling/api-mcp/repository-probe-original-config-owner/api-child-undefined",
       "order": 1916,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/api-mcp/repository-probe-original-config-owner/api-root-undefined",
+      "id": "tooling/api-mcp/repository-probe-original-config-owner/api-child-zero",
       "order": 1917,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/api-mcp/repository-probe-original-config-owner/api-root-zero",
+      "id": "tooling/api-mcp/repository-probe-original-config-owner/api-root-aborted",
       "order": 1918,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/api-mcp/repository-probe-original-config-owner/mcp-child-aborted",
+      "id": "tooling/api-mcp/repository-probe-original-config-owner/api-root-false",
       "order": 1919,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/api-mcp/repository-probe-original-config-owner/mcp-child-false",
+      "id": "tooling/api-mcp/repository-probe-original-config-owner/api-root-null",
       "order": 1920,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/api-mcp/repository-probe-original-config-owner/mcp-child-null",
+      "id": "tooling/api-mcp/repository-probe-original-config-owner/api-root-undefined",
       "order": 1921,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/api-mcp/repository-probe-original-config-owner/mcp-child-undefined",
+      "id": "tooling/api-mcp/repository-probe-original-config-owner/api-root-zero",
       "order": 1922,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/api-mcp/repository-probe-original-config-owner/mcp-child-zero",
+      "id": "tooling/api-mcp/repository-probe-original-config-owner/mcp-child-aborted",
       "order": 1923,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/api-mcp/repository-probe-original-config-owner/mcp-root-aborted",
+      "id": "tooling/api-mcp/repository-probe-original-config-owner/mcp-child-false",
       "order": 1924,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/api-mcp/repository-probe-original-config-owner/mcp-root-false",
+      "id": "tooling/api-mcp/repository-probe-original-config-owner/mcp-child-null",
       "order": 1925,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/api-mcp/repository-probe-original-config-owner/mcp-root-null",
+      "id": "tooling/api-mcp/repository-probe-original-config-owner/mcp-child-undefined",
       "order": 1926,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/api-mcp/repository-probe-original-config-owner/mcp-root-undefined",
+      "id": "tooling/api-mcp/repository-probe-original-config-owner/mcp-child-zero",
       "order": 1927,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/api-mcp/repository-probe-original-config-owner/mcp-root-zero",
+      "id": "tooling/api-mcp/repository-probe-original-config-owner/mcp-root-aborted",
       "order": 1928,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/api-mcp/repository-probe-original-config-owner/shared-child-aborted",
+      "id": "tooling/api-mcp/repository-probe-original-config-owner/mcp-root-false",
       "order": 1929,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/api-mcp/repository-probe-original-config-owner/shared-child-false",
+      "id": "tooling/api-mcp/repository-probe-original-config-owner/mcp-root-null",
       "order": 1930,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/api-mcp/repository-probe-original-config-owner/shared-child-null",
+      "id": "tooling/api-mcp/repository-probe-original-config-owner/mcp-root-undefined",
       "order": 1931,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/api-mcp/repository-probe-original-config-owner/shared-child-undefined",
+      "id": "tooling/api-mcp/repository-probe-original-config-owner/mcp-root-zero",
       "order": 1932,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/api-mcp/repository-probe-original-config-owner/shared-child-zero",
+      "id": "tooling/api-mcp/repository-probe-original-config-owner/shared-child-aborted",
       "order": 1933,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/api-mcp/repository-probe-original-config-owner/shared-root-aborted",
+      "id": "tooling/api-mcp/repository-probe-original-config-owner/shared-child-false",
       "order": 1934,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/api-mcp/repository-probe-original-config-owner/shared-root-false",
+      "id": "tooling/api-mcp/repository-probe-original-config-owner/shared-child-null",
       "order": 1935,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/api-mcp/repository-probe-original-config-owner/shared-root-null",
+      "id": "tooling/api-mcp/repository-probe-original-config-owner/shared-child-undefined",
       "order": 1936,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/api-mcp/repository-probe-original-config-owner/shared-root-undefined",
+      "id": "tooling/api-mcp/repository-probe-original-config-owner/shared-child-zero",
       "order": 1937,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/api-mcp/repository-probe-original-config-owner/shared-root-zero",
+      "id": "tooling/api-mcp/repository-probe-original-config-owner/shared-root-aborted",
       "order": 1938,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/api-mcp/repository-probe-settled-controls/api",
+      "id": "tooling/api-mcp/repository-probe-original-config-owner/shared-root-false",
       "order": 1939,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/api-mcp/repository-probe-settled-controls/mcp",
+      "id": "tooling/api-mcp/repository-probe-original-config-owner/shared-root-null",
       "order": 1940,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/api-mcp/repository-probe-settled-controls/shared",
+      "id": "tooling/api-mcp/repository-probe-original-config-owner/shared-root-undefined",
       "order": 1941,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/ci/jj-provisioning-admission",
+      "id": "tooling/api-mcp/repository-probe-original-config-owner/shared-root-zero",
       "order": 1942,
-      "suiteCategory": "meta",
-      "suiteCategoryReason": "meta-cohort-prefix"
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "lang/contracts/specialized-native-projection-admission/css",
+      "id": "tooling/api-mcp/repository-probe-settled-controls/api",
       "order": 1943,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "lang/contracts/specialized-native-projection-admission/lua",
+      "id": "tooling/api-mcp/repository-probe-settled-controls/mcp",
       "order": 1944,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/index-stats/additional-family-producers/json",
+      "id": "tooling/api-mcp/repository-probe-settled-controls/shared",
       "order": 1945,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/index-stats/additional-family-producers/sharded",
+      "id": "tooling/ci/jj-provisioning-admission",
       "order": 1946,
-      "suiteCategory": "hero",
-      "suiteCategoryReason": "default-standalone-behavior"
+      "suiteCategory": "meta",
+      "suiteCategoryReason": "meta-cohort-prefix"
     },
     {
-      "id": "tooling/index-stats/additional-family-producers/columnar",
+      "id": "lang/contracts/specialized-native-projection-admission/css",
       "order": 1947,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "embeddings/instruct-e5-acquisition",
+      "id": "lang/contracts/specialized-native-projection-admission/lua",
       "order": 1948,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/artifacts/checksum-native-metadata-consumers",
+      "id": "tooling/index-stats/additional-family-producers/json",
       "order": 1949,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/semantic/drain-falsey-failure-ownership/builder-null",
+      "id": "tooling/index-stats/additional-family-producers/sharded",
       "order": 1950,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/semantic/drain-falsey-failure-ownership/builder-undefined",
+      "id": "tooling/index-stats/additional-family-producers/columnar",
       "order": 1951,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/semantic/drain-falsey-failure-ownership/builder-false",
+      "id": "embeddings/instruct-e5-acquisition",
       "order": 1952,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/semantic/drain-falsey-failure-ownership/builder-zero",
+      "id": "indexing/artifacts/checksum-native-metadata-consumers",
       "order": 1953,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/semantic/drain-falsey-failure-ownership/builder-empty",
+      "id": "indexing/semantic/drain-falsey-failure-ownership/builder-null",
       "order": 1954,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/semantic/drain-falsey-failure-ownership/builder-nan",
+      "id": "indexing/semantic/drain-falsey-failure-ownership/builder-undefined",
       "order": 1955,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/semantic/drain-falsey-failure-ownership/release-null",
+      "id": "indexing/semantic/drain-falsey-failure-ownership/builder-false",
       "order": 1956,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/semantic/drain-falsey-failure-ownership/release-undefined",
+      "id": "indexing/semantic/drain-falsey-failure-ownership/builder-zero",
       "order": 1957,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/semantic/drain-falsey-failure-ownership/release-false",
+      "id": "indexing/semantic/drain-falsey-failure-ownership/builder-empty",
       "order": 1958,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/semantic/drain-falsey-failure-ownership/release-zero",
+      "id": "indexing/semantic/drain-falsey-failure-ownership/builder-nan",
       "order": 1959,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/semantic/drain-falsey-failure-ownership/release-empty",
+      "id": "indexing/semantic/drain-falsey-failure-ownership/release-null",
       "order": 1960,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/semantic/drain-falsey-failure-ownership/release-nan",
+      "id": "indexing/semantic/drain-falsey-failure-ownership/release-undefined",
       "order": 1961,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "runner/publication-diagnostic-ownership/boundary",
+      "id": "indexing/semantic/drain-falsey-failure-ownership/release-false",
       "order": 1962,
-      "suiteCategory": "meta",
-      "suiteCategoryReason": "meta-cohort-prefix"
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "runner/publication-diagnostic-ownership/io",
+      "id": "indexing/semantic/drain-falsey-failure-ownership/release-zero",
       "order": 1963,
-      "suiteCategory": "meta",
-      "suiteCategoryReason": "meta-cohort-prefix"
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/semantic/drain-falsey-failure-ownership/builder-unicode",
+      "id": "indexing/semantic/drain-falsey-failure-ownership/release-empty",
       "order": 1964,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/architecture/caps-verdict-cli-consumers/omitted-violation",
+      "id": "indexing/semantic/drain-falsey-failure-ownership/release-nan",
       "order": 1965,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/architecture/caps-verdict-cli-consumers/clean",
+      "id": "runner/publication-diagnostic-ownership/boundary",
       "order": 1966,
-      "suiteCategory": "hero",
-      "suiteCategoryReason": "default-standalone-behavior"
+      "suiteCategory": "meta",
+      "suiteCategoryReason": "meta-cohort-prefix"
     },
     {
-      "id": "tooling/architecture/caps-verdict-cli-consumers/max-violations-only",
+      "id": "runner/publication-diagnostic-ownership/io",
       "order": 1967,
-      "suiteCategory": "hero",
-      "suiteCategoryReason": "default-standalone-behavior"
+      "suiteCategory": "meta",
+      "suiteCategoryReason": "meta-cohort-prefix"
     },
     {
-      "id": "tooling/architecture/caps-verdict-cli-consumers/max-edges-only",
+      "id": "indexing/semantic/drain-falsey-failure-ownership/builder-unicode",
       "order": 1968,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/architecture/caps-verdict-cli-consumers/zero-details",
+      "id": "tooling/architecture/caps-verdict-cli-consumers/omitted-violation",
       "order": 1969,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/architecture/caps-verdict-cli-consumers/zero-work",
+      "id": "tooling/architecture/caps-verdict-cli-consumers/clean",
       "order": 1970,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/architecture/caps-verdict-cli-consumers/unknown-upstream",
+      "id": "tooling/architecture/caps-verdict-cli-consumers/max-violations-only",
       "order": 1971,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "embeddings/dense-upstream-reference-controls",
+      "id": "tooling/architecture/caps-verdict-cli-consumers/max-edges-only",
       "order": 1972,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "embeddings/provider-runtime-provenance",
+      "id": "tooling/architecture/caps-verdict-cli-consumers/zero-details",
       "order": 1973,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "embeddings/e5-consumer-contract-controls",
+      "id": "tooling/architecture/caps-verdict-cli-consumers/zero-work",
       "order": 1974,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/embeddings/query-stale-format-admission",
+      "id": "tooling/architecture/caps-verdict-cli-consumers/unknown-upstream",
       "order": 1975,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "perf/tooling/bench/sqlite-qualification-cohorts",
+      "id": "embeddings/dense-upstream-reference-controls",
       "order": 1976,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/semantic/drain-falsey-failure-ownership/builder-hostile",
+      "id": "embeddings/provider-runtime-provenance",
       "order": 1977,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/semantic/drain-falsey-failure-ownership/release-hostile",
+      "id": "embeddings/e5-consumer-contract-controls",
       "order": 1978,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/lsp/disposal-diagnostic-causes/async-logger",
+      "id": "indexing/embeddings/query-stale-format-admission",
       "order": 1979,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/lsp/disposal-diagnostic-causes/hostile-cause",
+      "id": "perf/tooling/bench/sqlite-qualification-cohorts",
       "order": 1980,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/lsp/disposal-diagnostic-causes/hard-kill-continuation",
+      "id": "indexing/semantic/drain-falsey-failure-ownership/builder-hostile",
       "order": 1981,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/lsp/disposal-diagnostic-causes/native-abort-classification",
+      "id": "indexing/semantic/drain-falsey-failure-ownership/release-hostile",
       "order": 1982,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/lsp/diagnostic-resource-isolation/reader-close-sync",
+      "id": "tooling/lsp/disposal-diagnostic-causes/async-logger",
       "order": 1983,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/lsp/diagnostic-resource-isolation/reader-close-async",
+      "id": "tooling/lsp/disposal-diagnostic-causes/hostile-cause",
       "order": 1984,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/lsp/diagnostic-resource-isolation/reader-error-sync",
+      "id": "tooling/lsp/disposal-diagnostic-causes/hard-kill-continuation",
       "order": 1985,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/lsp/diagnostic-resource-isolation/reader-error-async",
+      "id": "tooling/lsp/disposal-diagnostic-causes/native-abort-classification",
       "order": 1986,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/lsp/diagnostic-resource-isolation/observer-sync",
+      "id": "tooling/lsp/diagnostic-resource-isolation/reader-close-sync",
       "order": 1987,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/lsp/diagnostic-resource-isolation/observer-async",
+      "id": "tooling/lsp/diagnostic-resource-isolation/reader-close-async",
       "order": 1988,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "embeddings/direct-minilm-reference-controls",
+      "id": "tooling/lsp/diagnostic-resource-isolation/reader-error-sync",
       "order": 1989,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "embeddings/actual-adapter-cost-prepared-policy",
+      "id": "tooling/lsp/diagnostic-resource-isolation/reader-error-async",
       "order": 1990,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "retrieval/backend/cli-sparse-preflight-tantivy-bypass",
+      "id": "tooling/lsp/diagnostic-resource-isolation/observer-sync",
       "order": 1991,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "retrieval/backend/tantivy-selected-source-admission",
+      "id": "tooling/lsp/diagnostic-resource-isolation/observer-async",
       "order": 1992,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "retrieval/providers/tantivy-boolean-and-failure",
+      "id": "embeddings/direct-minilm-reference-controls",
       "order": 1993,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "retrieval/providers/tantivy-deep-filter-recall",
+      "id": "embeddings/actual-adapter-cost-prepared-policy",
       "order": 1994,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "retrieval/providers/tantivy-reader-lifetime/async-query",
+      "id": "retrieval/backend/cli-sparse-preflight-tantivy-bypass",
       "order": 1995,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "retrieval/providers/tantivy-reader-lifetime/failed-close",
+      "id": "retrieval/backend/tantivy-selected-source-admission",
       "order": 1996,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "retrieval/providers/tantivy-reader-lifetime/missing-close",
+      "id": "retrieval/providers/tantivy-boolean-and-failure",
       "order": 1997,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "retrieval/providers/tantivy-reader-lifetime/module-close",
+      "id": "retrieval/providers/tantivy-deep-filter-recall",
       "order": 1998,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "retrieval/providers/tantivy-reader-lifetime/ordinal",
+      "id": "retrieval/providers/tantivy-reader-lifetime/async-query",
       "order": 1999,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "retrieval/providers/tantivy-reader-lifetime/original-close",
+      "id": "retrieval/providers/tantivy-reader-lifetime/failed-close",
       "order": 2000,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "retrieval/providers/tantivy-reader-lifetime/pending-close",
+      "id": "retrieval/providers/tantivy-reader-lifetime/missing-close",
       "order": 2001,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "retrieval/providers/tantivy-reader-lifetime/pending-query",
+      "id": "retrieval/providers/tantivy-reader-lifetime/module-close",
       "order": 2002,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "retrieval/providers/tantivy-reader-lifetime/search-finalizer",
+      "id": "retrieval/providers/tantivy-reader-lifetime/ordinal",
       "order": 2003,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "storage/tantivy/generation-publication/activation-failure",
+      "id": "retrieval/providers/tantivy-reader-lifetime/original-close",
       "order": 2004,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "storage/tantivy/generation-publication/cancelled-build",
+      "id": "retrieval/providers/tantivy-reader-lifetime/pending-close",
       "order": 2005,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "storage/tantivy/generation-publication/concurrent-builds",
+      "id": "retrieval/providers/tantivy-reader-lifetime/pending-query",
       "order": 2006,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "storage/tantivy/generation-publication/failed-build",
+      "id": "retrieval/providers/tantivy-reader-lifetime/search-finalizer",
       "order": 2007,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "storage/tantivy/generation-publication/legacy-build-contract",
+      "id": "storage/tantivy/generation-publication/activation-failure",
       "order": 2008,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "storage/tantivy/generation-publication/legacy-metadata",
+      "id": "storage/tantivy/generation-publication/cancelled-build",
       "order": 2009,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "storage/tantivy/generation-publication/manifest",
+      "id": "storage/tantivy/generation-publication/concurrent-builds",
       "order": 2010,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "storage/tantivy/generation-publication/mapping",
+      "id": "storage/tantivy/generation-publication/failed-build",
       "order": 2011,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "storage/tantivy/generation-publication/mutated-input",
+      "id": "storage/tantivy/generation-publication/legacy-build-contract",
       "order": 2012,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "storage/tantivy/generation-publication/payload",
+      "id": "storage/tantivy/generation-publication/legacy-metadata",
       "order": 2013,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "storage/tantivy/generation-publication/pending-build",
+      "id": "storage/tantivy/generation-publication/manifest",
       "order": 2014,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "storage/tantivy/generation-publication/promise-pending",
+      "id": "storage/tantivy/generation-publication/mapping",
       "order": 2015,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "storage/tantivy/generation-publication/promise-rejected",
+      "id": "storage/tantivy/generation-publication/mutated-input",
       "order": 2016,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "storage/tantivy/generation-publication/repository",
+      "id": "storage/tantivy/generation-publication/payload",
       "order": 2017,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "storage/tantivy/generation-publication/returned-capture",
+      "id": "storage/tantivy/generation-publication/pending-build",
       "order": 2018,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "storage/tantivy/generation-publication/returned-error",
+      "id": "storage/tantivy/generation-publication/promise-pending",
       "order": 2019,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "storage/tantivy/generation-publication/returned-pending",
+      "id": "storage/tantivy/generation-publication/promise-rejected",
       "order": 2020,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "storage/tantivy/generation-publication/returned-revoked",
+      "id": "storage/tantivy/generation-publication/repository",
       "order": 2021,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "storage/tantivy/generation-publication/returned-settled",
+      "id": "storage/tantivy/generation-publication/returned-capture",
       "order": 2022,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "storage/tantivy/generation-publication/returned-unreadable",
+      "id": "storage/tantivy/generation-publication/returned-error",
       "order": 2023,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "storage/tantivy/generation-publication/source-lease",
+      "id": "storage/tantivy/generation-publication/returned-pending",
       "order": 2024,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/script-coverage/tools/build-tantivy-index-help",
+      "id": "storage/tantivy/generation-publication/returned-revoked",
       "order": 2025,
-      "suiteCategory": "meta",
-      "suiteCategoryReason": "meta-cohort-prefix"
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/api-contracts/typescript-parameter-cli/policy",
+      "id": "storage/tantivy/generation-publication/returned-settled",
       "order": 2026,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/api-contracts/typescript-parameter-cli/clean",
+      "id": "storage/tantivy/generation-publication/returned-unreadable",
       "order": 2027,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/api-contracts/qualified-target-joins-cli/js-clean",
+      "id": "storage/tantivy/generation-publication/source-lease",
       "order": 2028,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/api-contracts/qualified-target-joins-cli/ts-clean",
+      "id": "tooling/script-coverage/tools/build-tantivy-index-help",
       "order": 2029,
-      "suiteCategory": "hero",
-      "suiteCategoryReason": "default-standalone-behavior"
+      "suiteCategory": "meta",
+      "suiteCategoryReason": "meta-cohort-prefix"
     },
     {
-      "id": "tooling/api-contracts/qualified-target-joins-cli/js-violation",
+      "id": "tooling/api-contracts/typescript-parameter-cli/policy",
       "order": 2030,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/api-contracts/qualified-target-joins-cli/ts-violation",
+      "id": "tooling/api-contracts/typescript-parameter-cli/clean",
       "order": 2031,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/install/piscina-patch-roundtrip",
+      "id": "tooling/api-contracts/qualified-target-joins-cli/js-clean",
       "order": 2032,
       "suiteCategory": "hero",
-      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+      "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/cache/gc-modern-resource-ownership/live",
+      "id": "tooling/api-contracts/qualified-target-joins-cli/ts-clean",
       "order": 2033,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/cache/gc-modern-resource-ownership/unknown",
+      "id": "tooling/api-contracts/qualified-target-joins-cli/js-violation",
       "order": 2034,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/cache/gc-modern-resource-ownership/admission-race",
+      "id": "tooling/api-contracts/qualified-target-joins-cli/ts-violation",
       "order": 2035,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/cache/gc-modern-resource-ownership/exclusion-barrier",
+      "id": "tooling/install/piscina-patch-roundtrip",
       "order": 2036,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/cache/gc-modern-resource-ownership/live",
+      "order": 2037,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/cache/gc-modern-resource-ownership/unknown",
+      "order": 2038,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/cache/gc-modern-resource-ownership/admission-race",
+      "order": 2039,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/cache/gc-modern-resource-ownership/exclusion-barrier",
+      "order": 2040,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/install/dependency-ownership-inventory",
-      "order": 2037,
+      "order": 2041,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
       "id": "tooling/install/operational-dictionary-and-release-consumers",
-      "order": 2038,
+      "order": 2042,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
       "id": "tooling/install/structural-engine-identity",
-      "order": 2039,
+      "order": 2043,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
       "id": "tooling/install/ast-grep-managed-recipe",
-      "order": 2040,
+      "order": 2044,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
       "id": "lang/lua/modules",
-      "order": 2041,
-      "suiteCategory": "hero",
-      "suiteCategoryReason": "default-standalone-behavior"
-    },
-    {
-      "id": "lang/javascript/jsdoc-comment-ownership/acorn",
-      "order": 2042,
-      "suiteCategory": "hero",
-      "suiteCategoryReason": "default-standalone-behavior"
-    },
-    {
-      "id": "lang/javascript/jsdoc-comment-ownership/ast-precedence",
-      "order": 2043,
-      "suiteCategory": "hero",
-      "suiteCategoryReason": "default-standalone-behavior"
-    },
-    {
-      "id": "lang/javascript/jsdoc-comment-ownership/babel",
-      "order": 2044,
-      "suiteCategory": "hero",
-      "suiteCategoryReason": "default-standalone-behavior"
-    },
-    {
-      "id": "lang/javascript/jsdoc-comment-ownership/body-comment",
       "order": 2045,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "lang/javascript/jsdoc-comment-ownership/byte-budget",
+      "id": "lang/javascript/jsdoc-comment-ownership/acorn",
       "order": 2046,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "lang/javascript/jsdoc-comment-ownership/comment-tamper",
+      "id": "lang/javascript/jsdoc-comment-ownership/ast-precedence",
       "order": 2047,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "lang/javascript/jsdoc-comment-ownership/dotted",
+      "id": "lang/javascript/jsdoc-comment-ownership/babel",
       "order": 2048,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "lang/javascript/jsdoc-comment-ownership/embedded-offset",
+      "id": "lang/javascript/jsdoc-comment-ownership/body-comment",
       "order": 2049,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "lang/javascript/jsdoc-comment-ownership/empty",
+      "id": "lang/javascript/jsdoc-comment-ownership/byte-budget",
       "order": 2050,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "lang/javascript/jsdoc-comment-ownership/esprima",
+      "id": "lang/javascript/jsdoc-comment-ownership/comment-tamper",
       "order": 2051,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "lang/javascript/jsdoc-comment-ownership/generic-union",
+      "id": "lang/javascript/jsdoc-comment-ownership/dotted",
       "order": 2052,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "lang/javascript/jsdoc-comment-ownership/leading-outside",
+      "id": "lang/javascript/jsdoc-comment-ownership/embedded-offset",
       "order": 2053,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "lang/javascript/jsdoc-comment-ownership/malformed",
+      "id": "lang/javascript/jsdoc-comment-ownership/empty",
       "order": 2054,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "lang/javascript/jsdoc-comment-ownership/nested-records",
+      "id": "lang/javascript/jsdoc-comment-ownership/esprima",
       "order": 2055,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "lang/javascript/jsdoc-comment-ownership/optional-default",
+      "id": "lang/javascript/jsdoc-comment-ownership/generic-union",
       "order": 2056,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "lang/javascript/jsdoc-comment-ownership/prototype-key",
+      "id": "lang/javascript/jsdoc-comment-ownership/leading-outside",
       "order": 2057,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "lang/javascript/jsdoc-comment-ownership/rest",
+      "id": "lang/javascript/jsdoc-comment-ownership/malformed",
       "order": 2058,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "lang/javascript/jsdoc-comment-ownership/source-unavailable",
+      "id": "lang/javascript/jsdoc-comment-ownership/nested-records",
       "order": 2059,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "lang/javascript/jsdoc-comment-ownership/string-template",
+      "id": "lang/javascript/jsdoc-comment-ownership/optional-default",
       "order": 2060,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "lang/javascript/jsdoc-comment-ownership/type-depth",
+      "id": "lang/javascript/jsdoc-comment-ownership/prototype-key",
       "order": 2061,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "lang/javascript/jsdoc-comment-ownership/unrelated-leading",
+      "id": "lang/javascript/jsdoc-comment-ownership/rest",
       "order": 2062,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "storage/native-publication-cleanup/sqlite-owned",
+      "id": "lang/javascript/jsdoc-comment-ownership/source-unavailable",
       "order": 2063,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "storage/native-publication-cleanup/lmdb-owned",
+      "id": "lang/javascript/jsdoc-comment-ownership/string-template",
       "order": 2064,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "storage/native-publication-cleanup/sqlite-source-retained",
+      "id": "lang/javascript/jsdoc-comment-ownership/type-depth",
       "order": 2065,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "storage/native-publication-cleanup/lmdb-source-retained",
+      "id": "lang/javascript/jsdoc-comment-ownership/unrelated-leading",
       "order": 2066,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "storage/native-publication-cleanup/sqlite-saved",
+      "id": "storage/native-publication-cleanup/sqlite-owned",
       "order": 2067,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "storage/native-publication-cleanup/lmdb-saved",
+      "id": "storage/native-publication-cleanup/lmdb-owned",
       "order": 2068,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "storage/native-publication-cleanup/sqlite-unregistered",
+      "id": "storage/native-publication-cleanup/sqlite-source-retained",
       "order": 2069,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "storage/native-publication-cleanup/lmdb-unregistered",
+      "id": "storage/native-publication-cleanup/lmdb-source-retained",
       "order": 2070,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "storage/native-publication-cleanup/sqlite-legacy",
+      "id": "storage/native-publication-cleanup/sqlite-saved",
       "order": 2071,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "storage/native-publication-cleanup/lmdb-legacy",
+      "id": "storage/native-publication-cleanup/lmdb-saved",
       "order": 2072,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "storage/native-publication-cleanup/sqlite-modified",
+      "id": "storage/native-publication-cleanup/sqlite-unregistered",
       "order": 2073,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "storage/native-publication-cleanup/lmdb-modified",
+      "id": "storage/native-publication-cleanup/lmdb-unregistered",
       "order": 2074,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "storage/native-publication-cleanup/sqlite-reader",
+      "id": "storage/native-publication-cleanup/sqlite-legacy",
       "order": 2075,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "storage/native-publication-cleanup/lmdb-reader",
+      "id": "storage/native-publication-cleanup/lmdb-legacy",
       "order": 2076,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "storage/native-publication-cleanup/sqlite-plan-race",
+      "id": "storage/native-publication-cleanup/sqlite-modified",
       "order": 2077,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "storage/native-publication-cleanup/lmdb-plan-race",
+      "id": "storage/native-publication-cleanup/lmdb-modified",
       "order": 2078,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "storage/native-publication-cleanup/sqlite-interrupted",
+      "id": "storage/native-publication-cleanup/sqlite-reader",
       "order": 2079,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "storage/native-publication-cleanup/lmdb-interrupted",
+      "id": "storage/native-publication-cleanup/lmdb-reader",
       "order": 2080,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "storage/native-publication-cleanup/sqlite-malformed",
+      "id": "storage/native-publication-cleanup/sqlite-plan-race",
       "order": 2081,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "storage/native-publication-cleanup/lmdb-malformed",
+      "id": "storage/native-publication-cleanup/lmdb-plan-race",
       "order": 2082,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "storage/native-publication-cleanup/sqlite-foreign-member",
+      "id": "storage/native-publication-cleanup/sqlite-interrupted",
       "order": 2083,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "storage/native-publication-cleanup/lmdb-foreign-member",
+      "id": "storage/native-publication-cleanup/lmdb-interrupted",
       "order": 2084,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "storage/native-publication-cleanup/sqlite-dry-run",
+      "id": "storage/native-publication-cleanup/sqlite-malformed",
       "order": 2085,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "storage/native-publication-cleanup/lmdb-dry-run",
+      "id": "storage/native-publication-cleanup/lmdb-malformed",
       "order": 2086,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "storage/native-publication-cleanup/sqlite-shared",
+      "id": "storage/native-publication-cleanup/sqlite-foreign-member",
       "order": 2087,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "storage/native-publication-cleanup/lmdb-shared",
+      "id": "storage/native-publication-cleanup/lmdb-foreign-member",
       "order": 2088,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "storage/native-publication-cleanup/sqlite-source-history",
+      "id": "storage/native-publication-cleanup/sqlite-dry-run",
       "order": 2089,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "storage/native-publication-cleanup/lmdb-source-history",
+      "id": "storage/native-publication-cleanup/lmdb-dry-run",
       "order": 2090,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "storage/native-publication-cleanup/sqlite-replaced-attempt",
+      "id": "storage/native-publication-cleanup/sqlite-shared",
       "order": 2091,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "storage/native-publication-cleanup/lmdb-replaced-attempt",
+      "id": "storage/native-publication-cleanup/lmdb-shared",
       "order": 2092,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "storage/native-publication-cleanup/sqlite-producer",
+      "id": "storage/native-publication-cleanup/sqlite-source-history",
       "order": 2093,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "storage/native-publication-cleanup/lmdb-producer",
+      "id": "storage/native-publication-cleanup/lmdb-source-history",
       "order": 2094,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "storage/native-publication-cleanup/sqlite-builder",
+      "id": "storage/native-publication-cleanup/sqlite-replaced-attempt",
       "order": 2095,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "storage/native-publication-cleanup/lmdb-builder",
+      "id": "storage/native-publication-cleanup/lmdb-replaced-attempt",
       "order": 2096,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "storage/native-publication-cleanup/sqlite-late-close",
+      "id": "storage/native-publication-cleanup/sqlite-producer",
       "order": 2097,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "storage/native-publication-cleanup/lmdb-late-close",
+      "id": "storage/native-publication-cleanup/lmdb-producer",
       "order": 2098,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "storage/native-publication-cleanup/sqlite-mcp",
+      "id": "storage/native-publication-cleanup/sqlite-builder",
       "order": 2099,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "storage/native-publication-cleanup/lmdb-mcp",
+      "id": "storage/native-publication-cleanup/lmdb-builder",
       "order": 2100,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "storage/native-publication-cleanup/sqlite-invalid-ready",
+      "id": "storage/native-publication-cleanup/sqlite-late-close",
       "order": 2101,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "storage/native-publication-cleanup/lmdb-invalid-ready",
+      "id": "storage/native-publication-cleanup/lmdb-late-close",
       "order": 2102,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "storage/native-publication-cleanup/sqlite-replacement",
+      "id": "storage/native-publication-cleanup/sqlite-mcp",
       "order": 2103,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "storage/native-publication-cleanup/lmdb-replacement",
+      "id": "storage/native-publication-cleanup/lmdb-mcp",
       "order": 2104,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "storage/native-publication-cleanup/sqlite-compaction",
+      "id": "storage/native-publication-cleanup/sqlite-invalid-ready",
       "order": 2105,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "storage/native-publication-cleanup/sqlite-zero-reuse",
+      "id": "storage/native-publication-cleanup/lmdb-invalid-ready",
       "order": 2106,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "storage/native-publication-cleanup/sqlite-close-mutation",
+      "id": "storage/native-publication-cleanup/sqlite-replacement",
       "order": 2107,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "storage/native-publication-cleanup/lmdb-close-mutation",
+      "id": "storage/native-publication-cleanup/lmdb-replacement",
       "order": 2108,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "storage/native-publication-cleanup/sqlite-duplicate",
+      "id": "storage/native-publication-cleanup/sqlite-compaction",
       "order": 2109,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "storage/native-publication-cleanup/lmdb-duplicate",
+      "id": "storage/native-publication-cleanup/sqlite-zero-reuse",
       "order": 2110,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "storage/native-publication-cleanup/sqlite-incremental",
+      "id": "storage/native-publication-cleanup/sqlite-close-mutation",
       "order": 2111,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "storage/native-publication-cleanup/sqlite-foreign-home-reader",
+      "id": "storage/native-publication-cleanup/lmdb-close-mutation",
       "order": 2112,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "storage/native-publication-cleanup/lmdb-foreign-home-reader",
+      "id": "storage/native-publication-cleanup/sqlite-duplicate",
       "order": 2113,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "storage/native-publication-cleanup/sqlite-foreign-home-plan-race",
+      "id": "storage/native-publication-cleanup/lmdb-duplicate",
       "order": 2114,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "storage/native-publication-cleanup/lmdb-foreign-home-plan-race",
+      "id": "storage/native-publication-cleanup/sqlite-incremental",
       "order": 2115,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "storage/native-publication-cleanup/sqlite-readonly-unregistered",
+      "id": "storage/native-publication-cleanup/sqlite-foreign-home-reader",
       "order": 2116,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "storage/native-publication-cleanup/lmdb-readonly-unregistered",
+      "id": "storage/native-publication-cleanup/lmdb-foreign-home-reader",
       "order": 2117,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "storage/native-publication-cleanup/sqlite-registered-coordinator-required",
+      "id": "storage/native-publication-cleanup/sqlite-foreign-home-plan-race",
       "order": 2118,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "storage/native-publication-cleanup/lmdb-registered-coordinator-required",
+      "id": "storage/native-publication-cleanup/lmdb-foreign-home-plan-race",
       "order": 2119,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "integrations/triage/records-bundle-reuse-policy",
+      "id": "storage/native-publication-cleanup/sqlite-readonly-unregistered",
       "order": 2120,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "integrations/triage/records-inventory-and-source-contract",
+      "id": "storage/native-publication-cleanup/lmdb-readonly-unregistered",
       "order": 2121,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/triage/record-publication/atomic-generation",
+      "id": "storage/native-publication-cleanup/sqlite-registered-coordinator-required",
       "order": 2122,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/triage/record-publication/cancellation",
+      "id": "storage/native-publication-cleanup/lmdb-registered-coordinator-required",
       "order": 2123,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/triage/record-publication/cross-process",
+      "id": "integrations/triage/records-bundle-reuse-policy",
       "order": 2124,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/triage/record-publication/exact-reimport",
+      "id": "integrations/triage/records-inventory-and-source-contract",
       "order": 2125,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/triage/record-publication/failed-after-json",
+      "id": "tooling/triage/record-publication/atomic-generation",
       "order": 2126,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/triage/record-publication/failed-before-commit",
+      "id": "tooling/triage/record-publication/cancellation",
       "order": 2127,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/triage/record-publication/independent-ids",
+      "id": "tooling/triage/record-publication/cross-process",
       "order": 2128,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/triage/record-publication/index-generation",
+      "id": "tooling/triage/record-publication/exact-reimport",
       "order": 2129,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/triage/record-publication/input-capture",
+      "id": "tooling/triage/record-publication/failed-after-json",
       "order": 2130,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/triage/record-publication/inventory-and-retained-source",
+      "id": "tooling/triage/record-publication/failed-before-commit",
       "order": 2131,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/triage/record-publication/pending-resource",
+      "id": "tooling/triage/record-publication/independent-ids",
       "order": 2132,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/triage/record-publication/pending-resource-value",
+      "id": "tooling/triage/record-publication/index-generation",
       "order": 2133,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/triage/record-publication/receipt-negatives",
+      "id": "tooling/triage/record-publication/input-capture",
       "order": 2134,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/triage/record-publication/same-id-interleave",
+      "id": "tooling/triage/record-publication/inventory-and-retained-source",
       "order": 2135,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/triage/record-publication/tampered-stage",
+      "id": "tooling/triage/record-publication/pending-resource",
       "order": 2136,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/triage/record-publication/unknown-namespace",
+      "id": "tooling/triage/record-publication/pending-resource-value",
       "order": 2137,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/triage/records-service-embeddings-pending-artifacts",
+      "id": "tooling/triage/record-publication/receipt-negatives",
       "order": 2138,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "storage/semantic/source-retention-partition-work/shared-1",
+      "id": "tooling/triage/record-publication/same-id-interleave",
       "order": 2139,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "storage/semantic/source-retention-partition-work/shared-4",
+      "id": "tooling/triage/record-publication/tampered-stage",
       "order": 2140,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "storage/semantic/source-retention-partition-work/shared-16",
+      "id": "tooling/triage/record-publication/unknown-namespace",
       "order": 2141,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "storage/semantic/source-retention-partition-work/distinct-1",
+      "id": "tooling/triage/records-service-embeddings-pending-artifacts",
       "order": 2142,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "storage/semantic/source-retention-partition-work/distinct-4",
+      "id": "storage/semantic/source-retention-partition-work/shared-1",
       "order": 2143,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "storage/semantic/source-retention-partition-work/distinct-16",
+      "id": "storage/semantic/source-retention-partition-work/shared-4",
       "order": 2144,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/artifacts/binary-frame-manifest-integrity",
+      "id": "storage/semantic/source-retention-partition-work/shared-16",
       "order": 2145,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/artifacts/chunk-meta-binary-eager-start",
+      "id": "storage/semantic/source-retention-partition-work/distinct-1",
       "order": 2146,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/artifacts/field-postings-adaptive-shards-and-binary",
+      "id": "storage/semantic/source-retention-partition-work/distinct-4",
       "order": 2147,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/semantic/sealed-piece-manifest-work",
+      "id": "storage/semantic/source-retention-partition-work/distinct-16",
       "order": 2148,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "shared/artifact-io/binary-frame-checksum-receipts/changed",
+      "id": "indexing/artifacts/binary-frame-manifest-integrity",
       "order": 2149,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "shared/artifact-io/binary-frame-checksum-receipts/empty",
+      "id": "indexing/artifacts/chunk-meta-binary-eager-start",
       "order": 2150,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "shared/artifact-io/binary-frame-checksum-receipts/forged",
+      "id": "indexing/artifacts/field-postings-adaptive-shards-and-binary",
       "order": 2151,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "shared/artifact-io/binary-frame-checksum-receipts/oversized",
+      "id": "indexing/semantic/sealed-piece-manifest-work",
       "order": 2152,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "shared/artifact-io/binary-frame-checksum-receipts/parent-changed",
+      "id": "shared/artifact-io/binary-frame-checksum-receipts/changed",
       "order": 2153,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "shared/artifact-io/binary-frame-checksum-receipts/partial",
+      "id": "shared/artifact-io/binary-frame-checksum-receipts/empty",
       "order": 2154,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "shared/artifact-io/binary-frame-checksum-receipts/positive",
+      "id": "shared/artifact-io/binary-frame-checksum-receipts/forged",
       "order": 2155,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "shared/artifact-io/binary-frame-checksum-receipts/replaced",
+      "id": "shared/artifact-io/binary-frame-checksum-receipts/oversized",
       "order": 2156,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/semantic/publication-recovery",
+      "id": "shared/artifact-io/binary-frame-checksum-receipts/parent-changed",
       "order": 2157,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "shared/artifact-io/binary-columnar-phase-timings",
+      "id": "shared/artifact-io/binary-frame-checksum-receipts/partial",
       "order": 2158,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "shared/artifact-io/binary-frame-bounded-batches",
+      "id": "shared/artifact-io/binary-frame-checksum-receipts/positive",
       "order": 2159,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "shared/artifact-io/binary-frame-producer-resource-lifetime",
+      "id": "shared/artifact-io/binary-frame-checksum-receipts/replaced",
       "order": 2160,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "shared/artifact-io/binary-frame-resource-lifetime",
+      "id": "indexing/semantic/publication-recovery",
       "order": 2161,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/config/dump-lazy-capability-imports",
+      "id": "shared/artifact-io/binary-columnar-phase-timings",
       "order": 2162,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/reports/map-selected-index-alias",
+      "id": "shared/artifact-io/binary-frame-bounded-batches",
       "order": 2163,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/artifact-io/binary-frame-producer-resource-lifetime",
+      "order": 2164,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/artifact-io/binary-frame-resource-lifetime",
+      "order": 2165,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/config/dump-lazy-capability-imports",
+      "order": 2166,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/reports/map-selected-index-alias",
+      "order": 2167,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/semantic/runtime-import-reuse/repeat",
+      "order": 2168,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/semantic/runtime-import-reuse/fresh-process",
+      "order": 2169,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/semantic/runtime-import-reuse/pointer-missing",
+      "order": 2170,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/semantic/runtime-import-reuse/pointer-older",
+      "order": 2171,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/semantic/runtime-import-reuse/interrupted",
+      "order": 2172,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/semantic/runtime-import-reuse/receipt-missing",
+      "order": 2173,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/semantic/runtime-import-reuse/receipt-stale",
+      "order": 2174,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/semantic/runtime-import-reuse/missing-family",
+      "order": 2175,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/semantic/runtime-import-reuse/corrupt-raw",
+      "order": 2176,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/semantic/runtime-import-reuse/corrupt-evidence",
+      "order": 2177,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/semantic/runtime-import-reuse/corrupt-offsets",
+      "order": 2178,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/semantic/runtime-import-reuse/corrupt-query-index",
+      "order": 2179,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/semantic/runtime-import-reuse/corrupt-manifest",
+      "order": 2180,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/semantic/runtime-import-reuse/corrupt-receipt",
+      "order": 2181,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/semantic/runtime-import-reuse/repointed-receipt",
+      "order": 2182,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/semantic/runtime-import-reuse/repointed-qualification",
+      "order": 2183,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/semantic/runtime-import-reuse/source-qualification",
+      "order": 2184,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/semantic/runtime-import-reuse/raw-change",
+      "order": 2185,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/semantic/runtime-import-reuse/adapter-change",
+      "order": 2186,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/semantic/runtime-import-reuse/parser-change",
+      "order": 2187,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/semantic/runtime-import-reuse/invalid-authority",
+      "order": 2188,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/semantic/runtime-import-reuse/foreign-generation",
+      "order": 2189,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/semantic/runtime-claims-reuse/repeat",
+      "order": 2190,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/semantic/runtime-claims-reuse/fresh-process",
+      "order": 2191,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/semantic/runtime-claims-reuse/pointer-missing",
+      "order": 2192,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/semantic/runtime-claims-reuse/pointer-older",
+      "order": 2193,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/semantic/runtime-claims-reuse/interrupted",
+      "order": 2194,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/semantic/runtime-claims-reuse/corrupt-manifest",
+      "order": 2195,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/semantic/runtime-claims-reuse/corrupt-evidence",
+      "order": 2196,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/semantic/runtime-claims-reuse/corrupt-offsets",
+      "order": 2197,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/semantic/runtime-claims-reuse/corrupt-support",
+      "order": 2198,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/semantic/runtime-claims-reuse/new-content",
+      "order": 2199,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/semantic/runtime-control-replacement-accounting/unique",
+      "order": 2200,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/semantic/runtime-control-replacement-accounting/hardlinked",
+      "order": 2201,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

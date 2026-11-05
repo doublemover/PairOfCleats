@@ -4970,14 +4970,16 @@
       "title": "[Perf] Reuse verified runtime families before allocating duplicate publication staging",
       "batch": "storage-publication-lifetimes",
       "scope": "active",
-      "review": "source-review-pending",
-      "recordedDisposition": "Implementation or accepted completion remains to be established.",
+      "review": "qualified-awaiting-publication",
+      "recordedDisposition": "Early verified family reuse, original-source work/admission counterexamples and63 focused controls pass; publication gate and verified GitHub closure follow.",
       "owners": [
         "src/index/semantic/runtime/import.js",
         "src/index/semantic/runtime/claims.js",
         "src/index/semantic/runtime/ownership.js",
         "docs/archived/github-issue-closeout-2026-10-26.json",
-        "docs/archived/github-issue-closeout-2026-10-26.md"
+        "docs/archived/github-issue-closeout-2026-10-26.md",
+        "src/index/semantic/runtime/publication-reuse.js",
+        "docs/archived/runtime-family-reuse-closeout-2026-11-05.json"
       ]
     },
     {

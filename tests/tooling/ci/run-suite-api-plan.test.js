@@ -10,6 +10,13 @@ const root = process.cwd(), env = applyTestEnv({ syncProcess: false });
 const providerAndParityIds = ['tooling/install/application-owned-node-detect', 'retrieval/parity/partial-ranks-report'];
 const publicationIds = JSON.parse(fs.readFileSync(path.join(root, 'tests/storage/native-publication-cleanup.test.js.cases.json'), 'utf8')).cases
   .map(id => `storage/native-publication-cleanup/${id}`);
+const reuseIds = ['runtime-import-reuse', 'runtime-claims-reuse', 'runtime-control-replacement-accounting'].flatMap(family =>
+  JSON.parse(fs.readFileSync(path.join(root, `tests/storage/semantic/${family}.test.js.cases.json`), 'utf8')).cases
+    .map(id => `storage/semantic/${family}/${id}`));
+const sourceAuthorityIds = JSON.parse(fs.readFileSync(path.join(root,
+  'tests/storage/semantic/runtime-source-reference-authority.test.js.cases.json'), 'utf8')).cases
+  .map(id => `storage/semantic/runtime-source-reference-authority/${id}`);
+sourceAuthorityIds.push('storage/semantic/runtime-source-reference-foreign-generation');
 const workflow = parse(fs.readFileSync('.github/workflows/ci.yml', 'utf8'));
 for (const platform of ['ubuntu', 'windows', 'macos']) {
   const upload = workflow.jobs[platform].steps.find(step => step.uses?.startsWith('actions/upload-artifact@')
@@ -65,11 +72,12 @@ for (const mode of ['ci', 'nightly']) {
           .map(id => `tooling/api-contracts/${family}/${id}`)).sort();
       const outcomeIds = JSON.parse(fs.readFileSync(path.join(root, 'tests/indexing/runtime/build-cli-selected-outcome.test.js.cases.json'), 'utf8')).cases
         .map(id => `indexing/runtime/build-cli-selected-outcome/${id}`);
-      assert.deepEqual(selected.sort(), line === compiler ? [...compilerIds, ...outcomeIds, ...providerAndParityIds].sort()
+      assert.deepEqual(selected.sort(), line === compiler ? [...compilerIds, ...outcomeIds, ...providerAndParityIds, ...sourceAuthorityIds].sort()
         : line === native ? ['storage/sqlite/build/cancellation', ...publicationIds].sort()
           : line === ann ? ['retrieval/ann/generation-lmdb',
             'retrieval/ann/generation-publication', 'retrieval/ann/generation-rebuild-failure']
             : ['indexing/semantic/compiler-single-cpu-lifecycle',
+              ...reuseIds,
               'indexing/artifacts/binary-frame-manifest-integrity', 'indexing/semantic/sealed-piece-manifest-work',
               'indexing/artifacts/field-postings-adaptive-shards-and-binary',
               'shared/artifact-io/binary-frame-checksum-receipts/oversized',
@@ -95,7 +103,8 @@ for (const mode of ['ci', 'nightly']) {
       if (line === compiler) {
         const orderedCompiler = JSON.parse(fs.readFileSync(path.join(root, 'tests/ci-lite/ci-lite.manifest.json'), 'utf8')).tests
           .map(test => test.id).filter(id => compilerFamilies.some(family =>
-            id.startsWith(`tooling/api-contracts/${family}/`)) || outcomeIds.includes(id) || providerAndParityIds.includes(id)).sort();
+            id.startsWith(`tooling/api-contracts/${family}/`)) || outcomeIds.includes(id) || providerAndParityIds.includes(id)
+            || sourceAuthorityIds.includes(id)).sort();
         assert.deepEqual(selected, orderedCompiler, 'every original ordered case retains its serial execution owner');
       }
     }

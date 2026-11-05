@@ -36,6 +36,10 @@ SERIAL_RUNTIME_BUDGET_IDS.push(...['shared-1', 'shared-4', 'shared-16', 'distinc
 SERIAL_RUNTIME_BUDGET_IDS.push('indexing/artifacts/binary-frame-manifest-integrity',
   'indexing/semantic/sealed-piece-manifest-work', 'indexing/artifacts/field-postings-adaptive-shards-and-binary',
   'shared/artifact-io/binary-frame-checksum-receipts/oversized');
+for (const family of ['runtime-import-reuse', 'runtime-claims-reuse', 'runtime-control-replacement-accounting']) {
+  const { cases } = JSON.parse(await fsPromises.readFile(path.join(ROOT, `tests/storage/semantic/${family}.test.js.cases.json`), 'utf8'));
+  SERIAL_RUNTIME_BUDGET_IDS.push(...cases.map(id => `storage/semantic/${family}/${id}`));
+}
 const SERIAL_ANN_GENERATION_IDS = ['retrieval/ann/generation-publication',
   'retrieval/ann/generation-rebuild-failure', 'retrieval/ann/generation-lmdb'];
 const nativePublicationCases = JSON.parse(await fsPromises.readFile(
@@ -58,6 +62,10 @@ const SERIAL_CLI_CONTRACT_IDS = [
   ...['stage1-code', 'stage2-prose', 'stage3-disabled', 'stage4-sqlite']
     .map(id => `indexing/runtime/build-cli-selected-outcome/${id}`)
 ];
+const sourceAuthorityCases = JSON.parse(await fsPromises.readFile(
+  path.join(ROOT, 'tests/storage/semantic/runtime-source-reference-authority.test.js.cases.json'), 'utf8'));
+SERIAL_CLI_CONTRACT_IDS.push(...sourceAuthorityCases.cases.map(id => `storage/semantic/runtime-source-reference-authority/${id}`));
+SERIAL_CLI_CONTRACT_IDS.push('storage/semantic/runtime-source-reference-foreign-generation');
 const API_CONTRACT_IDS = ['services/api/router-contract-matrix', 'services/api/core',
   'services/api/repo-authorization', 'services/api/server-stream', 'services/api/search-contract-matrix',
   'services/api/federated-search-validation-matrix', 'services/api/federated-filter-enumeration',

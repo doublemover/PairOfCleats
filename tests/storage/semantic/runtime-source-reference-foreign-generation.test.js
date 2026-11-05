@@ -12,9 +12,22 @@ let fixture;
 try {
   // This contract consumes syntax/source identity; compiler work still runs,
   // while unrelated compiler rows and indexed config metadata need no hydration.
-  const selection = { threads: 1, extraIgnore: ['tsconfig.json'],
+  const selection = { threads: 1, extraIgnore: ['tsconfig.json', 'package.json'],
+    semanticProfile: 'targeted', enrichment: { bindings: 'eager', localFlow: 'deferred', crossFileFlow: 'deferred' },
+    compilerOptions: { types: [], lib: ['ES5'] },
+    sourceFiles: {
+      'snapshot.ts': 'export function build(seed:number) { return seed + 1; }\n',
+      'host.ts': "import { build } from './snapshot.js';\nexport const answer = build(41);\n"
+    },
     recordPartitionFilter: partition => partition.partitionId.startsWith('sy1:') };
   const witness = await createPublishedSemanticWitness({ ...selection, root: path.join(root, 'source') });
+  let binding = false;
+  for (const partition of witness.manifest.partitions.filter(row => row.partitionId.startsWith('sa1:'))) {
+    for await (const row of witness.store.iterateRows(partition.partitionId, 'semantic_records')) {
+      if (row.kind === 'binding') { binding = true; break; }
+    }
+  }
+  assert.equal(binding, true, 'the reduced source fixture still publishes actual compiler bindings');
   const other = await createPublishedSemanticWitness({ ...selection, root: path.join(root, 'changed'), revision: 1 });
   const source = [...witness.sources.values()].find(row => row.path === 'snapshot.ts');
   const target = witness.records.find(row => row.kind === 'scope' && row.data.scopeKind === 'FunctionDeclaration'

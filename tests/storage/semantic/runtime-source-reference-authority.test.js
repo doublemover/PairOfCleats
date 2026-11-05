@@ -14,17 +14,21 @@ import { qualifyRuntimeSourceCandidates, runtimeObservationTargets } from '../..
 import { createRuntimeObservation } from '../../../src/index/semantic/runtime/adapters/shared.js';
 
 const selected = process.env.PAIROFCLEATS_TEST_ID?.split('storage/semantic/runtime-source-reference-authority/')[1];
-assert.ok(['source-authority', 'cli-generation-pin', 'projection-order-forward', 'projection-order-reverse'].includes(selected));
+assert.ok(['source-authority', 'cli-generation-pin', 'cli-generation-repo-only', 'cli-generation-generation-only',
+  'cli-generation-stale', 'projection-order-forward', 'projection-order-reverse'].includes(selected));
 const root = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-runtime-reference-'));
 let fixture;
 try {
   // Runtime coordinate ownership needs two authored functions plus one foreign
   // source. Buffer/worker flow workloads belong to their dedicated consumers.
   const witness = await createPublishedSemanticWitness({ root: path.join(root, 'source'), threads: 1,
+    semanticProfile: 'targeted', enrichment: { bindings: 'eager', localFlow: 'deferred', crossFileFlow: 'deferred' },
+    extraIgnore: ['tsconfig.json', 'package.json'],
     sourceFiles: {
       'snapshot.ts': 'export function build(seed:number) { return seed + 1; }\nexport function render(payload:number[]) { return payload.length; }\n',
       'host.ts': 'export function foreign() { return 0; }\n'
     } });
+  assert.ok(witness.records.some(row => row.kind === 'binding'), 'actual compiler binding publication remains in the source-authority input');
   const source = [...witness.sources.values()].find(row => row.path === 'snapshot.ts');
   const functions = witness.records.filter(row => row.kind === 'scope' && row.data.scopeKind === 'FunctionDeclaration'
     && row.sourceUnitId === source.sourceUnitId).sort((a, b) => a.span[0] - b.span[0]);
@@ -99,7 +103,7 @@ try {
   assert.ok((await fixture.readRows(unverified)).every(row => row.join.targets.length === 0));
   const variants = [imported, overlappingImport, unverified].map(result => result.pointer.generationId);
   const expectedQualities = new Map([[variants[0], 'verified-coordinate'], [variants[1], 'ambiguous'], [variants[2], 'unverified-candidate']]);
-  if (selected === 'cli-generation-pin') {
+  if (selected.startsWith('cli-generation-')) {
     const specification = path.join(root, 'runtime-specification.json');
     await fs.writeFile(specification, JSON.stringify({ capture: options.capture, authority: options.authority,
       inputs: options.inputs, sourceCandidates: options.sourceCandidates, importOptions: options.importOptions }));
@@ -107,21 +111,27 @@ try {
     const cliEnvironment = applyTestEnv({ cacheRoot: witness.cacheRoot, syncProcess: false });
     const execute = args => runNodeFixture([cli, '--specification', specification,
       '--out', path.join(root, 'cli-import'), ...args], 'Node process fixture', process.cwd(), process.env, { stdio: 'pipe', encoding: 'buffer', allowFailure: true, spawnOptions: { env: cliEnvironment, encoding: 'utf8', timeout: 10000, maxBuffer: 1024 * 1024 } });
-    const pinned = execute(['--repo', witness.repoRoot, '--generation', JSON.stringify(witness.manifest.generation)]);
-    assert.equal(pinned.error, undefined, 'bounded CLI completes and reaps its child');
-    assert.equal(pinned.status, 0, pinned.stderr);
-    const pinnedResult = JSON.parse(pinned.stdout.trim().split('\n').at(-1));
-    assert.equal(pinnedResult.semanticVerification, 'pinned-generation');
-    assert.ok(pinnedResult.recordCount > 0);
-    for (const args of [['--repo', witness.repoRoot], ['--generation', JSON.stringify(witness.manifest.generation)]]) {
+    // Each original CLI invocation keeps its10s child and30s case boundary.
+    // The common real-source/publication assertions above remain in every case.
+    if (selected === 'cli-generation-pin') {
+      const pinned = execute(['--repo', witness.repoRoot, '--generation', JSON.stringify(witness.manifest.generation)]);
+      assert.equal(pinned.error, undefined, 'bounded CLI completes and reaps its child');
+      assert.equal(pinned.status, 0, pinned.stderr);
+      const pinnedResult = JSON.parse(pinned.stdout.trim().split('\n').at(-1));
+      assert.equal(pinnedResult.semanticVerification, 'pinned-generation');
+      assert.ok(pinnedResult.recordCount > 0);
+    } else if (['cli-generation-repo-only', 'cli-generation-generation-only'].includes(selected)) {
+      const args = selected === 'cli-generation-repo-only' ? ['--repo', witness.repoRoot]
+        : ['--generation', JSON.stringify(witness.manifest.generation)];
       const incomplete = execute(args);
       assert.equal(incomplete.error, undefined);
       assert.notEqual(incomplete.status, 0);
       assert.match(incomplete.stderr, /must be supplied together/);
+    } else {
+      const stale = execute(['--repo', witness.repoRoot, '--generation', JSON.stringify({ baseBuildId: 'stale', semanticRevision: 0 })]);
+      assert.equal(stale.error, undefined);
+      assert.notEqual(stale.status, 0, 'stale generation must not silently fall back to current');
     }
-    const stale = execute(['--repo', witness.repoRoot, '--generation', JSON.stringify({ baseBuildId: 'stale', semanticRevision: 0 })]);
-    assert.equal(stale.error, undefined);
-    assert.notEqual(stale.status, 0, 'stale generation must not silently fall back to current');
   }
   const request = { schemaVersion: 1, repositoryNamespace: source.repositoryNamespace, generation: witness.manifest.generation,
     familyGenerations: [imported.pointer.generationId], selectors: defaultRuntimeQuerySelectors(),

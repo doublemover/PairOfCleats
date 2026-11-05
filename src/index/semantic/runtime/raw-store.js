@@ -41,8 +41,8 @@ export const hashRuntimeFile = async ({ filename, expectedHash, expectedBytes, m
 
 /** Retain a byte-for-byte immutable CAS copy. Existing blobs are verified, never overwritten. */
 export const retainRuntimeRaw = async ({ destination, inputPath, artifact, maxBytes, diskAccount,
-  diskReserveBytes, signal = null }) => {
-  await hashRuntimeFile({ filename: inputPath, expectedHash: artifact.hash, expectedBytes: artifact.byteLength, maxBytes, signal });
+  diskReserveBytes, signal = null, metrics = null, work = null }) => {
+  await hashRuntimeFile({ filename: inputPath, expectedHash: artifact.hash, expectedBytes: artifact.byteLength, maxBytes, signal, metrics });
   const rawDirectory = path.join(destination, 'raw');
   await fs.mkdir(rawDirectory, { recursive: true });
   const destinationReal = await fs.realpath(destination);
@@ -51,7 +51,7 @@ export const retainRuntimeRaw = async ({ destination, inputPath, artifact, maxBy
   const storageRef = 'raw/' + artifact.hash + '.bin';
   const finalPath = path.join(destination, storageRef);
   const verify = () => hashRuntimeFile({ filename: finalPath, expectedHash: artifact.hash,
-    expectedBytes: artifact.byteLength, maxBytes, signal });
+    expectedBytes: artifact.byteLength, maxBytes, signal, metrics });
   try { await fs.access(finalPath); await verify(); return { ...artifact, retained: true, storageRef }; }
   catch (error) { if (error.code !== 'ENOENT') throw error; }
   const pending = await fs.mkdtemp(path.join(rawReal, '.pending-'));
@@ -75,11 +75,12 @@ export const retainRuntimeRaw = async ({ destination, inputPath, artifact, maxBy
         size += read.bytesRead;
         if (size > artifact.byteLength) throw runtimeImportError('Runtime input grew during retention.');
         await target.writeFile(buffer.subarray(0, read.bytesRead));
+        work?.add('fileWriteBytes', read.bytesRead);
       }
       await target.sync();
     } catch (error) { copyErrorPresent = true; copyError = error; throw error; }
     finally { await closeRuntimeResources([source, target], copyError, { hasOperationError: copyErrorPresent }); }
-    await hashRuntimeFile({ filename: temporary, expectedHash: artifact.hash, expectedBytes: artifact.byteLength, maxBytes, signal });
+    await hashRuntimeFile({ filename: temporary, expectedHash: artifact.hash, expectedBytes: artifact.byteLength, maxBytes, signal, metrics });
     await assertRuntimeDiskReserve({ destination, diskReserveBytes });
     throwIfAborted(signal);
     try { await fs.link(temporary, finalPath); retained = true; }

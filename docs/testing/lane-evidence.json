@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-11-05T22:33:23.082Z",
+  "generatedAt": "2026-11-05T23:25:14.904Z",
   "summary": {
     "lanes": 5,
-    "tests": 2479,
+    "tests": 2517,
     "exactDuplicates": 0,
     "hotspotKinds": 10,
     "families": 423,
@@ -11,7 +11,7 @@
     "timingCoverage": {
       "freshArtifactTests": 0,
       "historicalFallbackTests": 74,
-      "missingTests": 2405
+      "missingTests": 2443
     }
   },
   "lanes": [
@@ -35,7 +35,7 @@
       "targetMaxDurationSeconds": 15,
       "orderFile": "tests/ci-lite/ci-lite.order.txt",
       "timingArtifactPath": ".testLogs/ci-lite-testRunTimes.txt",
-      "totalTests": 2163,
+      "totalTests": 2201,
       "knownDurationTests": 49,
       "knownDurationMs": 27090,
       "p50DurationMs": 190,
@@ -43,7 +43,7 @@
       "resolvedTimingArtifactPaths": [],
       "timingSources": {
         "historical-test-times": 49,
-        "missing": 2114
+        "missing": 2152
       }
     },
     {
@@ -313,6 +313,12 @@
       "unknownDurationCount": 63
     },
     {
+      "key": "storage/semantic",
+      "count": 62,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 62
+    },
+    {
       "key": "indexing/tree-sitter",
       "count": 57,
       "knownDurationMs": 0,
@@ -374,12 +380,6 @@
     },
     {
       "key": "lang/javascript",
-      "count": 24,
-      "knownDurationMs": 0,
-      "unknownDurationCount": 24
-    },
-    {
-      "key": "storage/semantic",
       "count": 24,
       "knownDurationMs": 0,
       "unknownDurationCount": 24

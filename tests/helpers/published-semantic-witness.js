@@ -30,6 +30,7 @@ firstRun();secondRun();
 export const createPublishedSemanticWitness = async ({ root, revision = 0, incremental = false,
   abortSignal = null, recordPartitionFilter = null, threads = undefined, extraIgnore = undefined,
   compilerAdmission = { maxResidentBytes: 1024 * 1024 * 1024 }, extraEnv = undefined,
+  semanticProfile = 'rich', enrichment = { bindings: 'eager', localFlow: 'eager', crossFileFlow: 'eager' },
   sourceFiles = SEMANTIC_WITNESS_SOURCES, compilerOptions = {} } = {}) => {
   if (!root) throw new TypeError('Task-owned witness root required.');
   const repoRoot = path.join(root, 'repo'), cacheRoot = path.join(root, 'cache');
@@ -43,9 +44,9 @@ export const createPublishedSemanticWitness = async ({ root, revision = 0, incre
   applyTestEnv({ cacheRoot, embeddings: 'stub', extraEnv, testConfig: {
     ...(extraIgnore === undefined ? {} : { extraIgnore }),
     indexing: {
-      workerPool: { enabled: false }, semantic: { enabled: true, profile: 'rich',
+      workerPool: { enabled: false }, semantic: { enabled: true, profile: semanticProfile,
         execution: { compilerAdmission },
-        enrichment: { bindings: 'eager', localFlow: 'eager', crossFileFlow: 'eager' } },
+        enrichment },
       embeddings: { enabled: false }, typeInference: false, typeInferenceCrossFile: false,
       riskAnalysis: false, treeSitter: { enabled: false }
     } } });

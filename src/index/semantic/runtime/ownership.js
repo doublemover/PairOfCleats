@@ -33,7 +33,7 @@ export const readRuntimeDestinationBudget = async (destination, signal = null) =
 
 /** Serialize accounting and mutations; pinned immutable readers need no writer lock. */
 export const withRuntimeDestinationWriter = async ({ destination, maxDiskWorkingSetBytes, diskAccount = null, signal = null,
-  checkAdmission = null, remainingMs = null }, operation) => {
+  checkAdmission = null, remainingMs = null, work = null }, operation) => {
   if (maxDiskWorkingSetBytes != null && (!Number.isSafeInteger(maxDiskWorkingSetBytes) || maxDiskWorkingSetBytes < 0)) throw new TypeError('Runtime destination working-set allowance required.');
   if (diskAccount && (typeof diskAccount.reserve !== 'function' || typeof diskAccount.release !== 'function')) throw new TypeError('Shared runtime disk account required.');
   if (checkAdmission !== null && typeof checkAdmission !== 'function') throw new TypeError('Invalid runtime writer admission owner.');
@@ -69,12 +69,14 @@ export const withRuntimeDestinationWriter = async ({ destination, maxDiskWorking
     await closeRuntimeResources([{ close: () => lock.release() }], error, { hasOperationError: true });
   }
   let charged = 0, admitted = false;
+  let retainedBaseline = null;
   let ledger = charges.get(accountingOwner);
   if (!ledger) { ledger = new Map(); charges.set(accountingOwner, ledger); }
   const account = {
     reserve(bytes) {
       if (bytes > maxDiskWorkingSetBytes - charged) throw Object.assign(new Error('Runtime destination working set exhausted.'), { code: 'ERR_SEMANTIC_DISK_LIMIT' });
       shared.reserve(bytes); charged += bytes;
+      if (retainedBaseline !== null) work?.observeReservation(Math.max(0, charged - retainedBaseline));
     },
     release(bytes) { shared.release(bytes); charged -= bytes; },
     get used() { return charged; }, limit: maxDiskWorkingSetBytes
@@ -88,6 +90,8 @@ export const withRuntimeDestinationWriter = async ({ destination, maxDiskWorking
       }
     }
     const retained = await inventory(root, signal);
+    retainedBaseline = retained.retainedBytes - lockBytes;
+    work?.add('fileWriteBytes', lockBytes);
     check();
     if (retained.retainedBytes > maxDiskWorkingSetBytes) throw Object.assign(new Error('Retained runtime destination exceeds its working-set allowance.'),
       { code: 'ERR_SEMANTIC_DISK_LIMIT', retainedBytes: retained.retainedBytes });
@@ -95,6 +99,7 @@ export const withRuntimeDestinationWriter = async ({ destination, maxDiskWorking
     charged = prior;
     if (retained.retainedBytes > prior) account.reserve(retained.retainedBytes - prior);
     else account.release(prior - retained.retainedBytes);
+    work?.observeReservation(Math.max(0, charged - retainedBaseline));
     admitted = true;
     const receipt = Buffer.from(JSON.stringify({ schemaVersion: 1, maxDiskWorkingSetBytes }));
     const filename = path.join(root, receiptName);
@@ -106,6 +111,7 @@ export const withRuntimeDestinationWriter = async ({ destination, maxDiskWorking
     if (!oldReceipt.buffer.equals(receipt)) {
       account.reserve(receipt.length);
       await atomicWriteText(filename, receipt, { newline: false });
+      work?.add('fileWriteBytes', receipt.length);
       account.release(oldBytes);
     }
     check();

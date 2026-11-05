@@ -62,14 +62,19 @@ try {
     assert.equal(result.coverage.status, 'malformed'); assert.deepEqual(result.rows, []);
     assert.deepEqual(result.coverage.reasons, ['malformed_or_truncated_profile']);
   }
-  // Prime a real family, then reject only the adapter's actual contained read of
-  // its retained raw blob. String-flag hashing and later verification are intact.
+  // Prime a real family, then require a distinct projection and reject only the
+  // adapter's actual contained read of its retained raw blob. Exact-recipe reuse
+  // deliberately performs no adapter pass; it has separate reuse/integrity cases.
+  // String-flag hashing and later verification are intact.
   const first = await importRuntimeEvidence(fixture.options());
   const current = path.join(fixture.options().destination, 'current.json'), previous = await fs.readFile(current);
   const retained = first.capture.rawArtifacts.find(row => row.artifactId === artifact.artifactId);
   const original = Object.freeze(new Error('full import original descriptor close'));
   const scope = fault({ filename: path.join(fixture.options().destination, retained.storageRef), failClose: () => { throw original; } });
-  let failure; try { await importRuntimeEvidence(fixture.options()); } catch (error) { failure = error; }
+  let failure;
+  try { await importRuntimeEvidence({ ...fixture.options(), capture: { ...fixture.capture,
+    question: 'A separate projection must retain the original adapter descriptor until close.' } }); }
+  catch (error) { failure = error; }
   assert.ok(failure); assert.equal(containsOriginalFailure(failure, original), true);
   assert.deepEqual(await fs.readFile(current), previous);
   await recover(failure, scope);

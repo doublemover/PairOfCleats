@@ -14,16 +14,17 @@ import { canonicalSemanticJson, semanticHash } from '../identity.js';
 import { createSemanticDiskAccount } from '../../build/artifacts/writers/semantic/partition.js';
 import { resolveSemanticPartPath } from '../../../semantic/artifact-store.js';
 import { throwIfAborted } from '../../../shared/abort.js';
-import { assertRuntimeImportAuthority } from './plan.js';
+import { assertRuntimeImportAuthority, joinRuntimeSource } from './plan.js';
 import { retainRuntimeRaw, hashRuntimeFile, runtimeByteHash, runtimeImportError, readRuntimeLines, assertRuntimeDiskReserve } from './raw-store.js';
 import { OFFLINE_RUNTIME_PARSER, createAdapterCoverage, markRuntimeCoverage, runtimeEventLimit } from './adapters/shared.js';
 import { adaptCpuProfile } from './adapters/cpu-profile.js';
 import { adaptCodeLog } from './adapters/code-log.js';
 import { selectOfflineRuntimeAdapter } from './adapters/inventory.js';
 import { writeRuntimeQueryIndex, openRuntimeQueryIndex, assertRuntimeIndexedRow } from './query-index.js';
+import { createRuntimePublicationWork, runtimeImportRecipe, applyRuntimeCoverage, publishRuntimeControl,
+  readRuntimeRecipeCandidate, writeRuntimeRecipe, isMissingRuntimeMember } from './publication-reuse.js';
 
 const MAX_MANIFEST_BYTES = 16 * 1024 * 1024;
-const pointerCharges = new WeakMap();
 const jsonBytes = value => Buffer.from(canonicalSemanticJson(value) + '\n');
 const assertCandidates = (capture, candidates) => {
   if (!Array.isArray(candidates) || candidates.length > capture.limits.maxEvents) throw runtimeImportError('Source candidate inventory exceeds allowance.');
@@ -37,16 +38,20 @@ const assertCandidates = (capture, candidates) => {
 };
 
 /** Verify a complete standalone immutable family without loading evidence rows into a repository array. */
-export const verifyRuntimeFamily = async ({ destination, pointer = null, maxBytes = Number.MAX_SAFE_INTEGER, signal = null }) => {
+export const verifyRuntimeFamily = async ({ destination, pointer = null, maxBytes = Number.MAX_SAFE_INTEGER, signal = null,
+  expectedCapture = null, sourceCandidates = null, metrics = null }) => {
   const current = assertRuntimeFamily('pointer', pointer || (await readRuntimeMemberJson({ root: destination, relativePath: 'current.json', maxBytes: MAX_MANIFEST_BYTES, signal })).value);
   if (current.manifest.path !== 'generations/' + current.generationId + '/manifest.json') throw runtimeImportError('Runtime pointer generation/path mismatch.');
   const manifestRead = await readRuntimeMemberJson({ root: destination, relativePath: current.manifest.path,
-    expectedHash: current.manifest.hash, expectedBytes: current.manifest.byteLength, maxBytes: MAX_MANIFEST_BYTES, signal });
+    expectedHash: current.manifest.hash, expectedBytes: current.manifest.byteLength, maxBytes: MAX_MANIFEST_BYTES, signal, metrics });
   const manifest = assertRuntimeFamily('manifest', manifestRead.value);
   if (manifest.generationId !== current.generationId) throw runtimeImportError('Runtime family generation mismatch.');
   const root = await resolveSemanticPartPath(destination, 'generations/' + current.generationId);
   const capture = assertRuntimeEvidence('capture', (await readRuntimeMemberJson({ root, relativePath: manifest.capture.path,
-    expectedHash: manifest.capture.hash, expectedBytes: manifest.capture.byteLength, maxBytes: MAX_MANIFEST_BYTES, signal })).value);
+    expectedHash: manifest.capture.hash, expectedBytes: manifest.capture.byteLength, maxBytes: MAX_MANIFEST_BYTES, signal, metrics })).value);
+  if (expectedCapture && canonicalSemanticJson(capture) !== canonicalSemanticJson(applyRuntimeCoverage(structuredClone(expectedCapture), manifest.coverage))) {
+    throw runtimeImportError('Runtime recipe candidate does not match the current admitted capture.');
+  }
   if (capture.completion === 'complete' && manifest.coverage.some(row => row.status !== 'complete')) {
     throw runtimeImportError('Incomplete runtime coverage cannot claim a complete capture projection.');
   }
@@ -57,19 +62,19 @@ export const verifyRuntimeFamily = async ({ destination, pointer = null, maxByte
       throw runtimeImportError('Runtime retained raw inventory mismatch.');
     }
     await hashRuntimeFile({ filename: await resolveSemanticPartPath(destination, raw.path), expectedHash: raw.hash,
-      expectedBytes: raw.byteLength, maxBytes: capture.limits.maxBytes, signal });
+      expectedBytes: raw.byteLength, maxBytes: capture.limits.maxBytes, signal, metrics });
   }
   if (capture.rawArtifacts.length !== manifest.raw.length) throw runtimeImportError('Missing retained raw artifact.');
   if (manifest.queryIndex.path !== 'query.sqlite') throw runtimeImportError('Runtime lookup index path mismatch.');
   const queryBytes = await readRuntimeMemberBytes({ root, relativePath: manifest.queryIndex.path,
     expectedHash: manifest.queryIndex.hash, expectedBytes: manifest.queryIndex.byteLength,
-    maxBytes: Math.min(maxBytes, 64 * 1024 * 1024), signal });
+    maxBytes: Math.min(maxBytes, 64 * 1024 * 1024), signal, metrics });
   const evidence = await openVerifiedRuntimeMember({ root, relativePath: manifest.evidence.path,
-    expectedHash: manifest.evidence.hash, expectedBytes: manifest.evidence.byteLength, maxBytes, signal });
+    expectedHash: manifest.evidence.hash, expectedBytes: manifest.evidence.byteLength, maxBytes, signal, metrics });
   let offsets;
   try {
     offsets = (await readRuntimeMemberBytes({ root, relativePath: manifest.evidence.offsetsPath,
-      expectedHash: manifest.evidence.offsetsHash, expectedBytes: manifest.evidence.count * 8, maxBytes, signal })).buffer;
+      expectedHash: manifest.evidence.offsetsHash, expectedBytes: manifest.evidence.count * 8, maxBytes, signal, metrics })).buffer;
   } catch (error) { await closeRuntimeResources([evidence], error, { hasOperationError: true }); }
   let queryIndex = null;
   let verificationError = null, verificationErrorPresent = false;
@@ -85,6 +90,9 @@ export const verifyRuntimeFamily = async ({ destination, pointer = null, maxByte
       if (!line.terminated || line.oversized) throw runtimeImportError('Malformed published runtime row.');
       const row = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(line.bytes));
       assertRuntimeProjection({ capture, evidence: [row] });
+      if (sourceCandidates && canonicalSemanticJson(row.join) !== canonicalSemanticJson(joinRuntimeSource({
+        sourceHash: row.join.sourceHash, sourceMapHash: row.join.sourceMapHash, candidates: sourceCandidates, kind: row.kind, data: row.data
+      }))) throw runtimeImportError('Runtime recipe candidate has different current source qualification.');
       if (ids.has(row.evidenceId) || count >= runtimeEventLimit(capture)) throw runtimeImportError('Duplicate or excess runtime observation.');
       ids.add(row.evidenceId);
       const indexed = indexRow.get(count);
@@ -106,7 +114,7 @@ export const verifyRuntimeFamily = async ({ destination, pointer = null, maxByte
 
 /** Explicit offline import only. The API has no collector, process, inspector, or execution hook. */
 const importRuntimeEvidenceOwned = async ({ destination, capture: suppliedCapture, authority,
-  inputs, sourceCandidates = [], verifiedCandidates, importOptions, diskAccount = null, signal = null }) => {
+  inputs, sourceCandidates = [], verifiedCandidates, importOptions, diskAccount = null, signal = null, work }) => {
   if (!importOptions || Object.keys(importOptions).some(key => key !== 'maxDiskWorkingSetBytes')
     || !Number.isSafeInteger(importOptions.maxDiskWorkingSetBytes) || importOptions.maxDiskWorkingSetBytes < 0) {
     throw new TypeError('Explicit maxDiskWorkingSetBytes import allowance required.');
@@ -142,12 +150,30 @@ const importRuntimeEvidenceOwned = async ({ destination, capture: suppliedCaptur
     const artifact = capture.rawArtifacts[index];
     capture.rawArtifacts[index] = await retainRuntimeRaw({ destination, inputPath: inputMap.get(artifact.artifactId),
       artifact, maxBytes: capture.limits.maxBytes, diskAccount: account,
-      diskReserveBytes: capture.limits.diskReserveBytes, signal });
+      diskReserveBytes: capture.limits.diskReserveBytes, signal, metrics: work.reads, work });
+  }
+  const recipe = runtimeImportRecipe(capture, sourceCandidates);
+  const candidate = await readRuntimeRecipeCandidate({ destination, recipe, signal });
+  if (candidate) {
+    assertRuntimeFamily('pointer', candidate);
+    let present = false;
+    try { await fs.lstat(await resolveSemanticPartPath(destination, 'generations/' + candidate.generationId)); present = true; }
+    catch (error) { if (!isMissingRuntimeMember(error)) throw error; }
+    if (present) {
+      const verified = await verifyRuntimeFamily({ destination, pointer: candidate, maxBytes: importOptions.maxDiskWorkingSetBytes,
+        signal, expectedCapture: capture, sourceCandidates, metrics: work.reads });
+      work.add('reusedFamilies');
+      if (await publishRuntimeControl({ root: destination, relativePath: 'current.json', bytes: jsonBytes(candidate), account,
+        diskReserveBytes: capture.limits.diskReserveBytes, signal, work })) work.add('pointerOnlyRepairs');
+      return { executionAuthorized: false, pointer: candidate, capture: verified.capture,
+        coverage: verified.manifest.coverage, recordCount: verified.manifest.evidence.count };
+    }
   }
   const generations = path.join(destination, 'generations');
   await fs.mkdir(generations, { recursive: true });
   await resolveSemanticPartPath(destination, 'generations');
   const pending = await fs.mkdtemp(path.join(generations, '.pending-'));
+  work.add('rebuiltFamilies');
   let reserved = 0, retained = false;
   const reserve = async bytes => {
     await assertRuntimeDiskReserve({ destination, diskReserveBytes: capture.limits.diskReserveBytes, additionalBytes: bytes });
@@ -156,7 +182,7 @@ const importRuntimeEvidenceOwned = async ({ destination, capture: suppliedCaptur
   const writeMember = async (name, bytes) => {
     await reserve(bytes.length);
     const handle = await fs.open(path.join(pending, name), 'wx');
-    try { await handle.writeFile(bytes); await handle.sync(); } finally { await handle.close(); }
+    try { await handle.writeFile(bytes); work.add('fileWriteBytes', bytes.length); await handle.sync(); } finally { await handle.close(); }
     return { path: name, hash: runtimeByteHash(bytes), byteLength: bytes.length };
   };
   let importError, importFailed = false;
@@ -199,23 +225,22 @@ const importRuntimeEvidenceOwned = async ({ destination, capture: suppliedCaptur
           if (bytes.length > MAX_MANIFEST_BYTES) throw runtimeImportError('Runtime observation exceeds row allowance.');
           offset.writeBigUInt64LE(BigInt(byteLength));
           await reserve(bytes.length + 8);
-          await evidence.writeFile(bytes); await offsets.writeFile(offset);
+          await evidence.writeFile(bytes); work.add('fileWriteBytes', bytes.length);
+          await offsets.writeFile(offset); work.add('fileWriteBytes', offset.length); work.add('projectionRows');
           evidenceHash.update(bytes); offsetsHash.update(offset); byteLength += bytes.length; count += 1;
         }
       }
       await evidence.sync(); await offsets.sync();
     } catch (error) { projectionErrorPresent = true; projectionError = error; throw error; }
     finally { await closeRuntimeResources([evidence, offsets], projectionError, { hasOperationError: projectionErrorPresent }); }
-    if (coverage.some(row => row.status !== 'complete')) {
-      if (capture.completion === 'complete') capture.completion = 'partial';
-      capture.warnings = [...new Set([...capture.warnings, 'offline_projection_has_incomplete_coverage'])];
-    }
-    capture.coverage = [...new Set([...capture.coverage, ...coverage.map(row => row.artifactId + ':' + row.status)])];
+    applyRuntimeCoverage(capture, coverage);
     const captureMember = await writeMember('capture.json', jsonBytes(assertRuntimeEvidence('capture', capture)));
     const evidenceMember = { path: 'evidence.jsonl', hash: evidenceHash.digest('hex'), byteLength,
       count, offsetsPath: 'evidence.offsets', offsetsHash: offsetsHash.digest('hex') };
+    work.add('sqliteBuilds');
     const queryIndex = await writeRuntimeQueryIndex({ root: pending, evidence: evidenceMember, capture, reserve,
       release: bytes => { account.release(bytes); reserved -= bytes; }, signal });
+    work.add('sqliteImageBytes', queryIndex.byteLength);
     const family = { schemaVersion: 1, artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION, generationId: null,
       capture: captureMember, evidence: evidenceMember,
       raw: capture.rawArtifacts.map(row => ({ artifactId: row.artifactId, captureId: row.captureId,
@@ -225,6 +250,10 @@ const importRuntimeEvidenceOwned = async ({ destination, capture: suppliedCaptur
     const manifest = await writeMember('manifest.json', jsonBytes(family));
     const pointer = { schemaVersion: 1, artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION, generationId: family.generationId,
       manifest: { ...manifest, path: 'generations/' + family.generationId + '/manifest.json' } };
+    // Publish only a locator before promotion. A stopped publisher can then
+    // recover its retained family without allocating another full projection.
+    await writeRuntimeRecipe({ destination, recipe, pointer, account,
+      diskReserveBytes: capture.limits.diskReserveBytes, signal, work });
     const final = path.join(generations, family.generationId);
     try { await fs.rename(pending, final); retained = true; }
     catch (error) {
@@ -240,37 +269,12 @@ const importRuntimeEvidenceOwned = async ({ destination, capture: suppliedCaptur
           throw addStorageFailureContext(error, {}, probeError, { secondaryPresent: true });
         }
       }
-      await verifyRuntimeFamily({ destination, pointer, maxBytes: importOptions.maxDiskWorkingSetBytes, signal });
     }
-    await verifyRuntimeFamily({ destination, pointer, maxBytes: importOptions.maxDiskWorkingSetBytes, signal });
+    await verifyRuntimeFamily({ destination, pointer, maxBytes: importOptions.maxDiskWorkingSetBytes, signal, metrics: work.reads });
     await assertRuntimeDiskReserve({ destination, diskReserveBytes: capture.limits.diskReserveBytes });
     throwIfAborted(signal);
-    const pointerBytes = jsonBytes(assertRuntimeFamily('pointer', pointer));
-    const currentPath = path.join(destination, 'current.json');
-    try {
-      if ((await readRuntimeMemberBytes({ root: destination, relativePath: 'current.json', maxBytes: MAX_MANIFEST_BYTES, signal })).buffer.equals(pointerBytes)) {
-        return { executionAuthorized: false, pointer, capture, coverage, recordCount: count };
-      }
-    } catch (error) { if (error.code !== 'ENOENT') throw error; }
-    await assertRuntimeDiskReserve({ destination, diskReserveBytes: capture.limits.diskReserveBytes, additionalBytes: pointerBytes.length });
-    account.reserve(pointerBytes.length);
-    let pointerPublished = false;
-    const pointerTemporary = path.join(destination, '.current-' + family.generationId + '-' + path.basename(pending) + '.json');
-    try {
-      const handle = await fs.open(pointerTemporary, 'wx');
-      try { await handle.writeFile(pointerBytes); await handle.sync(); } finally { await handle.close(); }
-      throwIfAborted(signal);
-      await fs.rename(pointerTemporary, currentPath);
-      pointerPublished = true;
-      let charges = pointerCharges.get(sharedAccount);
-      if (!charges) { charges = new Map(); pointerCharges.set(sharedAccount, charges); }
-      const previous = charges.get(path.resolve(currentPath)) || 0;
-      sharedAccount.release(previous);
-      charges.set(path.resolve(currentPath), pointerBytes.length);
-    } finally {
-      await fs.rm(pointerTemporary, { force: true });
-      if (!pointerPublished) account.release(pointerBytes.length);
-    }
+    await publishRuntimeControl({ root: destination, relativePath: 'current.json', bytes: jsonBytes(assertRuntimeFamily('pointer', pointer)),
+      account, diskReserveBytes: capture.limits.diskReserveBytes, signal, work });
     return { executionAuthorized: false, pointer, capture, coverage, recordCount: count };
   } catch (error) { importFailed = true; importError = error; throw error; }
   finally {
@@ -296,7 +300,8 @@ export const importRuntimeEvidence = async options => {
   assertCandidates(options.capture, options.sourceCandidates || []);
   const verifiedCandidates = await qualifyRuntimeSourceCandidates({ capture: options.capture,
     candidates: options.sourceCandidates || [], semanticContext: options.semanticContext, signal: options.signal });
+  const work = createRuntimePublicationWork(options.publicationMetrics);
   return withRuntimeDestinationWriter({ destination: options.destination, maxDiskWorkingSetBytes: limit,
-    diskAccount: options.diskAccount, signal: options.signal }, ({ destination, account }) =>
-    importRuntimeEvidenceOwned({ ...options, destination, diskAccount: account, verifiedCandidates }));
+    diskAccount: options.diskAccount, signal: options.signal, work }, ({ destination, account }) =>
+    importRuntimeEvidenceOwned({ ...options, destination, diskAccount: account, verifiedCandidates, work }));
 };

@@ -1,4 +1,5 @@
 {
   "schemaVersion": 1,
-  "cases": ["source-authority", "cli-generation-pin", "projection-order-forward", "projection-order-reverse"]
+  "cases": ["source-authority", "cli-generation-pin", "cli-generation-repo-only", "cli-generation-generation-only",
+    "cli-generation-stale", "projection-order-forward", "projection-order-reverse"]
 }
