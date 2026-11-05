@@ -172,7 +172,7 @@ export const createSemanticPartitionSink = async ({
     if (maxLocalReference >= counts.semantic_records) throw fail('Dangling local semantic reference.');
     busy = true;
     try {
-      await retainSemanticSource({ root: stagingRoot, source, bytes: sourceBytes, sourceCapability, diskAccount, signal });
+      await retainSemanticSource({ root: stagingRoot, source, bytes: sourceBytes, sourceCapability, diskAccount, signal, metrics });
       await builders.append('semantic_sources', [Buffer.from(canonicalSemanticJson(source), 'utf8')]);
       await builders.finish();
       const memberHashes = Object.fromEntries(SEMANTIC_MEMBER_NAMES.map((name) => [name, hashes[name].digest('hex')]));

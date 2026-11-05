@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-05T21:12:59.793Z",
+  "generatedAt": "2026-11-05T21:31:01.430Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
@@ -4860,6 +4860,7 @@
         "tests/storage/semantic/published-manifest-cache-authority.test.js",
         "tests/storage/semantic/query-index-intake.test.js",
         "tests/storage/semantic/runtime-source-reference-authority.test.js",
+        "tests/storage/semantic/source-retention-partition-work.test.js",
         "tests/storage/semantic/trace-continuation-state.test.js",
         "tests/storage/sqlite/build/original-close-owner.test.js",
         "tests/storage/sqlite/build/output-file-ownership.test.js",
@@ -5917,7 +5918,7 @@
   ],
   "envVarsUnknown": [],
   "cliFlags": {
-    "totalFlags": 511,
+    "totalFlags": 512,
     "publicFlags": [
       "all",
       "allow-unauthenticated",
@@ -6286,6 +6287,7 @@
       "pack",
       "parser-artifact-rate-drift-warn-max",
       "parser-artifact-rate-warn-max",
+      "partition",
       "path",
       "perf",
       "phase-spec-dir",
@@ -7425,6 +7427,12 @@
           "require-dicts",
           "require-index",
           "require-sqlite"
+        ]
+      },
+      {
+        "file": "tests/storage/semantic/source-retention-partition-work.test.js",
+        "flags": [
+          "partition"
         ]
       },
       {

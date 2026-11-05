@@ -70,6 +70,8 @@ for (const mode of ['ci', 'nightly']) {
           : line === ann ? ['retrieval/ann/generation-lmdb',
             'retrieval/ann/generation-publication', 'retrieval/ann/generation-rebuild-failure']
             : ['indexing/semantic/compiler-single-cpu-lifecycle',
+              ...['shared-1', 'shared-4', 'shared-16', 'distinct-1', 'distinct-4', 'distinct-16']
+                .map(id => `storage/semantic/source-retention-partition-work/${id}`),
               'map/member-join-work-consumer/measure',
               ...['render', 'graph-skewed', 'graph-skewed-independent', 'map-large', 'memory-transient', 'vfs-ascii',
                 'vfs-many-persisted-1', 'vfs-many-persisted-2', 'vfs-many-persisted-3',

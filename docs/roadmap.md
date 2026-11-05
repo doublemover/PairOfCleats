@@ -7,7 +7,7 @@ Canonical for: initiative status, execution order, and remaining work
 
 ## Current GitHub repair program
 
-The [complete open-issue intake](archived/open-issue-batches-2026-11-05.json) captures **367 open reports**. #1767 closed using original hosted POSIX evidence, followed by qualified dependency retirements #672/#681 and JSDoc ownership #668; Producer-backed native cleanup #1574 is also closed; 362 remain open. Thirteen editor/Tantivy-only issues are excluded, and four mixed issues retain their non-editor scope. Prior ledgers retain their dated counts.
+The [complete open-issue intake](archived/open-issue-batches-2026-11-05.json) captures **367 open reports**. #1767 closed using original hosted POSIX evidence, followed by qualified dependency retirements #672/#681 and JSDoc ownership #668; Producer-backed native cleanup #1574 is also closed; Triage publication #821 is closed after qualification; 361 remain open. Thirteen editor/Tantivy-only issues are excluded, and four mixed issues retain their non-editor scope. Prior ledgers retain their dated counts.
 
 P2/P3 has **337 qualified closures /two editor-remainder targets /one deferred native target /six editor exclusions** from346 reports. The broader remaining backlog is now in scope. Work continues solo on Windows: implement related owner repairs, then run affected controls.
 
@@ -47,7 +47,9 @@ The [November 5 queue](archived/open-issue-batches-2026-11-05.json) routes every
 4. Language/semantic consumers, retrieval and context evidence: review actual producers and semantic version owners, finish gaps together, then execute their bounded positive/negative fixtures. Historical implementation receipts are starting points, not current acceptance.
 5. Performance/evaluation and shared product architecture: preserve correctness and authority controls before serial measurements. Distinguish budgets, work bounds and measured latency; keep raw samples and unchanged thresholds.
 
-[Triage publication](archived/triage-publication-closeout-2026-11-05.md) passes21 coherence/source controls and43 gate fixtures;19 missing ordered CI memberships are restored. #821 awaits publication/closure. Source review confirms #1234 still needs binary digest propagation, #1240 needs larger measured retention work, and #1634 still stages before reuse.
+[Triage publication](archived/triage-publication-closeout-2026-11-05.md) passes21 coherence/source controls and43 gate fixtures;19 missing ordered CI memberships are restored. #821 is closed after publication/readback. Source review confirms #1234 still needs binary digest propagation, #1240 now has measured real-partition qualification, and #1634 still stages before reuse.
+
+[Source retention](archived/source-retention-closeout-2026-11-05.md) passes12 focused controls and43 gate fixtures. The original shared16 owner reads/copies/hashes16MiB; account-bound capabilities read/copy1MiB with no extra finalization hash, retaining canonical content and raw-input negatives. #1240 awaits publication/closure.
 
 [Physical filename closeout](archived/coverage-physical-filenames-closeout-2026-11-05.json) closes #1767 with original Ubuntu/macOS physical-consumer logs and matching source blobs; no WSL or replacement platform run was used. Tantivy/editor exclusions remain open under their existing owners. No broad local rerun is scheduled; repair and recheck affected failures.
 

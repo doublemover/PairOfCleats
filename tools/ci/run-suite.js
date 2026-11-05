@@ -31,6 +31,8 @@ const SERIAL_RUNTIME_BUDGET_IDS = ['tooling/reports/summary/report', 'perf/parse
   ...['results', 'publication'].map(id => `perf/bench/selected-cohort-generation-consumer/${id}`),
   'smoke/baseline-negative/missing', 'smoke/baseline-negative/corrupt',
   'smoke/baseline-negative/incomplete', 'smoke/baseline-negative/legacy'];
+SERIAL_RUNTIME_BUDGET_IDS.push(...['shared-1', 'shared-4', 'shared-16', 'distinct-1', 'distinct-4', 'distinct-16']
+  .map(id => `storage/semantic/source-retention-partition-work/${id}`));
 const SERIAL_ANN_GENERATION_IDS = ['retrieval/ann/generation-publication',
   'retrieval/ann/generation-rebuild-failure', 'retrieval/ann/generation-lmdb'];
 const nativePublicationCases = JSON.parse(await fsPromises.readFile(

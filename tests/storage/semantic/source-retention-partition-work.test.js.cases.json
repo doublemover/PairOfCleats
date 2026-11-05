@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["shared-1", "shared-4", "shared-16", "distinct-1", "distinct-4", "distinct-16"]
+}

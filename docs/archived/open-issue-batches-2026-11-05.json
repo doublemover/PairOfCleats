@@ -9,7 +9,8 @@
     672,
     681,
     668,
-    1574
+    1574,
+    821
   ],
   "scope": "All open issues except user-excluded editor work and native Tantivy; mixed issues retain their non-editor scope",
   "routing": "Initial grouping by issue scope and recorded source owners; source-review-pending is not an implementation or acceptance claim",
@@ -640,9 +641,11 @@
       "title": "Keep triage JSON and Markdown artifacts coherent across concurrent updates and failed writes",
       "batch": "storage-publication-lifetimes",
       "scope": "active",
-      "review": "source-review-pending",
-      "recordedDisposition": "Implementation or accepted completion remains to be established.",
+      "review": "qualified-and-closed",
+      "recordedDisposition": "Closed completed after 21 actual publication/source/replay/service controls, all eight publication checks and 43 gate fixtures; published 1e054bf1f and GitHub state/body readback verified.",
       "owners": [
+        "docs/archived/triage-publication-closeout-2026-11-05.md",
+        "docs/archived/triage-publication-closeout-2026-11-05.json",
         "tools/triage/record-writer.js",
         "src/integrations/triage/index-records.js",
         "docs/archived/github-issue-closeout-2026-10-26.json",

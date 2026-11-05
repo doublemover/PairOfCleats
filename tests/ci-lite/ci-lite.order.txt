@@ -2139,3 +2139,9 @@ tooling/triage/record-publication/same-id-interleave
 tooling/triage/record-publication/tampered-stage
 tooling/triage/record-publication/unknown-namespace
 tooling/triage/records-service-embeddings-pending-artifacts
+storage/semantic/source-retention-partition-work/shared-1
+storage/semantic/source-retention-partition-work/shared-4
+storage/semantic/source-retention-partition-work/shared-16
+storage/semantic/source-retention-partition-work/distinct-1
+storage/semantic/source-retention-partition-work/distinct-4
+storage/semantic/source-retention-partition-work/distinct-16
