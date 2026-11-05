@@ -16,6 +16,13 @@ const execute = withWorkerTaskObservation(async payload => {
     task: 'fixture', status: 'ok', durationMs: i });
   if (payload.mode === 'exception' || payload.mode === 'rejection') {
     setImmediate(() => {
+      if (parentPort && payload.errorGate instanceof SharedArrayBuffer) {
+        // Publish fatal retirement before the real asynchronous fault. The
+        // parent controls only ordering of the original error/exit receipts.
+        send({ type: 'worker-fatal', version: 1, threadId: id,
+          reason: payload.mode === 'exception' ? 'uncaughtException' : 'unhandledRejection' });
+        Atomics.wait(new Int32Array(payload.errorGate), 0, 0);
+      }
       if (payload.mode === 'exception') throw new Error('controlled asynchronous fatal');
       Promise.reject(false);
     });

@@ -23,7 +23,7 @@ and [qualification matrix](testing/qualification-matrix.md).
 and [focused repairs](archived/windows-comment-and-handoff-failure-repairs-2026-10-28.md)
 retain original failures and source identities. No new full-suite run is scheduled.
 
-[CI closeout](archived/ci-lite-macos-contract-qualification-2026-11-05.md) isolates YAML syntax comparisons from preemption and qualifies all23 compiler/build CLI cases with unchanged child bounds. [Resource repairs](archived/ci-lite-resource-retirement-repairs-2026-11-05.md) retire confirmed ConPTY timers and retain pending FileHandles. Original parallel worker hangs remain under diagnosis; strict bounds and coverage are retained.
+[CI closeout](archived/ci-lite-macos-contract-qualification-2026-11-05.md) isolates YAML syntax comparisons from preemption and qualifies all23 compiler/build CLI cases with unchanged child bounds. [Resource repairs](archived/ci-lite-resource-retirement-repairs-2026-11-05.md) retire confirmed ConPTY timers and retain pending FileHandles. [Piscina fatal-exit repair](archived/piscina-fatal-exit-ownership-2026-11-05.md) proves and fixes premature destroy on Worker error, with ten fresh Windows process passes; hosted acceptance is pending.
 [Stable upgrades](archived/windows-stable-upgrades-2026-10-29.md)
 and Rust 1.99.1 are locally qualified; remaining P1 acceptances follow.
 

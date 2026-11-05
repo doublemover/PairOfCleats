@@ -24,6 +24,72 @@ const create = backend => {
   pools.push({ backend, pool: new WeakRef(pool) });
   return pool;
 };
+// Error and exit are distinct receipts. Keep the real worker's exit event
+// unpublished while its real uncaught error reaches Piscina's destructor.
+for (const mode of ['exception', 'rejection']) {
+  const pool = create('worker'), raw = pool.pool;
+  await pool.run({ value: 'ordering control' }, { name: 'run' });
+  const [worker] = raw.threads, originalId = worker.threadId;
+  const originalEmit = worker.emit, originalTerminate = worker.terminate;
+  const errorGate = new SharedArrayBuffer(4), flags = new Int32Array(errorGate);
+  let allowTermination, observedExit, heldExit, heldExitListeners, exitPublished = false, rawDestroyed = false;
+  const termination = new Promise(resolve => { allowTermination = resolve; });
+  const exited = new Promise(resolve => { observedExit = resolve; });
+  const errors = [];
+  worker.on('error', error => errors.push({ type: typeof error, message: error?.message || String(error), stack: error?.stack }));
+  worker.terminate = () => termination.then(() => originalTerminate.call(worker));
+  worker.emit = function (event, ...args) {
+    if (event === 'exit' && !exitPublished) {
+      heldExit = args;
+      // Node removes Worker listeners immediately after its native exit
+      // dispatch. Retain the actual listeners before Node can discard them.
+      heldExitListeners = worker.rawListeners('exit');
+      observedExit(); return false;
+    }
+    return originalEmit.call(this, event, ...args);
+  };
+  const originalDestroy = raw.destroy.bind(raw);
+  raw.destroy = () => {
+    const result = originalDestroy();
+    void result.then(() => { rawDestroyed = true; }, () => {});
+    return result;
+  };
+  const publishExit = () => {
+    if (!heldExit || exitPublished) return;
+    exitPublished = true;
+    for (const listener of heldExitListeners) listener.call(worker, ...heldExit);
+  };
+  let failure;
+  try {
+    await assert.rejects(pool.run({ mode, errorGate }, { name: 'run' }), error => {
+      failure = error; return error.code === 'ERR_WORKER_FATAL';
+    });
+    Atomics.store(flags, 0, 1); Atomics.notify(flags, 0);
+    await exited;
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(errors.length, 1, 'the real uncaught worker error must precede its held exit');
+    assert.equal(rawDestroyed, false, 'Piscina destroy must not settle on error before original exit');
+    assert.equal(failure.workerOwnershipPending, true);
+    publishExit();
+    await pool.destroy(); await failure.workerSettlement;
+    assert.equal(rawDestroyed, true);
+    assert.equal(raw.threads.length, 0, 'a terminal generation must not spawn a minimum-worker replacement');
+    assert.equal(pool.threads.length, 0);
+    assert.equal(failure.workerOwnershipReleased(), true);
+    console.log(JSON.stringify({ workerFatalOrdering: { mode, originalId, errors, exit: heldExit,
+      destroyWaitedForExit: true, vendorThreads: raw.threads.length, ownedThreads: pool.threads.length } }));
+  } finally {
+    Atomics.store(flags, 0, 1); Atomics.notify(flags, 0);
+    allowTermination();
+    await exited;
+    publishExit();
+    worker.emit = originalEmit; worker.terminate = originalTerminate;
+    await pool.destroy();
+    // A failing pre-repair control may have created a late vendor replacement.
+    // Reap it explicitly; cleanup cannot turn that assertion into a pass.
+    await originalDestroy();
+  }
+}
 for (const backend of ['worker', 'process']) {
   for (const mode of ['exception', 'rejection']) {
     let pool = create(backend), replacement;
