@@ -30,8 +30,13 @@ const run = (stage, sqlite = false) => runNode(['--import', preload, path.resolv
 { stdio: 'pipe', allowFailure: true, timeoutMs: 15000 });
 if (selected === 'stage4-sqlite') { const seed = run('1'); assert.equal(seed.status, 0, seed.stderr); }
 const stage = selected.slice(5, 6), child = run(stage, selected === 'stage4-sqlite');
-await fs.writeFile(path.join(dir, 'cli-result.json'), JSON.stringify(child, null, 2));
-assert.equal(child.status, 0, child.stderr);
+const receipt = { ...child, error: child.error ? { name: child.error.name, code: child.error.code,
+  message: child.error.message, errno: child.error.errno, syscall: child.error.syscall } : null };
+await fs.mkdir('.testLogs', { recursive: true });
+const receiptPath = path.resolve('.testLogs', `build-cli-selected-outcome-${selected}-${process.pid}.json`);
+await fs.writeFile(receiptPath, JSON.stringify(receipt, null, 2));
+assert.equal(child.status, 0, JSON.stringify({ receiptPath, error: receipt.error, signal: child.signal,
+  stdout: child.stdout, stderr: child.stderr }));
 const outcome = JSON.parse(child.stdout);
 assert.equal(outcome.repo, toRealPathSync(repo)); assert.equal(outcome.counts, null);
 assert.deepEqual(outcome.requestedStages, ['stage' + stage]);

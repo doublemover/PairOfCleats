@@ -23,7 +23,7 @@ and [qualification matrix](testing/qualification-matrix.md).
 and [focused repairs](archived/windows-comment-and-handoff-failure-repairs-2026-10-28.md)
 retain original failures and source identities. No new full-suite run is scheduled.
 
-[CI retirement repairs](archived/ci-lite-resource-retirement-repairs-2026-11-05.md) cancel a drain timer after confirmed bridge exit and retain pending scheduler FileHandles; both have original-failure controls. Complete Windows CI/native70 per OS pass at07a1. Parallel POSIX worker hangs remain under diagnosis; original scheduling and strict limits are retained.
+[CI closeout](archived/ci-lite-macos-contract-qualification-2026-11-05.md) isolates YAML syntax comparisons from preemption and qualifies all23 compiler/build CLI cases with unchanged child bounds. [Resource repairs](archived/ci-lite-resource-retirement-repairs-2026-11-05.md) retire confirmed ConPTY timers and retain pending FileHandles. Original parallel worker hangs remain under diagnosis; strict bounds and coverage are retained.
 [Stable upgrades](archived/windows-stable-upgrades-2026-10-29.md)
 and Rust 1.99.1 are locally qualified; remaining P1 acceptances follow.
 

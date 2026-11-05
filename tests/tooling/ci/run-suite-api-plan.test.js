@@ -15,6 +15,8 @@ for (const platform of ['ubuntu', 'windows', 'macos']) {
     `${platform}: retain the independently scheduled compiler report`);
   assert.ok(upload.with.path.split(/\r?\n/).includes('.testLogs/bench35-*.json'),
     `${platform}: successful runs must retain raw benchmark receipts, not only log pointers`);
+  assert.ok(upload.with.path.split(/\r?\n/).includes('.testLogs/build-cli-selected-outcome-*.json'),
+    `${platform}: retain complete selected-outcome child status, error and output on successful and failed runs`);
 }
 for (const mode of ['ci', 'nightly']) {
   const plan = runNode(['tools/ci/run-suite.js', '--mode', mode, '--dry-run', '--skip-prechecks'],
@@ -30,7 +32,7 @@ for (const mode of ['ci', 'nightly']) {
   assert.ok(ann);
   const native = lines.find(line => line.startsWith('[dry-run] Serial native lifecycle:'));
   assert.ok(native);
-  const compiler = lines.find(line => line.startsWith('[dry-run] Serial compiler API contracts:'));
+  const compiler = lines.find(line => line.startsWith('[dry-run] ') && line.includes('serial-compiler-api-contracts.json'));
   assert.ok(compiler, `${mode}: bounded compiler/API cases need an independent serial owner`);
   assert.ok(lines.indexOf(compiler) < lines.findIndex(line => line.startsWith('[dry-run] CI test lane:')));
   assert.ok(compiler.includes('serial-compiler-api-contracts.json'));
@@ -58,7 +60,9 @@ for (const mode of ['ci', 'nightly']) {
       const compilerIds = compilerFamilies.flatMap(family =>
         JSON.parse(fs.readFileSync(path.join(root, `tests/tooling/api-contracts/${family}.test.js.cases.json`), 'utf8')).cases
           .map(id => `tooling/api-contracts/${family}/${id}`)).sort();
-      assert.deepEqual(selected.sort(), line === compiler ? compilerIds
+      const outcomeIds = JSON.parse(fs.readFileSync(path.join(root, 'tests/indexing/runtime/build-cli-selected-outcome.test.js.cases.json'), 'utf8')).cases
+        .map(id => `indexing/runtime/build-cli-selected-outcome/${id}`);
+      assert.deepEqual(selected.sort(), line === compiler ? [...compilerIds, ...outcomeIds].sort()
         : line === native ? ['storage/sqlite/build/cancellation']
           : line === ann ? ['retrieval/ann/generation-lmdb',
             'retrieval/ann/generation-publication', 'retrieval/ann/generation-rebuild-failure']
@@ -83,7 +87,7 @@ for (const mode of ['ci', 'nightly']) {
       if (line === compiler) {
         const orderedCompiler = JSON.parse(fs.readFileSync(path.join(root, 'tests/ci-lite/ci-lite.manifest.json'), 'utf8')).tests
           .map(test => test.id).filter(id => compilerFamilies.some(family =>
-            id.startsWith(`tooling/api-contracts/${family}/`))).sort();
+            id.startsWith(`tooling/api-contracts/${family}/`)) || outcomeIds.includes(id)).sort();
         assert.deepEqual(selected, orderedCompiler, 'every original ordered case retains its serial execution owner');
       }
     }

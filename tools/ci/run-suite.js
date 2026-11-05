@@ -35,9 +35,9 @@ const SERIAL_ANN_GENERATION_IDS = ['retrieval/ann/generation-publication',
   'retrieval/ann/generation-rebuild-failure', 'retrieval/ann/generation-lmdb'];
 const SERIAL_NATIVE_LIFECYCLE_IDS = ['storage/sqlite/build/cancellation'];
 // These correctness fixtures use whole-case and CLI deadlines.
-// Qualify cold eager compiler work serially before the parallel correctness lane;
+// Qualify cold compiler and full build work serially before the parallel correctness lane;
 // they are not latency samples and do not belong to the measured budget report.
-const SERIAL_COMPILER_API_IDS = [
+const SERIAL_CLI_CONTRACT_IDS = [
   ...['js-report', 'ts-report', 'js-fail', 'ts-fail',
     'js-default-anonymous', 'js-default-arrow', 'js-default-class',
     'ts-default-anonymous', 'ts-default-arrow', 'ts-default-class']
@@ -45,7 +45,9 @@ const SERIAL_COMPILER_API_IDS = [
   ...['violation', 'clean', 'markdown'].map(id => `tooling/api-contracts/zero-warning-cap-cli/${id}`),
   ...['policy', 'clean'].map(id => `tooling/api-contracts/typescript-parameter-cli/${id}`),
   ...['js-clean', 'ts-clean', 'js-violation', 'ts-violation']
-    .map(id => `tooling/api-contracts/qualified-target-joins-cli/${id}`)
+    .map(id => `tooling/api-contracts/qualified-target-joins-cli/${id}`),
+  ...['stage1-code', 'stage2-prose', 'stage3-disabled', 'stage4-sqlite']
+    .map(id => `indexing/runtime/build-cli-selected-outcome/${id}`)
 ];
 const API_CONTRACT_IDS = ['services/api/router-contract-matrix', 'services/api/core',
   'services/api/repo-authorization', 'services/api/server-stream', 'services/api/search-contract-matrix',
@@ -318,9 +320,9 @@ const main = async () => {
     },
     ...buildUsrGateSteps(diagnosticsDir),
     {
-      label: 'Serial compiler API contracts',
+      label: 'Serial compiler/build CLI contracts',
       command: process.execPath,
-      args: ['tests/run.js', '--lane', 'all', ...exactSelectors(SERIAL_COMPILER_API_IDS),
+      args: ['tests/run.js', '--lane', 'all', ...exactSelectors(SERIAL_CLI_CONTRACT_IDS),
         '--jobs', '1', '--pairofcleats-threads', '1', '--timeout-ms', '30000', '--retries', '0',
         '--native-status-redo=false', '--report-file', path.join(diagnosticsDir, 'serial-compiler-api-contracts.json')]
     },
@@ -347,7 +349,7 @@ const main = async () => {
         ...SERIAL_RUNTIME_BUDGET_IDS.flatMap(id => ['--exclude', `/^${id.replaceAll('/', '\\/')}$/`]),
         ...SERIAL_ANN_GENERATION_IDS.flatMap(id => ['--exclude', `/^${id.replaceAll('/', '\\/')}$/`]),
         ...SERIAL_NATIVE_LIFECYCLE_IDS.flatMap(id => ['--exclude', `/^${id.replaceAll('/', '\\/')}$/`]),
-        ...SERIAL_COMPILER_API_IDS.flatMap(id => ['--exclude', `/^${id.replaceAll('/', '\\/')}$/`]),
+        ...SERIAL_CLI_CONTRACT_IDS.flatMap(id => ['--exclude', `/^${id.replaceAll('/', '\\/')}$/`]),
         '--timeout-ms',
         mode === 'nightly' ? '30000' : '600000',
         '--retries',

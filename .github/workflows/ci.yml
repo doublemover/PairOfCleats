@@ -620,6 +620,7 @@ jobs:
             .diagnostics/coverage/**
             .testLogs/junit.xml
             .testLogs/bench35-*.json
+            .testLogs/build-cli-selected-outcome-*.json
             .testLogs/**/*.log
             .testLogs/**/*.failure.json
           if-no-files-found: ignore
@@ -883,6 +884,7 @@ jobs:
             .diagnostics/coverage/**
             .testLogs/junit.xml
             .testLogs/bench35-*.json
+            .testLogs/build-cli-selected-outcome-*.json
             .testLogs/**/*.log
             .testLogs/**/*.failure.json
           if-no-files-found: ignore
@@ -1264,6 +1266,7 @@ jobs:
             .diagnostics/coverage/**
             .testLogs/junit.xml
             .testLogs/bench35-*.json
+            .testLogs/build-cli-selected-outcome-*.json
             .testLogs/**/*.log
             .testLogs/**/*.failure.json
           if-no-files-found: ignore

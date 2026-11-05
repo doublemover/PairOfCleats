@@ -9,6 +9,9 @@ the complete Windows pipeline,70 native cases per OS,41 Windows authority cases
 and43 gate cases at07a1. [Resource retirement repairs](../archived/ci-lite-resource-retirement-repairs-2026-11-05.md)
 close redundant ConPTY timers and prevent false scheduler close success.
 Download reporting is repaired; parallel POSIX worker hangs remain under diagnosis.
+[macOS contract qualification](../archived/ci-lite-macos-contract-qualification-2026-11-05.md)
+retains YAML deadline negatives and places23 compiler/build cases under the
+existing serial30-second owner, with original15-second build CLI limits.
 Current hosted qualification is reported on [PR572](https://github.com/doublemover/PairOfCleats/pull/572).
 
 [SQLite closeout](../archived/windows-sqlite-final-qualification-2026-11-04.md)

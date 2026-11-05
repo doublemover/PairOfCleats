@@ -2,7 +2,6 @@ import assert from 'node:assert/strict';
 import { once } from 'node:events';
 import path from 'node:path';
 import fs from 'node:fs';
-import { createHook } from 'node:async_hooks';
 import Piscina from 'piscina';
 import { IndexerThreadPool } from '../../../src/index/build/workers/thread-pool.js';
 import { IndexerProcessPool, createProcessMemoryAccount } from '../../../src/index/build/workers/process-pool.js';
@@ -10,27 +9,19 @@ import { WORKER_OBSERVATION_QUEUE_BYTES, WORKER_OBSERVATION_QUEUE_EVENTS } from 
 
 const filename = path.resolve('tests/indexing/workers/worker-fatal-fixture.js');
 const pools = [];
-const resources = new Map();
-const resourceHook = createHook({
-  init(id, type, trigger, resource) {
-    if (!['MESSAGEPORT', 'PROCESSWRAP', 'Timeout'].includes(type) || resources.size >= 128) return;
-    resources.set(id, { type, trigger, resource: new WeakRef(resource), stack: new Error().stack });
-  },
-  destroy(id) { resources.delete(id); }
-}).enable();
 // Bound a survivor failure in the original parallel CI context too. This
 // unref'ed assertion cannot keep healthy cleanup alive or turn a leak into 0;
 // the outer focused runner retains its independent 30-second hard deadline.
 const survivorDeadline = setTimeout(() => {
   assert.fail('Worker fatal fixture retained runtime resources after 25000ms; inspect its survivor receipt.');
 }, 25000).unref();
-process.once('beforeExit', () => { clearTimeout(survivorDeadline); resourceHook.disable(); });
+process.once('beforeExit', () => clearTimeout(survivorDeadline));
 const create = backend => {
   const pool = backend === 'worker'
     ? new IndexerThreadPool(new Piscina({ filename, name: 'run', minThreads: 1, maxThreads: 1 }))
     : new IndexerProcessPool({ filename, maxThreads: 1, oldSpaceMb: 128, maxRestartAttempts: 1,
       taskTimeout: 3000, budgetAccount: createProcessMemoryAccount(1024 * 1024 * 1024) });
-  pools.push({ backend, pool });
+  pools.push({ backend, pool: new WeakRef(pool) });
   return pool;
 };
 for (const backend of ['worker', 'process']) {
@@ -80,7 +71,7 @@ for (const backend of ['worker', 'process']) {
 // Explicit warning-mode launch still uses the worker's declared fatal policy.
 const warning = new IndexerThreadPool(new Piscina({ filename, name: 'run', minThreads: 1, maxThreads: 1,
   execArgv: ['--unhandled-rejections=warn'] }));
-pools.push({ backend: 'worker-warning', pool: warning });
+pools.push({ backend: 'worker-warning', pool: new WeakRef(warning) });
 try {
   const fatal = once(warning, 'fatal');
   await assert.rejects(warning.run({ mode: 'rejection' }, { name: 'run' }), { code: 'ERR_WORKER_FATAL' });
@@ -94,12 +85,14 @@ setTimeout(() => {
   const receipt = {
     schemaVersion: 1, node: process.version, platform: process.platform, pid: process.pid,
     activeResources: process.getActiveResourcesInfo(),
-    resources: [...resources].map(([id, value]) => ({ id, type: value.type, trigger: value.trigger,
-      referenced: value.resource.deref()?.hasRef?.(), stack: value.stack })),
     libuv: process.report.getReport().libuv,
-    pools: pools.map(({ backend, pool }) => ({ backend, closed: pool.closed, destroyed: pool.destroyed,
-      fatal: pool.fatal?.message, ownedThreads: pool.threads.map(worker => worker.threadId),
-      vendorThreads: pool.pool?.threads.map(worker => worker.threadId), stats: pool.stats?.() }))
+    pools: pools.map(({ backend, pool: reference }) => {
+      const pool = reference.deref();
+      return pool ? { backend, closed: pool.closed, destroyed: pool.destroyed,
+        fatal: pool.fatal?.message, ownedThreads: pool.threads.map(worker => worker.threadId),
+        vendorThreads: pool.pool?.threads.map(worker => worker.threadId), stats: pool.stats?.() }
+        : { backend, collected: true };
+    })
   };
   fs.mkdirSync('.testLogs', { recursive: true });
   fs.writeFileSync(`.testLogs/worker-fatal-runtime-${process.pid}.json`, JSON.stringify(receipt, null, 2));
