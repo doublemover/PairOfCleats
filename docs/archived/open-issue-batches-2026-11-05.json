@@ -12,7 +12,8 @@
     1574,
     821,
     1240,
-    1234
+    1234,
+    1634
   ],
   "scope": "All open issues except user-excluded editor work and native Tantivy; mixed issues retain their non-editor scope",
   "routing": "Initial grouping by issue scope and recorded source owners; source-review-pending is not an implementation or acceptance claim",
@@ -4970,8 +4971,8 @@
       "title": "[Perf] Reuse verified runtime families before allocating duplicate publication staging",
       "batch": "storage-publication-lifetimes",
       "scope": "active",
-      "review": "qualified-awaiting-publication",
-      "recordedDisposition": "Early verified family reuse, original-source work/admission counterexamples and63 focused controls pass; publication gate and verified GitHub closure follow.",
+      "review": "qualified-and-closed",
+      "recordedDisposition": "Verified publication fa91a3d49; GitHub completed closure read back.66 focused/governance checks and all43 gate IDs pass; original work/admission failures and exact source hashes are retained.",
       "owners": [
         "src/index/semantic/runtime/import.js",
         "src/index/semantic/runtime/claims.js",
@@ -5415,5 +5416,11 @@
         "tests/runner/case-inventory.js"
       ]
     }
-  ]
+  ],
+  "liveReconciliation": {
+    "date": "2026-11-05",
+    "openCount": 358,
+    "method": "Four created-date search pages,100/100/100/61 results with three boundary duplicates; exact initial367 minus nine verified closures, no newly opened/reopened IDs.",
+    "closedAfterCapture": 9
+  }
 }

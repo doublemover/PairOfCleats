@@ -3058,5 +3058,14 @@
       "sha256": "12e0fee6749edaff0938cbef0bc89ed593823263e339449a9ecda902d845f2fa",
       "normalizedTextSha256": "da501a51797894493a8c96e4be5eba2342e4bb974ecf1ae6018775014994e438"
     }
-  ]
+  ],
+  "githubClosure": {
+    "issue": 1634,
+    "state": "closed",
+    "stateReason": "completed",
+    "closedAt": "2026-11-05T23:29:31Z",
+    "url": "https://github.com/doublemover/PairOfCleats/issues/1634",
+    "publishedSourceHead": "fa91a3d49b1469c8b7661d4baab167262b2339d3",
+    "liveOpenCount": 358
+  }
 }
