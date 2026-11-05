@@ -1,7 +1,7 @@
 # Release Matrix Guide
 
 Status: Active guide v1.1
-Last audited: 2026-10-28 (checked-in runtime and workflow contracts)
+Last audited: 2026-11-05 (checked-in runtime and workflow contracts)
 
 ## Purpose
 
@@ -45,6 +45,9 @@ CI Long is release evidence at the exact release SHA, dispatched manually or by
 release-tag automation. It is not required on ordinary PRs; the complete merge
 job inventory and repository-enforcement limits are in the
 [CI gate policy](ci-gate-policy.md).
+Both Windows native jobs are required: `native-inspection` owns 49 cases and
+`native-index-workflows-windows` owns 21. The split retains every native case
+and its existing limits; release readiness still requires the entire CI workflow.
 
 Promotion stages every file from downloads, bundle and trust under a stable
 unique asset basename before creating or updating a GitHub release. Each name

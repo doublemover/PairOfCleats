@@ -1,6 +1,6 @@
 # Platform and performance qualification
 
-Audited: 2026-11-04. Contracts and configured workflows describe requirements;
+Audited: 2026-11-05. Contracts and configured workflows describe requirements;
 execution receipts below bind actual results to their source. The
 [roadmap](../roadmap.md) owns current scope and remaining work.
 
@@ -57,6 +57,15 @@ overlaps independent Windows console/catalog/form setup with final Stage4,
 then joins the full canonical seed before any read/preview/launch. The bounded
 ConPTY drain is preserved; its timer is not a demonstrated leak. All 11 affected
 cases pass locally with no failures/timeouts/skips; hosted acceptance is pending.
+
+[Cross-platform CI repair](../archived/ci-lite-cross-platform-repairs-2026-11-05.md)
+records70/70 Windows native and41/41 authority passes at9eeb281146, superseding
+the hosted-pending statement above for that source. CI-lite at that same SHA
+fails a shared required-job inventory check on all three OSes and the macOS
+API fixture’s obsolete setup timer. The repair preserves every API assertion
+and the five-second CLI limit, uses a strict30-second serial cohort for all ten
+compiler cases, and moves policy/selection checks into the43-case front gate.
+All15 focused Windows checks pass; replacement hosted acceptance is pending.
 
 The following dated receipts retain their original candidate identities and
 limits; their earlier pending counts are historical.

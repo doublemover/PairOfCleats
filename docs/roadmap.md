@@ -1,7 +1,7 @@
 # PairOfCleats Roadmap
 
-Status: Windows CI closeout; native Tantivy qualification deferred
-Last audited: 2026-11-04
+Status: Cross-platform CI closeout; native Tantivy qualification deferred
+Last audited: 2026-11-05
 Last reconciled: 2026-11-04
 Canonical for: initiative status, execution order, and remaining work
 
@@ -23,7 +23,7 @@ and [qualification matrix](testing/qualification-matrix.md).
 and [focused repairs](archived/windows-comment-and-handoff-failure-repairs-2026-10-28.md)
 retain original failures and source identities. No new full-suite run is scheduled.
 
-[Windows CI](archived/windows-native-ci-job-partition-2026-11-04.md) repairs the20-minute aggregate cancellation by conserving70 native cases in49/21-case jobs, with unchanged fixture bounds and verified cache reuse. [Full-seed terminal setup](archived/windows-native-seed-overlap-2026-11-04.md) now overlaps independent form work. Hosted acceptance remains pending. The prior implementation passes1987 correctness cases and all serial runtime/ANN/cancellation/API cohorts.
+[CI closeout](archived/ci-lite-cross-platform-repairs-2026-11-05.md) records hosted70/70 Windows native and41/41 authority passes at9eeb281146. It repairs all-platform job-inventory drift and the macOS API fixture’s obsolete setup timer. Ten compiler cases retain all assertions in a strict30-second serial cohort;15 focused checks pass. Replacement hosted acceptance is pending.
 [Stable upgrades](archived/windows-stable-upgrades-2026-10-29.md)
 and Rust 1.99.1 are locally qualified; remaining P1 acceptances follow.
 

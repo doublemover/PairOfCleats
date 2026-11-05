@@ -11,7 +11,7 @@
   "suiteCategorySummary": {
     "hero": 35,
     "matrix": 2,
-    "meta": 4,
+    "meta": 6,
     "soak": 0,
     "heavy-runtime": 0
   },
@@ -259,6 +259,18 @@
     {
       "id": "ci/ordered-lane-discovery",
       "order": 41,
+      "suiteCategory": "meta",
+      "suiteCategoryReason": "meta-cohort-prefix"
+    },
+    {
+      "id": "ci/gate-policy",
+      "order": 42,
+      "suiteCategory": "meta",
+      "suiteCategoryReason": "meta-cohort-prefix"
+    },
+    {
+      "id": "tooling/ci/run-suite-api-plan",
+      "order": 43,
       "suiteCategory": "meta",
       "suiteCategoryReason": "meta-cohort-prefix"
     }

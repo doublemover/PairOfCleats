@@ -39,3 +39,5 @@ indexing/contracts/runtime-evidence
 indexing/contracts/index-format-cutover
 ci/windows-authority-cohort
 ci/ordered-lane-discovery
+ci/gate-policy
+tooling/ci/run-suite-api-plan

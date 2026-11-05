@@ -607,6 +607,7 @@ jobs:
             .diagnostics/gopls-startup.json
             .diagnostics/lsp-shutdown-qualification.json
             .diagnostics/crash-log-qualification.json
+            .diagnostics/serial-compiler-api-contracts.json
             .diagnostics/serial-runtime-budgets.json
             .diagnostics/api-contracts.json
             .diagnostics/test-summary.json
@@ -868,6 +869,7 @@ jobs:
             .diagnostics/windows-subprocess-ownership.json
             .diagnostics/lsp-shutdown-qualification.json
             .diagnostics/crash-log-qualification.json
+            .diagnostics/serial-compiler-api-contracts.json
             .diagnostics/serial-runtime-budgets.json
             .diagnostics/api-contracts.json
             .diagnostics/test-summary.json
@@ -1247,6 +1249,7 @@ jobs:
             .diagnostics/gopls-startup.json
             .diagnostics/lsp-shutdown-qualification.json
             .diagnostics/crash-log-qualification.json
+            .diagnostics/serial-compiler-api-contracts.json
             .diagnostics/serial-runtime-budgets.json
             .diagnostics/api-contracts.json
             .diagnostics/test-summary.json

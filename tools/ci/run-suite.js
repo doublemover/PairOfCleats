@@ -34,6 +34,13 @@ const SERIAL_RUNTIME_BUDGET_IDS = ['tooling/reports/summary/report', 'perf/parse
 const SERIAL_ANN_GENERATION_IDS = ['retrieval/ann/generation-publication',
   'retrieval/ann/generation-rebuild-failure', 'retrieval/ann/generation-lmdb'];
 const SERIAL_NATIVE_LIFECYCLE_IDS = ['storage/sqlite/build/cancellation'];
+// These correctness fixtures retain their independent build/CLI deadlines.
+// Qualify cold eager compiler work serially before the parallel correctness lane;
+// they are not latency samples and do not belong to the measured budget report.
+const SERIAL_COMPILER_API_IDS = ['js-report', 'ts-report', 'js-fail', 'ts-fail',
+  'js-default-anonymous', 'js-default-arrow', 'js-default-class',
+  'ts-default-anonymous', 'ts-default-arrow', 'ts-default-class']
+  .map(id => `tooling/api-contracts/export-identity-cli/${id}`);
 const API_CONTRACT_IDS = ['services/api/router-contract-matrix', 'services/api/core',
   'services/api/repo-authorization', 'services/api/server-stream', 'services/api/search-contract-matrix',
   'services/api/federated-search-validation-matrix', 'services/api/federated-filter-enumeration',
@@ -305,6 +312,13 @@ const main = async () => {
     },
     ...buildUsrGateSteps(diagnosticsDir),
     {
+      label: 'Serial compiler API contracts',
+      command: process.execPath,
+      args: ['tests/run.js', '--lane', 'all', ...exactSelectors(SERIAL_COMPILER_API_IDS),
+        '--jobs', '1', '--pairofcleats-threads', '1', '--timeout-ms', '30000', '--retries', '0',
+        '--native-status-redo=false', '--report-file', path.join(diagnosticsDir, 'serial-compiler-api-contracts.json')]
+    },
+    {
       label: 'CI test lane',
       command: process.execPath,
       args: [
@@ -320,6 +334,7 @@ const main = async () => {
         ...SERIAL_RUNTIME_BUDGET_IDS.flatMap(id => ['--exclude', `/^${id.replaceAll('/', '\\/')}$/`]),
         ...SERIAL_ANN_GENERATION_IDS.flatMap(id => ['--exclude', `/^${id.replaceAll('/', '\\/')}$/`]),
         ...SERIAL_NATIVE_LIFECYCLE_IDS.flatMap(id => ['--exclude', `/^${id.replaceAll('/', '\\/')}$/`]),
+        ...SERIAL_COMPILER_API_IDS.flatMap(id => ['--exclude', `/^${id.replaceAll('/', '\\/')}$/`]),
         '--timeout-ms',
         mode === 'nightly' ? '30000' : '600000',
         '--retries',

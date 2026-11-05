@@ -1,7 +1,7 @@
 # CI Gate Policy
 
-Status: Active guide v1.4
-Last audited: 2026-10-30 (checked-in workflow inventory; repository protection observation remains dated October 20)
+Status: Active guide v1.5
+Last audited: 2026-11-05 (checked-in workflow inventory; repository protection observation remains dated October 20)
 
 ## Purpose
 
@@ -15,8 +15,8 @@ it is not a required PR check and has no ordinary PR/branch-push trigger.
 
 ## Required merge evidence
 
-The required CI job names are `gate`, `ubuntu`, `windows`, `macos`, `rust-tui`,
-`native-inspection` and `windows-authority`. The adaptive workflow's `policy` job must also pass when
+The required CI job IDs are `gate`, `ubuntu`, `windows`, `macos`, `rust-tui`,
+`native-inspection`, `native-index-workflows-windows` and `windows-authority`. The adaptive workflow's `policy` job must also pass when
 its workflow/path filters apply. Targeted suites for touched areas remain required
 local evidence; they are not invented hosted check names. An absent, cancelled,
 skipped or failed required result does not establish merge readiness.
@@ -25,7 +25,7 @@ The machine-readable inventory below is checked against actual workflow jobs:
 
 <!-- required-check-inventory -->
 ```json
-{"mergeWorkflow":"ci.yml","mergeJobs":["gate","ubuntu","windows","macos","rust-tui","native-inspection","windows-authority"],"conditionalMergeWorkflow":"adaptive-policy-checks.yml","conditionalMergeJobs":["policy"],"releaseWorkflows":["CI","CI Long"]}
+{"mergeWorkflow":"ci.yml","mergeJobs":["gate","ubuntu","windows","macos","rust-tui","native-inspection","native-index-workflows-windows","windows-authority"],"conditionalMergeWorkflow":"adaptive-policy-checks.yml","conditionalMergeJobs":["policy"],"releaseWorkflows":["CI","CI Long"]}
 ```
 
 Read-only GitHub inspection on October 20 returned `Branch not protected` for
@@ -41,6 +41,8 @@ The merge checks establish:
    the dependency-security, duplicate-scanner, workflow and three postinstall
    contract tests plus the ONNX CPU install-policy check directly, without changing
    broad lane membership.
+   The gate lane also checks the complete required-job inventory and actual
+   CI/nightly cohort selection before the platform suites start.
 2. CI platform jobs: `ubuntu`, `windows`, and `macos`, each running `node tools/ci/run-suite.js --mode ci --skip-prechecks` under Node 26.13.0.
    Before those suites, `node tools/ci/provision-jj.js` admits the official stable
    Jujutsu0.46.0 archive pinned in `tools/ci/jj-recipe.js`. The shared download and
@@ -53,10 +55,21 @@ The merge checks establish:
 3. CI TUI job: Rust formatting, check, test, and clippy for the Rust TUI package.
 4. Native inspection matrix: serial real-terminal TUI workflows, PTY disposal,
    parser patch/lifecycle checks and produced index contracts on each supported
-   workflow platform. A configured job is not a passing result.
+   workflow platform. Windows keeps 49 inspection/PTY/parser/producer cases and
+   21 index workflows in separate required jobs, each with its original
+   20-minute job and 30-second fixture bounds. A configured job is not a passing result.
 5. Windows authority job: real symlink-capable authority cohort at the candidate SHA.
 6. Targeted suites for touched areas, using `node tests/run.js --match '<selector>' --lane all --timeout-ms 30000 --retries 0`.
 7. Contract/docs drift and generated-surface freshness within their owning gates.
+
+The platform suite runs the ten eager JS/TS compiler/API export fixtures in a
+serial correctness cohort before its parallel lane. The complete case has a
+30-second process limit and the public CLI keeps its five-second limit. The
+retired 10-second setup timer predates mandatory immutable-stage sealing; it
+was not a latency qualification. Every case retains
+its ordered-lane membership and executes exactly once. Its report is retained
+separately from measured runtime budgets. Serial scheduling supplies independent
+qualification of these resource bounds, not a production latency claim.
 
 ## Required release evidence
 

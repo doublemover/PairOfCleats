@@ -1017,7 +1017,6 @@ tooling/service/background-retry-policy
 tooling/service/service-config-validation
 tooling/service/indexer-job-completion-signal
 tooling/service/indexer-queue-worker-contract
-tooling/ci/run-suite-api-plan
 tooling/shared-module-performance
 shared/cache/repo-access
 map/workspace/projection
@@ -1073,7 +1072,6 @@ storage/sqlite/build/cancellation
 tooling/ingest/lsif/protocol
 tooling/ingest/gtags/protocol
 tooling/ingest/gtags/command-contract
-ci/gate-policy
 tooling/release/publish-assets
 tooling/release/readiness-gate-missing-workflow
 tooling/typescript-compiler-compatibility

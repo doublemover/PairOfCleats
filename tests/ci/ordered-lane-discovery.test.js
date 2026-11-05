@@ -8,4 +8,6 @@ assert.deepEqual(report.missingIds, [],
   'every ordered lane must reference discovered fixtures or declared case IDs');
 assert.deepEqual(report.manifestMismatches, [],
   'every generated lane must preserve its ordered source exactly');
+assert.deepEqual(report.duplicates, [],
+  'front-gate promotion must move the original owner rather than duplicate its execution');
 console.log(`Ordered fixture discovery and manifests agree across ${report.summary.lanes} lanes.`);

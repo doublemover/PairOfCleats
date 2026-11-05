@@ -58,10 +58,17 @@ const env = applyTestEnv({ cacheRoot: path.join(dir, 'cache'), embeddings: 'stub
     enrichment: { bindings: 'eager', localFlow: 'off', crossFileFlow: 'off' } }, embeddings: { enabled: false },
   workerPool: { enabled: false } } }),
   extraEnv: { PAIROFCLEATS_TRUSTED_CONFIG: null } });
-const signal = AbortSignal.timeout(10000);
-await buildIndex(repo, { mode: 'code', stage: 'stage2', 'stub-embeddings': true,
-  'scm-provider': 'none', threads: 1, abortSignal: signal });
-signal.throwIfAborted();
+const buildStartedAt = performance.now();
+// The runner owns the complete 30-second case. The old 10-second setup
+// cutoff predates immutable-stage sealing and did not qualify API latency.
+console.log(JSON.stringify({ selected, phase: 'build:start' }));
+try {
+  await buildIndex(repo, { mode: 'code', stage: 'stage2', 'stub-embeddings': true,
+    'scm-provider': 'none', threads: 1 });
+} finally {
+  console.log(JSON.stringify({ selected, phase: 'build:settled',
+    elapsedMs: Math.round(performance.now() - buildStartedAt) }));
+}
 const args = [path.join(root, 'bin/pairofcleats.js'), 'api-contracts', '--repo', repo, '--json', '--onlyExports'];
 if (operation === 'fail') args.push('--failOnWarn', '--maxWarnings', '0');
 const result = await spawnSubprocess(process.execPath, args, { cwd: root, env, timeoutMs: 5000,

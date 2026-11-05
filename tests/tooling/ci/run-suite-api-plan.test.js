@@ -2,10 +2,18 @@
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import fs from 'node:fs';
+import { parse } from 'yaml';
 import { runNode } from '../../helpers/run-node.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 
 const root = process.cwd(), env = applyTestEnv({ syncProcess: false });
+const workflow = parse(fs.readFileSync('.github/workflows/ci.yml', 'utf8'));
+for (const platform of ['ubuntu', 'windows', 'macos']) {
+  const upload = workflow.jobs[platform].steps.find(step => step.uses?.startsWith('actions/upload-artifact@')
+    && step.with.path?.includes('.diagnostics/serial-runtime-budgets.json'));
+  assert.ok(upload?.with.path.includes('.diagnostics/serial-compiler-api-contracts.json'),
+    `${platform}: retain the independently scheduled compiler report`);
+}
 for (const mode of ['ci', 'nightly']) {
   const plan = runNode(['tools/ci/run-suite.js', '--mode', mode, '--dry-run', '--skip-prechecks'],
     `${mode} API and serial qualification plan`, root, env, { stdio: 'pipe' });
@@ -18,7 +26,11 @@ for (const mode of ['ci', 'nightly']) {
   assert.ok(ann);
   const native = lines.find(line => line.startsWith('[dry-run] Serial native lifecycle:'));
   assert.ok(native);
-  for (const line of [api, serial, ann, native]) {
+  const compiler = lines.find(line => line.startsWith('[dry-run] Serial compiler API contracts:'));
+  assert.ok(compiler, `${mode}: bounded compiler/API cases need an independent serial owner`);
+  assert.ok(lines.indexOf(compiler) < lines.findIndex(line => line.startsWith('[dry-run] CI test lane:')));
+  assert.ok(compiler.includes('serial-compiler-api-contracts.json'));
+  for (const line of [api, serial, ann, native, compiler]) {
     for (const option of ['--lane all', '--jobs 1', '--pairofcleats-threads 1', '--timeout-ms 30000',
       '--retries 0', '--native-status-redo=false']) assert.ok(line.includes(option), `${option}: ${line}`);
     const selectors = [...line.matchAll(/--match (\/\S+\/)/g)].map(match => match[1]);
@@ -37,26 +49,36 @@ for (const mode of ['ci', 'nightly']) {
         assert.ok(selected.includes(id), `${mode}: ${id} must actually resolve`);
       }
     } else {
-      assert.deepEqual(selected.sort(), line === native ? ['storage/sqlite/build/cancellation']
-        : line === ann ? ['retrieval/ann/generation-lmdb',
-          'retrieval/ann/generation-publication', 'retrieval/ann/generation-rebuild-failure']
-          : ['indexing/semantic/compiler-single-cpu-lifecycle',
-            'map/member-join-work-consumer/measure',
-            ...['render', 'graph-skewed', 'graph-skewed-independent', 'map-large', 'memory-transient', 'vfs-ascii',
-              'vfs-many-persisted-1', 'vfs-many-persisted-2', 'vfs-many-persisted-3',
-              'vfs-many-hot-1', 'vfs-many-hot-2', 'vfs-many-hot-3', 'vfs-budget',
-              'sqlite-wide-a', 'sqlite-wide-b', 'sqlite-wide-c1', 'sqlite-wide-c2']
-              .map(id => `perf/bench/representative-workload-consumers/${id}`),
-            ...['results', 'publication'].map(id => `perf/bench/selected-cohort-generation-consumer/${id}`),
-            'perf/parsers/jinja-cold-budget', 'perf/parsers/toml-cold-budget', 'perf/parsers/xml-cold-budget',
-            'retrieval/backend/fts-cooperative-timing-consumer',
-            'smoke/baseline-negative/corrupt', 'smoke/baseline-negative/incomplete',
-            'smoke/baseline-negative/legacy', 'smoke/baseline-negative/missing',
-            'tooling/reports/summary/report'].sort());
+      const compilerIds = ['js-report', 'ts-report', 'js-fail', 'ts-fail',
+        'js-default-anonymous', 'js-default-arrow', 'js-default-class',
+        'ts-default-anonymous', 'ts-default-arrow', 'ts-default-class']
+        .map(id => `tooling/api-contracts/export-identity-cli/${id}`).sort();
+      assert.deepEqual(selected.sort(), line === compiler ? compilerIds
+        : line === native ? ['storage/sqlite/build/cancellation']
+          : line === ann ? ['retrieval/ann/generation-lmdb',
+            'retrieval/ann/generation-publication', 'retrieval/ann/generation-rebuild-failure']
+            : ['indexing/semantic/compiler-single-cpu-lifecycle',
+              'map/member-join-work-consumer/measure',
+              ...['render', 'graph-skewed', 'graph-skewed-independent', 'map-large', 'memory-transient', 'vfs-ascii',
+                'vfs-many-persisted-1', 'vfs-many-persisted-2', 'vfs-many-persisted-3',
+                'vfs-many-hot-1', 'vfs-many-hot-2', 'vfs-many-hot-3', 'vfs-budget',
+                'sqlite-wide-a', 'sqlite-wide-b', 'sqlite-wide-c1', 'sqlite-wide-c2']
+                .map(id => `perf/bench/representative-workload-consumers/${id}`),
+              ...['results', 'publication'].map(id => `perf/bench/selected-cohort-generation-consumer/${id}`),
+              'perf/parsers/jinja-cold-budget', 'perf/parsers/toml-cold-budget', 'perf/parsers/xml-cold-budget',
+              'retrieval/backend/fts-cooperative-timing-consumer',
+              'smoke/baseline-negative/corrupt', 'smoke/baseline-negative/incomplete',
+              'smoke/baseline-negative/legacy', 'smoke/baseline-negative/missing',
+              'tooling/reports/summary/report'].sort());
       const broad = lines.find(value => value.startsWith('[dry-run] CI test lane:'));
       for (const id of selected) {
         const exclusion = `--exclude /^${id.replaceAll('/', '\\/')}$/`;
         assert.equal(broad.split(exclusion).length - 1, 1, `${mode}: ${id} has exactly one serial replacement owner`);
+      }
+      if (line === compiler) {
+        const orderedCompiler = JSON.parse(fs.readFileSync(path.join(root, 'tests/ci-lite/ci-lite.manifest.json'), 'utf8')).tests
+          .map(test => test.id).filter(id => id.startsWith('tooling/api-contracts/export-identity-cli/')).sort();
+        assert.deepEqual(selected, orderedCompiler, 'every original ordered case retains its serial execution owner');
       }
     }
   }
