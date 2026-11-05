@@ -14,8 +14,11 @@ bundled ripgrep. Review also followed the actual dynamic/native/command owners:
   Its NAPI package has no executable export and is not that command owner.
 - JavaScript parsing selects Babel, Acorn and Esprima. MDX source follows the
   Markdown chunking route; no MDX compiler or SWC adapter is selected.
-- Dictionary discovery invokes PATH `rg --files` and falls back to a filesystem
-  walk. It has no `rgPath` consumer and makes no bundled-ripgrep fallback promise.
+- Dictionary discovery invokes selected `rg --files --null`, preserving physical
+  filename whitespace and POSIX newline/backslash characters. An unavailable
+  capability uses the filesystem walker; valid empty inventories remain empty,
+  and failed or malformed inventories fail without publishing a dictionary.
+  It has no `rgPath` consumer and makes no bundled-ripgrep fallback promise.
 - The native Lua registry and its derived bootstrap list select
   `@tree-sitter-grammars/tree-sitter-lua`. Existing `tree-sitter-lua` route/caps
   strings identify a language route, not the retired unscoped npm package.

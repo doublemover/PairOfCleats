@@ -2037,3 +2037,8 @@ tooling/cache/gc-modern-resource-ownership/live
 tooling/cache/gc-modern-resource-ownership/unknown
 tooling/cache/gc-modern-resource-ownership/admission-race
 tooling/cache/gc-modern-resource-ownership/exclusion-barrier
+tooling/install/dependency-ownership-inventory
+tooling/install/operational-dictionary-and-release-consumers
+tooling/install/structural-engine-identity
+tooling/install/ast-grep-managed-recipe
+lang/lua/modules

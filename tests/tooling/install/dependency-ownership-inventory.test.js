@@ -1,4 +1,4 @@
-// UNVALIDATED inventory regression; native activation belongs to bootstrap and
+// Dependency inventory regression; native activation belongs to bootstrap and
 // the existing Lua parser/chunking fixtures, not this metadata-only check.
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';

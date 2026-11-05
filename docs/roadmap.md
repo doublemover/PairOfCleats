@@ -1,15 +1,15 @@
 # PairOfCleats Roadmap
 
-Status: P1 storage ownership repairs; native Tantivy qualification deferred
+Status: all open issues in scope except Tantivy/editor work
 Last audited: 2026-11-05
-Last reconciled: 2026-11-04
+Last reconciled: 2026-11-05
 Canonical for: initiative status, execution order, and remaining work
 
 ## Current GitHub repair program
 
-The [current reconciliation](archived/windows-sqlite-closure-delta-2026-11-04.json) records **791 reports: 424 closed /367 open**. Fifty-two further closures have individual GitHub readbacks; prior ledgers retain their dated counts.
+The [complete open-issue intake](archived/open-issue-batches-2026-11-05.json) captures **367 open reports**. #1767 subsequently closed using original hosted POSIX evidence; 366 remain open. Thirteen editor/Tantivy-only issues are excluded, and four mixed issues retain their non-editor scope. Prior ledgers retain their dated counts.
 
-P2/P3 has **336 qualified closures /three external targets /one deferred native target /six editor exclusions** from346 reports. Work continues solo on Windows. Batch shared-owner repairs, then run affected controls.
+P2/P3 has **337 qualified closures /two editor-remainder targets /one deferred native target /six editor exclusions** from346 reports. The broader remaining backlog is now in scope. Work continues solo on Windows: implement related owner repairs, then run affected controls.
 
 [Native parity](archived/windows-onnx-runtime-parity-2026-10-30.md) records CDB attribution and ORT1.30.0. [Models](archived/windows-model-closeout-2026-11-04.md) close #1542/#1544; drain/projection close #1484. [Windows terminals](archived/windows-terminal-budget-repair-2026-11-04.md) pass70 cases. [SQLite](archived/windows-sqlite-final-qualification-2026-11-04.md) passes324 children and closes #1733.
 
@@ -27,8 +27,8 @@ retain original failures and source identities. No new full-suite run is schedul
 [Stable upgrades](archived/windows-stable-upgrades-2026-10-29.md)
 and Rust 1.99.1 are locally qualified; remaining P1 acceptances follow.
 
-[Dependency retirements](archived/dependency-ownership-implementation-2026-10-27.md)
-removed110 lock records; runtime qualification stays separate.
+[Dependency retirements](archived/dependency-consumer-closeout-2026-11-05.md)
+remove110 lock records and pass14 focused consumer controls, real Windows ripgrep/ast-grep, fresh native verification and43 gate fixtures. #672/#681 are ready for closure after publication.
 
 [Sublime #1289](archived/sublime-native-closeout-2026-10-29.md) is closed;
 remaining editor/platform acceptance stays excluded.
@@ -37,43 +37,17 @@ remaining editor/platform acceptance stays excluded.
 #1315 with Windows and both POSIX cohorts. [GC resource fencing](archived/windows-cache-gc-resource-fence-2026-11-05.md)
 repairs modern-session deletion; lifecycle policy (#1267) and custom-store cleanup (#1574) remain.
 
-The [owner queue](archived/remaining-issue-batches-2026-10-26.json) orders
-implementation by severity and shared dependencies:
+The [November 5 queue](archived/open-issue-batches-2026-11-05.json) routes every captured issue; routing alone is not completion evidence. Work proceeds in this order:
 
-1. [P2/P3 closeout](archived/p2-p3-closeout-2026-10-29.md): three external targets remain; native Tantivy qualification is deferred and six editor issues are excluded. All P3 reports are closed. P1 #1574 remains outside this request.
-2. Worker/service ownership and provider installation (#631); [compilation context and report refresh](archived/throughput-materialization-implementation-2026-10-28.md) await qualification.
-3. Language/semantic/replay and retrieval/API evidence contracts; [comment source/demand ownership](archived/comment-pipeline-implementation-2026-10-27.md)
-   has 38 authored JS/TS/Rust/import cases. [Frontmatter interiors](archived/frontmatter-content-implementation-2026-10-27.md)
-   have 8 more. [Metadata routing](archived/language-routing-implementation-2026-10-27.md)
-   removes eleven direct adapter edges; [operation loading](archived/language-operation-loading-implementation-2026-10-27.md)
-   separates family/prose initialization. [Embedded content views](archived/embedded-content-implementation-2026-10-27.md)
-   carry exact piecewise maps through Markdown/comment parsing, tokens, scheduler, VFS and semantic readers; 21 cases remain.
-   JSX/TSX, function units and [exact tokens](archived/context-token-budget-implementation-2026-10-28.md) await execution; other adapters remain.
-   [Early embedding selection](archived/embedding-selection-implementation-2026-10-27.md)
-   pins the full-build request before Stage2; [graph preflight/attempt linkage](archived/embedding-preflight-implementation-2026-10-27.md)
-   and rejected-attempt recording are implemented. Other routes and readiness/cache-only qualification remain.
-   [Strict JSON admission](archived/json-import-admission-implementation-2026-10-27.md)
-   adds common caps, aggregate traversal and qualified omissions; 20 cases await execution.
-   [Render source admission](archived/render-source-implementation-2026-10-27.md) bounds preview/summary work; 13 cases await execution.
-   [Demanded line tokens](archived/demanded-line-tokens-implementation-2026-10-27.md) replace whole-file preparation; 12 cases and dense/sparse qualification remain.
-   [Persistent trace state](archived/trace-state-implementation-2026-10-27.md) shares frontiers/visits and bounds cross-service retention; 11 cases remain (#1581).
-   [Hydrated risk admission](archived/hydrated-risk-budget-implementation-2026-10-27.md) repairs final flow caps/accounting; 7 cases remain (#131).
-4. [Native workflow witnesses](archived/native-workflow-preflight-implementation-2026-10-27.md),
-   [reports and opt-in shortcuts](archived/operator-report-and-shortcut-implementation-2026-10-28.md) await execution (#635, #173, #216).
-   [Wrapped log rows](archived/tui-log-rows-implementation-2026-10-27.md) and paused anchors are implemented/typechecked; native qualification remains (#619).
-   [Scene render witnesses](archived/scene-render-observation-implementation-2026-10-27.md) now observe captured operations; browser qualification remains (#1372).
-5. Performance/evaluation: [numeric observations](archived/throughput-observations-implementation-2026-10-28.md) (#277), [retained comparisons](contracts/benchmark-evidence-retention.md) (#1663),
-   [serial SQLite trial profiles](archived/sqlite-trial-profiles-implementation-2026-10-27.md) (#1733)
-   and [Windows descendant RSS qualification](archived/query-process-tree-implementation-2026-10-27.md) (#1675); actual measurements remain.
-   Shared [workspace/method health](contracts/lsp-workspace-method-health.md) is implemented (#292); qualification remains.
-6. Research capabilities after their prerequisite source/retrieval/evidence owners.
+1. Storage/publication lifetimes: finish P1 #1574's producer-backed custom-store registration and eligible cleanup, retaining unknown/current/saved stores; then coordinate lifecycle/quota policy (#1267). The GC reader bypass is repaired.
+2. Dependency/parser cutovers: qualify #672/#681's existing five-root retirement, repair actual consumer failures, and retain scoped Lua, shared NAN, Arrow/LanceDB and esquery owners. Parser migrations require consumer parity rather than import-only checks.
+3. Setup/tool providers and native operator services: managed acquisition, real executable identity, prerequisite readiness, cancellation and original resource retirement. Fixture commands remain explicitly trusted; real vendor qualification stays distinct.
+4. Language/semantic consumers, retrieval and context evidence: review actual producers and semantic version owners, finish gaps together, then execute their bounded positive/negative fixtures. Historical implementation receipts are starting points, not current acceptance.
+5. Performance/evaluation and shared product architecture: preserve correctness and authority controls before serial measurements. Distinguish budgets, work bounds and measured latency; keep raw samples and unchanged thresholds.
 
-The [scoped CDB collector](archived/windows-cdb-collector-implementation-2026-10-28.md)
-and forensic drain are wired; native qualification remains.
-Checkpoint 265 completed the full Windows baseline; repair its shared failures.
-Real-tool/model, non-Windows and release checks remain explicit.
+[Physical filename closeout](archived/coverage-physical-filenames-closeout-2026-11-05.json) closes #1767 with original Ubuntu/macOS physical-consumer logs and matching source blobs; no WSL or replacement platform run was used. Tantivy/editor exclusions remain open under their existing owners. No broad local rerun is scheduled; repair and recheck affected failures.
 
-Current reconciliation, 2026-11-04: the full baseline is complete; shared-failure
+Current reconciliation, 2026-11-05: the full baseline is complete; shared-failure
 repairs and current qualification continue.
 Gate B1-B7 technical, compatibility, matrix, conformance,
 observability, quality, and security-risk controls need

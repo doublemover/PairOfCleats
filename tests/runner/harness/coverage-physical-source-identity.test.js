@@ -42,7 +42,7 @@ if (selected === 'identity-adapter') {
     await fs.mkdir(path.join(repo, 'src/retrieval/a'), { recursive: true }); await fs.mkdir(coverageDir);
     await fs.writeFile(path.join(repo, literal), 'export const value = 1;\n');
     await fs.writeFile(path.join(repo, nested), 'export const value = 1;\n');
-    git(['init']); git(['config', 'user.name', 'Fixture']); git(['config', 'user.email', 'fixture@example.invalid']);
+    git(['-c', 'init.defaultBranch=fixture', 'init', '--quiet']); git(['config', 'user.name', 'Fixture']); git(['config', 'user.email', 'fixture@example.invalid']);
     git(['add', '.']); git(['commit', '-m', 'physical identities']); const baseRef = git(['rev-parse', 'HEAD']);
     await fs.writeFile(path.join(repo, nested), 'export const value = 2;\n');
     const observed = (name, count) => ({ url: pathToFileURL(path.join(repo, name)).href,

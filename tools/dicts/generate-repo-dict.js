@@ -5,7 +5,7 @@ import path from 'node:path';
 import { createCli } from '../../src/shared/cli.js';
 import ignore from 'ignore';
 import { getDictConfig, getRepoDictPath, resolveRepoConfig } from '../shared/dict-utils.js';
-import { toPosix } from '../../src/shared/file-paths.js';
+import { isPathWithinRoot } from '../../src/shared/file-paths.js';
 import { countDictionaryIdentifiers, sortedDictionaryCounts } from '../../src/shared/dictionary-identifiers.js';
 import { runOperationalCommand } from '../tooling/operational-execution.js';
 
@@ -49,8 +49,19 @@ const exts = new Set(extList.map((ext) => ext.startsWith('.') ? ext : `.${ext}`)
  */
 async function listFiles() {
   try {
-    const rg = await runOperationalCommand({ id: 'ripgrep', repoRoot, args: ['--files'], options: { cwd: repoRoot, maxOutputBytes: 32 * 1024 * 1024 } });
-    if (rg.exitCode === 0 && rg.stdout) return rg.stdout.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+    const rg = await runOperationalCommand({ id: 'ripgrep', repoRoot, args: ['--files', '--null'], options: { cwd: repoRoot, maxOutputBytes: 32 * 1024 * 1024 } });
+    if (rg.exitCode === 1 && !rg.stdout) return [];
+    if (rg.exitCode !== 0) throw new Error(`Selected ripgrep failed with exit ${rg.exitCode}: ${String(rg.stderr || '').slice(0, 2048)}`);
+    if (typeof rg.stdout !== 'string') throw new Error('Selected ripgrep returned an invalid filename inventory.');
+    if (!rg.stdout) return [];
+    // Whitespace and POSIX backslashes/newlines belong to physical filenames.
+    if (!rg.stdout.endsWith('\0')) throw new Error('Selected ripgrep returned an incomplete filename inventory.');
+    return rg.stdout.slice(0, -1).split('\0').map(file => {
+      if (!file || path.isAbsolute(file) || !isPathWithinRoot(path.resolve(repoRoot, file), repoRoot)) {
+        throw new Error('Selected ripgrep returned a filename outside the repository.');
+      }
+      return file;
+    });
   } catch (error) {
     // This selected capability is an accelerator. Its documented repository
     // walker fallback needs no external producer, installation or PATH change.
@@ -79,8 +90,9 @@ async function listFiles() {
     const entries = await fs.readdir(dir, { withFileTypes: true });
     for (const entry of entries) {
       const fullPath = path.join(dir, entry.name);
-      const relPath = toPosix(path.relative(repoRoot, fullPath));
-      const ignoreKey = entry.isDirectory() ? `${relPath}/` : relPath;
+      const relPath = path.relative(repoRoot, fullPath);
+      const ignorePath = path.sep === '\\' ? relPath.replaceAll('\\', '/') : relPath;
+      const ignoreKey = entry.isDirectory() ? `${ignorePath}/` : ignorePath;
       if (ignoreMatcher.ignores(ignoreKey)) continue;
       if (entry.isDirectory()) {
         if (skipDirs.has(entry.name)) continue;
