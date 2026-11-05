@@ -7,7 +7,7 @@ Canonical for: initiative status, execution order, and remaining work
 
 ## Current GitHub repair program
 
-The [complete open-issue intake](archived/open-issue-batches-2026-11-05.json) captures **367 open reports**. #1767 subsequently closed using original hosted POSIX evidence; 366 remain open. Thirteen editor/Tantivy-only issues are excluded, and four mixed issues retain their non-editor scope. Prior ledgers retain their dated counts.
+The [complete open-issue intake](archived/open-issue-batches-2026-11-05.json) captures **367 open reports**. #1767 closed using original hosted POSIX evidence, followed by qualified dependency retirements #672/#681; 364 remain open. Thirteen editor/Tantivy-only issues are excluded, and four mixed issues retain their non-editor scope. Prior ledgers retain their dated counts.
 
 P2/P3 has **337 qualified closures /two editor-remainder targets /one deferred native target /six editor exclusions** from346 reports. The broader remaining backlog is now in scope. Work continues solo on Windows: implement related owner repairs, then run affected controls.
 
@@ -28,7 +28,7 @@ retain original failures and source identities. No new full-suite run is schedul
 and Rust 1.99.1 are locally qualified; remaining P1 acceptances follow.
 
 [Dependency retirements](archived/dependency-consumer-closeout-2026-11-05.md)
-remove110 lock records and pass14 focused consumer controls, real Windows ripgrep/ast-grep, fresh native verification and43 gate fixtures. #672/#681 are ready for closure after publication.
+remove110 lock records and pass14 focused consumer controls, real Windows ripgrep/ast-grep, fresh native verification and43 gate fixtures. #672/#681 are closed after publication and GitHub readback.
 
 [Sublime #1289](archived/sublime-native-closeout-2026-10-29.md) is closed;
 remaining editor/platform acceptance stays excluded.
@@ -40,7 +40,7 @@ repairs modern-session deletion; lifecycle policy (#1267) and custom-store clean
 The [November 5 queue](archived/open-issue-batches-2026-11-05.json) routes every captured issue; routing alone is not completion evidence. Work proceeds in this order:
 
 1. Storage/publication lifetimes: finish P1 #1574's producer-backed custom-store registration and eligible cleanup, retaining unknown/current/saved stores; then coordinate lifecycle/quota policy (#1267). The GC reader bypass is repaired.
-2. Dependency/parser cutovers: qualify #672/#681's existing five-root retirement, repair actual consumer failures, and retain scoped Lua, shared NAN, Arrow/LanceDB and esquery owners. Parser migrations require consumer parity rather than import-only checks.
+2. Dependency/parser cutovers: #672/#681's five-root retirement is qualified and closed. [JSDoc ownership](archived/javascript-documentation-closeout-2026-11-05.md) passes21 documentation cases, two declaration/replay controls and the import budget; #668 awaits publication. Remaining parser migrations require consumer parity rather than import-only checks.
 3. Setup/tool providers and native operator services: managed acquisition, real executable identity, prerequisite readiness, cancellation and original resource retirement. Fixture commands remain explicitly trusted; real vendor qualification stays distinct.
 4. Language/semantic consumers, retrieval and context evidence: review actual producers and semantic version owners, finish gaps together, then execute their bounded positive/negative fixtures. Historical implementation receipts are starting points, not current acceptance.
 5. Performance/evaluation and shared product architecture: preserve correctness and authority controls before serial measurements. Distinguish budgets, work bounds and measured latency; keep raw samples and unchanged thresholds.

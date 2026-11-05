@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-11-05T19:20:12.854Z",
+  "generatedAt": "2026-11-05T19:40:59.880Z",
   "summary": {
     "lanes": 5,
-    "tests": 2357,
+    "tests": 2378,
     "exactDuplicates": 0,
     "hotspotKinds": 10,
     "families": 422,
@@ -11,7 +11,7 @@
     "timingCoverage": {
       "freshArtifactTests": 0,
       "historicalFallbackTests": 74,
-      "missingTests": 2283
+      "missingTests": 2304
     }
   },
   "lanes": [
@@ -35,7 +35,7 @@
       "targetMaxDurationSeconds": 15,
       "orderFile": "tests/ci-lite/ci-lite.order.txt",
       "timingArtifactPath": ".testLogs/ci-lite-testRunTimes.txt",
-      "totalTests": 2041,
+      "totalTests": 2062,
       "knownDurationTests": 49,
       "knownDurationMs": 27090,
       "p50DurationMs": 190,
@@ -43,7 +43,7 @@
       "resolvedTimingArtifactPaths": [],
       "timingSources": {
         "historical-test-times": 49,
-        "missing": 1992
+        "missing": 2013
       }
     },
     {
@@ -365,6 +365,12 @@
       "count": 25,
       "knownDurationMs": 0,
       "unknownDurationCount": 25
+    },
+    {
+      "key": "lang/javascript",
+      "count": 24,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 24
     },
     {
       "key": "retrieval/pipeline",
@@ -782,12 +788,6 @@
     },
     {
       "key": "indexing/records",
-      "count": 3,
-      "knownDurationMs": 0,
-      "unknownDurationCount": 3
-    },
-    {
-      "key": "lang/javascript",
       "count": 3,
       "knownDurationMs": 0,
       "unknownDurationCount": 3

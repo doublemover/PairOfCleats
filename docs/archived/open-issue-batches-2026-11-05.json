@@ -5,7 +5,9 @@
   "sourceHead": "858144c028195484a852b4c804ba774af923fbcf",
   "capturedOpen": 367,
   "closedAfterCapture": [
-    1767
+    1767,
+    672,
+    681
   ],
   "scope": "All open issues except user-excluded editor work and native Tantivy; mixed issues retain their non-editor scope",
   "routing": "Initial grouping by issue scope and recorded source owners; source-review-pending is not an implementation or acceptance claim",
@@ -460,9 +462,10 @@
       "title": "Reuse declared JSDoc parsers instead of regex-scanning JavaScript chunk text",
       "batch": "dependency-and-parser-cutovers",
       "scope": "active",
-      "review": "source-review-pending",
-      "recordedDisposition": "Implementation or accepted completion remains to be established.",
+      "review": "qualified-awaiting-publication",
+      "recordedDisposition": "21 documentation cases, two declaration/replay controls and the unchanged import budget pass; close after publication and readback.",
       "owners": [
+        "docs/archived/javascript-documentation-closeout-2026-11-05.md",
         "src/lang/javascript/docmeta.js",
         "docs/archived/github-issue-closeout-2026-10-26.json",
         "docs/archived/github-issue-closeout-2026-10-26.md"
@@ -473,8 +476,8 @@
       "title": "Remove the superseded native tree-sitter-lua dependency after the scoped-grammar cutover",
       "batch": "dependency-and-parser-cutovers",
       "scope": "active",
-      "review": "qualified-awaiting-publication",
-      "recordedDisposition": "Original retirement and focused consumers qualified; close after publication and GitHub readback.",
+      "review": "qualified-and-closed",
+      "recordedDisposition": "Closed completed after publication at5e2a1a9a86e36c9124bcfdada4f6e6d13aec5cb3 and verified GitHub readback.",
       "owners": [
         "docs/archived/dependency-consumer-closeout-2026-11-05.md",
         "src/lang/tree-sitter/native-runtime.js",
@@ -503,8 +506,8 @@
       "title": "Remove four unconsumed dependency roots and orphan SWC/ripgrep install permissions",
       "batch": "dependency-and-parser-cutovers",
       "scope": "active",
-      "review": "qualified-awaiting-publication",
-      "recordedDisposition": "Original retirement and focused consumers qualified; close after publication and GitHub readback.",
+      "review": "qualified-and-closed",
+      "recordedDisposition": "Closed completed after publication at5e2a1a9a86e36c9124bcfdada4f6e6d13aec5cb3 and verified GitHub readback.",
       "owners": [
         "docs/archived/dependency-consumer-closeout-2026-11-05.md",
         "src/experimental/structural/runner.js",

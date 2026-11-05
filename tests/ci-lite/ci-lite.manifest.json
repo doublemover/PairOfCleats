@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 1877,
+    "hero": 1898,
     "matrix": 109,
     "meta": 54,
     "soak": 1,
@@ -12259,6 +12259,132 @@
     {
       "id": "lang/lua/modules",
       "order": 2041,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "lang/javascript/jsdoc-comment-ownership/acorn",
+      "order": 2042,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "lang/javascript/jsdoc-comment-ownership/ast-precedence",
+      "order": 2043,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "lang/javascript/jsdoc-comment-ownership/babel",
+      "order": 2044,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "lang/javascript/jsdoc-comment-ownership/body-comment",
+      "order": 2045,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "lang/javascript/jsdoc-comment-ownership/byte-budget",
+      "order": 2046,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "lang/javascript/jsdoc-comment-ownership/comment-tamper",
+      "order": 2047,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "lang/javascript/jsdoc-comment-ownership/dotted",
+      "order": 2048,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "lang/javascript/jsdoc-comment-ownership/embedded-offset",
+      "order": 2049,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "lang/javascript/jsdoc-comment-ownership/empty",
+      "order": 2050,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "lang/javascript/jsdoc-comment-ownership/esprima",
+      "order": 2051,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "lang/javascript/jsdoc-comment-ownership/generic-union",
+      "order": 2052,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "lang/javascript/jsdoc-comment-ownership/leading-outside",
+      "order": 2053,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "lang/javascript/jsdoc-comment-ownership/malformed",
+      "order": 2054,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "lang/javascript/jsdoc-comment-ownership/nested-records",
+      "order": 2055,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "lang/javascript/jsdoc-comment-ownership/optional-default",
+      "order": 2056,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "lang/javascript/jsdoc-comment-ownership/prototype-key",
+      "order": 2057,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "lang/javascript/jsdoc-comment-ownership/rest",
+      "order": 2058,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "lang/javascript/jsdoc-comment-ownership/source-unavailable",
+      "order": 2059,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "lang/javascript/jsdoc-comment-ownership/string-template",
+      "order": 2060,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "lang/javascript/jsdoc-comment-ownership/type-depth",
+      "order": 2061,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "lang/javascript/jsdoc-comment-ownership/unrelated-leading",
+      "order": 2062,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

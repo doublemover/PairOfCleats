@@ -1,4 +1,4 @@
-// UNVALIDATED: actual source parser/comment/type owners; no native execution.
+// Actual source parser/comment/type owners; no native execution.
 import assert from 'node:assert/strict';
 import { extractDocMeta } from '../../../src/lang/javascript/docmeta.js';
 import { getLanguageForFile } from '../../../src/index/language-registry.js';
@@ -117,4 +117,4 @@ if (Object.hasOwn(cases, selected)) {
     }
   }
 }
-console.log(`JavaScript documentation ${selected}: parser-associated hints and explicit syntax authority, qualification deferred.`);
+console.log(`JavaScript documentation ${selected}: parser-associated hints and explicit syntax authority.`);

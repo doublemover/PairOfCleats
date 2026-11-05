@@ -1,7 +1,10 @@
 # JavaScript documentation metadata
 
-Implementation and fixtures are **unvalidated**. This contract describes source
-behavior; no parser/consumer or performance qualification is established here.
+The parser-associated documentation adapter has Windows consumer qualification:
+all 21 authored cases and two declaration/replay controls pass on Node 26.13.0.
+The [closeout receipt](../archived/javascript-documentation-closeout-2026-11-05.md)
+records source identities, bounded checks and CI ownership. No throughput or
+latency improvement is claimed.
 
 JavaScript uses its already prepared Babel, Acorn or Esprima source AST to
 associate documentation with a declaration or its explicit variable/member/
@@ -64,5 +67,5 @@ optional/default/rest/dotted/record/generic/union/return assertions, literal and
 unrelated-comment negatives, leading comments outside chunks, valid-empty versus
 malformed/unavailable states, bounds, all three source parsers, actual artifact
 assembly, AST precedence, embedded offsets, prototype-like names and immutable
-parser comment ownership. They have not run. Existing declaration/flow/replay,
-language contract and import-budget checks remain required.
+parser comment ownership. All 21 pass and are explicit ordered ci-lite members.
+Declaration/flow/replay and the existing JavaScript language contract also pass.
