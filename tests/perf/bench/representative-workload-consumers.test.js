@@ -136,24 +136,39 @@ try {
       }
     }
   } else if (selected === 'memory-transient') {
-    const result = await spawnSubprocess(process.execPath, ['--expose-gc', 'tests/fixtures/benchmarks/transient-memory.js'], {
-      timeoutMs: 30000, maxOutputBytes: 65536, outputMode: 'string', captureStdout: true, captureStderr: true, rejectOnNonZeroExit: true });
-    assert.equal(result.stderr, ''); assert.equal(result.outputCapture.stdout.truncated, false);
-    evidence = JSON.parse(result.stdout);
-    console.log(JSON.stringify({ transientMemory: evidence }));
-    assert.equal(evidence.requestedBytes, 128 * 1024 * 1024);
-    assert.equal(evidence.touchedBytes, evidence.requestedBytes);
-    assert.equal(evidence.touchedChecksum, evidence.requestedBytes);
-    assert.ok(evidence.during.arrayBuffers >= evidence.before.arrayBuffers + evidence.requestedBytes);
-    assert.ok(evidence.during.arrayBuffers - evidence.after.arrayBuffers >= evidence.requestedBytes,
-      'the owned backing store must be released before observing the final boundary');
-    assert.equal(evidence.preparationCollections, 2); assert.equal(evidence.releaseCollections, 2);
-    assert.equal(evidence.checksum, 2);
-    assert.ok(evidence.during.rss > evidence.before.rss + 64 * 1024 * 1024);
-    assert.ok(evidence.after.rss < evidence.during.rss - 32 * 1024 * 1024, 'control must actually release a transient allocation');
-    assert.equal(evidence.observation.processLifetimeRss.state, 'observed');
-    assert.ok(evidence.observation.processLifetimeRss.bytes + 1023 >= evidence.during.rss);
-    assert.ok(evidence.observation.processLifetimeRss.bytes > evidence.observation.observedBoundaryMax.rss + 32 * 1024 * 1024);
+    const controls = {};
+    for (const allocationKind of ['buffer-disposal', 'rss-transient']) {
+      const result = await spawnSubprocess(process.execPath, ['--expose-gc',
+        'tests/fixtures/benchmarks/transient-memory.js', allocationKind], {
+        timeoutMs: 30000, maxOutputBytes: 65536, outputMode: 'string', captureStdout: true, captureStderr: true,
+        rejectOnNonZeroExit: true });
+      assert.equal(result.stderr, ''); assert.equal(result.outputCapture.stdout.truncated, false);
+      const sample = JSON.parse(result.stdout);
+      console.log(JSON.stringify({ transientMemory: sample }));
+      assert.equal(sample.allocationKind, allocationKind);
+      assert.equal(sample.requestedBytes, 128 * 1024 * 1024);
+      assert.equal(sample.touchedBytes, sample.requestedBytes); assert.equal(sample.touchedChecksum, sample.requestedBytes);
+      assert.equal(sample.preparationCollections, 2); assert.equal(sample.releaseCollections, 2);
+      assert.equal(sample.checksum, 2);
+      assert.ok(sample.during.external >= sample.before.external + sample.requestedBytes);
+      assert.ok(sample.during.external - sample.after.external >= sample.requestedBytes,
+        'the actual backing store must be released before the final boundary');
+      assert.ok(sample.during.rss > sample.before.rss + 64 * 1024 * 1024);
+      assert.equal(sample.observation.processLifetimeRss.state, 'observed');
+      assert.ok(sample.observation.processLifetimeRss.bytes + 1023 >= sample.during.rss);
+      if (allocationKind === 'buffer-disposal') {
+        assert.ok(sample.during.arrayBuffers - sample.after.arrayBuffers >= sample.requestedBytes);
+        // Backing-store disposal is required; malloc returning resident pages
+        // is not. The separate page-backed control qualifies the original RSS gap.
+      } else {
+        assert.ok(sample.after.rss < sample.during.rss - 32 * 1024 * 1024,
+          'the page-backed control must actually release a transient allocation');
+        assert.ok(sample.observation.processLifetimeRss.bytes > sample.observation.observedBoundaryMax.rss + 32 * 1024 * 1024);
+      }
+      controls[allocationKind] = sample;
+    }
+    evidence = { ...controls['rss-transient'], bufferDisposal: controls['buffer-disposal'],
+      measurementBoundary: 'two-separate-fresh-children;malloc-disposal-and-page-backed-RSS-transient' };
   } else if (selected.startsWith('vfs-many-')) {
     const work = { docs: 256, docBytes: 8191, content: 'utf8' }, persisted = selected.startsWith('vfs-many-persisted-');
     const rootDir = path.join(dir, 'phase-fixture'); await fs.mkdir(rootDir);

@@ -74,6 +74,14 @@ pairs/twelve arms; transient memory keeps its original RSS thresholds and gains
 settled backing-store witnesses. Eight scheduler and nine performance/plan
 controls pass. Replacement hosted qualification remains pending.
 
+[The memory-owner repair](../archived/ci-lite-memory-owner-repair-2026-11-05.md)
+records31/32 passing macOS serial controls at31173fe6f, including all six full
+SQLite pairs. Actual snapshots prove complete128MiB Buffer disposal while RSS
+stays resident. The repair retains that disposal control and independently
+qualifies the original RSS thresholds using a page-backed transient in another
+fresh child. It adds no dependency, warning suppression or deadline change;
+replacement hosted acceptance remains pending.
+
 The following dated receipts retain their original candidate identities and
 limits; their earlier pending counts are historical.
 

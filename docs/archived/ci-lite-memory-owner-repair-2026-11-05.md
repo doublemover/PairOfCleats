@@ -1,0 +1,14 @@
+# CI transient-memory owner repair
+
+Date: 2026-11-05. Baseline: `31173fe6f19c9238945a96ae399f1ca531daab75`.
+The [durable receipt](ci-lite-memory-owner-repair-2026-11-05.json) retains the exact original failure, raw snapshots, all six passing macOS SQLite pairs and replacement controls.
+
+[Run41980213311](https://github.com/doublemover/PairOfCleats/actions/runs/41980213311) passes31/32 macOS serial controls, with zero timeouts and skips. All six independent SQLite capsules pass, retaining twelve full arms above128MiB. The remaining failure is the transient-memory test's assumption that disposing a malloc-backed Buffer must immediately reduce RSS.
+
+The new diagnostic snapshots demonstrate complete128MiB backing-store disposal: array-buffer bytes change137903→134355631→137903, and external bytes also drop by exactly128MiB. RSS changes59834368→198524928→198524928. The settled collections prove disposal; they do not establish an allocator guarantee to return resident pages. This is a test-control assumption; the evidence does not identify an application leak.
+
+The pinned [V8 backing-store owner](https://github.com/nodejs/node/blob/v26.13.0/deps/v8/src/objects/backing-store.cc#L126) gives ordinary stores to the embedder allocator and resizable stores to a separate page owner. Its [POSIX page release](https://github.com/nodejs/node/blob/v26.13.0/deps/v8/src/base/platform/platform-posix.cc#L497) unmaps those pages. [Darwin libuv](https://github.com/nodejs/node/blob/v26.13.0/deps/uv/src/unix/darwin.c#L145) reads resident size. Apple's [allocator contract](https://github.com/apple-oss-distributions/libmalloc/blob/main/include/malloc/malloc.h) separately exposes cache-pressure reclamation; disposal and resident-page return are distinct operations.
+
+The fixture now retains the real128MiB Buffer allocation and disposal in one fresh child, including full-byte/checksum, array-buffer/external release, RSS-growth and native high-water assertions. A second fresh child uses a128MiB resizable backing store and destroys its page owner before the final sample. That child retains the original64MiB RSS increase,32MiB RSS release and32MiB lifetime-peak gap assertions. Actual ordinary Buffer coverage is preserved; the RSS qualification uses a release owner that can provide the required native observation.
+
+No production allocator, memory reporter, dependency, Node pin, public surface, warning suppression or test deadline changes. The complete case retains30seconds, zero retries and disabled native-status redo. Explicit collections stay inside these isolated controls. The focused Windows case passes both fresh-child controls in1.54seconds. All eight publication checks pass, including43/43 gate cases, with zero failures, timeouts, retries or skips. Replacement hosted acceptance remains separate. Prior pending/failure states are historical, and author .tmp/.testLogs paths are not clean-checkout promises.
