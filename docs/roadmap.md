@@ -23,10 +23,7 @@ and [qualification matrix](testing/qualification-matrix.md).
 and [focused repairs](archived/windows-comment-and-handoff-failure-repairs-2026-10-28.md)
 retain original failures and source identities. No new full-suite run is scheduled.
 
-[CI](archived/windows-ci-failure-repairs-2026-10-29.md),
-[paths](archived/windows-ci-native-path-followup-2026-10-29.md),
-[VSIX #1288](archived/vscode-native-closeout-2026-10-29.md) and
-[Git admission](archived/windows-git-admission-deadlock-2026-10-29.md) retain receipts; [current CI](archived/windows-ci-fixture-followup-2026-11-04.md) passes1987 Windows cases plus serial budgets/ANN/cancellation/API cohorts at00a644129; native inspection passes35 cases before cancellation.
+[Windows CI](archived/windows-native-ci-job-partition-2026-11-04.md) repairs the20-minute aggregate cancellation by conserving70 native cases in49/21-case jobs, with unchanged fixture bounds and verified cache reuse. Hosted acceptance of the partition remains pending. The prior implementation passes1987 correctness cases and all serial runtime/ANN/cancellation/API cohorts.
 [Stable upgrades](archived/windows-stable-upgrades-2026-10-29.md)
 and Rust 1.99.1 are locally qualified; remaining P1 acceptances follow.
 

@@ -48,6 +48,12 @@ protocol cohort is mandatory in ci-lite; compatible native rebuild/readback
 is explicitly deferred by user decision; Tantivy remains experimental and
 #1627 stays open. That deferral does not alter mandatory protocol coverage.
 
+[Windows job partition](../archived/windows-native-ci-job-partition-2026-11-04.md)
+conserves70 native cases in49/21-case jobs after the original20-minute job
+cancelled before later cohorts. Exact cached dependencies still require native/
+patch verification; cold setup, fixture bounds and evidence uploads remain.
+New-head hosted partition acceptance is pending.
+
 The following dated receipts retain their original candidate identities and
 limits; their earlier pending counts are historical.
 

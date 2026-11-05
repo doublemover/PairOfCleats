@@ -34,6 +34,8 @@ assert.deepEqual(installJobs.sort(), [
   'ci.yml:gate:Install deps',
   'ci.yml:native-inspection:Locked bootstrap',
   'ci.yml:native-inspection:Native and patch verification',
+  'ci.yml:native-index-workflows-windows:Locked bootstrap',
+  'ci.yml:native-index-workflows-windows:Native and patch verification',
   'ci.yml:ubuntu:Install deps and report versions',
   'ci.yml:windows:Install deps and report versions',
   'ci.yml:windows-authority:Prepare and verify required dependencies',

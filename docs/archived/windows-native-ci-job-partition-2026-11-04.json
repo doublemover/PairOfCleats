@@ -1,0 +1,191 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-11-04",
+  "basisSource": "f0ae858ade5233a04d8e3f582a541b44c4d4010b",
+  "originalCancellation": {
+    "source": "00a6441294ac67e18260300f908203865e5be57b",
+    "runId": 41947377988,
+    "jobId": 126984051514,
+    "jobStartedAt": "2026-11-05T01:20:16.614Z",
+    "bootstrapStartedAt": "2026-11-05T01:20:55.170Z",
+    "verifyStartedAt": "2026-11-05T01:31:09.233Z",
+    "cargoStartedAt": "2026-11-05T01:31:16.546Z",
+    "testsStartedAt": "2026-11-05T01:31:52.267Z",
+    "terminalCohortFinishedAt": "2026-11-05T01:40:17.268Z",
+    "cancelledAt": "2026-11-05T01:40:17.439Z",
+    "elapsedFromJobStartMs": 1200825,
+    "configuredJobTimeoutMs": 1200000,
+    "passed": 35,
+    "failed": 0,
+    "timeouts": 0,
+    "skipped": 0,
+    "notExecuted": 35,
+    "attribution": "aggregate job timeout; no fixture timeout or native access violation in this job",
+    "originalEvidence": {
+      "schemaVersion": 1,
+      "encoding": "sha256-shared-json-tables-v1",
+      "data": "2026-11-05T01:31:58.8803484Z PASS [ 5.57s] tui/native-artifact-actions/actions\r\n2026-11-05T01:32:04.5125417Z PASS [ 5.63s] tui/native-artifact-actions/cancel\r\n2026-11-05T01:32:09.8704708Z PASS [ 5.36s] tui/native-artifact-actions/copy\r\n2026-11-05T01:32:16.9656873Z PASS [ 7.09s] tui/native-artifact-actions/export\r\n2026-11-05T01:32:22.4157466Z PASS [ 5.45s] tui/native-artifact-actions/missing\r\n2026-11-05T01:32:27.8691001Z PASS [ 5.45s] tui/native-artifact-actions/stale\r\n2026-11-05T01:32:33.4096924Z PASS [ 5.54s] tui/native-artifact-actions/untrusted\r\n2026-11-05T01:32:45.3781589Z PASS [ 12.0s] tui/native-index-workflows/build-cancel\r\n2026-11-05T01:33:11.1494505Z PASS [ 25.8s] tui/native-index-workflows/build-search\r\n2026-11-05T01:33:18.0426565Z PASS [ 6.89s] tui/native-index-workflows/invalid-provider\r\n2026-11-05T01:33:25.0094882Z PASS [ 6.97s] tui/native-index-workflows/missing-model\r\n2026-11-05T01:33:31.9838695Z PASS [ 6.97s] tui/native-index-workflows/preview-cancel\r\n2026-11-05T01:33:59.6906522Z PASS [ 27.7s] tui/native-index-workflows/report\r\n2026-11-05T01:34:26.2057233Z PASS [ 26.5s] tui/native-index-workflows/search-published\r\n2026-11-05T01:34:34.6883364Z PASS [ 8.48s] tui/native-index-workflows/snapshot\r\n2026-11-05T01:35:04.0084838Z PASS [ 29.3s] tui/native-index-workflows/snapshot-create\r\n2026-11-05T01:35:31.5772566Z PASS [ 27.6s] tui/native-index-workflows/snapshot-freeze\r\n2026-11-05T01:35:59.4118386Z PASS [ 27.8s] tui/native-index-workflows/snapshot-gc\r\n2026-11-05T01:36:26.2931868Z PASS [ 26.9s] tui/native-index-workflows/snapshot-list-populated\r\n2026-11-05T01:36:53.5513673Z PASS [ 27.3s] tui/native-index-workflows/snapshot-prune\r\n2026-11-05T01:37:21.5815323Z PASS [ 28.0s] tui/native-index-workflows/snapshot-remove\r\n2026-11-05T01:37:49.0243132Z PASS [ 27.4s] tui/native-index-workflows/snapshot-show\r\n2026-11-05T01:37:57.3262091Z PASS [ 8.30s] tui/native-index-workflows/stale\r\n2026-11-05T01:38:24.7183591Z PASS [ 27.4s] tui/native-index-workflows/stats\r\n2026-11-05T01:38:35.4498752Z PASS [ 10.7s] tui/native-index-workflows/stats-conflict\r\n2026-11-05T01:39:02.4308852Z PASS [ 27.0s] tui/native-index-workflows/validate-published\r\n2026-11-05T01:39:17.8511436Z PASS [ 15.4s] tui/native-index-workflows/watch-cancel\r\n2026-11-05T01:39:46.6222379Z PASS [ 28.8s] tui/native-index-workflows/workspace\r\n2026-11-05T01:39:51.4437886Z PASS [ 4.82s] tui/native-job-inspection/disabled\r\n2026-11-05T01:39:55.6282371Z PASS [ 4.18s] tui/native-job-inspection/incomplete\r\n2026-11-05T01:39:59.5554412Z PASS [ 3.93s] tui/native-job-inspection/invalid-json\r\n2026-11-05T01:40:04.4212863Z PASS [ 4.86s] tui/native-job-inspection/json\r\n2026-11-05T01:40:08.5563740Z PASS [ 4.13s] tui/native-job-inspection/oversized\r\n2026-11-05T01:40:13.4173126Z PASS [ 4.86s] tui/native-job-inspection/text\r\n2026-11-05T01:40:17.2649499Z PASS [ 3.85s] tui/native-job-inspection/truncated\r\n2026-11-05T01:40:17.2682764Z                    Summary : 35 Passed | 0 Failed | 0 Timeouts | 0 Skipped\r\n2026-11-05T01:40:17.4386387Z ##[error]The operation was canceled.\r",
+      "sharedValues": {},
+      "reconstruction": "A sole {$shared:hash} expands sharedValues[hash],whose fully expanded JSON.stringify SHA256 equals hash. {$columns:[keys],$rows:[cells]} reconstructs an object array in exactly that key order;expand cells recursively."
+    }
+  },
+  "partition": {
+    "windowsInspectionCases": 49,
+    "windowsIndexWorkflowCases": 21,
+    "total": 70,
+    "overlap": 0,
+    "omissions": 0,
+    "jobTimeoutMinutes": 20,
+    "fixtureTimeoutMs": 30000,
+    "jobs": 1,
+    "indexingThreads": 1,
+    "retries": 0,
+    "nativeStatusRedo": false,
+    "cache": "Windows exact OS/arch/Node26.13.0/header-version/lockfile/patch-bound restore-only cache; locked bootstrap on miss/partial; native/patch verification always required",
+    "nonWindows": "original70-case selection retained; no local execution"
+  },
+  "regression": {
+    "counterfactual": {
+      "scope": "New workflow conservation contract against exact original workflow bytes;production fixtures are not rerun",
+      "program": "import fs from 'node:fs';import path from 'node:path';import {execFileSync} from 'node:child_process';import {requireBootstrap} from './src/shared/bootstrap-readiness.js';await requireBootstrap();const file=path.resolve('.github/workflows/ci.yml'),original=execFileSync('git',['show','f0ae858ade5233a04d8e3f582a541b44c4d4010b:.github/workflows/ci.yml'],{encoding:'utf8',windowsHide:true});const read=fs.readFileSync;fs.readFileSync=(name,...args)=>path.resolve(String(name))===file?original:read(name,...args);try{await import('./tests/ci/native-inspection-workflow.test.js');}finally{fs.readFileSync=read;}",
+      "status": 1,
+      "stdout": "",
+      "stderr": "node:internal/modules/run_main:111\r\n    triggerUncaughtException(\r\n    ^\r\n\r\nAssertionError [ERR_ASSERTION]: Windows index workflows need an independent job lifetime\r\n    at file:///C:/Users/sneak/Development/PairOfCleats/tests/ci/native-inspection-workflow.test.js:12:8\r\n    at ModuleJob.run (node:internal/modules/esm/module_job:569:25)\r\n    at async node:internal/modules/esm/loader:650:26\r\n    at async file:///C:/Users/sneak/Development/PairOfCleats/[eval1]:1:515 {\r\n  generatedMessage: false,\r\n  code: 'ERR_ASSERTION',\r\n  actual: undefined,\r\n  expected: true,\r\n  operator: '==',\r\n  diff: 'simple'\r\n}\r\n\r\nNode.js v26.13.0\r\n"
+    },
+    "focused": {
+      "passed": 3,
+      "failed": 0,
+      "timeouts": 0,
+      "skipped": 0,
+      "rawHistoricalLog": ".testLogs/run-1793848521036-am51h6",
+      "log": {
+        "schemaVersion": 1,
+        "encoding": "sha256-shared-json-tables-v1",
+        "data": "\r\n         ╶╶╴-╴-╶-╶╶╶-=---╶---=--╶--=---=--=-=-=--=---=--╶--=---╶---=-╴╴╴-╴-╶-╶╴╴\r\n               \u001b[94mLanes:\u001b[0m \u001b[37mapi\u001b[0m, \u001b[37mbackcompat\u001b[0m, \u001b[37mci\u001b[0m, \u001b[37mci-lite\u001b[0m, \u001b[37mci-long\u001b[0m,       | \u001b[32mTests:\u001b[0m \u001b[37m   3\u001b[0m      \r\n                      \u001b[37mdecomposed-drift\u001b[0m, \u001b[37mdiagnostics-summary\u001b[0m, \u001b[37mgate\u001b[0m,|                   \r\n                      \u001b[37mintegration\u001b[0m, \u001b[37miq\u001b[0m, \u001b[37mmcp\u001b[0m, \u001b[37mperf\u001b[0m, \u001b[37mservices\u001b[0m, \u001b[37msmoke\u001b[0m,|                   \r\n                      \u001b[37mstorage\u001b[0m, \u001b[37munit\u001b[0m, \u001b[37musr-full-conformance\u001b[0m         |                   \r\n         ╶╶╴-╴-╶-╶╶╶-=---╶---=--╶--=---=--=-=-=--=---=--╶--=---╶---=-╴╴╴-╴-╶-╶╴╴\r\n\r\nPASS [ 528ms] ci/native-inspection-workflow\r\nPASS [ 405ms] ci/onnx-cpu-install-policy\r\nPASS [ 328ms] ci/workflow-contract\r\n\r\nLOGS: ./.testLogs/run-1793848521036-am51h6\r\n\r\n         ╶╶╴-╴-╶-╶╶╶-=---╶---=--╶--=---=--=-=-=--=---=--╶--=---╶---=-╴╴╴-╴-╶-╶╴╴\r\n                                      Test Complete!\r\n\r\n         ╶╶╴-╴-╶-╶╶╶-=---╶---=--╶--=---=--=-=-=--=---=--╶--=---╶---=-╴╴╴-╴-╶-╶╴╴\r\n                   Summary : \u001b[97m3\u001b[0m \u001b[32mPassed\u001b[0m | \u001b[97m0\u001b[0m \u001b[31mFailed\u001b[0m | \u001b[97m0\u001b[0m \u001b[38;5;214mTimeouts\u001b[0m | \u001b[97m0\u001b[0m \u001b[38;5;213mSkipped\u001b[0m\r\n                   Duration: 1.27s\r\n                   Slowest : \u001b[97mci/native-inspection-workflow\u001b[0m | \u001b[32mPASS\u001b[0m [ 528ms]\r\n         ╶╶╴-╴-╶-╶╶╶-=---╶---=--╶--=---=--=-=-=--=---=--╶--=---╶---=-╴╴╴-╴-╶-╶╴╴\r\n",
+        "sharedValues": {},
+        "reconstruction": "A sole {$shared:hash} expands sharedValues[hash],whose fully expanded JSON.stringify SHA256 equals hash. {$columns:[keys],$rows:[cells]} reconstructs an object array in exactly that key order;expand cells recursively."
+      }
+    },
+    "publicationChecks": [
+      {
+        "executable": "npm.cmd",
+        "name": "format",
+        "basis": "completed before focused/publication checks",
+        "arguments": [
+          "run",
+          "format"
+        ],
+        "log": ".tmp/tasks/q-1104/native-job-partition-format.log",
+        "exitCode": 0
+      },
+      {
+        "executable": "npm.cmd",
+        "name": "config-budget",
+        "durationMs": 2924.8285,
+        "arguments": [
+          "run",
+          "config:budget"
+        ],
+        "log": ".tmp/tasks/q-1104/native-job-partition-config-budget.log",
+        "exitCode": 0,
+        "startedAt": "2026-11-05T03:17:13.6146322Z"
+      },
+      {
+        "executable": "npm.cmd",
+        "name": "env-check",
+        "durationMs": 1634.3635,
+        "arguments": [
+          "run",
+          "env:check"
+        ],
+        "log": ".tmp/tasks/q-1104/native-job-partition-env-check.log",
+        "exitCode": 0,
+        "startedAt": "2026-11-05T03:17:16.5691155Z"
+      },
+      {
+        "executable": "node",
+        "name": "generated-freshness",
+        "durationMs": 16570.5134,
+        "arguments": [
+          "tools/docs/generated-surfaces.js",
+          "--check-freshness"
+        ],
+        "log": ".tmp/tasks/q-1104/native-job-partition-generated-freshness.log",
+        "exitCode": 0,
+        "startedAt": "2026-11-05T03:17:18.2072959Z"
+      },
+      {
+        "executable": "node",
+        "name": "command-surface",
+        "durationMs": 3363.3803,
+        "arguments": [
+          "tools/ci/check-command-surface.js"
+        ],
+        "log": ".tmp/tasks/q-1104/native-job-partition-command-surface.log",
+        "exitCode": 0,
+        "startedAt": "2026-11-05T03:17:34.7802975Z"
+      },
+      {
+        "executable": "node",
+        "name": "workflow-contract",
+        "durationMs": 344.0568,
+        "arguments": [
+          "tests/ci/workflow-contract.test.js"
+        ],
+        "log": ".tmp/tasks/q-1104/native-job-partition-workflow-contract.log",
+        "exitCode": 0,
+        "startedAt": "2026-11-05T03:17:38.1460242Z"
+      },
+      {
+        "executable": "node",
+        "name": "gate",
+        "durationMs": 33250.2476,
+        "arguments": [
+          "tests/run.js",
+          "--lane",
+          "gate",
+          "--jobs",
+          "1",
+          "--timeout-ms",
+          "30000",
+          "--retries",
+          "0",
+          "--native-status-redo=false"
+        ],
+        "log": ".tmp/tasks/q-1104/native-job-partition-gate.log",
+        "exitCode": 0,
+        "startedAt": "2026-11-05T03:17:38.4924176Z"
+      },
+      {
+        "executable": "git",
+        "name": "diff-check",
+        "durationMs": 84.6866,
+        "arguments": [
+          "diff",
+          "--check"
+        ],
+        "log": ".tmp/tasks/q-1104/native-job-partition-diff-check.log",
+        "exitCode": 0,
+        "startedAt": "2026-11-05T03:18:11.7459121Z"
+      }
+    ]
+  },
+  "remaining": {
+    "hostedPartitionExecution": "pending at publication",
+    "newPublishedSourceFailures": {
+      "source": "f0ae858ade5233a04d8e3f582a541b44c4d4010b",
+      "runId": 41958269247,
+      "jobId": 127018945049,
+      "passed": 33,
+      "failed": 1,
+      "timeouts": 1,
+      "failures": [
+        "tui/native-index-workflows/search-published",
+        "tui/native-index-workflows/snapshot-create"
+      ],
+      "disposition": "separate fixture setup/terminal-lifetime investigation; not fixed by job partition"
+    },
+    "tantivyNativeQualification": "deferred by user; backend remains experimental"
+  },
+  "historicalWorkspaceEvidence": "Local .tmp/.testLogs receipts are historical and are not promised in a clean checkout"
+}

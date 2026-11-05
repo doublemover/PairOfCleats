@@ -178,11 +178,21 @@ jobs:
         uses: actions/setup-node@v7
         with:
           node-version-file: .nvmrc
+      - name: Restore node_modules cache
+        if: runner.os == 'Windows'
+        id: node-modules-cache
+        uses: actions/cache/restore@v6
+        with:
+          path: |
+            node_modules
+            .cache/native-build/headers
+          key: node-modules-${{ runner.os }}-${{ runner.arch }}-node-26.13.0-headers-v1-${{ hashFiles('package-lock.json', 'patches/**/*.patch') }}
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: 1.99.1
       - name: Locked bootstrap
+        if: runner.os != 'Windows' || steps.node-modules-cache.outputs.cache-hit != 'true'
         env:
           NODE_GYP_FORCE_PYTHON: ${{ steps.python-runtime.outputs.python-path }}
         run: npm run bootstrap:ci
@@ -191,7 +201,11 @@ jobs:
       - name: Build actual native binary
         run: cargo build --locked --manifest-path crates/pairofcleats-tui/Cargo.toml
       - name: Serial real-terminal inspection, artifacts and index workflows
+        if: runner.os != 'Windows'
         run: node tests/run.js --lane all --match '/^tui\/(native-job-inspection|native-artifact-actions|native-index-workflows)\//' --jobs 1 --pairofcleats-threads 1 --timeout-ms 30000 --retries 0 --native-status-redo=false --report-file .diagnostics/native-inspection/report.json
+      - name: Serial Windows terminal inspection and artifact actions
+        if: runner.os == 'Windows'
+        run: node tests/run.js --lane all --match '/^tui\/(native-job-inspection|native-artifact-actions)\//' --jobs 1 --pairofcleats-threads 1 --timeout-ms 30000 --retries 0 --native-status-redo=false --report-file .diagnostics/native-inspection/report.json
       - name: Serial PTY disposal and patch qualification
         run: node tests/run.js --lane all --match '/^tooling\/install\/node-pty-(conout-disposal|patch-roundtrip|fresh-lifecycle)(\/|$)/' --jobs 1 --pairofcleats-threads 1 --timeout-ms 30000 --retries 0 --native-status-redo=false --report-file .diagnostics/native-inspection/lifecycle.json
       - name: Serial parser lifecycle and exact native patches
@@ -203,6 +217,81 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: native-inspection-${{ matrix.os }}
+          path: |
+            .diagnostics/native-inspection/**
+            .testLogs/**
+            .tmp/dev/tests/cache/ni-*/native-source-identity.json
+            .tmp/dev/tests/cache/ni-*/terminal-receipt*.json
+            .tmp/dev/tests/cache/ni-*/screen-*.txt
+            .tmp/dev/tests/cache/ni-*/seed-*.json
+            .tmp/dev/tests/cache/ni-*/pids.jsonl
+            .tmp/dev/tests/cache/ni-*/fixture-phases.jsonl
+            .tmp/dev/tests/cache/ni-*/terminal-output-*.ansi.log
+            .tmp/dev/tests/cache/ni-*/index-workflow-native-*.jsonl
+            .tmp/dev/tests/cache/ni-*/produced-search.json
+            .tmp/dev/tests/cache/ni-*/fixture-settlement.json
+            .tmp/dev/tests/cache/native-artifacts-*/native-source-identity.json
+            .tmp/dev/tests/cache/native-artifacts-*/terminal-receipt.json
+            .tmp/dev/tests/cache/native-artifacts-*/screen-*.txt
+            .tmp/dev/tests/cache/native-artifacts-*/failure-*.txt
+            .tmp/dev/tests/cache/native-artifacts-*/failure-observation.json
+            .tmp/dev/tests/cache/native-artifacts-*/terminal-output.ansi.log
+            .tmp/dev/tests/cache/native-artifacts-*/pids.jsonl
+          include-hidden-files: true
+          retention-days: 7
+          if-no-files-found: warn
+
+  native-index-workflows-windows:
+    name: native-index-workflows (windows-latest)
+    runs-on: windows-latest
+    needs: gate
+    timeout-minutes: 20
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Record candidate
+        run: git rev-parse HEAD
+      - name: Setup Python
+        id: python-runtime
+        uses: actions/setup-python@v7
+        with:
+          python-version-file: .python-version
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+      - name: Restore node_modules cache
+        if: runner.os == 'Windows'
+        id: node-modules-cache
+        uses: actions/cache/restore@v6
+        with:
+          path: |
+            node_modules
+            .cache/native-build/headers
+          key: node-modules-${{ runner.os }}-${{ runner.arch }}-node-26.13.0-headers-v1-${{ hashFiles('package-lock.json', 'patches/**/*.patch') }}
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.99.1
+      - name: Locked bootstrap
+        if: runner.os != 'Windows' || steps.node-modules-cache.outputs.cache-hit != 'true'
+        env:
+          NODE_GYP_FORCE_PYTHON: ${{ steps.python-runtime.outputs.python-path }}
+        run: npm run bootstrap:ci
+      - name: Native and patch verification
+        run: node tools/setup/rebuild-native.js --verify
+      - name: Build actual native binary
+        run: cargo build --locked --manifest-path crates/pairofcleats-tui/Cargo.toml
+      - name: Serial Windows native index workflows
+        run: node tests/run.js --lane all --match '/^tui\/(native-index-workflows)\//' --jobs 1 --pairofcleats-threads 1 --timeout-ms 30000 --retries 0 --native-status-redo=false --report-file .diagnostics/native-inspection/report.json
+      - name: Upload native qualification evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: native-index-workflows-windows
           path: |
             .diagnostics/native-inspection/**
             .testLogs/**
