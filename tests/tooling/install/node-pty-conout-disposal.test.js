@@ -13,6 +13,7 @@ const require = createRequire(import.meta.url);
 // Confirmed process exit still owns console/pipe disposal, but cannot require
 // attaching another helper to a console that has already disappeared.
 const { WindowsPtyAgent } = require('node-pty/lib/windowsPtyAgent.js');
+const { ConoutConnection } = require('node-pty/lib/windowsConoutConnection.js');
 for (const exitCode of [undefined, 0, 1]) {
   const calls = [], agent = Object.create(WindowsPtyAgent.prototype);
   Object.assign(agent, { _useConpty: true, _useConptyDll: false, _exitCode: exitCode,
@@ -51,6 +52,45 @@ const bounded = async (promise, label) => {
   })]); } finally { clearTimeout(timer); }
 };
 try {
+  for (const [index, mode] of ['live-drain', 'already-exited'].entries()) {
+    const sourceName = process.platform === 'win32' ? `\\\\.\\pipe\\poc-conout-${randomUUID()}` : path.join(root, `c${index}`);
+    let producer, connection, terminal;
+    const source = net.createServer(socket => { producer = socket; });
+    await new Promise((resolve, reject) => { source.once('error', reject); source.listen(sourceName, resolve); });
+    try {
+      connection = new ConoutConnection(sourceName, false);
+      const worker = connection._worker;
+      const exited = new Promise((resolve, reject) => { worker.once('exit', resolve); worker.once('error', reject); });
+      await bounded(new Promise(resolve => connection.onReady(resolve)), 'connection ready');
+      terminal = new net.Socket();
+      const output = [];
+      terminal.on('data', data => output.push(data));
+      const ended = new Promise((resolve, reject) => { terminal.once('end', resolve); terminal.once('error', reject); });
+      const connected = new Promise((resolve, reject) => { terminal.once('connect', resolve); terminal.once('error', reject); });
+      connection.connectSocket(terminal);
+      await bounded(connected, 'connection reader');
+      let forced = 0;
+      const terminate = worker.terminate;
+      worker.terminate = function () { forced++; return terminate.call(this); };
+      if (mode === 'live-drain') {
+        connection.dispose();
+        assert.equal(connection._drainTimeout.hasRef(), true, 'a live bridge retains its bounded output drain');
+      }
+      const expected = Buffer.concat([Buffer.from('before EOF\n'), Buffer.alloc(64 * 1024, 120), Buffer.from('final output\n')]);
+      producer.end(expected);
+      await bounded(ended, 'complete trailing output');
+      assert.equal(await bounded(exited, 'natural connection exit'), 0);
+      assert.equal(forced, 0, 'natural EOF must settle independently of forced worker termination');
+      assert.deepEqual(Buffer.concat(output), expected, 'all final output survives disposal and natural EOF');
+      assert.equal(connection._drainTimeout, undefined, 'a confirmed worker exit must retire its drain timer');
+      connection.dispose();
+      assert.equal(connection._drainTimeout, undefined, 'disposal after confirmed exit must not arm a new timer');
+    } finally {
+      terminal?.destroy(); producer?.destroy();
+      if (connection) { clearTimeout(connection._drainTimeout); await connection._worker.terminate(); }
+      await new Promise(resolve => source.close(resolve));
+    }
+  }
   for (const [index, mode] of ['fin-race', 'unexpected', 'disconnect', 'natural'].entries()) {
     // The already unique private directory supplies isolation. Repeating a UUID
     // in the socket filename exceeds macOS's sockaddr_un bound under its TMPDIR.

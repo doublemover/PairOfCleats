@@ -6,8 +6,10 @@ execution receipts below bind actual results to their source. The
 
 [CI2157](../archived/ci-lite-download-worker-followup-2026-11-05.md) qualifies
 the complete Windows pipeline,70 native cases per OS,41 Windows authority cases
-and43 gate cases at07a1. Download reporting is repaired; both POSIX worker
-survivor hangs remain under diagnosis. Replacement hosted acceptance is pending.
+and43 gate cases at07a1. [Resource retirement repairs](../archived/ci-lite-resource-retirement-repairs-2026-11-05.md)
+close redundant ConPTY timers and prevent false scheduler close success.
+Download reporting is repaired; parallel POSIX worker hangs remain under diagnosis.
+Current hosted qualification is reported on [PR572](https://github.com/doublemover/PairOfCleats/pull/572).
 
 [SQLite closeout](../archived/windows-sqlite-final-qualification-2026-11-04.md)
 passes all324 fresh serial children at clean1d53c5262: five row-shape cohorts

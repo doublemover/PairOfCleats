@@ -18,7 +18,13 @@ const resourceHook = createHook({
   },
   destroy(id) { resources.delete(id); }
 }).enable();
-process.once('beforeExit', () => resourceHook.disable());
+// Bound a survivor failure in the original parallel CI context too. This
+// unref'ed assertion cannot keep healthy cleanup alive or turn a leak into 0;
+// the outer focused runner retains its independent 30-second hard deadline.
+const survivorDeadline = setTimeout(() => {
+  assert.fail('Worker fatal fixture retained runtime resources after 25000ms; inspect its survivor receipt.');
+}, 25000).unref();
+process.once('beforeExit', () => { clearTimeout(survivorDeadline); resourceHook.disable(); });
 const create = backend => {
   const pool = backend === 'worker'
     ? new IndexerThreadPool(new Piscina({ filename, name: 'run', minThreads: 1, maxThreads: 1 }))

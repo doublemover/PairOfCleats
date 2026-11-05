@@ -230,3 +230,65 @@ index 4c8ab3932..f297ea04e 100644
 +  exports.Set("getProcessSnapshot", Napi::Function::New(env, ApiProcessSnapshot));
    exports.Set("getConsoleProcessList", Napi::Function::New(env, ApiConsoleProcessList));
    return exports;
+diff --git a/node_modules/node-pty/src/windowsConoutConnection.ts b/node_modules/node-pty/src/windowsConoutConnection.ts
+index fa2d62de1..6fdf98d90 100644
+--- a/node_modules/node-pty/src/windowsConoutConnection.ts
++++ b/node_modules/node-pty/src/windowsConoutConnection.ts
+@@ -32,6 +32,7 @@
+   private _worker: Worker;
+   private _drainTimeout: NodeJS.Timeout | undefined;
+   private _isDisposed: boolean = false;
++  private _workerExited: boolean = false;
+-
++
+   private _onReady = new EventEmitter2<void>();
+   public get onReady(): IEvent<void> { return this._onReady.event; }
+@@ -45,6 +46,11 @@
+     };
+     const scriptPath = __dirname.replace('node_modules.asar', 'node_modules.asar.unpacked');
+     this._worker = new Worker(join(scriptPath, 'worker/conoutSocketWorker.js'), { workerData });
++    this._worker.once('exit', () => {
++      this._workerExited = true;
++      if (this._drainTimeout) clearTimeout(this._drainTimeout);
++      this._drainTimeout = undefined;
++    });
+     this._worker.on('message', (message: ConoutWorkerMessage) => {
+       switch (message) {
+         case ConoutWorkerMessage.READY:
+@@ -72,4 +78,5 @@
+   private _drainDataAndClose(): void {
++    if (this._workerExited) return;
+     if (this._drainTimeout) {
+       clearTimeout(this._drainTimeout);
+     }
+diff --git a/node_modules/node-pty/lib/windowsConoutConnection.js b/node_modules/node-pty/lib/windowsConoutConnection.js
+index 1be15ca06..f97de9c5d 100644
+--- a/node_modules/node-pty/lib/windowsConoutConnection.js
++++ b/node_modules/node-pty/lib/windowsConoutConnection.js
+@@ -68,12 +68,18 @@
+         this._conoutPipeName = _conoutPipeName;
+         this._useConptyDll = _useConptyDll;
+         this._isDisposed = false;
++        this._workerExited = false;
+         this._onReady = new eventEmitter2_1.EventEmitter2();
+         var workerData = {
+             conoutPipeName: _conoutPipeName
+         };
+         var scriptPath = __dirname.replace('node_modules.asar', 'node_modules.asar.unpacked');
+         this._worker = new worker_threads_1.Worker(path_1.join(scriptPath, 'worker/conoutSocketWorker.js'), { workerData: workerData });
++        this._worker.once('exit', function () {
++            _this._workerExited = true;
++            if (_this._drainTimeout) clearTimeout(_this._drainTimeout);
++            _this._drainTimeout = undefined;
++        });
+         this._worker.on('message', function (message) {
+             switch (message) {
+                 case 1 /* READY */:
+@@ -102,6 +108,7 @@
+     };
+     ConoutConnection.prototype._drainDataAndClose = function () {
+         var _this = this;
++        if (this._workerExited) return;
+         if (this._drainTimeout) {
+             clearTimeout(this._drainTimeout);
+         }

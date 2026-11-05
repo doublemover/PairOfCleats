@@ -278,63 +278,71 @@ try {
 
   // Regression: a wedged reader close should keep lookup shutdown bounded but
   // fail deterministically instead of force-closing the shared reader entry.
-  let hangNextClose = true;
-  fs.open = async (...args) => {
-    const [targetPath] = args;
-    const handle = await originalOpen(...args);
-    const shouldHangClose = hangNextClose && String(targetPath) === String(resultsPathA);
-    if (shouldHangClose) hangNextClose = false;
-    let closeGate;
-    if (shouldHangClose) {
-      const originalClose = handle.close.bind(handle);
-      let finish, fail, closing;
-      closeGate = { promise: new Promise((resolve, reject) => { finish = resolve; fail = reject; }),
-        release() {
-          closing ||= originalClose().then(finish, fail);
-          return closing;
-        } };
-      wedgedCloses.add(closeGate);
-    }
-    return new Proxy(handle, {
-      get(target, prop, receiver) {
-        if (prop === 'close' && shouldHangClose) {
-          return () => closeGate.promise;
-        }
-        const value = Reflect.get(target, prop, receiver);
-        return typeof value === 'function' ? value.bind(target) : value;
+  // A longer outer budget makes the inner timeout/second-close ordering
+  // deterministic while preserving the original equal-budget regression.
+  for (const forceCloseAfterMs of [25, 100]) {
+    let hangNextClose = true;
+    fs.open = async (...args) => {
+      const [targetPath] = args;
+      const handle = await originalOpen(...args);
+      const shouldHangClose = hangNextClose && String(targetPath) === String(resultsPathA);
+      if (shouldHangClose) hangNextClose = false;
+      let closeGate;
+      if (shouldHangClose) {
+        const originalClose = handle.close.bind(handle);
+        let finish, fail, closing;
+        closeGate = { promise: new Promise((resolve, reject) => { finish = resolve; fail = reject; }),
+          release() {
+            closing ||= originalClose().then(finish, fail);
+            return closing;
+          } };
+        wedgedCloses.add(closeGate);
       }
+      return new Proxy(handle, {
+        get(target, prop, receiver) {
+          if (prop === 'close' && shouldHangClose) {
+            return () => closeGate.promise;
+          }
+          const value = Reflect.get(target, prop, receiver);
+          return typeof value === 'function' ? value.bind(target) : value;
+        }
+      });
+    };
+    const hangingCloseLookup = createTreeSitterSchedulerLookup({
+      outDir,
+      index: new Map([[rowA.virtualPath, entryA]]),
+      closeTimeoutMs: 25,
+      forceCloseAfterMs
     });
-  };
-  const hangingCloseLookup = createTreeSitterSchedulerLookup({
-    outDir,
-    index: new Map([[rowA.virtualPath, entryA]]),
-    closeTimeoutMs: 25,
-    forceCloseAfterMs: 25
-  });
-  const loaded = await hangingCloseLookup.loadRow(rowA.virtualPath);
-  assert.equal(loaded?.virtualPath, rowA.virtualPath, 'expected lookup row load before close-timeout regression check');
-  const closeStartAtMs = Date.now();
-  let hangingCloseError = null;
-  try {
-    await hangingCloseLookup.close();
-    assert.fail('expected wedged reader close to raise deterministic timeout');
-  } catch (err) {
-    hangingCloseError = err;
+    const loaded = await hangingCloseLookup.loadRow(rowA.virtualPath);
+    assert.equal(loaded?.virtualPath, rowA.virtualPath, 'expected lookup row load before close-timeout regression check');
+    const closeStartAtMs = Date.now();
+    let hangingCloseError = null;
+    try {
+      await hangingCloseLookup.close();
+      assert.fail('expected wedged reader close to raise deterministic timeout');
+    } catch (err) {
+      hangingCloseError = err;
+    }
+    const closeElapsedMs = Date.now() - closeStartAtMs;
+    assert.ok(closeElapsedMs < 1500, `expected lookup close to remain bounded (elapsed=${closeElapsedMs}ms)`);
+    assert.equal(
+      hangingCloseError?.code,
+      'ERR_TREE_SITTER_LOOKUP_CLOSE_TIMEOUT',
+      'expected wedged reader close to fail with typed lookup close timeout'
+    );
+    const hangingStats = hangingCloseLookup.stats();
+    assert.equal(
+      hangingStats.closeErrorCode,
+      'ERR_TREE_SITTER_LOOKUP_CLOSE_TIMEOUT',
+      'expected lookup stats to retain close timeout diagnostics'
+    );
+    assert.equal(hangingStats.openReaders, 1, 'a timed-out original reader remains owned');
+    assert.equal(hangingStats.pendingCloseOperations, 1, 'fulfilled inner cleanup cannot release a pending FileHandle');
+    for (const close of wedgedCloses) await close.release();
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(hangingCloseLookup.stats().pendingCloseOperations, 0, 'actual close settlement releases the physical handle');
   }
-  const closeElapsedMs = Date.now() - closeStartAtMs;
-  assert.ok(closeElapsedMs < 1500, `expected lookup close to remain bounded (elapsed=${closeElapsedMs}ms)`);
-  assert.equal(
-    hangingCloseError?.code,
-    'ERR_TREE_SITTER_LOOKUP_CLOSE_TIMEOUT',
-    'expected wedged reader close to fail with typed lookup close timeout'
-  );
-  const hangingStats = hangingCloseLookup.stats();
-  assert.equal(
-    hangingStats.closeErrorCode,
-    'ERR_TREE_SITTER_LOOKUP_CLOSE_TIMEOUT',
-    'expected lookup stats to retain close timeout diagnostics'
-  );
-  for (const close of wedgedCloses) await close.release();
 
   // Regression: non-positive force-close config must still stay bounded.
   const nonPositiveForceCloseLookup = createTreeSitterSchedulerLookup({

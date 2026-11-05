@@ -9,14 +9,16 @@ const { dir } = await prepareIsolatedTestCacheDir('node-pty-patch-roundtrip');
 const patchName = 'node-pty+1.1.0.patch';
 const patch = (await fs.readFile(path.join('patches', patchName), 'utf8')).replace(/\r\n/g, '\n');
 const sections = patch.split(/(?=^diff --git )/m).filter(Boolean);
-assert.equal(sections.length, 6);
+assert.equal(sections.length, 8);
 const packagePreimages = new Map([
   ['node_modules/node-pty/lib/windowsPtyAgent.js', 'a358ffb17'],
   ['node_modules/node-pty/src/windowsPtyAgent.ts', 'd70544495'],
   ['node_modules/node-pty/scripts/prebuild.js', '17f1d980e'],
   ['node_modules/node-pty/lib/worker/conoutSocketWorker.js', '0451e2c6b'],
   ['node_modules/node-pty/src/worker/conoutSocketWorker.ts', '79a4148dd'],
-  ['node_modules/node-pty/src/win/conpty_console_list.cc', '4c8ab3932']
+  ['node_modules/node-pty/src/win/conpty_console_list.cc', '4c8ab3932'],
+  ['node_modules/node-pty/src/windowsConoutConnection.ts', 'fa2d62de1'],
+  ['node_modules/node-pty/lib/windowsConoutConnection.js', '1be15ca06']
 ]);
 const snapshots = new Map();
 for (const section of sections) {
@@ -49,7 +51,7 @@ for (const section of sections) {
   const hash = createHash('sha1').update(Buffer.from(`blob ${value.length}\0`)).update(value).digest('hex');
   assert.ok(hash.startsWith(originalHash), `unpatched package identity differs: ${relative}`);
 }
-assert.equal(applyPatches(dir), 6);
-assert.equal(applyPatches(dir, { verifyOnly: true }), 6);
+assert.equal(applyPatches(dir), 8);
+assert.equal(applyPatches(dir, { verifyOnly: true }), 8);
 for (const [relative, value] of snapshots) assert.equal(await fs.readFile(path.join(dir, relative), 'utf8'), value);
-console.log('The exact six-file node-pty patch applies from verified original package blobs and verifies after installation.');
+console.log('The exact eight-file node-pty patch applies from verified original package blobs and verifies after installation.');
