@@ -21,6 +21,8 @@ await fs.writeFile(path.join(dir, 'inspection-mode.json'), JSON.stringify({ mode
 const binary = path.join(root, 'crates/pairofcleats-tui/target/debug',
   process.platform === 'win32' ? 'pairofcleats-tui.exe' : 'pairofcleats-tui');
 const binarySha256 = createHash('sha256').update(await fs.readFile(binary)).digest('hex');
+await fs.writeFile(path.join(dir, 'native-source-identity.json'), JSON.stringify({ binary, binarySha256,
+  node: process.version, abi: process.versions.modules, platform: process.platform }, null, 2));
 const env = applyTestEnv({ cacheRoot: path.join(dir, 'cache'), embeddings: 'stub', extraEnv: {
   PAIROFCLEATS_TRUSTED_CONFIG: null, PAIROFCLEATS_TUI_NODE: process.execPath,
   PAIROFCLEATS_TUI_SUPERVISOR: path.join(root, 'tests/fixtures/tui/native-job-inspection-supervisor.js'),
@@ -100,6 +102,14 @@ try {
         }
         terminal.write('v'); await rendered('Process status:');
         assert.equal(finalEnd.attempts, 1); assert.equal(finalEnd.retries, 0);
+        // PTY chunks can stop between rows of a single redraw. The status label
+        // alone does not establish that its attempts/PID/state rows arrived.
+        // Wait for the same complete metadata under the original deadline.
+        const metadata = ['Attempts: 1 / configured 1 | retries 0',
+          `Last recorded PID: ${finalEnd.pid || (await events()).find(event => event.event === 'job:spawn').pid}`,
+          `Process status: ${mode === 'incomplete' ? 'cancelled' : 'done'}`];
+        await wait(() => { const current = screen(); return metadata.every(value => current.includes(value)); }, 'complete inspection metadata');
+        await fs.writeFile(path.join(dir, `screen-${frame++}.txt`), screen());
         assert.ok(screen().includes('Attempts: 1 / configured 1 | retries 0'));
         assert.ok(screen().includes(`Last recorded PID: ${finalEnd.pid || (await events()).find(event => event.event === 'job:spawn').pid}`));
         assert.ok(screen().includes(`Process status: ${mode === 'incomplete' ? 'cancelled' : 'done'}`));

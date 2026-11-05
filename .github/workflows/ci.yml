@@ -222,6 +222,13 @@ jobs:
             .diagnostics/native-inspection/**
             .diagnostics/native-bootstrap/**
             .testLogs/**
+            .tmp/dev/tests/cache/native-inspection-*/native-source-identity.json
+            .tmp/dev/tests/cache/native-inspection-*/inspection-mode.json
+            .tmp/dev/tests/cache/native-inspection-*/terminal-receipt.json
+            .tmp/dev/tests/cache/native-inspection-*/screen-*.txt
+            .tmp/dev/tests/cache/native-inspection-*/terminal-output.ansi.log
+            .tmp/dev/tests/cache/native-inspection-*/inspection-native*.jsonl
+            .tmp/dev/tests/cache/native-inspection-*/pids.jsonl
             .tmp/dev/tests/cache/ni-*/native-source-identity.json
             .tmp/dev/tests/cache/ni-*/terminal-receipt*.json
             .tmp/dev/tests/cache/ni-*/screen-*.txt

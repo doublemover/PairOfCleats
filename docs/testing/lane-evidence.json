@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-11-05T21:59:51.193Z",
+  "generatedAt": "2026-11-05T22:33:23.082Z",
   "summary": {
     "lanes": 5,
-    "tests": 2477,
+    "tests": 2479,
     "exactDuplicates": 0,
     "hotspotKinds": 10,
     "families": 423,
@@ -11,7 +11,7 @@
     "timingCoverage": {
       "freshArtifactTests": 0,
       "historicalFallbackTests": 74,
-      "missingTests": 2403
+      "missingTests": 2405
     }
   },
   "lanes": [
@@ -35,7 +35,7 @@
       "targetMaxDurationSeconds": 15,
       "orderFile": "tests/ci-lite/ci-lite.order.txt",
       "timingArtifactPath": ".testLogs/ci-lite-testRunTimes.txt",
-      "totalTests": 2161,
+      "totalTests": 2163,
       "knownDurationTests": 49,
       "knownDurationMs": 27090,
       "p50DurationMs": 190,
@@ -43,7 +43,7 @@
       "resolvedTimingArtifactPaths": [],
       "timingSources": {
         "historical-test-times": 49,
-        "missing": 2112
+        "missing": 2114
       }
     },
     {
@@ -230,9 +230,9 @@
     },
     {
       "key": "tooling/reports",
-      "count": 31,
+      "count": 32,
       "knownDurationMs": 510,
-      "unknownDurationCount": 29
+      "unknownDurationCount": 30
     },
     {
       "key": "shared/hash",
@@ -841,6 +841,12 @@
       "unknownDurationCount": 3
     },
     {
+      "key": "tooling/config",
+      "count": 3,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 3
+    },
+    {
       "key": "tooling/fixtures",
       "count": 3,
       "knownDurationMs": 0,
@@ -938,12 +944,6 @@
     },
     {
       "key": "storage/vector-extension",
-      "count": 2,
-      "knownDurationMs": 0,
-      "unknownDurationCount": 2
-    },
-    {
-      "key": "tooling/config",
       "count": 2,
       "knownDurationMs": 0,
       "unknownDurationCount": 2

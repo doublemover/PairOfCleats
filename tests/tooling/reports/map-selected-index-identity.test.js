@@ -1,53 +1,14 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
-import os from 'node:os';
 import path from 'node:path';
-import { buildIndex } from '../../../src/integrations/core/build-index/index.js';
-import { getCurrentBuildInfo, getRepoCacheRoot, loadUserConfig } from '../../../tools/shared/dict-utils.js';
-import { createFastIndexingTestConfig } from '../../helpers/fast-indexing-config.js';
-import { applyTestEnv } from '../../helpers/test-env.js';
-import { runNode } from '../../helpers/run-node.js';
+import { getCurrentBuildInfo } from '../../../tools/shared/dict-utils.js';
+import { createMapSelectedIndexFixture } from '../../helpers/map-selected-index-fixture.js';
 
-const root = process.cwd();
-const temp = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'poc-map-selected-index-')));
-const repo = path.join(temp, 'repo');
-await fs.mkdir(path.join(repo, 'src'), { recursive: true });
-const env = applyTestEnv({ cacheRoot: path.join(temp, 'cache'), embeddings: 'off',
-  testConfig: createFastIndexingTestConfig({ indexing: { scm: { provider: 'none' },
-    workerPool: { enabled: false }, typeInference: false, typeInferenceCrossFile: false,
-    riskAnalysis: false, riskAnalysisCrossFile: false, embeddings: { enabled: false, mode: 'off' } },
-  tooling: { autoEnableOnDetect: false, lsp: { enabled: false } } }) });
-const config = loadUserConfig(repo);
-const cacheDir = path.join(getRepoCacheRoot(repo, config), 'maps/cache');
-const build = async (name, destination) => {
-  await fs.writeFile(path.join(repo, 'src/current.js'), `export function ${name}() { return '${name}'; }\n`);
-  await buildIndex(repo, { stage: 'stage1', modes: ['code'], threads: 1, log: () => {} });
-  const info = getCurrentBuildInfo(repo, config, { mode: 'code' });
-  assert.ok(info?.buildId);
-  await fs.cp(info.activeRoot, destination, { recursive: true });
-  return info;
-};
-const map = (selected = null, allowFailure = false) => {
-  const result = runNode([path.join(root, 'tools/reports/report-code-map.js'), '--repo', repo,
-    '--format', 'json', ...(selected ? ['--index-root', selected] : [])],
-  'map selected index identity', repo, env, { stdio: 'pipe', allowFailure: true, timeoutMs: 5000 });
-  if (allowFailure) return result;
-  assert.equal(result.status, 0, result.stderr);
-  assert.equal(result.stderr, '');
-  const model = JSON.parse(result.stdout);
-  // The exporter stamps every invocation; cached generation/build measurements
-  // and all source content must still compare exactly across warm reads.
-  const { exportedAt, ...provenance } = model.provenance;
-  assert.ok(Number.isFinite(Date.parse(exportedAt)));
-  return { ...model, provenance };
-};
-const names = model => [...new Set(model.nodes.flatMap(node => node.members.map(member => member.name)))];
-const cacheFiles = () => fs.readdir(cacheDir);
-
+const fixture = await createMapSelectedIndexFixture('identity');
+const { repo, config, a, b, firstBuild, secondBuild, map, names, cacheFiles } = fixture;
+// Actual directory alias coverage has its own capable-launch fixture. This
+// portable case retains every selection/cache/replacement/negative assertion.
 try {
-  const a = path.join(temp, 'index-a'), b = path.join(temp, 'index-b');
-  const firstBuild = await build('alphaOrigin', a);
-  const secondBuild = await build('bravoOrigin', b);
   assert.notEqual(firstBuild.buildId, secondBuild.buildId);
   const current = map();
   assert.deepEqual(names(current), ['bravoOrigin']);
@@ -59,10 +20,6 @@ try {
   assert.equal((await cacheFiles()).length, 3);
   assert.deepEqual(map(a), first, 'same selected generation has a real warm-cache hit');
   assert.deepEqual(map(b), second);
-  const alias = path.join(temp, 'index-a-alias');
-  await fs.symlink(a, alias, process.platform === 'win32' ? 'junction' : 'dir');
-  assert.deepEqual(map(alias), first, 'directory aliases canonicalize to the selected index');
-  assert.equal((await cacheFiles()).length, 3);
 
   // Same selected path, and even a retained build ID, must observe changed
   // authoritative piece identities rather than borrowing the default pointer.
@@ -91,5 +48,5 @@ try {
   assert.equal(incompatible.stdout, '');
   console.log('Map caches bind canonical selected roots, manifest generations and producer identity before admission.');
 } finally {
-  await fs.rm(temp, { recursive: true, force: true });
+  await fixture.close();
 }

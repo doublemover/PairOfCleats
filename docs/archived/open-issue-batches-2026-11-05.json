@@ -11,7 +11,8 @@
     668,
     1574,
     821,
-    1240
+    1240,
+    1234
   ],
   "scope": "All open issues except user-excluded editor work and native Tantivy; mixed issues retain their non-editor scope",
   "routing": "Initial grouping by issue scope and recorded source owners; source-review-pending is not an implementation or acceptance claim",
@@ -2358,9 +2359,11 @@
       "title": "[Perf] Propagate sealed semantic piece checksums into publication manifests",
       "batch": "storage-publication-lifetimes",
       "scope": "active",
-      "review": "source-review-pending",
-      "recordedDisposition": "Implementation recorded; qualification pending.",
+      "review": "qualified-and-closed",
+      "recordedDisposition": "Closed completed after finalized binary checksum propagation, original manifest-work failure, 24 focused controls and all eight publication checks; published d6e398750 and GitHub readback verified.",
       "owners": [
+        "docs/archived/sealed-checksum-closeout-2026-11-05.md",
+        "docs/archived/sealed-checksum-closeout-2026-11-05.json",
         "src/index/build/artifacts/writers/semantic/family.js",
         "src/index/build/artifacts/writers/semantic/partition.js",
         "src/index/build/artifacts/checksums.js",

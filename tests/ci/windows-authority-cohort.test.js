@@ -31,6 +31,9 @@ assert.equal(ids.includes('storage/semantic/runtime-opened-byte-integrity'), fal
   'opened-byte mutation and injected reparse admission run in ordinary CI without creating physical links');
 assert.ok(ids.includes('tui/operator-search-file-authority'), 'source previews and editor PATH aliases need actual file-link coverage');
 assert.ok(ids.includes('tui/operator-artifact-file-authority'), 'artifact reads and export destinations need actual link authority coverage');
+assert.ok(ids.includes('tooling/reports/map-selected-index-alias'), 'physical selected-index aliases retain their capable execution owner');
+assert.equal(ids.includes('tooling/reports/map-selected-index-identity'), false,
+  'portable selected-root/cache identity creates no links and runs in ordinary CI');
 assert.throws(() => validateAuthorityManifest({ ...manifest, ids: ids.slice(1) }, available, required), /inventory drift/);
 assert.throws(() => validateAuthorityManifest({ ...manifest, ids: [...ids, ids[0]] }, available, required), /duplicate/);
 assert.throws(() => validateAuthorityManifest({ ...manifest, ids: ['does-not-exist'] }, available, required), /unknown/);

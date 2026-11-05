@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 1997,
+    "hero": 1999,
     "matrix": 109,
     "meta": 54,
     "soak": 1,
@@ -12979,6 +12979,18 @@
     {
       "id": "shared/artifact-io/binary-frame-resource-lifetime",
       "order": 2161,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/config/dump-lazy-capability-imports",
+      "order": 2162,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/reports/map-selected-index-alias",
+      "order": 2163,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

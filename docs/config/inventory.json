@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-05T21:59:53.719Z",
+  "generatedAt": "2026-11-05T22:33:26.023Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
@@ -5310,6 +5310,7 @@
         "tests/fixtures/vscode/native-package-host.js",
         "tests/helpers/extracted-prose-fixture.js",
         "tests/helpers/json-gate.js",
+        "tests/helpers/map-selected-index-fixture.js",
         "tests/helpers/native-publication-fixture.js",
         "tests/helpers/sourcekit-preflight-fixture.js",
         "tests/helpers/test-env-clear.test.js",
@@ -5386,6 +5387,7 @@
         "tests/tooling/architecture/rule-input-cli.test.js",
         "tests/tooling/cache/gc-modern-resource-ownership.test.js",
         "tests/tooling/ci/run-suite-script-coverage-plan.test.js",
+        "tests/tooling/config/dump-lazy-capability-imports.test.js",
         "tests/tooling/config/effective-explanation-authority.test.js",
         "tests/tooling/config/source-metadata.test.js",
         "tests/tooling/doctor/command-resolution-report.test.js",

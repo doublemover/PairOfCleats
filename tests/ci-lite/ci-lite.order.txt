@@ -2162,3 +2162,5 @@ shared/artifact-io/binary-columnar-phase-timings
 shared/artifact-io/binary-frame-bounded-batches
 shared/artifact-io/binary-frame-producer-resource-lifetime
 shared/artifact-io/binary-frame-resource-lifetime
+tooling/config/dump-lazy-capability-imports
+tooling/reports/map-selected-index-alias

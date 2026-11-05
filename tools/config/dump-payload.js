@@ -1,8 +1,6 @@
-// Source UNVALIDATED. Preserve the established JSON preview fields while using
-// the same canonical selected-file/authority explanation as effective validate.
-import { getCapabilities } from '../../src/shared/capabilities.js';
+// Preserve the canonical selected-file/authority explanation. Capability-only
+// dependency graphs are linked only when the caller explicitly requests them.
 import { getEnvConfig } from '../../src/shared/env/runtime.js';
-import { getRuntimeCapabilityManifest } from '../../src/shared/runtime-capability-manifest.js';
 import { sanitizeRuntimeReceipt } from '../../src/shared/runtime-envelope/receipt.js';
 import { explainEffectiveConfiguration } from './effective.js';
 
@@ -13,11 +11,19 @@ export const buildConfigurationDump = async ({ repoRoot, configPath = null, env 
   const normalizeSelector = value => typeof value === 'string' ? value.trim().toLowerCase() : '';
   const modeEnv = normalizeSelector(envConfig.mcpMode);
   const modeConfig = normalizeSelector(report.userConfig?.mcp?.mode);
-  const capabilities = includeCapabilities ? (dependencies.capabilities || getCapabilities)() : null;
+  let capabilities = null, capabilityManifest = null;
+  if (includeCapabilities) {
+    const probe = dependencies.capabilities || (await import('../../src/shared/capabilities.js')).getCapabilities;
+    capabilities = probe();
+    if (capabilities) {
+      const manifest = dependencies.manifest || (await import('../../src/shared/runtime-capability-manifest.js')).getRuntimeCapabilityManifest;
+      capabilityManifest = manifest({ runtimeCapabilities: capabilities });
+    }
+  }
   return sanitizeRuntimeReceipt({ ...report.preview, ...report, preview: report.preview,
     derived: { cacheRoot: report.preview.paths.cache?.selected || null, repoCacheRoot: report.preview.paths.repoCache?.selected || null,
       mcp: { mode: modeEnv || modeConfig || 'auto', modeSource: modeEnv ? 'env' : modeConfig ? 'config' : 'default',
         sdkAvailable: capabilities ? Boolean(capabilities.mcp?.sdk) : null, capabilityProbe: includeCapabilities ? 'requested' : 'not-requested' },
-      ...(capabilities ? { capabilityManifest: (dependencies.manifest || getRuntimeCapabilityManifest)({ runtimeCapabilities: capabilities }) } : {}) }
+      ...(capabilities ? { capabilityManifest } : {}) }
   });
 };

@@ -7,7 +7,7 @@ Canonical for: initiative status, execution order, and remaining work
 
 ## Current GitHub repair program
 
-The [complete open-issue intake](archived/open-issue-batches-2026-11-05.json) captures **367 open reports**. #1767 closed using original hosted POSIX evidence, followed by qualified dependency retirements #672/#681 and JSDoc ownership #668; Producer-backed native cleanup #1574 is also closed; Triage publication #821 is closed after qualification; Measured source retention #1240 is also closed; 360 remain open. Thirteen editor/Tantivy-only issues are excluded, and four mixed issues retain their non-editor scope. Prior ledgers retain their dated counts.
+The [complete open-issue intake](archived/open-issue-batches-2026-11-05.json) captures **367 open reports**. #1767 closed using original hosted POSIX evidence, followed by qualified dependency retirements #672/#681 and JSDoc ownership #668; Producer-backed native cleanup #1574 is also closed; Triage publication #821 is closed after qualification; Measured source retention #1240 is also closed; Sealed checksum #1234 is closed after publication; 359 remain open. Thirteen editor/Tantivy-only issues are excluded, and four mixed issues retain their non-editor scope. Prior ledgers retain their dated counts.
 
 P2/P3 has **337 qualified closures /two editor-remainder targets /one deferred native target /six editor exclusions** from346 reports. The broader remaining backlog is now in scope. Work continues solo on Windows: implement related owner repairs, then run affected controls.
 
@@ -23,7 +23,7 @@ and [qualification matrix](testing/qualification-matrix.md).
 and [focused repairs](archived/windows-comment-and-handoff-failure-repairs-2026-10-28.md)
 retain original failures and source identities. No new full-suite run is scheduled.
 
-[CI closeout](archived/ci-lite-macos-contract-qualification-2026-11-05.md) qualifies all23 compiler/build cases with original bounds. [Resource repairs](archived/ci-lite-resource-retirement-repairs-2026-11-05.md) retire ConPTY timers and retain pending FileHandles. [Piscina repair](archived/piscina-fatal-exit-ownership-2026-11-05.md) passes ten fresh processes and all three hosted OS suites; [CI2161](https://github.com/doublemover/PairOfCleats/actions/runs/42076477831) passes allten jobs at66176cb9a.
+[Preview/map repairs](archived/ci-preview-map-repairs-2026-11-05.md) retain cache assertions and all seven native inspection modes; native validate-published deadline repair remains active. [CI closeout](archived/ci-lite-macos-contract-qualification-2026-11-05.md) qualifies all23 compiler/build cases with original bounds. [Resource repairs](archived/ci-lite-resource-retirement-repairs-2026-11-05.md) retire ConPTY timers and retain pending FileHandles. [Piscina repair](archived/piscina-fatal-exit-ownership-2026-11-05.md) passes ten fresh processes and all three hosted OS suites; [CI2161](https://github.com/doublemover/PairOfCleats/actions/runs/42076477831) passes allten jobs at66176cb9a.
 [Stable upgrades](archived/windows-stable-upgrades-2026-10-29.md)
 and Rust 1.99.1 are locally qualified; remaining P1 acceptances follow.
 
@@ -51,7 +51,7 @@ The [November 5 queue](archived/open-issue-batches-2026-11-05.json) routes every
 
 [Source retention](archived/source-retention-closeout-2026-11-05.md) passes12 focused controls and43 gate fixtures. The original shared16 owner reads/copies/hashes16MiB; account-bound capabilities read/copy1MiB with no extra finalization hash, retaining canonical content and raw-input negatives. #1240 is closed after publication/readback.
 
-[Sealed checksums](archived/sealed-checksum-closeout-2026-11-05.md) pass24 focused controls and43 gate fixtures. Actual binary/semantic manifests reuse finalized digests, preserving independent corruption rejection; #1234 awaits publication/closure. CI2168 newly fails Windows map/settings authority deadlines; targeted repair follows, preserving their limits and assertions.
+[Sealed checksums](archived/sealed-checksum-closeout-2026-11-05.md) pass24 focused controls and43 gate fixtures. Actual binary/semantic manifests reuse finalized digests, preserving independent corruption rejection; #1234 is closed after publication/readback. CI2168 newly fails Windows map/settings authority deadlines; targeted repair follows, preserving their limits and assertions.
 
 [Physical filename closeout](archived/coverage-physical-filenames-closeout-2026-11-05.json) closes #1767 with original Ubuntu/macOS physical-consumer logs and matching source blobs; no WSL or replacement platform run was used. Tantivy/editor exclusions remain open under their existing owners. No broad local rerun is scheduled; repair and recheck affected failures.
 
