@@ -70,7 +70,7 @@ const ensurePublicationNamespace = async (root, signal) => {
 };
 
 /** Cheap protocol discrimination for inventory only. An arbitrary JSON-only
- * legacy file was never a Markdown input. This prefix grants no publication
+ * file is not a Markdown input. This prefix grants no publication
  * authority: a positive result still requires the complete strict reader below.
  */
 export const requiresTriagePublicationRead = async (recordsDir, jsonPath, { signal = null, namespacePresent = false } = {}) => {
@@ -89,7 +89,7 @@ export const requiresTriagePublicationRead = async (recordsDir, jsonPath, { sign
   }
   if (header || !namespacePresent) return header;
   // A changed/missing/reordered selector for an already-owned ID must not
-  // downgrade into legacy mixed-pair admission or silently disappear.
+  // downgrade into independent Markdown admission or silently disappear.
   const directory = path.join(recordsDir, TRIAGE_GENERATION_DIRECTORY, recordKey(path.basename(jsonPath, '.json')));
   try { assertNoSymlinkPath(recordsDir, directory); return (await fs.lstat(directory)).isDirectory(); }
   catch (error) {
@@ -195,8 +195,7 @@ export const publishTriageRecord = async (recordsDir, input, { signal = null, be
     const stageContext = Object.freeze({ ...locations, canonicalJsonPath: jsonPath, generation });
     if (Buffer.byteLength(payload) > JSON_MAX_BYTES) throw invalid('Triage publication envelope exceeds its JSON allowance.');
     try {
-      // Retain the exact prior selector as well as every prior immutable payload.
-      // This includes the first migration from a legacy JSON/Markdown pair.
+      // Keep the exact prior selector for publication-failure recovery.
       if (previous) await atomicWriteText(path.join(locations.directory, 'previous-record.json'), previous.selected.buffer, { mkdir: false, signal });
       await atomicWriteText(locations.jsonPath, payload, { mkdir: false, signal });
       const recordObserver = await afterRecordStaged?.(stageContext);

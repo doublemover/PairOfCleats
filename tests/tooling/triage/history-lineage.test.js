@@ -8,8 +8,6 @@ import { assertTriageHistoryCursor, parseTriageHistoryCursor } from '../../../sr
 import { writeTriageRecordArtifacts } from '../../../tools/triage/record-writer.js';
 import { loadTriageRecordSnapshot } from '../../../tools/triage/record-snapshot.js';
 import { readTriagePublication, TRIAGE_PUBLICATION_FIELD } from '../../../src/integrations/triage/record-publication.js';
-import { renderRecordMarkdown } from '../../../src/integrations/triage/render.js';
-import { TRIAGE_RENDERER_VERSION } from '../../../src/contracts/triage-record-publication.js';
 import { prepareIsolatedTestCacheDir, resolveTestCachePath } from '../../helpers/test-cache.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 import { MinHeap } from '../../../src/shared/min-heap.js';
@@ -203,19 +201,17 @@ try {
       assert.ok(view.text.includes('Finding record')); assert.ok(view.text.includes(finding.recordId));
       assert.ok(view.text.includes('historical decision'));
     } else {
-      const legacyText = renderRecordMarkdown(record, { rendererVersion: 1 });
+      const obsoleteText = '# Obsolete renderer output\n';
       const wire = JSON.parse(await fs.readFile(output.jsonPath, 'utf8'));
       Object.assign(wire[TRIAGE_PUBLICATION_FIELD], { rendererVersion: 1,
-        markdownHash: createHash('sha256').update(legacyText).digest('hex'), markdownBytes: Buffer.byteLength(legacyText) });
+        markdownHash: createHash('sha256').update(obsoleteText).digest('hex'), markdownBytes: Buffer.byteLength(obsoleteText) });
       const bytes = JSON.stringify(wire);
       await fs.writeFile(output.jsonPath, bytes); await fs.writeFile(output.generationJsonPath, bytes);
-      await fs.writeFile(output.mdPath, legacyText);
-      assert.equal((await readTriagePublication(records, output.jsonPath)).text, legacyText,
-        'version-one immutable bytes use their original declared renderer');
-      const upgraded = await writeTriageRecordArtifacts(records, record);
-      assert.notEqual(upgraded.generation, output.generation);
-      assert.equal(await fs.readFile(output.mdPath, 'utf8'), legacyText, 'the original immutable generation is retained');
-      assert.equal((await readTriagePublication(records, upgraded.jsonPath)).publication.rendererVersion, TRIAGE_RENDERER_VERSION);
+      await fs.writeFile(output.mdPath, obsoleteText);
+      await assert.rejects(readTriagePublication(records, output.jsonPath), { code: 'ERR_TRIAGE_RECORD_PUBLICATION' });
+      await assert.rejects(writeTriageRecordArtifacts(records, record), { code: 'ERR_TRIAGE_RECORD_PUBLICATION' });
+      assert.equal(await fs.readFile(output.jsonPath, 'utf8'), bytes, 'obsolete selector cannot be silently adopted or overwritten');
+      assert.equal(await fs.readFile(output.mdPath, 'utf8'), obsoleteText);
     }
   }
 } catch (error) { workError = error; }

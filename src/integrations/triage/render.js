@@ -1,18 +1,16 @@
 import { getRecordPackages } from './record-utils.js';
-import { TRIAGE_RENDERER_VERSION, TRIAGE_SUPPORTED_RENDERER_VERSIONS } from '../../contracts/triage-record-publication.js';
+import { TRIAGE_RENDERER_VERSION } from '../../contracts/triage-record-publication.js';
 /**
  * Render a triage record to a markdown view.
  * @param {object} record
  * @returns {string}
  */
 export function renderRecordMarkdown(record, { rendererVersion = TRIAGE_RENDERER_VERSION } = {}) {
-  if (!TRIAGE_SUPPORTED_RENDERER_VERSIONS.includes(rendererVersion)) throw new TypeError('Unsupported triage Markdown renderer version.');
+  if (rendererVersion !== TRIAGE_RENDERER_VERSION) throw new TypeError('Unsupported triage Markdown renderer version; regenerate with the current renderer.');
   const lines = [];
   const recordType = record?.recordType || 'record';
   const vulnId = record?.vuln?.vulnId || record?.vulnId || record?.recordId || '';
-  // Old immutable publications reconstruct their exact declared title bytes.
-  // New publications derive even the title from the canonical collection.
-  const representative = rendererVersion >= 3 ? getRecordPackages(record)[0] : record?.package;
+  const representative = getRecordPackages(record)[0];
   const packageName = representative?.name || '';
   const packageVersion = representative?.installedVersion || '';
   const service = record?.service || '';
@@ -95,10 +93,8 @@ export function renderRecordMarkdown(record, { rendererVersion = TRIAGE_RENDERER
 
   if (record?.decision) {
     lines.push('## Decision');
-    if (rendererVersion >= 2) {
-      addLine(lines, 'Finding record', record.decision.findingRecordId);
-      lines.push('- Interpretation: historical decision; applicability and suppression are not inferred.');
-    }
+    addLine(lines, 'Finding record', record.decision.findingRecordId);
+    lines.push('- Interpretation: historical decision; applicability and suppression are not inferred.');
     addLine(lines, 'Status', record.decision.status);
     addLine(lines, 'Justification', record.decision.justification);
     addLine(lines, 'Reviewer', record.decision.reviewer);

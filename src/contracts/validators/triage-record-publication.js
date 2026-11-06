@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { stableStringify } from '../../shared/stable-json.js';
-import { TRIAGE_PUBLICATION_FIELD, TRIAGE_SUPPORTED_RENDERER_VERSIONS, TRIAGE_PUBLICATION_LIMITS,
+import { TRIAGE_PUBLICATION_FIELD, TRIAGE_RENDERER_VERSION, TRIAGE_PUBLICATION_LIMITS,
   TRIAGE_RECORD_PUBLICATION_SCHEMA } from '../triage-record-publication.js';
 
 const MARKDOWN_MAX_BYTES = TRIAGE_PUBLICATION_LIMITS.markdownBytes;
@@ -10,11 +10,15 @@ const recordContent = value => {
   const copy = { ...value }; delete copy[TRIAGE_PUBLICATION_FIELD]; return copy;
 };
 export const assertTriagePublicationReceipt = (receipt, record) => {
+  if (receipt && typeof receipt === 'object' && Object.hasOwn(receipt, 'rendererVersion')
+    && receipt.rendererVersion !== TRIAGE_RENDERER_VERSION) {
+    throw invalid('Unsupported triage renderer version. Re-ingest source records into a fresh records directory and rebuild the records index.');
+  }
   const keys = TRIAGE_RECORD_PUBLICATION_SCHEMA.required;
   if (!receipt || typeof receipt !== 'object' || Array.isArray(receipt)
     || !record || typeof record !== 'object' || Array.isArray(record)
     || Object.keys(receipt).length !== keys.length || keys.some(key => !Object.hasOwn(receipt, key))
-    || receipt.schemaVersion !== 1 || !TRIAGE_SUPPORTED_RENDERER_VERSIONS.includes(receipt.rendererVersion)
+    || receipt.schemaVersion !== 1 || receipt.rendererVersion !== TRIAGE_RENDERER_VERSION
     || typeof receipt.recordId !== 'string' || !receipt.recordId || receipt.recordId.length > 4096
     || receipt.recordId !== record.recordId || typeof receipt.generation !== 'string' || !/^[a-f0-9]{32}$/u.test(receipt.generation)
     || typeof receipt.recordHash !== 'string' || !/^[a-f0-9]{64}$/u.test(receipt.recordHash)

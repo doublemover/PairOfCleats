@@ -71,9 +71,10 @@ matrix verifies matching a nonrepresentative affected package through this same
 production selector. Contradictory record/file identities are refused by the
 canonical snapshot reader rather than resolved by directory ordinal.
 
-New decision Markdown uses renderer 2 and includes the original finding link and
-historical interpretation. Stored renderer-1 generations verify with their exact
-original renderer. Reimport can publish renderer 2 while retaining the old
-immutable evidence. Records producer version 11 invalidates derived old meaning.
-Seventeen focused controls and strengthened actual context CLI coverage are
-authored; functional and resource/latency qualification remain pending.
+Decision Markdown requires renderer 3 and includes the original finding link and
+historical interpretation. Renderer 1/2 publications are rejected. Re-ingest
+authoritative finding/decision inputs into a fresh records directory, then
+rebuild the records index. The publisher does not adopt or overwrite an obsolete
+selector. Records producer version 14 invalidates derived old meaning.
+Focused controls and actual context CLI coverage are authored; qualification
+against the current cutover remains pending.
