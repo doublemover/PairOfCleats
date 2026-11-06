@@ -11,12 +11,14 @@ import { readErrorDataProperty } from '../../src/shared/error-data.js';
 import { requireCheckoutMutationSession, withCheckoutMutation } from './checkout-mutation.js';
 import { BOOTSTRAP_RECEIPT } from './checkout-bootstrap-paths.js';
 import { getCheckoutEvidenceFiles, captureCheckoutEvidenceIO } from './checkout-evidence-files.js';
+import { publishEvidenceJson } from './checkout-evidence-records.js';
+import { prepareCheckoutEvidenceRetention, publishCheckoutEvidenceManifest } from './checkout-evidence-retention.js';
 
 export const CHECKOUT_JOURNAL_VERSION = 1;
 export const CHECKOUT_JOURNAL_STATUS = '.tmp/checkout-bootstrap/journal-status.json';
 export const CHECKOUT_JOURNAL_LIMITS = Object.freeze({ stages: 16, events: 128, bytes: 256 * 1024, planBytes: 64 * 1024,
   priorReceiptBytes: 8 * 1024 * 1024 });
-const journals = new WeakMap();
+const journals = new WeakMap(), admissions = new WeakMap();
 const failure = message => Object.assign(new Error(message), { code: 'ERR_CHECKOUT_BOOTSTRAP_JOURNAL' });
 const ownText = (value, field, max = 1024) => {
   const text = readErrorDataProperty(value, field); return typeof text === 'string' ? text.slice(0, max) : null;
@@ -103,7 +105,7 @@ const capturePlan = plan => {
   return Object.freeze({ serializedPlan, captured, stages });
 };
 
-const createJournal = (root, session, { serializedPlan, captured, stages }, { io, publish }) => {
+const createJournal = (root, session, { serializedPlan, captured, stages }, { io, publish }, retention) => {
   requireCheckoutMutationSession(root, session); root = session.root;
   const started = Promise.withResolvers();
   // Its owner still receives the exact startup rejection; this observation
@@ -156,21 +158,23 @@ const createJournal = (root, session, { serializedPlan, captured, stages }, { io
   };
   const metadata = state => Object.freeze({ schemaVersion: CHECKOUT_JOURNAL_VERSION, kind: 'checkout-bootstrap-stage-journal', root,
     runId: session.runId, planId, inputId: typeof captured.inputId === 'string' ? captured.inputId : null,
-    state, startedAt, finishedAt: state === 'running' ? null : Date.now(), generationId, error: runError, priorReadiness,
-    originalResources: owner.isSettled() && observations.isSettled() ? 'retired' : 'pending',
+    state, startedAt, finishedAt: state === 'running' ? null : Date.now(), generationId, error: runError, priorReadiness, retention,
+    originalResources: owner.isSettled() && observations.isSettled() && evidence.isSettled() ? 'retired' : 'pending',
     stages: Object.freeze([...outcomes]), file: Object.freeze({ path: path.relative(root, file).replaceAll('\\', '/'), bytes,
       events: sequence, sha256: hash.copy().digest('hex'), complete: fileVerified }), selectedPlan: captured });
   const persist = async state => {
     const record = metadata(state);
     const expectedText = JSON.stringify(record), expectedBytes = Buffer.byteLength(expectedText);
     if (expectedBytes > CHECKOUT_JOURNAL_LIMITS.bytes) throw failure('Checkout status metadata exceeds its byte bound.');
-    const actual = await publish(statusFile, record, { mkdir: false, spaces: 0, newline: false, durable: true, beforeCommit: check });
+    const publicationCheck = () => { check(); if (state === 'completed') evidence.requireSettled(); };
+    publicationCheck();
+    const actual = await publish(statusFile, record, { mkdir: false, spaces: 0, newline: false, durable: true, beforeCommit: publicationCheck });
     if (typeof actual !== 'string' || path.resolve(actual) !== path.resolve(statusFile)) throw failure('Checkout journal publication did not confirm its original status path.');
     const identity = persistenceFileIdentity(fs.lstatSync(statusFile, { bigint: true }));
     const text = readJsonResourceTextSync(statusFile, stat => {
       if (stat.size !== expectedBytes) throw failure('Checkout status has a different original byte extent.');
     }, stat => assertPersistenceFileIdentity(stat, identity));
-    check(); assertPersistenceFileIdentity(fs.lstatSync(statusFile, { bigint: true }), identity);
+    publicationCheck(); assertPersistenceFileIdentity(fs.lstatSync(statusFile, { bigint: true }), identity);
     if (text !== expectedText) throw failure('Checkout status differs from its original published record.');
     lastMetadata = Object.freeze(record); return record;
   };
@@ -217,9 +221,14 @@ const createJournal = (root, session, { serializedPlan, captured, stages }, { io
       failureValue = hasFailure ? addStorageFailureContext(failureValue, { checkoutJournal: file }, pending, { secondaryPresent: true }) : pending;
       hasFailure = true;
     }
+    try { evidence.requireOtherResourcesSettled(owner); }
+    catch (error) {
+      failureValue = hasFailure ? addStorageFailureContext(failureValue, { checkoutJournal: file }, error, { secondaryPresent: true }) : error;
+      hasFailure = true;
+    }
     try {
-      if (!failed && (activeStage || outcomes.length !== stages.length || outcomes.some(row => row.state !== 'succeeded'))) throw failure('Checkout journal cannot complete an unfinished or unsuccessful plan.');
-      append({ state: failed ? 'run-failed' : 'run-completed', error: failed ? projectedFailure(primary) : null });
+      if (!hasFailure && (activeStage || outcomes.length !== stages.length || outcomes.some(row => row.state !== 'succeeded'))) throw failure('Checkout journal cannot complete an unfinished or unsuccessful plan.');
+      append({ state: hasFailure ? 'run-failed' : 'run-completed', error: hasFailure ? projectedFailure(failureValue) : null });
     } catch (error) {
       failureValue = hasFailure ? addStorageFailureContext(failureValue, { checkoutJournal: file }, error, { secondaryPresent: true }) : error;
       hasFailure = true;
@@ -243,13 +252,30 @@ const createJournal = (root, session, { serializedPlan, captured, stages }, { io
         }, stat => assertPersistenceFileIdentity(stat, identity));
         check(); assertPersistenceFileIdentity(fs.lstatSync(file, { bigint: true }), identity);
         if (createHash('sha256').update(text).digest('hex') !== hash.copy().digest('hex')) throw failure('Checkout journal differs from its original observation bytes.');
+        evidence.sealClosed(file, { bytes, sha256: hash.copy().digest('hex') });
         fileVerified = true;
       } catch (error) {
         failureValue = hasFailure ? addStorageFailureContext(failureValue, { checkoutJournal: file }, error, { secondaryPresent: true }) : error;
         hasFailure = true;
       }
     }
+    try { evidence.requireSettled(); }
+    catch (error) {
+      failureValue = hasFailure ? addStorageFailureContext(failureValue, { checkoutJournal: file }, error, { secondaryPresent: true }) : error;
+      hasFailure = true;
+    }
     runError = hasFailure ? projectedFailure(failureValue) : null;
+    if (evidence.isSettled() && fileVerified) {
+      try {
+        const state = hasFailure ? 'failed' : 'completed';
+        const result = await publishEvidenceJson(root, session, path.relative(root, path.join(directory, 'result.json')).replaceAll('\\', '/'), metadata(state), CHECKOUT_JOURNAL_LIMITS.bytes);
+        evidence.registerPublished(path.join(root, result.path), result);
+        await publishCheckoutEvidenceManifest(root, session, directory, state);
+      } catch (error) {
+        failureValue = hasFailure ? addStorageFailureContext(failureValue, { checkoutJournal: file }, error, { secondaryPresent: true }) : error;
+        hasFailure = true; runError = projectedFailure(failureValue);
+      }
+    }
     try { await persist(hasFailure ? 'failed' : 'completed'); }
     catch (error) {
       failureValue = hasFailure ? addStorageFailureContext(failureValue, { checkoutJournal: file }, error, { secondaryPresent: true }) : error;
@@ -293,6 +319,7 @@ const createJournal = (root, session, { serializedPlan, captured, stages }, { io
           priorReadiness = Object.freeze({ state: 'historical-only-not-current-readiness',
             path: path.relative(root, target).replaceAll('\\', '/'), bytes: data.length,
             sha256: createHash('sha256').update(data).digest('hex'), source: BOOTSTRAP_RECEIPT });
+          evidence.registerPublished(target, { bytes: data.length, sha256: priorReadiness.sha256 });
         }
         append({ state: 'run-started', plan: captured }); await persist('running'); started.resolve();
       } catch (error) { started.reject(error); throw error; }
@@ -316,7 +343,15 @@ export const withCheckoutStageJournal = async (root, session, plan, operation, o
     // borrowed mutation admission was waiting for its microtask.
     const admitted = journals.get(session);
     if (admitted) return admitted.borrow(operation);
-    const owner = createJournal(root, session, capturedPlan, capturedOptions);
+    const queued = admissions.get(session);
+    if (queued) return (await queued).borrow(operation);
+    const ready = Promise.withResolvers(); ready.promise.catch(() => {}); admissions.set(session, ready.promise);
+    let owner;
+    try {
+      const retention = await prepareCheckoutEvidenceRetention(root, session);
+      owner = createJournal(root, session, capturedPlan, capturedOptions, retention);
+      ready.resolve(owner);
+    } catch (error) { ready.reject(error); throw error; }
     journals.set(session, owner);
     let result, primary, failed = false, operationStarted = false;
     try { await owner.start(); operationStarted = true; result = await operation(owner.journal, true); }

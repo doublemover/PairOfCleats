@@ -2773,3 +2773,12 @@ tooling/install/native-diagnostic-ownership/original-io-provider-capture
 tooling/install/native-diagnostic-ownership/checkout-wide-storage-budget
 tooling/install/native-diagnostic-ownership/checkout-wide-attempt-budget
 tooling/install/native-diagnostic-ownership/checkout-wide-short-write-accounting
+tooling/install/checkout-evidence-retention/original-closed-manifest
+tooling/install/checkout-evidence-retention/recent-failed-and-readiness-retention
+tooling/install/checkout-evidence-retention/unregistered-membership-protected
+tooling/install/checkout-evidence-retention/replaced-file-protected
+tooling/install/checkout-evidence-retention/protected-quota-before-mutation
+tooling/install/checkout-evidence-retention/producer-byte-proof-required
+tooling/install/checkout-evidence-retention/single-journal-per-original-session
+tooling/install/native-diagnostic-ownership/whole-publication-scope-drain
+tooling/install/checkout-evidence-retention/pending-diagnostic-blocks-completed-status

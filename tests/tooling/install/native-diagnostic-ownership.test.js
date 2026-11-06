@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
+import { atomicWriteJson } from '../../../src/shared/io/atomic-write.js';
 import { createNativeSetupDiagnostics, NATIVE_DIAGNOSTIC_LIMITS, isNativeDiagnosticFailure } from '../../../tools/setup/native-diagnostics.js';
 import { runNativeSetupCommand } from '../../../tools/setup/native-command-result.js';
 import { withCheckoutMutation, retireCheckoutMutationSession } from '../../../tools/setup/checkout-mutation.js';
@@ -17,7 +18,7 @@ const mode = process.env.PAIROFCLEATS_TEST_ID?.split('tooling/install/native-dia
 assert.ok(['exact-bytes-and-tails', 'attempt-history-and-concurrency', 'original-log-failures', 'bounded-admission-and-output',
   'unknown-close-retains-owner', 'original-structured-output', 'structured-output-fences', 'first-byte-observation', 'unknown-write-retains-owner',
   'handled-live-child-retains-root', 'original-io-provider-capture', 'checkout-wide-storage-budget',
-  'checkout-wide-attempt-budget', 'checkout-wide-short-write-accounting'].includes(mode));
+  'checkout-wide-attempt-budget', 'checkout-wide-short-write-accounting', 'whole-publication-scope-drain'].includes(mode));
 const root = await makeTempDir('native-diagnostics-');
 const retainedFixtureFds = new Set();
 let liveChild = null, childClosed = false;
@@ -26,7 +27,27 @@ const commandOptions = { cwd: root, stdio: 'pipe', timeoutMs: 5000, maxOutputByt
   rejectOnNonZeroExit: false, killTree: false, windowsHide: true };
 const compact = { ...NATIVE_DIAGNOSTIC_LIMITS, attempts: 8, diskBytes: 1024 * 1024, attemptBytes: 128 * 1024, tailBytes: 64 };
 try {
-  if (mode === 'checkout-wide-storage-budget') {
+  if (mode === 'whole-publication-scope-drain') {
+    const entered = Promise.withResolvers(), release = Promise.withResolvers(); let returned = false, commandOutcome, calls = 0;
+    const rootOutcome = withCheckoutMutation(root, async session => {
+      const diagnostics = createNativeSetupDiagnostics(root, session, { publish: async (...args) => {
+        entered.resolve(); await release.promise; return atomicWriteJson(...args);
+      } });
+      commandOutcome = diagnostics.run('explicit-fixture-empty-output', [], commandOptions,
+        async () => { calls++; return { exitCode: 0, signal: null }; }).then(value => ({ ok: true, value }), error => ({ ok: false, error }));
+      await entered.promise;
+    }).then(value => { returned = true; return { ok: true, value }; }, error => { returned = true; return { ok: false, error }; });
+    await entered.promise;
+    try {
+      await new Promise(resolve => setImmediate(resolve));
+      assert.equal(returned, false); assert.equal(calls, 1);
+      assert.equal(fs.existsSync(path.join(root, CHECKOUT_MUTATION_LOCK)), true);
+    } finally { release.resolve(); }
+    const [outer, inner] = await Promise.all([rootOutcome, commandOutcome]);
+    assert.equal(outer.ok, false); assert.equal(inner.ok, false);
+    assert.match(outer.error.message, /Outstanding|outstanding/);
+    assert.equal(fs.existsSync(path.join(root, CHECKOUT_MUTATION_LOCK)), false);
+  } else if (mode === 'checkout-wide-storage-budget') {
     await withCheckoutMutation(root, async session => {
       const first = createNativeSetupDiagnostics(root, session), second = createNativeSetupDiagnostics(root, session);
       const bytes = Buffer.alloc(7 * 1024 * 1024, 0x61); let calls = 0;
@@ -93,9 +114,13 @@ try {
       const diagnostics = createNativeSetupDiagnostics(root, session, { io, limits: compact });
       io.openSync = () => assert.fail('caller replaced captured log open');
       io.closeSync = () => assert.fail('caller replaced captured log close');
-      const result = await diagnostics.run('inert-fixture-command', [], commandOptions, async (command, args, options) => {
-        options.onStdoutChunk(Buffer.from('original provider bytes')); return { exitCode: 0, signal: null };
+      const args = ['original-fixture-argument'], options = { ...commandOptions };
+      const pending = diagnostics.run('inert-fixture-command', args, options, async (command, actualArgs, actualOptions) => {
+        assert.deepEqual(actualArgs, ['original-fixture-argument']); assert.equal(actualOptions.stdio, 'pipe');
+        actualOptions.onStdoutChunk(Buffer.from('original provider bytes')); return { exitCode: 0, signal: null };
       });
+      args[0] = 'changed-after-admission'; options.stdio = 'inherit';
+      const result = await pending;
       assert.equal(result.diagnostics.evidenceComplete, true); assert.equal(opens, 2); assert.equal(closes, 2);
       assert.equal(diagnostics.readOutput(result.diagnostics, 'stdout'), 'original provider bytes');
     });

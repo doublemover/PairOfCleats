@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-06T19:52:55.238Z",
+  "generatedAt": "2026-11-06T20:55:29.290Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
@@ -4958,6 +4958,7 @@
         "tests/tooling/install/bootstrap-verification-generation.test.js",
         "tests/tooling/install/checkout-bootstrap-entry.test.js",
         "tests/tooling/install/checkout-evidence-files.test.js",
+        "tests/tooling/install/checkout-evidence-retention.test.js",
         "tests/tooling/install/checkout-mutation-owner.test.js",
         "tests/tooling/install/checkout-recovery.test.js",
         "tests/tooling/install/checkout-stage-journal.test.js",

@@ -119,6 +119,8 @@ its actual descriptor remains open. The group captures at most 1024 owners and
 retains independent persistence failures; unknown overriding open results remain
 unconfirmed. Exact ordinary ancestors and file identity are checked around open.
 Closing lifetime authority never deletes the retained artifact.
+Each native diagnostic command also borrows the original mutation scope through
+metadata publication. An early-returning parent must drain that exact operation.
 The same group preserves an original rejected child's retirement observer even
 when the caller handles that rejection. Closed log files alone cannot release
 the checkout while that actual child remains alive.
@@ -138,6 +140,28 @@ Before its first stage, the journal preserves an existing receipt's exact bytes
 as .tmp/checkout-bootstrap/j-*/prior-readiness.json. Preservation is bounded to
 8 MiB and records size/hash with historical-only status. Even malformed UTF-8
 bytes survive node_modules replacement. A prior receipt never admits current work.
+
+Closed runs retain result.json and evidence-manifest.json beside stages.jsonl.
+The manifest requires exact producer byte extents/hashes, original single-link
+file identity, ordinary parent identity and retired descriptor/child observations.
+Each original mutation session owns one journal; a finished session cannot start
+another plan under the same evidence allowance.
+
+Before journal creation, the existing bounded storage inventory accounts for
+retained logical bytes under .tmp/checkout-bootstrap (16384 entries, 10 seconds).
+Cleanup keeps two recent prior runs, the latest recorded failed run, and the run
+referenced by the current readiness receipt. Malformed receipts protect all runs.
+Only registered closed text evidence is eligible: exact journal/result/prior
+receipt files, native stdout/stderr/attempt records, then empty owned directories.
+Unknown entries, changed identities/hashes/membership and overlapping manifests
+stay protected. Age or copied status never establishes native retirement.
+
+The internal admission ceiling is 256 MiB with 44 MiB reserved for the new run;
+protected data that exhausts it blocks dependency work with its exact reason.
+This bounds retained diagnostic admission, separate from patch/build scratch.
+Deletion uses individual revalidated files and empty-directory removal under the
+existing mutation lock. It provides observed identity checks, not a filesystem
+snapshot or measured physical/allocation/deleted-open byte accounting.
 
 Readiness format **3** consumes an original single-use generation capture made
 immediately before complete native probes. Publication rechecks setup hashes,
@@ -191,8 +215,8 @@ read bounded to 64 KiB; a truncated display tail cannot supply activation JSON.
 Synchronization, original identity, close and metadata readback are required for
 complete logs. Evidence loss and unknown publication stop fallback/readiness
 while preserving independent compiler and cleanup failures. Failed prebuilds
-remain distinct when a later source build succeeds. Cross-run retention remains
-implementation work.
+remain distinct when a later source build succeeds. Cross-run retention uses the
+closed-evidence policy above; runtime qualification remains pending.
 
 ## Qualification scope
 

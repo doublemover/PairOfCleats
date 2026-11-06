@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 2605,
+    "hero": 2614,
     "matrix": 110,
     "meta": 54,
     "soak": 1,
@@ -16633,6 +16633,60 @@
     {
       "id": "tooling/install/native-diagnostic-ownership/checkout-wide-short-write-accounting",
       "order": 2770,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/checkout-evidence-retention/original-closed-manifest",
+      "order": 2771,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/checkout-evidence-retention/recent-failed-and-readiness-retention",
+      "order": 2772,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/checkout-evidence-retention/unregistered-membership-protected",
+      "order": 2773,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/checkout-evidence-retention/replaced-file-protected",
+      "order": 2774,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/checkout-evidence-retention/protected-quota-before-mutation",
+      "order": 2775,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/checkout-evidence-retention/producer-byte-proof-required",
+      "order": 2776,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/checkout-evidence-retention/single-journal-per-original-session",
+      "order": 2777,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/native-diagnostic-ownership/whole-publication-scope-drain",
+      "order": 2778,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/checkout-evidence-retention/pending-diagnostic-blocks-completed-status",
+      "order": 2779,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     }

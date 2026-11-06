@@ -70,11 +70,12 @@ try {
     assert.equal(fs.existsSync(path.join(root, CHECKOUT_MUTATION_LOCK)), false);
   } else if (mode === 'whole-owner-publication-drain') {
     const entered = Promise.withResolvers(), release = Promise.withResolvers(); let returned = false, journalOutcome;
-    const rootOutcome = withCheckoutMutation(root, session => {
+    const rootOutcome = withCheckoutMutation(root, async session => {
       journalOutcome = withCheckoutStageJournal(root, session, plan,
         () => assert.fail('an unawaited journal admitted work after its parent returned'), { publish: async (...args) => {
           entered.resolve(); await release.promise; return atomicWriteJson(...args);
         } }).then(value => ({ ok: true, value }), error => ({ ok: false, error }));
+      await entered.promise;
     }).then(value => { returned = true; return { ok: true, value }; }, error => { returned = true; return { ok: false, error }; });
     await entered.promise;
     try {
