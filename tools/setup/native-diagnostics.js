@@ -12,7 +12,7 @@ import { readErrorDataProperty } from '../../src/shared/error-data.js';
 import { requireCheckoutMutationSession } from './checkout-mutation.js';
 
 const MIB = 1024 * 1024, METADATA_RESERVE = 32 * 1024;
-export const NATIVE_DIAGNOSTIC_LIMITS = Object.freeze({ attempts: 128, diskBytes: 32 * MIB,
+export const NATIVE_DIAGNOSTIC_LIMITS = Object.freeze({ attempts: 384, diskBytes: 32 * MIB,
   attemptBytes: 8 * MIB, tailBytes: 4096, commandBytes: 8192 });
 const diagnosticFailures = new WeakSet();
 export const isNativeDiagnosticFailure = error => error !== null && ['object', 'function'].includes(typeof error)
@@ -37,6 +37,7 @@ export const createNativeSetupDiagnostics = (root, session, { limits = NATIVE_DI
   let directory = null, directoryIdentity = null, reservedBytes = 0, writtenBytes = 0, attempts = 0;
   let terminalFailure = null;
   const rows = [];
+  const originalRecords = new WeakMap();
   const check = () => {
     requireCheckoutMutationSession(root, session);
     if (directory) assertDirectoryIdentity(fs.lstatSync(directory, { bigint: true }), directoryIdentity);
@@ -58,6 +59,24 @@ export const createNativeSetupDiagnostics = (root, session, { limits = NATIVE_DI
     diagnosticFailures.add(error); return error;
   };
   return Object.freeze({
+    readOutput: (record, channel, { maxBytes = MIB } = {}) => {
+      if (terminalFailure) throw terminalFailure;
+      const streams = record && originalRecords.get(record), source = streams?.find(stream => stream.channel === channel);
+      if (!source || !Number.isSafeInteger(maxBytes) || maxBytes < 1 || maxBytes > MIB) throw new TypeError(
+        'Native output reads require their original completed record, channel and bounded byte allowance.');
+      try {
+        check(); assertPersistenceFileIdentity(fs.lstatSync(source.file, { bigint: true }), source.identity);
+        const text = readJsonResourceTextSync(source.file, stat => {
+          if (stat.size !== source.writtenBytes || stat.size > maxBytes) throw problem('Native structured output exceeds its exact bounded byte extent.');
+        }, stat => assertPersistenceFileIdentity(stat, source.identity));
+        check(); assertPersistenceFileIdentity(fs.lstatSync(source.file, { bigint: true }), source.identity);
+        if (createHash('sha256').update(text).digest('hex') !== source.sha256) throw problem('Native structured output differs from its original raw-byte hash or UTF-8 encoding.');
+        return text;
+      } catch (error) {
+        terminalFailure = markFailure(problem('Native structured output evidence could not be admitted.'), { diagnostics: record }, error, true);
+        throw terminalFailure;
+      }
+    },
     snapshot: () => Object.freeze({ runId: session.runId, directory, attempts, reservedBytes, writtenBytes,
       limits, records: Object.freeze([...rows]) }),
     run: async (command, args, options, spawn) => {
@@ -120,7 +139,18 @@ export const createNativeSetupDiagnostics = (root, session, { limits = NATIVE_DI
           const actual = descriptor.stat({ bigint: true });
           if (actual.size !== BigInt(stream.writtenBytes)) throw problem('Native log length changed outside its original writer.');
           assertPersistenceFileIdentity(fs.lstatSync(stream.file, { bigint: true }), persistenceFileIdentity(actual));
+          stream.identity = persistenceFileIdentity(actual);
         }); } catch (error) { remember(error); }
+        if (stream.owner.isSettled() && stream.identity) {
+          try {
+            // Windows may finish last-write metadata at close. Keep the exact
+            // original inode/extent, then seal its post-close read identity.
+            const closed = persistenceFileIdentity(fs.lstatSync(stream.file, { bigint: true }));
+            if (['dev', 'ino', 'mode', 'nlink', 'size', 'birthtime'].some(key => closed[key] !== stream.identity[key])) throw problem(
+              'Native log pathname changed while its original descriptor closed.');
+            stream.identity = closed;
+          } catch (error) { remember(error); }
+        }
       }
       const childResult = failed ? readErrorDataProperty(primary, 'result') : result;
       const logs = Object.freeze(streams.map(stream => Object.freeze({ channel: stream.channel, path: stream.file,
@@ -150,6 +180,10 @@ export const createNativeSetupDiagnostics = (root, session, { limits = NATIVE_DI
       }
       const diagnostics = Object.freeze({ ...record, metadataPublished, evidenceComplete: record.byteStreamsComplete && metadataPublished });
       if (recordPath) rows.push(diagnostics);
+      if (diagnostics.evidenceComplete) originalRecords.set(diagnostics, Object.freeze(streams.map((stream, index) => Object.freeze({
+        channel: stream.channel, file: stream.file, identity: stream.identity,
+        writtenBytes: stream.writtenBytes, sha256: logs[index].sha256
+      }))));
       if (logErrors.length || !recordPath) {
         let failure = problem('Native command evidence is incomplete; log: ' + (recordPath || directory || 'not created before admission failed') + '.');
         failure = markFailure(failure, { result: childResult, diagnostics, diagnosticsPath: recordPath }, primary, failed);

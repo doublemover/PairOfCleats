@@ -59,19 +59,24 @@ controls and bound diagnostic text. Structured events require an explicit caller
 callback; no machine event stream or public knob was added. Callback work is
 awaited, and an original renderer failure stops admission and drains existing
 owners without changing compiler outcomes. Four event controls await execution.
-Native build/header/fallback commands now stream raw bytes into original
+Native build/header/fallback commands and isolated activation probes stream raw bytes into original
 run-owned `.tmp/checkout-bootstrap/logs/n-*/` files and retain only 4 KiB per-stream
-tails. Each invocation admits at most 128 attempts, 8 MiB of raw output per attempt
+tails. Each invocation admits at most 384 attempts, 8 MiB of raw output per attempt
 and 32 MiB aggregate bytes including reserved attempt metadata. These are
 internal evidence bounds. Completed concurrent attempts and unsuccessful
 prebuilds retain distinct command/status/hash records; later source success
-does not replace them. Each original descriptor must confirm synchronization,
+does not replace them. The attempt allowance covers the existing repair ladder
+(initial probes, up to three build/probe pairs per failed package, final probes);
+it does not add retries. Each original descriptor must confirm synchronization,
 path identity and closure before its evidence can be complete. Evidence loss,
 unknown publication and disk-budget exhaustion stop native fallback/readiness
 while retaining independent compiler/cleanup causes. Inherited output still
 forwards its original bytes. Five diagnostic ownership controls await execution.
-Cross-run log retention, activation-probe persistent logs, output-observed
-events, terminal transport qualification and durable root-stage journals remain
+Activation JSON uses a separate at-most-1-MiB read of its original completed log,
+with exact post-close file identity and raw-byte hash checks. A truncated display
+tail cannot supply that structured result, and copied records authorize no read.
+Cross-run log retention, nested VM-probe logs, output-observed events,
+terminal transport qualification and durable root-stage journals remain
 pending. The limits above bound one invocation; they are not a machine-wide quota
 or a measured memory/throughput result.
 

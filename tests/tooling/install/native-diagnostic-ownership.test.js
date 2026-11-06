@@ -12,7 +12,8 @@ import { applyTestEnv } from '../../helpers/test-env.js';
 
 applyTestEnv();
 const mode = process.env.PAIROFCLEATS_TEST_ID?.split('tooling/install/native-diagnostic-ownership/')[1];
-assert.ok(['exact-bytes-and-tails', 'attempt-history-and-concurrency', 'original-log-failures', 'bounded-admission-and-output', 'unknown-close-retains-owner'].includes(mode));
+assert.ok(['exact-bytes-and-tails', 'attempt-history-and-concurrency', 'original-log-failures', 'bounded-admission-and-output',
+  'unknown-close-retains-owner', 'original-structured-output', 'structured-output-fences'].includes(mode));
 const root = await makeTempDir('native-diagnostics-');
 const commandOptions = { cwd: root, stdio: 'pipe', timeoutMs: 5000, maxOutputBytes: 16,
   rejectOnNonZeroExit: false, killTree: false, windowsHide: true };
@@ -88,6 +89,28 @@ try {
       const invented = createNativeSetupDiagnostics(root, session, { limits: compact, publish: async destination => destination });
       const absent = await runNativeSetupCommand(process.execPath, ['--eval', ''], commandOptions, { diagnostics: invented }).catch(error => error);
       assert.equal(isNativeDiagnosticFailure(absent), true); assert.equal(absent.diagnostics.evidenceComplete, false);
+    } else if (mode === 'original-structured-output') {
+      const diagnostics = createNativeSetupDiagnostics(root, session, { limits: compact });
+      const result = await runNativeSetupCommand(process.execPath, ['--eval', 'process.stdout.write(JSON.stringify({value:42,source:"x".repeat(8192)}));'], commandOptions, { diagnostics });
+      assert.equal(result.ok, true); assert.ok(Buffer.byteLength(result.stdout) <= compact.tailBytes);
+      const full = diagnostics.readOutput(result.diagnostics, 'stdout');
+      assert.deepEqual(JSON.parse(full), { value: 42, source: 'x'.repeat(8192) });
+      assert.equal(diagnostics.readOutput(result.diagnostics, 'stderr'), '');
+      assert.throws(() => diagnostics.readOutput({ ...result.diagnostics }, 'stdout'), TypeError);
+      assert.throws(() => diagnostics.readOutput(result.diagnostics, 'other'), TypeError);
+      assert.throws(() => diagnostics.readOutput(result.diagnostics, 'stdout', { maxBytes: 1024 * 1024 + 1 }), TypeError);
+      const file = result.diagnostics.logs[0].path;
+      fs.renameSync(file, file + '.original'); fs.copyFileSync(file + '.original', file);
+      assert.throws(() => diagnostics.readOutput(result.diagnostics, 'stdout'), error => isNativeDiagnosticFailure(error));
+      assert.equal(fs.existsSync(file + '.original'), true, 'read admission never deletes either original or replacement evidence');
+    } else if (mode === 'structured-output-fences') {
+      const invalid = createNativeSetupDiagnostics(root, session, { limits: compact });
+      const bytes = await runNativeSetupCommand(process.execPath, ['--eval', 'process.stdout.write(Buffer.from([123,34,116,34,58,34,255,34,125]));'], commandOptions, { diagnostics: invalid });
+      assert.equal(bytes.diagnostics.evidenceComplete, true, 'raw invalid UTF-8 bytes remain complete evidence');
+      assert.throws(() => invalid.readOutput(bytes.diagnostics, 'stdout'), error => isNativeDiagnosticFailure(error));
+      const bounded = createNativeSetupDiagnostics(root, session, { limits: compact });
+      const result = await runNativeSetupCommand(process.execPath, ['--eval', 'process.stdout.write("x".repeat(4096));'], commandOptions, { diagnostics: bounded });
+      assert.throws(() => bounded.readOutput(result.diagnostics, 'stdout', { maxBytes: 128 }), error => isNativeDiagnosticFailure(error));
     } else {
       const diagnostics = createNativeSetupDiagnostics(root, session, { limits: { ...compact, diskBytes: 65536 } });
       assert.equal((await runNativeSetupCommand(process.execPath, ['--eval', 'process.stdout.write("one");'], commandOptions, { diagnostics })).ok, true);

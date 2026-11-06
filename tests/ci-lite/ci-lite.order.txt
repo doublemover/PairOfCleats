@@ -2716,3 +2716,5 @@ tooling/install/native-diagnostic-ownership/attempt-history-and-concurrency
 tooling/install/native-diagnostic-ownership/original-log-failures
 tooling/install/native-diagnostic-ownership/bounded-admission-and-output
 tooling/install/native-diagnostic-ownership/unknown-close-retains-owner
+tooling/install/native-diagnostic-ownership/original-structured-output
+tooling/install/native-diagnostic-ownership/structured-output-fences

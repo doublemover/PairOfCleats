@@ -297,13 +297,14 @@ const runNativeRebuildOwned = async ({ verifyOnly, repairOnly }, { root, session
     const result = await probeNativePackage(request.root, request.pkgName, { grammarRoutes: request.grammarRoutes });
     process.stdout.write(JSON.stringify(result));`;
     try {
-      const child = await spawnResolvedSubprocess(process.execPath, ['--input-type=module', '-e', script,
+      const child = await nativeDiagnostics.run(process.execPath, ['--input-type=module', '-e', script,
         JSON.stringify({ root, pkgName, grammarRoutes })], {
         cwd: root, stdio: 'pipe',
         signal, timeoutMs: 30000, maxOutputBytes: 1024 * 1024, windowsHide: true
-      });
-      if (child.stderr?.trim()) return { ok: false, message: child.stderr.trim() };
-      return JSON.parse(child.stdout);
+      }, spawnResolvedSubprocess);
+      const stderr = nativeDiagnostics.readOutput(child.diagnostics, 'stderr');
+      if (stderr.trim()) return { ok: false, message: stderr.trim() };
+      return JSON.parse(nativeDiagnostics.readOutput(child.diagnostics, 'stdout'));
     } catch (error) {
       const failure = settledNativeSetupFailure(error, 'native-activation-probe');
       return { ...failure, message: failure.stderr?.trim() || failure.message };

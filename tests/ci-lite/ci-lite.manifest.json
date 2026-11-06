@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 2548,
+    "hero": 2550,
     "matrix": 110,
     "meta": 54,
     "soak": 1,
@@ -16291,6 +16291,18 @@
     {
       "id": "tooling/install/native-diagnostic-ownership/unknown-close-retains-owner",
       "order": 2713,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/native-diagnostic-ownership/original-structured-output",
+      "order": 2714,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/native-diagnostic-ownership/structured-output-fences",
+      "order": 2715,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     }
