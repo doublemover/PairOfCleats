@@ -8,6 +8,7 @@
     "build-cancel",
     "preview-cancel",
     "workspace",
+    "workspace-status",
     "snapshot",
     "snapshot-create",
     "snapshot-list-populated",

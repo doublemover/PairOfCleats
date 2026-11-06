@@ -1,0 +1,3124 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-11-05",
+  "sourceParent": "302ad8e4df6ec08240100fcd091a03f46ece9b8a",
+  "hosted": {
+    "run": 42135979453,
+    "runNumber": 2174,
+    "sourceHead": "895d18c66967426754088215d68cbe8260b1fcb7",
+    "jobId": 127625433556,
+    "artifactId": 13464974557,
+    "artifactSha256": "dddbb9b2a6d3f8d9976c55589a7dc11a6af95bf53b1fdbe0336a82f8a4917975",
+    "artifactBytes": 1006300,
+    "report": {
+      "junit": null,
+      "logDir": "D:\\a\\PairOfCleats\\PairOfCleats\\.testLogs\\run-1793924676168-fext41",
+      "summary": {
+        "durationMs": 387189,
+        "failed": 1,
+        "passed": 20,
+        "skipped": 0,
+        "total": 21
+      },
+      "tests": [
+        {
+          "attempts": 1,
+          "durationMs": 10966,
+          "exitCode": 0,
+          "id": "tui/native-index-workflows/build-cancel",
+          "lane": "integration",
+          "logs": [
+            "D:\\a\\PairOfCleats\\PairOfCleats\\.testLogs\\run-1793924676168-fext41\\tui_native-index-workflows_build-cancel.attempt-1.log"
+          ],
+          "path": "tui/native-index-workflows.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 26315,
+          "exitCode": 0,
+          "id": "tui/native-index-workflows/build-search",
+          "lane": "integration",
+          "logs": [
+            "D:\\a\\PairOfCleats\\PairOfCleats\\.testLogs\\run-1793924676168-fext41\\tui_native-index-workflows_build-search.attempt-1.log"
+          ],
+          "path": "tui/native-index-workflows.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 5966,
+          "exitCode": 0,
+          "id": "tui/native-index-workflows/invalid-provider",
+          "lane": "integration",
+          "logs": [
+            "D:\\a\\PairOfCleats\\PairOfCleats\\.testLogs\\run-1793924676168-fext41\\tui_native-index-workflows_invalid-provider.attempt-1.log"
+          ],
+          "path": "tui/native-index-workflows.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 5911,
+          "exitCode": 0,
+          "id": "tui/native-index-workflows/missing-model",
+          "lane": "integration",
+          "logs": [
+            "D:\\a\\PairOfCleats\\PairOfCleats\\.testLogs\\run-1793924676168-fext41\\tui_native-index-workflows_missing-model.attempt-1.log"
+          ],
+          "path": "tui/native-index-workflows.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 5852,
+          "exitCode": 0,
+          "id": "tui/native-index-workflows/preview-cancel",
+          "lane": "integration",
+          "logs": [
+            "D:\\a\\PairOfCleats\\PairOfCleats\\.testLogs\\run-1793924676168-fext41\\tui_native-index-workflows_preview-cancel.attempt-1.log"
+          ],
+          "path": "tui/native-index-workflows.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 23863,
+          "exitCode": 0,
+          "id": "tui/native-index-workflows/report",
+          "lane": "integration",
+          "logs": [
+            "D:\\a\\PairOfCleats\\PairOfCleats\\.testLogs\\run-1793924676168-fext41\\tui_native-index-workflows_report.attempt-1.log"
+          ],
+          "path": "tui/native-index-workflows.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 24830,
+          "exitCode": 0,
+          "id": "tui/native-index-workflows/search-published",
+          "lane": "integration",
+          "logs": [
+            "D:\\a\\PairOfCleats\\PairOfCleats\\.testLogs\\run-1793924676168-fext41\\tui_native-index-workflows_search-published.attempt-1.log"
+          ],
+          "path": "tui/native-index-workflows.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 7484,
+          "exitCode": 0,
+          "id": "tui/native-index-workflows/snapshot",
+          "lane": "integration",
+          "logs": [
+            "D:\\a\\PairOfCleats\\PairOfCleats\\.testLogs\\run-1793924676168-fext41\\tui_native-index-workflows_snapshot.attempt-1.log"
+          ],
+          "path": "tui/native-index-workflows.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 26077,
+          "exitCode": 0,
+          "id": "tui/native-index-workflows/snapshot-create",
+          "lane": "integration",
+          "logs": [
+            "D:\\a\\PairOfCleats\\PairOfCleats\\.testLogs\\run-1793924676168-fext41\\tui_native-index-workflows_snapshot-create.attempt-1.log"
+          ],
+          "path": "tui/native-index-workflows.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 23996,
+          "exitCode": 0,
+          "id": "tui/native-index-workflows/snapshot-freeze",
+          "lane": "integration",
+          "logs": [
+            "D:\\a\\PairOfCleats\\PairOfCleats\\.testLogs\\run-1793924676168-fext41\\tui_native-index-workflows_snapshot-freeze.attempt-1.log"
+          ],
+          "path": "tui/native-index-workflows.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 24071,
+          "exitCode": 0,
+          "id": "tui/native-index-workflows/snapshot-gc",
+          "lane": "integration",
+          "logs": [
+            "D:\\a\\PairOfCleats\\PairOfCleats\\.testLogs\\run-1793924676168-fext41\\tui_native-index-workflows_snapshot-gc.attempt-1.log"
+          ],
+          "path": "tui/native-index-workflows.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 22832,
+          "exitCode": 0,
+          "id": "tui/native-index-workflows/snapshot-list-populated",
+          "lane": "integration",
+          "logs": [
+            "D:\\a\\PairOfCleats\\PairOfCleats\\.testLogs\\run-1793924676168-fext41\\tui_native-index-workflows_snapshot-list-populated.attempt-1.log"
+          ],
+          "path": "tui/native-index-workflows.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 23359,
+          "exitCode": 0,
+          "id": "tui/native-index-workflows/snapshot-prune",
+          "lane": "integration",
+          "logs": [
+            "D:\\a\\PairOfCleats\\PairOfCleats\\.testLogs\\run-1793924676168-fext41\\tui_native-index-workflows_snapshot-prune.attempt-1.log"
+          ],
+          "path": "tui/native-index-workflows.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 24046,
+          "exitCode": 0,
+          "id": "tui/native-index-workflows/snapshot-remove",
+          "lane": "integration",
+          "logs": [
+            "D:\\a\\PairOfCleats\\PairOfCleats\\.testLogs\\run-1793924676168-fext41\\tui_native-index-workflows_snapshot-remove.attempt-1.log"
+          ],
+          "path": "tui/native-index-workflows.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 23664,
+          "exitCode": 0,
+          "id": "tui/native-index-workflows/snapshot-show",
+          "lane": "integration",
+          "logs": [
+            "D:\\a\\PairOfCleats\\PairOfCleats\\.testLogs\\run-1793924676168-fext41\\tui_native-index-workflows_snapshot-show.attempt-1.log"
+          ],
+          "path": "tui/native-index-workflows.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 7282,
+          "exitCode": 0,
+          "id": "tui/native-index-workflows/stale",
+          "lane": "integration",
+          "logs": [
+            "D:\\a\\PairOfCleats\\PairOfCleats\\.testLogs\\run-1793924676168-fext41\\tui_native-index-workflows_stale.attempt-1.log"
+          ],
+          "path": "tui/native-index-workflows.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 24771,
+          "exitCode": 0,
+          "id": "tui/native-index-workflows/stats",
+          "lane": "integration",
+          "logs": [
+            "D:\\a\\PairOfCleats\\PairOfCleats\\.testLogs\\run-1793924676168-fext41\\tui_native-index-workflows_stats.attempt-1.log"
+          ],
+          "path": "tui/native-index-workflows.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 10419,
+          "exitCode": 0,
+          "id": "tui/native-index-workflows/stats-conflict",
+          "lane": "integration",
+          "logs": [
+            "D:\\a\\PairOfCleats\\PairOfCleats\\.testLogs\\run-1793924676168-fext41\\tui_native-index-workflows_stats-conflict.attempt-1.log"
+          ],
+          "path": "tui/native-index-workflows.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 25018,
+          "exitCode": 0,
+          "id": "tui/native-index-workflows/validate-published",
+          "lane": "integration",
+          "logs": [
+            "D:\\a\\PairOfCleats\\PairOfCleats\\.testLogs\\run-1793924676168-fext41\\tui_native-index-workflows_validate-published.attempt-1.log"
+          ],
+          "path": "tui/native-index-workflows.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 11402,
+          "exitCode": 0,
+          "id": "tui/native-index-workflows/watch-cancel",
+          "lane": "integration",
+          "logs": [
+            "D:\\a\\PairOfCleats\\PairOfCleats\\.testLogs\\run-1793924676168-fext41\\tui_native-index-workflows_watch-cancel.attempt-1.log"
+          ],
+          "path": "tui/native-index-workflows.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 29030,
+          "exitCode": 1,
+          "id": "tui/native-index-workflows/workspace",
+          "lane": "integration",
+          "logs": [
+            "D:\\a\\PairOfCleats\\PairOfCleats\\.testLogs\\run-1793924676168-fext41\\tui_native-index-workflows_workspace.attempt-1.log",
+            "D:\\a\\PairOfCleats\\PairOfCleats\\.testLogs\\run-1793924676168-fext41\\tui_native-index-workflows_workspace.attempt-1.failure.json"
+          ],
+          "path": "tui/native-index-workflows.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "failed",
+          "tags": [
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        }
+      ]
+    },
+    "workspacePhases": {
+      "path": ".tmp/dev/tests/cache/ni-cvVQwD/fixture-phases.jsonl",
+      "rows": [
+        {
+          "mode": "workspace",
+          "phase": "seed-partial-build:start",
+          "elapsedMs": 162
+        },
+        {
+          "mode": "workspace",
+          "phase": "seed-native-admission",
+          "elapsedMs": 6649
+        },
+        {
+          "mode": "workspace",
+          "phase": "terminal-capture:start",
+          "elapsedMs": 6650
+        },
+        {
+          "mode": "workspace",
+          "phase": "native-ui:ready",
+          "elapsedMs": 7658
+        },
+        {
+          "mode": "workspace",
+          "phase": "seed-partial-build:complete",
+          "elapsedMs": 11750
+        }
+      ]
+    },
+    "workspaceFailure": "id: tui/native-index-workflows/workspace\npath: tui/native-index-workflows.test.js\nattempt: 1\nstatus: failed\nexit: 1\nsignal: null\ntimedOut: false\ntimeoutClass: \nskipReason: \ntermination: \n\n--- stdout ---\n{\"nativeWorkflowPhase\":{\"mode\":\"workspace\",\"phase\":\"seed-partial-build:start\",\"elapsedMs\":162}}\n[init] load config (1ms)\n[init] auto policy (provided)\n[init] learned auto profile (0ms)\n[init] cache root (env): D:\\a\\PairOfCleats\\PairOfCleats\\.tmp\\dev\\tests\\cache\\ni-cvVQwD\\cache\n[init] repo cache root: D:\\a\\PairOfCleats\\PairOfCleats\\.tmp\\dev\\tests\\cache\\ni-cvVQwD\\cache\\repos\\selected-repository-de5c4fdb2ebf\n[init] platform preset: win32:ntfs (fs=ntfs, subprocessFanout=4, reason=win32-ntfs-startup-cost).\n[init] startup calibration (1ms)\n[init] startup calibration: io=0ms (bytes=8192).\n[init] runtime envelope (0ms)\n[scm] provider=none; SCM provenance unavailable.\n[init] repo provenance (0ms)\n[runtime] attempt 94521fb2-05ca-4dd1-bbe8-824de97c0e3d; receipt: D:\\a\\PairOfCleats\\PairOfCleats\\.tmp\\dev\\tests\\cache\\ni-cvVQwD\\cache\\repos\\selected-repository-de5c4fdb2ebf\\builds\\20261106T003036Z_5f3031a3_noscm_263b974e\\build_state.json (durable).\n[init] build root: D:\\a\\PairOfCleats\\PairOfCleats\\.tmp\\dev\\tests\\cache\\ni-cvVQwD\\cache\\repos\\selected-repository-de5c4fdb2ebf\\builds\\20261106T003036Z_5f3031a3_noscm_263b974e\n[init] current index root: D:\\a\\PairOfCleats\\PairOfCleats\\.tmp\\dev\\tests\\cache\\ni-cvVQwD\\cache\\repos\\selected-repository-de5c4fdb2ebf\n[scm] annotate disabled: provider=none.\n[scm] policy provider=none annotate=off timeoutCaps=guardrail-only benchRun=0 metaTimeoutMs=default annotateTimeoutMs=default annotateLadder=default\n[init] tree-sitter config (0ms)\nJS file caps default to tree-sitter maxBytes (786432).\n[init] embedding runtime (4ms)\n[init] ignore rules (3ms)\n[init] dictionaries (26ms)\n[init] dictionaries (26ms)\nWordlists disabled: no dictionary files found; identifier splitting will be limited.\nCode dictionaries enabled: 2 file(s), 16 words (typescript) [bundle=bench-2026.02].\nTwo-stage indexing: stage2 (enrichment) running.\nIndex profile: default.\nEmbeddings: deferred to stage3 (stage2).\nQueue concurrency: io=16, cpu=1.\nMemory policy: workerHeap=1024MB (effective=1024MB, min=1024MB, max=2048MB), workerCache=512MB, writeBuffer=358MB.\nSCM annotate metadata disabled via indexing.scm.annotate.enabled.\nRisk analysis disabled via indexing.riskAnalysis.\nWorker pool enabled (auto, maxThreads=4).\nWorker heap policy: target=1024MB (min=1024MB, max=2048MB).\nWorker pool auto threshold: maxFileBytes=2097152.\n[init] worker pools (9ms)\nBuild environment snapshot.\n[init] runtime receipt (14ms)\n[init] runtime ready (189ms)\n[init] code index dir: D:\\a\\PairOfCleats\\PairOfCleats\\.tmp\\dev\\tests\\cache\\ni-cvVQwD\\cache\\repos\\selected-repository-de5c4fdb2ebf\\builds\\20261106T003036Z_5f3031a3_noscm_263b974e\\index-code\n\n📄  Scanning code ...\n→ Reusing shared discovery results.\n→ Found 1 files.\nScanning for imports...\n→ Imports: modules=0, edges=0, files=0\nAuto-selected context window: 3 lines\nProcessing and indexing files...\nIndexing Concurrency: Files: 2, Imports: 2, IO: 16, CPU: 1\n[stage1] admission parse=r0/p0/cap1/min1/max4 stage1.cpu=r0/p0/ready0/blocked0/wait0s stage1.io=r0/p0/ready0/blocked0/wait0s stage1.proc=r0/p0/ready0/blocked0/wait0s stage1.postings=r0/p0/ready0/blocked0/wait0s\n[tree-sitter:schedule] planning global batches...\n[tree-sitter:schedule] batch 1/1: native:javascript#pool1 (waves=1, lane=1/1, plannedCost=3, balance=count, timeout=45120ms)\n[tree-sitter:schedule] plan ready: grammars=1 entries=1 cache=0\n→ Imports: resolved=0, external=0, unresolved=0\n[imports] resolver budgets: fsProbe<=48, fallbackCandidates<=72, fallbackDepth<=20, adaptive=on (profile=normal, scale=1.500).\n[imports] fs-exists-index: enabled=yes, complete=yes, indexed=2, exactHits=0, negativeSkips=0, unknownFallbacks=0\n[imports] resolver pipeline: none\n[imports] resolver pipeline highlights: elapsed=none, budget=none, degraded=none\nEmbeddings disabled (stage2); skipping dense vector build.\n   → Indexed 1 chunks, total tokens: 11\n[chunk_meta] writing JSON\n{\"nativeWorkflowPhase\":{\"mode\":\"workspace\",\"phase\":\"seed-native-admission\",\"elapsedMs\":6649}}\n{\"nativeWorkflowPhase\":{\"mode\":\"workspace\",\"phase\":\"terminal-capture:start\",\"elapsedMs\":6650}}\n📦  code : 1 chunks, 11 tokens, dims=0\n→ Wrote .filelists.json (samples only).\n→ Wrote pieces manifest (57 entries).\n{\"nativeWorkflowPhase\":{\"mode\":\"workspace\",\"phase\":\"native-ui:ready\",\"elapsedMs\":7658}}\n[build] updated current.json\n[cleanup] runtime.resources.stop-admission start\n[cleanup] runtime.resources.stop-admission done (0ms)\n[cleanup] runtime.scheduler.shutdown start\n[cleanup] runtime.scheduler.shutdown done (0ms)\n[cleanup] runtime.worker-pools.destroy start\n[cleanup] runtime.worker-pools.destroy done (2ms)\n[cleanup] runtime.stage1-subprocesses.terminate start\n[cleanup] runtime.stage1-subprocesses.terminate done (1ms)\n[cleanup] runtime.embeddings.close start\n[cleanup] runtime.embeddings.close done (0ms)\n[cleanup] runtime.preflight-subprocesses.terminate start\n[cleanup] runtime.preflight-subprocesses.terminate done (1ms)\n[cleanup] runtime.resources.release start\n[cleanup] runtime.resources.release done (0ms)\n[cleanup] runtime.cache-writers.drain start\n[cleanup] runtime.cache-writers.drain done (0ms)\n[cleanup] runtime.semantic-replay.clear start\n[cleanup] runtime.semantic-replay.clear done (0ms)\n[cleanup] runtime.logger.close start\n[cleanup] runtime.logger.close done (0ms)\n{\"nativeWorkflowPhase\":{\"mode\":\"workspace\",\"phase\":\"seed-partial-build:complete\",\"elapsedMs\":11750}}\n\n--- stderr ---\nStage 1/6 (16.7%)\n[           Code | Stage 1]\nStage 2/6 (33.3%)\nImports 1/1 (100.0%)\nImports 1/1 (100.0%)\nStage 3/6 (50.0%)\n[watchdog] stage1 hang policy heartbeat=30000ms snapshot=30000ms softKick=360000ms abort=720000ms softKickMaxAttempts=2 orderedFlushTimeout=90000ms\nFiles 1/1 (100.0%)\nFiles 1/1 (100.0%)\nStage 4/6 (66.7%)\nStage 5/6 (83.3%)\nStage 6/6 (100.0%)\nWriting index files (26 artifacts)...\n[perf] adaptive artifact write concurrency 3 -> 4 (backlog, pending=26, mem=0.45, gc=0.39, rss=0.02, writeQ={pending=0, oldest=0ms, p95=0ms})\nArtifacts 1/26 (3.8%)\nWriting index files 1/26 (3.8%) | file_meta.json\nArtifacts 2/26 (7.7%)\nArtifacts 3/26 (11.5%)\nArtifacts 4/26 (15.4%)\nArtifacts 5/26 (19.2%)\nArtifacts 6/26 (23.1%)\nArtifacts 7/26 (26.9%)\nArtifacts 8/26 (30.8%)\nArtifacts 9/26 (34.6%)\nArtifacts 10/26 (38.5%)\nArtifacts 11/26 (42.3%)\nArtifacts 12/26 (46.2%)\nArtifacts 13/26 (50.0%)\nArtifacts 14/26 (53.8%)\nArtifacts 15/26 (57.7%)\nArtifacts 16/26 (61.5%)\nArtifacts 17/26 (65.4%)\nArtifacts 18/26 (69.2%)\nArtifacts 19/26 (73.1%)\nArtifacts 20/26 (76.9%)\nArtifacts 21/26 (80.8%)\nArtifacts 22/26 (84.6%)\nArtifacts 23/26 (88.5%)\nArtifacts 24/26 (92.3%)\nArtifacts 25/26 (96.2%)\nArtifacts 26/26 (100.0%)\nWriting index files 26/26 (100.0%) | semantic-family\n\nWriting index files (28 artifacts)...\nArtifacts 27/28 (96.4%)\nArtifacts 28/28 (100.0%)\nWriting index files 28/28 (100.0%) | index_state.json\n\nnode:internal/modules/run_main:111\r\n    triggerUncaughtException(\r\n    ^\r\n\r\nAssertionError [ERR_ASSERTION]: Native index witness timed out: actual owned job end\r\n    at wait (file:///D:/a/PairOfCleats/PairOfCleats/tests/tui/native-index-workflows.test.js:207:45)\r\n    at async finish (file:///D:/a/PairOfCleats/PairOfCleats/tests/tui/native-index-workflows.test.js:269:18)\r\n    at async onSpawn (file:///D:/a/PairOfCleats/PairOfCleats/tests/tui/native-index-workflows.test.js:419:27)\r\n    at async captureCommandTerminalRun (file:///D:/a/PairOfCleats/PairOfCleats/tools/testing/search-debug-capture.js:502:40)\r\n    at async file:///D:/a/PairOfCleats/PairOfCleats/tests/tui/native-index-workflows.test.js:189:19 {\r\n  generatedMessage: false,\r\n  code: 'ERR_ASSERTION',\r\n  actual: false,\r\n  expected: true,\r\n  operator: '==',\r\n  diff: 'simple'\r\n}\r\n\r\nNode.js v26.13.0\r\n",
+    "exactCommand": [
+      "workspace",
+      "build",
+      "--mode=code",
+      "--stage=stage4",
+      "--threads=1",
+      "--stub-embeddings=true",
+      "--concurrency=1",
+      "--workspace=D:\\a\\PairOfCleats\\PairOfCleats\\.tmp\\dev\\tests\\cache\\ni-cvVQwD\\workspace.jsonc",
+      "--progress=jsonl"
+    ],
+    "observation": "The workspace job starts at00:30:50.942Z; the last captured metric is00:31:00.337Z before the aggregate wait fails. The original command therefore has about ten seconds of observed work before the fixture deadline. No native exception, production deadlock or child success is inferred."
+  },
+  "beforeLocal": {
+    "report": {
+      "junit": null,
+      "logDir": "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793925550506-d43sr4",
+      "summary": {
+        "durationMs": 24212,
+        "failed": 0,
+        "passed": 1,
+        "skipped": 0,
+        "total": 1
+      },
+      "tests": [
+        {
+          "attempts": 1,
+          "durationMs": 24206,
+          "exitCode": 0,
+          "id": "tui/native-index-workflows/workspace",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793925550506-d43sr4\\tui_native-index-workflows_workspace.attempt-1.log"
+          ],
+          "path": "tui/native-index-workflows.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        }
+      ]
+    },
+    "observation": "Unchanged original case passes24.2s locally with terminal restoration, exact owned descendant reaping and normal stage4 workspace command; it does not erase the hosted failure."
+  },
+  "repair": {
+    "scope": "Fixture boundaries only; native binary, real supervisor, actual stage2 seed and stage4 workspace child argv are unchanged.",
+    "main": "Prepare the workspace typed form while the independent canonical seed runs. Preview/launch still joins the actual seed and proves its published stage2 generation. The actual workspace child and full ready-publication assertions remain.",
+    "status": "Move all original published=true, ready=false and strict db-missing keyboard status assertions to independent workspace-status. It has the same real stage2 seed, real workspace catalog/form/preview and explicit discard/no external job checks.",
+    "bounds": "Original inner22s, terminal26s and outer30s bounds remain. No retries/native redo/skip/backend switch. Every terminal/descendant/final publication assertion remains.",
+    "interpretation": "This removes a serial prerequisite from an oversized aggregate while retaining its original producer/consumer operations. One unpaired local pass does not qualify a general speedup or hosted closure."
+  },
+  "after": {
+    "report": {
+      "junit": null,
+      "logDir": "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793925815818-nxibmh",
+      "summary": {
+        "durationMs": 75534,
+        "failed": 0,
+        "passed": 4,
+        "skipped": 0,
+        "total": 4
+      },
+      "tests": [
+        {
+          "attempts": 1,
+          "durationMs": 27715,
+          "exitCode": 0,
+          "id": "tui/native-index-workflows/build-search",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793925815818-nxibmh\\tui_native-index-workflows_build-search.attempt-1.log"
+          ],
+          "path": "tui/native-index-workflows.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 6223,
+          "exitCode": 0,
+          "id": "tui/native-index-workflows/preview-cancel",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793925815818-nxibmh\\tui_native-index-workflows_preview-cancel.attempt-1.log"
+          ],
+          "path": "tui/native-index-workflows.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 25515,
+          "exitCode": 0,
+          "id": "tui/native-index-workflows/workspace",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793925815818-nxibmh\\tui_native-index-workflows_workspace.attempt-1.log"
+          ],
+          "path": "tui/native-index-workflows.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 16072,
+          "exitCode": 0,
+          "id": "tui/native-index-workflows/workspace-status",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793925815818-nxibmh\\tui_native-index-workflows_workspace-status.attempt-1.log"
+          ],
+          "path": "tui/native-index-workflows.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        }
+      ]
+    },
+    "samples": [
+      {
+        "id": "tui/native-index-workflows/build-search",
+        "durationMs": 27715,
+        "phases": [
+          {
+            "mode": "build-search",
+            "phase": "terminal-capture:start",
+            "elapsedMs": 215
+          },
+          {
+            "mode": "build-search",
+            "phase": "seed-partial-build:start",
+            "elapsedMs": 284
+          },
+          {
+            "mode": "build-search",
+            "phase": "seed-partial-build:complete",
+            "elapsedMs": 9863
+          },
+          {
+            "mode": "build-search",
+            "phase": "native-ui:ready",
+            "elapsedMs": 10443
+          },
+          {
+            "mode": "build-search",
+            "phase": "terminal-capture:closed",
+            "elapsedMs": 24991
+          },
+          {
+            "mode": "build-search",
+            "phase": "published-search:start",
+            "elapsedMs": 24994
+          },
+          {
+            "mode": "build-search",
+            "phase": "published-search:complete",
+            "elapsedMs": 27201
+          }
+        ],
+        "summary": {
+          "mode": "build-search",
+          "binarySha256": "3a649a640cfee3c22e49901dfea7c4d57b4c2f625727a329ddd7be6a5db9a369",
+          "node": "v26.13.0",
+          "platform": "win32",
+          "owned": [
+            25696,
+            28188,
+            21976,
+            15336
+          ],
+          "receipt": {
+            "stderr": "",
+            "mode": "build-search",
+            "afterInput": 503,
+            "beforeInput": 503,
+            "afterOutput": 7,
+            "beforeOutput": 7,
+            "exitCode": 0,
+            "terminalRestored": true
+          },
+          "capture": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\ni-N7xSBN\\capture\\2026-11-06T00-43-36-526Z-native-index-build-search-all-220x48-17972"
+        },
+        "workflowEvents": [
+          {
+            "proto": "poc.progress@2",
+            "event": "job:start",
+            "ts": "2026-11-06T00:43:51.298Z",
+            "runId": "index-workflow-native-all",
+            "jobId": "workflow-ab527170-0174-4b2e-9435-524147a11f16",
+            "seq": 1,
+            "command": [
+              "index",
+              "build",
+              "--mode=code",
+              "--stage=stage4",
+              "--threads=1",
+              "--stub-embeddings=true",
+              "--repo=C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\ni-N7xSBN\\selected repository",
+              "--progress=jsonl"
+            ],
+            "cwd": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\ni-N7xSBN\\selected repository",
+            "title": "index build",
+            "requested": {
+              "progressMode": "jsonl",
+              "resultPolicy": {
+                "captureStdout": "text",
+                "maxBytes": 786432
+              },
+              "retry": {
+                "maxAttempts": 1,
+                "delayMs": 0
+              },
+              "watchdog": {
+                "hardTimeoutMs": 0,
+                "heartbeatMs": 0,
+                "softKickMs": 0,
+                "softKickCooldownMs": 10000,
+                "softKickMaxAttempts": 2
+              }
+            }
+          },
+          {
+            "proto": "poc.progress@2",
+            "event": "job:spawn",
+            "ts": "2026-11-06T00:43:51.335Z",
+            "runId": "index-workflow-native-all",
+            "jobId": "workflow-ab527170-0174-4b2e-9435-524147a11f16",
+            "seq": 2,
+            "pid": 15336,
+            "spawnedAt": "2026-11-06T00:43:51.335Z"
+          },
+          {
+            "proto": "poc.progress@2",
+            "event": "job:end",
+            "ts": "2026-11-06T00:43:59.964Z",
+            "runId": "index-workflow-native-all",
+            "jobId": "workflow-ab527170-0174-4b2e-9435-524147a11f16",
+            "seq": 73,
+            "status": "done",
+            "terminationReason": "exit",
+            "exitCode": 0,
+            "signal": null,
+            "durationMs": 8250,
+            "result": "",
+            "resultState": "complete",
+            "resultCapture": {
+              "enabled": true,
+              "maxBytes": 786432,
+              "observedBytes": 0,
+              "retainedBytes": 0,
+              "droppedBytes": 0,
+              "retainedBufferBytes": 0,
+              "outputBytes": 0,
+              "encodingLoss": false,
+              "truncated": false
+            },
+            "error": null,
+            "workflow": {
+              "commandId": "index.build",
+              "processStatus": "done",
+              "verification": null,
+              "publications": [
+                {
+                  "repo": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\ni-N7xSBN\\selected repository",
+                  "generation": {
+                    "currentJsonPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\ni-N7xSBN\\cache\\repos\\selected-repository-d029ef633e80\\builds\\current.json",
+                    "currentJsonExists": true,
+                    "currentJsonMtimeMs": 1793925839444.908,
+                    "parseOk": true,
+                    "buildId": "20261106T004339Z_9ac39f14_noscm_43bf2c1f",
+                    "buildRoot": "c:\\users\\sneak\\development\\pairofcleats\\.tmp\\dev\\tests\\cache\\ni-n7xsbn\\cache\\repos\\selected-repository-d029ef633e80\\builds\\20261106t004339z_9ac39f14_noscm_43bf2c1f",
+                    "activeRoot": "c:\\users\\sneak\\development\\pairofcleats\\.tmp\\dev\\tests\\cache\\ni-n7xsbn\\cache\\repos\\selected-repository-d029ef633e80\\builds\\20261106t004339z_9ac39f14_noscm_43bf2c1f",
+                    "buildRoots": {
+                      "code": "c:\\users\\sneak\\development\\pairofcleats\\.tmp\\dev\\tests\\cache\\ni-n7xsbn\\cache\\repos\\selected-repository-d029ef633e80\\builds\\20261106t004339z_9ac39f14_noscm_43bf2c1f"
+                    },
+                    "generationKey": "{\"buildId\":\"20261106T004339Z_9ac39f14_noscm_43bf2c1f\",\"buildRoot\":\"c:\\\\users\\\\sneak\\\\development\\\\pairofcleats\\\\.tmp\\\\dev\\\\tests\\\\cache\\\\ni-n7xsbn\\\\cache\\\\repos\\\\selected-repository-d029ef633e80\\\\builds\\\\20261106t004339z_9ac39f14_noscm_43bf2c1f\",\"activeRoot\":\"c:\\\\users\\\\sneak\\\\development\\\\pairofcleats\\\\.tmp\\\\dev\\\\tests\\\\cache\\\\ni-n7xsbn\\\\cache\\\\repos\\\\selected-repository-d029ef633e80\\\\builds\\\\20261106t004339z_9ac39f14_noscm_43bf2c1f\",\"buildRoots\":{\"code\":\"c:\\\\users\\\\sneak\\\\development\\\\pairofcleats\\\\.tmp\\\\dev\\\\tests\\\\cache\\\\ni-n7xsbn\\\\cache\\\\repos\\\\selected-repository-d029ef633e80\\\\builds\\\\20261106t004339z_9ac39f14_noscm_43bf2c1f\"}}"
+                  },
+                  "published": true,
+                  "validated": true,
+                  "promoted": true,
+                  "ready": true,
+                  "readinessCheck": "canonical-current-artifact-validation",
+                  "producerContractValid": true,
+                  "validation": {
+                    "ok": true,
+                    "issueCount": 0,
+                    "warningCount": 6,
+                    "issues": null
+                  },
+                  "observationUnchanged": true,
+                  "currentValidation": {
+                    "ok": true,
+                    "strict": true,
+                    "issues": [],
+                    "warningCount": 6
+                  },
+                  "validatedModes": [
+                    "code"
+                  ],
+                  "stage": "stage4",
+                  "producerCorrelations": [
+                    "pc-7aad1072-fb78-4eb2-a976-bc2eca6f0b59",
+                    "workflow-ab527170-0174-4b2e-9435-524147a11f16"
+                  ],
+                  "phases": {
+                    "discovery": {
+                      "status": "done",
+                      "updatedAt": "2026-11-06T00:43:40.515Z",
+                      "finishedAt": "2026-11-06T00:43:40.515Z"
+                    },
+                    "preprocessing": {
+                      "status": "done",
+                      "updatedAt": "2026-11-06T00:43:40.502Z",
+                      "finishedAt": "2026-11-06T00:43:40.502Z"
+                    },
+                    "stage2": {
+                      "status": "done",
+                      "updatedAt": "2026-11-06T00:43:45.568Z",
+                      "finishedAt": "2026-11-06T00:43:45.568Z"
+                    },
+                    "relations-physical:code:propagate": {
+                      "status": "done",
+                      "updatedAt": "2026-11-06T00:43:42.182Z",
+                      "finishedAt": "2026-11-06T00:43:42.182Z"
+                    },
+                    "validation": {
+                      "status": "done",
+                      "updatedAt": "2026-11-06T00:43:59.289Z",
+                      "finishedAt": "2026-11-06T00:43:59.289Z"
+                    },
+                    "promote": {
+                      "status": "done",
+                      "updatedAt": "2026-11-06T00:43:59.465Z",
+                      "finishedAt": "2026-11-06T00:43:59.465Z"
+                    },
+                    "stage4": {
+                      "status": "done",
+                      "updatedAt": "2026-11-06T00:43:58.608Z",
+                      "finishedAt": "2026-11-06T00:43:58.608Z"
+                    }
+                  },
+                  "note": "Current published generation observed independently of this process exit status.",
+                  "changedSincePreview": false,
+                  "producedReadyGeneration": true
+                }
+              ]
+            },
+            "attempts": 1,
+            "maxAttempts": 1,
+            "retries": 0,
+            "cancelReason": null,
+            "timedOut": false,
+            "totalDurationMs": 8666
+          }
+        ],
+        "preview": [
+          "index",
+          "build",
+          "--mode=code",
+          "--stage=stage4",
+          "--threads=1",
+          "--stub-embeddings=true",
+          "--repo=C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\ni-N7xSBN\\selected repository",
+          "--progress=jsonl"
+        ],
+        "pids": [
+          {
+            "native": 25696
+          },
+          {
+            "proxy": 28188,
+            "supervisor": 21976
+          },
+          {
+            "request": {
+              "credits": 256,
+              "op": "flow:credit",
+              "proto": "poc.tui@1"
+            }
+          },
+          {
+            "request": {
+              "credits": 1,
+              "op": "flow:credit",
+              "proto": "poc.tui@1"
+            }
+          },
+          {
+            "request": {
+              "jobId": "native-workflow-1",
+              "method": "select",
+              "op": "workflow:run",
+              "params": {
+                "kind": "repo",
+                "target": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\ni-N7xSBN\\selected repository"
+              },
+              "proto": "poc.tui@1"
+            }
+          },
+          {
+            "request": {
+              "credits": 1,
+              "op": "flow:credit",
+              "proto": "poc.tui@1"
+            }
+          },
+          {
+            "request": {
+              "credits": 1,
+              "op": "flow:credit",
+              "proto": "poc.tui@1"
+            }
+          },
+          {
+            "request": {
+              "jobId": "native-workflow-2",
+              "method": "describe",
+              "op": "workflow:run",
+              "params": {},
+              "proto": "poc.tui@1"
+            }
+          },
+          {
+            "request": {
+              "jobId": "native-workflow-3",
+              "method": "status",
+              "op": "workflow:run",
+              "params": {
+                "scopeId": "1d134b13-98d4-41d1-98e8-5609a9e3dd0c"
+              },
+              "proto": "poc.tui@1"
+            }
+          },
+          {
+            "request": {
+              "credits": 32,
+              "op": "flow:credit",
+              "proto": "poc.tui@1"
+            }
+          },
+          {
+            "request": {
+              "credits": 1,
+              "op": "flow:credit",
+              "proto": "poc.tui@1"
+            }
+          },
+          {
+            "request": {
+              "credits": 1,
+              "op": "flow:credit",
+              "proto": "poc.tui@1"
+            }
+          },
+          {
+            "request": {
+              "credits": 1,
+              "op": "flow:credit",
+              "proto": "poc.tui@1"
+            }
+          },
+          {
+            "request": {
+              "credits": 1,
+              "op": "flow:credit",
+              "proto": "poc.tui@1"
+            }
+          },
+          {
+            "request": {
+              "credits": 1,
+              "op": "flow:credit",
+              "proto": "poc.tui@1"
+            }
+          },
+          {
+            "request": {
+              "jobId": "native-workflow-4",
+              "method": "preview",
+              "op": "workflow:run",
+              "params": {
+                "commandId": "index.build",
+                "scopeId": "1d134b13-98d4-41d1-98e8-5609a9e3dd0c",
+                "values": {
+                  "mode": "code",
+                  "stage": "stage4",
+                  "stub-embeddings": true,
+                  "threads": 1
+                }
+              },
+              "proto": "poc.tui@1"
+            }
+          },
+          {
+            "request": {
+              "credits": 1,
+              "op": "flow:credit",
+              "proto": "poc.tui@1"
+            }
+          },
+          {
+            "request": {
+              "jobId": "native-workflow-5",
+              "method": "launch",
+              "op": "workflow:run",
+              "params": {
+                "confirmed": true,
+                "previewId": "bf25d1fd-7f75-446e-a4e1-90586c4e1637",
+                "scopeId": "1d134b13-98d4-41d1-98e8-5609a9e3dd0c"
+              },
+              "proto": "poc.tui@1"
+            }
+          },
+          {
+            "request": {
+              "credits": 4,
+              "op": "flow:credit",
+              "proto": "poc.tui@1"
+            }
+          },
+          {
+            "job": 15336,
+            "jobId": "workflow-ab527170-0174-4b2e-9435-524147a11f16"
+          },
+          {
+            "request": {
+              "credits": 2,
+              "op": "flow:credit",
+              "proto": "poc.tui@1"
+            }
+          },
+          {
+            "request": {
+              "credits": 1,
+              "op": "flow:credit",
+              "proto": "poc.tui@1"
+            }
+          },
+          {
+            "request": {
+              "credits": 1,
+              "op": "flow:credit",
+              "proto": "poc.tui@1"
+            }
+          },
+          {
+            "request": {
+              "credits": 1,
+              "op": "flow:credit",
+              "proto": "poc.tui@1"
+            }
+          },
+          {
+            "request": {
+              "credits": 1,
+              "op": "flow:credit",
+              "proto": "poc.tui@1"
+            }
+          },
+          {
+            "request": {
+              "credits": 4,
+              "op": "flow:credit",
+              "proto": "poc.tui@1"
+            }
+          },
+          {
+            "request": {
+              "credits": 11,
+              "op": "flow:credit",
+              "proto": "poc.tui@1"
+            }
+          },
+          {
+            "request": {
+              "credits": 17,
+              "op": "flow:credit",
+              "proto": "poc.tui@1"
+            }
+          },
+          {
+            "request": {
+              "credits": 15,
+              "op": "flow:credit",
+              "proto": "poc.tui@1"
+            }
+          },
+          {
+            "request": {
+              "credits": 1,
+              "op": "flow:credit",
+              "proto": "poc.tui@1"
+            }
+          },
+          {
+            "request": {
+              "credits": 1,
+              "op": "flow:credit",
+              "proto": "poc.tui@1"
+            }
+          },
+          {
+            "request": {
+              "credits": 1,
+              "op": "flow:credit",
+              "proto": "poc.tui@1"
+            }
+          },
+          {
+            "request": {
+              "credits": 1,
+              "op": "flow:credit",
+              "proto": "poc.tui@1"
+            }
+          },
+          {
+            "request": {
+              "credits": 1,
+              "op": "flow:credit",
+              "proto": "poc.tui@1"
+            }
+          },
+          {
+            "request": {
+              "credits": 22,
+              "op": "flow:credit",
+              "proto": "poc.tui@1"
+            }
+          }
+        ]
+      },
+      {
+        "id": "tui/native-index-workflows/preview-cancel",
+        "durationMs": 6223,
+        "phases": [
+          {
+            "mode": "preview-cancel",
+            "phase": "terminal-capture:start",
+            "elapsedMs": 192
+          },
+          {
+            "mode": "preview-cancel",
+            "phase": "native-ui:ready",
+            "elapsedMs": 1195
+          },
+          {
+            "mode": "preview-cancel",
+            "phase": "terminal-capture:closed",
+            "elapsedMs": 5732
+          }
+        ],
+        "summary": {
+          "mode": "preview-cancel",
+          "binarySha256": "3a649a640cfee3c22e49901dfea7c4d57b4c2f625727a329ddd7be6a5db9a369",
+          "node": "v26.13.0",
+          "platform": "win32",
+          "owned": [
+            29936,
+            23356,
+            21160
+          ],
+          "receipt": {
+            "beforeInput": 503,
+            "beforeOutput": 7,
+            "exitCode": 0,
+            "afterOutput": 7,
+            "stderr": "",
+            "mode": "preview-cancel",
+            "afterInput": 503,
+            "terminalRestored": true
+          },
+          "capture": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\ni-mSKDXR\\capture\\2026-11-06T00-44-04-210Z-native-index-preview-cancel-all-220x48-9172"
+        },
+        "workflowEvents": [],
+        "preview": [
+          "index",
+          "build",
+          "--repo=C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\ni-mSKDXR\\selected repository",
+          "--progress=jsonl"
+        ],
+        "pids": [
+          {
+            "native": 29936
+          },
+          {
+            "proxy": 23356,
+            "supervisor": 21160
+          },
+          {
+            "request": {
+              "credits": 256,
+              "op": "flow:credit",
+              "proto": "poc.tui@1"
+            }
+          },
+          {
+            "request": {
+              "credits": 1,
+              "op": "flow:credit",
+              "proto": "poc.tui@1"
+            }
+          },
+          {
+            "request": {
+              "credits": 1,
+              "op": "flow:credit",
+              "proto": "poc.tui@1"
+            }
+          },
+          {
+            "request": {
+              "jobId": "native-workflow-1",
+              "method": "select",
+              "op": "workflow:run",
+              "params": {
+                "kind": "repo",
+                "target": ".tmp\\dev\\tests\\cache\\ni-mSKDXR\\selected repository"
+              },
+              "proto": "poc.tui@1"
+            }
+          },
+          {
+            "request": {
+              "credits": 1,
+              "op": "flow:credit",
+              "proto": "poc.tui@1"
+            }
+          },
+          {
+            "request": {
+              "credits": 2,
+              "op": "flow:credit",
+              "proto": "poc.tui@1"
+            }
+          },
+          {
+            "request": {
+              "jobId": "native-workflow-2",
+              "method": "describe",
+              "op": "workflow:run",
+              "params": {},
+              "proto": "poc.tui@1"
+            }
+          },
+          {
+            "request": {
+              "jobId": "native-workflow-3",
+              "method": "preview",
+              "op": "workflow:run",
+              "params": {
+                "commandId": "index.build",
+                "scopeId": "8e6f3ff5-1841-4568-a7f6-8abed7b3c27c",
+                "values": {}
+              },
+              "proto": "poc.tui@1"
+            }
+          },
+          {
+            "request": {
+              "credits": 32,
+              "op": "flow:credit",
+              "proto": "poc.tui@1"
+            }
+          },
+          {
+            "request": {
+              "credits": 1,
+              "op": "flow:credit",
+              "proto": "poc.tui@1"
+            }
+          },
+          {
+            "request": {
+              "jobId": "native-workflow-4",
+              "method": "discard",
+              "op": "workflow:run",
+              "params": {
+                "previewId": "d2c04536-25e9-4f5f-ad5d-31b19ba54ded",
+                "scopeId": "8e6f3ff5-1841-4568-a7f6-8abed7b3c27c"
+              },
+              "proto": "poc.tui@1"
+            }
+          },
+          {
+            "request": {
+              "credits": 3,
+              "op": "flow:credit",
+              "proto": "poc.tui@1"
+            }
+          }
+        ]
+      },
+      {
+        "id": "tui/native-index-workflows/workspace",
+        "durationMs": 25515,
+        "phases": [
+          {
+            "mode": "workspace",
+            "phase": "seed-partial-build:start",
+            "elapsedMs": 206
+          },
+          {
+            "mode": "workspace",
+            "phase": "seed-native-admission",
+            "elapsedMs": 5524
+          },
+          {
+            "mode": "workspace",
+            "phase": "terminal-capture:start",
+            "elapsedMs": 5524
+          },
+          {
+            "mode": "workspace",
+            "phase": "native-ui:ready",
+            "elapsedMs": 6734
+          },
+          {
+            "mode": "workspace",
+            "phase": "seed-partial-build:complete",
+            "elapsedMs": 9725
+          },
+          {
+            "mode": "workspace",
+            "phase": "workspace-preview:ready",
+            "elapsedMs": 13145
+          },
+          {
+            "mode": "workspace",
+            "phase": "workspace-job:launched",
+            "elapsedMs": 13418
+          },
+          {
+            "mode": "workspace",
+            "phase": "terminal-capture:closed",
+            "elapsedMs": 25002
+          }
+        ],
+        "summary": {
+          "mode": "workspace",
+          "binarySha256": "3a649a640cfee3c22e49901dfea7c4d57b4c2f625727a329ddd7be6a5db9a369",
+          "node": "v26.13.0",
+          "platform": "win32",
+          "owned": [
+            23992,
+            11212,
+            20524,
+            25456
+          ],
+          "receipt": {
+            "beforeOutput": 7,
+            "beforeInput": 503,
+            "terminalRestored": true,
+            "stderr": "",
+            "afterOutput": 7,
+            "afterInput": 503,
+            "mode": "workspace",
+            "exitCode": 0
+          },
+          "capture": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\ni-9ddtGu\\capture\\2026-11-06T00-44-15-762Z-native-index-workspace-all-220x48-20000"
+        },
+        "workflowEvents": [
+          {
+            "proto": "poc.progress@2",
+            "event": "job:start",
+            "ts": "2026-11-06T00:44:23.490Z",
+            "runId": "index-workflow-native-all",
+            "jobId": "workflow-419a3723-82e7-4ec8-bd62-69714d8073bf",
+            "seq": 1,
+            "command": [
+              "workspace",
+              "build",
+              "--mode=code",
+              "--stage=stage4",
+              "--threads=1",
+              "--stub-embeddings=true",
+              "--concurrency=1",
+              "--workspace=C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\ni-9ddtGu\\workspace.jsonc",
+              "--progress=jsonl"
+            ],
+            "cwd": "c:\\users\\sneak\\development\\pairofcleats\\.tmp\\dev\\tests\\cache\\ni-9ddtgu",
+            "title": "workspace build",
+            "requested": {
+              "progressMode": "jsonl",
+              "resultPolicy": {
+                "captureStdout": "text",
+                "maxBytes": 786432
+              },
+              "retry": {
+                "maxAttempts": 1,
+                "delayMs": 0
+              },
+              "watchdog": {
+                "hardTimeoutMs": 0,
+                "heartbeatMs": 0,
+                "softKickMs": 0,
+                "softKickCooldownMs": 10000,
+                "softKickMaxAttempts": 2
+              }
+            }
+          },
+          {
+            "proto": "poc.progress@2",
+            "event": "job:spawn",
+            "ts": "2026-11-06T00:44:23.706Z",
+            "runId": "index-workflow-native-all",
+            "jobId": "workflow-419a3723-82e7-4ec8-bd62-69714d8073bf",
+            "seq": 2,
+            "pid": 25456,
+            "spawnedAt": "2026-11-06T00:44:23.706Z"
+          },
+          {
+            "proto": "poc.progress@2",
+            "event": "job:end",
+            "ts": "2026-11-06T00:44:33.918Z",
+            "runId": "index-workflow-native-all",
+            "jobId": "workflow-419a3723-82e7-4ec8-bd62-69714d8073bf",
+            "seq": 14,
+            "status": "done",
+            "terminationReason": "exit",
+            "exitCode": 0,
+            "signal": null,
+            "durationMs": 9415,
+            "result": "",
+            "resultState": "complete",
+            "resultCapture": {
+              "enabled": true,
+              "maxBytes": 786432,
+              "observedBytes": 0,
+              "retainedBytes": 0,
+              "droppedBytes": 0,
+              "retainedBufferBytes": 0,
+              "outputBytes": 0,
+              "encodingLoss": false,
+              "truncated": false
+            },
+            "error": null,
+            "workflow": {
+              "commandId": "workspace.build",
+              "processStatus": "done",
+              "verification": null,
+              "publications": [
+                {
+                  "repo": "c:\\users\\sneak\\development\\pairofcleats\\.tmp\\dev\\tests\\cache\\ni-9ddtgu\\selected repository",
+                  "generation": {
+                    "currentJsonPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\ni-9ddtGu\\cache\\repos\\selected-repository-45ad1acc186d\\builds\\current.json",
+                    "currentJsonExists": true,
+                    "currentJsonMtimeMs": 1793925872712.569,
+                    "parseOk": true,
+                    "buildId": "20261106T004413Z_c1590add_noscm_43bf2c1f",
+                    "buildRoot": "c:\\users\\sneak\\development\\pairofcleats\\.tmp\\dev\\tests\\cache\\ni-9ddtgu\\cache\\repos\\selected-repository-45ad1acc186d\\builds\\20261106t004413z_c1590add_noscm_43bf2c1f",
+                    "activeRoot": "c:\\users\\sneak\\development\\pairofcleats\\.tmp\\dev\\tests\\cache\\ni-9ddtgu\\cache\\repos\\selected-repository-45ad1acc186d\\builds\\20261106t004413z_c1590add_noscm_43bf2c1f",
+                    "buildRoots": {
+                      "code": "c:\\users\\sneak\\development\\pairofcleats\\.tmp\\dev\\tests\\cache\\ni-9ddtgu\\cache\\repos\\selected-repository-45ad1acc186d\\builds\\20261106t004413z_c1590add_noscm_43bf2c1f"
+                    },
+                    "generationKey": "{\"buildId\":\"20261106T004413Z_c1590add_noscm_43bf2c1f\",\"buildRoot\":\"c:\\\\users\\\\sneak\\\\development\\\\pairofcleats\\\\.tmp\\\\dev\\\\tests\\\\cache\\\\ni-9ddtgu\\\\cache\\\\repos\\\\selected-repository-45ad1acc186d\\\\builds\\\\20261106t004413z_c1590add_noscm_43bf2c1f\",\"activeRoot\":\"c:\\\\users\\\\sneak\\\\development\\\\pairofcleats\\\\.tmp\\\\dev\\\\tests\\\\cache\\\\ni-9ddtgu\\\\cache\\\\repos\\\\selected-repository-45ad1acc186d\\\\builds\\\\20261106t004413z_c1590add_noscm_43bf2c1f\",\"buildRoots\":{\"code\":\"c:\\\\users\\\\sneak\\\\development\\\\pairofcleats\\\\.tmp\\\\dev\\\\tests\\\\cache\\\\ni-9ddtgu\\\\cache\\\\repos\\\\selected-repository-45ad1acc186d\\\\builds\\\\20261106t004413z_c1590add_noscm_43bf2c1f\"}}"
+                  },
+                  "published": true,
+                  "validated": true,
+                  "promoted": true,
+                  "ready": true,
+                  "readinessCheck": "canonical-current-artifact-validation",
+                  "producerContractValid": true,
+                  "validation": {
+                    "ok": true,
+                    "issueCount": 0,
+                    "warningCount": 6,
+                    "issues": null
+                  },
+                  "observationUnchanged": true,
+                  "currentValidation": {
+                    "ok": true,
+                    "strict": true,
+                    "issues": [],
+                    "warningCount": 6
+                  },
+                  "validatedModes": [
+                    "code"
+                  ],
+                  "stage": "stage4",
+                  "producerCorrelations": [
+                    "pc-95b8bec9-ec02-4bc9-82df-22dc0d57b338",
+                    "workflow-419a3723-82e7-4ec8-bd62-69714d8073bf"
+                  ],
+                  "phases": {
+                    "discovery": {
+                      "status": "done",
+                      "updatedAt": "2026-11-06T00:44:13.837Z",
+                      "finishedAt": "2026-11-06T00:44:13.837Z"
+                    },
+                    "preprocessing": {
+                      "status": "done",
+                      "updatedAt": "2026-11-06T00:44:13.823Z",
+                      "finishedAt": "2026-11-06T00:44:13.823Z"
+                    },
+                    "stage2": {
+                      "status": "done",
+                      "updatedAt": "2026-11-06T00:44:19.261Z",
+                      "finishedAt": "2026-11-06T00:44:19.261Z"
+                    },
+                    "relations-physical:code:propagate": {
+                      "status": "done",
+                      "updatedAt": "2026-11-06T00:44:15.426Z",
+                      "finishedAt": "2026-11-06T00:44:15.426Z"
+                    },
+                    "validation": {
+                      "status": "done",
+                      "updatedAt": "2026-11-06T00:44:32.518Z",
+                      "finishedAt": "2026-11-06T00:44:32.518Z"
+                    },
+                    "promote": {
+                      "status": "done",
+                      "updatedAt": "2026-11-06T00:44:32.737Z",
+                      "finishedAt": "2026-11-06T00:44:32.737Z"
+                    },
+                    "stage4": {
+                      "status": "done",
+                      "updatedAt": "2026-11-06T00:44:31.759Z",
+                      "finishedAt": "2026-11-06T00:44:31.759Z"
+                    }
+                  },
+                  "note": "Current published generation observed independently of this process exit status.",
+                  "changedSincePreview": false,
+                  "producedReadyGeneration": true
+                }
+              ]
+            },
+            "attempts": 1,
+            "maxAttempts": 1,
+            "retries": 0,
+            "cancelReason": null,
+            "timedOut": false,
+            "totalDurationMs": 10428
+          }
+        ],
+        "preview": [
+          "workspace",
+          "build",
+          "--mode=code",
+          "--stage=stage4",
+          "--threads=1",
+          "--stub-embeddings=true",
+          "--concurrency=1",
+          "--workspace=C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\ni-9ddtGu\\workspace.jsonc",
+          "--progress=jsonl"
+        ],
+        "pids": [
+          {
+            "native": 23992
+          },
+          {
+            "proxy": 11212,
+            "supervisor": 20524
+          },
+          {
+            "request": {
+              "credits": 256,
+              "op": "flow:credit",
+              "proto": "poc.tui@1"
+            }
+          },
+          {
+            "request": {
+              "credits": 1,
+              "op": "flow:credit",
+              "proto": "poc.tui@1"
+            }
+          },
+          {
+            "request": {
+              "credits": 1,
+              "op": "flow:credit",
+              "proto": "poc.tui@1"
+            }
+          },
+          {
+            "request": {
+              "jobId": "native-workflow-1",
+              "method": "select",
+              "op": "workflow:run",
+              "params": {
+                "kind": "workspace",
+                "target": ".tmp\\dev\\tests\\cache\\ni-9ddtGu\\workspace.jsonc"
+              },
+              "proto": "poc.tui@1"
+            }
+          },
+          {
+            "request": {
+              "credits": 1,
+              "op": "flow:credit",
+              "proto": "poc.tui@1"
+            }
+          },
+          {
+            "request": {
+              "credits": 1,
+              "op": "flow:credit",
+              "proto": "poc.tui@1"
+            }
+          },
+          {
+            "request": {
+              "jobId": "native-workflow-2",
+              "method": "describe",
+              "op": "workflow:run",
+              "params": {},
+              "proto": "poc.tui@1"
+            }
+          },
+          {
+            "request": {
+              "credits": 32,
+              "op": "flow:credit",
+              "proto": "poc.tui@1"
+            }
+          },
+          {
+            "request": {
+              "credits": 1,
+              "op": "flow:credit",
+              "proto": "poc.tui@1"
+            }
+          },
+          {
+            "request": {
+              "credits": 1,
+              "op": "flow:credit",
+              "proto": "poc.tui@1"
+            }
+          },
+          {
+            "request": {
+              "credits": 1,
+              "op": "flow:credit",
+              "proto": "poc.tui@1"
+            }
+          },
+          {
+            "request": {
+              "jobId": "native-workflow-3",
+              "method": "preview",
+              "op": "workflow:run",
+              "params": {
+                "commandId": "workspace.build",
+                "scopeId": "9156b74a-a86b-4d25-a5ad-eb2019d4ed76",
+                "values": {
+                  "concurrency": 1,
+                  "mode": "code",
+                  "stage": "stage4",
+                  "stub-embeddings": true,
+                  "threads": 1
+                }
+              },
+              "proto": "poc.tui@1"
+            }
+          },
+          {
+            "request": {
+              "credits": 1,
+              "op": "flow:credit",
+              "proto": "poc.tui@1"
+            }
+          },
+          {
+            "request": {
+              "credits": 1,
+              "op": "flow:credit",
+              "proto": "poc.tui@1"
+            }
+          },
+          {
+            "request": {
+              "jobId": "native-workflow-4",
+              "method": "launch",
+              "op": "workflow:run",
+              "params": {
+                "confirmed": true,
+                "previewId": "e35b3ade-aff1-4275-b815-36baeceb163d",
+                "scopeId": "9156b74a-a86b-4d25-a5ad-eb2019d4ed76"
+              },
+              "proto": "poc.tui@1"
+            }
+          },
+          {
+            "request": {
+              "credits": 2,
+              "op": "flow:credit",
+              "proto": "poc.tui@1"
+            }
+          },
+          {
+            "request": {
+              "credits": 2,
+              "op": "flow:credit",
+              "proto": "poc.tui@1"
+            }
+          },
+          {
+            "job": 25456,
+            "jobId": "workflow-419a3723-82e7-4ec8-bd62-69714d8073bf"
+          },
+          {
+            "request": {
+              "credits": 2,
+              "op": "flow:credit",
+              "proto": "poc.tui@1"
+            }
+          },
+          {
+            "request": {
+              "credits": 1,
+              "op": "flow:credit",
+              "proto": "poc.tui@1"
+            }
+          },
+          {
+            "request": {
+              "credits": 1,
+              "op": "flow:credit",
+              "proto": "poc.tui@1"
+            }
+          },
+          {
+            "request": {
+              "credits": 1,
+              "op": "flow:credit",
+              "proto": "poc.tui@1"
+            }
+          },
+          {
+            "request": {
+              "credits": 1,
+              "op": "flow:credit",
+              "proto": "poc.tui@1"
+            }
+          },
+          {
+            "request": {
+              "credits": 1,
+              "op": "flow:credit",
+              "proto": "poc.tui@1"
+            }
+          },
+          {
+            "request": {
+              "credits": 1,
+              "op": "flow:credit",
+              "proto": "poc.tui@1"
+            }
+          },
+          {
+            "request": {
+              "credits": 1,
+              "op": "flow:credit",
+              "proto": "poc.tui@1"
+            }
+          },
+          {
+            "request": {
+              "credits": 1,
+              "op": "flow:credit",
+              "proto": "poc.tui@1"
+            }
+          },
+          {
+            "request": {
+              "credits": 5,
+              "op": "flow:credit",
+              "proto": "poc.tui@1"
+            }
+          },
+          {
+            "request": {
+              "credits": 7,
+              "op": "flow:credit",
+              "proto": "poc.tui@1"
+            }
+          },
+          {
+            "request": {
+              "credits": 2,
+              "op": "flow:credit",
+              "proto": "poc.tui@1"
+            }
+          }
+        ]
+      },
+      {
+        "id": "tui/native-index-workflows/workspace-status",
+        "durationMs": 16072,
+        "phases": [
+          {
+            "mode": "workspace-status",
+            "phase": "seed-partial-build:start",
+            "elapsedMs": 309
+          },
+          {
+            "mode": "workspace-status",
+            "phase": "seed-native-admission",
+            "elapsedMs": 5923
+          },
+          {
+            "mode": "workspace-status",
+            "phase": "terminal-capture:start",
+            "elapsedMs": 5923
+          },
+          {
+            "mode": "workspace-status",
+            "phase": "native-ui:ready",
+            "elapsedMs": 7101
+          },
+          {
+            "mode": "workspace-status",
+            "phase": "seed-partial-build:complete",
+            "elapsedMs": 9769
+          },
+          {
+            "mode": "workspace-status",
+            "phase": "terminal-capture:closed",
+            "elapsedMs": 15460
+          }
+        ],
+        "summary": {
+          "mode": "workspace-status",
+          "binarySha256": "3a649a640cfee3c22e49901dfea7c4d57b4c2f625727a329ddd7be6a5db9a369",
+          "node": "v26.13.0",
+          "platform": "win32",
+          "owned": [
+            28804,
+            8920,
+            26640
+          ],
+          "receipt": {
+            "mode": "workspace-status",
+            "terminalRestored": true,
+            "afterOutput": 7,
+            "exitCode": 0,
+            "stderr": "",
+            "beforeOutput": 7,
+            "beforeInput": 503,
+            "afterInput": 503
+          },
+          "capture": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\ni-LwuMey\\capture\\2026-11-06T00-44-41-786Z-native-index-workspace-status-all-220x48-22556"
+        },
+        "workflowEvents": [],
+        "preview": [
+          "workspace",
+          "build",
+          "--mode=code",
+          "--stage=stage4",
+          "--threads=1",
+          "--stub-embeddings=true",
+          "--concurrency=1",
+          "--workspace=C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\ni-LwuMey\\workspace.jsonc",
+          "--progress=jsonl"
+        ],
+        "pids": [
+          {
+            "native": 28804
+          },
+          {
+            "proxy": 8920,
+            "supervisor": 26640
+          },
+          {
+            "request": {
+              "credits": 256,
+              "op": "flow:credit",
+              "proto": "poc.tui@1"
+            }
+          },
+          {
+            "request": {
+              "credits": 1,
+              "op": "flow:credit",
+              "proto": "poc.tui@1"
+            }
+          },
+          {
+            "request": {
+              "credits": 1,
+              "op": "flow:credit",
+              "proto": "poc.tui@1"
+            }
+          },
+          {
+            "request": {
+              "jobId": "native-workflow-1",
+              "method": "select",
+              "op": "workflow:run",
+              "params": {
+                "kind": "workspace",
+                "target": ".tmp\\dev\\tests\\cache\\ni-LwuMey\\workspace.jsonc"
+              },
+              "proto": "poc.tui@1"
+            }
+          },
+          {
+            "request": {
+              "credits": 1,
+              "op": "flow:credit",
+              "proto": "poc.tui@1"
+            }
+          },
+          {
+            "request": {
+              "credits": 1,
+              "op": "flow:credit",
+              "proto": "poc.tui@1"
+            }
+          },
+          {
+            "request": {
+              "jobId": "native-workflow-2",
+              "method": "describe",
+              "op": "workflow:run",
+              "params": {},
+              "proto": "poc.tui@1"
+            }
+          },
+          {
+            "request": {
+              "credits": 32,
+              "op": "flow:credit",
+              "proto": "poc.tui@1"
+            }
+          },
+          {
+            "request": {
+              "jobId": "native-workflow-3",
+              "method": "status",
+              "op": "workflow:run",
+              "params": {
+                "scopeId": "86de41b7-b7ff-456a-be5c-8f85a02959be"
+              },
+              "proto": "poc.tui@1"
+            }
+          },
+          {
+            "request": {
+              "credits": 1,
+              "op": "flow:credit",
+              "proto": "poc.tui@1"
+            }
+          },
+          {
+            "request": {
+              "credits": 1,
+              "op": "flow:credit",
+              "proto": "poc.tui@1"
+            }
+          },
+          {
+            "request": {
+              "credits": 1,
+              "op": "flow:credit",
+              "proto": "poc.tui@1"
+            }
+          },
+          {
+            "request": {
+              "credits": 1,
+              "op": "flow:credit",
+              "proto": "poc.tui@1"
+            }
+          },
+          {
+            "request": {
+              "credits": 1,
+              "op": "flow:credit",
+              "proto": "poc.tui@1"
+            }
+          },
+          {
+            "request": {
+              "credits": 1,
+              "op": "flow:credit",
+              "proto": "poc.tui@1"
+            }
+          },
+          {
+            "request": {
+              "jobId": "native-workflow-4",
+              "method": "preview",
+              "op": "workflow:run",
+              "params": {
+                "commandId": "workspace.build",
+                "scopeId": "86de41b7-b7ff-456a-be5c-8f85a02959be",
+                "values": {
+                  "concurrency": 1,
+                  "mode": "code",
+                  "stage": "stage4",
+                  "stub-embeddings": true,
+                  "threads": 1
+                }
+              },
+              "proto": "poc.tui@1"
+            }
+          },
+          {
+            "request": {
+              "credits": 1,
+              "op": "flow:credit",
+              "proto": "poc.tui@1"
+            }
+          },
+          {
+            "request": {
+              "credits": 1,
+              "op": "flow:credit",
+              "proto": "poc.tui@1"
+            }
+          },
+          {
+            "request": {
+              "jobId": "native-workflow-5",
+              "method": "discard",
+              "op": "workflow:run",
+              "params": {
+                "previewId": "280de4a7-c13d-4f51-b777-7f8527ff073b",
+                "scopeId": "86de41b7-b7ff-456a-be5c-8f85a02959be"
+              },
+              "proto": "poc.tui@1"
+            }
+          },
+          {
+            "request": {
+              "credits": 2,
+              "op": "flow:credit",
+              "proto": "poc.tui@1"
+            }
+          }
+        ]
+      }
+    ],
+    "distinctFocusedPassed": 4,
+    "cohortDiscovery": {
+      "windowsNativeIndex": 22,
+      "originalCasesRetained": 21,
+      "newCase": "tui/native-index-workflows/workspace-status",
+      "owner": "Existing CI native-index-workflows family selector discovers every case; no ordered ordinary lane substitution is introduced."
+    }
+  },
+  "mapping": [
+    {
+      "original": "workspace keyboard status: published, not ready, canonical db-missing issue",
+      "replacement": "workspace-status real keyboard status and strict currentValidation assertions"
+    },
+    {
+      "original": "same workspace scope/typed values, launchable preview, exact planned/launch argv",
+      "replacement": "workspace retains normalstage4/concurrency1 argv; workspace-status independently previews and discards those same values"
+    },
+    {
+      "original": "actual owned workspace child done, valid producer, full ready generation/key",
+      "replacement": "workspace retains every original complete job/publication assertion"
+    },
+    {
+      "original": "terminal exit0/restoration, no warning/error log, all recorded descendants dead",
+      "replacement": "Shared final assertions execute for both workspace cases and adjacent controls"
+    },
+    {
+      "original": "stage4 partial resume plus produced memory search",
+      "replacement": "Original build-search remains unchanged and passes27.715s, including actual resulting source hit"
+    }
+  ],
+  "sourceFiles": [
+    {
+      "path": "tests/tui/native-index-workflows.test.js",
+      "sha256": "435d40306c3f53a54f299b5d5c030fef9fb36155fd82075a40250f5dacc7b1d0",
+      "bytes": 35429
+    },
+    {
+      "path": "tests/tui/native-index-workflows.test.js.cases.json",
+      "sha256": "126f19989280af90d13ee5f8c208e71f218fd90973e4019bac45ab3b836f5981",
+      "bytes": 500
+    },
+    {
+      "path": "tests/fixtures/tui/native-workflow-supervisor.js",
+      "sha256": "01a11b64bb700a219bb0667322b97bc46c68b2e4faceffb7871fc75861c359b6",
+      "bytes": 1151
+    },
+    {
+      "path": "tests/fixtures/tui/native-lifetime-conpty.ps1",
+      "sha256": "f867948b39d2b923213d25c2c485d2d2fe2a190f530c8df4689b14d9dc15cecc",
+      "bytes": 4843
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "sha256": "06486a224c5c1d88ec7a7a0783225e3722219fc4ce9e84bfd0ec7378c320aa53",
+      "bytes": 65367
+    },
+    {
+      "path": "tests/tooling/ci/run-suite-api-plan.test.js",
+      "sha256": "2da289f0b6c20a3779d5a615d3d55023b746edf88321256bb1cd5b42552cb770",
+      "bytes": 10129
+    }
+  ],
+  "publicationChecks": [
+    {
+      "command": "npm run format -- --cache --cache-strategy content --cache-location .tmp/tasks/ci-lite-1104/eslint-cache",
+      "exitCode": 0,
+      "note": "The initial full noncached format also passed; content/config-aware cache stays task-owned and ignored."
+    },
+    {
+      "command": "npm run config:budget",
+      "exitCode": 0
+    },
+    {
+      "command": "npm run env:check",
+      "exitCode": 0
+    },
+    {
+      "command": "node tools/docs/generated-surfaces.js --check-freshness",
+      "exitCode": 0
+    },
+    {
+      "command": "node tools/ci/check-command-surface.js",
+      "exitCode": 0
+    },
+    {
+      "command": "node tests/ci/workflow-contract.test.js",
+      "exitCode": 0
+    },
+    {
+      "command": "node tests/run.js --lane gate --jobs 1 --timeout-ms 30000 --retries 0 --native-status-redo=false",
+      "initialExitCode": 1,
+      "latestPassingIds": 43,
+      "acceptance": "42 unaffected IDs pass in the original campaign; the sole failed CI-plan case passes its specific repaired recheck. No second broad gate run.",
+      "recheckExitCode": 0
+    },
+    {
+      "command": "git diff --check",
+      "exitCode": 0
+    }
+  ],
+  "remaining": "Changed-head hosted native family confirmation is pending. Ubuntu crash-log breach attribution remains separate. No all-hosted-green claim.",
+  "historicalPaths": "Author .tmp/.testLogs paths are historical provenance, not clean-checkout deliverables.",
+  "gateRepair": {
+    "initial": {
+      "junit": null,
+      "logDir": "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793926326958-s211y6",
+      "summary": {
+        "durationMs": 79907,
+        "failed": 1,
+        "passed": 42,
+        "skipped": 0,
+        "total": 43
+      },
+      "tests": [
+        {
+          "attempts": 1,
+          "durationMs": 136,
+          "exitCode": 0,
+          "id": "indexing/policy/hotpath-membership-guard",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793926326958-s211y6\\indexing_policy_hotpath-membership-guard.attempt-1.log"
+          ],
+          "path": "indexing/policy/hotpath-membership-guard.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 134,
+          "exitCode": 0,
+          "id": "indexing/policy/module-cache-boundedness-contract",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793926326958-s211y6\\indexing_policy_module-cache-boundedness-contract.attempt-1.log"
+          ],
+          "path": "indexing/policy/module-cache-boundedness-contract.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 170,
+          "exitCode": 0,
+          "id": "indexing/policy/generated-matrix",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793926326958-s211y6\\indexing_policy_generated-matrix.attempt-1.log"
+          ],
+          "path": "indexing/policy/generated-matrix.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 139,
+          "exitCode": 0,
+          "id": "indexing/contracts/artifact-surface-version",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793926326958-s211y6\\indexing_contracts_artifact-surface-version.attempt-1.log"
+          ],
+          "path": "indexing/contracts/artifact-surface-version.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 113,
+          "exitCode": 0,
+          "id": "indexing/contracts/n-minus-one-adapter",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793926326958-s211y6\\indexing_contracts_n-minus-one-adapter.attempt-1.log"
+          ],
+          "path": "indexing/contracts/n-minus-one-adapter.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 106,
+          "exitCode": 0,
+          "id": "indexing/contracts/public-artifact-surface-doc",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793926326958-s211y6\\indexing_contracts_public-artifact-surface-doc.attempt-1.log"
+          ],
+          "path": "indexing/contracts/public-artifact-surface-doc.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 317,
+          "exitCode": 0,
+          "id": "indexing/contracts/index-compatibility-key-generation",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793926326958-s211y6\\indexing_contracts_index-compatibility-key-generation.attempt-1.log"
+          ],
+          "path": "indexing/contracts/index-compatibility-key-generation.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 117,
+          "exitCode": 0,
+          "id": "indexing/contracts/semver-policy-enforced",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793926326958-s211y6\\indexing_contracts_semver-policy-enforced.attempt-1.log"
+          ],
+          "path": "indexing/contracts/semver-policy-enforced.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 139,
+          "exitCode": 0,
+          "id": "indexing/contracts/index-state-dense-sidecars-present",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793926326958-s211y6\\indexing_contracts_index-state-dense-sidecars-present.attempt-1.log"
+          ],
+          "path": "indexing/contracts/index-state-dense-sidecars-present.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 287,
+          "exitCode": 0,
+          "id": "contracts/manifest-max-bytes-validation",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793926326958-s211y6\\contracts_manifest-max-bytes-validation.attempt-1.log"
+          ],
+          "path": "contracts/manifest-max-bytes-validation.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 4102,
+          "exitCode": 0,
+          "id": "indexing/policy/repo-inventory",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793926326958-s211y6\\indexing_policy_repo-inventory.attempt-1.log"
+          ],
+          "path": "indexing/policy/repo-inventory.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 488,
+          "exitCode": 0,
+          "id": "indexing/policy/shared-module-cycle-guard",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793926326958-s211y6\\indexing_policy_shared-module-cycle-guard.attempt-1.log"
+          ],
+          "path": "indexing/policy/shared-module-cycle-guard.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 432,
+          "exitCode": 0,
+          "id": "indexing/contracts/loader-matrix-parity",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793926326958-s211y6\\indexing_contracts_loader-matrix-parity.attempt-1.log"
+          ],
+          "path": "indexing/contracts/loader-matrix-parity.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 646,
+          "exitCode": 0,
+          "id": "indexing/policy/analysis-schema",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793926326958-s211y6\\indexing_policy_analysis-schema.attempt-1.log"
+          ],
+          "path": "indexing/policy/analysis-schema.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 550,
+          "exitCode": 0,
+          "id": "indexing/contracts/snapshots",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793926326958-s211y6\\indexing_contracts_snapshots.attempt-1.log"
+          ],
+          "path": "indexing/contracts/snapshots.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 554,
+          "exitCode": 0,
+          "id": "indexing/contracts/builds-current-repo-head-schema",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793926326958-s211y6\\indexing_contracts_builds-current-repo-head-schema.attempt-1.log"
+          ],
+          "path": "indexing/contracts/builds-current-repo-head-schema.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 621,
+          "exitCode": 0,
+          "id": "indexing/contracts/call-sites-schema",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793926326958-s211y6\\indexing_contracts_call-sites-schema.attempt-1.log"
+          ],
+          "path": "indexing/contracts/call-sites-schema.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 630,
+          "exitCode": 0,
+          "id": "indexing/contracts/diffs",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793926326958-s211y6\\indexing_contracts_diffs.attempt-1.log"
+          ],
+          "path": "indexing/contracts/diffs.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 492,
+          "exitCode": 0,
+          "id": "indexing/contracts/additional-properties-policy",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793926326958-s211y6\\indexing_contracts_additional-properties-policy.attempt-1.log"
+          ],
+          "path": "indexing/contracts/additional-properties-policy.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 939,
+          "exitCode": 0,
+          "id": "indexing/contracts/index-compatibility-key-enforced-on-load",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793926326958-s211y6\\indexing_contracts_index-compatibility-key-enforced-on-load.attempt-1.log"
+          ],
+          "path": "indexing/contracts/index-compatibility-key-enforced-on-load.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 441,
+          "exitCode": 0,
+          "id": "indexing/contracts/schema-registry-single-source",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793926326958-s211y6\\indexing_contracts_schema-registry-single-source.attempt-1.log"
+          ],
+          "path": "indexing/contracts/schema-registry-single-source.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 1275,
+          "exitCode": 0,
+          "id": "tooling/api-contracts/caps",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793926326958-s211y6\\tooling_api-contracts_caps.attempt-1.log"
+          ],
+          "path": "tooling/api-contracts/caps.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "tooling"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 1437,
+          "exitCode": 0,
+          "id": "tooling/api-contracts/schema-validate",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793926326958-s211y6\\tooling_api-contracts_schema-validate.attempt-1.log"
+          ],
+          "path": "tooling/api-contracts/schema-validate.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "tooling"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 1430,
+          "exitCode": 0,
+          "id": "tooling/api-contracts/fail-on-warn",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793926326958-s211y6\\tooling_api-contracts_fail-on-warn.attempt-1.log"
+          ],
+          "path": "tooling/api-contracts/fail-on-warn.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "tooling"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 1589,
+          "exitCode": 0,
+          "id": "tooling/api-contracts/optional-params",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793926326958-s211y6\\tooling_api-contracts_optional-params.attempt-1.log"
+          ],
+          "path": "tooling/api-contracts/optional-params.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "tooling"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 1265,
+          "exitCode": 0,
+          "id": "tooling/api-contracts/large-call-sites",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793926326958-s211y6\\tooling_api-contracts_large-call-sites.attempt-1.log"
+          ],
+          "path": "tooling/api-contracts/large-call-sites.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "tooling"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 1127,
+          "exitCode": 0,
+          "id": "indexing/contracts/embedding-identity-gating-on-load",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793926326958-s211y6\\indexing_contracts_embedding-identity-gating-on-load.attempt-1.log"
+          ],
+          "path": "indexing/contracts/embedding-identity-gating-on-load.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 1594,
+          "exitCode": 0,
+          "id": "ci/capability-gate.smoke",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793926326958-s211y6\\ci_capability-gate_smoke.attempt-1.log"
+          ],
+          "path": "ci/capability-gate.smoke.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 2532,
+          "exitCode": 0,
+          "id": "indexing/contracts/index-compatibility-key-federation-block",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793926326958-s211y6\\indexing_contracts_index-compatibility-key-federation-block.attempt-1.log"
+          ],
+          "path": "indexing/contracts/index-compatibility-key-federation-block.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 137,
+          "exitCode": 0,
+          "id": "indexing/policy/stable-entrypoints",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793926326958-s211y6\\indexing_policy_stable-entrypoints.attempt-1.log"
+          ],
+          "path": "indexing/policy/stable-entrypoints.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 2450,
+          "exitCode": 0,
+          "id": "indexing/policy/optional-deps",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793926326958-s211y6\\indexing_policy_optional-deps.attempt-1.log"
+          ],
+          "path": "indexing/policy/optional-deps.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 1659,
+          "exitCode": 0,
+          "id": "indexing/policy/analysis-gating",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793926326958-s211y6\\indexing_policy_analysis-gating.attempt-1.log"
+          ],
+          "path": "indexing/policy/analysis-gating.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 2283,
+          "exitCode": 0,
+          "id": "ci/tooling-doctor-gate.smoke",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793926326958-s211y6\\ci_tooling-doctor-gate_smoke.attempt-1.log"
+          ],
+          "path": "ci/tooling-doctor-gate.smoke.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "tooling"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 1510,
+          "exitCode": 0,
+          "id": "tooling/api-contracts/basic",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793926326958-s211y6\\tooling_api-contracts_basic.attempt-1.log"
+          ],
+          "path": "tooling/api-contracts/basic.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "tooling"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 4524,
+          "exitCode": 0,
+          "id": "contracts/module-export-surface-compat",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793926326958-s211y6\\contracts_module-export-surface-compat.attempt-1.log"
+          ],
+          "path": "contracts/module-export-surface-compat.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 2983,
+          "exitCode": 0,
+          "id": "indexing/contracts/semantic-foundations",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793926326958-s211y6\\indexing_contracts_semantic-foundations.attempt-1.log"
+          ],
+          "path": "indexing/contracts/semantic-foundations.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 820,
+          "exitCode": 0,
+          "id": "indexing/contracts/semantic-handoff-contracts",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793926326958-s211y6\\indexing_contracts_semantic-handoff-contracts.attempt-1.log"
+          ],
+          "path": "indexing/contracts/semantic-handoff-contracts.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 1221,
+          "exitCode": 0,
+          "id": "indexing/contracts/runtime-evidence",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793926326958-s211y6\\indexing_contracts_runtime-evidence.attempt-1.log"
+          ],
+          "path": "indexing/contracts/runtime-evidence.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 3312,
+          "exitCode": 0,
+          "id": "indexing/contracts/index-format-cutover",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793926326958-s211y6\\indexing_contracts_index-format-cutover.attempt-1.log"
+          ],
+          "path": "indexing/contracts/index-format-cutover.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 3461,
+          "exitCode": 0,
+          "id": "ci/windows-authority-cohort",
+          "lane": "gate",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793926326958-s211y6\\ci_windows-authority-cohort.attempt-1.log"
+          ],
+          "path": "ci/windows-authority-cohort.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "gate"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 586,
+          "exitCode": 0,
+          "id": "ci/ordered-lane-discovery",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793926326958-s211y6\\ci_ordered-lane-discovery.attempt-1.log"
+          ],
+          "path": "ci/ordered-lane-discovery.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 252,
+          "exitCode": 0,
+          "id": "ci/gate-policy",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793926326958-s211y6\\ci_gate-policy.attempt-1.log"
+          ],
+          "path": "ci/gate-policy.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 30828,
+          "exitCode": 1,
+          "id": "tooling/ci/run-suite-api-plan",
+          "lane": "unit",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793926326958-s211y6\\tooling_ci_run-suite-api-plan.attempt-1.log",
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793926326958-s211y6\\tooling_ci_run-suite-api-plan.attempt-1.failure.json"
+          ],
+          "path": "tooling/ci/run-suite-api-plan.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "failed",
+          "tags": [
+            "tooling",
+            "unit"
+          ],
+          "termination": {
+            "fallbackAttempted": false,
+            "fallbackDiscovery": {
+              "discoveredCount": 0,
+              "durationMs": 139,
+              "errorCode": null,
+              "exitCode": 0,
+              "stderr": "lineage:engine-ready\nlineage:input-ready\nlineage:script-start\nlineage:snapshot-ready\nlineage:resources-closed\nlineage:rows-written\n"
+            },
+            "fallbackTerminated": 0,
+            "forced": false,
+            "terminated": false
+          },
+          "timedOut": true,
+          "timeoutClass": "timed_out_with_failure"
+        }
+      ]
+    },
+    "recheck": {
+      "junit": null,
+      "logDir": "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793926681000-rets2z",
+      "summary": {
+        "durationMs": 16289,
+        "failed": 0,
+        "passed": 1,
+        "skipped": 0,
+        "total": 1
+      },
+      "tests": [
+        {
+          "attempts": 1,
+          "durationMs": 16281,
+          "exitCode": 0,
+          "id": "tooling/ci/run-suite-api-plan",
+          "lane": "unit",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793926681000-rets2z\\tooling_ci_run-suite-api-plan.attempt-1.log"
+          ],
+          "path": "tooling/ci/run-suite-api-plan.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "tooling",
+            "unit"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        }
+      ]
+    },
+    "work": {
+      "measurement": "ci-plan-discovery-work",
+      "cohortChecks": 10,
+      "uniqueCliLists": 6,
+      "scope": "one read-only root/environment/source snapshot; every distinct original CLI argv executes"
+    },
+    "change": "Reuse only identical read-only test-discovery CLI argv for this fixed root/environment/source snapshot. All six distinct original list children still run and all ten CI/nightly cohort checks remain, with fresh sortable copies. Four duplicate startups/scans are retired; mode-specific argv remains separate. No generic matcher is reimplemented and no unique input/assertion is omitted."
+  },
+  "hostedRepeat": {
+    "run": 42137970509,
+    "number": 2175,
+    "sourceHead": "302ad8e4df6ec08240100fcd091a03f46ece9b8a",
+    "jobId": 127632259488,
+    "passed": 20,
+    "failed": 1,
+    "case": "tui/native-index-workflows/workspace",
+    "durationMs": 28700,
+    "diagnostic": "Same original owned-job-end assertion before the fixture boundary repair; not a new-source acceptance run."
+  }
+}

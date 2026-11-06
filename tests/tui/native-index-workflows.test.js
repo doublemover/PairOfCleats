@@ -17,9 +17,10 @@ import { freezeSnapshot } from '../../src/index/snapshots/freeze.js';
 import { createLoggerScope } from '../../src/shared/progress-runtime.js';
 
 const mode = process.env.PAIROFCLEATS_TEST_ID?.split('tui/native-index-workflows/')[1];
-assert.ok(['build-search', 'validate-published', 'search-published', 'watch-cancel', 'build-cancel', 'preview-cancel', 'workspace', 'snapshot',
+assert.ok(['build-search', 'validate-published', 'search-published', 'watch-cancel', 'build-cancel', 'preview-cancel', 'workspace', 'workspace-status', 'snapshot',
   'snapshot-create', 'snapshot-list-populated', 'snapshot-show', 'snapshot-freeze', 'snapshot-remove', 'snapshot-prune', 'snapshot-gc',
   'report', 'stats', 'stats-conflict', 'missing-model', 'invalid-provider', 'stale'].includes(mode));
+const workspaceMode = mode === 'workspace' || mode === 'workspace-status';
 // Keep this native workflow's complete seed within LanceDB's qualified Windows
 // path budget. The backend's long-root qualification has its own coverage owner.
 // The same real build, backends, source input and native operations remain here.
@@ -42,7 +43,7 @@ const original = { threads: 1, quality: 'fast',
   } : {}) };
 await fs.writeFile(config, JSON.stringify(original));
 const workspace = path.join(dir, 'workspace.jsonc');
-if (mode === 'workspace') await fs.writeFile(workspace, JSON.stringify({ schemaVersion: 1,
+if (workspaceMode) await fs.writeFile(workspace, JSON.stringify({ schemaVersion: 1,
   name: 'native index workspace', repos: [{ root: repo }] }));
 const env = applyTestEnv({ cacheRoot: path.join(dir, 'cache'), syncProcess: true,
   embeddings: ['missing-model', 'invalid-provider'].includes(mode) ? null : 'stub',
@@ -87,7 +88,7 @@ const cli = async (args, name) => {
 };
 const publishedReadMode = ['validate-published', 'search-published'].includes(mode);
 const needsCompleteSeed = mode.startsWith('snapshot-') || ['validate-published', 'search-published', 'report', 'stats'].includes(mode);
-const overlappedSeed = process.platform === 'win32' && (needsCompleteSeed || mode === 'workspace');
+const overlappedSeed = process.platform === 'win32' && (needsCompleteSeed || workspaceMode);
 const deferredSeed = publishedReadMode && !overlappedSeed
   ? { stage: null, name: 'seed-complete-build' }
   : process.platform === 'win32' && mode === 'build-search'
@@ -111,7 +112,7 @@ const seedBuild = async (stage, name) => {
 };
 // Seed before capture where setup does not overlap. Windows workspace keeps
 // this same real seed, overlapping only independent console/catalog work below.
-if (['build-search', 'workspace'].includes(mode) && !deferredSeed && !overlappedSeed) {
+if ((mode === 'build-search' || workspaceMode) && !deferredSeed && !overlappedSeed) {
   await seedBuild('stage2', 'seed-partial-build');
 }
 if (needsCompleteSeed && !publishedReadMode && !overlappedSeed) {
@@ -144,7 +145,7 @@ const prepareSnapshots = async () => {
 };
 let seedAdmission = Promise.resolve(), seedCompletion = null;
 if (overlappedSeed) {
-  const partialSeed = mode === 'workspace';
+  const partialSeed = workspaceMode;
   const admissionMessage = partialSeed ? '[chunk_meta] writing JSON' : 'Indexing stage4 (sqlite/ann pass) running.';
   let admit;
   seedAdmission = new Promise(resolve => { admit = resolve; });
@@ -167,7 +168,7 @@ if (overlappedSeed) {
 await seedAdmission;
 if (overlappedSeed) {
   await fs.writeFile(path.join(dir, 'seed-native-admission.json'), JSON.stringify({ mode,
-    owner: mode === 'workspace' ? 'canonical-partial-seed-output-or-settlement' : 'canonical-seed-stage4-or-settlement' }));
+    owner: workspaceMode ? 'canonical-partial-seed-output-or-settlement' : 'canonical-seed-stage4-or-settlement' }));
   await recordFixturePhase('seed-native-admission');
 }
 const awaitSeed = async () => {
@@ -237,7 +238,7 @@ try {
       let catalog, selectedField = 0;
       const paste = value => `\x1b[200~${value}\x1b[201~`;
       const choose = async id => {
-        const commands = catalog.commands.filter(command => command.scopeKind === (mode === 'workspace' ? 'workspace' : 'repo'));
+        const commands = catalog.commands.filter(command => command.scopeKind === (workspaceMode ? 'workspace' : 'repo'));
         const index = commands.findIndex(command => command.id === id); assert.ok(index >= 0);
         // Esc returns the catalog to its first command. Flooding it with a full
         // catalog of redundant Up keys forces hundreds of real native redraws.
@@ -257,8 +258,15 @@ try {
         const command = await choose(id);
         for (const [key, value] of Object.entries(values)) await edit(command, key, value);
         const preview = await operation('preview', 'p'); assert.equal(preview.launchable, true, JSON.stringify(preview));
+        if (mode === 'workspace') {
+          const publication = preview.observations[0].publication;
+          assert.equal(publication.published, true); assert.equal(publication.stage, 'stage2');
+          assert.equal(publication.observationUnchanged, true);
+          await recordFixturePhase('workspace-preview:ready');
+        }
         await rendered('Launch preview ready; Enter confirms, Esc discards');
         const launch = await operation('launch', '\r'); assert.equal(launch.launched, true);
+        if (mode === 'workspace') await recordFixturePhase('workspace-job:launched');
         assert.equal(launch.jobId, preview.plannedJobId);
         assert.deepEqual(launch.canonicalArgv, preview.canonicalArgv);
         await wait(() => screen().includes('Owned job admitted; c cancels.')
@@ -289,8 +297,8 @@ try {
           assert.ok(screen().includes(repo), 'the actual native scope form must show its selected repository');
           terminal.write('\r');
         } else {
-          const target = path.relative(root, mode === 'workspace' ? workspace : repo);
-          terminal.write(`${mode === 'workspace' ? '\t' : ''}\x15${paste(target)}\r`);
+          const target = path.relative(root, workspaceMode ? workspace : repo);
+          terminal.write(`${workspaceMode ? '\t' : ''}\x15${paste(target)}\r`);
         }
         catalog = await settled('native-workflow-', 'describe', after); await rendered('Canonical command catalog loaded; no work started.');
         assert.ok(catalog.commands.some(command => command.id === 'index.build' && !command.unsupportedReason));
@@ -382,6 +390,24 @@ try {
             assert.ok(report.repo.artifacts.indexCode > 0); assert.equal(report.corruption.modes.code.ok, true);
           }
           await closeCatalog(); terminal.write('q');
+        } else if (mode === 'workspace-status') {
+          // Keep the original strict partial-publication status assertions in
+          // their own real-terminal case. The build case can prepare its form
+          // during the independent seed, joining publication before preview.
+          const partial = await currentStatus();
+          assert.equal(partial.publications[0].published, true); assert.equal(partial.publications[0].ready, false);
+          assert.ok(partial.publications[0].currentValidation.issues.some(issue => issue.includes('db missing')));
+          await backToCatalog();
+          const command = await choose('workspace.build');
+          for (const [key, value] of Object.entries({ mode: 'code', threads: 1, 'stub-embeddings': true, stage: 'stage4', concurrency: 1 })) {
+            await edit(command, key, value);
+          }
+          const preview = await operation('preview', 'p'); assert.equal(preview.launchable, true);
+          await rendered('Launch preview ready; Enter confirms, Esc discards');
+          assert.ok(preview.canonicalArgv.includes('--stage=stage4'));
+          const discarded = await operation('discard', '\x1b'); assert.equal(discarded.discarded, true);
+          assert.equal((await events()).some(row => row.event === 'job:start' && row.jobId?.startsWith('workflow-')), false);
+          await backToCatalog(); await closeCatalog(); terminal.write('q');
         } else if (mode === 'preview-cancel') {
           await choose('index.build'); const preview = await operation('preview', 'p'); assert.equal(preview.launchable, true);
           await rendered('Launch preview ready; Enter confirms, Esc discards');
@@ -390,7 +416,7 @@ try {
           await backToCatalog(); await closeCatalog(); terminal.write('q');
         } else {
           const id = mode === 'workspace' ? 'workspace.build' : mode === 'watch-cancel' ? 'index.watch' : 'index.build';
-          if (['build-search', 'workspace'].includes(mode)) {
+          if (mode === 'build-search') {
             const partial = await currentStatus();
             assert.equal(partial.publications[0].published, true); assert.equal(partial.publications[0].ready, false);
             assert.ok(partial.publications[0].currentValidation.issues.some(issue => issue.includes('db missing')));

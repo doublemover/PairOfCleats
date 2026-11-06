@@ -4567,5 +4567,16 @@
       "sha256": "dddbb9b2a6d3f8d9976c55589a7dc11a6af95bf53b1fdbe0336a82f8a4917975",
       "bytes": 1006300
     }
+  },
+  "publication": {
+    "sourceHead": "302ad8e4df6ec08240100fcd091a03f46ece9b8a",
+    "remoteBranchShaVerified": true,
+    "issueState": "closed",
+    "stateReason": "completed",
+    "issueReadBack": true,
+    "pr": 572,
+    "prReadBack": true,
+    "openCount": 356,
+    "closingReferenceCount": 534
   }
 }

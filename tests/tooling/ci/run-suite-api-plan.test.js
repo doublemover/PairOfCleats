@@ -34,6 +34,22 @@ for (const platform of ['ubuntu', 'windows', 'macos']) {
   assert.ok(upload.with.path.split(/\r?\n/).includes('.testLogs/build-cli-selected-outcome-*.json'),
     `${platform}: retain complete selected-outcome child status, error and output on successful and failed runs`);
 }
+// These list commands are read-only and share one root/environment/source
+// snapshot. Reuse identical CI/nightly cohort recipes; execute each exact argv
+// once, retaining every per-mode assertion and returning a fresh sortable copy.
+const cohortSelections = new Map();
+let cohortChecks = 0;
+const listScheduledCohort = selectors => {
+  cohortChecks++;
+  const args = ['tests/run.js', '--lane', 'all', ...selectors.flatMap(value => ['--match', value]), '--list'];
+  const key = JSON.stringify(args);
+  if (!cohortSelections.has(key)) {
+    const selected = runNode(args, 'list exact scheduled cohort', root, env, { stdio: 'pipe' })
+      .stdout.trim().split(/\r?\n/);
+    cohortSelections.set(key, Object.freeze(selected));
+  }
+  return [...cohortSelections.get(key)];
+};
 for (const mode of ['ci', 'nightly']) {
   const plan = runNode(['tools/ci/run-suite.js', '--mode', mode, '--dry-run', '--skip-prechecks'],
     `${mode} API and serial qualification plan`, root, env, { stdio: 'pipe' });
@@ -57,8 +73,7 @@ for (const mode of ['ci', 'nightly']) {
       '--retries 0', '--native-status-redo=false']) assert.ok(line.includes(option), `${option}: ${line}`);
     const selectors = [...line.matchAll(/--match (\/\S+\/)/g)].map(match => match[1]);
     assert.ok(selectors.length > 0);
-    const selected = runNode(['tests/run.js', '--lane', 'all', ...selectors.flatMap(value => ['--match', value]), '--list'],
-      'list exact scheduled cohort', root, env, { stdio: 'pipe' }).stdout.trim().split(/\r?\n/);
+    const selected = listScheduledCohort(selectors);
     assert.ok(selected.length > 0);
     assert.equal(new Set(selected).size, selected.length);
     if (line === api) {
@@ -120,4 +135,6 @@ for (const mode of ['ci', 'nightly']) {
     }
   }
 }
+console.log(JSON.stringify({ measurement: 'ci-plan-discovery-work', cohortChecks, uniqueCliLists: cohortSelections.size,
+  scope: 'one read-only root/environment/source snapshot; every distinct original CLI argv executes' }));
 console.log('CI/nightly API cohorts resolve authorization, search and federation; strict runtime budgets execute serially');

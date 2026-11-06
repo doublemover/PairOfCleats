@@ -14,7 +14,8 @@
     1240,
     1234,
     1634,
-    1255
+    1255,
+    1204
   ],
   "scope": "All open issues except user-excluded editor work and native Tantivy; mixed issues retain their non-editor scope",
   "routing": "Initial grouping by issue scope and recorded source owners; source-review-pending is not an implementation or acceptance claim",
@@ -1911,15 +1912,16 @@
       "title": "[Perf] Avoid redundant synchronous full-model hashing through verified artifact leases",
       "batch": "storage-publication-lifetimes",
       "scope": "active",
-      "review": "source-review-pending",
-      "recordedDisposition": "Implementation recorded; qualification pending.",
+      "review": "qualified-closed",
+      "recordedDisposition": "Completed and closed after source302ad8e4d publication,56 focused controls,43 gate cases and all eight publication checks.",
       "owners": [
         "src/shared/embedding-artifact-identity.js",
         "src/shared/embedding-adapter.js",
         "src/shared/embedding-provider-adapters.js",
         "docs/archived/github-issue-closeout-2026-10-26.json",
         "docs/archived/github-issue-closeout-2026-10-26.md"
-      ]
+      ],
+      "receipt": "docs/archived/embedding-artifact-lease-closeout-2026-11-05.json"
     },
     {
       "number": 1203,
@@ -5421,8 +5423,8 @@
   ],
   "liveReconciliation": {
     "date": "2026-11-05",
-    "openCount": 357,
-    "closedAfterCapture": 10,
-    "method": "Fresh four created-date pages100/100/100/60 with three boundary duplicates: exact initial367 minus ten completed closures, with no new/reopened IDs."
+    "openCount": 356,
+    "closedAfterCapture": 11,
+    "method": "Fresh357-ID four-page census minus verified #1204 completed closure/readback at302ad8e4d. No new full census after that closure is claimed."
   }
 }

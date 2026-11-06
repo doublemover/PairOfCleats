@@ -15,6 +15,11 @@ existing serial30-second owner, with original15-second build CLI limits.
 Current hosted qualification is reported on [PR572](https://github.com/doublemover/PairOfCleats/pull/572).
 
 
+[Native workspace follow-up](../archived/native-workspace-budget-followup-2026-11-05.md)
+retains the real stage4 command and all publication/lifetime assertions, moving
+strict keyboard status into an independently bounded case. Four affected native
+Windows cases pass; the family now discovers22, with hosted confirmation pending.
+
 [Artifact verification leases](../archived/embedding-artifact-lease-closeout-2026-11-05.md)
 qualify56 focused Windows controls and24 fresh-process raw samples. Concurrent
 selection/post-load verification shares reads; warm mutable bytes remain hashed.
