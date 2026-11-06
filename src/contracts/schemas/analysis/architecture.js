@@ -10,6 +10,31 @@ import {
   warningRecordSchema,
   witnessPathSchema
 } from './graph.js';
+import { ARCHITECTURE_REPORT_VERSION } from '../../architecture-evidence.js';
+
+const nullable = schema => ({ anyOf: [schema, { type: 'null' }] });
+const object = properties => ({ type: 'object', required: Object.keys(properties), properties, additionalProperties: false });
+const hash = { type: 'string', pattern: '^[a-f0-9]{64}$' };
+const ordinal = { type: 'integer', minimum: 0 };
+const shortText = { type: 'string', minLength: 1, maxLength: 256 };
+const selectorExplanation = nullable(object({ digest: hash, anyOf: { type: 'array', maxItems: 8, items: shortText },
+  noneOf: { type: 'array', maxItems: 8, items: shortText }, truncated: { type: 'boolean' } }));
+const endpointEvidence = object({ ref: nodeRefSchema, path: nullable({ type: 'string', minLength: 1, maxLength: 32768 }),
+  label: nullable(shortText), labelTruncated: { type: 'boolean' }, availability: { enum: ['source-path', 'identity-only'] } });
+export const ARCHITECTURE_VIOLATION_EVIDENCE_SCHEMA = object({
+  schemaVersion: { const: 1 }, edgeId: hash, relation: { enum: ['call', 'import'] },
+  from: endpointEvidence, to: endpointEvidence,
+  index: object({ indexSignature: nullableString, indexCompatKey: nullableString, indexDir: nullableString,
+    generation: { type: 'null' }, generationAvailability: { const: 'not-provided' } }),
+  policyDigest: hash, ruleId: { type: 'string', minLength: 1 }, ruleIndex: ordinal,
+  selectors: object({ from: selectorExplanation, to: selectorExplanation }),
+  layers: nullable(object({ fromOrdinal: ordinal, toOrdinal: ordinal, fromName: nullable(shortText), toName: nullable(shortText),
+    selection: { const: 'first-match-in-policy-order' } })),
+  availability: { const: 'observed-static-relationship' }, executionProven: { const: false }
+});
+const architecturePolicySchema = object({ schemaVersion: { const: 1 }, rulesVersion: { const: 1 }, digest: hash,
+  algorithm: { const: 'sha256' }, normalization: { const: 'ordered-admitted-policy-v1' },
+  pathNormalization: { const: 'repo-relative-path-v1' }, layerSelection: { const: 'first-match' } });
 
 const architectureViolationSchema = {
   type: 'object',
@@ -36,6 +61,18 @@ export const ARCHITECTURE_REPORT_SCHEMA = {
   required: ['version', 'rules', 'violations', 'provenance'],
   properties: {
     version: semverString,
+    policy: architecturePolicySchema,
+    execution: object({ schemaVersion: { const: 1 }, scope: { const: 'policy-and-graph-evaluation' },
+      excluded: { const: ['input-loading', 'rendering'] },
+      work: object(Object.fromEntries(['policyCompilations', 'policyCompilationHits', 'graphPreparations', 'graphPreparationHits',
+        'adjacencyAdmissionEntries', 'adjacencyAdmissionHits', 'adjacencySelectionEntries', 'adjacencyMaterializedEntries',
+        'selectorCalls', 'predicateCalls', 'policyMatchHits', 'policyMatchEvictions', 'policyMatchBytesHighWater', 'evidenceProjections',
+        'pathNormalizationCalls', 'pathNormalizationHits']
+        .map(name => [name, ordinal]))),
+      phaseMs: { type: 'object', required: ['policyAdmission', 'policyCompilation', 'evidenceProjection', 'edgeEvaluationInclusive'],
+        properties: Object.fromEntries(['policyAdmission', 'policyCompilation', 'graphPreparation', 'evidenceProjection', 'edgeEvaluationInclusive']
+          .map(name => [name, { type: 'number', minimum: 0 }])), additionalProperties: false },
+      totalMs: { type: 'number', minimum: 0 } }),
     provenance: provenanceSchema,
     rules: {
       type: 'array',
@@ -62,6 +99,16 @@ export const ARCHITECTURE_REPORT_SCHEMA = {
     truncation: { type: ['array', 'null'], items: truncationRecordSchema },
     warnings: { type: ['array', 'null'], items: warningRecordSchema }
   },
+  allOf: [{ if: { required: ['version'], properties: { version: { const: ARCHITECTURE_REPORT_VERSION } } }, then: {
+    required: ['policy', 'execution', 'summary'], properties: {
+      policy: architecturePolicySchema, execution: { type: 'object' }, summary: { type: 'object' },
+      rules: { type: 'array', items: { type: 'object', properties: {
+        type: { enum: ['forbiddenCall', 'forbiddenImport', 'layering'] }, summary: object({ violations: ordinal })
+      } } },
+      violations: { type: 'array', items: { type: 'object',
+        required: ['evidence'], properties: { evidence: object({ note: nullableString, details: ARCHITECTURE_VIOLATION_EVIDENCE_SCHEMA }) }
+      } } }
+  } }],
   additionalProperties: true
 };
 

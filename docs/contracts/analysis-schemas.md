@@ -238,6 +238,26 @@ additive join fields remain shape-compatible without acquiring these guarantees.
 
 Schema: `ARCHITECTURE_REPORT_SCHEMA`
 
+Version1.1.0 adds a typed policy receipt, execution work/phase observations and
+retained violation evidence. Each witness binds the static relation/endpoints,
+known source paths/labels, selected index and exact policy rule ordinal/digest.
+Missing optional labels or generation metadata remain explicit; the report
+cannot infer runtime execution. First-match layer ordinals remain ordered.
+Detection counts continue after the retained-detail cap. Cross-field validation
+rejects mismatched policy, edge, index, layer and accounting witnesses.
+
+Policy identity hashes normalized admitted defaults and ordered rules/layers and
+patterns with SHA256 under a versioned domain. Serialization whitespace does not
+change it; glob text, rule/layer order and other semantic fields do. Source/index
+identity stays separate. Compiled policy retention is capped at16 entries/4MiB
+of logical policy text; request-owned match retention is capped at4096 entries/
+1MiB of logical keys/values. These are bounded logical cache allowances, not RSS
+claims. Sorted admitted adjacency rows are borrowed on warm reads; an unsorted
+row's finite-cap selection retains only the demanded prefix plus a witness.
+Cold admission/selection, actual predicate calls and detail projection have
+distinct counters. Inclusive edge timing contains projection time and must not
+be added to it as an independent phase. Runtime qualification is pending.
+
 Purpose:
 - Evaluate architectural constraints over graphs and produce CI-friendly output.
 

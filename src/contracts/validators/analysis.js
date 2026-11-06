@@ -20,6 +20,7 @@ import { contextTokenProjectionErrors } from '../context-token-budget.js';
 import { contextEvidenceSelectionProjectionErrors } from '../context-evidence-selection.js';
 import { apiContractProjectionErrors } from '../schemas/api-contracts.js';
 import { federatedRiskProjectionErrors } from '../../context-pack/federated-risk.js';
+import { architectureEvidenceProjectionErrors } from '../architecture-evidence.js';
 
 const ajv = createAjv({
   allErrors: true,
@@ -94,7 +95,10 @@ export function validateApiContracts(payload) {
 }
 
 export function validateArchitectureReport(payload) {
-  return toValidationResult(ARCHITECTURE_REPORT_VALIDATOR, payload);
+  const result = toValidationResult(ARCHITECTURE_REPORT_VALIDATOR, payload);
+  if (!result.ok) return result;
+  const errors = architectureEvidenceProjectionErrors(payload);
+  return { ok: !errors.length, errors };
 }
 
 export function validateSuggestTests(payload) {

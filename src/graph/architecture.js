@@ -6,9 +6,12 @@ import { normalizeCap } from '../shared/limits.js';
 import { normalizePathForRepo } from '../shared/path-normalize.js';
 import { resolveProvenance } from '../shared/provenance.js';
 import { createTruncationRecorder } from '../shared/truncation.js';
-import { sha1 } from '../shared/hash.js';
+import { performance } from 'node:perf_hooks';
+import { ARCHITECTURE_REPORT_VERSION, architecturePolicyReceipt, architectureViolationEvidence } from '../contracts/architecture-evidence.js';
+import { architectureNeighbors, createArchitectureMatchOwner, createArchitectureWork } from './architecture-work.js';
 
 const compiledRuleCache = new Map();
+let compiledPolicyBytes = 0;
 const orderedNodeCache = new WeakMap();
 
 const buildMatcherSet = (patterns, identity, field) => patterns.map((pattern, index) => {
@@ -21,17 +24,19 @@ const compilePathSelector = (selector, identity) => {
   const anyOf = selector.anyOf || [], noneOf = selector.noneOf || [];
   const anyMatchers = buildMatcherSet(anyOf, identity, 'anyOf');
   const noneMatchers = buildMatcherSet(noneOf, identity, 'noneOf');
-  return { anyOf, noneOf, matches: target => {
+  return { anyOf, noneOf, matches: (target, work = null) => {
+    if (work) work.selectorCalls++;
     if (!target) return false;
     const value = String(target);
-    if (anyMatchers.length && !anyMatchers.some(matcher => matcher(value))) return false;
-    if (noneMatchers.some(matcher => matcher(value))) return false;
+    const match = matcher => { if (work) work.predicateCalls++; return matcher(value); };
+    if (anyMatchers.length && !anyMatchers.some(match)) return false;
+    if (noneMatchers.some(match)) return false;
     return true;
   } };
 };
 
 const compileRules = rules => rules.map((rule, ruleIndex) => {
-  const base = { id: rule.id, type: rule.type, severity: rule.severity, message: rule.message };
+  const base = { id: rule.id, ruleIndex, type: rule.type, severity: rule.severity, message: rule.message };
   const identity = { ruleId: rule.id, ruleIndex };
   if (rule.type === 'layering') return { ...base, layers: rule.layers.map((layer, index) => ({ name: layer.name,
     matcher: compilePathSelector(layer.match, { ...identity, propertyPath: `rules[${ruleIndex}].layers[${index}].match` }) })) };
@@ -55,18 +60,28 @@ const buildOrderedNodes = (nodeIndex) => {
   return nodes;
 };
 
-const resolveCompiledRules = rules => {
-  const rulesHash = sha1(JSON.stringify({ version: 1, rules }));
-  const cached = compiledRuleCache.get(rulesHash);
-  if (cached) return cached;
-  const compiled = compileRules(rules);
-  compiledRuleCache.set(rulesHash, compiled);
+const resolveCompiledRules = (rules, policy, work) => {
+  const cached = compiledRuleCache.get(policy.receipt.digest);
+  if (cached) {
+    compiledRuleCache.delete(policy.receipt.digest); compiledRuleCache.set(policy.receipt.digest, cached);
+    work.policyCompilationHits++; return cached.compiled;
+  }
+  work.policyCompilations++;
+  const compiled = compileRules(rules), bytes = policy.encoded.length * 2;
+  if (bytes <= 4 * 1024 * 1024) {
+    while (compiledRuleCache.size && (compiledRuleCache.size >= 16 || compiledPolicyBytes + bytes > 4 * 1024 * 1024)) {
+      const oldest = compiledRuleCache.keys().next().value;
+      compiledPolicyBytes -= compiledRuleCache.get(oldest).bytes; compiledRuleCache.delete(oldest);
+    }
+    compiledRuleCache.set(policy.receipt.digest, { compiled, bytes }); compiledPolicyBytes += bytes;
+  }
   return compiled;
 };
 
-const resolveOrderedNodes = (graphRelations) => {
+const resolveOrderedNodes = (graphRelations, work) => {
   if (!graphRelations || typeof graphRelations !== 'object') return null;
-  if (orderedNodeCache.has(graphRelations)) return orderedNodeCache.get(graphRelations);
+  if (orderedNodeCache.has(graphRelations)) { work.graphPreparationHits++; return orderedNodeCache.get(graphRelations); }
+  work.graphPreparations++;
   const callGraph = graphRelations.callGraph || null;
   const importGraph = graphRelations.importGraph || null;
   const callNodeIndex = buildNodeIndex(callGraph);
@@ -113,9 +128,20 @@ export const buildArchitectureReport = ({
   repo = null,
   indexDir = null,
   repoRoot = null,
+  metrics = null,
   now = () => new Date().toISOString()
 } = {}) => {
+  const started = performance.now(), work = createArchitectureWork();
   const normalizedRules = normalizeArchitectureRules(rules, { allowArray: true }).rules;
+  const policy = architecturePolicyReceipt(normalizedRules);
+  const phaseMs = { policyAdmission: performance.now() - started, evidenceProjection: 0 };
+  let phaseStarted = performance.now(), execution;
+  const finishMetrics = () => {
+    phaseMs.edgeEvaluationInclusive = performance.now() - phaseStarted;
+    execution = { schemaVersion: 1, scope: 'policy-and-graph-evaluation', excluded: ['input-loading', 'rendering'],
+      work: { ...work }, phaseMs: { ...phaseMs }, totalMs: performance.now() - started };
+    if (metrics) Object.assign(metrics, work, { phaseMs: { ...phaseMs }, totalMs: performance.now() - started });
+  };
   const warnings = [];
   const upstreamCoverage = normalizeCrossFileCoverage(graphRelations?.upstreamCoverage);
   const upstreamWarning = crossFileCoverageWarning(upstreamCoverage);
@@ -143,7 +169,9 @@ export const buildArchitectureReport = ({
     label: 'Architecture report'
   });
 
-  const compiledRules = resolveCompiledRules(normalizedRules);
+  phaseStarted = performance.now();
+  const compiledRules = resolveCompiledRules(normalizedRules, policy, work);
+  phaseMs.policyCompilation = performance.now() - phaseStarted; phaseStarted = performance.now();
   const summaries = compiledRules.map((rule) => ({
     id: rule.id,
     type: rule.type,
@@ -161,8 +189,11 @@ export const buildArchitectureReport = ({
         data: null
       });
     }
+    finishMetrics();
     return {
-      version: '1.0.0',
+      policy: policy.receipt,
+      execution,
+      version: ARCHITECTURE_REPORT_VERSION,
       upstreamCoverage,
       provenance: resolvedProvenance,
       rules: summaries,
@@ -174,7 +205,12 @@ export const buildArchitectureReport = ({
     };
   }
 
-  const cachedNodes = resolveOrderedNodes(graphRelations);
+  const cachedNodes = resolveOrderedNodes(graphRelations, work);
+  phaseMs.graphPreparation = performance.now() - phaseStarted; phaseStarted = performance.now();
+  const matches = createArchitectureMatchOwner(work);
+  const selectedIndex = { indexSignature: resolvedProvenance.indexSignature || null,
+    indexCompatKey: resolvedProvenance.indexCompatKey || null, indexDir: resolvedProvenance.indexDir || null,
+    generation: null, generationAvailability: 'not-provided' };
   const callGraph = cachedNodes?.callGraph || null;
   const importGraph = cachedNodes?.importGraph || null;
   const callNodeIndex = cachedNodes?.callNodeIndex || new Map();
@@ -203,7 +239,7 @@ export const buildArchitectureReport = ({
     return false;
   };
 
-  const recordViolation = (rule, edgeType, fromRef, toRef, note = null) => {
+  const recordViolation = (rule, edgeType, fromRef, toRef, note = null, details = {}) => {
     if (!fromRef || !toRef) return;
     detectedViolations += 1;
     const summary = summaryById.get(rule.id);
@@ -211,6 +247,8 @@ export const buildArchitectureReport = ({
     if (maxViolations != null && violations.length >= maxViolations) {
       return;
     }
+    work.evidenceProjections++;
+    const projectedAt = performance.now();
     violations.push({
       ruleId: rule.id,
       edge: {
@@ -218,34 +256,32 @@ export const buildArchitectureReport = ({
         from: fromRef,
         to: toRef
       },
-      evidence: note ? { note } : null
+      evidence: { note, details: architectureViolationEvidence({
+        rule: normalizedRules[rule.ruleIndex], ruleIndex: rule.ruleIndex, policyDigest: policy.receipt.digest,
+        edgeType, fromRef, toRef, index: selectedIndex, ...details }) }
     });
+    phaseMs.evidenceProjection += performance.now() - projectedAt;
   };
 
-  const layerResolvers = layeringRules.map((rule) => {
-    const cache = new Map();
-    const resolve = (targetPath) => {
+  const layerResolvers = layeringRules.map(rule => ({ rule,
+    resolve: targetPath => {
       if (!targetPath) return null;
-      if (cache.has(targetPath)) return cache.get(targetPath);
-      let matched = null;
-      const layers = rule.layers || [];
-      for (let idx = 0; idx < layers.length; idx += 1) {
-        if (layers[idx].matcher.matches(targetPath)) {
-          matched = { index: idx, name: layers[idx].name };
-          break;
-        }
-      }
-      cache.set(targetPath, matched);
-      return matched;
-    };
-    return { rule, resolve };
-  });
+      const index = matches.layer(rule, targetPath);
+      return index === null ? null : { index, name: rule.layers[index].name };
+    } }));
 
   const walkEdges = (nodes, nodeIndex, edgeType, handler) => {
     for (const node of nodes) {
       const outRaw = Array.isArray(node?.out) ? node.out : [];
-      const out = outRaw.map((entry) => String(entry)).filter(Boolean);
-      out.sort(compareStrings);
+      if (!outRaw.length) continue;
+      if (maxEdgesExamined !== null && edgesExamined >= maxEdgesExamined) {
+        // Empty normalized entries are not observed edges. Prove only whether
+        // an edge remains; do not allocate/sort the capped adjacency tail.
+        const hasEdge = outRaw.some(entry => { work.adjacencyAdmissionEntries++; return Boolean(String(entry)); });
+        if (hasEdge && shouldStop()) { stop = true; return; }
+        continue;
+      }
+      const out = architectureNeighbors(outRaw, maxEdgesExamined === null ? Infinity : maxEdgesExamined - edgesExamined, work);
       for (const toId of out) {
         if (shouldStop()) {
           stop = true;
@@ -262,16 +298,16 @@ export const buildArchitectureReport = ({
 
   if (callRules.length && callNodes.length) {
     walkEdges(callNodes, callNodeIndex, 'call', (fromNode, toId, toNode, edgeType) => {
-      const fromPath = resolveNodePath(fromNode, fromNode?.id, repoRoot);
-      const toPath = resolveNodePath(toNode, toId, repoRoot);
+      const fromPath = matches.path(fromNode, fromNode.id, () => resolveNodePath(fromNode, fromNode.id, repoRoot));
+      const toPath = matches.path(toNode || callGraph, toId, () => resolveNodePath(toNode, toId, repoRoot));
       if (!fromPath || !toPath) return;
       const fromRef = resolveNodeRef('call', fromNode, fromNode?.id, repoRoot);
       const toRef = resolveNodeRef('call', toNode, toId, repoRoot);
       if (!fromRef || !toRef) return;
       for (const rule of callRules) {
-        if (!rule.from.matches(fromPath)) continue;
-        if (!rule.to.matches(toPath)) continue;
-        recordViolation(rule, edgeType, fromRef, toRef, rule.message || null);
+        if (!matches.matches(rule.from, fromPath)) continue;
+        if (!matches.matches(rule.to, toPath)) continue;
+        recordViolation(rule, edgeType, fromRef, toRef, rule.message || null, { fromNode, toNode, fromPath, toPath });
         if (stop) return;
       }
     });
@@ -279,17 +315,17 @@ export const buildArchitectureReport = ({
 
   if (importRules.length && importNodes.length && !stop) {
     walkEdges(importNodes, importNodeIndex, 'import', (fromNode, toId, toNode, edgeType) => {
-      const fromPath = resolveNodePath(fromNode, fromNode?.id, repoRoot);
-      const toPath = resolveNodePath(toNode, toId, repoRoot);
+      const fromPath = matches.path(fromNode, fromNode.id, () => resolveNodePath(fromNode, fromNode.id, repoRoot));
+      const toPath = matches.path(toNode || importGraph, toId, () => resolveNodePath(toNode, toId, repoRoot));
       if (!fromPath || !toPath) return;
       const fromRef = resolveNodeRef('import', fromNode, fromNode?.id, repoRoot);
       const toRef = resolveNodeRef('import', toNode, toId, repoRoot);
       if (!fromRef || !toRef) return;
 
       for (const rule of forbiddenImportRules) {
-        if (!rule.from.matches(fromPath)) continue;
-        if (!rule.to.matches(toPath)) continue;
-        recordViolation(rule, edgeType, fromRef, toRef, rule.message || null);
+        if (!matches.matches(rule.from, fromPath)) continue;
+        if (!matches.matches(rule.to, toPath)) continue;
+        recordViolation(rule, edgeType, fromRef, toRef, rule.message || null, { fromNode, toNode, fromPath, toPath });
         if (stop) return;
       }
 
@@ -300,7 +336,7 @@ export const buildArchitectureReport = ({
         if (!fromLayer || !toLayer) continue;
         if (fromLayer.index < toLayer.index) {
           const note = `Layering violation: ${fromLayer.name} -> ${toLayer.name}`;
-          recordViolation(resolver.rule, edgeType, fromRef, toRef, note);
+          recordViolation(resolver.rule, edgeType, fromRef, toRef, note, { fromNode, toNode, fromPath, toPath, layers: { from: fromLayer.index, to: toLayer.index } });
           if (stop) return;
         }
       }
@@ -310,8 +346,11 @@ export const buildArchitectureReport = ({
   if (detectedViolations > violations.length) recordTruncation('maxViolations', {
     limit: maxViolations, observed: detectedViolations, omitted: detectedViolations - violations.length
   });
+  finishMetrics();
   return {
-    version: '1.0.0',
+    policy: policy.receipt,
+    execution,
+    version: ARCHITECTURE_REPORT_VERSION,
     upstreamCoverage,
     provenance: resolvedProvenance,
     rules: summaries,
