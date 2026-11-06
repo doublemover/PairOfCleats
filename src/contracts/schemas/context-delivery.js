@@ -1,6 +1,7 @@
 import { semanticObject as object, semanticInteger as uint } from './semantic-envelopes.js';
 import { QUESTION_WORLD_SCHEMA, QUESTION_SOURCE_REFERENCE_SCHEMA } from './repository-question.js';
 import { ANSWER_QUESTION_REF_SCHEMA } from './answer-evidence.js';
+import { REPOSITORY_ANSWER_REQUEST_SCHEMA } from './repository-answer.js';
 
 export const CONTEXT_DELIVERY_VERSION = 1;
 const version = { const: CONTEXT_DELIVERY_VERSION };
@@ -35,4 +36,10 @@ const plan = object({ schemaVersion: version, kind: { const: 'evidence-delivery-
     invalidateCurrentUse: { anyOf: [hashes(128), { const: 'all-previous-window' }] } }),
   cost: object({ transmittedBytes: uint, reconstructedPackBytes: uint, fullPromptBytes: { type: 'null' }, fullPromptTokens: { type: 'null' } }) });
 export const CONTEXT_DELIVERY_SCHEMAS = { request, entry, descriptor, manifest, window, plan,
+  answerSelection: object({ answerRequest: REPOSITORY_ANSWER_REQUEST_SCHEMA.oneOf[0] }, { quoteRoles: list(roles, 16) }),
+  context: DELIVERY_CONTEXT_SCHEMA,
+  receipt: object({ schemaVersion: version, kind: { const: 'evidence-window-receipt' }, packetId: hash, baseDigest: nullable(hash),
+    targetDigest: hash, contextRef: DELIVERY_CONTEXT_SCHEMA, rendererId: { const: 'evidence-window-json-v1' },
+    availability: { const: 'host-owned-pack-window' }, interpretation: { const: 'exact-reconstruction-not-comprehension-or-truth' },
+    renderedPackBytes: uint, fullPromptBytes: { type: 'null' }, fullPromptTokens: { type: 'null' } }),
   binding: object({ consumerId: text(256), sessionId: text(256) }) };

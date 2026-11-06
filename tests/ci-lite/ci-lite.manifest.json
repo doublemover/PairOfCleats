@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 2418,
+    "hero": 2425,
     "matrix": 110,
     "meta": 54,
     "soak": 1,
@@ -15511,6 +15511,48 @@
     {
       "id": "context-pack/delivery/protocol/full-cost-and-cancellation",
       "order": 2583,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "context-pack/delivery/host/bound-consumer-and-reset",
+      "order": 2584,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "context-pack/delivery/host/ack-and-loss",
+      "order": 2585,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "context-pack/delivery/host/source-and-permission-recheck",
+      "order": 2586,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "context-pack/delivery/host/cancel-and-original-failure",
+      "order": 2587,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "context-pack/delivery/host/atomic-host-and-readback",
+      "order": 2588,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "context-pack/delivery/host/live-answer-provider",
+      "order": 2589,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "context-pack/delivery/host/original-verifier-close",
+      "order": 2590,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

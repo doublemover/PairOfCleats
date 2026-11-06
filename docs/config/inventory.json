@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-06T11:04:53.533Z",
+  "generatedAt": "2026-11-06T11:25:36.879Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
@@ -4696,6 +4696,7 @@
         "tests/cli/search/helpers/missing-value-flags.js",
         "tests/context-pack/complete-function-surfaces.test.js",
         "tests/context-pack/complete-function-unit.test.js",
+        "tests/context-pack/delivery/host.test.js",
         "tests/context-pack/delivery/protocol.test.js",
         "tests/context-pack/evidence-selection-source.test.js",
         "tests/context-pack/evidence-selection-surfaces.test.js",

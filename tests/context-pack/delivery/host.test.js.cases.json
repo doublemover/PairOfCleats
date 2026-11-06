@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["bound-consumer-and-reset", "ack-and-loss", "source-and-permission-recheck", "cancel-and-original-failure", "atomic-host-and-readback", "live-answer-provider", "original-verifier-close"]
+}

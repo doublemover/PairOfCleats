@@ -2586,3 +2586,10 @@ context-pack/delivery/protocol/reset-and-consumer-isolation
 context-pack/delivery/protocol/loss-order-and-eviction
 context-pack/delivery/protocol/integrity-and-coordinates
 context-pack/delivery/protocol/full-cost-and-cancellation
+context-pack/delivery/host/bound-consumer-and-reset
+context-pack/delivery/host/ack-and-loss
+context-pack/delivery/host/source-and-permission-recheck
+context-pack/delivery/host/cancel-and-original-failure
+context-pack/delivery/host/atomic-host-and-readback
+context-pack/delivery/host/live-answer-provider
+context-pack/delivery/host/original-verifier-close

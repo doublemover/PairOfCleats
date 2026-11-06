@@ -26,8 +26,8 @@ manifest, copied receipt or caller-supplied visibility flag cannot construct tha
 witness. The internal witness owner is for a trusted host integration that has
 already checked its actual committed window; it performs no authentication or
 source admission by itself. A new issue/reset revokes its old witness and retains
-only the current bounded window. Authenticated host commit/ACK integration remains
-implementation work; no third-party client is declared qualified.
+only the current bounded window. The host integration below owns commit/ACK;
+no third-party client is declared qualified.
 
 Delta suppression requires the exact expected digest, next window revision and
 matching consumer/session, epoch, task, branch, policy, scope and world. Unknown,
@@ -51,8 +51,48 @@ ceiling. Instruction/tool overhead, reserved completion and full prompt tokens a
 outside this pure renderer; full-prompt bytes/tokens are explicitly unknown. No
 token savings, latency improvement or host prompt guarantee is claimed.
 
-Six unexecuted cases cover full source/role manifests, 256 independent full/delta
+Six unexecuted pure cases cover full source/role manifests, 256 independent full/delta
 subset reconstructions, consumer/reset/scope isolation, loss/order/eviction,
 corrupt maps and packet bodies, Unicode, full-cost bounds and cancellation. A
-real authenticated host owner, current source revalidation, acknowledged commit,
-shared hydration and workload qualification remain before issue #1533 closes.
+public full-pack transport, shared hydration and workload qualification remain
+before issue #1533 closes.
+
+`createEvidenceDeliveryHost` takes installed boundary, provider and exact-window
+adapter functions. The boundary binds consumer identity out of band and rechecks
+epoch/task/world/scope/policy before and after work. A request cannot name another
+consumer. Provider selection uses a closed schema; bodies and checked claims are
+not request fields. There are at most sixteen consumer states, one current pending
+packet each and 4 MiB of charged pending plan/selection/reconstructed-window bytes.
+Native provider errors retain their original observations and block another
+attempt until actual settlement. No source handle survives in a pending window.
+
+Sending/planning a packet never advances visibility. `apply(packetId)` looks up
+the exact bound pending packet, revalidates its original selected evidence, stages
+the complete window and calls the host's atomic compare-and-replace. Exact
+readback and current revision checks precede the receipt and new witness. False
+replacement success, conflicting windows and stale packets cannot ACK. Redelivery
+preserves packet identity; lost ACK delivery can reconcile the exact already
+committed target. Reset/compaction requires the actual host to change its epoch.
+
+The reference memory adapter owns one actual canonical JSON pack window per
+consumer. Its receipt says `host-owned-pack-window`, with prompt tokens unknown;
+it does not attest an external model prompt. Ordinary clients cannot submit an
+ACK flag to manufacture this receipt. This is an integration seam, not a new
+authentication or credential service.
+
+The live answer provider executes the existing pinned query/quotation coordinator.
+It delivers the complete qualified answer and explicitly selected source quotes,
+with separate origins and logical roles. ACK/redelivery verifies the exact
+delivered binding records, selected witnesses, compilation, inventory/domain and
+retained quotation bytes through existing readers. It does not rerun a query whose
+time boundary could produce a different page or substitute a new cursor. Count
+and negative dependencies remain conservatively bound to the complete immutable
+inventory; no new program-wide completeness assertion is made. Source expansion
+has a 250 ms verification interval and confirmed original cleanup before ACK.
+
+Seven additional unexecuted host cases cover identity/reset and consumer isolation,
+lost/reordered packets and ACKs, permission/source changes, cancellation/pending
+original work, atomic replacement/readback, the actual query/source provider and
+falsey verifier-close failure. Corrupt retained quotation bytes fail before a host
+window can be acknowledged. Source roles are selected labels, not proofs of their
+semantic sufficiency.
