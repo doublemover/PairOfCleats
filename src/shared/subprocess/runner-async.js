@@ -1,7 +1,8 @@
 import { spawn } from 'node:child_process';
 import { StringDecoder } from 'node:string_decoder';
 import { killChildProcessTree } from '../kill-tree.js';
-import { isAbortSignal } from '../abort.js';
+import { createSignalAbortError, isAbortSignal } from '../abort.js';
+import { addStorageFailureContext } from '../storage/operation-error.js';
 import {
   DEFAULT_MAX_OUTPUT_BYTES,
   SHELL_MODE_DISABLED_ERROR,
@@ -80,14 +81,13 @@ const terminateAndRejectFactory = ({
   try {
     if (typeof child.unref === 'function') child.unref();
   } catch {}
-  let treeCleanupResult = null, treeCleanupError = null;
-  const treeCleanup = killChildProcessTree(child, {
-    killTree,
-    killSignal,
-    graceMs: timeoutAbortKillGraceMs,
-    detached,
-    awaitGrace: true
-  }).then(result => { treeCleanupResult = result; }, error => { treeCleanupError = error; });
+  let treeCleanupResult = null, treeCleanupError, treeCleanupFailed = false, originalTreeWork;
+  try { originalTreeWork = killChildProcessTree(child, {
+    killTree, killSignal, graceMs: timeoutAbortKillGraceMs, detached, awaitGrace: true
+  }); } catch (error) { originalTreeWork = Promise.reject(error); }
+  const treeCleanup = Promise.resolve(originalTreeWork).then(result => { treeCleanupResult = result; }, error => {
+    treeCleanupFailed = true; treeCleanupError = error;
+  });
   cleanup({ keepTrackedRegistration: true });
   // A parent can close while a descendant is still inside its configured
   // termination grace. Keep the caller's capacity lease until the existing
@@ -105,14 +105,16 @@ const terminateAndRejectFactory = ({
   const closeObserved = wasCloseObserved();
   result.termination = { scope: 'spawned-child-close-only', method: 'child-close-event',
     closeObserved, closeTimedOut: !closeObserved, waitMs: timeoutAbortReapWaitMs,
-    treeCleanupSettled: true, treeCleanupFailed: treeCleanupError !== null,
+    treeCleanupSettled: true, treeCleanupFailed,
     treeCleanupForced: treeCleanupResult?.forced ?? null };
-  const error = createError(result);
-  if (!closeObserved || treeCleanupError) {
-    error.cacheOwnershipPending = true;
+  let error = createError(result);
+  if (treeCleanupFailed) error = addStorageFailureContext(error, { treeCleanupError }, treeCleanupError,
+    { secondaryPresent: true, nonEnumerable: ['treeCleanupError'] });
+  if (!closeObserved || treeCleanupFailed) {
     // This closure belongs to this exact spawned handle. A delayed actual close
     // may reconcile missing-close evidence; a rejected tree cleanup cannot.
-    Object.defineProperty(error, 'cacheOwnershipReleased', { value: () => wasCloseObserved() && !treeCleanupError });
+    Object.defineProperties(error, { cacheOwnershipPending: { value: true, writable: false, configurable: false },
+      cacheOwnershipReleased: { value: () => wasCloseObserved() && !treeCleanupFailed, writable: false, configurable: false } });
   }
   reject(error);
 };
@@ -177,7 +179,8 @@ export function spawnSubprocess(command, args, options = {}) {
         stdout: undefined,
         stderr: undefined
       });
-      reject(new SubprocessAbortError('Operation aborted', result));
+      const abort = createSignalAbortError(abortSignal);
+      reject(new SubprocessAbortError(abort.message, result, abort.cause));
       return;
     }
     const stdoutCollector = createCollector({ enabled: captureStdout, maxOutputBytes, encoding });
@@ -336,7 +339,8 @@ export function spawnSubprocess(command, args, options = {}) {
     abortHandler = () => {
       if (settled) return;
       settled = true;
-      void terminateAndReject((result) => new SubprocessAbortError('Operation aborted', result));
+      const abort = createSignalAbortError(abortSignal);
+      void terminateAndReject((result) => new SubprocessAbortError(abort.message, result, abort.cause));
     };
     if (abortSignal) {
       abortSignal.addEventListener('abort', abortHandler, { once: true });

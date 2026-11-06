@@ -20,6 +20,7 @@ export const BOOTSTRAP_INPUTS = Object.freeze(['package.json', 'package-lock.jso
   'src/shared/native-onnx-probe.js',
   'tools/setup/bootstrap-tasks.js', 'tools/setup/native-build-plan.js',
   'tools/setup/native-command-result.js',
+  'src/shared/abort.js', 'src/shared/subprocess/errors.js', 'src/shared/subprocess/runner-async.js',
   'tools/setup/windows-capability.js',
   'src/shared/bootstrap-readiness.js', 'src/lang/tree-sitter/native-runtime.js',
   'src/lang/tree-sitter/native-grammar-binding.js']);

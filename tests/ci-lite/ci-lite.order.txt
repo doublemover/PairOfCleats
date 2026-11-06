@@ -2681,3 +2681,11 @@ tooling/install/checkout-mutation-owner/original-error-and-retirement
 tooling/install/checkout-mutation-owner/outstanding-borrowed-work
 tooling/install/checkout-mutation-owner/readiness-boundary
 tooling/install/native-rebuild-import/captured-mode-and-context
+shared/subprocess/original-failure-causes/constructor-presence
+shared/subprocess/original-failure-causes/spawn-callback
+shared/subprocess/original-failure-causes/stdout-callback
+shared/subprocess/original-failure-causes/stderr-callback
+shared/subprocess/original-failure-causes/stdin-error
+shared/subprocess/original-failure-causes/pre-abort-reasons
+shared/subprocess/original-failure-causes/owned-abort-reasons
+shared/subprocess/original-failure-causes/tree-cleanup-rejections

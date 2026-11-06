@@ -5,7 +5,7 @@ export class SubprocessError extends Error {
     this.name = 'SubprocessError';
     this.code = 'SUBPROCESS_FAILED';
     this.result = result;
-    if (cause) this.cause = cause;
+    if (arguments.length >= 3) this.cause = cause;
   }
 }
 
@@ -20,11 +20,12 @@ export class SubprocessTimeoutError extends Error {
 }
 
 export class SubprocessAbortError extends Error {
-  /** @param {string} message @param {import('./types.js').SubprocessResult} result */
-  constructor(message, result) {
+  /** @param {string} message @param {import('./types.js').SubprocessResult} result @param {unknown} [cause] */
+  constructor(message, result, cause) {
     super(message);
     this.name = 'AbortError';
     this.code = 'ABORT_ERR';
     this.result = result;
+    if (arguments.length >= 3) this.cause = cause;
   }
 }

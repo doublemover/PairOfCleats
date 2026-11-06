@@ -36,6 +36,7 @@
  * @typedef {Error & {
  *   code:'SUBPROCESS_FAILED'|'SUBPROCESS_TIMEOUT'|'ABORT_ERR',
  *   result:SubprocessResult,
+ *   cause?:unknown,
  *   cacheOwnershipPending?:boolean,
  *   cacheOwnershipReleased?:()=>boolean
  * }} SubprocessFailure

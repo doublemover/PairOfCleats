@@ -32,6 +32,10 @@ with that result unless `rejectOnNonZeroExit:false`; expected codes default to
 `[0]`. Abort rejects `ABORT_ERR` (name `AbortError`); timeout rejects
 `SUBPROCESS_TIMEOUT`. Child error, stdin failure or a throwing synchronous hook
 rejects `SUBPROCESS_FAILED` with its original cause after owned termination.
+An explicitly supplied cause retains its value and presence, including false,
+zero, empty text, null and undefined. Aborted requests capture the original
+signal reason before waiting for termination. Reason inspection failures remain
+causes; they do not stand in for child-close evidence.
 
 An invalid signal or shell request rejects before spawn with a structured result.
 An already-aborted valid signal also rejects before spawn. These pre-spawn results

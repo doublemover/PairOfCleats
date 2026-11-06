@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 2513,
+    "hero": 2521,
     "matrix": 110,
     "meta": 54,
     "soak": 1,
@@ -16083,6 +16083,54 @@
       "order": 2678,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "shared/subprocess/original-failure-causes/constructor-presence",
+      "order": 2679,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/subprocess/original-failure-causes/spawn-callback",
+      "order": 2680,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/subprocess/original-failure-causes/stdout-callback",
+      "order": 2681,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/subprocess/original-failure-causes/stderr-callback",
+      "order": 2682,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/subprocess/original-failure-causes/stdin-error",
+      "order": 2683,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/subprocess/original-failure-causes/pre-abort-reasons",
+      "order": 2684,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/subprocess/original-failure-causes/owned-abort-reasons",
+      "order": 2685,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/subprocess/original-failure-causes/tree-cleanup-rejections",
+      "order": 2686,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
     }
   ]
 }

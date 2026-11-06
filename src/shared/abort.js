@@ -41,7 +41,7 @@ export const throwIfAborted = (signal, message) => {
   throw createSignalAbortError(signal, message);
 };
 
-const createSignalAbortError = (signal, message) => {
+export const createSignalAbortError = (signal, message) => {
   const error = createAbortError(message);
   // Keep the stable AbortError/ABORT_ERR contract and the caller's original
   // reason graph, including falsey reasons and fallible reason inspection.
