@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-06T22:24:31.728Z",
+  "generatedAt": "2026-11-06T22:33:36.033Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
@@ -4950,6 +4950,7 @@
         "tests/tooling/eval/masked-contrastive-objective.test.js",
         "tests/tooling/eval/origin-observation.test.js",
         "tests/tooling/eval/retrieval-training-cohort.test.js",
+        "tests/tooling/eval/retrieval-training.test.js",
         "tests/tooling/fixtures/fixture-eval.test.js",
         "tests/tooling/index-stats/additional-family-producers.test.js",
         "tests/tooling/index-stats/option-admission.test.js",

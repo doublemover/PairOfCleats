@@ -80,7 +80,17 @@ export const compileRetrievalTrainingCohort = (judgmentSets, { signal = null } =
   throwIfAborted(signal); return result;
 };
 export const inspectRetrievalTrainingCohort = cohort => {
-  if (!cohort || !owned.has(cohort)) throw fail('Original compiled retrieval training cohort required.'); return cohort;
+  if (!cohort || !owned.has(cohort)) throw fail('Original compiled retrieval training cohort required.');
+  if (owned.get(cohort).invalidation) throw fail('Retracted training inputs require a new clean cohort and training run.'); return cohort;
+};
+export const invalidateRetrievalTrainingCohort = (cohort, { kind, dependencyId }) => {
+  const state = cohort && typeof cohort === 'object' ? owned.get(cohort) : null;
+  if (!state || !['source-retracted', 'judgment-retracted'].includes(kind)
+    || !(kind === 'source-retracted' ? cohort.sourceDependencies.includes(dependencyId)
+      : cohort.rows.some(row => row.judgmentSetId === dependencyId))) throw fail('An original cohort and exact retracted source/judgment dependency required.');
+  if (!state.invalidation) state.invalidation = immutable({ cohortId: cohort.cohortId, kind, dependencyId,
+    state: 'invalidated', recovery: 'clean-cohort-and-retrain', exportedArtifactRevocation: 'external-qualification-registry-required' });
+  return state.invalidation;
 };
 
 /** The only batch/queue mask owner. Candidate support changes no annotations.

@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["frozen-vector-binding", "first-gradient-and-export-parity", "deterministic-resume", "stale-and-corrupt-resume", "cancellation-and-overlap", "missing-negative-skips-updates", "retracted-inputs-refuse-continuation", "overflow-keeps-complete-checkpoint"]
+}

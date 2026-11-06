@@ -1,9 +1,10 @@
 # Local retrieval adaptation
 
-The #1529 owners are an offline training cohort, masked objectives and directional
-query artifact/kernel. They do not train, load a model, activate a serving profile, mutate a
-document generation or qualify retrieval quality. Existing production embedding
-and generation checks remain unchanged.
+The #1529 owners compile offline training cohorts, evaluate masked objectives,
+train small directional query factors and export their numerical kernel. They
+do not load a model, activate a serving profile, mutate a document generation or
+qualify retrieval quality. Existing production embedding and generation checks
+remain unchanged.
 
 `src/shared/retrieval-adaptation/directional-query.js` implements
 `normalize(e + U(V^T e))` with row-major d-by-r Float32 factors, Float64
@@ -41,8 +42,7 @@ The authored regressions compare the factored result with an independent dense
 reference, round-trip exact exports, unchanged input bytes, same-width wrong
 models/providers/roles/pooling/quantization targets, malformed/nonfinite factors,
 zero projected norms, caller mutation and retirement. Runtime execution remains
-pending with the other development-first fixtures. Deterministic training/resume,
-serving integration and independent held-out
+pending with the other development-first fixtures. Serving integration and independent held-out
 quality/cost qualification remain required before closing #1529.
 
 ## Task judgments and training cohorts
@@ -93,3 +93,51 @@ any-positive can concentrate on one alternative. Neither certifies AND/OR task
 completion. Nine additional unrun cases retain exact stable tuples, held-out and
 stale-source rejection, alias conflicts, queue masks, skipped coverage, independent
 finite-difference gradients and extreme-temperature numerical controls.
+
+## Frozen vectors and deterministic CPU training
+
+`training.js` copies every query/document vector under the original cohort,
+source input hash and exact directional contracts. It fingerprints actual
+canonical Float32 bytes. Every cohort query and document needs exactly one
+record; there are at most 1,024 records per role and 1,048,576 total values.
+The initial optimizer requires normalized original-float32 documents. Stored
+quantized targets are a separate contract and are rejected by this trainer.
+This import proves source/byte binding, not that a named encoder produced the
+supplied floats. Actual local encoder execution remains a qualification owner.
+
+The explicitly selected run contract fixes the objective, temperature, constant
+learning rate, momentum, factor regularizer, gradient norm cap, seed and total
+sampler visits. A visit without admitted positive and negative support increments
+the skipped count without an optimizer update. SHA-256 of seed, epoch and query
+identity defines each epoch's permutation; sampler position is complete-update
+step/epoch/offset. No ambient RNG or candidate-selection callback is involved.
+
+Training calls the same Float32 forward kernel as exported inference. Cosine and
+normalization derivatives accumulate in Float64. The named output rounding
+gradient uses a straight-through estimator for Float32 output; it is not the
+mathematical derivative of the discontinuous rounding map. Momentum/factors
+round to Float32 after each full update. The regularizer is
+`lambda * (||U||^2 + ||V-V_initial||^2)`, not a claim to regularize the full
+residual matrix by an equivalent norm. Gradient clipping is global across U/V.
+
+Checkpoint identity includes cohort, split, actual vector-set bytes, the complete
+run and directional specs, factor bytes, momentum and sampler state. Resume
+validates all identities, finite canonical buffers and counter relationships.
+Partial optimizer writes never commit: all new arrays must pass before replacing
+the prior complete state. Each bounded advance yields between updates and accepts
+cancellation; original errors propagate and the last complete state remains.
+Concurrent advances and exports/retirement during an advance fail. Source or
+judgment retraction invalidates its original local cohort and refuses further
+training, resume, masks or exports; a clean cohort and retrain are required.
+Previously distributed artifacts require the external qualification/revocation
+registry; local invalidation does not pretend to erase copies or unlearn labels.
+
+Explicit retirement releases a session's vector ownership. A frozen-vector owner
+cannot retire while sessions still hold it; cleanup remains possible after
+retraction. No file, native resource or production profile is published by these
+library operations. Eight additional unrun regressions cover source/byte binding,
+first nonzero update, exported forward parity, synthetic loss reduction, exact
+resume under all three objectives, changed/corrupt state, cancellation, absent
+negatives, retraction, retirement and overflow preserving the prior checkpoint.
+Synthetic learning and operation counts do not establish held-out search quality,
+latency, real-model parity or deployment eligibility.

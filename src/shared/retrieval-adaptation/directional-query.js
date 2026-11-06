@@ -1,14 +1,14 @@
 import { createHash } from 'node:crypto';
-import { types } from 'node:util';
 import { semanticHash } from '../../index/semantic/identity.js';
 import { captureRetrievalAdaptation } from '../../contracts/validators/retrieval-adaptation.js';
 import { assertEmbeddingArtifactCompatibility } from '../embedding-artifact-identity.js';
 import { admitEmbeddingVector } from '../embedding-output-admission.js';
+import { captureAdaptationNumbers, applyResidualQueryKernel } from './numeric.js';
+import { encodeAdaptationFactors as copyFactors, decodeAdaptationFactors as decodeFactors } from './factor-bytes.js';
 
 const owned = new WeakMap(), retired = new WeakMap();
 const fail = message => Object.assign(new Error(message), { code: 'ERR_RETRIEVAL_ADAPTATION' });
 const hash = (kind, value) => semanticHash('directional-query.' + kind + '.v1', value, { maxBytes: 4 * 1024 * 1024 });
-const bytesHash = bytes => createHash('sha256').update(bytes).digest('hex');
 const artifactContent = artifact => ({ schemaVersion: artifact.schemaVersion, kind: artifact.kind, spec: artifact.spec, u: artifact.u, v: artifact.v });
 const get = handle => {
   const state = handle && typeof handle === 'object' ? owned.get(handle) : null;
@@ -29,35 +29,9 @@ const validateSpec = input => {
   return spec;
 };
 
-const captureNumbers = (input, length) => {
-  if (!input || typeof input !== 'object' || types.isProxy(input)
-    || ![Array.prototype, Float32Array.prototype, Float64Array.prototype].includes(Object.getPrototypeOf(input))
-    || input.length !== length || ArrayBuffer.isView(input) && input.buffer instanceof SharedArrayBuffer) throw fail('Exact bounded private numerical storage required.');
-  const numbers = new Float32Array(length);
-  for (let index = 0; index < length; index++) {
-    const descriptor = Object.getOwnPropertyDescriptor(input, String(index)), value = descriptor?.value;
-    if (!descriptor || !Object.hasOwn(descriptor, 'value') || typeof value !== 'number' || !Number.isFinite(value)
-      || !Number.isFinite(Math.fround(value))) throw fail('Factors must contain finite Float32 values without accessors or holes.');
-    const rounded = Math.fround(value); numbers[index] = rounded === 0 ? 0 : rounded;
-  }
-  return numbers;
-};
-const copyFactors = (input, length) => {
-  const numbers = captureNumbers(input, length), bytes = Buffer.alloc(length * 4);
-  for (let index = 0; index < length; index++) bytes.writeFloatLE(numbers[index], index * 4);
-  return Object.freeze({ encoding: 'float32-le-base64', sha256: bytesHash(bytes), data: bytes.toString('base64') });
-};
-const decodeFactors = (factor, length) => {
-  const bytes = Buffer.from(factor.data, 'base64');
-  if (bytes.length !== length * 4 || bytes.toString('base64') !== factor.data || bytesHash(bytes) !== factor.sha256) throw fail('Factor encoding, byte extent or SHA-256 changed.');
-  const values = new Float32Array(length);
-  for (let index = 0; index < length; index++) {
-    const value = bytes.readFloatLE(index * 4);
-    if (!Number.isFinite(value) || Object.is(value, -0)) throw fail('Factors require canonical finite Float32 bytes.');
-    values[index] = value;
-  }
-  return values;
-};
+export const captureDirectionalQuerySpec = validateSpec;
+export const directionalQueryContractIdentity = input => hash('query-contract', captureRetrievalAdaptation('query', input));
+export const directionalDocumentSpaceIdentity = input => hash('document-space', captureRetrievalAdaptation('document', input));
 
 /** Offline export only. No filesystem publication, model loading, activation or
  * document mutation is implied by constructing this content-addressed value.
@@ -115,18 +89,9 @@ export const projectDirectionalQuery = (handle, { query, queryContract, document
   queryContract = captureRetrievalAdaptation('query', queryContract); documentContract = captureRetrievalAdaptation('document', documentContract);
   if (hash('query-contract', queryContract) !== state.queryContractId || hash('document-space', documentContract) !== state.documentSpaceId) throw fail('Actual query/document contracts disagree with this directional pair.');
   const d = spec.query.dimensions, r = spec.rank;
-  const input = captureNumbers(query, d), middle = new Float64Array(r), projected = new Float64Array(d);
+  const input = captureAdaptationNumbers(query, d);
   admitEmbeddingVector(input, { dimensions: d, requireNonzero: true });
-  for (let row = 0; row < d; row++) for (let column = 0; column < r; column++) middle[column] += v[row * r + column] * input[row];
-  let norm = 0;
-  for (let row = 0; row < d; row++) {
-    let value = input[row];
-    for (let column = 0; column < r; column++) value += u[row * r + column] * middle[column];
-    if (!Number.isFinite(value)) throw fail('Residual query is nonfinite.');
-    projected[row] = value; norm = Math.hypot(norm, value);
-  }
-  if (!(norm > 0) || !Number.isFinite(norm)) throw fail('Residual query has zero or invalid norm.');
-  const vector = Float32Array.from(projected, value => value / norm);
+  const { vector } = applyResidualQueryKernel({ input, u, v, dimensions: d, rank: r });
   admitEmbeddingVector(vector, { dimensions: d, requireNonzero: true, unitNorm: true });
   return Object.freeze({ vector, pairId: state.artifact.pairId, queryContractId: state.queryContractId,
     documentSpaceId: state.documentSpaceId, queryCacheIdentity: state.artifact.pairId,

@@ -2816,3 +2816,11 @@ tooling/eval/retrieval-training-cohort/original-task-retirement
 tooling/eval/masked-contrastive-objective/named-objectives-and-independent-gradients
 tooling/eval/masked-contrastive-objective/stable-temperature-and-masked-queues
 tooling/eval/masked-contrastive-objective/missing-negative-skips-term
+tooling/eval/retrieval-training/frozen-vector-binding
+tooling/eval/retrieval-training/first-gradient-and-export-parity
+tooling/eval/retrieval-training/deterministic-resume
+tooling/eval/retrieval-training/stale-and-corrupt-resume
+tooling/eval/retrieval-training/cancellation-and-overlap
+tooling/eval/retrieval-training/missing-negative-skips-updates
+tooling/eval/retrieval-training/retracted-inputs-refuse-continuation
+tooling/eval/retrieval-training/overflow-keeps-complete-checkpoint
