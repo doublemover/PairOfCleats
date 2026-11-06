@@ -42,6 +42,26 @@ collect-all verification. Already running owners drain; queued successors are
 cancelled. Ordinary settled package failures retain their existing collect-all
 behavior.
 
+The same task owner exposes opt-in in-process `bootstrap-task-event` version 1
+observations: queued, dependency-wait, resource-wait, started and actual terminal
+states. Run/plan identity is captured once; each graph execution has its own batch
+identity and one task attempt. Resource-wait enters the admission phase; the
+actual scheduler request follows its awaited observer. It is not evidence of
+resource contention. Timing separates dependency wait, actual admission wait and
+execution; concurrent durations are never summed as wall time. Logical failure
+explicitly distinguishes pending original retirement. Required and optional
+outcomes remain separate. The finite plan allows at most 256 bounded task IDs.
+
+Native build/probe and patch preparation now render stable start/terminal lines
+on stderr while independent work is still running, retaining deterministic final
+summaries and unchanged raw child/JSON stdout. Human projections strip terminal
+controls and bound diagnostic text. Structured events require an explicit caller
+callback; no machine event stream or public knob was added. Callback work is
+awaited, and an original renderer failure stops admission and drains existing
+owners without changing compiler outcomes. Four event controls await execution.
+Per-attempt persistent logs, aggregate transcript budgets, output-observed events,
+terminal transport qualification and durable root-stage journals remain pending.
+
 ## Windows
 
 Install [Python 3](https://www.python.org/downloads/windows/),

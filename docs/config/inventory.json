@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-06T16:57:48.424Z",
+  "generatedAt": "2026-11-06T17:10:16.168Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
@@ -4952,6 +4952,7 @@
         "tests/tooling/index/recovery-cli-authority.test.js",
         "tests/tooling/install/bootstrap-drain-failure.test.js",
         "tests/tooling/install/bootstrap-failure-observation.test.js",
+        "tests/tooling/install/bootstrap-task-events.test.js",
         "tests/tooling/install/bootstrap-verification-generation.test.js",
         "tests/tooling/install/checkout-bootstrap-entry.test.js",
         "tests/tooling/install/checkout-mutation-owner.test.js",

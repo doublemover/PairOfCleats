@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["ordered-admission-and-timing", "immediate-failure-and-drain", "original-observer-failures", "bounded-diagnostics"]
+}

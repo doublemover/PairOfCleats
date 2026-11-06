@@ -18,6 +18,7 @@ import { parseNativeRebuildArguments, NATIVE_REBUILD_USAGE } from './checkout-bo
 import { isDirectExecution } from '../../src/shared/direct-execution.js';
 import { readErrorDataProperty } from '../../src/shared/error-data.js';
 import { addStorageFailureContext } from '../../src/shared/storage/operation-error.js';
+import { formatBootstrapTaskProgress } from './task-progress.js';
 
 /** Importing the native owner is inert. The checkout transaction can call this
  * same implementation under its original session without spawning a second
@@ -60,6 +61,10 @@ const runNativeRebuildOwned = async ({ verifyOnly, repairOnly }, { root, session
         { secondaryPresent: Boolean(original && Object.hasOwn(original, 'value')), nonEnumerable: ['nativeSetupResult'] });
     }
     return result;
+  };
+  const taskProgress = label => event => {
+    const line = formatBootstrapTaskProgress(event, label);
+    if (line) console.error(line);
   };
 
   const REQUIRED_NATIVE_PACKAGES = [
@@ -308,7 +313,8 @@ const runNativeRebuildOwned = async ({ verifyOnly, repairOnly }, { root, session
         if (result.ok && pkgName === TREE_SITTER_PERL_PACKAGE) return verifyPerlScannerPatch();
         return result;
       }
-    })), { budget: bootstrapBudget, signal: invocationSignal, stopOnRequiredFailure: false });
+    })), { budget: bootstrapBudget, signal: invocationSignal, stopOnRequiredFailure: false,
+      eventContext: { runId: session.runId }, onEvent: taskProgress(label) });
     for (const [index, pkgName] of REQUIRED_NATIVE_PACKAGES.entries()) {
       const row = outcome.results[index];
       const result = row.result || { ok: false, message: row.error?.message || row.status };
@@ -522,7 +528,8 @@ const runNativeRebuildOwned = async ({ verifyOnly, repairOnly }, { root, session
   }));
   const outcome = await runBootstrapTasks(createNativeBuildTasks({
     packages, adapters, budget: bootstrapBudget, prepareHeaders, buildLocal, buildFallback
-  }), { budget: bootstrapBudget, signal: invocationSignal });
+  }), { budget: bootstrapBudget, signal: invocationSignal,
+    eventContext: { runId: session.runId }, onEvent: taskProgress('native-build') });
   const buildCounts = summarizeNativeBuildResults(outcome.results);
   const unsuccessful = counts => counts.failed + counts.cancelled + counts.blocked;
   // Report in dependency/input order regardless of completion order.

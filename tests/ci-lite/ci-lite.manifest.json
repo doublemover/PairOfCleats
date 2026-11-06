@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 2535,
+    "hero": 2539,
     "matrix": 110,
     "meta": 54,
     "soak": 1,
@@ -16213,6 +16213,30 @@
     {
       "id": "tooling/install/native-rebuild-import/original-input-generation",
       "order": 2700,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/bootstrap-task-events/ordered-admission-and-timing",
+      "order": 2701,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/bootstrap-task-events/immediate-failure-and-drain",
+      "order": 2702,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/bootstrap-task-events/original-observer-failures",
+      "order": 2703,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/bootstrap-task-events/bounded-diagnostics",
+      "order": 2704,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     }

@@ -20,6 +20,7 @@ const inputs = ['.nvmrc', 'tools/setup/checkout-diagnose.js', 'tools/setup/prefl
   'tools/setup/checkout-bootstrap.js', 'tools/setup/checkout-bootstrap-arguments.js',
   'tools/setup/checkout-bootstrap-paths.js', 'tools/setup/checkout-mutation.js',
   'tools/setup/patch-stage.js',
+  'tools/setup/task-progress.js',
   'tools/setup/postinstall.js',
   'src/shared/locks/file-lock-publication.js', 'src/shared/io/file-identity.js',
   'tools/setup/rebuild-native-sqlite.js', 'tools/setup/readiness.js', 'src/shared/native-package-probe.js',
