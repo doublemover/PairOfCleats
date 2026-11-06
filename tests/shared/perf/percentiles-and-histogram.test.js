@@ -6,6 +6,39 @@ import {
   resolveNearestRankPercentile
 } from '../../../src/shared/perf/percentiles.js';
 import { summarizeBoundedHistogram } from '../../../src/shared/perf/histogram.js';
+import { createBuildScheduler } from '../../../src/shared/concurrency/scheduler-core.js';
+
+// Expected values are independently authored; never normalize the oracle with
+// the same helper that the histogram and live latency consumers use.
+assert.deepEqual(normalizeNonNegativeSamples([0.125, 1.875, -1, NaN, 0.375]), [0.125, 0.375, 1.875]);
+assert.deepEqual(normalizeNonNegativeSamples([0.125, 1.875], { precision: null, sort: false }), [0.125, 1.875]);
+assert.deepEqual(normalizeNonNegativeSamples([0.125, 1.875], { precision: 0 }), [0, 2]);
+assert.deepEqual(normalizeNonNegativeSamples([0.125, 1.875], { precision: 2 }), [0.13, 1.88]);
+assert.equal(resolveNearestRankPercentile([0.125, 0.375, 1.875], 0.5), 0.375);
+assert.equal(resolveNearestRankPercentile([0.125, 0.375, 1.875], 0.95), 1.875);
+assert.equal(resolveInterpolatedPercentile([0.125, 0.375], 0.5), 0.25);
+assert.equal(resolveNearestRankPercentile([], 0.5), 0);
+assert.equal(resolveNearestRankPercentile([], 0.5, { emptyValue: null }), null);
+assert.equal(resolveInterpolatedPercentile([], 0.5), null);
+assert.equal(summarizeBoundedHistogram([], {}), null);
+assert.deepEqual(summarizeBoundedHistogram([0.125, 0.375, 1.875], { buckets: [1, 2] }), {
+  unit: 'ms', sampleCount: 3, min: 0.125, max: 1.875,
+  buckets: [{ le: 1, count: 2 }, { le: 2, count: 1 }], overflowCount: 0, p50: 0.375, p95: 1.875
+});
+
+let now = 0;
+const scheduler = createBuildScheduler({ cpuTokens: 1, now: () => now });
+try {
+  for (const duration of [0.125, 0.375, 1.875]) {
+    await scheduler.schedule('fractional', { cpu: 1 }, async () => { now += duration; });
+  }
+  const latency = scheduler.stats().queues.fractional.runLatencyMs;
+  assert.equal(latency.sampleCount, 3);
+  assert.equal(latency.min, 0.125);
+  assert.equal(latency.max, 1.875);
+  assert.equal(latency.p50, 0.375);
+  assert.equal(latency.p95, 1.875, 'scheduler telemetry retains fractional timing through its actual histogram consumer');
+} finally { await scheduler.shutdown(); }
 
 const normalized = normalizeNonNegativeSamples([5.4, -1, '7', Number.NaN, 2.2], {
   round: true,

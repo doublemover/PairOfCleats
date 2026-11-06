@@ -8,13 +8,15 @@ export const normalizeNonNegativeSamples = (
   values,
   { round = false, precision = null, sort = true } = {}
 ) => {
+  // An omitted precision preserves samples; Number(null) would round to zero digits.
+  const digits = precision == null ? null : Number(precision);
   const normalized = (Array.isArray(values) ? values : [])
     .map((value) => Number(value))
     .filter((value) => Number.isFinite(value) && value >= 0)
     .map((value) => {
       if (round) return Math.round(value);
-      if (Number.isFinite(Number(precision)) && precision >= 0) {
-        return Number(value.toFixed(Math.floor(precision)));
+      if (digits !== null && Number.isFinite(digits) && digits >= 0) {
+        return Number(value.toFixed(Math.floor(digits)));
       }
       return value;
     });
