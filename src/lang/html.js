@@ -1,25 +1,95 @@
+import { createRequire } from 'node:module';
+import { deferLanguageFunctions } from '../index/deferred-language-functions.js';
 import { prepareHtmlDocument, releaseHtmlDocument, getHtmlPreparationDiagnostics, withHtmlDocument, htmlPreparationProfileKey } from './html-prepared-document.js';
 import { throwIfAborted } from '../shared/abort.js';
 import { installedPackageVersion } from '../shared/installed-package-version.js';
 import { attachImportExtraction, createImportExtraction, getImportExtraction, toParsedLiteralImportEntries } from '../shared/import-extraction.js';
 import { buildLineIndex, offsetToLine } from '../shared/lines.js';
-import { buildTreeSitterChunks } from './tree-sitter.js';
-import { buildJsChunks } from './javascript.js';
-import { buildTypeScriptChunks } from './typescript.js';
-import { buildPythonHeuristicChunks } from './python.js';
-import { buildGoChunks } from './go.js';
-import { buildRustChunks } from './rust.js';
-import { buildJavaChunks } from './java.js';
-import { buildCLikeChunks } from './clike.js';
-import { buildCSharpChunks } from './csharp.js';
-import { buildKotlinChunks } from './kotlin.js';
-import { buildRubyChunks } from './ruby.js';
-import { buildPhpChunks } from './php.js';
-import { buildLuaChunks } from './lua.js';
-import { buildSqlChunks } from './sql.js';
-import { buildShellChunks } from './shell.js';
-import { buildCssChunks } from './css.js';
-import { chunkIniToml, chunkJson, chunkMarkdown, chunkXml, chunkYaml } from '../index/chunking.js';
+const require = createRequire(import.meta.url);
+const { buildTreeSitterChunks } = deferLanguageFunctions(
+  () => require('./tree-sitter.js'),
+  ['buildTreeSitterChunks']
+);
+const { buildJsChunks } = deferLanguageFunctions(
+  () => require('./javascript.js'),
+  ['buildJsChunks']
+);
+const { buildTypeScriptChunks } = deferLanguageFunctions(
+  () => require('./typescript.js'),
+  ['buildTypeScriptChunks']
+);
+const { buildPythonHeuristicChunks } = deferLanguageFunctions(
+  () => require('./python.js'),
+  ['buildPythonHeuristicChunks']
+);
+const { buildGoChunks } = deferLanguageFunctions(
+  () => require('./go.js'),
+  ['buildGoChunks']
+);
+const { buildRustChunks } = deferLanguageFunctions(
+  () => require('./rust.js'),
+  ['buildRustChunks']
+);
+const { buildJavaChunks } = deferLanguageFunctions(
+  () => require('./java.js'),
+  ['buildJavaChunks']
+);
+const { buildCLikeChunks } = deferLanguageFunctions(
+  () => require('./clike.js'),
+  ['buildCLikeChunks']
+);
+const { buildCSharpChunks } = deferLanguageFunctions(
+  () => require('./csharp.js'),
+  ['buildCSharpChunks']
+);
+const { buildKotlinChunks } = deferLanguageFunctions(
+  () => require('./kotlin.js'),
+  ['buildKotlinChunks']
+);
+const { buildRubyChunks } = deferLanguageFunctions(
+  () => require('./ruby.js'),
+  ['buildRubyChunks']
+);
+const { buildPhpChunks } = deferLanguageFunctions(
+  () => require('./php.js'),
+  ['buildPhpChunks']
+);
+const { buildLuaChunks } = deferLanguageFunctions(
+  () => require('./lua.js'),
+  ['buildLuaChunks']
+);
+const { buildSqlChunks } = deferLanguageFunctions(
+  () => require('./sql.js'),
+  ['buildSqlChunks']
+);
+const { buildShellChunks } = deferLanguageFunctions(
+  () => require('./shell.js'),
+  ['buildShellChunks']
+);
+const { buildCssChunks } = deferLanguageFunctions(
+  () => require('./css.js'),
+  ['buildCssChunks']
+);
+const { chunkIniToml } = deferLanguageFunctions(
+  () => require('../index/chunking/formats/ini-toml.js'),
+  ['chunkIniToml']
+);
+const { chunkJson } = deferLanguageFunctions(
+  () => require('../index/chunking/formats/json.js'),
+  ['chunkJson']
+);
+const { chunkMarkdown } = deferLanguageFunctions(
+  () => require('../index/chunking/formats/markdown.js'),
+  ['chunkMarkdown']
+);
+const { chunkXml } = deferLanguageFunctions(
+  () => require('../index/chunking/formats/xml.js'),
+  ['chunkXml']
+);
+const { chunkYaml } = deferLanguageFunctions(
+  () => require('../index/chunking/formats/yaml.js'),
+  ['chunkYaml']
+);
 
 export const HTML_RESERVED_WORDS = new Set([
   'a',

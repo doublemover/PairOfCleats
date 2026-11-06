@@ -15,6 +15,15 @@ handles receive a newly prepared canonical tree. Path equality grants no reuse.
 The existing Tree-sitter HTML selection and embedded-language chunkers retain
 their roles and fallback order.
 
+The HTML module defers its native chunk owner and individual embedded-language
+implementations through the existing synchronous language loader. Metadata/import
+projection loads no code parser graph. Registered plain HTML does not initialize
+unselected embedded-language implementations; a selected block loads only its
+existing language/format owner, with warm function reuse. Cancellation before
+first use loads nothing, and selected initialization errors propagate. Existing
+native activation, parser selection, source ranges and prepared-document lifetimes
+remain authoritative. Source graph reduction is not measured latency evidence.
+
 The registry projects chunks and document metadata before releasing the full
 tree in `finally`. Parse failure is shared by both projections and retains the
 existing explicit Tree-sitter/document fallback and invalid import receipt.

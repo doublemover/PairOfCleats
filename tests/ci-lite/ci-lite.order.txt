@@ -2531,3 +2531,8 @@ indexing/semantic/cache-original-io-cleanup/cleanup-zero
 indexing/semantic/cache-original-io-cleanup/descriptor-pending
 indexing/semantic/cache-original-io-cleanup/reconciliation-pending
 indexing/semantic/cache-original-io-cleanup/cancelled-descriptor-pending
+lang/contracts/html-lazy-parser-boundaries/metadata-only
+lang/contracts/html-lazy-parser-boundaries/registered-plain-html
+lang/contracts/html-lazy-parser-boundaries/selected-embedded
+lang/contracts/html-lazy-parser-boundaries/failed-parser
+lang/contracts/html-lazy-parser-boundaries/cancelled-first-use

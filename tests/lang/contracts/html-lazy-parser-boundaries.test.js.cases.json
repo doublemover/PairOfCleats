@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["metadata-only", "registered-plain-html", "selected-embedded", "failed-parser", "cancelled-first-use"]
+}

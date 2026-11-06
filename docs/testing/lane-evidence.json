@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-11-06T06:59:12.651Z",
+  "generatedAt": "2026-11-06T07:09:28.114Z",
   "summary": {
     "lanes": 5,
-    "tests": 2844,
+    "tests": 2849,
     "exactDuplicates": 0,
     "hotspotKinds": 10,
     "families": 429,
@@ -11,7 +11,7 @@
     "timingCoverage": {
       "freshArtifactTests": 0,
       "historicalFallbackTests": 74,
-      "missingTests": 2770
+      "missingTests": 2775
     }
   },
   "lanes": [
@@ -35,7 +35,7 @@
       "targetMaxDurationSeconds": 15,
       "orderFile": "tests/ci-lite/ci-lite.order.txt",
       "timingArtifactPath": ".testLogs/ci-lite-testRunTimes.txt",
-      "totalTests": 2528,
+      "totalTests": 2533,
       "knownDurationTests": 49,
       "knownDurationMs": 27090,
       "p50DurationMs": 190,
@@ -43,7 +43,7 @@
       "resolvedTimingArtifactPaths": [],
       "timingSources": {
         "historical-test-times": 49,
-        "missing": 2479
+        "missing": 2484
       }
     },
     {
@@ -158,9 +158,9 @@
     },
     {
       "key": "lang/contracts",
-      "count": 78,
+      "count": 83,
       "knownDurationMs": 5030,
-      "unknownDurationCount": 77
+      "unknownDurationCount": 82
     },
     {
       "key": "indexing/language-fixture",
