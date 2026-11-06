@@ -43,7 +43,7 @@ try {
   write('package.json', JSON.stringify({ type: 'module', version: '1.2.3', dependencies: Object.fromEntries(required.map(name => [name, '1.0.0'])) }));
   write('package-lock.json', '{}');
   for (const relative of inputs) write(relative, fs.readFileSync(path.join(sourceRoot, relative), 'utf8'));
-  copyBootstrapMetadataSources(sourceRoot, root, ['src/shared/bootstrap-readiness.js']);
+  copyBootstrapMetadataSources(sourceRoot, root, ['src/shared/bootstrap-readiness.js', 'src/shared/subprocess/runner-async.js']);
   for (const entry of entries) write(entry, fs.readFileSync(path.join(sourceRoot, entry), 'utf8'));
   const information = execute('bin/pairofcleats.js', ['--version']);
   assert.equal(information.status, 0);

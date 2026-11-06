@@ -8,8 +8,7 @@ import { applyTestEnv } from '../../helpers/test-env.js';
 import { runNode } from '../../helpers/run-node.js';
 import { pathToFileURL } from 'node:url';
 import { createPatchFixture, originalText, patchedText } from './patch-fixture.js';
-import { probeSqliteNative, rebuildSqliteNativeFromSource,
-  rebuildSqliteNativeFromSourceAsync } from '../../../tools/setup/rebuild-native-sqlite.js';
+import { probeSqliteNative, rebuildSqliteNativeFromSource } from '../../../tools/setup/rebuild-native-sqlite.js';
 
 const env = applyTestEnv();
 const scriptPath = path.join(process.cwd(), 'tools', 'setup', 'postinstall.js');
@@ -104,11 +103,11 @@ exports.getPrebuildPath = () => fs.existsSync(${JSON.stringify(prebuildPath)}) ?
 
   // Import succeeds, but only constructing a database exposes a broken binary.
   await fs.writeFile(prebuildPath, 'broken');
-  assert.match(probeSqliteNative(sqliteRoot).message, /native binding broken/);
+  assert.match((await probeSqliteNative(sqliteRoot)).message, /native binding broken/);
   await fs.writeFile(prebuildPath, 'healthy');
-  assert.equal(probeSqliteNative(sqliteRoot).ok, true);
+  assert.equal((await probeSqliteNative(sqliteRoot)).ok, true);
   await fs.writeFile(modePath, 'wrong-query');
-  assert.match(probeSqliteNative(sqliteRoot).message, /unexpected result/);
+  assert.match((await probeSqliteNative(sqliteRoot)).message, /unexpected result/);
   const calls = (await fs.readFile(callsPath, 'utf8')).trim().split('\n').map(line => JSON.parse(line));
   assert.equal(calls.at(-1).phase, 'close', 'close even when the query result is invalid');
   assert.ok(calls.some(call => call.filename === ':memory:' && call.phase === 'open'));
@@ -121,36 +120,36 @@ exports.getPrebuildPath = () => fs.existsSync(${JSON.stringify(prebuildPath)}) ?
     return { ok: true, message: null };
   };
   await fs.writeFile(prebuildPath, 'broken');
-  assert.equal(rebuildSqliteNativeFromSource(sqliteRoot, () => ({ ok: false, message: 'compiler failed' })).message, 'compiler failed');
+  assert.equal((await rebuildSqliteNativeFromSource(sqliteRoot, () => ({ ok: false, message: 'compiler failed' }))).message, 'compiler failed');
   assert.equal(await fs.readFile(prebuildPath, 'utf8'), 'broken');
-  assert.equal(rebuildSqliteNativeFromSource(sqliteRoot, build).ok, false, 'missing compiled binary must fail');
+  assert.equal((await rebuildSqliteNativeFromSource(sqliteRoot, build)).ok, false, 'missing compiled binary must fail');
   await fs.writeFile(compiledPath, 'also broken');
-  assert.match(rebuildSqliteNativeFromSource(sqliteRoot, build).message, /native binding broken/);
+  assert.match((await rebuildSqliteNativeFromSource(sqliteRoot, build)).message, /native binding broken/);
   assert.equal(await fs.readFile(prebuildPath, 'utf8'), 'broken', 'never promote an invalid source binding');
 
   await fs.writeFile(compiledPath, 'healthy');
   const renameSync = fsSync.renameSync;
   try {
     fsSync.renameSync = () => { throw new Error('prebuild replacement denied'); };
-    assert.match(rebuildSqliteNativeFromSource(sqliteRoot, build).message, /prebuild replacement denied/);
+    assert.match((await rebuildSqliteNativeFromSource(sqliteRoot, build)).message, /prebuild replacement denied/);
   } finally {
     fsSync.renameSync = renameSync;
   }
   assert.equal(await fs.readFile(prebuildPath, 'utf8'), 'broken', 'failed replacement leaves original bytes intact');
   assert.deepEqual(await fs.readdir(path.dirname(prebuildPath)), ['host.node'], 'failed rename must clean temporary files');
   await fs.writeFile(modePath, 'reject-default');
-  assert.match(rebuildSqliteNativeFromSource(sqliteRoot, build).message, /default loader rejected/);
+  assert.match((await rebuildSqliteNativeFromSource(sqliteRoot, build)).message, /default loader rejected/);
   assert.equal(await fs.readFile(prebuildPath, 'utf8'), 'broken', 'restore the original if default loading still fails');
   assert.deepEqual(await fs.readdir(path.dirname(prebuildPath)), ['host.node'], 'failed promotion must clean temporary files');
   await fs.writeFile(modePath, '');
-  assert.equal(rebuildSqliteNativeFromSource(sqliteRoot, build).ok, true);
+  assert.equal((await rebuildSqliteNativeFromSource(sqliteRoot, build)).ok, true);
   assert.equal(await fs.readFile(prebuildPath, 'utf8'), 'healthy');
   assert.deepEqual(await fs.readdir(path.dirname(prebuildPath)), ['host.node'], 'successful promotion must clean temporary files');
-  assert.equal(probeSqliteNative(sqliteRoot).ok, true, 'normal callers must load the repaired binding');
+  assert.equal((await probeSqliteNative(sqliteRoot)).ok, true, 'normal callers must load the repaired binding');
   await fs.writeFile(prebuildPath, 'broken');
   let releaseBuild;
   const buildPending = new Promise(resolve => { releaseBuild = resolve; });
-  const recovery = rebuildSqliteNativeFromSourceAsync(sqliteRoot, async () => {
+  const recovery = rebuildSqliteNativeFromSource(sqliteRoot, async () => {
     await buildPending;
     return { ok: true };
   });
@@ -167,7 +166,7 @@ exports.getPrebuildPath = () => fs.existsSync(${JSON.stringify(prebuildPath)}) ?
     'the selected upstream build-release command owns source compilation without a legacy npm config flag');
 
   await fs.rm(prebuildPath);
-  assert.equal(rebuildSqliteNativeFromSource(sqliteRoot, build).ok, true, 'platforms without bundled prebuilds use the compiled binding');
+  assert.equal((await rebuildSqliteNativeFromSource(sqliteRoot, build)).ok, true, 'platforms without bundled prebuilds use the compiled binding');
   console.log('sqlite native runtime and v13 recovery contract test passed');
 } finally {
   await fs.rm(sqliteRoot, { recursive: true, force: true });

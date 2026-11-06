@@ -1,14 +1,14 @@
 #!/usr/bin/env node
 import { captureBootstrapInputs, captureBootstrapVerification, recordBootstrapReadiness } from '../../src/shared/bootstrap-readiness.js';
 import { applyPatchesAsync } from './apply-patches.js';
-import { probeNodeRealmLifecycle } from '../../src/shared/native-package-probe.js';
+import { probeNodeRealmLifecycle, probeNativePackage } from '../../src/shared/native-package-probe.js';
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 import { spawnResolvedSubprocess } from '../../src/shared/subprocess/command-invocation.js';
 import { summarizeNativeBuildResults } from './rebuild-native-exit.js';
 import { nativeFailureEntry, createNativeFailureError } from './native-failure-summary.js';
-import { probeSqliteNative, rebuildSqliteNativeFromSourceAsync } from './rebuild-native-sqlite.js';
+import { probeSqliteNative, rebuildSqliteNativeFromSource } from './rebuild-native-sqlite.js';
 import { listNativeTreeSitterGrammarModuleNames, NATIVE_GRAMMAR_MODULES } from '../../src/lang/tree-sitter/native-runtime.js';
 import { resolveBootstrapBudget, runBootstrapTasks } from './bootstrap-tasks.js';
 import { createNativeBuildTasks, inspectNativeBuildAdapter } from './native-build-plan.js';
@@ -124,6 +124,13 @@ const runNativeRebuildOwned = async ({ verifyOnly, repairOnly }, { root, session
   };
   requireLockedDependencies();
   const nativeDiagnostics = createNativeSetupDiagnostics(root, session);
+  const runLoggedProbe = async (command, args, options, observeOutput = null) => {
+    checkInputs();
+    const child = await nativeDiagnostics.run(command, args, options, spawnResolvedSubprocess, { onOutput: observeOutput });
+    checkCompletedInputs(child);
+    return { ...child, stdout: nativeDiagnostics.readOutput(child.diagnostics, 'stdout', { maxBytes: 65536 }),
+      stderr: nativeDiagnostics.readOutput(child.diagnostics, 'stderr', { maxBytes: 65536 }) };
+  };
   let nativeLogLocationReported = false;
 
   const resolveNodeModulesPath = (pkgName) => (
@@ -260,8 +267,9 @@ const runNativeRebuildOwned = async ({ verifyOnly, repairOnly }, { root, session
 
     if (packageNameResult.pkgName === 'better-sqlite3' && buildFromSource
     && Number(readInstalledPackageVersion(pkgName)?.split('.')[0]) >= 13) {
-      return rebuildSqliteNativeFromSourceAsync(root, (args, sqliteOptions) =>
-        runNpmCommand(args, { ...options, ...sqliteOptions }));
+      return rebuildSqliteNativeFromSource(root, (args, sqliteOptions) =>
+        runNpmCommand(args, { ...options, ...sqliteOptions }), { signal: options.signal || invocationSignal,
+        run: (command, args, selected) => runLoggedProbe(command, args, selected, options.observeOutput) });
     }
 
     const args = ['rebuild', packageNameResult.pkgName];
@@ -301,34 +309,14 @@ const runNativeRebuildOwned = async ({ verifyOnly, repairOnly }, { root, session
       .filter(([, spec]) => spec.moduleName === pkgName)
       .map(([languageId, spec]) => ({ ...spec, languageId, source: LANGUAGE_SAMPLES[languageId] }));
     if (grammarRoutes.some((route) => !route.source)) throw new Error('Missing bounded native language activation sample.');
-    const result = await probePackageIsolated(pkgName, grammarRoutes, signal, observeOutput);
+    let result;
+    try {
+      result = await probeNativePackage(root, pkgName, { grammarRoutes, signal,
+        run: (command, args, options) => runLoggedProbe(command, args, options, observeOutput) });
+    } catch (error) { result = settledNativeSetupFailure(error, 'native-activation-probe'); }
     checkCompletedInputs(result);
     if (result.ok && result.capabilities) nativeCapabilities.set(pkgName, result.capabilities);
     return result;
-  };
-
-  const probePackageIsolated = async (pkgName, grammarRoutes, signal, observeOutput) => {
-  // The compatibility probe owner uses synchronous child operations. Put that
-  // owner in an isolated process so scheduling actually overlaps bounded probes
-  // without changing its public sync APIs or loading natives in this coordinator.
-    const probeUrl = pathToFileURL(path.join(root, 'src/shared/native-package-probe.js')).href;
-    const script = `import { probeNativePackage } from ${JSON.stringify(probeUrl)};
-    const request = JSON.parse(process.argv[1]);
-    const result = await probeNativePackage(request.root, request.pkgName, { grammarRoutes: request.grammarRoutes });
-    process.stdout.write(JSON.stringify(result));`;
-    try {
-      const child = await nativeDiagnostics.run(process.execPath, ['--input-type=module', '-e', script,
-        JSON.stringify({ root, pkgName, grammarRoutes })], {
-        cwd: root, stdio: 'pipe',
-        signal, timeoutMs: 30000, maxOutputBytes: 1024 * 1024, windowsHide: true
-      }, spawnResolvedSubprocess, { onOutput: observeOutput });
-      const stderr = nativeDiagnostics.readOutput(child.diagnostics, 'stderr');
-      if (stderr.trim()) return { ok: false, message: stderr.trim().slice(0, 4096), diagnostics: child.diagnostics, diagnosticsPath: child.diagnosticsPath };
-      return { ...JSON.parse(nativeDiagnostics.readOutput(child.diagnostics, 'stdout')),
-        diagnostics: child.diagnostics, diagnosticsPath: child.diagnosticsPath };
-    } catch (error) {
-      return settledNativeSetupFailure(error, 'native-activation-probe');
-    }
   };
 
   const getRequiredPackageFailures = async ({ label = 'verify:native' } = {}) => {
@@ -382,7 +370,7 @@ const runNativeRebuildOwned = async ({ verifyOnly, repairOnly }, { root, session
       run: async ({ signal, observeOutput }) => {
         try {
           return await probeNodeRealmLifecycle(root, { signal, run: (command, args, options) =>
-            nativeDiagnostics.run(command, args, options, spawnResolvedSubprocess, { onOutput: observeOutput }) });
+            runLoggedProbe(command, args, options, observeOutput) });
         } catch (error) { return settledNativeSetupFailure(error, 'vm-worker-lifecycle'); }
       }
     }], { budget: bootstrapBudget, signal: invocationSignal, eventContext: { runId: session.runId },
@@ -559,7 +547,8 @@ const runNativeRebuildOwned = async ({ verifyOnly, repairOnly }, { root, session
       buildFromSource: ['tree-sitter', TREE_SITTER_PERL_PACKAGE, 'tree-sitter-swift', 'better-sqlite3']
         .includes(entry.packageName) });
     if (result.ok && entry.packageName === TREE_SITTER_PERL_PACKAGE) return verifyPerlScannerPatch();
-    if (result.ok && entry.packageName === 'better-sqlite3') return probeSqliteNative(root);
+    if (result.ok && entry.packageName === 'better-sqlite3') return probeSqliteNative(root, null, { signal: context.signal,
+      run: (command, args, options) => runLoggedProbe(command, args, options, context.observeOutput) });
     return result;
   };
   console.error('[rebuild:native] dependency plan: ' + JSON.stringify({

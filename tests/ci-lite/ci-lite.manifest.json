@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 2588,
+    "hero": 2591,
     "matrix": 110,
     "meta": 54,
     "soak": 1,
@@ -16529,8 +16529,26 @@
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/native-realm-command/hidden-synchronous-probes",
+      "id": "tooling/install/native-realm-command/hidden-owned-probes",
       "order": 2753,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/native-realm-command/all-probe-original-admission",
+      "order": 2754,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/sqlite-promotion-probe-owner/original-probe-rejection-and-rollback",
+      "order": 2755,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/sqlite-promotion-probe-owner/pending-probe-defers-rollback",
+      "order": 2756,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     }

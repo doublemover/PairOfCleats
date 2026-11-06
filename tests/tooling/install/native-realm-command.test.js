@@ -1,13 +1,11 @@
 import assert from 'node:assert/strict';
-import childProcess from 'node:child_process';
-import { syncBuiltinESMExports } from 'node:module';
 import { probeNodeRealmLifecycle, probeSqliteNative, probeNativeGrammarRoutes, probeNativeParserWorkerLifecycle,
   probeNativePackage } from '../../../src/shared/native-package-probe.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 
 applyTestEnv();
 const mode = process.env.PAIROFCLEATS_TEST_ID?.split('tooling/install/native-realm-command/')[1];
-assert.ok(['bounded-original-request', 'status-and-marker-contract', 'original-failures', 'shared-cancellation', 'hidden-synchronous-probes'].includes(mode));
+assert.ok(['bounded-original-request', 'status-and-marker-contract', 'original-failures', 'shared-cancellation', 'hidden-owned-probes', 'all-probe-original-admission'].includes(mode));
 const root = process.cwd(), marker = 'VM_REALM_LIFECYCLE_OK';
 const completed = { exitCode: 0, signal: null, stdout: marker, stderr: '' };
 if (mode === 'bounded-original-request') {
@@ -52,23 +50,35 @@ if (mode === 'bounded-original-request') {
   await entered.promise; options.signal = null; options.run = () => assert.fail('mutable caller replaced admitted child');
   const cancelled = Object.freeze(new Error('original invocation cancellation')); controller.abort(cancelled); release.resolve();
   await assert.rejects(pending, error => error === cancelled);
-} else {
-  const original = childProcess.spawnSync, requests = [];
-  childProcess.spawnSync = (command, args, options) => {
-    requests.push({ command, args, options });
-    return { status: 0, signal: null, stderr: '', stdout: args[1].includes('PARSER_WORKER_LIFECYCLE_OK') ? 'PARSER_WORKER_LIFECYCLE_OK' : '[]' };
-  };
-  syncBuiltinESMExports();
-  try {
-    assert.equal(probeSqliteNative(root).ok, true);
-    assert.equal(probeNativeGrammarRoutes(root, []).ok, true);
-    assert.equal(probeNativeParserWorkerLifecycle(root).ok, true);
-    for (const pkgName of ['tree-sitter', 'node-pty', 'inert-fixture-package']) assert.equal((await probeNativePackage(root, pkgName)).ok, true);
-    assert.equal(requests.length, 7);
-    for (const request of requests) {
-      assert.equal(request.command, process.execPath); assert.equal(request.options.windowsHide, true);
-      assert.equal(request.options.timeout, 10000); assert.equal(request.options.maxBuffer, 65536);
+} else if (mode === 'all-probe-original-admission') {
+  const probes = [options => probeSqliteNative(root, null, options), options => probeNativeGrammarRoutes(root, [], options),
+    options => probeNativeParserWorkerLifecycle(root, options), options => probeNativePackage(root, 'tree-sitter', options),
+    options => probeNativePackage(root, 'node-pty', options), options => probeNativePackage(root, 'inert-fixture-package', options)];
+  for (const probe of probes) {
+    const controller = new AbortController(); controller.abort(); let calls = 0;
+    await assert.rejects(probe({ signal: controller.signal, run: async () => { calls++; } }), { name: 'AbortError' });
+    assert.equal(calls, 0);
+    for (const original of [false, 0, '', null, undefined, Object.freeze(new Error('original probe/log callback'))]) {
+      let caught = false;
+      try { await probe({ run: async () => { throw original; } }); }
+      catch (error) { caught = true; assert.equal(error, original); }
+      assert.equal(caught, true, 'a callback failure cannot become a successful load or a native retry');
     }
-  } finally { childProcess.spawnSync = original; syncBuiltinESMExports(); }
+  }
+} else {
+  const requests = [];
+  const run = async (command, args, options) => {
+    requests.push({ command, args, options });
+    return { exitCode: 0, signal: null, stderr: '', stdout: args[1].includes('PARSER_WORKER_LIFECYCLE_OK') ? 'PARSER_WORKER_LIFECYCLE_OK' : '[]' };
+  };
+  assert.equal((await probeSqliteNative(root, null, { run })).ok, true);
+  assert.equal((await probeNativeGrammarRoutes(root, [], { run })).ok, true);
+  assert.equal((await probeNativeParserWorkerLifecycle(root, { run })).ok, true);
+  for (const pkgName of ['tree-sitter', 'node-pty', 'inert-fixture-package']) assert.equal((await probeNativePackage(root, pkgName, { run })).ok, true);
+  assert.equal(requests.length, 7);
+  for (const request of requests) {
+    assert.equal(request.command, process.execPath); assert.equal(request.options.windowsHide, true);
+    assert.equal(request.options.timeoutMs, 10000); assert.equal(request.options.maxOutputBytes, 65536);
+  }
 }
-console.log('VM lifecycle commands retain original cancellation/status/evidence, and synchronous native probes request hidden Windows children');
+console.log('Native lifecycle commands retain original cancellation/status/evidence and request hidden owned Windows children');

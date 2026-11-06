@@ -6,7 +6,6 @@ import { pathToFileURL } from 'node:url';
 import { createHash } from 'node:crypto';
 import { spawnSubprocess } from './subprocess/runner.js';
 import { observeStorageResource } from './storage/failure-observation.js';
-import { readErrorDataProperty } from './error-data.js';
 import { createOnnxResourceOwner } from './onnx-embeddings/resource-lifetime.js';
 import { withOnnxTensorScope } from './onnx-embeddings/tensor-lifetime.js';
 import { preserveEmbeddingCleanupFailure } from './embedding-cache-lifetime.js';
@@ -114,21 +113,27 @@ const emit=value=>process.stdout.write(JSON.stringify(value)+'\\n');
 try {emit({phase:'completed',...await runNativeOnnxLifecycleOrder({...JSON.parse(process.argv[1]),emit})});}
 catch(error) {console.error(error);process.exitCode=1;}`;
 
-export const probeNativeOnnxLifecycle = async root => {
+export const probeNativeOnnxLifecycle = async (root, { signal = null, run = null } = {}) => {
+  signal?.throwIfAborted();
+  run ||= spawnSubprocess;
   let parity;
   try { parity = inspectNativeOnnxParity(root); }
   catch (error) { return { ok: false, message: error.message, code: error.code, orders: [], capabilities: [] }; }
   const orders = [];
   for (const order of NATIVE_ONNX_IMPORT_ORDERS) {
-    let processResult, failure = null;
+    signal?.throwIfAborted();
+    let processResult;
     try {
-      processResult = await spawnSubprocess(process.execPath, ['--input-type=module', '-e', childSource, JSON.stringify({ root, order })], {
-        cwd: root, timeoutMs: 10000, maxOutputBytes: 65536, outputMode: 'string', captureStdout: true, captureStderr: true, windowsHide: true });
+      processResult = await run(process.execPath, ['--input-type=module', '-e', childSource, JSON.stringify({ root, order })], {
+        cwd: root, signal, timeoutMs: 10000, maxOutputBytes: 65536, outputMode: 'string', captureStdout: true, captureStderr: true,
+        windowsHide: true, rejectOnNonZeroExit: false });
+      signal?.throwIfAborted();
     } catch (error) {
       observeStorageResource(error, { phase: 'bootstrap-onnx-lifecycle' }).requireSettled();
-      processResult = readErrorDataProperty(error, 'result') || null;
-      failure = { code: readErrorDataProperty(error, 'code') || null, message: readErrorDataProperty(error, 'message') || 'Native ONNX child failed.' };
+      throw error;
     }
+    const failure = processResult.exitCode !== 0 || processResult.signal ? { code: 'ERR_NATIVE_ONNX_CHILD_EXIT',
+      message: `Native ONNX child exit=${processResult.exitCode ?? 'unknown'};signal=${processResult.signal ?? 'none'}` } : null;
     let events = [], parseFailure = null;
     try { events = String(processResult?.stdout || '').split(/\r?\n/).filter(Boolean).map(line => JSON.parse(line)); }
     catch (error) { parseFailure = error.message; }

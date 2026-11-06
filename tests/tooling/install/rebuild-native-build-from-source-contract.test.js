@@ -18,12 +18,12 @@ assert.match(fs.readFileSync(path.join(root, 'tools/setup/native-command-result.
   'the extracted command projection retains the shared Windows shim, cancellation and tree owner');
 assert.match(source, /runNativeCommand\('npm', args, options\)/,
   'exclusive npm commands must use that same subprocess owner');
-assert.match(source, /rebuildSqliteNativeFromSourceAsync\(root,[\s\S]*?runNpmCommand\(args, \{ \.\.\.options, \.\.\.sqliteOptions \}\)/,
+assert.match(source, /rebuildSqliteNativeFromSource\(root,[\s\S]*?runNpmCommand\(args, \{ \.\.\.options, \.\.\.sqliteOptions \}\)/,
   'SQLite v13 must await its exclusive build and preserve the validated promotion/rollback owner');
-assert.match(source, /await probeNativePackage\(request\.root, request\.pkgName,/,
-  'isolated probes must still use the shared real activation/disposal owner');
+assert.match(source, /await probeNativePackage\(root, pkgName, \{ grammarRoutes, signal,[\s\S]*?runLoggedProbe\(command, args, options, observeOutput\)/,
+  'actual probe commands must use the shared real activation/disposal owner and original log/cancellation capability');
 assert.match(fs.readFileSync(path.join(root, 'src/shared/native-package-probe.js'), 'utf8'),
-  /if \(pkgName === 'better-sqlite3'\) return probeSqliteNative\(root\);/,
+  /if \(pkgName === 'better-sqlite3'\) return probeSqliteNative\(root, null, options\);/,
   'SQLite verification must perform a database operation');
 assert.match(source, /cwd:\s*resolveNodeModulesPath\(packageNameResult\.pkgName\),\s*buildFromSource/,
   'last-resort package install must retain its package directory/source request');

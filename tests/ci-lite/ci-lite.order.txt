@@ -2755,4 +2755,7 @@ tooling/install/native-realm-command/bounded-original-request
 tooling/install/native-realm-command/status-and-marker-contract
 tooling/install/native-realm-command/original-failures
 tooling/install/native-realm-command/shared-cancellation
-tooling/install/native-realm-command/hidden-synchronous-probes
+tooling/install/native-realm-command/hidden-owned-probes
+tooling/install/native-realm-command/all-probe-original-admission
+tooling/install/sqlite-promotion-probe-owner/original-probe-rejection-and-rollback
+tooling/install/sqlite-promotion-probe-owner/pending-probe-defers-rollback

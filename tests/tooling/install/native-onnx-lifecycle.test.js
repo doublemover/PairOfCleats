@@ -3,6 +3,7 @@ import { requireBootstrap } from '../../../src/shared/bootstrap-readiness.js';
 import { probeNativePackage } from '../../../src/shared/native-package-probe.js';
 import { inspectNativeOnnxParity, NATIVE_ONNX_IMPORT_ORDERS } from '../../../src/shared/native-onnx-probe.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
+import { errorGraphIncludes } from '../../helpers/error-graph.js';
 
 await requireBootstrap(); applyTestEnv();
 const parity = inspectNativeOnnxParity(process.cwd());
@@ -27,4 +28,17 @@ for (const row of actual.orders) {
 }
 assert.deepEqual(actual.capabilities.map(row => row.kind), ['native-runtime-loadability', 'native-runtime-lifecycle']);
 assert.ok(actual.capabilities.every(row => row.verified === true));
+for (const original of [false, 0, '', null, undefined, Object.freeze(new Error('original ONNX child/log callback'))]) {
+  let caught = false, calls = 0;
+  try { await probeNativePackage(process.cwd(), 'onnxruntime-node', { run: async () => { calls++; throw original; } }); }
+  catch (error) { caught = true; assert.equal(error, original); }
+  assert.equal(caught, true); assert.equal(calls, 1, 'a callback failure cannot admit a second ONNX import order');
+}
+let retired = false;
+const pending = Object.assign(new Error('original ONNX probe still owns resources'), {
+  cacheOwnershipPending: true, cacheOwnershipReleased: () => retired
+});
+await assert.rejects(probeNativePackage(process.cwd(), 'onnxruntime-node', { run: async () => { throw pending; } }), error =>
+  errorGraphIncludes(error, pending) && error.cacheOwnershipReleased() === false);
+retired = true;
 console.log('Original ONNX bootstrap consumer parity, both native import orders and natural lifecycle passed.');

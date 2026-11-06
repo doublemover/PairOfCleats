@@ -19,20 +19,20 @@ try {
   write('node_modules/fixture-grammar/index.cjs', 'module.exports = { language: {}, nodeTypeInfo: [] };');
   const routes = [{ languageId: 'fixture', moduleName: 'fixture-grammar', source: 'value = 1' }];
   write('node_modules/tree-sitter/index.cjs', 'module.exports = class { setLanguage(){throw Error("ABI mismatch")} };');
-  const failed = probeNativeGrammarRoutes(root, routes);
+  const failed = await probeNativeGrammarRoutes(root, routes);
   assert.equal(failed.ok, false);
   assert.deepEqual(failed.capabilities, []);
   assert.match(failed.message, /ABI mismatch/);
   write('node_modules/tree-sitter/index.cjs',
     'module.exports = class { setLanguage(){} parse(){return {rootNode:{hasError:false}}} };');
-  const activated = probeNativeGrammarRoutes(root, routes);
+  const activated = await probeNativeGrammarRoutes(root, routes);
   assert.equal(activated.ok, true, activated.message);
   assert.equal(activated.capabilities[0].state, 'parser-activated');
   assert.equal(activated.capabilities[0].packageVersion, '1.0.0');
   assert.equal(activated.capabilities[0].nodeVersion, process.version);
   write('node_modules/tree-sitter/index.cjs',
     'module.exports = class { setLanguage(){} reset(){} parse(){return {rootNode:{hasError:false,descendantsOfType(){return []}}}} };');
-  const invalidPerl = probeNativeGrammarRoutes(root, [{ ...routes[0], languageId: 'perl' }]);
+  const invalidPerl = await probeNativeGrammarRoutes(root, [{ ...routes[0], languageId: 'perl' }]);
   assert.equal(invalidPerl.ok, false, 'generic activation cannot admit an incorrect heredoc lifecycle');
   assert.match(invalidPerl.message, /literal heredoc lifecycle failed/);
 } finally { fs.rmSync(root, { recursive: true, force: true }); }

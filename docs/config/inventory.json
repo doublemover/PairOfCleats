@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-06T19:12:05.603Z",
+  "generatedAt": "2026-11-06T19:30:49.236Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
@@ -4975,6 +4975,7 @@
         "tests/tooling/install/phpactor-download-authority.test.js",
         "tests/tooling/install/postinstall-session.test.js",
         "tests/tooling/install/setup-git-metadata-target-handoff.test.js",
+        "tests/tooling/install/sqlite-promotion-probe-owner.test.js",
         "tests/tooling/lsp/compilation-database-admission.test.js",
         "tests/tooling/lsp/diagnostic-resource-isolation.test.js",
         "tests/tooling/lsp/disposal-diagnostic-causes.test.js",
