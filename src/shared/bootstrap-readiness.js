@@ -4,14 +4,14 @@ import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { probeNativePackage } from './native-package-probe.js';
 import { buildReadinessReceipt } from '../../tools/setup/readiness.js';
-import { CHECKOUT_MUTATION_LOCK } from '../../tools/setup/checkout-bootstrap-paths.js';
+import { CHECKOUT_MUTATION_LOCK, BOOTSTRAP_RECEIPT } from '../../tools/setup/checkout-bootstrap-paths.js';
 import { requireCheckoutMutationSession, withCheckoutMutation } from '../../tools/setup/checkout-mutation.js';
 import { getCheckoutStageJournal, withCheckoutStageJournal, readCheckoutJournalStatus } from '../../tools/setup/checkout-stage-journal.js';
 import { atomicWriteJson } from './io/atomic-write.js';
 import { readJsonResourceTextSync } from './file-read-resource.js';
 import { persistenceFileIdentity, assertPersistenceFileIdentity } from './io/file-identity.js';
 
-export const BOOTSTRAP_RECEIPT = 'node_modules/.pairofcleats-bootstrap.json';
+export { BOOTSTRAP_RECEIPT };
 export const BOOTSTRAP_RECEIPT_VERSION = 3;
 const VERIFICATION_POLICY = 'original-checkout-session-journal-and-generation-around-complete-native-probes.v2';
 const verifications = new WeakMap();
@@ -25,6 +25,7 @@ export const BOOTSTRAP_INPUTS = Object.freeze(['package.json', 'package-lock.jso
   'tools/setup/task-progress.js',
   'tools/setup/postinstall.js',
   'src/shared/locks/file-lock-publication.js', 'src/shared/io/file-identity.js',
+  'src/shared/file-read-resource.js',
   'src/shared/locks/file-lock-producer-observations.js',
   'src/shared/io/atomic-write.js', 'src/shared/metrics/atomic-persistence.js',
   'tools/setup/preflight.js', 'src/shared/direct-execution.js', 'tools/setup/apply-patches.js', 'tools/setup/rebuild-native.js',

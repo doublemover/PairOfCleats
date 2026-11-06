@@ -3,9 +3,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { withCheckoutMutation } from '../../../tools/setup/checkout-mutation.js';
-import { withCheckoutStageJournal, getCheckoutStageJournal, CHECKOUT_JOURNAL_STATUS } from '../../../tools/setup/checkout-stage-journal.js';
+import { withCheckoutStageJournal, getCheckoutStageJournal, CHECKOUT_JOURNAL_STATUS, CHECKOUT_JOURNAL_LIMITS } from '../../../tools/setup/checkout-stage-journal.js';
 import { atomicWriteJson } from '../../../src/shared/io/atomic-write.js';
-import { CHECKOUT_MUTATION_LOCK } from '../../../tools/setup/checkout-bootstrap-paths.js';
+import { CHECKOUT_MUTATION_LOCK, BOOTSTRAP_RECEIPT } from '../../../tools/setup/checkout-bootstrap-paths.js';
 import { makeTempDir } from '../../helpers/temp.js';
 import { errorGraphIncludes } from '../../helpers/error-graph.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
@@ -13,14 +13,41 @@ import { applyTestEnv } from '../../helpers/test-env.js';
 applyTestEnv();
 const mode = process.env.PAIROFCLEATS_TEST_ID?.split('tooling/install/checkout-stage-journal/')[1];
 assert.ok(['ordered-original-stage-evidence', 'strict-and-borrowed-plan', 'original-failures-and-incomplete-plan',
-  'independent-log-failures', 'unknown-close-retains-owner', 'original-outstanding-stage-drain', 'unknown-write-retains-owner'].includes(mode));
+  'independent-log-failures', 'unknown-close-retains-owner', 'original-outstanding-stage-drain', 'unknown-write-retains-owner',
+  'prior-readiness-preserved-before-mutation', 'prior-readiness-byte-bound'].includes(mode));
 const root = await makeTempDir('checkout-stage-journal-');
 const retainedFixtureFds = new Set();
 const status = () => JSON.parse(fs.readFileSync(path.join(root, CHECKOUT_JOURNAL_STATUS), 'utf8'));
 const plan = { root, inputId: '1'.repeat(64), stages: [{ id: 'dependencies' }, { id: 'verification' }] };
 const owned = (operation, options) => withCheckoutMutation(root, session => withCheckoutStageJournal(root, session, plan, operation, options));
 try {
-  if (mode === 'ordered-original-stage-evidence') {
+  if (mode === 'prior-readiness-preserved-before-mutation') {
+    const previous = Buffer.from([0x7b, 0x22, 0xff, 0x00, 0x7d]);
+    fs.mkdirSync(path.join(root, 'node_modules')); fs.writeFileSync(path.join(root, BOOTSTRAP_RECEIPT), previous);
+    let preserved;
+    await assert.rejects(owned(async journal => {
+      preserved = journal.snapshot().priorReadiness;
+      assert.equal(preserved.state, 'historical-only-not-current-readiness');
+      assert.equal(preserved.bytes, previous.length);
+      assert.equal(preserved.sha256, createHash('sha256').update(previous).digest('hex'));
+      assert.deepEqual(fs.readFileSync(path.join(root, preserved.path)), previous, 'invalid UTF-8 is preserved as original bytes');
+      await journal.runStage('dependencies', async () => {
+        fs.rmSync(path.join(root, 'node_modules'), { recursive: true });
+        throw new Error('late dependency failure after removal');
+      });
+    }), /late dependency failure/);
+    assert.equal(status().state, 'failed'); assert.deepEqual(status().priorReadiness, preserved);
+    assert.deepEqual(fs.readFileSync(path.join(root, preserved.path)), previous, 'failed install cannot destroy its prior receipt');
+    assert.equal(fs.existsSync(path.join(root, BOOTSTRAP_RECEIPT)), false);
+  } else if (mode === 'prior-readiness-byte-bound') {
+    fs.mkdirSync(path.join(root, 'node_modules'));
+    fs.writeFileSync(path.join(root, BOOTSTRAP_RECEIPT), Buffer.alloc(CHECKOUT_JOURNAL_LIMITS.priorReceiptBytes + 1));
+    let ran = false;
+    await assert.rejects(owned(journal => journal.runStage('dependencies', () => { ran = true; })), /preservation byte bound/);
+    assert.equal(ran, false); assert.equal(status().state, 'failed');
+    assert.equal(fs.existsSync(path.join(root, CHECKOUT_MUTATION_LOCK)), false);
+    assert.equal(fs.statSync(path.join(root, BOOTSTRAP_RECEIPT)).size, CHECKOUT_JOURNAL_LIMITS.priorReceiptBytes + 1);
+  } else if (mode === 'ordered-original-stage-evidence') {
     let original;
     const returned = { source: 'actual completion' };
     assert.equal(await owned(async (journal, isOwner) => {

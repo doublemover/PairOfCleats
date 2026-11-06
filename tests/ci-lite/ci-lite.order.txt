@@ -2741,3 +2741,5 @@ tooling/install/native-diagnostic-ownership/unknown-write-retains-owner
 tooling/install/bootstrap-verification-generation/original-session-and-active-publication
 tooling/install/bootstrap-verification-generation/journal-identity-and-completion
 tooling/install/bootstrap-verification-generation/journal-frame-integrity
+tooling/install/checkout-stage-journal/prior-readiness-preserved-before-mutation
+tooling/install/checkout-stage-journal/prior-readiness-byte-bound

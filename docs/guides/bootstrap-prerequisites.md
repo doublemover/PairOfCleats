@@ -233,8 +233,12 @@ bounds are internal. Seven filesystem/lifetime controls and three additional
 readiness journal controls await execution. Nested mutators borrow the same
 journal. Standalone verify-only patch inspection preserves the current readiness
 journal. A serialized stage record is not native qualification or permission to
-resume a prior operation. Historical receipt preservation and bounded cross-run
-retention remain implementation work.
+resume a prior operation. Before the first stage, the owner preserves an existing
+receipt's exact bounded bytes as `j-*/prior-readiness.json`, outside `node_modules`.
+Its size/hash and historical-only status remain in the journal after an install
+failure. Invalid UTF-8 is preserved as bytes; historical evidence cannot qualify
+current readiness. The two preservation controls await execution. Bounded
+cross-run retention remains implementation work.
 Atomic persistence now records its two bounded fallback counters without loading
 the Prometheus package. The existing registry projects earlier events once when
 it loads and preserves active reset/increment behavior. This keeps actual durable

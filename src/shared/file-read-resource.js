@@ -49,11 +49,12 @@ export const readJsonResourceText = async (filePath, admitStat = null, onExactSt
   return bytes.toString('utf8');
 };
 
-export const readJsonResourceTextSync = (filePath, admitStat = null, onExactStat = null) => {
+/** Return the original bounded bytes only after actual descriptor retirement. */
+export const readFileResourceBytesSync = (filePath, admitStat = null, onExactStat = null) => {
   if (onExactStat !== null && typeof onExactStat !== 'function') throw new TypeError('Exact JSON descriptor stat observer must be a function.');
   const methods = { receiver: fs, close: fs.closeSync, stat: fs.fstatSync, read: fs.readSync };
   const fd = fs.openSync(filePath, 'r'), owner = createContainedFileResource({ fd, sync: true, methods });
-  const bytes = owner.runSync(descriptor => {
+  return owner.runSync(descriptor => {
     const before = descriptor.stat(), buffer = admit(before, admitStat);
     const exactBefore = onExactStat ? descriptor.stat({ bigint: true }) : null;
     let position = 0;
@@ -72,5 +73,7 @@ export const readJsonResourceTextSync = (filePath, admitStat = null, onExactStat
     }
     return buffer;
   });
-  return bytes.toString('utf8');
 };
+
+export const readJsonResourceTextSync = (filePath, admitStat = null, onExactStat = null) =>
+  readFileResourceBytesSync(filePath, admitStat, onExactStat).toString('utf8');

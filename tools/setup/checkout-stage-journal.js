@@ -1,19 +1,21 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
-import { atomicWriteJson } from '../../src/shared/io/atomic-write.js';
+import { atomicWriteJson, atomicWriteText } from '../../src/shared/io/atomic-write.js';
 import { assertDirectoryIdentity } from '../../src/shared/io/directory-sync.js';
 import { persistenceFileIdentity, assertPersistenceFileIdentity } from '../../src/shared/io/file-identity.js';
 import { createContainedFileResource } from '../../src/shared/contained-file-resource.js';
-import { readJsonResourceTextSync } from '../../src/shared/file-read-resource.js';
+import { readJsonResourceTextSync, readFileResourceBytesSync } from '../../src/shared/file-read-resource.js';
 import { addStorageFailureContext } from '../../src/shared/storage/operation-error.js';
 import { createStorageObservationLedger } from '../../src/shared/storage/failure-observation.js';
 import { readErrorDataProperty } from '../../src/shared/error-data.js';
 import { requireCheckoutMutationSession, withCheckoutMutation } from './checkout-mutation.js';
+import { BOOTSTRAP_RECEIPT } from './checkout-bootstrap-paths.js';
 
 export const CHECKOUT_JOURNAL_VERSION = 1;
 export const CHECKOUT_JOURNAL_STATUS = '.tmp/checkout-bootstrap/journal-status.json';
-export const CHECKOUT_JOURNAL_LIMITS = Object.freeze({ stages: 16, events: 128, bytes: 256 * 1024, planBytes: 64 * 1024 });
+export const CHECKOUT_JOURNAL_LIMITS = Object.freeze({ stages: 16, events: 128, bytes: 256 * 1024, planBytes: 64 * 1024,
+  priorReceiptBytes: 8 * 1024 * 1024 });
 const journals = new WeakMap();
 const failure = message => Object.assign(new Error(message), { code: 'ERR_CHECKOUT_BOOTSTRAP_JOURNAL' });
 const ownText = (value, field, max = 1024) => {
@@ -119,7 +121,7 @@ const createJournal = (root, session, plan, { io = fs, publish = atomicWriteJson
     return pending;
   };
   const planId = createHash('sha256').update(serializedPlan).digest('hex');
-  let bytes = 0, sequence = 0, activeStage = null, closed = false, generationId = null, lastMetadata = null,
+  let bytes = 0, sequence = 0, activeStage = null, closed = false, generationId = null, lastMetadata = null, priorReadiness = null,
     appendFailed = false, stageFailed = false, fileVerified = false, runError = null;
   const check = () => {
     requireCheckoutMutationSession(root, session);
@@ -148,7 +150,7 @@ const createJournal = (root, session, plan, { io = fs, publish = atomicWriteJson
   };
   const metadata = state => Object.freeze({ schemaVersion: CHECKOUT_JOURNAL_VERSION, kind: 'checkout-bootstrap-stage-journal', root,
     runId: session.runId, planId, inputId: typeof captured.inputId === 'string' ? captured.inputId : null,
-    state, startedAt, finishedAt: state === 'running' ? null : Date.now(), generationId, error: runError,
+    state, startedAt, finishedAt: state === 'running' ? null : Date.now(), generationId, error: runError, priorReadiness,
     originalResources: owner.isSettled() && observations.isSettled() ? 'retired' : 'pending',
     stages: Object.freeze([...outcomes]), file: Object.freeze({ path: path.relative(root, file).replaceAll('\\', '/'), bytes,
       events: sequence, sha256: hash.copy().digest('hex'), complete: fileVerified }), selectedPlan: captured });
@@ -253,6 +255,31 @@ const createJournal = (root, session, plan, { io = fs, publish = atomicWriteJson
     drain: () => Promise.allSettled([...pendingWork]), borrow: operation => track(() => operation(journal, false)),
     start: async () => {
       initialIdentity = persistenceFileIdentity(owner.operations.stat({ bigint: true }));
+      const previous = path.join(root, BOOTSTRAP_RECEIPT);
+      let stat;
+      try { stat = fs.lstatSync(previous, { bigint: true }); }
+      catch (error) { if (readErrorDataProperty(error, 'code') !== 'ENOENT') throw error; }
+      if (stat) {
+        const parent = fs.lstatSync(path.dirname(previous));
+        if (!parent.isDirectory() || parent.isSymbolicLink()) throw failure('Prior readiness preservation requires an ordinary dependency directory.');
+        const original = persistenceFileIdentity(stat), admit = actual => {
+          if (actual.size > CHECKOUT_JOURNAL_LIMITS.priorReceiptBytes) throw failure('Prior readiness exceeds its preservation byte bound.');
+        };
+        const data = readFileResourceBytesSync(previous, admit, actual => assertPersistenceFileIdentity(actual, original));
+        assertPersistenceFileIdentity(fs.lstatSync(previous, { bigint: true }), original);
+        const target = path.join(directory, 'prior-readiness.json');
+        const actual = await atomicWriteText(target, data, { mkdir: false, mode: 0o600, beforeCommit: () => {
+          check(); assertPersistenceFileIdentity(fs.lstatSync(previous, { bigint: true }), original);
+        } });
+        if (actual !== target) throw failure('Prior readiness preservation did not confirm its original destination.');
+        const sealed = persistenceFileIdentity(fs.lstatSync(target, { bigint: true }));
+        const copied = readFileResourceBytesSync(target, admit, actual => assertPersistenceFileIdentity(actual, sealed));
+        assertPersistenceFileIdentity(fs.lstatSync(target, { bigint: true }), sealed);
+        if (!copied.equals(data)) throw failure('Preserved prior readiness differs from its exact original bytes.');
+        priorReadiness = Object.freeze({ state: 'historical-only-not-current-readiness',
+          path: path.relative(root, target).replaceAll('\\', '/'), bytes: data.length,
+          sha256: createHash('sha256').update(data).digest('hex'), source: BOOTSTRAP_RECEIPT });
+      }
       append({ state: 'run-started', plan: captured }); await persist('running');
     } };
 };
