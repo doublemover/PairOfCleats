@@ -3672,7 +3672,7 @@
       "batch": "storage-publication-lifetimes",
       "scope": "active",
       "review": "implementation-partial",
-      "recordedDisposition": "Partial implementation or follow-up acceptance remains.",
+      "recordedDisposition": "Shared original-native open acquisition, semantic metadata probes, serialized-writer prerequisite waits and batch-byte admission are implemented with retained resource ownership. Mixed worker/wait, fairness, shutdown and representative parity/work qualification are deferred until implementation is complete.",
       "owners": [
         "src/index/build/runtime/workers.js",
         "src/index/build/file-processor.js",
@@ -4817,8 +4817,8 @@
       "title": "[Perf] Avoid full-partition count sweeps for every semantic SQLite relation page",
       "batch": "retrieval-performance-and-evaluation",
       "scope": "active",
-      "review": "source-review-pending",
-      "recordedDisposition": "Implementation or accepted completion remains to be established.",
+      "review": "implementation-partial",
+      "recordedDisposition": "Endpoint-qualified SQLite relation pages replace inventory COUNT sweeps, preserve incident-row offsets/order and use metadata-only lookahead with SQL payload admission. Added endpoint-leading indexes. Runtime/query-plan/large-fanout and service allowance acceptance deferred.",
       "owners": [
         "src/semantic/sqlite-store.js",
         "src/storage/sqlite/semantic/schema.js",
@@ -4877,8 +4877,8 @@
       "title": "[Perf] Bound file-line token reuse to admitted demanded ranges",
       "batch": "retrieval-performance-and-evaluation",
       "scope": "active",
-      "review": "source-review-pending",
-      "recordedDisposition": "Implementation or accepted completion remains to be established.",
+      "review": "implementation-present-validation-deferred",
+      "recordedDisposition": "Current source already routes eligible chunks through a bounded demanded-line cache with analyzer/source/dictionary profiles, pre-admission, overlap reuse, exact fallback and scoped retirement. Runtime parity/mutation/cancellation/resource measurements remain deferred.",
       "owners": [
         "src/index/build/file-processor/process-chunks/token-flow.js",
         "src/index/build/tokenization/stream-helpers.js",
@@ -5177,8 +5177,8 @@
       "title": "[Perf] Apply collector admission and aggregate traversal budgets to strict JSON imports",
       "batch": "retrieval-performance-and-evaluation",
       "scope": "active",
-      "review": "source-review-pending",
-      "recordedDisposition": "Implementation or accepted completion remains to be established.",
+      "review": "implementation-present-validation-deferred",
+      "recordedDisposition": "Current strict-JSON collector already applies source/line/time admission before parsing and one cursor-based aggregate node/frame traversal with reference policy and cancellation accounting. Runtime positive/negative parity and cost qualification remain deferred.",
       "owners": [
         "src/index/language-registry/import-collectors/json.js",
         "src/index/language-registry/adapters/config-files.js",
@@ -5237,8 +5237,8 @@
       "title": "[Perf] Prepare lexical rename models once and preflight overlays before repeated source reconstruction",
       "batch": "retrieval-performance-and-evaluation",
       "scope": "active",
-      "review": "source-review-pending",
-      "recordedDisposition": "Implementation or accepted completion remains to be established.",
+      "review": "implementation-partial",
+      "recordedDisposition": "Operation-owned prepared lexical models and exact UTF8 overlay preflight implemented; independent base/overlay identities and bounded work accounting retained. Static review and runtime qualification pending.",
       "owners": [
         "src/semantic/retained-lexical-rename.js",
         "src/index/semantic/reference-repair/lexical-rename.js",
