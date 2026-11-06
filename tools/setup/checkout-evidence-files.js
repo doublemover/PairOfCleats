@@ -5,6 +5,7 @@ import { assertDirectoryIdentity } from '../../src/shared/io/directory-sync.js';
 import { persistenceFileIdentity, assertPersistenceFileIdentity } from '../../src/shared/io/file-identity.js';
 import { createStorageObservationLedger } from '../../src/shared/storage/failure-observation.js';
 import { requireCheckoutMutationSession, retainCheckoutMutationPrerequisite } from './checkout-mutation.js';
+import { CHECKOUT_NATIVE_EVIDENCE_LIMITS } from './checkout-bootstrap-paths.js';
 
 const groups = new WeakMap();
 const ioCaptures = new WeakMap(), nativeOpen = fs.openSync;
@@ -34,14 +35,23 @@ export const getCheckoutEvidenceFiles = (root, session) => {
   requireCheckoutMutationSession(root, session);
   if (groups.has(session)) return groups.get(session);
   const owners = [], ownFailures = new WeakSet(), observations = createStorageObservationLedger({ isOwnFailure: error => ownFailures.has(error) });
-  let opening = false, unknownOpen = false;
+  let opening = false, unknownOpen = false, nativeAttempts = 0, metadataBytes = 0, rawBytes = 0, reservedRawBytes = 0;
   const isSettled = () => !opening && !unknownOpen && owners.every(owner => owner.isSettled()) && observations.isSettled();
   const unknown = message => {
     const error = Object.assign(failure(message), { cacheOwnershipPending: true, cacheOwnershipReleased: isSettled });
     ownFailures.add(error); return error;
   };
   retainCheckoutMutationPrerequisite(root, session, isSettled);
-  const group = Object.freeze({ isSettled,
+  const nativeBudget = () => Object.freeze({ attempts: nativeAttempts, metadataBytes, rawBytes, reservedRawBytes,
+    retainedBytes: metadataBytes + rawBytes + reservedRawBytes, limits: CHECKOUT_NATIVE_EVIDENCE_LIMITS });
+  const group = Object.freeze({ isSettled, nativeBudget,
+    reserveNativeAttempt: () => {
+      requireCheckoutMutationSession(root, session);
+      const limits = CHECKOUT_NATIVE_EVIDENCE_LIMITS;
+      if (nativeAttempts >= limits.attempts || nativeBudget().retainedBytes + limits.metadataBytes > limits.bytes) throw failure(
+        'The original checkout native diagnostic allowance is exhausted before child admission.');
+      nativeAttempts++; metadataBytes += limits.metadataBytes;
+    },
     remember: error => { if (!unknownOpen) observations.remember(error); },
     open: (file, { io = fs } = {}) => {
       requireCheckoutMutationSession(root, session);
@@ -58,6 +68,18 @@ export const getCheckoutEvidenceFiles = (root, session) => {
       const captured = ioCaptures.get(captureCheckoutEvidenceIO(io)), open = captured.openSync;
       const methods = { receiver: captured.receiver, stat: captured.fstatSync, read: captured.readSync, close: captured.closeSync,
         write: captured.writeSync, sync: captured.fsyncSync };
+      if (relative.includes('/logs/')) methods.write = function (descriptor, data, offset, length, position) {
+        if (!Buffer.isBuffer(data) || !Number.isSafeInteger(offset) || !Number.isSafeInteger(length) || offset < 0 || length < 0
+          || offset + length > data.length) throw new TypeError('Native log writes require an exact bounded byte slice.');
+        if (nativeBudget().retainedBytes + length > CHECKOUT_NATIVE_EVIDENCE_LIMITS.bytes) throw failure(
+          'Native log output exceeds its original checkout aggregate diagnostic allowance.');
+        // Reserve before calling the original IO. Only a confirmed short write
+        // returns unused allowance; throwing/unknown adapters keep it reserved.
+        reservedRawBytes += length;
+        const count = captured.writeSync.call(captured.receiver, descriptor, data, offset, length, position);
+        if (Number.isSafeInteger(count) && count >= 0 && count <= length) { reservedRawBytes -= length; rawBytes += count; }
+        return count;
+      };
       let fd, owner;
       opening = true;
       try {

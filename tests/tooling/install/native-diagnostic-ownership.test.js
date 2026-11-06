@@ -6,6 +6,7 @@ import { createNativeSetupDiagnostics, NATIVE_DIAGNOSTIC_LIMITS, isNativeDiagnos
 import { runNativeSetupCommand } from '../../../tools/setup/native-command-result.js';
 import { withCheckoutMutation, retireCheckoutMutationSession } from '../../../tools/setup/checkout-mutation.js';
 import { CHECKOUT_MUTATION_LOCK } from '../../../tools/setup/checkout-bootstrap-paths.js';
+import { getCheckoutEvidenceFiles } from '../../../tools/setup/checkout-evidence-files.js';
 import { makeTempDir } from '../../helpers/temp.js';
 import { errorGraphIncludes } from '../../helpers/error-graph.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
@@ -15,7 +16,8 @@ applyTestEnv();
 const mode = process.env.PAIROFCLEATS_TEST_ID?.split('tooling/install/native-diagnostic-ownership/')[1];
 assert.ok(['exact-bytes-and-tails', 'attempt-history-and-concurrency', 'original-log-failures', 'bounded-admission-and-output',
   'unknown-close-retains-owner', 'original-structured-output', 'structured-output-fences', 'first-byte-observation', 'unknown-write-retains-owner',
-  'handled-live-child-retains-root', 'original-io-provider-capture'].includes(mode));
+  'handled-live-child-retains-root', 'original-io-provider-capture', 'checkout-wide-storage-budget',
+  'checkout-wide-attempt-budget', 'checkout-wide-short-write-accounting'].includes(mode));
 const root = await makeTempDir('native-diagnostics-');
 const retainedFixtureFds = new Set();
 let liveChild = null, childClosed = false;
@@ -24,7 +26,66 @@ const commandOptions = { cwd: root, stdio: 'pipe', timeoutMs: 5000, maxOutputByt
   rejectOnNonZeroExit: false, killTree: false, windowsHide: true };
 const compact = { ...NATIVE_DIAGNOSTIC_LIMITS, attempts: 8, diskBytes: 1024 * 1024, attemptBytes: 128 * 1024, tailBytes: 64 };
 try {
-  if (mode === 'original-io-provider-capture') {
+  if (mode === 'checkout-wide-storage-budget') {
+    await withCheckoutMutation(root, async session => {
+      const first = createNativeSetupDiagnostics(root, session), second = createNativeSetupDiagnostics(root, session);
+      const bytes = Buffer.alloc(7 * 1024 * 1024, 0x61); let calls = 0;
+      const command = diagnostics => diagnostics.run('explicit-fixture-output', [], commandOptions, async (command, args, options) => {
+        calls++; options.onStdoutChunk(bytes); return { exitCode: 0, signal: null };
+      });
+      for (const diagnostics of [first, second, first, second]) {
+        const result = await command(diagnostics); assert.equal(result.diagnostics.evidenceComplete, true);
+        assert.ok(Buffer.byteLength(result.stdout) <= NATIVE_DIAGNOSTIC_LIMITS.tailBytes);
+        assert.deepEqual(fs.readFileSync(result.diagnostics.logs[0].path), bytes);
+      }
+      const failure = await command(second).catch(error => error);
+      assert.equal(calls, 5); assert.equal(isNativeDiagnosticFailure(failure), true);
+      assert.equal(failure.diagnostics.evidenceComplete, false);
+      assert.equal(failure.diagnostics.logs[0].writtenBytes, 0);
+      const budget = first.snapshot().checkoutBudget;
+      assert.deepEqual(second.snapshot().checkoutBudget, budget);
+      assert.equal(budget.rawBytes, bytes.length * 4); assert.equal(budget.reservedRawBytes, 0);
+      assert.equal(budget.attempts, 5); assert.ok(budget.retainedBytes <= budget.limits.bytes);
+      assert.equal(first.snapshot().writtenBytes, bytes.length * 2);
+      assert.equal(second.snapshot().writtenBytes, bytes.length * 2);
+    });
+  } else if (mode === 'checkout-wide-attempt-budget') {
+    await withCheckoutMutation(root, async session => {
+      const group = getCheckoutEvidenceFiles(root, session);
+      // Reserve earlier attempts through the same owner without launching 383
+      // redundant fixture children or publishing fabricated attempt records.
+      for (let i = 1; i < group.nativeBudget().limits.attempts; i++) group.reserveNativeAttempt();
+      const first = createNativeSetupDiagnostics(root, session), second = createNativeSetupDiagnostics(root, session);
+      let calls = 0;
+      const result = await first.run('explicit-fixture-empty-output', [], commandOptions, async () => {
+        calls++; return { exitCode: 0, signal: null };
+      });
+      assert.equal(result.diagnostics.evidenceComplete, true);
+      const failure = await second.run('explicit-fixture-never-admitted', [], commandOptions, () => {
+        calls++; assert.fail('a second logger cannot reset the original checkout attempt allowance');
+      }).catch(error => error);
+      assert.equal(isNativeDiagnosticFailure(failure), true); assert.equal(calls, 1);
+      assert.equal(second.snapshot().directory, null); assert.equal(second.snapshot().attempts, 0);
+      assert.equal(group.nativeBudget().attempts, group.nativeBudget().limits.attempts);
+    });
+  } else if (mode === 'checkout-wide-short-write-accounting') {
+    await withCheckoutMutation(root, async session => {
+      let writes = 0;
+      const diagnostics = createNativeSetupDiagnostics(root, session, { limits: compact, io: { ...fs,
+        writeSync(fd, bytes, offset, length, position) {
+          writes++; return fs.writeSync(fd, bytes, offset, Math.min(length, 3), position);
+        }
+      } });
+      const result = await diagnostics.run('explicit-fixture-short-writes', [], commandOptions, async (command, args, options) => {
+        options.onStdoutChunk(Buffer.from('eight!!!')); return { exitCode: 0, signal: null };
+      });
+      assert.equal(writes, 3); assert.equal(result.diagnostics.evidenceComplete, true);
+      assert.equal(diagnostics.readOutput(result.diagnostics, 'stdout'), 'eight!!!');
+      const budget = diagnostics.snapshot().checkoutBudget;
+      assert.equal(budget.rawBytes, 8); assert.equal(budget.reservedRawBytes, 0);
+      assert.equal(budget.retainedBytes, budget.metadataBytes + 8);
+    });
+  } else if (mode === 'original-io-provider-capture') {
     await withCheckoutMutation(root, async session => {
       let opens = 0, closes = 0;
       const io = { ...fs, openSync(...args) { assert.equal(this, io); opens++; return fs.openSync(...args); },

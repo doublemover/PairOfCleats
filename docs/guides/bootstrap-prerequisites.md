@@ -180,8 +180,11 @@ order. Existing parser/SQLite/ONNX content and disposal controls remain.
 
 Raw compiler/probe streams are retained under
 .tmp/checkout-bootstrap/logs/n-*/ with original command, status, hash and attempt
-records. Each invocation admits at most 384 attempts, 8 MiB raw output per attempt
-and 32 MiB aggregate storage including reserved metadata. In-memory tails are
+records. The original checkout owner admits at most 384 attempts and 32 MiB
+aggregate storage including reserved metadata across every logger. Individual
+loggers retain those same ceilings, with 8 MiB raw output per attempt. Original
+writes reserve bytes before IO; only confirmed progress returns unused allowance.
+Throwing or unknown writes keep their reservation. In-memory tails are
 4 KiB per stream. Structured probe output uses a separate original, hash-checked
 read bounded to 64 KiB; a truncated display tail cannot supply activation JSON.
 

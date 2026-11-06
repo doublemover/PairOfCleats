@@ -2770,3 +2770,6 @@ tooling/install/checkout-stage-journal/whole-owner-publication-drain
 tooling/install/checkout-stage-journal/closed-owner-rejects-borrowed-work
 tooling/install/checkout-stage-journal/captured-plan-and-io-provider
 tooling/install/native-diagnostic-ownership/original-io-provider-capture
+tooling/install/native-diagnostic-ownership/checkout-wide-storage-budget
+tooling/install/native-diagnostic-ownership/checkout-wide-attempt-budget
+tooling/install/native-diagnostic-ownership/checkout-wide-short-write-accounting

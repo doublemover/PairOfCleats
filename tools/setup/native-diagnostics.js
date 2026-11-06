@@ -10,9 +10,10 @@ import { addStorageFailureContext } from '../../src/shared/storage/operation-err
 import { readErrorDataProperty } from '../../src/shared/error-data.js';
 import { requireCheckoutMutationSession } from './checkout-mutation.js';
 import { getCheckoutEvidenceFiles, captureCheckoutEvidenceIO } from './checkout-evidence-files.js';
+import { CHECKOUT_NATIVE_EVIDENCE_LIMITS } from './checkout-bootstrap-paths.js';
 
-const MIB = 1024 * 1024, METADATA_RESERVE = 32 * 1024;
-export const NATIVE_DIAGNOSTIC_LIMITS = Object.freeze({ attempts: 384, diskBytes: 32 * MIB,
+const MIB = 1024 * 1024, METADATA_RESERVE = CHECKOUT_NATIVE_EVIDENCE_LIMITS.metadataBytes;
+export const NATIVE_DIAGNOSTIC_LIMITS = Object.freeze({ attempts: CHECKOUT_NATIVE_EVIDENCE_LIMITS.attempts, diskBytes: CHECKOUT_NATIVE_EVIDENCE_LIMITS.bytes,
   attemptBytes: 8 * MIB, tailBytes: 4096, commandBytes: 8192 });
 const diagnosticFailures = new WeakSet();
 export const isNativeDiagnosticFailure = error => error !== null && ['object', 'function'].includes(typeof error)
@@ -76,7 +77,7 @@ export const createNativeSetupDiagnostics = (root, session, { limits = NATIVE_DI
         throw terminalFailure;
       }
     },
-    snapshot: () => Object.freeze({ runId: session.runId, directory, attempts, reservedBytes, writtenBytes,
+    snapshot: () => Object.freeze({ runId: session.runId, directory, attempts, reservedBytes, writtenBytes, checkoutBudget: evidence.nativeBudget(),
       limits, records: Object.freeze([...rows]) }),
     run: async (command, args, options, spawn, { onOutput = null } = {}) => {
       if (terminalFailure) throw terminalFailure;
@@ -91,7 +92,7 @@ export const createNativeSetupDiagnostics = (root, session, { limits = NATIVE_DI
           || Buffer.byteLength(JSON.stringify(selected)) > limits.commandBytes) throw problem('Native command identity exceeds its diagnostic bound.');
         if (onOutput !== null && typeof onOutput !== 'function') throw problem('Native output observation requires an explicit synchronous owner.');
         if (attempts >= limits.attempts || reservedBytes + writtenBytes + METADATA_RESERVE > limits.diskBytes) throw problem('Native run diagnostic budget exhausted before child admission.');
-        prepare(); reservedBytes += METADATA_RESERVE;
+        evidence.reserveNativeAttempt(); prepare(); reservedBytes += METADATA_RESERVE;
         attempt = ++attempts;
         const prefix = path.join(directory, String(attempt).padStart(3, '0'));
         recordPath = prefix + '.json';
