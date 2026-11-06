@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { rankBM25, rankBM25Fields } from '../../../src/retrieval/rankers.js';
-import { admitSortedPostings } from '../../../src/shared/posting-order.js';
+import { admitSortedPostings, hasCompletePostingVocabulary } from '../../../src/shared/posting-order.js';
+import { validateArtifact } from '../../../src/contracts/validators/artifacts.js';
 
 const count = 2048;
 const make = () => {
@@ -50,4 +51,24 @@ for (const [k1, b] of [[NaN, 0.5], [-1, 0.5], [1, Infinity], [1, -0.1], [1, 1.1]
   assert.throws(() => rankBM25Fields({ idx, tokens: ['common'], topN: 1, k1, b }), { code: 'INVALID_REQUEST' });
 }
 assert.equal(rankBM25({ idx, tokens: ['common'], topN: 1, k1: 0, b: 0 }).length, 1);
+for (const name of ['token_postings', 'phrase_ngrams', 'chargram_postings', 'field_postings']) {
+  const payload = (vocab, postings) => {
+    const rows = { vocab, postings, docLengths: [1] };
+    return name === 'field_postings' ? { fields: { title: rows } } : rows;
+  };
+  const one = name === 'phrase_ngrams' || name === 'chargram_postings' ? [0] : [[0, 1]];
+  assert.equal(validateArtifact(name, payload(['a'], [one])).ok, true, `${name} valid aligned vocabulary`);
+  assert.equal(validateArtifact(name, payload([], [])).ok, true, `${name} actual empty vocabulary`);
+  for (const [vocab, postings] of [[['a', 'a'], [one, one]], [['a', 'b'], [one]], [['a'], [one, one]]]) {
+    const result = validateArtifact(name, payload(vocab, postings));
+    assert.equal(result.ok, false, `${name} rejects duplicate or unpaired vocabulary slots`);
+    assert.ok(result.errors.some(error => /unique|cardinality/u.test(error)));
+  }
+}
+const complete = admitSortedPostings({ vocab: ['a', 'b'], postings: [[[0, 1]], [[1, 1]]] }, { completeVocabulary: true });
+assert.equal(hasCompletePostingVocabulary(complete), true);
+complete.vocab[1] = 'a';
+assert.throws(() => admitSortedPostings(complete, { completeVocabulary: true }), { code: 'ERR_ARTIFACT_INVALID' });
+assert.equal(hasCompletePostingVocabulary(complete), false, 'failed re-admission revokes complete-vocabulary authority');
+assert.throws(() => admitSortedPostings({ vocab: ['a'], postings: [] }, { completeVocabulary: true }), { code: 'ERR_ARTIFACT_INVALID' });
 console.log('Selective BM25 retains linear score parity and admits seeking only for ordered postings.');

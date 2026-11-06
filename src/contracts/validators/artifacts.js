@@ -10,6 +10,7 @@ import { toValidationResult } from './result.js';
 import { validateMetadataV2Semantics } from './metadata.js';
 import { apiContractProjectionErrors } from '../schemas/api-contracts.js';
 import { callableSummaryProjectionErrors } from '../callable-parameters.js';
+import { postingVocabularyError } from '../../shared/posting-order.js';
 
 const ajv = createAjv({
   allErrors: true,
@@ -25,6 +26,15 @@ export function validateArtifact(name, data) {
   const validator = ARTIFACT_VALIDATORS[name];
   if (!validator) return { ok: true, errors: [] };
   const result = toValidationResult(validator, data);
+  if (result.ok && ['token_postings', 'phrase_ngrams', 'chargram_postings', 'field_postings'].includes(name)) {
+    const entries = name === 'field_postings' ? Object.entries(data.fields) : [[name, data]];
+    for (const [field, entry] of entries) {
+      const reason = postingVocabularyError(entry.vocab, entry.postings);
+      if (reason) result.errors.push(`/${field}: ${reason}`);
+      if (result.errors.length >= 20) break;
+    }
+    result.ok = result.errors.length === 0;
+  }
   if (result.ok && name === 'symbols' && Array.isArray(data)) {
     for (let index = 0; index < data.length; index++) {
       const summary = data[index]?.extensions?.callableParameters;

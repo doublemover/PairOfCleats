@@ -60,5 +60,21 @@ try {
     } finally { fs.openSync = originalOpen; fs.readSync = originalRead; }
     assert.deepEqual(await fsp.readFile(data), packed.buffer);
   }
+  const vocabularyCases = [
+    { vocab: ['a', 'b'], postings: [[[0, 1]], [[1, 1]]], valid: true },
+    { vocab: [], postings: [], valid: true },
+    { vocab: ['a', 'a'], postings: [[[0, 1]], [[1, 1]]] },
+    { vocab: ['a', 'b'], postings: [[[0, 1]]] },
+    { vocab: ['a'], postings: [[[0, 1]], [[1, 1]]] }
+  ];
+  for (const [index, entry] of vocabularyCases.entries()) {
+    const dir = path.join(root, 'json-vocabulary-' + index); await fsp.mkdir(dir);
+    const payload = { vocab: entry.vocab, postings: entry.postings, docLengths: [1, 1] };
+    await fsp.writeFile(path.join(dir, 'token_postings.json'), JSON.stringify(payload));
+    await writePiecesManifest(dir, [{ name: 'token_postings', path: 'token_postings.json', format: 'json' }]);
+    if (entry.valid) assert.deepEqual(loadTokenPostings(dir), payload);
+    else assert.throws(() => loadTokenPostings(dir), { code: 'ERR_ARTIFACT_INVALID' },
+      'the actual manifest-selected reader rejects ambiguous or unpaired vocabulary positions');
+  }
 } finally { fs.openSync = originalOpen; fs.readSync = originalRead; await rmDirRecursive(root); }
 console.log('Packed offset and vocabulary admission controls authored; execution deferred.');
