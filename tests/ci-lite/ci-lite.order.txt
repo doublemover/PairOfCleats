@@ -2607,3 +2607,7 @@ indexing/semantic/positive-rule-view/finite-model-oracle
 indexing/semantic/positive-rule-view/producer-only-deltas
 indexing/semantic/positive-rule-view/recursive-retraction
 indexing/semantic/positive-rule-view/contract-and-authority
+graph/hypotheses/positive-repair/support-changing-repair-oracle
+graph/hypotheses/positive-repair/preservation-and-cost
+graph/hypotheses/positive-repair/private-continuations
+graph/hypotheses/positive-repair/strict-domain-and-cancellation

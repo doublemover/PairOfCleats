@@ -1,17 +1,17 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-11-06T12:28:27.582Z",
+  "generatedAt": "2026-11-06T12:40:31.286Z",
   "summary": {
     "lanes": 5,
-    "tests": 2920,
+    "tests": 2924,
     "exactDuplicates": 0,
     "hotspotKinds": 10,
-    "families": 432,
+    "families": 433,
     "topSlowest": 10,
     "timingCoverage": {
       "freshArtifactTests": 0,
       "historicalFallbackTests": 74,
-      "missingTests": 2846
+      "missingTests": 2850
     }
   },
   "lanes": [
@@ -35,7 +35,7 @@
       "targetMaxDurationSeconds": 15,
       "orderFile": "tests/ci-lite/ci-lite.order.txt",
       "timingArtifactPath": ".testLogs/ci-lite-testRunTimes.txt",
-      "totalTests": 2604,
+      "totalTests": 2608,
       "knownDurationTests": 49,
       "knownDurationMs": 27090,
       "p50DurationMs": 190,
@@ -43,7 +43,7 @@
       "resolvedTimingArtifactPaths": [],
       "timingSources": {
         "historical-test-times": 49,
-        "missing": 2555
+        "missing": 2559
       }
     },
     {
@@ -758,6 +758,12 @@
     },
     {
       "key": "embeddings/onnx",
+      "count": 4,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 4
+    },
+    {
+      "key": "graph/hypotheses",
       "count": 4,
       "knownDurationMs": 0,
       "unknownDurationCount": 4

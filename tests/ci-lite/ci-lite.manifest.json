@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 2439,
+    "hero": 2443,
     "matrix": 110,
     "meta": 54,
     "soak": 1,
@@ -15637,6 +15637,30 @@
     {
       "id": "indexing/semantic/positive-rule-view/contract-and-authority",
       "order": 2604,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "graph/hypotheses/positive-repair/support-changing-repair-oracle",
+      "order": 2605,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "graph/hypotheses/positive-repair/preservation-and-cost",
+      "order": 2606,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "graph/hypotheses/positive-repair/private-continuations",
+      "order": 2607,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "graph/hypotheses/positive-repair/strict-domain-and-cancellation",
+      "order": 2608,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

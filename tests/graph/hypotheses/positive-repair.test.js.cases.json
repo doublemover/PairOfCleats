@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["support-changing-repair-oracle", "preservation-and-cost", "private-continuations", "strict-domain-and-cancellation"]
+}
