@@ -2611,3 +2611,7 @@ graph/hypotheses/positive-repair/support-changing-repair-oracle
 graph/hypotheses/positive-repair/preservation-and-cost
 graph/hypotheses/positive-repair/private-continuations
 graph/hypotheses/positive-repair/strict-domain-and-cancellation
+graph/hypotheses/finite-causal-model/all-valuations-and-interventions
+graph/hypotheses/finite-causal-model/typed-domains-and-support
+graph/hypotheses/finite-causal-model/strict-equations-and-mass
+graph/hypotheses/finite-causal-model/ownership-and-cancellation

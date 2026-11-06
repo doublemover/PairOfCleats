@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 2443,
+    "hero": 2447,
     "matrix": 110,
     "meta": 54,
     "soak": 1,
@@ -15661,6 +15661,30 @@
     {
       "id": "graph/hypotheses/positive-repair/strict-domain-and-cancellation",
       "order": 2608,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "graph/hypotheses/finite-causal-model/all-valuations-and-interventions",
+      "order": 2609,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "graph/hypotheses/finite-causal-model/typed-domains-and-support",
+      "order": 2610,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "graph/hypotheses/finite-causal-model/strict-equations-and-mass",
+      "order": 2611,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "graph/hypotheses/finite-causal-model/ownership-and-cancellation",
+      "order": 2612,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }
