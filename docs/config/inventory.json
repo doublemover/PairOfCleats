@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-06T00:00:04.436Z",
+  "generatedAt": "2026-11-06T00:30:41.619Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
@@ -4717,6 +4717,7 @@
         "tests/indexing/build/stage4-mixed-mode-generations.test.js",
         "tests/indexing/crash-log-boundary-controls.test.js",
         "tests/indexing/embeddings/adapter-callable-invocation.test.js",
+        "tests/indexing/embeddings/artifact-inventory-authority.test.js",
         "tests/indexing/embeddings/build/cache-only-provider-admission.test.js",
         "tests/indexing/embeddings/build/chunk-channel-cache-routes.test.js",
         "tests/indexing/embeddings/manifest-publication-ownership.test.js",
@@ -4798,6 +4799,7 @@
         "tests/perf/bench/selected-cohort-generation-consumer.test.js",
         "tests/perf/bench/vfs-producer-accounting.test.js",
         "tests/perf/crash-log-error-latency.test.js",
+        "tests/perf/embeddings/artifact-lease-work.test.js",
         "tests/perf/risk/witness-retention-work.test.js",
         "tests/perf/tooling/bench/sqlite-benchmark-cli.test.js",
         "tests/perf/tooling/bench/sqlite-campaign.test.js",

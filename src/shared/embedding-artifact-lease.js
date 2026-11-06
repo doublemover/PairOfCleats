@@ -44,6 +44,7 @@ const verify = async (options, selectedPlan = null) => {
     const plan = selectedPlan || planEmbeddingArtifactInventory(options);
     if (plan.immediate) return plan.immediate;
     if (!plan.hasWeights || !plan.hasTokenizer) return unknownEmbeddingArtifact();
+    const selection = stableStringify(plan);
     const inventory = [], observed = [];
     let closureBytes = 0;
     for (const row of plan.files) {
@@ -59,6 +60,7 @@ const verify = async (options, selectedPlan = null) => {
     // Revalidate the entire selected set after the last file, not only each
     // immediately-read file while later graph/tokenizer bytes are still hashed.
     for (const row of observed) if (!sameFile(row.stat, await fs.stat(row.file, { bigint: true }))) throw changed();
+    if (selection !== stableStringify(planEmbeddingArtifactInventory(options))) throw changed();
     return buildVerifiedEmbeddingArtifact(inventory, plan.revision ?? null);
   } finally { metrics.active--; }
 };

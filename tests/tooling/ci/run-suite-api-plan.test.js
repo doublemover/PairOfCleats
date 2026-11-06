@@ -16,6 +16,9 @@ const reuseIds = ['runtime-import-reuse', 'runtime-claims-reuse', 'runtime-contr
 const riskWitnessWorkIds = JSON.parse(fs.readFileSync(path.join(root,
   'tests/perf/risk/witness-retention-work.test.js.cases.json'), 'utf8')).cases
   .map(id => `perf/risk/witness-retention-work/${id}`);
+const artifactLeaseWorkIds = JSON.parse(fs.readFileSync(path.join(root,
+  'tests/perf/embeddings/artifact-lease-work.test.js.cases.json'), 'utf8')).cases
+  .map(id => `perf/embeddings/artifact-lease-work/${id}`);
 const sourceAuthorityIds = JSON.parse(fs.readFileSync(path.join(root,
   'tests/storage/semantic/runtime-source-reference-authority.test.js.cases.json'), 'utf8')).cases
   .map(id => `storage/semantic/runtime-source-reference-authority/${id}`);
@@ -82,6 +85,9 @@ for (const mode of ['ci', 'nightly']) {
             : ['indexing/semantic/compiler-single-cpu-lifecycle',
               ...reuseIds,
               ...riskWitnessWorkIds,
+              ...artifactLeaseWorkIds,
+              'indexing/embeddings/artifact-installed-closure', 'embeddings/onnx/installation-closure',
+              'embeddings/onnx/downloader-installation-consumer',
               'indexing/artifacts/binary-frame-manifest-integrity', 'indexing/semantic/sealed-piece-manifest-work',
               'indexing/artifacts/field-postings-adaptive-shards-and-binary',
               'shared/artifact-io/binary-frame-checksum-receipts/oversized',

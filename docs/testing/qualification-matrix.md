@@ -15,6 +15,12 @@ existing serial30-second owner, with original15-second build CLI limits.
 Current hosted qualification is reported on [PR572](https://github.com/doublemover/PairOfCleats/pull/572).
 
 
+[Artifact verification leases](../archived/embedding-artifact-lease-closeout-2026-11-05.md)
+qualify56 focused Windows controls and24 fresh-process raw samples. Concurrent
+selection/post-load verification shares reads; warm mutable bytes remain hashed.
+Real native external-data loading, exact closure selection and original authority
+failures retain source-bound coverage; model inference throughput is separate.
+
 [Compiler admission follow-up](../archived/ci-compiler-admission-followup-2026-11-05.md)
 passes21 affected Windows cases, retaining actual bindings in both published
 generations. The macOS fixtures now use the canonical512MiB admission policy;

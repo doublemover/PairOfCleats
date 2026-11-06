@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "cases": [
+    "small-sync-1",
+    "small-sync-2",
+    "small-sync-3",
+    "small-async-1",
+    "small-async-2",
+    "small-async-3",
+    "cold-sync-1",
+    "cold-sync-2",
+    "cold-sync-3",
+    "cold-async-1",
+    "cold-async-2",
+    "cold-async-3",
+    "concurrent-sync-1",
+    "concurrent-sync-2",
+    "concurrent-sync-3",
+    "concurrent-async-1",
+    "concurrent-async-2",
+    "concurrent-async-3",
+    "warm-sync-1",
+    "warm-sync-2",
+    "warm-sync-3",
+    "warm-async-1",
+    "warm-async-2",
+    "warm-async-3"
+  ]
+}

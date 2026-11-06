@@ -16,7 +16,13 @@ identities retain their existing contract. A directory named by a content digest
 does not itself establish filesystem immutability or permit a stat-only shortcut.
 
 Each opened file is checked against its descriptor/path identity and byte count.
-The entire observed inventory is rechecked after the last hash. A post-load phase
+The selected namespace is planned again after the last hash as well as rechecking
+every observed file. A newly selected graph, changed installation selector or
+changed tokenizer closure cannot be certified using the earlier inventory.
+Linked loader routes, linked artifact candidates and non-file artifacts fail
+before sibling hashing. The synchronous compatibility resolver uses the same
+contained-descriptor owner and checks the selected namespace again.
+A post-load phase
 rehashes mutable bytes and compares artifact compatibility before provider success
 can publish evidence. These checks detect observed replacement; they do not create
 an operating-system write lock or make a mutable model installation immutable.
@@ -35,6 +41,10 @@ full-model read path.
 
 Lease metrics count verification/coalescing calls and bytes/files hashed. Async
 selection intentionally does not claim zero warm I/O for mutable installations.
-Actual loader/native closure parity, interrupted acquisition, replacement/refusal,
-model startup, event-loop delay, CPU/RSS and throughput qualification remain open.
-All authored fixtures are unrun during this development pass; no speedup is claimed.
+The [Windows closeout](../archived/embedding-artifact-lease-closeout-2026-11-05.md)
+qualifies actual native graph/external-data selection, interrupted acquisition,
+replacement/refusal, initialization cleanup and cancellation controls. Serial
+fresh-process samples retain hash/read counts, CPU, sampled heap, lifetime RSS
+and event-loop delay. Concurrent requests share verification; mutable warm
+acquisition still performs real reads. These measurements qualify artifact
+verification and do not establish model inference throughput or cold-device I/O.

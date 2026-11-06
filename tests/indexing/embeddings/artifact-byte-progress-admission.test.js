@@ -39,4 +39,4 @@ try {
   assert.equal(unknown.status, 'unknown'); assert.equal(unknown.reuse, 'refuse');
   assert.equal(getEmbeddingArtifactLeaseMetrics().bytesHashed, before.bytesHashed, 'missing provenance cannot justify a full graph read or reusable digest');
 } finally { fs.open = originalOpen; await fs.rm(dir, { recursive: true, force: true }); }
-console.log('Artifact read progress, byte limits, original descriptor closure and unknown-provenance work controls authored; execution deferred.');
+console.log('Artifact read progress, byte limits, original descriptor closure and unknown-provenance work controls pass.');

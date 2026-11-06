@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 2096,
+    "hero": 2149,
     "matrix": 110,
     "meta": 54,
     "soak": 1,
@@ -13579,6 +13579,324 @@
     {
       "id": "indexing/risk/interprocedural/upstream-input-coverage",
       "order": 2261,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/embeddings/artifact-async-lease-authority",
+      "order": 2262,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/embeddings/artifact-byte-progress-admission",
+      "order": 2263,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/embeddings/model-artifact-identity",
+      "order": 2264,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/embeddings/adapter-pipeline-leases",
+      "order": 2265,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/embeddings/build/bundle-coverage-receipt",
+      "order": 2266,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "embeddings/onnx/explicit-model-selection",
+      "order": 2267,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "embeddings/onnx/installation-closure",
+      "order": 2268,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "embeddings/embedding-acquisition-plan",
+      "order": 2269,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/embeddings/provider-selection-isolation",
+      "order": 2270,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "embeddings/onnx/model-selection-observation",
+      "order": 2271,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/embeddings/inactive-and-provenance-runtime",
+      "order": 2272,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/embeddings/artifact-inventory-authority/graph-link-sync",
+      "order": 2273,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/embeddings/artifact-inventory-authority/graph-link-async",
+      "order": 2274,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/embeddings/artifact-inventory-authority/tokenizer-link-sync",
+      "order": 2275,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/embeddings/artifact-inventory-authority/tokenizer-link-async",
+      "order": 2276,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/embeddings/artifact-inventory-authority/route-link-sync",
+      "order": 2277,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/embeddings/artifact-inventory-authority/route-link-async",
+      "order": 2278,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/embeddings/artifact-inventory-authority/root-link-sync",
+      "order": 2279,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/embeddings/artifact-inventory-authority/root-link-async",
+      "order": 2280,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/embeddings/artifact-inventory-authority/non-file-sync",
+      "order": 2281,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/embeddings/artifact-inventory-authority/non-file-async",
+      "order": 2282,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/embeddings/artifact-inventory-authority/late-member-sync",
+      "order": 2283,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/embeddings/artifact-inventory-authority/late-member-async",
+      "order": 2284,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/embeddings/artifact-inventory-authority/shadow-sync",
+      "order": 2285,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/embeddings/artifact-inventory-authority/shadow-async",
+      "order": 2286,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/embeddings/artifact-inventory-authority/external-data-sync",
+      "order": 2287,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/embeddings/artifact-inventory-authority/external-data-async",
+      "order": 2288,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/embeddings/artifact-lease-work/small-sync-1",
+      "order": 2289,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/embeddings/artifact-lease-work/small-sync-2",
+      "order": 2290,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/embeddings/artifact-lease-work/small-sync-3",
+      "order": 2291,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/embeddings/artifact-lease-work/small-async-1",
+      "order": 2292,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/embeddings/artifact-lease-work/small-async-2",
+      "order": 2293,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/embeddings/artifact-lease-work/small-async-3",
+      "order": 2294,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/embeddings/artifact-lease-work/cold-sync-1",
+      "order": 2295,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/embeddings/artifact-lease-work/cold-sync-2",
+      "order": 2296,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/embeddings/artifact-lease-work/cold-sync-3",
+      "order": 2297,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/embeddings/artifact-lease-work/cold-async-1",
+      "order": 2298,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/embeddings/artifact-lease-work/cold-async-2",
+      "order": 2299,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/embeddings/artifact-lease-work/cold-async-3",
+      "order": 2300,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/embeddings/artifact-lease-work/concurrent-sync-1",
+      "order": 2301,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/embeddings/artifact-lease-work/concurrent-sync-2",
+      "order": 2302,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/embeddings/artifact-lease-work/concurrent-sync-3",
+      "order": 2303,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/embeddings/artifact-lease-work/concurrent-async-1",
+      "order": 2304,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/embeddings/artifact-lease-work/concurrent-async-2",
+      "order": 2305,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/embeddings/artifact-lease-work/concurrent-async-3",
+      "order": 2306,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/embeddings/artifact-lease-work/warm-sync-1",
+      "order": 2307,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/embeddings/artifact-lease-work/warm-sync-2",
+      "order": 2308,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/embeddings/artifact-lease-work/warm-sync-3",
+      "order": 2309,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/embeddings/artifact-lease-work/warm-async-1",
+      "order": 2310,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/embeddings/artifact-lease-work/warm-async-2",
+      "order": 2311,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/embeddings/artifact-lease-work/warm-async-3",
+      "order": 2312,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/embeddings/artifact-installed-closure",
+      "order": 2313,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/embeddings/artifact-verification-cancellation",
+      "order": 2314,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

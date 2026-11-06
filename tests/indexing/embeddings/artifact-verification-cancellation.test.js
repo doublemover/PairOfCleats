@@ -39,4 +39,4 @@ try {
   assert.equal(after.verifications - before.verifications, 1, 'resource settings cannot duplicate the same selected-byte verification');
   assert.equal(after.coalesced - before.coalesced, 1);
 } finally { release(); fs.open = originalOpen; await fs.rm(dir, { recursive: true, force: true }); }
-console.log('Shared artifact verification cancellation and exact closure coalescing controls authored; execution deferred.');
+console.log('Shared artifact verification cancellation and exact closure coalescing controls pass.');

@@ -5,8 +5,9 @@ import { resolveOnnxModelPath } from './onnx-embeddings/config.js';
 import { readOnnxInstallationReceipt } from './onnx-installation.js';
 import { readEmbeddingAcquisitionReceipt } from './embedding-acquisition-receipt.js';
 import { resolveEmbeddingAcquisitionPlan } from './embedding-acquisition-plan.js';
-import { assertNoSymlinkPath } from './contained-file.js';
+import { assertNoSymlinkPath, withContainedFileSync } from './contained-file.js';
 import { describeStorageFailure } from './storage/failure-observation.js';
+import { stableStringify } from './stable-json.js';
 
 const TOKENIZER_FILES = new Set([
   'config.json', 'tokenizer.json', 'tokenizer_config.json', 'special_tokens_map.json',
@@ -18,21 +19,26 @@ const unknown = (weightsDigest = null) => ({ weightsDigest, status: 'unknown', r
 
 /** Hash opened bytes with bounded working storage, rejecting replacement during a read. */
 const fingerprintFile = (filePath) => {
-  const fd = fs.openSync(filePath, 'r');
-  try {
-    const before = fs.fstatSync(fd, { bigint: true });
-    if (!before.isFile()) throw new Error('Embedding artifact is not a regular file.');
+  return withContainedFileSync(path.dirname(filePath), filePath, handle => {
+    const before = handle.stat({ bigint: true });
+    if (before.size < 0n || before.size > 64n * 1024n ** 3n) {
+      throw Object.assign(new Error('Selected embedding artifact exceeds its bounded file size.'), { code: 'ERR_EMBEDDING_ARTIFACT_LIMIT' });
+    }
     const hash = crypto.createHash('sha256');
     const scratch = Buffer.allocUnsafe(1024 * 1024);
     let bytes = 0;
-    for (;;) {
-      const count = fs.readSync(fd, scratch, 0, scratch.length, null);
-      if (!count) break;
+    while (BigInt(bytes) < before.size) {
+      const requested = Math.min(scratch.length, Number(before.size) - bytes);
+      const count = handle.read(scratch, 0, requested, bytes);
+      if (!Number.isSafeInteger(count) || count <= 0 || count > requested) {
+        throw Object.assign(new Error('Embedding artifact read is incomplete.'), { code: 'ERR_EMBEDDING_ARTIFACT_CHANGED' });
+      }
       bytes += count;
       hash.update(scratch.subarray(0, count));
     }
-    const after = fs.fstatSync(fd, { bigint: true });
+    const after = handle.stat({ bigint: true });
     const current = fs.statSync(filePath, { bigint: true });
+    handle.verify();
     for (const field of ['dev', 'ino', 'size', 'mtimeNs', 'ctimeNs']) {
       if (before[field] !== after[field] || after[field] !== current[field]) {
         throw Object.assign(new Error('Embedding artifact changed during verification.'), {
@@ -42,20 +48,28 @@ const fingerprintFile = (filePath) => {
     }
     if (BigInt(bytes) !== after.size) throw new Error('Embedding artifact read is incomplete.');
     return { bytes, sha256: hash.digest('hex') };
-  } finally { fs.closeSync(fd); }
+  });
 };
 
 const inventoryFiles = (root, prefix = '', depth = 0) => {
   if (!root || !fs.existsSync(root)) return [];
+  assertNoSymlinkPath(root, root);
   const entries = fs.readdirSync(root, { withFileTypes: true }).sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
   if (entries.length > 128) throw new Error('Embedding artifact inventory exceeds its bounded file count.');
   const out = [];
   for (const entry of entries) {
     const rel = prefix ? `${prefix}/${entry.name}` : entry.name;
-    if (entry.isDirectory() && depth < 1 && ['onnx', 'main'].includes(entry.name)) {
+    const route = depth < 1 && ['onnx', 'main'].includes(entry.name);
+    const artifact = TOKENIZER_FILES.has(entry.name)
+      || /(?:\.onnx(?:_data)?|\.data|\.onnx\.data|\.onnx_data\.\d+)$/u.test(entry.name);
+    if ((route || artifact) && entry.isSymbolicLink() || artifact && !entry.isFile()) {
+      throw Object.assign(new Error('Embedding artifact inventory contains an ambiguous linked or non-file component.'), {
+        code: 'ERR_UNSAFE_FILE_PATH'
+      });
+    }
+    if (entry.isDirectory() && route) {
       out.push(...inventoryFiles(path.join(root, entry.name), rel, depth + 1));
-    } else if (entry.isFile() && (TOKENIZER_FILES.has(entry.name)
-      || /(?:\.onnx(?:_data)?|\.data|\.onnx\.data|\.onnx_data\.\d+)$/u.test(entry.name))) {
+    } else if (entry.isFile() && artifact) {
       out.push({ rel, filePath: path.join(root, entry.name) });
     }
   }
@@ -152,6 +166,7 @@ export const resolveEmbeddingArtifactIdentity = options => {
   const plan = planEmbeddingArtifactInventory(options);
   if (plan.immediate) return plan.immediate;
   if (!plan.hasWeights || !plan.hasTokenizer) return unknown();
+  const selection = stableStringify(plan);
   const inventory = plan.files
     .map(({ rel, filePath, expected }) => {
       const identity = fingerprintFile(filePath);
@@ -160,6 +175,9 @@ export const resolveEmbeddingArtifactIdentity = options => {
       }
       return { path: rel, ...identity };
     });
+  if (selection !== stableStringify(planEmbeddingArtifactInventory(options))) {
+    throw Object.assign(new Error('Embedding artifact selection changed during verification.'), { code: 'ERR_EMBEDDING_ARTIFACT_CHANGED' });
+  }
   return buildVerifiedEmbeddingArtifact(inventory, plan.revision ?? null);
 };
 

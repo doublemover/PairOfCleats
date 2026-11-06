@@ -1,17 +1,17 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-11-06T00:00:00.730Z",
+  "generatedAt": "2026-11-06T00:30:38.552Z",
   "summary": {
     "lanes": 5,
-    "tests": 2577,
+    "tests": 2630,
     "exactDuplicates": 0,
     "hotspotKinds": 10,
-    "families": 424,
+    "families": 426,
     "topSlowest": 10,
     "timingCoverage": {
       "freshArtifactTests": 0,
       "historicalFallbackTests": 74,
-      "missingTests": 2503
+      "missingTests": 2556
     }
   },
   "lanes": [
@@ -35,7 +35,7 @@
       "targetMaxDurationSeconds": 15,
       "orderFile": "tests/ci-lite/ci-lite.order.txt",
       "timingArtifactPath": ".testLogs/ci-lite-testRunTimes.txt",
-      "totalTests": 2261,
+      "totalTests": 2314,
       "knownDurationTests": 49,
       "knownDurationMs": 27090,
       "p50DurationMs": 190,
@@ -43,7 +43,7 @@
       "resolvedTimingArtifactPaths": [],
       "timingSources": {
         "historical-test-times": 49,
-        "missing": 2212
+        "missing": 2265
       }
     },
     {
@@ -290,9 +290,9 @@
     },
     {
       "key": "indexing/embeddings",
-      "count": 55,
+      "count": 80,
       "knownDurationMs": 60,
-      "unknownDurationCount": 54
+      "unknownDurationCount": 79
     },
     {
       "key": "tooling/lsp",
@@ -392,6 +392,12 @@
     },
     {
       "key": "lang/javascript",
+      "count": 24,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 24
+    },
+    {
+      "key": "perf/embeddings",
       "count": 24,
       "knownDurationMs": 0,
       "unknownDurationCount": 24
@@ -716,6 +722,12 @@
     },
     {
       "key": "context-pack/risk-filters-parity",
+      "count": 4,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 4
+    },
+    {
+      "key": "embeddings/onnx",
       "count": 4,
       "knownDurationMs": 0,
       "unknownDurationCount": 4
@@ -1189,6 +1201,12 @@
       "unknownDurationCount": 1
     },
     {
+      "key": "embeddings/embedding-acquisition-plan",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
       "key": "embeddings/feature-extraction-component-admission",
       "count": 1,
       "knownDurationMs": 0,
@@ -1196,12 +1214,6 @@
     },
     {
       "key": "embeddings/instruct-e5-acquisition",
-      "count": 1,
-      "knownDurationMs": 0,
-      "unknownDurationCount": 1
-    },
-    {
-      "key": "embeddings/onnx",
       "count": 1,
       "knownDurationMs": 0,
       "unknownDurationCount": 1
@@ -2672,9 +2684,9 @@
     },
     {
       "key": "embeddings-cache",
-      "count": 55,
+      "count": 80,
       "knownDurationMs": 60,
-      "unknownDurationCount": 54,
+      "unknownDurationCount": 79,
       "note": "Embedding cache and stub fast-path families frequently overlap on the same fixture/setup."
     },
     {
