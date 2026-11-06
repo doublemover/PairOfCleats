@@ -1,6 +1,7 @@
-import fs from 'node:fs/promises';
-import { resolveSemanticPartPath } from '../../../semantic/artifact-store.js';
+import path from 'node:path';
+import { readVerifiedContainedFile } from '../../../shared/contained-file.js';
 import { validateEmbeddedCacheSource } from '../../../index/semantic/embedded-cache.js';
+import { withPreparedEmbeddedParent } from '../../../index/semantic/embedded-parent.js';
 import { assertCurrentIndexFormat } from '../../../contracts/index-format.js';
 import { assertSemanticEnvelope } from '../../../contracts/validators/semantic-envelopes.js';
 import { openSemanticCacheEntry } from '../../../index/build/incremental/semantic-cache.js';
@@ -12,7 +13,8 @@ import { throwIfAborted } from '../../../shared/abort.js';
 const fail = (message) => Object.assign(new Error(message), { code: 'ERR_SEMANTIC_CACHE_INTEGRITY' });
 
 /** Resolve all source descriptors, including zero-chunk files, before opening a write transaction. */
-export const prepareCachedSemanticPlan = async ({ incrementalData, repoRoot = process.cwd(), signal = null }) => {
+export const prepareCachedSemanticPlan = async ({ incrementalData, repoRoot = process.cwd(), signal = null,
+  diskAccount = null, metrics = null }) => {
   const manifest = incrementalData?.manifest;
   assertCurrentIndexFormat({ operation: 'import', component: 'incremental manifest',
     foundVersion: manifest?.artifactSurfaceVersion, repoRoot, indexPath: incrementalData?.manifestPath || incrementalData?.bundleDir || repoRoot });
@@ -37,13 +39,24 @@ export const prepareCachedSemanticPlan = async ({ incrementalData, repoRoot = pr
         throw fail('Semantic cache source path differs from manifest entry: ' + file);
       }
       const sourceEntries = [{ file, ...opened }];
-      const parentBytes = await fs.readFile(await resolveSemanticPartPath(opened.root, 'semantic-sources/' + sources[0].byteHash + '.utf8'));
       if (!Array.isArray(entry.semanticSegmentCaches || [])) throw fail('Invalid semantic segment cache inventory.');
-      for (const segment of entry.semanticSegmentCaches || []) {
-        const child = await openSemanticCacheEntry({ repoRoot, bundleDir: incrementalData.bundleDir, locator: segment.locator, expectedDependencySignatures: manifest.semanticDependencySignatures, signal });
-        await validateEmbeddedCacheSource({ opened: child, parentFacts: opened.factsRef, parentBytes, segmentUid: segment.segmentUid, signal });
-        sourceEntries.push({ file: file + '#semantic-segment:' + child.factsRef.sourceUnitId, ...child });
-      }
+      const segments = entry.semanticSegmentCaches || [];
+      if (segments.length) await withPreparedEmbeddedParent({ parentFacts: opened.factsRef,
+        parentByteLength: sources[0].byteLength, diskAccount, signal, metrics,
+        loadBytes: async () => (await readVerifiedContainedFile(opened.root,
+          path.join(opened.root, 'semantic-sources', sources[0].byteHash + '.utf8'),
+          { maxBytes: 64 * 1024 * 1024, expectedHash: sources[0].byteHash, expectedBytes: sources[0].byteLength, signal })).buffer
+      }, async preparedParent => {
+        for (const segment of segments) {
+          throwIfAborted(signal);
+          if (!segment || typeof segment.segmentUid !== 'string' || !segment.segmentUid) throw fail('Invalid semantic segment cache locator.');
+          if (metrics) metrics.childDescriptorOpens = (metrics.childDescriptorOpens || 0) + 1;
+          const child = await openSemanticCacheEntry({ repoRoot, bundleDir: incrementalData.bundleDir, locator: segment.locator,
+            expectedDependencySignatures: manifest.semanticDependencySignatures, expectedRepositoryNamespace: opened.factsRef.repositoryNamespace, signal });
+          await validateEmbeddedCacheSource({ opened: child, parentFacts: opened.factsRef, preparedParent, segmentUid: segment.segmentUid, signal, metrics });
+          sourceEntries.push({ file: file + '#semantic-segment:' + child.factsRef.sourceUnitId, ...child });
+        }
+      });
       for (const openedSource of sourceEntries) {
         entries.push(openedSource);
         for (const partition of openedSource.factsRef.partitions) {

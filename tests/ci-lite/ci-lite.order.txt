@@ -2509,3 +2509,17 @@ storage/semantic/working-set-directory-ownership/pending-close
 storage/semantic/working-set-directory-ownership/pending-read
 storage/semantic/working-set-directory-ownership/falsey-stat
 storage/semantic/working-set-directory-ownership/pending-stat-diagnostic
+indexing/semantic/prepared-embedded-parent/owned-snapshot
+indexing/semantic/prepared-embedded-parent/source-identity
+indexing/semantic/prepared-embedded-parent/bounds-and-decode
+indexing/semantic/prepared-embedded-parent/failure-lifetime
+indexing/semantic/prepared-embedded-parent/cancelled-admission
+indexing/semantic/prepared-embedded-parent/failed-reacquisition
+indexing/semantic/embedded-cache-prepared-handoff/siblings-1
+indexing/semantic/embedded-cache-prepared-handoff/siblings-4
+indexing/semantic/embedded-cache-prepared-handoff/siblings-16
+indexing/semantic/embedded-cache-prepared-handoff/zero-children
+indexing/semantic/embedded-cache-prepared-handoff/qualification-guards
+indexing/semantic/embedded-cache-prepared-handoff/changed-child-inventory
+indexing/semantic/embedded-cache-prepared-handoff/destination-copy-failure
+indexing/semantic/embedded-cache-prepared-handoff/cancel-between-children

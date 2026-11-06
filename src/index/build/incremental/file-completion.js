@@ -11,6 +11,7 @@ import { resolveSemanticPartPath } from '../../../semantic/artifact-store.js';
 import { openSemanticCacheEntry } from './semantic-cache.js';
 import { validateSemanticPartitions } from '../../semantic/reconcile.js';
 import { validateEmbeddedCacheSource } from '../../semantic/embedded-cache.js';
+import { withPreparedEmbeddedParent } from '../../semantic/embedded-parent.js';
 import { withSemanticDiskWriter } from './accounted-bundle.js';
 import { readIncrementalSourceSnapshot, isIncrementalSourceMiss } from './source-snapshot.js';
 import { describeStorageFailure } from '../../../shared/storage/failure-observation.js';
@@ -138,13 +139,22 @@ export const readFileCompletion = async ({ bundleDir, relKey, sourceBytes, seman
         expectedDependencySignatures: dependencySignatures, expectedSourceHash: identity.sourceHash,
         expectedSourcePath: identity.path, expectedRepositoryNamespace: repositoryNamespace, signal });
     if (!replayVerification) await validateSemanticPartitions({ store: opened.store, partitions: opened.factsRef.partitions, signal });
-    for (const segment of entry.semanticSegmentCaches || []) {
-      const embedded = await openSemanticCacheEntry({ repoRoot, bundleDir, locator: segment.locator,
-        expectedDependencySignatures: dependencySignatures, expectedRepositoryNamespace: repositoryNamespace, signal });
-      await validateEmbeddedCacheSource({ opened: embedded, parentFacts: opened.factsRef,
-        parentBytes: sourceBytes, segmentUid: segment.segmentUid, signal });
-      await validateSemanticPartitions({ store: embedded.store, partitions: embedded.factsRef.partitions, signal });
-    }
+    const segments = entry.semanticSegmentCaches || [];
+    if (segments.length) await withPreparedEmbeddedParent({ parentFacts: opened.factsRef, parentBytes: sourceBytes,
+      diskAccount: semanticContext.diskAccount, signal, metrics: replayVerification?.metrics }, async preparedParent => {
+      for (const segment of segments) {
+        if (replayVerification) {
+          await replayVerification.verifyEmbedded({ repoRoot, locator: segment.locator, dependencySignatures,
+            parentFacts: opened.factsRef, preparedParent, segmentUid: segment.segmentUid, signal });
+          continue;
+        }
+        const embedded = await openSemanticCacheEntry({ repoRoot, bundleDir, locator: segment.locator,
+          expectedDependencySignatures: dependencySignatures, expectedRepositoryNamespace: repositoryNamespace, signal });
+        await validateEmbeddedCacheSource({ opened: embedded, parentFacts: opened.factsRef,
+          preparedParent, segmentUid: segment.segmentUid, signal });
+        await validateSemanticPartitions({ store: embedded.store, partitions: embedded.factsRef.partitions, signal });
+      }
+    });
     return { manifestEntry: { ...entry, completionKey: keyFor(identity) },
       chunkCount: descriptor.chunkCount, lexiconFilterStats: descriptor.lexiconFilterStats };
   } catch (error) {

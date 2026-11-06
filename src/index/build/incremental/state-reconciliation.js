@@ -92,7 +92,8 @@ export async function readCachedBundle({
       manifest.semanticDependencySignatures = semanticContext.dependencySignatures;
       const embedded = await relocateEmbeddedSemanticCacheEntries({ entries: cachedEntry.semanticSegmentCaches || [], parentFacts: semanticFactsRef, parentBytes: currentBytes,
         repoRoot: semanticContext.repoRoot || repoRoot, bundleDir, dependencySignatures: semanticContext.dependencySignatures, targetBuildRoot: semanticContext.buildRoot,
-        storage: semanticContext.storage, diskAccount: semanticContext.diskAccount, signal: semanticContext.signal });
+        storage: semanticContext.storage, diskAccount: semanticContext.diskAccount, signal: semanticContext.signal,
+        replayVerification: semanticContext.replayVerification, metrics: semanticContext.replayVerification?.metrics });
       return { cachedBundle, fileHash, buffer: currentBytes, semanticFactsRef, semanticReplayToken: verification?.token,
         semanticReplayVerificationReceipt: verification?.verificationReceipt, ...embedded };
     } catch (error) {

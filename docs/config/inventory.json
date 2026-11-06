@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-06T06:29:47.816Z",
+  "generatedAt": "2026-11-06T06:48:12.398Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
@@ -4764,6 +4764,8 @@
         "tests/indexing/semantic/derived-index-owner-composition.test.js",
         "tests/indexing/semantic/drain-falsey-failure-ownership.test.js",
         "tests/indexing/semantic/drain-ownership-cancellation-consumers.test.js",
+        "tests/indexing/semantic/embedded-cache-prepared-handoff.test.js",
+        "tests/indexing/semantic/prepared-embedded-parent.test.js",
         "tests/indexing/semantic/producer-entry-allocation.test.js",
         "tests/indexing/semantic/validated-family-frontier-order.test.js",
         "tests/indexing/semantic/validated-index-fusion.test.js",
@@ -10641,6 +10643,7 @@
       "tests/indexing/runtime/build-intent-and-stage-handoff.test.js",
       "tests/indexing/semantic/compiler-erased-runtime-context.test.js",
       "tests/indexing/semantic/compiler-source-identity-index.test.js",
+      "tests/indexing/semantic/embedded-cache-prepared-handoff.test.js",
       "tests/indexing/semantic/embedded-cache.test.js",
       "tests/indexing/semantic/embedded-map-source-authority.test.js",
       "tests/indexing/semantic/native-flow-abort-ownership.test.js",

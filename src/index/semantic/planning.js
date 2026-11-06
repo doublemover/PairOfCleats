@@ -38,6 +38,16 @@ export const createSemanticByteAdmission = limit => {
 };
 const sharedAdmissions = new WeakMap();
 const constructionAdmissions = new WeakMap();
+const preparedSourceAdmissions = new WeakMap();
+/** Parent source retention must not consume the writer/construction credits
+ * required to finish its own child. Reuse the existing FIFO admission owner. */
+export const semanticPreparedSourceAdmissionFor = account => {
+  const limit = 256 * 1024 * 1024;
+  if (!account || typeof account !== 'object') return createSemanticByteAdmission(limit);
+  let admission = preparedSourceAdmissions.get(account);
+  if (!admission) { admission = createSemanticByteAdmission(limit); preparedSourceAdmissions.set(account, admission); }
+  return admission;
+};
 /** Construction leases reuse the FIFO byte owner in a separate phase. Holding
  * a construction lease must never consume the writer credits needed to drain
  * its own output. The fixed reservation bounds simultaneous producer capacity;

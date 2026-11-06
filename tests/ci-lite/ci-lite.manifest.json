@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 2341,
+    "hero": 2355,
     "matrix": 110,
     "meta": 54,
     "soak": 1,
@@ -15049,6 +15049,90 @@
     {
       "id": "storage/semantic/working-set-directory-ownership/pending-stat-diagnostic",
       "order": 2506,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/semantic/prepared-embedded-parent/owned-snapshot",
+      "order": 2507,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/semantic/prepared-embedded-parent/source-identity",
+      "order": 2508,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/semantic/prepared-embedded-parent/bounds-and-decode",
+      "order": 2509,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/semantic/prepared-embedded-parent/failure-lifetime",
+      "order": 2510,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/semantic/prepared-embedded-parent/cancelled-admission",
+      "order": 2511,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/semantic/prepared-embedded-parent/failed-reacquisition",
+      "order": 2512,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/semantic/embedded-cache-prepared-handoff/siblings-1",
+      "order": 2513,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/semantic/embedded-cache-prepared-handoff/siblings-4",
+      "order": 2514,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/semantic/embedded-cache-prepared-handoff/siblings-16",
+      "order": 2515,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/semantic/embedded-cache-prepared-handoff/zero-children",
+      "order": 2516,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/semantic/embedded-cache-prepared-handoff/qualification-guards",
+      "order": 2517,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/semantic/embedded-cache-prepared-handoff/changed-child-inventory",
+      "order": 2518,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/semantic/embedded-cache-prepared-handoff/destination-copy-failure",
+      "order": 2519,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/semantic/embedded-cache-prepared-handoff/cancel-between-children",
+      "order": 2520,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

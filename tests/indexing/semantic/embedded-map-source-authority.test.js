@@ -9,6 +9,7 @@ import { persistSemanticEvidence } from '../../../src/index/semantic/lsp-evidenc
 import { readRetainedEmbeddedSourceMap, assertRetainedEmbeddedSourceRange } from '../../../src/index/semantic/embedded-map-read.js';
 import { assertEmbeddedSourceMap } from '../../../src/contracts/validators/embedded-source-map.js';
 import { validateEmbeddedCacheSource } from '../../../src/index/semantic/embedded-cache.js';
+import { withPreparedEmbeddedParent } from '../../../src/index/semantic/embedded-parent.js';
 
 // Canonical map/source writer controls only; no parser, compiler or LSP launch.
 const f = await createRecoveryFixture('<script>const face = "😀";</script>');
@@ -50,8 +51,9 @@ try {
     parentSource: f.source, parentText }), { code: 'ERR_SEMANTIC_SOURCE_MISMATCH' });
   await assert.rejects(readRetainedEmbeddedSourceMap({ store, source: { ...snapshot.manifest,
     mapping: { ...snapshot.manifest.mapping, mapRef: '../outside.json' } }, parentFacts }), { code: 'ERR_SEMANTIC_SOURCE_MISMATCH' });
-  await assert.rejects(validateEmbeddedCacheSource({ opened: { store, factsRef: { syntaxPartitionId: local.partitionId } },
-    parentFacts, parentBytes: Buffer.from(parentText.replace('face', 'fake')), segmentUid: map.segmentUid }),
+  await assert.rejects(withPreparedEmbeddedParent({ parentFacts, parentBytes: Buffer.from(parentText.replace('face', 'fake')) },
+    preparedParent => validateEmbeddedCacheSource({ opened: { store, factsRef: { syntaxPartitionId: local.partitionId } },
+      parentFacts, preparedParent, segmentUid: map.segmentUid })),
   { code: 'ERR_SEMANTIC_CACHE_INTEGRITY' }, 'equal-layout bytes cannot stand in for the admitted retained parent');
   const mapPath = path.join(f.stagingRoot, mapRef);
   await fs.appendFile(mapPath, ' ');
