@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-06T19:06:01.319Z",
+  "generatedAt": "2026-11-06T19:12:05.603Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
@@ -4966,6 +4966,7 @@
         "tests/tooling/install/managed-tool-file-lifetime.test.js",
         "tests/tooling/install/native-diagnostic-ownership.test.js",
         "tests/tooling/install/native-failure-summary.test.js",
+        "tests/tooling/install/native-realm-command.test.js",
         "tests/tooling/install/native-rebuild-import.test.js",
         "tests/tooling/install/native-setup-failure-fence.test.js",
         "tests/tooling/install/no-fallback-scope-consumer.test.js",

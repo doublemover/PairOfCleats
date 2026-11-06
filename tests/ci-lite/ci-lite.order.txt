@@ -2751,3 +2751,8 @@ tooling/install/checkout-recovery/lock-declarations-and-bounds
 tooling/install/checkout-recovery/original-owner-and-runtime-blockers
 tooling/install/checkout-recovery/native-artifact-drift-and-no-false-readiness
 tooling/install/native-rebuild-import/locked-dependency-admission
+tooling/install/native-realm-command/bounded-original-request
+tooling/install/native-realm-command/status-and-marker-contract
+tooling/install/native-realm-command/original-failures
+tooling/install/native-realm-command/shared-cancellation
+tooling/install/native-realm-command/hidden-synchronous-probes

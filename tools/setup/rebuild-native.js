@@ -378,11 +378,21 @@ const runNativeRebuildOwned = async ({ verifyOnly, repairOnly }, { root, session
     const failures = await getRequiredPackageFailures({ label: 'verify:native' });
     invocationSignal?.throwIfAborted();
 
-    const realmProbe = probeNodeRealmLifecycle(root);
+    const realmOutcome = await runBootstrapTasks([{ id: 'probe:node-vm', bytes: 256 * 1024 * 1024,
+      run: async ({ signal, observeOutput }) => {
+        try {
+          return await probeNodeRealmLifecycle(root, { signal, run: (command, args, options) =>
+            nativeDiagnostics.run(command, args, options, spawnResolvedSubprocess, { onOutput: observeOutput }) });
+        } catch (error) { return settledNativeSetupFailure(error, 'vm-worker-lifecycle'); }
+      }
+    }], { budget: bootstrapBudget, signal: invocationSignal, eventContext: { runId: session.runId },
+      onEvent: taskProgress('verify:vm-worker') });
+    const realmRow = realmOutcome.results[0], realmProbe = realmRow.result || { ok: false,
+      message: readErrorDataProperty(realmRow.error, 'message') ?? realmRow.status };
     invocationSignal?.throwIfAborted();
     if (!realmProbe.ok) {
       console.error(`[verify:native] Node VM worker lifecycle failed: ${realmProbe.message}`);
-      failures.push(nativeFailureEntry({ pkgName: 'node:vm', result: realmProbe, phase: 'vm-worker-lifecycle' }));
+      failures.push(nativeFailureEntry({ pkgName: 'node:vm', result: realmProbe, row: realmRow, phase: 'vm-worker-lifecycle' }));
     }
 
     if (failures.length > 0) {

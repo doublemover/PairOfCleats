@@ -83,7 +83,7 @@ forwards its original bytes. Five diagnostic ownership controls await execution.
 Activation JSON uses a separate at-most-1-MiB read of its original completed log,
 with exact post-close file identity and raw-byte hash checks. A truncated display
 tail cannot supply that structured result, and copied records authorize no read.
-Cross-run log retention, nested VM-probe logs,
+Cross-run log retention, nested activation-probe logs,
 terminal transport qualification remain
 pending. The limits above bound one invocation; they are not a machine-wide quota
 or a measured memory/throughput result.
@@ -297,6 +297,13 @@ Verification includes real parser workers exiting naturally and during interrupt
 parse work, plus literal Perl heredoc state checks. These bounded operations
 supplement activation evidence; they do not qualify every language, runtime
 lifecycle, platform or representative workload.
+The VM lifecycle check is now asynchronous under the same task budget, invocation
+cancellation and original subprocess/log owner. Its natural/terminated worker
+operations retain their exact completion marker, actual terminal status and
+diagnostic paths; unexpected warnings fail qualification. The five command and
+hidden-child controls await execution. Other synchronous compatibility probes
+explicitly request hidden Windows children. Their real platform/window behavior
+still requires runtime qualification.
 Prepared installations can refresh verification using
 `node tools/setup/rebuild-native.js --verify`; that cannot install missing
 packages or repair missing patches. See the [runtime policy](node-runtime.md).

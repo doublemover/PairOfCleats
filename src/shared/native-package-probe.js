@@ -24,7 +24,7 @@ export const probeSqliteNative = (root, nativeBinding = null) => {
     }
   `;
   const result = spawnSync(process.execPath, ['-e', script, nativeBinding || ''], {
-    cwd: root,
+    cwd: root, windowsHide: true,
     encoding: 'utf8',
     timeout: 10000, maxBuffer: 65536
   });
@@ -37,7 +37,8 @@ export const probeSqliteNative = (root, nativeBinding = null) => {
 };
 
 /** Bounded Node VM wrapper lifecycle; activation of native packages is separate. */
-export const probeNodeRealmLifecycle = (root) => {
+export const probeNodeRealmLifecycle = async (root, { signal = null, run = null } = {}) => {
+  signal?.throwIfAborted();
   const script = `
     const { Worker } = require('node:worker_threads');
     const source = \`
@@ -73,12 +74,17 @@ export const probeNodeRealmLifecycle = (root) => {
       process.stdout.write('VM_REALM_LIFECYCLE_OK');
     })().catch(error => { console.error(error.message); process.exitCode = 1; });
   `;
-  const result = spawnSync(process.execPath, ['-e', script], {
-    cwd: root, encoding: 'utf8', timeout: 10000, maxBuffer: 65536
-  });
-  return { ok: result.status === 0 && result.stdout === 'VM_REALM_LIFECYCLE_OK',
-    message: result.status === 0 && result.stdout === 'VM_REALM_LIFECYCLE_OK' ? null
-      : (result.stderr || result.stdout || '').trim() || formatSpawnFailureReason(result) };
+  run ||= (await import('./subprocess/command-invocation.js')).spawnResolvedSubprocess;
+  signal?.throwIfAborted();
+  const result = await run(process.execPath, ['-e', script], { cwd: root, stdio: 'pipe', signal,
+    timeoutMs: 10000, maxOutputBytes: 65536, windowsHide: true, rejectOnNonZeroExit: false });
+  signal?.throwIfAborted();
+  const ok = result.exitCode === 0 && !result.signal && result.stdout === 'VM_REALM_LIFECYCLE_OK' && !result.stderr?.trim();
+  return { ok, result, ...(result.diagnostics ? { diagnostics: result.diagnostics, diagnosticsPath: result.diagnosticsPath } : {}),
+    message: ok ? null : result.exitCode !== 0 || result.signal
+      ? formatSpawnFailureReason({ status: result.exitCode, signal: result.signal }) + '; VM worker lifecycle did not complete.'
+      : result.stderr?.trim() ? 'Unexpected VM worker diagnostics: ' + result.stderr.trim().slice(0, 4096)
+        : 'VM worker lifecycle returned no exact completion marker.' };
 };
 
 /** A real binding callback interrupted by owned worker shutdown, with natural
@@ -115,7 +121,7 @@ export const probeNativeParserWorkerLifecycle = (root) => {
     })().catch(error => { console.error(error.message); process.exitCode = 1; });
   `;
   const result = spawnSync(process.execPath, ['-e', script], {
-    cwd: root, encoding: 'utf8', timeout: 10000, maxBuffer: 65536
+    cwd: root, windowsHide: true, encoding: 'utf8', timeout: 10000, maxBuffer: 65536
   });
   const ok = result.status === 0 && result.stdout === 'PARSER_WORKER_LIFECYCLE_OK';
   return { ok, message: ok ? null : (result.stderr || result.stdout || '').trim() || formatSpawnFailureReason(result) };
@@ -180,7 +186,7 @@ export const probeNativeGrammarRoutes = (root, routes) => {
     })().catch(error => { console.error(error.message); process.exitCode = 1; });
   `;
   const result = spawnSync(process.execPath, ['-e', script, JSON.stringify(routes)], {
-    cwd: root, encoding: 'utf8', timeout: 10000, maxBuffer: 65536
+    cwd: root, windowsHide: true, encoding: 'utf8', timeout: 10000, maxBuffer: 65536
   });
   if (result.status !== 0) return { ok: false, capabilities: [],
     message: (result.stderr || '').trim() || formatSpawnFailureReason(result) };
@@ -226,7 +232,7 @@ export const probeNativePackage = async (root, pkgName, { grammarRoutes = [] } =
         .catch(error => { console.error(error.message); process.exitCode = 1; });
     `;
     const result = spawnSync(process.execPath, ['-e', script], {
-      cwd: root, encoding: 'utf8', timeout: 10000, maxBuffer: 65536
+      cwd: root, windowsHide: true, encoding: 'utf8', timeout: 10000, maxBuffer: 65536
     });
     return { ok: result.status === 0, message: result.status === 0 ? null
       : (result.stderr || result.stdout || '').trim() || formatSpawnFailureReason(result) };
@@ -270,7 +276,7 @@ export const probeNativePackage = async (root, pkgName, { grammarRoutes = [] } =
     `.trim();
 
     const parserProbeResult = spawnSync(process.execPath, ['-e', parserProbeScript], {
-      cwd: root,
+      cwd: root, windowsHide: true,
       encoding: 'utf8', timeout: 10000, maxBuffer: 65536
     });
 
@@ -307,7 +313,7 @@ export const probeNativePackage = async (root, pkgName, { grammarRoutes = [] } =
   `.trim();
 
   const result = spawnSync(process.execPath, ['-e', probeScript, pkgName], {
-    cwd: root,
+    cwd: root, windowsHide: true,
     encoding: 'utf8', timeout: 10000, maxBuffer: 65536
   });
 

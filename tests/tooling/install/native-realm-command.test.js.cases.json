@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["bounded-original-request", "status-and-marker-contract", "original-failures", "shared-cancellation", "hidden-synchronous-probes"]
+}
