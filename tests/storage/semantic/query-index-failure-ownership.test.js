@@ -6,8 +6,7 @@ import { writeSemanticQueryIndex } from '../../../src/index/build/artifacts/writ
 import { createSemanticDiskAccount } from '../../../src/index/build/artifacts/writers/semantic/partition.js';
 import { getContainedFileSession } from '../../../src/shared/contained-file-resource.js';
 
-// UNVALIDATED. Real query-index data/offset descriptors and failed original
-// operations; no retry, publication, runtime or native qualification is implied.
+// Real query-index data/offset descriptors and failed original operations.
 const rejected = async action => {
   let failed = false, failure;
   try { await action(); } catch (caught) { failed = true; failure = caught; }
@@ -39,16 +38,16 @@ try {
     account.release(account.used);
   };
   let sequence = 0;
-  for (const mode of ['offset-close', 'offset-write', 'offset-sync', 'data-close', 'data-sync']) {
+  for (const mode of ['offset-close', 'offset-write', 'offset-sync', 'data-close', 'data-write', 'data-sync']) {
     const root = path.join(f.root, 'fault-' + sequence++), account = createSemanticDiskAccount(1024 * 1024);
     const closeFailure = Object.freeze(new Error('original query-index close rejected'));
-    const writeFailure = mode === 'offset-write' ? 0 : mode === 'offset-sync' ? undefined : false;
+    const writeFailure = mode.endsWith('-write') ? 0 : mode === 'offset-sync' ? undefined : false;
     let deny = true, removals = 0;
     const states = [];
     fs.open = async (file, flags, ...args) => {
       const handle = await originalOpen.call(fs, file, flags, ...args);
       const selected = mode.startsWith('offset-') ? String(file).endsWith('.offsets') && flags === 'wx'
-        : String(file).endsWith('.jsonl') && flags === 'r+';
+        : String(file).endsWith('.jsonl') && flags === 'wx';
       if (!selected) return handle;
       const close = handle.close, writeFile = handle.writeFile, sync = handle.sync;
       const state = { handle, writes: 0, syncs: 0, closes: 0, replacementCloses: 0, replacementSyncs: 0 };
@@ -64,7 +63,7 @@ try {
         replaceClose();
         // A later property lookup must not replace the already captured fsync.
         handle.sync = async () => { state.replacementSyncs++; };
-        if (mode === 'offset-write') throw writeFailure;
+        if (mode.endsWith('-write')) throw writeFailure;
         return writeFile.apply(handle, writeArgs);
       };
       handle.sync = function () {
@@ -82,7 +81,7 @@ try {
     assert.equal(states.length, 1);
     const state = states[0];
     assert.equal(contains(failure, closeFailure), true);
-    if (mode === 'offset-write' || mode.endsWith('-sync')) assert.equal(contains(failure, writeFailure), true);
+    if (mode.endsWith('-write') || mode.endsWith('-sync')) assert.equal(contains(failure, writeFailure), true);
     assert.equal(failure.cacheOwnershipReleased(), false);
     assert.equal(state.closes, 1);
     assert.equal(state.replacementCloses, 0); assert.equal(state.replacementSyncs, 0);

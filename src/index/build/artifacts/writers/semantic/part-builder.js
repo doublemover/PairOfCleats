@@ -4,13 +4,18 @@ import { createHash } from 'node:crypto';
 import { throwIfAborted } from '../../../../../shared/abort.js';
 import { syncParentDirectory } from '../../../../../shared/io/persistence-helpers.js';
 import { validateOffsetsAgainstFile } from '../../../../../shared/artifact-io/offsets.js';
+import { createContainedFileResource } from '../../../../../shared/contained-file-resource.js';
+import { withSchedulerCpuSuspended } from '../../../../../shared/concurrency/scheduler-task-scope.js';
+import { addStorageFailureContext } from '../../../../../shared/storage/operation-error.js';
 
 const NEWLINE = Buffer.from('\n');
+const closeFailure = (failures, message) => failures.reduce((primary, secondary) =>
+  addStorageFailureContext(primary, {}, secondary, { secondaryPresent: true }), new Error(message));
 const writeExact = async (handle, bytes, position, signal) => {
   let offset = 0;
   while (offset < bytes.length) {
     throwIfAborted(signal);
-    const { bytesWritten } = await handle.write(bytes, offset, bytes.length - offset, position + offset);
+    const { bytesWritten } = await withSchedulerCpuSuspended(() => handle.write(bytes, offset, bytes.length - offset, position + offset));
     if (!Number.isSafeInteger(bytesWritten) || bytesWritten <= 0 || bytesWritten > bytes.length - offset) {
       throw Object.assign(new Error('Semantic staging write made invalid or no progress.'), { code: 'ERR_SEMANTIC_WRITE_PROGRESS' });
     }
@@ -22,25 +27,40 @@ export const createSemanticPartBuilders = ({ directory, prefix, members, counts,
   batchRows, batchBytes, scheduleIo, signal, metrics }) => {
   const active = new Map();
   const bump = (key, amount = 1) => { metrics[key] = (metrics[key] || 0) + amount; };
-  const sync = async handle => { await handle.sync(); bump('partSyncCalls'); };
+  const sync = async handle => { await withSchedulerCpuSuspended(() => handle.sync()); bump('partSyncCalls'); };
   const close = async part => {
     const failures = [];
     for (const key of ['dataHandle', 'offsetsHandle']) {
       if (!part[key]) continue;
-      try { await part[key].close(); part[key] = null; bump('partCloseCalls'); }
+      try {
+        const owner = part.owners[key];
+        // A failed close may only be retried by its captured recovery session.
+        // Normal abort observes completed recovery; it never retries raw close.
+        if (!owner.isSettled()) await owner.run(() => {});
+        part[key] = null; bump('partCloseCalls');
+      }
       catch (error) { failures.push(error); }
     }
-    if (failures.length) throw new AggregateError(failures, 'Semantic part handles did not close.');
+    if (failures.length) throw closeFailure(failures, 'Semantic part handles did not close.');
   };
   const open = async member => {
     const filename = member + '-' + String(members[member].length).padStart(6, '0') + '.jsonl';
     const filePath = path.join(directory, filename);
     const part = { member, filename, filePath, dataPath: filePath + '.building',
-      offsetsPath: filePath + '.offsets.building', dataHandle: null, offsetsHandle: null,
+      offsetsPath: filePath + '.offsets.building', dataHandle: null, offsetsHandle: null, owners: {},
       bytes: 0, rows: 0, firstRow: counts[member], hash: createHash('sha256'), offsetsHash: createHash('sha256') };
     active.set(member, part);
-    part.dataHandle = await fs.open(part.dataPath, 'wx'); bump('partOpenCalls');
-    part.offsetsHandle = await fs.open(part.offsetsPath, 'wx'); bump('partOpenCalls');
+    const acquire = async (key, filename) => {
+      // Adopt before compute reacquisition can reject after a successful open.
+      await withSchedulerCpuSuspended(async () => {
+        const handle = await fs.open(filename, 'wx');
+        part[key] = handle;
+        part.owners[key] = createContainedFileResource({ handle, sync: false });
+      });
+      bump('partOpenCalls');
+    };
+    await acquire('dataHandle', part.dataPath);
+    await acquire('offsetsHandle', part.offsetsPath);
     await syncParentDirectory(part.dataPath); bump('partDirectorySyncCalls');
     metrics.activePartHighWater = Math.max(metrics.activePartHighWater || 0, active.size);
     return part;
@@ -108,7 +128,7 @@ export const createSemanticPartBuilders = ({ directory, prefix, members, counts,
     async closeForAbort() {
       const settled = await Promise.allSettled([...active.values()].map(part => close(part)));
       const failures = settled.filter(item => item.status === 'rejected').map(item => item.reason);
-      if (failures.length) throw new AggregateError(failures, 'Semantic builder cleanup did not close all owned handles.');
+      if (failures.length) throw closeFailure(failures, 'Semantic builder cleanup did not close all owned handles.');
       active.clear();
     }
   };

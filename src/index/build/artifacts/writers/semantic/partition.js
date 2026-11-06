@@ -74,6 +74,7 @@ export const createSemanticPartitionSink = async ({
   let reserved = 0;
   let closed = false;
   let failed = null;
+  let hasFailure = false, failureObservation = null;
   let busy = false;
   let maxLocalReference = -1;
   let edgeId = 0;
@@ -95,14 +96,18 @@ export const createSemanticPartitionSink = async ({
     batchRows, batchBytes, scheduleIo, signal, metrics });
   const abort = async () => {
     if (busy) throw fail('Await the active semantic sink operation before aborting.');
+    failureObservation?.requireSettled();
     if (closed) return;
     await builders.closeForAbort();
+    failureObservation?.requireSettled();
     await fs.rm(directory, { recursive: true, force: true });
+    failureObservation?.requireSettled();
     diskAccount.release(reserved);
     reserved = 0; closed = true;
   };
   const appendBatch = async (batch) => {
-    if (closed || busy || failed) throw failed || fail('Semantic sink is closed or already writing.');
+    if (hasFailure) throw failed;
+    if (closed || busy) throw fail('Semantic sink is closed or already writing.');
     throwIfAborted(signal);
     if (batch.partitionId !== partitionId || batch.sequence !== sequence
       || !Array.isArray(batch.rows) || batch.rows.length > batchRows || !batch.rows.length) {
@@ -153,21 +158,28 @@ export const createSemanticPartitionSink = async ({
       edgeId = nextEdge;
       sequence += 1; metrics.batchesAcknowledged = sequence;
     } catch (error) {
-      busy = false; failed = error;
+      busy = false; failed = error; hasFailure = true;
+      failureObservation = observeStorageResource(error, { phase: 'semantic-partition-append' });
       try { await abort(); } catch (cleanupError) {
-        try { if (error && typeof error === 'object') error.cleanupError = cleanupError; } catch {}
+        failed = addStorageFailureContext(failureObservation.retain(), { cleanupError }, cleanupError, { secondaryPresent: true });
+        failureObservation = observeStorageResource(failed, { phase: 'semantic-partition-append-cleanup' });
       }
-      throw error;
+      throw failed;
     } finally {
       busy = false;
       try { release?.(); } catch (releaseError) {
-        if (!failed) throw releaseError;
-        try { failed.releaseError = releaseError; } catch {}
+        if (!hasFailure) { failed = releaseError; hasFailure = true; }
+        else failed = addStorageFailureContext(failureObservation.retain(), { releaseError }, releaseError, { secondaryPresent: true });
+        failureObservation = observeStorageResource(failed, { phase: 'semantic-partition-byte-release' });
+        // A rejected admission release also prevents publication and later
+        // deletion until every original prerequisite confirms settlement.
+        throw failed;
       }
     }
   };
   const finalizeSource = async () => {
-    if (closed || busy || failed) throw failed || fail('Semantic sink is closed or already writing.');
+    if (hasFailure) throw failed;
+    if (closed || busy) throw fail('Semantic sink is closed or already writing.');
     throwIfAborted(signal);
     if (maxLocalReference >= counts.semantic_records) throw fail('Dangling local semantic reference.');
     busy = true;
@@ -190,11 +202,13 @@ export const createSemanticPartitionSink = async ({
       closed = true;
       return descriptor;
     } catch (error) {
-      busy = false; failed = error;
+      busy = false; failed = error; hasFailure = true;
+      failureObservation = observeStorageResource(error, { phase: 'semantic-partition-finalize' });
       try { await abort(); } catch (cleanupError) {
-        try { if (error && typeof error === 'object') error.cleanupError = cleanupError; } catch {}
+        failed = addStorageFailureContext(failureObservation.retain(), { cleanupError }, cleanupError, { secondaryPresent: true });
+        failureObservation = observeStorageResource(failed, { phase: 'semantic-partition-finalize-cleanup' });
       }
-      throw error;
+      throw failed;
     } finally { busy = false; }
   };
   return { appendBatch, finalizeSource, abort };

@@ -2086,8 +2086,8 @@
       "title": "[Perf] Coalesce semantic family parts without weakening durable completion boundaries",
       "batch": "retrieval-performance-and-evaluation",
       "scope": "active",
-      "review": "source-review-pending",
-      "recordedDisposition": "Partial implementation or follow-up acceptance remains.",
+      "review": "implementation-partial",
+      "recordedDisposition": "Original part close/work, cleanup and admission-release ownership repaired; final query data descriptor reused with all barriers. Final runtime validation and remaining coalescing measurements/crash-cancel qualification deferred until the implementation pass completes.",
       "owners": [
         "src/index/build/artifacts/writers/semantic/partition.js",
         "src/index/build/artifacts/writers/semantic/query-index.js",

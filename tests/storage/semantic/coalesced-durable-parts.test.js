@@ -6,6 +6,7 @@ import { ensureTestingEnv } from '../../helpers/test-env.js';
 import { createSemanticSourceSnapshot } from '../../../src/index/semantic/source.js';
 import { createSyntaxPartitionId, canonicalSemanticJson } from '../../../src/index/semantic/identity.js';
 import { createSemanticPartitionSink, createSemanticDiskAccount } from '../../../src/index/build/artifacts/writers/semantic/partition.js';
+import { errorGraphIncludes } from '../../helpers/error-graph.js';
 ensureTestingEnv(process.env);
 const temporary = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-semantic-coalesce-'));
 const bytes = Buffer.from('x');
@@ -67,7 +68,7 @@ try {
   try {
     const failedDisk = account(); const failed = await createSemanticPartitionSink({ ...options, diskAccount: failedDisk });
     writeFault = true; removeFault = true;
-    await assert.rejects(failed.appendBatch(batch(0)), error => error === injected && error.cleanupError?.code === 'EACCES');
+    await assert.rejects(failed.appendBatch(batch(0)), error => errorGraphIncludes(error, injected) && error.cleanupError?.code === 'EACCES');
     assert.ok(failedDisk.used > 0, 'failed deletion retains disk authority/credit');
     removeFault = false;
     await failed.abort(); assert.equal(failedDisk.used, 0, 'retry settlement releases credit only after successful deletion');

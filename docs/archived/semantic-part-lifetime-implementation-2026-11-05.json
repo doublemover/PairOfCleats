@@ -1,0 +1,1240 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-11-05",
+  "sourceParent": "21d108de7a05b6b9ea5362247940b33b21f4edcc",
+  "issues": [
+    1214,
+    1330
+  ],
+  "status": "Implementation batch; final runtime validation deferred by user instruction. No issue closure.",
+  "historicalReports": {
+    "semantic-part-owner-before.json": {
+      "junit": null,
+      "logDir": "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793936401413-n5wvs9",
+      "summary": {
+        "durationMs": 8640,
+        "failed": 14,
+        "passed": 0,
+        "skipped": 0,
+        "total": 14
+      },
+      "tests": [
+        {
+          "attempts": 1,
+          "durationMs": 654,
+          "exitCode": 1,
+          "id": "storage/semantic/part-original-lifetime/data-false",
+          "lane": "storage",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793936401413-n5wvs9\\storage_semantic_part-original-lifetime_data-false.attempt-1.log",
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793936401413-n5wvs9\\storage_semantic_part-original-lifetime_data-false.attempt-1.failure.json"
+          ],
+          "path": "storage/semantic/part-original-lifetime.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "failed",
+          "tags": [
+            "storage"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 668,
+          "exitCode": 1,
+          "id": "storage/semantic/part-original-lifetime/data-swap",
+          "lane": "storage",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793936401413-n5wvs9\\storage_semantic_part-original-lifetime_data-swap.attempt-1.log",
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793936401413-n5wvs9\\storage_semantic_part-original-lifetime_data-swap.attempt-1.failure.json"
+          ],
+          "path": "storage/semantic/part-original-lifetime.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "failed",
+          "tags": [
+            "storage"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 600,
+          "exitCode": 1,
+          "id": "storage/semantic/part-original-lifetime/data-throw",
+          "lane": "storage",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793936401413-n5wvs9\\storage_semantic_part-original-lifetime_data-throw.attempt-1.log",
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793936401413-n5wvs9\\storage_semantic_part-original-lifetime_data-throw.attempt-1.failure.json"
+          ],
+          "path": "storage/semantic/part-original-lifetime.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "failed",
+          "tags": [
+            "storage"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 584,
+          "exitCode": 1,
+          "id": "storage/semantic/part-original-lifetime/false-cleanup",
+          "lane": "storage",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793936401413-n5wvs9\\storage_semantic_part-original-lifetime_false-cleanup.attempt-1.log",
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793936401413-n5wvs9\\storage_semantic_part-original-lifetime_false-cleanup.attempt-1.failure.json"
+          ],
+          "path": "storage/semantic/part-original-lifetime.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "failed",
+          "tags": [
+            "storage"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 708,
+          "exitCode": 1,
+          "id": "storage/semantic/part-original-lifetime/false-release",
+          "lane": "storage",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793936401413-n5wvs9\\storage_semantic_part-original-lifetime_false-release.attempt-1.log",
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793936401413-n5wvs9\\storage_semantic_part-original-lifetime_false-release.attempt-1.failure.json"
+          ],
+          "path": "storage/semantic/part-original-lifetime.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "failed",
+          "tags": [
+            "storage"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 529,
+          "exitCode": 1,
+          "id": "storage/semantic/part-original-lifetime/frozen-cleanup",
+          "lane": "storage",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793936401413-n5wvs9\\storage_semantic_part-original-lifetime_frozen-cleanup.attempt-1.log",
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793936401413-n5wvs9\\storage_semantic_part-original-lifetime_frozen-cleanup.attempt-1.failure.json"
+          ],
+          "path": "storage/semantic/part-original-lifetime.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "failed",
+          "tags": [
+            "storage"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 577,
+          "exitCode": 1,
+          "id": "storage/semantic/part-original-lifetime/null-cleanup",
+          "lane": "storage",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793936401413-n5wvs9\\storage_semantic_part-original-lifetime_null-cleanup.attempt-1.log",
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793936401413-n5wvs9\\storage_semantic_part-original-lifetime_null-cleanup.attempt-1.failure.json"
+          ],
+          "path": "storage/semantic/part-original-lifetime.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "failed",
+          "tags": [
+            "storage"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 669,
+          "exitCode": 1,
+          "id": "storage/semantic/part-original-lifetime/null-release",
+          "lane": "storage",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793936401413-n5wvs9\\storage_semantic_part-original-lifetime_null-release.attempt-1.log",
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793936401413-n5wvs9\\storage_semantic_part-original-lifetime_null-release.attempt-1.failure.json"
+          ],
+          "path": "storage/semantic/part-original-lifetime.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "failed",
+          "tags": [
+            "storage"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 543,
+          "exitCode": 1,
+          "id": "storage/semantic/part-original-lifetime/offset-false",
+          "lane": "storage",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793936401413-n5wvs9\\storage_semantic_part-original-lifetime_offset-false.attempt-1.log",
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793936401413-n5wvs9\\storage_semantic_part-original-lifetime_offset-false.attempt-1.failure.json"
+          ],
+          "path": "storage/semantic/part-original-lifetime.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "failed",
+          "tags": [
+            "storage"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 529,
+          "exitCode": 1,
+          "id": "storage/semantic/part-original-lifetime/offset-swap",
+          "lane": "storage",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793936401413-n5wvs9\\storage_semantic_part-original-lifetime_offset-swap.attempt-1.log",
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793936401413-n5wvs9\\storage_semantic_part-original-lifetime_offset-swap.attempt-1.failure.json"
+          ],
+          "path": "storage/semantic/part-original-lifetime.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "failed",
+          "tags": [
+            "storage"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 563,
+          "exitCode": 1,
+          "id": "storage/semantic/part-original-lifetime/offset-throw",
+          "lane": "storage",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793936401413-n5wvs9\\storage_semantic_part-original-lifetime_offset-throw.attempt-1.log",
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793936401413-n5wvs9\\storage_semantic_part-original-lifetime_offset-throw.attempt-1.failure.json"
+          ],
+          "path": "storage/semantic/part-original-lifetime.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "failed",
+          "tags": [
+            "storage"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 687,
+          "exitCode": 1,
+          "id": "storage/semantic/part-original-lifetime/pending-release",
+          "lane": "storage",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793936401413-n5wvs9\\storage_semantic_part-original-lifetime_pending-release.attempt-1.log",
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793936401413-n5wvs9\\storage_semantic_part-original-lifetime_pending-release.attempt-1.failure.json"
+          ],
+          "path": "storage/semantic/part-original-lifetime.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "failed",
+          "tags": [
+            "storage"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 639,
+          "exitCode": 1,
+          "id": "storage/semantic/part-original-lifetime/pending-write",
+          "lane": "storage",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793936401413-n5wvs9\\storage_semantic_part-original-lifetime_pending-write.attempt-1.log",
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793936401413-n5wvs9\\storage_semantic_part-original-lifetime_pending-write.attempt-1.failure.json"
+          ],
+          "path": "storage/semantic/part-original-lifetime.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "failed",
+          "tags": [
+            "storage"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 639,
+          "exitCode": 1,
+          "id": "storage/semantic/part-original-lifetime/undefined-cleanup",
+          "lane": "storage",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793936401413-n5wvs9\\storage_semantic_part-original-lifetime_undefined-cleanup.attempt-1.log",
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793936401413-n5wvs9\\storage_semantic_part-original-lifetime_undefined-cleanup.attempt-1.failure.json"
+          ],
+          "path": "storage/semantic/part-original-lifetime.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "failed",
+          "tags": [
+            "storage"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        }
+      ]
+    },
+    "semantic-part-pending-before.json": {
+      "junit": null,
+      "logDir": "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793936884955-az62wg",
+      "summary": {
+        "durationMs": 1214,
+        "failed": 2,
+        "passed": 0,
+        "skipped": 0,
+        "total": 2
+      },
+      "tests": [
+        {
+          "attempts": 1,
+          "durationMs": 610,
+          "exitCode": 1,
+          "id": "storage/semantic/part-original-lifetime/pending-cleanup",
+          "lane": "storage",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793936884955-az62wg\\storage_semantic_part-original-lifetime_pending-cleanup.attempt-1.log",
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793936884955-az62wg\\storage_semantic_part-original-lifetime_pending-cleanup.attempt-1.failure.json"
+          ],
+          "path": "storage/semantic/part-original-lifetime.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "failed",
+          "tags": [
+            "storage"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 591,
+          "exitCode": 1,
+          "id": "storage/semantic/part-original-lifetime/pending-release-after-error",
+          "lane": "storage",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793936884955-az62wg\\storage_semantic_part-original-lifetime_pending-release-after-error.attempt-1.log",
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793936884955-az62wg\\storage_semantic_part-original-lifetime_pending-release-after-error.attempt-1.failure.json"
+          ],
+          "path": "storage/semantic/part-original-lifetime.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "failed",
+          "tags": [
+            "storage"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        }
+      ]
+    },
+    "semantic-part-owner-after.json": {
+      "junit": null,
+      "logDir": "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793936420285-q87jk0",
+      "summary": {
+        "durationMs": 9861,
+        "failed": 7,
+        "passed": 9,
+        "skipped": 0,
+        "total": 16
+      },
+      "tests": [
+        {
+          "attempts": 1,
+          "durationMs": 722,
+          "exitCode": 1,
+          "id": "storage/semantic/coalesced-durable-parts",
+          "lane": "storage",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793936420285-q87jk0\\storage_semantic_coalesced-durable-parts.attempt-1.log",
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793936420285-q87jk0\\storage_semantic_coalesced-durable-parts.attempt-1.failure.json"
+          ],
+          "path": "storage/semantic/coalesced-durable-parts.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "failed",
+          "tags": [
+            "storage"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 588,
+          "exitCode": 1,
+          "id": "storage/semantic/part-original-lifetime/data-false",
+          "lane": "storage",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793936420285-q87jk0\\storage_semantic_part-original-lifetime_data-false.attempt-1.log",
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793936420285-q87jk0\\storage_semantic_part-original-lifetime_data-false.attempt-1.failure.json"
+          ],
+          "path": "storage/semantic/part-original-lifetime.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "failed",
+          "tags": [
+            "storage"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 605,
+          "exitCode": 1,
+          "id": "storage/semantic/part-original-lifetime/data-swap",
+          "lane": "storage",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793936420285-q87jk0\\storage_semantic_part-original-lifetime_data-swap.attempt-1.log",
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793936420285-q87jk0\\storage_semantic_part-original-lifetime_data-swap.attempt-1.failure.json"
+          ],
+          "path": "storage/semantic/part-original-lifetime.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "failed",
+          "tags": [
+            "storage"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 628,
+          "exitCode": 1,
+          "id": "storage/semantic/part-original-lifetime/data-throw",
+          "lane": "storage",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793936420285-q87jk0\\storage_semantic_part-original-lifetime_data-throw.attempt-1.log",
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793936420285-q87jk0\\storage_semantic_part-original-lifetime_data-throw.attempt-1.failure.json"
+          ],
+          "path": "storage/semantic/part-original-lifetime.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "failed",
+          "tags": [
+            "storage"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 658,
+          "exitCode": 0,
+          "id": "storage/semantic/part-original-lifetime/false-cleanup",
+          "lane": "storage",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793936420285-q87jk0\\storage_semantic_part-original-lifetime_false-cleanup.attempt-1.log"
+          ],
+          "path": "storage/semantic/part-original-lifetime.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "storage"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 598,
+          "exitCode": 0,
+          "id": "storage/semantic/part-original-lifetime/false-release",
+          "lane": "storage",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793936420285-q87jk0\\storage_semantic_part-original-lifetime_false-release.attempt-1.log"
+          ],
+          "path": "storage/semantic/part-original-lifetime.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "storage"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 610,
+          "exitCode": 0,
+          "id": "storage/semantic/part-original-lifetime/frozen-cleanup",
+          "lane": "storage",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793936420285-q87jk0\\storage_semantic_part-original-lifetime_frozen-cleanup.attempt-1.log"
+          ],
+          "path": "storage/semantic/part-original-lifetime.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "storage"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 540,
+          "exitCode": 0,
+          "id": "storage/semantic/part-original-lifetime/null-cleanup",
+          "lane": "storage",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793936420285-q87jk0\\storage_semantic_part-original-lifetime_null-cleanup.attempt-1.log"
+          ],
+          "path": "storage/semantic/part-original-lifetime.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "storage"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 554,
+          "exitCode": 0,
+          "id": "storage/semantic/part-original-lifetime/null-release",
+          "lane": "storage",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793936420285-q87jk0\\storage_semantic_part-original-lifetime_null-release.attempt-1.log"
+          ],
+          "path": "storage/semantic/part-original-lifetime.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "storage"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 591,
+          "exitCode": 1,
+          "id": "storage/semantic/part-original-lifetime/offset-false",
+          "lane": "storage",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793936420285-q87jk0\\storage_semantic_part-original-lifetime_offset-false.attempt-1.log",
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793936420285-q87jk0\\storage_semantic_part-original-lifetime_offset-false.attempt-1.failure.json"
+          ],
+          "path": "storage/semantic/part-original-lifetime.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "failed",
+          "tags": [
+            "storage"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 568,
+          "exitCode": 1,
+          "id": "storage/semantic/part-original-lifetime/offset-swap",
+          "lane": "storage",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793936420285-q87jk0\\storage_semantic_part-original-lifetime_offset-swap.attempt-1.log",
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793936420285-q87jk0\\storage_semantic_part-original-lifetime_offset-swap.attempt-1.failure.json"
+          ],
+          "path": "storage/semantic/part-original-lifetime.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "failed",
+          "tags": [
+            "storage"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 531,
+          "exitCode": 1,
+          "id": "storage/semantic/part-original-lifetime/offset-throw",
+          "lane": "storage",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793936420285-q87jk0\\storage_semantic_part-original-lifetime_offset-throw.attempt-1.log",
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793936420285-q87jk0\\storage_semantic_part-original-lifetime_offset-throw.attempt-1.failure.json"
+          ],
+          "path": "storage/semantic/part-original-lifetime.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "failed",
+          "tags": [
+            "storage"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 604,
+          "exitCode": 0,
+          "id": "storage/semantic/part-original-lifetime/pending-release",
+          "lane": "storage",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793936420285-q87jk0\\storage_semantic_part-original-lifetime_pending-release.attempt-1.log"
+          ],
+          "path": "storage/semantic/part-original-lifetime.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "storage"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 612,
+          "exitCode": 0,
+          "id": "storage/semantic/part-original-lifetime/pending-write",
+          "lane": "storage",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793936420285-q87jk0\\storage_semantic_part-original-lifetime_pending-write.attempt-1.log"
+          ],
+          "path": "storage/semantic/part-original-lifetime.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "storage"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 580,
+          "exitCode": 0,
+          "id": "storage/semantic/part-original-lifetime/undefined-cleanup",
+          "lane": "storage",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793936420285-q87jk0\\storage_semantic_part-original-lifetime_undefined-cleanup.attempt-1.log"
+          ],
+          "path": "storage/semantic/part-original-lifetime.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "storage"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 833,
+          "exitCode": 0,
+          "id": "storage/semantic/query-index-failure-ownership",
+          "lane": "storage",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793936420285-q87jk0\\storage_semantic_query-index-failure-ownership.attempt-1.log"
+          ],
+          "path": "storage/semantic/query-index-failure-ownership.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "storage"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        }
+      ]
+    },
+    "semantic-part-owner-composition.json": {
+      "junit": null,
+      "logDir": "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793936466435-exa5v0",
+      "summary": {
+        "durationMs": 4854,
+        "failed": 0,
+        "passed": 7,
+        "skipped": 0,
+        "total": 7
+      },
+      "tests": [
+        {
+          "attempts": 1,
+          "durationMs": 862,
+          "exitCode": 0,
+          "id": "storage/semantic/coalesced-durable-parts",
+          "lane": "storage",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793936466435-exa5v0\\storage_semantic_coalesced-durable-parts.attempt-1.log"
+          ],
+          "path": "storage/semantic/coalesced-durable-parts.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "storage"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 709,
+          "exitCode": 0,
+          "id": "storage/semantic/part-original-lifetime/data-false",
+          "lane": "storage",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793936466435-exa5v0\\storage_semantic_part-original-lifetime_data-false.attempt-1.log"
+          ],
+          "path": "storage/semantic/part-original-lifetime.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "storage"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 654,
+          "exitCode": 0,
+          "id": "storage/semantic/part-original-lifetime/data-swap",
+          "lane": "storage",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793936466435-exa5v0\\storage_semantic_part-original-lifetime_data-swap.attempt-1.log"
+          ],
+          "path": "storage/semantic/part-original-lifetime.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "storage"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 615,
+          "exitCode": 0,
+          "id": "storage/semantic/part-original-lifetime/data-throw",
+          "lane": "storage",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793936466435-exa5v0\\storage_semantic_part-original-lifetime_data-throw.attempt-1.log"
+          ],
+          "path": "storage/semantic/part-original-lifetime.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "storage"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 660,
+          "exitCode": 0,
+          "id": "storage/semantic/part-original-lifetime/offset-false",
+          "lane": "storage",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793936466435-exa5v0\\storage_semantic_part-original-lifetime_offset-false.attempt-1.log"
+          ],
+          "path": "storage/semantic/part-original-lifetime.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "storage"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 675,
+          "exitCode": 0,
+          "id": "storage/semantic/part-original-lifetime/offset-swap",
+          "lane": "storage",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793936466435-exa5v0\\storage_semantic_part-original-lifetime_offset-swap.attempt-1.log"
+          ],
+          "path": "storage/semantic/part-original-lifetime.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "storage"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 664,
+          "exitCode": 0,
+          "id": "storage/semantic/part-original-lifetime/offset-throw",
+          "lane": "storage",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793936466435-exa5v0\\storage_semantic_part-original-lifetime_offset-throw.attempt-1.log"
+          ],
+          "path": "storage/semantic/part-original-lifetime.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "storage"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        }
+      ]
+    },
+    "semantic-part-owner-final.json": {
+      "junit": null,
+      "logDir": "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793936697871-6xtute",
+      "summary": {
+        "durationMs": 11839,
+        "failed": 0,
+        "passed": 18,
+        "skipped": 0,
+        "total": 18
+      },
+      "tests": [
+        {
+          "attempts": 1,
+          "durationMs": 828,
+          "exitCode": 0,
+          "id": "storage/semantic/coalesced-durable-parts",
+          "lane": "storage",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793936697871-6xtute\\storage_semantic_coalesced-durable-parts.attempt-1.log"
+          ],
+          "path": "storage/semantic/coalesced-durable-parts.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "storage"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 613,
+          "exitCode": 0,
+          "id": "storage/semantic/part-original-lifetime/data-false",
+          "lane": "storage",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793936697871-6xtute\\storage_semantic_part-original-lifetime_data-false.attempt-1.log"
+          ],
+          "path": "storage/semantic/part-original-lifetime.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "storage"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 655,
+          "exitCode": 0,
+          "id": "storage/semantic/part-original-lifetime/data-swap",
+          "lane": "storage",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793936697871-6xtute\\storage_semantic_part-original-lifetime_data-swap.attempt-1.log"
+          ],
+          "path": "storage/semantic/part-original-lifetime.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "storage"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 661,
+          "exitCode": 0,
+          "id": "storage/semantic/part-original-lifetime/data-throw",
+          "lane": "storage",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793936697871-6xtute\\storage_semantic_part-original-lifetime_data-throw.attempt-1.log"
+          ],
+          "path": "storage/semantic/part-original-lifetime.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "storage"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 619,
+          "exitCode": 0,
+          "id": "storage/semantic/part-original-lifetime/false-cleanup",
+          "lane": "storage",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793936697871-6xtute\\storage_semantic_part-original-lifetime_false-cleanup.attempt-1.log"
+          ],
+          "path": "storage/semantic/part-original-lifetime.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "storage"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 655,
+          "exitCode": 0,
+          "id": "storage/semantic/part-original-lifetime/false-release",
+          "lane": "storage",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793936697871-6xtute\\storage_semantic_part-original-lifetime_false-release.attempt-1.log"
+          ],
+          "path": "storage/semantic/part-original-lifetime.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "storage"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 636,
+          "exitCode": 0,
+          "id": "storage/semantic/part-original-lifetime/frozen-cleanup",
+          "lane": "storage",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793936697871-6xtute\\storage_semantic_part-original-lifetime_frozen-cleanup.attempt-1.log"
+          ],
+          "path": "storage/semantic/part-original-lifetime.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "storage"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 561,
+          "exitCode": 0,
+          "id": "storage/semantic/part-original-lifetime/null-cleanup",
+          "lane": "storage",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793936697871-6xtute\\storage_semantic_part-original-lifetime_null-cleanup.attempt-1.log"
+          ],
+          "path": "storage/semantic/part-original-lifetime.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "storage"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 617,
+          "exitCode": 0,
+          "id": "storage/semantic/part-original-lifetime/null-release",
+          "lane": "storage",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793936697871-6xtute\\storage_semantic_part-original-lifetime_null-release.attempt-1.log"
+          ],
+          "path": "storage/semantic/part-original-lifetime.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "storage"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 644,
+          "exitCode": 0,
+          "id": "storage/semantic/part-original-lifetime/offset-false",
+          "lane": "storage",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793936697871-6xtute\\storage_semantic_part-original-lifetime_offset-false.attempt-1.log"
+          ],
+          "path": "storage/semantic/part-original-lifetime.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "storage"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 620,
+          "exitCode": 0,
+          "id": "storage/semantic/part-original-lifetime/offset-swap",
+          "lane": "storage",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793936697871-6xtute\\storage_semantic_part-original-lifetime_offset-swap.attempt-1.log"
+          ],
+          "path": "storage/semantic/part-original-lifetime.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "storage"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 608,
+          "exitCode": 0,
+          "id": "storage/semantic/part-original-lifetime/offset-throw",
+          "lane": "storage",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793936697871-6xtute\\storage_semantic_part-original-lifetime_offset-throw.attempt-1.log"
+          ],
+          "path": "storage/semantic/part-original-lifetime.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "storage"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 624,
+          "exitCode": 0,
+          "id": "storage/semantic/part-original-lifetime/pending-cleanup",
+          "lane": "storage",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793936697871-6xtute\\storage_semantic_part-original-lifetime_pending-cleanup.attempt-1.log"
+          ],
+          "path": "storage/semantic/part-original-lifetime.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "storage"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 651,
+          "exitCode": 0,
+          "id": "storage/semantic/part-original-lifetime/pending-release",
+          "lane": "storage",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793936697871-6xtute\\storage_semantic_part-original-lifetime_pending-release.attempt-1.log"
+          ],
+          "path": "storage/semantic/part-original-lifetime.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "storage"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 629,
+          "exitCode": 0,
+          "id": "storage/semantic/part-original-lifetime/pending-release-after-error",
+          "lane": "storage",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793936697871-6xtute\\storage_semantic_part-original-lifetime_pending-release-after-error.attempt-1.log"
+          ],
+          "path": "storage/semantic/part-original-lifetime.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "storage"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 614,
+          "exitCode": 0,
+          "id": "storage/semantic/part-original-lifetime/pending-write",
+          "lane": "storage",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793936697871-6xtute\\storage_semantic_part-original-lifetime_pending-write.attempt-1.log"
+          ],
+          "path": "storage/semantic/part-original-lifetime.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "storage"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 686,
+          "exitCode": 0,
+          "id": "storage/semantic/part-original-lifetime/undefined-cleanup",
+          "lane": "storage",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793936697871-6xtute\\storage_semantic_part-original-lifetime_undefined-cleanup.attempt-1.log"
+          ],
+          "path": "storage/semantic/part-original-lifetime.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "storage"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 893,
+          "exitCode": 0,
+          "id": "storage/semantic/query-index-failure-ownership",
+          "lane": "storage",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793936697871-6xtute\\storage_semantic_query-index-failure-ownership.attempt-1.log"
+          ],
+          "path": "storage/semantic/query-index-failure-ownership.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "storage"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        }
+      ]
+    }
+  }
+}

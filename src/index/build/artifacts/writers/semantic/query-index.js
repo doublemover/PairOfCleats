@@ -15,12 +15,8 @@ import { addStorageFailureContext } from '../../../../../shared/storage/operatio
 
 const withOwnedHandle = async (file, flags, run) => {
   const handle = await fs.open(file, flags);
-  const owner = createContainedFileResource({ handle, sync: false });
-  return owner.run(() => {
-    const writeFile = handle.writeFile, sync = handle.sync;
-    if (typeof writeFile !== 'function' || typeof sync !== 'function') throw new TypeError('Query index descriptor lacks its original write/sync operations.');
-    return run(Object.freeze({ writeFile: (...args) => writeFile.call(handle, ...args), sync: () => sync.call(handle) }));
-  });
+  const owner = createContainedFileResource({ handle, sync: false, additionalMethods: ['writeFile', 'sync'] });
+  return owner.run(run);
 };
 const failWriter = async (writer, primary) => {
   const observation = observeStorageResource(primary, { phase: 'semantic-query-index-writer' });
@@ -139,21 +135,26 @@ export const createSemanticQueryIndexIntake = async ({ root, generation, partiti
         let position = 0;
         reserveFinal(bytes + offsets.length);
         await scheduleIo(async () => {
-          const writer = createJsonlBatchWriter(file, { compression: null, atomic: false, signal });
-          try {
-            for (let i = 0; i < batch.length; i += 1) {
-              throwIfAborted(signal);
-              offsets.writeBigUInt64LE(BigInt(position), i * 8);
-              const { line, length } = batch[i];
-              await writer.writeLine(line, length);
-              hash.update(line).update('\n'); position += length;
-            }
-            await writer.close();
-          } catch (error) {
-            await failWriter(writer, error);
+          const data = Buffer.allocUnsafe(bytes);
+          for (let i = 0; i < batch.length; i += 1) {
+            throwIfAborted(signal);
+            const { line, length } = batch[i];
+            offsets.writeBigUInt64LE(BigInt(position), i * 8);
+            const written = data.write(line, position, length - 1, 'utf8');
+            if (written !== length - 1) throw new Error('Canonical query row encoding changed.');
+            data[position + written] = 10;
+            position += length;
           }
-          await withOwnedHandle(file + offsetsSuffix, 'wx', async handle => { await handle.writeFile(offsets); await handle.sync(); });
-          await withOwnedHandle(file, 'r+', handle => handle.sync());
+          hash.update(data);
+          await withOwnedHandle(file, 'wx', async handle => {
+            await handle.writeFile(data, signal ? { signal } : undefined);
+            throwIfAborted(signal); await handle.sync();
+          });
+          throwIfAborted(signal);
+          await withOwnedHandle(file + offsetsSuffix, 'wx', async handle => {
+            await handle.writeFile(offsets, signal ? { signal } : undefined);
+            throwIfAborted(signal); await handle.sync();
+          });
           await syncParentDirectory(file);
           await syncParentDirectory(directory);
         });
