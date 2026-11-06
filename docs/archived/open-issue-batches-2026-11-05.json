@@ -2045,7 +2045,7 @@
       "title": "[Perf] Encode semantic rows once per admitted batch for sizing, hashing and writing",
       "batch": "retrieval-performance-and-evaluation",
       "scope": "active",
-      "review": "source-review-pending",
+      "review": "qualified-awaiting-publication",
       "recordedDisposition": "Implementation recorded; qualification pending.",
       "owners": [
         "src/index/build/artifacts/writers/semantic/partition.js",
@@ -2053,7 +2053,9 @@
         "src/index/build/artifacts/writers/semantic/query-index.js",
         "docs/archived/github-issue-closeout-2026-10-26.json",
         "docs/archived/github-issue-closeout-2026-10-26.md"
-      ]
+      ],
+      "receipt": "docs/archived/semantic-encoding-closeout-2026-11-05.json",
+      "remaining": "Publish the qualified source, then close and verify GitHub state. Partition and final query/operation follow-up qualification is complete on the recorded Windows candidate."
     },
     {
       "number": 1213,

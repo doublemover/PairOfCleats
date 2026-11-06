@@ -144,8 +144,7 @@ export const createSemanticQueryIndexIntake = async ({ root, generation, partiti
             for (let i = 0; i < batch.length; i += 1) {
               throwIfAborted(signal);
               offsets.writeBigUInt64LE(BigInt(position), i * 8);
-              const line = canonicalSemanticJson(batch[i]);
-              const length = Buffer.byteLength(line) + 1;
+              const { line, length } = batch[i];
               await writer.writeLine(line, length);
               hash.update(line).update('\n'); position += length;
             }
@@ -161,7 +160,7 @@ export const createSemanticQueryIndexIntake = async ({ root, generation, partiti
         pieces.push({ path: prefix + '/' + filename, offsetsPath: prefix + '/' + filename + offsetsSuffix,
           hash: hash.digest('hex'), offsetsHash: createHash('sha256').update(offsets).digest('hex'),
           count: batch.length, bytes: position, firstRow: rowCount,
-          firstKey: keyForRow(batch[0]), lastKey: keyForRow(batch[batch.length - 1]) });
+          firstKey: batch[0].key, lastKey: batch[batch.length - 1].key });
         rowCount += batch.length; batch = []; bytes = 0;
       };
       for await (const entry of rows) {
@@ -170,11 +169,21 @@ export const createSemanticQueryIndexIntake = async ({ root, generation, partiti
           const order = compareRows(previous, entry);
           if (!Number.isFinite(order) || order >= 0) throw new Error('Duplicate or unordered query index row.');
         }
-        previous = entry;
-        const length = Buffer.byteLength(canonicalSemanticJson(entry)) + 1;
+        const line = canonicalSemanticJson(entry);
+        const length = Buffer.byteLength(line) + 1;
         if (length > batchBytes) throw new Error('Query index row exceeds allowance.');
+        // The original row can be reused/mutated by a pull producer or during
+        // an awaited flush. Retain this exact canonical snapshot and key only.
+        const snapshot = JSON.parse(line);
+        previous = snapshot;
+        const key = keyForRow(snapshot);
+        if (metrics) {
+          metrics.finalRowsEncoded = (metrics.finalRowsEncoded || 0) + 1;
+          metrics.finalEncodedBytes = (metrics.finalEncodedBytes || 0) + length;
+          metrics.finalEncodedBytesHighWater = Math.max(metrics.finalEncodedBytesHighWater || 0, bytes + length);
+        }
         if (batch.length && (batch.length >= batchRows || bytes + length > batchBytes)) await flush();
-        batch.push(entry); bytes += length;
+        batch.push({ line, length, key }); bytes += length;
       }
       await flush();
       if (runs.length) await retire(runs);

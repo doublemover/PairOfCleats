@@ -1,6 +1,12 @@
-const budgetError = () => Object.assign(new RangeError('Canonical semantic JSON exceeds its byte allowance.'), {
-  code: 'ERR_SEMANTIC_JSON_BUDGET'
-});
+const budgetErrors = new WeakSet();
+export const semanticJsonBudgetError = (message = 'Canonical semantic JSON exceeds its byte allowance.') => {
+  const error = Object.assign(new RangeError(message), {
+    code: 'ERR_SEMANTIC_JSON_BUDGET'
+  });
+  budgetErrors.add(error); return error;
+};
+const budgetError = () => semanticJsonBudgetError();
+export const isSemanticJsonBudgetError = error => budgetErrors.has(error);
 
 /** Canonical JSON's admitted representation, encoded without recursive descent.
  * Charge strings and container metadata before allocating their encoded forms.

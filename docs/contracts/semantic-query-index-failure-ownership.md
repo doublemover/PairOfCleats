@@ -23,7 +23,9 @@ be released. Hash, offset, ordering, piece and producer identities are unchanged
 
 The authored controls exercise real query-index part/offset writes, original
 FileHandle close faults, write/sync faults and rejected directory retirement.
-They are **UNVALIDATED**. This slice does not establish a full stream/compression
+The original query-index failure and all three intake controls now pass in the
+[source-bound encoding qualification](../archived/semantic-encoding-closeout-2026-11-05.md).
+This slice does not establish a full stream/compression
 writer lifetime proof, a durable failed-directory replay workflow, arbitrary
 scheduler callback closure or cross-process publication/native qualification.
 Those obligations remain open. No measured performance or broad issue closure is

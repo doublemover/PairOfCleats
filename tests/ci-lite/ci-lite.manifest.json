@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 2244,
+    "hero": 2294,
     "matrix": 110,
     "meta": 54,
     "soak": 1,
@@ -14467,6 +14467,306 @@
     {
       "id": "indexing/file-processor/capped-read-failure-ownership/close-throw",
       "order": 2409,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/semantic/prepared-sink-parity/small",
+      "order": 2410,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/semantic/prepared-sink-parity/nodes",
+      "order": 2411,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/semantic/prepared-sink-parity/operands",
+      "order": 2412,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/semantic/prepared-sink-parity/mixed",
+      "order": 2413,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/semantic/prepared-sink-parity/short-writes",
+      "order": 2414,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/semantic/prepared-sink-parity/mutation",
+      "order": 2415,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/semantic/prepared-sink-parity/prepared-budget",
+      "order": 2416,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/semantic/prepared-sink-parity/byte-count",
+      "order": 2417,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/semantic/prepared-sink-parity/schema",
+      "order": 2418,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/semantic/prepared-sink-parity/oversize",
+      "order": 2419,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/semantic/prepared-sink-parity/copied-receipt",
+      "order": 2420,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/semantic/prepared-sink-parity/abort",
+      "order": 2421,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/semantic/prepared-sink-parity/abort-write",
+      "order": 2422,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/semantic/prepared-sink-parity/write-error",
+      "order": 2423,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/semantic/prepared-sink-parity/forged-bytes",
+      "order": 2424,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/semantic/query-encoded-batch/query-memory",
+      "order": 2425,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/semantic/query-encoded-batch/query-merged",
+      "order": 2426,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/semantic/query-encoded-batch/operation-memory",
+      "order": 2427,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/semantic/query-encoded-batch/operation-merged",
+      "order": 2428,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/semantic/query-encoded-batch/query-reuse",
+      "order": 2429,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/semantic/query-encoded-batch/operation-reuse",
+      "order": 2430,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/semantic/query-encoded-batch/query-mutation",
+      "order": 2431,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/semantic/query-encoded-batch/operation-mutation",
+      "order": 2432,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/semantic/query-encoded-batch/query-duplicate",
+      "order": 2433,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/semantic/query-encoded-batch/operation-duplicate",
+      "order": 2434,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/semantic/query-encoded-batch/query-unordered",
+      "order": 2435,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/semantic/query-encoded-batch/operation-unordered",
+      "order": 2436,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/semantic/query-encoded-batch/query-oversize",
+      "order": 2437,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/semantic/query-encoded-batch/operation-oversize",
+      "order": 2438,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/semantic/producer-entry-allocation/javascript",
+      "order": 2439,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/semantic/producer-entry-allocation/typescript",
+      "order": 2440,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/semantic/producer-entry-allocation/native",
+      "order": 2441,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/semantic/producer-entry-allocation/analysis",
+      "order": 2442,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/semantic/producer-entry-allocation/ownership",
+      "order": 2443,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/storage/semantic/prepared-row-work/small-prepared",
+      "order": 2444,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/storage/semantic/prepared-row-work/small-plain",
+      "order": 2445,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/storage/semantic/prepared-row-work/nodes-prepared",
+      "order": 2446,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/storage/semantic/prepared-row-work/nodes-plain",
+      "order": 2447,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/storage/semantic/prepared-row-work/operands-prepared",
+      "order": 2448,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/storage/semantic/prepared-row-work/operands-plain",
+      "order": 2449,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/storage/semantic/prepared-row-work/mixed-prepared",
+      "order": 2450,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/storage/semantic/prepared-row-work/mixed-plain",
+      "order": 2451,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/storage/semantic/query-final-encoding-work/query-memory-encoded",
+      "order": 2452,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/storage/semantic/query-final-encoding-work/query-memory-reencoded",
+      "order": 2453,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/storage/semantic/query-final-encoding-work/query-merged-encoded",
+      "order": 2454,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/storage/semantic/query-final-encoding-work/query-merged-reencoded",
+      "order": 2455,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/storage/semantic/query-final-encoding-work/operation-memory-encoded",
+      "order": 2456,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/storage/semantic/query-final-encoding-work/operation-memory-reencoded",
+      "order": 2457,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/storage/semantic/query-final-encoding-work/operation-merged-encoded",
+      "order": 2458,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/storage/semantic/query-final-encoding-work/operation-merged-reencoded",
+      "order": 2459,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

@@ -1,6 +1,6 @@
 import { createRequire } from 'node:module';
 import { VISITOR_KEYS } from '@babel/types';
-import { prepareSemanticBatchEntry, semanticBatchEntryBytes } from './prepared-batch.js';
+import { prepareSemanticProducerEntry, semanticBatchEntryBytes } from './prepared-batch.js';
 import { throwIfAborted } from '../../shared/abort.js';
 import { semanticLiteralScalar } from './semantic-literal.js';
 
@@ -205,7 +205,7 @@ export const createSemanticCollector = ({ ast, source, partitionId, unavailable 
     let byteCount = 0;
     let sequence = 0;
     for (const rawEntry of rows()) {
-      const entry = prepareSemanticBatchEntry(rawEntry);
+      const entry = prepareSemanticProducerEntry(rawEntry, batchBytes, () => throwIfAborted(signal));
       const bytes = semanticBatchEntryBytes(entry);
       if (bytes > batchBytes) throw Object.assign(new Error('Semantic record exceeds producer batch allowance.'),
         { code: 'ERR_SEMANTIC_RECORD_LIMIT' });

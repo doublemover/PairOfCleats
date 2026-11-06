@@ -1,6 +1,7 @@
+import { throwIfAborted } from '../../shared/abort.js';
 import { semanticByteAdmissionFor } from './planning.js';
 import { createSemanticPartitionSink, abortSemanticPartitionOnFailure } from '../build/artifacts/writers/semantic/partition.js';
-import { prepareSemanticBatchEntry, semanticBatchEntryBytes } from './prepared-batch.js';
+import { prepareSemanticProducerEntry, semanticBatchEntryBytes } from './prepared-batch.js';
 /** Shared pull sink for derived rows; analysis never edits syntax partitions.
  * A producer must bound construction before each yield. This writer owns one
  * prepared batch plus one lookahead entry, then awaits append before advancing.
@@ -17,7 +18,7 @@ export const writeSemanticAnalysis = async ({ rows, policy, ...options }) => {
   };
   try {
     for await (const rawEntry of rows) {
-      const entry = prepareSemanticBatchEntry(rawEntry);
+      const entry = prepareSemanticProducerEntry(rawEntry, policy.storage.batchBytes, () => throwIfAborted(options.signal), 'ERR_SEMANTIC_CONTRACT');
       const bytes = semanticBatchEntryBytes(entry);
       if (batch.length && (batch.length >= policy.storage.batchRows || byteCount + bytes > policy.storage.batchBytes)) await flush();
       batch.push(entry); byteCount += bytes;

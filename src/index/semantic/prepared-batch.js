@@ -1,4 +1,5 @@
 import { canonicalSemanticJson } from './identity.js';
+import { isSemanticJsonBudgetError, semanticJsonBudgetError } from './canonical-json-bounds.js';
 
 const preparedEntries = new WeakMap();
 /** Mint an immutable producer snapshot; caller-provided encoded bytes are never trusted. */
@@ -6,8 +7,7 @@ export const prepareSemanticBatchEntry = (entry, { maxBytes = null, check = null
   if (maxBytes !== null && (!Number.isSafeInteger(maxBytes) || maxBytes < 2)) throw new TypeError('Prepared semantic entry allowance must contain a row and newline.');
   if (preparedEntries.has(entry)) {
     check?.();
-    if (maxBytes !== null && preparedEntries.get(entry).byteCount > maxBytes) throw Object.assign(
-      new RangeError('Prepared semantic entry exceeds its byte allowance.'), { code: 'ERR_SEMANTIC_JSON_BUDGET' });
+    if (maxBytes !== null && preparedEntries.get(entry).byteCount > maxBytes) throw semanticJsonBudgetError('Prepared semantic entry exceeds its byte allowance.');
     return entry;
   }
   const rowDescriptor = Object.getOwnPropertyDescriptor(entry, 'row');
@@ -34,4 +34,19 @@ export const semanticBatchEntryBytes = entry => {
   const prepared = preparedEntries.get(entry);
   if (!prepared) throw new TypeError('Expected an owned prepared semantic entry.');
   return prepared.byteCount;
+};
+
+/** Producer admission precedes JSON encoding, snapshotting and freezing. The
+ * sink still independently checks schema, sequence and aggregate byteCount. */
+export const prepareSemanticProducerEntry = (entry, maxBytes, check = null, limitCode = 'ERR_SEMANTIC_RECORD_LIMIT') => {
+  if (!Number.isSafeInteger(maxBytes) || maxBytes < 1) throw new TypeError('Positive semantic producer byte allowance required.');
+  const limitError = cause => Object.assign(new Error('Semantic record exceeds producer batch allowance.', { cause }),
+    { code: limitCode });
+  check?.();
+  if (maxBytes < 2) throw limitError();
+  try { return prepareSemanticBatchEntry(entry, { maxBytes, check }); }
+  catch (error) {
+    if (isSemanticJsonBudgetError(error)) throw limitError(error);
+    throw error;
+  }
 };

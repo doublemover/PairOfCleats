@@ -25,6 +25,9 @@ const validationWorkIds = JSON.parse(fs.readFileSync(path.join(root,
 const healthWorkIds = JSON.parse(fs.readFileSync(path.join(root,
   'tests/perf/indexing/fixtures/health-snapshot-work.test.js.cases.json'), 'utf8')).cases
   .map(id => `perf/indexing/fixtures/health-snapshot-work/${id}`);
+const semanticEncodingWorkIds = ['prepared-row-work', 'query-final-encoding-work'].flatMap(family =>
+  JSON.parse(fs.readFileSync(path.join(root, `tests/perf/storage/semantic/${family}.test.js.cases.json`), 'utf8')).cases
+    .map(id => `perf/storage/semantic/${family}/${id}`));
 const sourceAuthorityIds = JSON.parse(fs.readFileSync(path.join(root,
   'tests/storage/semantic/runtime-source-reference-authority.test.js.cases.json'), 'utf8')).cases
   .map(id => `storage/semantic/runtime-source-reference-authority/${id}`);
@@ -109,6 +112,7 @@ for (const mode of ['ci', 'nightly']) {
               ...artifactLeaseWorkIds,
               ...validationWorkIds,
               ...healthWorkIds,
+              ...semanticEncodingWorkIds,
               'indexing/embeddings/artifact-installed-closure', 'embeddings/onnx/installation-closure',
               'embeddings/onnx/downloader-installation-consumer',
               'indexing/artifacts/binary-frame-manifest-integrity', 'indexing/semantic/sealed-piece-manifest-work',

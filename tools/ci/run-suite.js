@@ -54,6 +54,11 @@ SERIAL_RUNTIME_BUDGET_IDS.push(...validationWorkCases.cases.map(id => `perf/inde
 const healthWorkCases = JSON.parse(await fsPromises.readFile(
   path.join(ROOT, 'tests/perf/indexing/fixtures/health-snapshot-work.test.js.cases.json'), 'utf8'));
 SERIAL_RUNTIME_BUDGET_IDS.push(...healthWorkCases.cases.map(id => `perf/indexing/fixtures/health-snapshot-work/${id}`));
+for (const family of ['prepared-row-work', 'query-final-encoding-work']) {
+  const { cases } = JSON.parse(await fsPromises.readFile(
+    path.join(ROOT, `tests/perf/storage/semantic/${family}.test.js.cases.json`), 'utf8'));
+  SERIAL_RUNTIME_BUDGET_IDS.push(...cases.map(id => `perf/storage/semantic/${family}/${id}`));
+}
 const SERIAL_ANN_GENERATION_IDS = ['retrieval/ann/generation-publication',
   'retrieval/ann/generation-rebuild-failure', 'retrieval/ann/generation-lmdb'];
 const nativePublicationCases = JSON.parse(await fsPromises.readFile(

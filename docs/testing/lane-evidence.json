@@ -1,17 +1,17 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-11-06T02:50:26.891Z",
+  "generatedAt": "2026-11-06T03:20:48.088Z",
   "summary": {
     "lanes": 5,
-    "tests": 2725,
+    "tests": 2775,
     "exactDuplicates": 0,
     "hotspotKinds": 10,
-    "families": 427,
+    "families": 428,
     "topSlowest": 10,
     "timingCoverage": {
       "freshArtifactTests": 0,
       "historicalFallbackTests": 74,
-      "missingTests": 2651
+      "missingTests": 2701
     }
   },
   "lanes": [
@@ -35,7 +35,7 @@
       "targetMaxDurationSeconds": 15,
       "orderFile": "tests/ci-lite/ci-lite.order.txt",
       "timingArtifactPath": ".testLogs/ci-lite-testRunTimes.txt",
-      "totalTests": 2409,
+      "totalTests": 2459,
       "knownDurationTests": 49,
       "knownDurationMs": 27090,
       "p50DurationMs": 190,
@@ -43,7 +43,7 @@
       "resolvedTimingArtifactPaths": [],
       "timingSources": {
         "historical-test-times": 49,
-        "missing": 2360
+        "missing": 2410
       }
     },
     {
@@ -301,6 +301,12 @@
       "unknownDurationCount": 124
     },
     {
+      "key": "storage/semantic",
+      "count": 91,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 91
+    },
+    {
       "key": "cli/search",
       "count": 88,
       "knownDurationMs": 0,
@@ -313,10 +319,10 @@
       "unknownDurationCount": 63
     },
     {
-      "key": "storage/semantic",
-      "count": 62,
+      "key": "indexing/semantic",
+      "count": 58,
       "knownDurationMs": 0,
-      "unknownDurationCount": 62
+      "unknownDurationCount": 58
     },
     {
       "key": "indexing/tree-sitter",
@@ -335,12 +341,6 @@
       "count": 55,
       "knownDurationMs": 0,
       "unknownDurationCount": 55
-    },
-    {
-      "key": "indexing/semantic",
-      "count": 53,
-      "knownDurationMs": 0,
-      "unknownDurationCount": 53
     },
     {
       "key": "tooling/api-mcp",
@@ -467,6 +467,12 @@
       "count": 17,
       "knownDurationMs": 0,
       "unknownDurationCount": 17
+    },
+    {
+      "key": "perf/storage",
+      "count": 16,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 16
     },
     {
       "key": "indexing/stage1",
@@ -2662,9 +2668,9 @@
   "hotspots": [
     {
       "key": "index-build-heavy",
-      "count": 758,
+      "count": 763,
       "knownDurationMs": 70250,
-      "unknownDurationCount": 717,
+      "unknownDurationCount": 722,
       "note": "Index construction, replay, and build-heavy setup overlap."
     },
     {

@@ -2,7 +2,7 @@ import { createRequire } from 'node:module';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { getNativeTreeSitterParser, NATIVE_GRAMMAR_MODULES } from '../../lang/tree-sitter/native-runtime.js';
-import { prepareSemanticBatchEntry, semanticBatchEntryBytes } from './prepared-batch.js';
+import { prepareSemanticProducerEntry, semanticBatchEntryBytes } from './prepared-batch.js';
 import { throwIfAborted } from '../../shared/abort.js';
 import { semanticLiteralScalar } from './semantic-literal.js';
 
@@ -165,7 +165,7 @@ export const createNativeSemanticCollector = ({ syntax, source, partitionId, una
   function* batches() {
     let rowsBatch = [], byteCount = 0, sequence = 0;
     for (const rawEntry of rows()) {
-      const entry = prepareSemanticBatchEntry(rawEntry);
+      const entry = prepareSemanticProducerEntry(rawEntry, batchBytes, () => throwIfAborted(signal));
       const bytes = semanticBatchEntryBytes(entry);
       if (bytes > batchBytes) throw Object.assign(new Error('Native semantic row exceeds batch allowance.'), { code: 'ERR_SEMANTIC_RECORD_LIMIT' });
       if (rowsBatch.length && (rowsBatch.length >= batchRows || byteCount + bytes > batchBytes)) { yield { partitionId, sequence: sequence++, rows: rowsBatch, byteCount }; rowsBatch = []; byteCount = 0; }
