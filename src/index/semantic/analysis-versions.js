@@ -13,7 +13,7 @@ export const SEMANTIC_ANALYSIS_VERSIONS = Object.freeze({
   scmMetadata: SCM_METADATA_PRODUCER_VERSION,
   moduleExports: MODULE_EXPORTS_VERSION, sqlRelations: SQL_RELATION_PRODUCER_VERSION, javascriptRelations: JAVASCRIPT_RELATIONS_VERSION, flowMetadata: FLOW_METADATA_VERSION, sourceOutline: SOURCE_OUTLINE_VERSION,
   lexicalAnalyzer: '5', importResolution: '29', pieceAssembly: '6',
-  recordsProducer: '14', ignoreRules: '5', documentExtraction: '7', discoverySelection: '10',
+  recordsProducer: '14', ignoreRules: '5', documentExtraction: '7', discoverySelection: '11',
   repoMapProducer: '2', graphRelations: '3',
   sourceChunking: '55', typeNormalization: '15', vfsRouting: '8', complexityAnalysis: '3', lintProjection: '3',
   riskPropagation: '7', callSiteIdentity: '3', runtimeClaims: '2',

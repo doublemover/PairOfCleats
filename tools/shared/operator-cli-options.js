@@ -151,6 +151,11 @@ export const SEMANTIC_FIND_OPTIONS = {
   all: { type: 'boolean', default: false, description: 'Stream every bounded page as JSONL in this process.' }
 };
 
+export const REPOSITORY_QUERY_OPTIONS = {
+  request: { type: 'string', demandOption: true, description: 'Pinned repository-question describe/execute JSON file (at most 512 KiB).' },
+  all: { type: 'boolean', default: false, description: 'Stream bounded answer pages as JSONL in this process.' }
+};
+
 export const SEMANTIC_EXPLAIN_OPTIONS = {
   request: { type: 'string', demandOption: true, description: 'Semantic explanation request JSON file (at most 1 MiB).' },
   all: { type: 'boolean', default: false, description: 'Stream every bounded page as JSONL in this process.' }

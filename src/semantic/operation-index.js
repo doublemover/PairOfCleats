@@ -4,11 +4,11 @@ export const OPERATION_SELECTOR_FIELDS = Object.freeze(['astKind', 'operation', 
 export const OPERATION_INDEX_FIELDS = Object.freeze([...OPERATION_SELECTOR_FIELDS, ...DISCOVERY_INDEX_FIELDS, SOURCE_ORDER_FIELD]);
 const compare = (a,b) => a < b ? -1 : a > b ? 1 : 0;
 export const compareOperationIndexRows = (a,b) => compare(a.field,b.field) || compare(a.value,b.value) || compare(a.ref.partitionId,b.ref.partitionId) || a.ref.localId-b.ref.localId;
-export function* operationRecordEntries(partition, row, sourcePath) {
+export function* operationRecordEntries(partition, row, sourcePath, sourceHash) {
   const ref = { partitionId: partition.partitionId, localId: row.id };
   const discovery = discoveryIndexEntry(row, ref);
   if (discovery) yield discovery;
-  const ordered = sourceOrderEntry(row, ref, sourcePath);
+  const ordered = sourceOrderEntry(row, ref, sourcePath, sourceHash);
   if (ordered) yield ordered;
   if (row.kind !== 'expression') return;
   for (const field of ['astKind', 'operation', 'invocationKind']) if (typeof row.data[field] === 'string' && row.data[field].length) yield { field, value: row.data[field], ref };
@@ -28,12 +28,12 @@ export async function* operationOwnershipEntries(store, batch, signal) {
 /** Derived lookup only: source/ownership facts remain authoritative, including overlaps. */
 export const operationIndexEntries = async function* (store, partitions, signal) {
   for (const partition of partitions) {
-    let sourcePath = null;
+    let sourcePath = null, sourceHash = null;
     for await (const source of store.iterateRows(partition.partitionId, 'semantic_sources', { signal })) {
-      if (source.sourceUnitId === partition.sourceUnitId) sourcePath = source.path;
+      if (source.sourceUnitId === partition.sourceUnitId) { sourcePath = source.path; sourceHash = source.byteHash; }
     }
     for await (const row of store.iterateRows(partition.partitionId, 'semantic_records', { signal })) {
-      yield* operationRecordEntries(partition, row, sourcePath);
+      yield* operationRecordEntries(partition, row, sourcePath, sourceHash);
     }
     // Ownership has its own partition. Hydrate bounded batches rather than
     // retaining every source node or scanning the fact inventory at query time.

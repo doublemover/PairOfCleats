@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-23T22:38:49.068Z",
+  "generatedAt": "2026-11-06T08:44:22.216Z",
   "scripts": [
     {
       "name": "audit:duplicates",
@@ -348,6 +348,11 @@
       "command": "pairofcleats report throughput",
       "summary": "Render benchmark throughput overviews.",
       "supportTier": "operator"
+    },
+    {
+      "command": "pairofcleats repository-query",
+      "summary": "Compile and page typed retained-fact questions in a pinned source domain.",
+      "supportTier": "experimental"
     },
     {
       "command": "pairofcleats risk delta",

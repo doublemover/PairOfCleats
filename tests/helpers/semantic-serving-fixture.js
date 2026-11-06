@@ -11,11 +11,13 @@ import { getBuildsRoot, getRepoRoot } from '../../src/shared/repo-paths.js';
 import { ARTIFACT_SURFACE_VERSION } from '../../src/contracts/versioning.js';
 
 /** Real partition/index writers and registrations, without a repository index. */
-export const createSemanticServingFixture = async ({ withOperands = false, withTraceEdge = false } = {}) => {
-  const fixture = await createRecoveryFixture('first(); second();');
+export const createSemanticServingFixture = async ({ withOperands = false, withTraceEdge = false,
+  sourceText = 'first(); second();', buildRows = null } = {}) => {
+  if (buildRows !== null && typeof buildRows !== 'function') throw new TypeError('Fixture rows must have an explicit producer.');
+  const fixture = await createRecoveryFixture(sourceText);
   const repoRoot = getRepoRoot(fixture.root);
   try {
-    const rows = [semanticNode(0, 8), semanticNode(1, fixture.source.textLength)];
+    const rows = buildRows ? await buildRows(fixture) : [semanticNode(0, 8), semanticNode(1, fixture.source.textLength)];
     if (withOperands) rows.push({ family: 'operand', row: {
       parent: { partitionId: fixture.partitionId, localId: 0 }, slot: 'argument', ordinal: 0,
       child: { partitionId: fixture.partitionId, localId: 1 }, flags: []

@@ -38,10 +38,11 @@ export const writeValidatedSemanticIndexes = async ({ root, generation, partitio
       throwIfAborted(signal);
       await onValidatedRow?.(event);
       const { partition, member, row } = event;
-      if (member === 'semantic_sources') sourcePaths.set(partition.partitionId, row.path);
+      if (member === 'semantic_sources') sourcePaths.set(partition.partitionId, { path: row.path, hash: row.byteHash });
       for (const entry of queryIndexEntriesForRow({ ...event, partitionId: partition.partitionId })) await query.append(entry);
       if (member === 'semantic_records') {
-        for (const entry of operationRecordEntries(partition, row, sourcePaths.get(partition.partitionId))) await operation.append(entry);
+        const source = sourcePaths.get(partition.partitionId);
+        for (const entry of operationRecordEntries(partition, row, source?.path, source?.hash)) await operation.append(entry);
       }
       if (member === 'semantic_ownership') {
         ownership.push(row);

@@ -45,7 +45,7 @@ export const ingestSemanticPartition = async ({ db, store, descriptor, signal = 
     removeSemanticPartition({ db, partitionId });
     const sourceInsert = db.prepare('INSERT INTO semantic_sources(source_id, byte_hash, payload) VALUES (?, ?, ?) ON CONFLICT(source_id) DO NOTHING');
     const sourceRead = db.prepare('SELECT payload FROM semantic_sources WHERE source_id = ?');
-    let sources = 0, sourcePath;
+    let sources = 0, sourcePath, sourceHash;
     for await (const row of readRows('semantic_sources')) {
       if (row.sourceUnitId !== descriptor.sourceUnitId) throw new Error('Semantic source/partition mismatch.');
       const payload = canonicalSemanticJson(row);
@@ -53,6 +53,7 @@ export const ingestSemanticPartition = async ({ db, store, descriptor, signal = 
       if (existing && existing.payload !== payload) throw new Error('Conflicting immutable source identity.');
       sourceInsert.run(row.sourceUnitId, row.byteHash, payload);
       sourcePath = row.path;
+      sourceHash = row.byteHash;
       sources += 1;
     }
     if (sources !== 1) throw new Error('Semantic partition requires exactly one source manifest.');
@@ -65,7 +66,7 @@ export const ingestSemanticPartition = async ({ db, store, descriptor, signal = 
       insertNode.run(partitionId, row.id, row.kind, canonicalSemanticJson(row));
       const discovery = discoveryIndexEntry(row, { partitionId, localId: row.id });
       if (discovery) insertDiscovery.run(partitionId, row.id, discovery.field, discovery.value);
-      const ordered = sourceOrderEntry(row, { partitionId, localId: row.id }, sourcePath);
+      const ordered = sourceOrderEntry(row, { partitionId, localId: row.id }, sourcePath, sourceHash);
       if (ordered) insertDiscovery.run(partitionId, row.id, ordered.field, ordered.value);
     }
     const insertOperand = db.prepare('INSERT INTO semantic_operands VALUES (?, ?, ?, ?, ?, ?)');

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-06T08:16:25.904Z",
+  "generatedAt": "2026-11-06T08:44:27.871Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
@@ -4835,6 +4835,7 @@
         "tests/runner/run-execution.js",
         "tests/security/download-redirect-deadline.test.js",
         "tests/semantic/questions/compiler-reference.test.js",
+        "tests/semantic/questions/indexed-execution.test.js",
         "tests/services/api/semantic-detail-format-compatibility.test.js",
         "tests/services/indexer/embedding-replay-publication.test.js",
         "tests/shared/artifact-io/binary-frame-checksum-receipts.test.js",
@@ -10727,6 +10728,7 @@
       "tools/analysis/delta-risk.js",
       "tools/analysis/explain-risk.js",
       "tools/analysis/graph-evidence.js",
+      "tools/analysis/repository-query.js",
       "tools/analysis/runtime-evidence.js",
       "tools/analysis/semantic-detail.js",
       "tools/analysis/semantic-explain.js",

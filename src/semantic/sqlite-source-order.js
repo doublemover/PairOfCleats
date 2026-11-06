@@ -54,5 +54,5 @@ export const createSqliteSourceOrderReader = db => {
     const last = selected[selected.length - 1];
     return { refs, after: last ? { value: last.value, ref: refs[refs.length - 1] } : after, done: rows.length <= limit };
   };
-  return { listOperationSourcePaths: listSourcePaths, findOperationsInSourceOrder: inSourceOrder };
+  return { assertSourceOrderAvailable: () => { prepared(); }, listOperationSourcePaths: listSourcePaths, findOperationsInSourceOrder: inSourceOrder };
 };

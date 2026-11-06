@@ -1,5 +1,5 @@
 {
-  "schemaVersion": "1.11.0",
+  "schemaVersion": "1.12.0",
   "tools": [
     {
       "name": "bootstrap",
@@ -1112,6 +1112,476 @@
             "description": "Repo path (defaults to server cwd)."
           }
         }
+      }
+    },
+    {
+      "name": "repository_query",
+      "description": "Experimental: describe an immutable source domain, then compile and page typed, correlated retained target-candidate and syntactic literal-argument questions. Read-only; source-linked rows and bounded clause diagnostics. Program semantics and runtime callees are not established.",
+      "inputSchema": {
+        "type": "object",
+        "oneOf": [
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "schemaVersion": {
+                "const": 1
+              },
+              "repoRoot": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 4096
+              },
+              "generation": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "baseBuildId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 4096
+                  },
+                  "semanticRevision": {
+                    "const": 0
+                  }
+                },
+                "required": [
+                  "baseBuildId",
+                  "semanticRevision"
+                ]
+              },
+              "mode": {
+                "const": "describe"
+              },
+              "scan": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "sourcePaths": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 4096
+                        },
+                        "minItems": 1,
+                        "maxItems": 32,
+                        "uniqueItems": true
+                      },
+                      "invocationKind": {
+                        "enum": [
+                          "call",
+                          "optionalCall",
+                          "construct",
+                          "tag",
+                          "import"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "sourcePaths",
+                      "invocationKind"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "sourcePrefix": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 4096
+                      },
+                      "invocationKind": {
+                        "enum": [
+                          "call",
+                          "optionalCall",
+                          "construct",
+                          "tag",
+                          "import"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "sourcePrefix",
+                      "invocationKind"
+                    ]
+                  }
+                ]
+              },
+              "backend": {
+                "enum": [
+                  "artifact",
+                  "sqlite"
+                ]
+              }
+            },
+            "required": [
+              "schemaVersion",
+              "repoRoot",
+              "generation",
+              "mode",
+              "scan"
+            ]
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "schemaVersion": {
+                "const": 1
+              },
+              "repoRoot": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 4096
+              },
+              "generation": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "baseBuildId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 4096
+                  },
+                  "semanticRevision": {
+                    "const": 0
+                  }
+                },
+                "required": [
+                  "baseBuildId",
+                  "semanticRevision"
+                ]
+              },
+              "mode": {
+                "const": "execute"
+              },
+              "question": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "schemaVersion": {
+                    "const": 1
+                  },
+                  "world": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "repositoryNamespace": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 4096
+                      },
+                      "generation": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "properties": {
+                          "baseBuildId": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 4096
+                          },
+                          "semanticRevision": {
+                            "const": 0
+                          }
+                        },
+                        "required": [
+                          "baseBuildId",
+                          "semanticRevision"
+                        ]
+                      },
+                      "sourceSnapshotId": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 4096
+                      },
+                      "contextKey": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 4096
+                      },
+                      "domainId": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 4096
+                      },
+                      "producerId": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 4096
+                      }
+                    },
+                    "required": [
+                      "repositoryNamespace",
+                      "generation",
+                      "sourceSnapshotId",
+                      "contextKey",
+                      "domainId",
+                      "producerId"
+                    ]
+                  },
+                  "semantics": {
+                    "const": "retained-facts"
+                  },
+                  "bind": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z_][A-Za-z0-9_]{0,63}$"
+                        },
+                        "sort": {
+                          "enum": [
+                            "Invocation",
+                            "Declaration",
+                            "Literal"
+                          ]
+                        },
+                        "scan": {
+                          "oneOf": [
+                            {
+                              "type": "object",
+                              "additionalProperties": false,
+                              "properties": {
+                                "sourcePaths": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 4096
+                                  },
+                                  "minItems": 1,
+                                  "maxItems": 32,
+                                  "uniqueItems": true
+                                },
+                                "invocationKind": {
+                                  "enum": [
+                                    "call",
+                                    "optionalCall",
+                                    "construct",
+                                    "tag",
+                                    "import"
+                                  ]
+                                }
+                              },
+                              "required": [
+                                "sourcePaths",
+                                "invocationKind"
+                              ]
+                            },
+                            {
+                              "type": "object",
+                              "additionalProperties": false,
+                              "properties": {
+                                "sourcePrefix": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 4096
+                                },
+                                "invocationKind": {
+                                  "enum": [
+                                    "call",
+                                    "optionalCall",
+                                    "construct",
+                                    "tag",
+                                    "import"
+                                  ]
+                                }
+                              },
+                              "required": [
+                                "sourcePrefix",
+                                "invocationKind"
+                              ]
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "sort"
+                      ]
+                    },
+                    "minItems": 1,
+                    "maxItems": 16
+                  },
+                  "where": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "all": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "pattern": "^[A-Za-z_][A-Za-z0-9_.-]{0,63}$"
+                            },
+                            "predicate": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 128
+                            },
+                            "args": {
+                              "type": "array",
+                              "items": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 4096
+                                  },
+                                  {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "maximum": 4096
+                                  },
+                                  {
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "type": {
+                                        "enum": [
+                                          "string",
+                                          "number",
+                                          "boolean",
+                                          "null",
+                                          "bigint"
+                                        ]
+                                      },
+                                      "representation": {
+                                        "type": "string",
+                                        "maxLength": 4096
+                                      }
+                                    },
+                                    "required": [
+                                      "type",
+                                      "representation"
+                                    ]
+                                  }
+                                ]
+                              },
+                              "minItems": 0,
+                              "maxItems": 4
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "predicate",
+                            "args"
+                          ]
+                        },
+                        "minItems": 0,
+                        "maxItems": 64
+                      }
+                    },
+                    "required": [
+                      "all"
+                    ]
+                  },
+                  "select": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 65
+                    },
+                    "minItems": 1,
+                    "maxItems": 16,
+                    "uniqueItems": true
+                  },
+                  "distinctBy": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 65
+                    },
+                    "minItems": 1,
+                    "maxItems": 16,
+                    "uniqueItems": true
+                  },
+                  "order": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "kind": {
+                        "const": "source-order"
+                      }
+                    },
+                    "required": [
+                      "kind"
+                    ]
+                  }
+                },
+                "required": [
+                  "schemaVersion",
+                  "world",
+                  "semantics",
+                  "bind",
+                  "where",
+                  "select",
+                  "distinctBy",
+                  "order"
+                ]
+              },
+              "backend": {
+                "enum": [
+                  "artifact",
+                  "sqlite"
+                ]
+              },
+              "cursor": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "limits": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "records": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 128
+                  },
+                  "bytes": {
+                    "type": "integer",
+                    "minimum": 1024,
+                    "maximum": 65536
+                  },
+                  "workMs": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 250
+                  }
+                },
+                "required": []
+              }
+            },
+            "required": [
+              "schemaVersion",
+              "repoRoot",
+              "generation",
+              "mode",
+              "question"
+            ]
+          }
+        ]
       }
     },
     {

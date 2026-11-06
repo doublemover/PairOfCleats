@@ -21,7 +21,7 @@ const paths = ['src/http', 'src/http.js', 'src/http/a.js', 'src/http/nested/x.js
   'src/http/😀.js', 'src/http/\ue000.js', 'other.js'];
 const rows = [];
 for (const [pathIndex, sourcePath] of paths.entries()) for (const [index, span] of [[60, 61], [2, 40], [2, 10], null].entries()) {
-  rows.push(sourceOrderEntry({ kind: 'expression', span }, { partitionId, localId: pathIndex * 4 + index }, sourcePath));
+  rows.push(sourceOrderEntry({ kind: 'expression', span }, { partitionId, localId: pathIndex * 4 + index }, sourcePath, canonicalHash));
 }
 rows.sort(compareOperationIndexRows);
 const makeArtifact = (entries = rows) => {
@@ -60,7 +60,7 @@ try {
       assert.deepEqual(await collectPaths(store, 'src/http', limit), expected);
       assert.deepEqual(await collectPaths(store, 'src/http/missing', limit), []);
     }
-    const many = Array.from({ length: 4096 }, (_, localId) => sourceOrderEntry({ kind: 'expression', span: [localId, localId + 1] }, { partitionId, localId }, 'src/http/a.js'));
+    const many = Array.from({ length: 4096 }, (_, localId) => sourceOrderEntry({ kind: 'expression', span: [localId, localId + 1] }, { partitionId, localId }, 'src/http/a.js', canonicalHash));
     const indexed = makeArtifact(many);
     assert.deepEqual(await collectPaths(indexed, 'src/http', 1), ['src/http/a.js']);
     assert.ok(indexed.reads() < 100, 'enumeration jumps across an entire file rather than visiting each operation');
@@ -79,6 +79,12 @@ try {
     const first = await artifact.findOperationsInSourceOrder('src/http/a.js', { limit: 1 });
     const replay = await artifact.findOperationsInSourceOrder('src/http/a.js', { after: first.after });
     assert.deepEqual(replay, await sqlite.findOperationsInSourceOrder('src/http/a.js', { after: first.after }));
+    const ties = [sourceOrderEntry({ kind: 'expression', span: [1, 2] }, { partitionId, localId: 10001 }, 'tie.js', 'f'.repeat(64)),
+      sourceOrderEntry({ kind: 'expression', span: [1, 2] }, { partitionId, localId: 10002 }, 'tie.js', '0'.repeat(64))].sort(compareOperationIndexRows);
+    for (const row of ties) insert.run(row.ref.partitionId, row.ref.localId, row.field, row.value);
+    assert.deepEqual((await makeArtifact(ties).findOperationsInSourceOrder('tie.js')).refs.map(ref => ref.localId), [10002, 10001],
+      'equal path and span still order by immutable source hash before record identity');
+    assert.deepEqual(await makeArtifact(ties).findOperationsInSourceOrder('tie.js'), await sqlite.findOperationsInSourceOrder('tie.js'));
   } else if (mode === 'bounds-and-stale') {
     for (const store of [artifact, sqlite]) {
       for (const prefix of ['', '../src', 'src//http', 'C:/src', 'src\\http', 'src/./http']) {

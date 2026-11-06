@@ -93,6 +93,7 @@ export const createArtifactOperationReader = ({ index, inventory, generation, re
     }
     return {refs,offset:offset+refs.length,done:start+offset+refs.length===end};
   };
+  find.assertSourceOrderAvailable = options => { access(options); };
   find.listSourcePaths = async (input, options = {}) => {
     const { ranges, afterKey, limit, after } = captureSourceEnumeration(input);
     const { read, bound } = access(options), paths = [];

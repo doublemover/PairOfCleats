@@ -1,26 +1,26 @@
 # Typed repository questions
 
-The initial foundation provides a deterministic JSON AST compiler and a finite
-reference interpreter. It is not connected to live semantic stores, CLI, API or
-MCP yet. Those adapters, durable/replayable result pages and advanced semantic
-profiles remain implementation work under #1534. The existing text search parser
-and its Boolean semantics are unchanged.
+The read-only JSON AST compiler, finite reference interpreter and current-reader
+executor compose recorded target candidates and parser-established literal
+arguments under one Invocation binding. The CLI `repository-query`, MCP
+`repository_query` and HTTP `POST /analysis/repository-query` share one runner.
+The existing text search grammar is unchanged. Runtime qualification is pending.
 
-The underlying operation index now has version 3 source-position keys, shared
+The underlying operation index now has version 4 source-position keys, shared
 with the existing SQLite discovery table. Segment-aware prefix enumeration
 jumps between distinct indexed source paths; exact-path operation pages seek
-after the last `(path, span, record-ref)` key. Neither requires a corpus scan,
+after the last `(path, span, source-hash, record-ref)` key. Neither requires a corpus scan,
 whole-file sort or offset walk. UTF-16 path units are hex encoded so JavaScript
 and SQLite BINARY ordering agree, including astral and private-use characters.
 Unknown-span expressions remain enumerable after positioned expressions.
 This inventory covers expression-bearing retained sources, not every file in
-the filesystem. It is a reader building block, not a completed live executor.
+the filesystem.
 
-Version 2 operation manifests are rejected. SQLite source-order reads require
+Earlier operation manifests are rejected. SQLite source-order reads require
 the current projection version; published imports stamp it after all partitions
 are ingested. Incremental application rebuilds unchanged canonical partitions
 when their derived projection is old, then publishes the marker in the caller's
-transaction. Discovery producer version 10 prevents old derived replay meaning.
+transaction. Discovery producer version 11 prevents old derived replay meaning.
 
 `compileRepositoryQuestion` accepts schema version 1, an explicit immutable world,
 one source-scoped Invocation scan, typed binders, a conjunction, a projection and
@@ -74,3 +74,82 @@ zero/false/string controls, correlated-call counterexamples, duplicate names,
 alpha-renaming and clause origins, world/coordinate authority, mutation,
 unsupported capabilities, cancellation and bounded unknown results. Runtime
 qualification remains deferred with the rest of the implementation pass.
+
+The live profile is deliberately narrower than the finite compiler: exactly one
+Invocation, one Declaration and one Literal; one recorded-target producer and
+one syntactic-argument producer; optional exact name/scalar filters; all three
+binders selected with the Invocation first. Unsupported projections or additional
+producers return original-clause diagnostics before indexed operation reads.
+Disjunction, negation, semantic type/effect/path predicates and relaxed-query
+experiments are not admitted by this profile.
+
+First submit a description request, replacing the repository and generation with
+the exact retained build selected by the caller:
+
+```json
+{"schemaVersion":1,"repoRoot":"C:/repo","generation":{"baseBuildId":"build-id","semanticRevision":0},"mode":"describe","scan":{"sourcePrefix":"src/http","invocationKind":"call"}}
+```
+
+Run `pairofcleats repository-query --request describe.json`. Use the returned
+`world` verbatim in the typed question, then submit the same envelope with
+`mode: "execute"`, `question`, and optional bounded `limits`/opaque `cursor`.
+`--all` streams every bounded page as JSONL while honoring output backpressure.
+MCP and HTTP accept the identical closed JSON union. Request-file reads are
+contained, descriptor-owned, fatal-UTF-8 decoded and bounded to 512 KiB.
+
+This profile's repository namespace is the canonical authorized reader root; its
+source snapshot is the admitted partition-inventory digest. The context scope
+explicitly includes all retained provider contexts; each selected target witness
+retains its own context and certainty. The domain digest binds normalized source
+paths/prefix and invocation kind. These values do not rename individual source
+units or merge different provider contexts into one runtime conclusion. A world
+mismatch requires a fresh description and compilation.
+
+Each page uses the existing operation, related-row, record, coverage and source
+header readers. Compiler target edges attached to call occurrences are joined
+only through that occurrence's exact Invocation reference and call/construct
+role. Direct invocation edges are handled separately. Target call-site identity
+is checked; matching literals from another call cannot satisfy the join. Equal
+candidate declarations from several contexts yield one binding tuple with one
+selected witness, while different declarations with the same name remain rows.
+
+A page first collects one Invocation's bounded target/literal reference sets,
+sorts their source keys, then streams the selected Cartesian output without
+materializing it. Bounds are 4,096 retained candidates per side and 8 MiB of
+conservative logical state per Invocation. Admission precedes retention; an
+oversized set fails explicitly with detail/narrowing guidance. It never drops
+alternatives or certifies a truncated result. Page work allows at most 512 bounded
+state advances, each reading at most one related row; bounded reference sorting
+and validation/hash work are included in elapsed time. No latency improvement
+is claimed before serial qualification.
+
+Cursors retain only refs, source sort keys, exact reader positions and bounded
+qualification facts. They bind the original request/clauses, logical/physical
+plans, world, backend, store inventory and configured policy. Replayed cursors
+fork private state. Shared TTL/count/byte retention is at most 64 MiB per runner;
+service retirement returns its leases. Reader cleanup and final projection must
+settle before a new cursor can become visible. Failed or cancelled pages leave
+previously delivered cursors usable until ordinary eviction/expiry.
+
+Every emitted tuple rechecks its retained witnesses and source headers. Its
+stable row identity and semantic-detail request support expansion through the
+existing detail/source readers. Header qualification establishes indexed source
+identity and coordinates; it is not a verified source quotation. Mapped/binary
+coordinates, external source-less declarations, unavailable scalars and oversized
+values produce explicit unknown diagnostics. Exact refutations describe only
+retained clauses. The diagnostic list is a bounded selection with omitted counts;
+it is not a causal explanation or exhaustive why-not service.
+
+Enumeration, observed analysis coverage and program semantics remain separate.
+Exact totals count only an exhausted retained relation with no unresolved
+bindings, never all runtime calls. Unknowns across earlier pages retain a count
+and final frontier even after enumeration ends. A byte/work remainder is
+resumable; an exhausted unknown relation has no fake work cursor. Ranked-prefix
+and program-semantic completion are never established by this exact-fact profile.
+
+Eight indexed cases are authored and unexecuted: real artifact/SQLite/oracle
+parity; correlated calls and scalar types; source/operand unknowns and original
+clause positions; replay/expiry/world/backend authority; falsey close failure and
+publication ordering; retention/cancellation/oversized candidate state; physical
+profile admission and wrong-call witnesses; and CLI/MCP/HTTP parity with streamed
+backpressure. Existing source-open and semantic reader coverage remains in place.

@@ -131,7 +131,9 @@ ownership are specified in [legacy output lifetime](mcp-output-lifetime.md).
 
 ### Tool schema versioning
 
-The current source catalog is 1.11.0. `context_pack` declares the optional bounded
+The current source catalog is 1.12.0. `repository_query` describes pinned source
+domains and executes typed retained-fact questions; see [repository questions](repository-questions.md).
+`context_pack` declares the optional bounded
 `evidenceSelection` policy; see [selection semantics](../guides/context-evidence-selection.md).
 `graph_evidence` explicitly declares an
 object root for MCP SDK interoperability, preserving its existing `oneOf`

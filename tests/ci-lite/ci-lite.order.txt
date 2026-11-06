@@ -2546,3 +2546,11 @@ storage/semantic/source-order-index/prefix-and-unicode
 storage/semantic/source-order-index/keyset-and-order
 storage/semantic/source-order-index/bounds-and-stale
 storage/semantic/source-order-index/physical-projection
+semantic/questions/indexed-execution/reader-parity-and-oracle
+semantic/questions/indexed-execution/correlation-and-scalars
+semantic/questions/indexed-execution/unknown-and-diagnostics
+semantic/questions/indexed-execution/cursor-authority
+semantic/questions/indexed-execution/reader-publication
+semantic/questions/indexed-execution/retention-and-cancellation
+semantic/questions/indexed-execution/profile-admission
+semantic/questions/indexed-execution/transport-parity

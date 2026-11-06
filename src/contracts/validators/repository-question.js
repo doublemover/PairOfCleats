@@ -1,8 +1,8 @@
 import { createAjv, compileSchema } from '../../shared/validation/ajv-factory.js';
-import { REPOSITORY_QUESTION_SCHEMA, FINITE_QUESTION_MODEL_SCHEMA, FINITE_QUESTION_RESULT_SCHEMA } from '../schemas/repository-question.js';
+import { REPOSITORY_QUESTION_SCHEMA, FINITE_QUESTION_MODEL_SCHEMA, FINITE_QUESTION_RESULT_SCHEMA, QUESTION_SCAN_SCHEMA } from '../schemas/repository-question.js';
 
 const ajv = createAjv({ allErrors: true, strict: true });
-const validators = { request: compileSchema(ajv, REPOSITORY_QUESTION_SCHEMA),
+const validators = { request: compileSchema(ajv, REPOSITORY_QUESTION_SCHEMA), scan: compileSchema(ajv, QUESTION_SCAN_SCHEMA),
   finiteModel: compileSchema(ajv, FINITE_QUESTION_MODEL_SCHEMA), finiteResult: compileSchema(ajv, FINITE_QUESTION_RESULT_SCHEMA) };
 export const assertRepositoryQuestion = (kind, value) => {
   const validate = validators[kind];
