@@ -133,6 +133,9 @@ Three import/admission controls await execution.
 The canonical checkout coordinator and direct native entry now share one original
 file-lock session spanning their actual work. Nested operations require its
 root-qualified opaque capability and are drained before retirement. Ordinary
+admission also compares the current lock file to the publisher's original
+descriptor seal; copied nonce/PID metadata cannot replace it. This tuple grants
+no deletion authority. Ordinary
 entry readiness is blocked while that mutation or retained original work exists.
 Age and PID death never reclaim the record. Exact original release can be retried
 only through its retained owner after physical prerequisites settle. Setup input

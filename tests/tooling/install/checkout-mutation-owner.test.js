@@ -34,6 +34,17 @@ try {
     assert.equal(result, 'completed'); assert.equal(await exists(), false);
     assert.equal(await retireCheckoutMutationSession(original), true, 'original retirement is idempotent');
     await assert.rejects(withCheckoutMutation(root, () => assert.fail('retired session ran'), { session: original }), { code: 'ERR_CHECKOUT_MUTATION_SESSION' });
+    let successorRan = false;
+    const replaced = await withCheckoutMutation(root, async session => {
+      const bytes = await fs.readFile(lockPath);
+      await fs.rename(lockPath, lockPath + '.original-fixture');
+      await fs.writeFile(lockPath, bytes);
+      assert.throws(() => requireCheckoutMutationSession(root, session), { code: 'ERR_PERSISTENCE_FILE_CHANGED' },
+        'a copied nonce/PID record cannot replace the publisher-attested original file');
+      await assert.rejects(withCheckoutMutation(root, () => { successorRan = true; }, { session }), { code: 'ERR_PERSISTENCE_FILE_CHANGED' });
+    }).catch(error => error);
+    assert.equal(successorRan, false); assert.equal(errorGraphMatches(replaced, /sealed original file/), true);
+    assert.equal(await exists(), true, 'failed original release never deletes replacement metadata');
   } else if (mode === 'concurrent-and-orphan-protection') {
     const entered = Promise.withResolvers(), release = Promise.withResolvers();
     const active = withCheckoutMutation(root, async () => { entered.resolve(); await release.promise; });

@@ -4,6 +4,7 @@ import { acquireFileLock, readLockInfoSync, releaseFileLockOrThrow } from '../..
 import { addStorageFailureContext } from '../../src/shared/storage/operation-error.js';
 import { createStorageObservationLedger } from '../../src/shared/storage/failure-observation.js';
 import { CHECKOUT_MUTATION_LOCK } from './checkout-bootstrap-paths.js';
+import { assertPersistenceFileIdentity } from '../../src/shared/io/file-identity.js';
 
 const sessions = new WeakMap();
 const fail = (code, message) => Object.assign(new Error(message), { code });
@@ -25,6 +26,7 @@ const prepareState = root => {
 export const requireCheckoutMutationSession = (root, session) => {
   const state = session && sessions.get(session);
   if (!state || state.phase !== 'active' || state.root !== canonicalRoot(root)) throw fail('ERR_CHECKOUT_MUTATION_SESSION', 'An original active checkout mutation session is required.');
+  assertPersistenceFileIdentity(fs.lstatSync(state.lock.lockPath, { bigint: true }), state.lockIdentity);
   const current = readLockInfoSync(state.lock.lockPath), original = state.lock.payload;
   if (!current || ['lockId', 'pid', 'startedAt'].some(key => current[key] !== original[key])
     || current.resourceSettlementVersion !== 1) throw fail('ERR_CHECKOUT_MUTATION_REPLACED', 'Checkout mutation ownership changed; no successor or readiness publication is admitted.');
@@ -69,6 +71,7 @@ export const withCheckoutMutation = async (root, operation, { session = null, si
   if (!lock) throw fail('ERR_CHECKOUT_MUTATION_BUSY', 'Checkout preparation or retained original work owns this dependency tree. Inspect its owner; age or PID death does not authorize stealing the lock.');
   const actual = Object.freeze({ kind: 'checkout-mutation-session', root, runId: lock.payload.lockId });
   const state = { root, lock, phase: 'active', operationFailure: undefined, releaseFailure: null,
+    lockIdentity: Object.freeze(Object.fromEntries(Object.entries(lock.publishedIdentity).map(([key, value]) => [key, String(value)]))),
     borrowed: new Set(), borrowedFailures: [], ledger: createStorageObservationLedger() };
   sessions.set(actual, state);
   let result, operationFailed = false;

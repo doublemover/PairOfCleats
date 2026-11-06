@@ -329,6 +329,9 @@ export const publishFileLock = async ({ handle, lockPath, payload, contents, dia
   };
   const lock = { lockPath, payload, diagnostics, release: async (_options = {}) => releasePublished() };
   publishedLock = lock;
+  // Read-only comparison evidence from the actual original descriptor. This
+  // tuple grants no unlink, recovery or cross-process ownership authority.
+  Object.defineProperty(lock, 'publishedIdentity', { value: Object.freeze({ ...snapshot }) });
   Object.defineProperty(lock, 'fileLockPublicationSession', { value: session });
   recordPublishedFileLockHandle(lock, { session, remember, hold, forget, isSettled, releaseObservation: Object.freeze({
     cacheOwnershipPending: true, cacheOwnershipReleased: originalResourcesSettled, fileLockPublicationSession: session,
