@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-06T22:48:28.812Z",
+  "generatedAt": "2026-11-06T22:55:26.103Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
@@ -4877,6 +4877,7 @@
         "tests/shared/storage/native-reader-lifetime.test.js",
         "tests/shared/storage/native-reader-observation.test.js",
         "tests/shared/storage/native-validator-sessions.test.js",
+        "tests/shared/storage/quota-decision-boundaries.test.js",
         "tests/shared/storage/repo-cleanup-exclusion.test.js",
         "tests/shared/storage/session-resource-observation.test.js",
         "tests/shared/storage/session-retirement-order.test.js",

@@ -2833,3 +2833,8 @@ tooling/eval/finite-policy-qualification/frozen-plan-and-source-identity
 tooling/eval/finite-policy-qualification/domain-expiry-and-invalidation
 tooling/eval/finite-policy-qualification/execution-failure-and-quarantine
 tooling/eval/finite-policy-qualification/cancellation-consumes-original-plan
+shared/storage/quota-decision-boundaries/invalid-clock-and-age
+shared/storage/quota-decision-boundaries/epoch-and-stable-alias-order
+shared/storage/quota-decision-boundaries/explained-retention-and-link-blockers
+shared/storage/quota-decision-boundaries/conflicting-and-unknown-allocation
+shared/storage/quota-decision-boundaries/volume-scoped-free-space-reserve

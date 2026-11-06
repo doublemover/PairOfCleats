@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 2665,
+    "hero": 2670,
     "matrix": 110,
     "meta": 54,
     "soak": 1,
@@ -16993,6 +16993,36 @@
     {
       "id": "tooling/eval/finite-policy-qualification/cancellation-consumes-original-plan",
       "order": 2830,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/quota-decision-boundaries/invalid-clock-and-age",
+      "order": 2831,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/quota-decision-boundaries/epoch-and-stable-alias-order",
+      "order": 2832,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/quota-decision-boundaries/explained-retention-and-link-blockers",
+      "order": 2833,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/quota-decision-boundaries/conflicting-and-unknown-allocation",
+      "order": 2834,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/quota-decision-boundaries/volume-scoped-free-space-reserve",
+      "order": 2835,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

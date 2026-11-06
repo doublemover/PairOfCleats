@@ -82,12 +82,10 @@ intake remain unfinished. LSP identity is 47/rq11; offline runtime parser is 4.
 ### Execution order
 
 1. **P0–P4 first**, prioritizing destructive authority/data-loss and lifecycle
-   failures within a priority. Batch shared owners rather than issue numbers.
-   New P1 #1679 credential projection and #1582 embedding channel identity have
-   source repairs; #1574/#1693 now use cleanup admission/exclusion and truthful
-   retained outcomes. Full index/backend category cleanup and real parent drain
-   remain partial. #1554 now stages complete verified generations before atomic
-   selection; fault/concurrency and native Windows qualification remain unrun.
+   failures. Batch shared owners. Qualified security/native publication repairs
+   retain their receipts above. [Lifecycle/quota planning](contracts/storage-quota-planning.md)
+   (#1267) now validates ages, alias accounting, blockers and same-volume reserves;
+   category/operator composition and Windows allocation/pressure remain pending.
 2. Remaining P2/P3 issues, including prior partial owners, ordered by dependency:
    publication/resource ownership; source/cache identities; semantic and retrieval
    correctness; transports/providers; operator and evaluation workflows. Read full
