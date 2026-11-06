@@ -6,7 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-import { BOOTSTRAP_RECEIPT, inspectBootstrapReadiness, recordBootstrapReadiness } from '../../../src/shared/bootstrap-readiness.js';
+import { BOOTSTRAP_RECEIPT, captureBootstrapVerification, inspectBootstrapReadiness, recordBootstrapReadiness } from '../../../src/shared/bootstrap-readiness.js';
 
 // Intentionally dependency-free: this diagnostic must run in an unbootstrapped
 // checkout and tests executable gates without starting a real benchmark/index.
@@ -92,7 +92,7 @@ try {
   write('node_modules/tree-sitter/index.cjs', parser);
   write('node_modules/tree-sitter-javascript/index.cjs', 'module.exports = {};');
   write('node_modules/tree-sitter/fixture.node', 'binary evidence');
-  const record = () => recordBootstrapReadiness(root, required);
+  const record = () => recordBootstrapReadiness(root, required, { verification: captureBootstrapVerification(root) });
   record();
   assert.equal((await inspectBootstrapReadiness({ root })).ready, true);
   for (const entry of entries) {

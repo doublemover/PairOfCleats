@@ -105,8 +105,14 @@ Normal `npm run bootstrap:ci` (locked install) and `npm run bootstrap`
 dependencies. Stages stop at the original failure or cancellation, with actual
 child settlement managed by the existing command owner. Checkout preparation
 always targets the application checkout, separately from target provisioning.
-The six added entry regressions await execution. Checkout-wide mutation admission,
-durable stage journals and final-generation sealing remain the next #1555 work.
+The six added entry regressions await execution. Readiness format 2 requires an
+original single-use generation capture taken immediately before the complete
+native probes. Publication rechecks setup hashes, declared dependencies and the
+entire admitted artifact metadata inventory; changed inputs or native artifacts
+preserve the prior receipt and require fresh verification. Obsolete receipt
+formats are rejected. Artifact metadata remains distinct from content hashing.
+Four added generation regressions await execution. Checkout-wide mutation
+admission and durable stage journals remain the next #1555 work.
 Unsupported Node or missing Git/Python/build
 tools stop immediately with a prerequisite error. Windows discovers the target
 compiler, MSBuild and SDK, then the direct preflight entry compiles and links a

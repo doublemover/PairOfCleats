@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 2497,
+    "hero": 2501,
     "matrix": 110,
     "meta": 54,
     "soak": 1,
@@ -15985,6 +15985,30 @@
     {
       "id": "tooling/install/checkout-bootstrap-entry/captured-context",
       "order": 2662,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/bootstrap-verification-generation/setup-input-drift",
+      "order": 2663,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/bootstrap-verification-generation/dependency-artifact-drift",
+      "order": 2664,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/bootstrap-verification-generation/original-single-use-capture",
+      "order": 2665,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/bootstrap-verification-generation/receipt-evidence-and-cutover",
+      "order": 2666,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     }

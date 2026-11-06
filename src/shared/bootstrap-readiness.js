@@ -6,6 +6,9 @@ import { probeNativePackage } from './native-package-probe.js';
 import { buildReadinessReceipt } from '../../tools/setup/readiness.js';
 
 export const BOOTSTRAP_RECEIPT = 'node_modules/.pairofcleats-bootstrap.json';
+export const BOOTSTRAP_RECEIPT_VERSION = 2;
+const VERIFICATION_POLICY = 'same-setup-inputs-and-artifact-metadata-around-complete-native-probes.v1';
+const verifications = new WeakMap();
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const MAX_RECEIPT_BYTES = 8 * 1024 * 1024;
 export const BOOTSTRAP_INPUTS = Object.freeze(['package.json', 'package-lock.json', '.nvmrc',
@@ -58,11 +61,7 @@ const safeFile = (root, relative) => {
   return path.join(root, relative);
 };
 
-/** Called only after the existing complete native verifier and patch verifier
- * succeed. A receipt records evidence, not a substitute for current readiness.
- */
-export const recordBootstrapReadiness = (root, verifiedPackages, { nativeCapabilities = [] } = {}) => {
-  if (!supportedNodeRuntime()) throw new Error('This checkout requires Node.js >=26.12.1 <27.');
+const captureGeneration = root => {
   root = fs.realpathSync(root);
   const pkg = JSON.parse(readBounded(path.join(root, 'package.json')));
   const declared = Object.keys({ ...pkg.dependencies, ...pkg.devDependencies }).sort();
@@ -71,7 +70,11 @@ export const recordBootstrapReadiness = (root, verifiedPackages, { nativeCapabil
       throw new Error(`Required checkout dependency is missing: ${name}. Run npm run bootstrap:ci.`);
     }
   }
-  const artifacts = [], pending = ['node_modules'];
+  const inputs = inputHashes(root), artifacts = [], pending = ['node_modules'];
+  const addArtifact = relative => {
+    if (artifacts.length === 10000) throw new Error('Bootstrap artifact inventory exceeds its bound.');
+    artifacts.push([relative, signature(path.join(root, relative))]);
+  };
   let visited = 0;
   while (pending.length) {
     const relative = pending.pop();
@@ -84,25 +87,50 @@ export const recordBootstrapReadiness = (root, verifiedPackages, { nativeCapabil
         if (entry.isDirectory()) pending.push(child);
         else if (entry.isFile() && (entry.name === 'package.json' || entry.name === '.package-lock.json'
           || /\.(?:node|dll|dylib|so(?:\.\d+)*)$/.test(entry.name))) {
-          artifacts.push([child, signature(path.join(root, child))]);
+          addArtifact(child);
         }
       }
     } finally { directory.closeSync(); }
   }
   // Package patch targets are part of readiness even when they are plain JS/C.
-  for (const [relative] of inputHashes(root)) if (relative.startsWith('patches/')) {
+  for (const [relative] of inputs) if (relative.startsWith('patches/')) {
     const text = readBounded(path.join(root, relative)).toString('utf8');
     for (const match of text.matchAll(/^\+\+\+ b\/(node_modules\/[^\r\n]+)$/gm)) {
-      artifacts.push([match[1], signature(safeFile(root, match[1]))]);
+      safeFile(root, match[1]); addArtifact(match[1]);
     }
   }
-  if (artifacts.length > 10000) throw new Error('Bootstrap artifact inventory exceeds its bound.');
-  const receipt = { schemaVersion: 1, root, runtime: runtime(), inputs: inputHashes(root),
-    verifiedPackages: [...verifiedPackages].sort(), nativeCapabilities, declared,
-    artifacts: artifacts.sort((a, b) => a[0].localeCompare(b[0])) };
+  return { root, runtime: runtime(), inputs, declared, artifacts: artifacts.sort((a, b) => a[0].localeCompare(b[0])) };
+};
+const generationId = snapshot => hash(JSON.stringify(snapshot));
+const verificationFailure = message => Object.assign(new Error(message), { code: 'ERR_BOOTSTRAP_VERIFICATION_CHANGED' });
+
+/** Capture immediately before the complete native probes. This opaque original
+ * handle binds that verifier's generation, never a serialized success claim.
+ * Artifact evidence retains the existing metadata contract, not content hashing.
+ */
+export const captureBootstrapVerification = root => {
+  if (!supportedNodeRuntime()) throw new Error('This checkout requires Node.js >=26.12.1 <27.');
+  const snapshot = captureGeneration(root), id = generationId(snapshot);
+  const handle = Object.freeze({ kind: 'bootstrap-verification-generation', generationId: id });
+  verifications.set(handle, { root: snapshot.root, id }); return handle;
+};
+
+/** Called only after complete native and patch verification. The publication
+ * consumes its original pre-probe capture and rejects any changed generation.
+ */
+export const recordBootstrapReadiness = (root, verifiedPackages, { nativeCapabilities = [], verification } = {}) => {
+  const expected = verification && verifications.get(verification);
+  if (!expected) throw verificationFailure('An original unconsumed pre-probe bootstrap generation is required.');
+  verifications.delete(verification);
+  const current = captureGeneration(root);
+  if (expected.root !== current.root || expected.id !== generationId(current)) throw verificationFailure('Bootstrap setup inputs or dependency artifacts changed during verification; re-verify the current generation.');
+  const receipt = { schemaVersion: BOOTSTRAP_RECEIPT_VERSION, ...current,
+    verification: { generationId: expected.id, policy: VERIFICATION_POLICY },
+    verifiedPackages: [...verifiedPackages].sort(), nativeCapabilities
+  };
   const text = JSON.stringify(receipt);
   if (Buffer.byteLength(text) > MAX_RECEIPT_BYTES) throw new Error('Bootstrap receipt exceeds its byte bound.');
-  const target = path.join(root, BOOTSTRAP_RECEIPT), temporary = `${target}.${randomUUID()}.tmp`;
+  const target = path.join(current.root, BOOTSTRAP_RECEIPT), temporary = `${target}.${randomUUID()}.tmp`;
   try { fs.writeFileSync(temporary, text, { flag: 'wx' }); fs.renameSync(temporary, target); }
   finally { fs.rmSync(temporary, { force: true }); }
   return receipt;
@@ -114,7 +142,7 @@ export const compareBootstrapIdentity = (receipt, { root, runtime: actual = runt
   const check = (field, expected, observed) => {
     if (expected !== observed) mismatches.push({ field, expected, observed: observed ?? null });
   };
-  check('schemaVersion', 1, receipt?.schemaVersion);
+  check('schemaVersion', BOOTSTRAP_RECEIPT_VERSION, receipt?.schemaVersion);
   check('root', root, receipt?.root);
   for (const field of ['node', 'abi', 'platform', 'arch']) check(`runtime.${field}`, actual[field], receipt?.runtime?.[field]);
   return mismatches;
@@ -136,6 +164,10 @@ export const inspectBootstrapReadiness = async ({ root = ROOT, probeNatives = tr
     mismatches = compareBootstrapIdentity(receipt, { root });
     code = 'ERR_BOOTSTRAP_IDENTITY_MISMATCH';
     if (mismatches.length) throw new Error('Bootstrap identity differs: ' + mismatches.map(item => item.field).join(', ') + '.');
+    code = 'ERR_BOOTSTRAP_VERIFICATION_INVALID';
+    if (receipt.verification?.policy !== VERIFICATION_POLICY || receipt.verification?.generationId !== generationId({
+      root: receipt.root, runtime: receipt.runtime, inputs: receipt.inputs, declared: receipt.declared, artifacts: receipt.artifacts
+    })) throw new Error('Bootstrap receipt lacks its matching verification-generation evidence; run the native/patch verifier.');
     code = 'ERR_BOOTSTRAP_INPUT_DRIFT';
     if (JSON.stringify(receipt.inputs) !== JSON.stringify(inputHashes(root))) throw new Error('Bootstrap setup inputs, package lock or required patches have changed.');
     code = 'ERR_BOOTSTRAP_EVIDENCE_INCOMPLETE';

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { recordBootstrapReadiness } from '../../src/shared/bootstrap-readiness.js';
+import { captureBootstrapVerification, recordBootstrapReadiness } from '../../src/shared/bootstrap-readiness.js';
 import { applyPatchesAsync } from './apply-patches.js';
 import { probeNodeRealmLifecycle } from '../../src/shared/native-package-probe.js';
 import fs from 'node:fs';
@@ -320,6 +320,7 @@ const getRequiredPackageFailures = async ({ label = 'verify:native' } = {}) => {
 };
 
 const verifyRequiredPackages = async () => {
+  const verification = captureBootstrapVerification(root);
   const failures = await getRequiredPackageFailures({ label: 'verify:native' });
 
   const realmProbe = probeNodeRealmLifecycle(root);
@@ -335,6 +336,7 @@ const verifyRequiredPackages = async () => {
   }
 
   console.error('[verify:native] required packages loadable; registered native language routes parser-activated; mixed-consumer ONNX inference/disposal verified.');
+  return verification;
 };
 
 const repairRequiredPackages = async () => {
@@ -407,9 +409,10 @@ const repairRequiredPackages = async () => {
   console.error(`[repair:native] repaired ${failures.length} required package(s).`);
 };
 
-const recordReadiness = async () => {
+const recordReadiness = async verification => {
   await applyPatchesAsync(root, { verifyOnly: true });
   recordBootstrapReadiness(root, REQUIRED_NATIVE_PACKAGES, {
+    verification,
     nativeCapabilities: [...nativeCapabilities.values()].flat().sort((a, b) =>
       (a.languageId ?? a.id).localeCompare(b.languageId ?? b.id))
   });
@@ -417,15 +420,13 @@ const recordReadiness = async () => {
 };
 
 if (verifyOnly) {
-  await verifyRequiredPackages();
-  await recordReadiness();
+  await recordReadiness(await verifyRequiredPackages());
   process.exit(0);
 }
 
 if (repairOnly) {
   await repairRequiredPackages();
-  await verifyRequiredPackages();
-  await recordReadiness();
+  await recordReadiness(await verifyRequiredPackages());
   process.exit(0);
 }
 
@@ -510,5 +511,4 @@ if (unsuccessful(buildCounts.optional) > 0) console.error('[rebuild:native] comp
   + buildCounts.optional.failed + ' optional rebuild failure(s); ' + buildCounts.optional.cancelled
   + ' cancelled and ' + buildCounts.optional.blocked + ' blocked optional task(s).');
 else console.error('[rebuild:native] completed successfully.');
-await verifyRequiredPackages();
-await recordReadiness();
+await recordReadiness(await verifyRequiredPackages());

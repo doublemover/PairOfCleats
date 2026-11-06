@@ -2,11 +2,11 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { compareBootstrapIdentity } from '../../../src/shared/bootstrap-readiness.js';
+import { BOOTSTRAP_RECEIPT_VERSION, compareBootstrapIdentity } from '../../../src/shared/bootstrap-readiness.js';
 import { diagnoseCheckout, handleCheckoutInformation } from '../../../tools/setup/checkout-diagnose.js';
 
 const actual = { node: 'v26.12.1', abi: '148', platform: 'win32', arch: 'x64' };
-const receipt = { schemaVersion: 1, root: 'C:/checkout', runtime: { ...actual, node: 'v26.12.2', abi: '149' } };
+const receipt = { schemaVersion: BOOTSTRAP_RECEIPT_VERSION, root: 'C:/checkout', runtime: { ...actual, node: 'v26.12.2', abi: '149' } };
 assert.deepEqual(compareBootstrapIdentity(receipt, { root: 'C:/checkout', runtime: actual }).map(item => item.field), ['runtime.node', 'runtime.abi']);
 assert.deepEqual(compareBootstrapIdentity({ ...receipt, runtime: { ...actual, execPath: 'C:/other/node.exe' } }, { root: receipt.root, runtime: actual }), []);
 const suite = path.join(process.cwd(), '.tmp', 'tasks', 'checkout-diagnosis-identity');

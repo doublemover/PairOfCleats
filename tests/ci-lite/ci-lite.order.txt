@@ -2665,3 +2665,7 @@ tooling/install/checkout-bootstrap-entry/ordered-stages
 tooling/install/checkout-bootstrap-entry/prepared-and-resolution
 tooling/install/checkout-bootstrap-entry/failure-and-cancellation
 tooling/install/checkout-bootstrap-entry/captured-context
+tooling/install/bootstrap-verification-generation/setup-input-drift
+tooling/install/bootstrap-verification-generation/dependency-artifact-drift
+tooling/install/bootstrap-verification-generation/original-single-use-capture
+tooling/install/bootstrap-verification-generation/receipt-evidence-and-cutover

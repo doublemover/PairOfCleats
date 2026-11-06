@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["setup-input-drift", "dependency-artifact-drift", "original-single-use-capture", "receipt-evidence-and-cutover"]
+}
