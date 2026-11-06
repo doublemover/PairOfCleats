@@ -1,3 +1,4 @@
+import { SEMANTIC_OPERATION_INDEX_VERSION } from '../../../../../semantic/source-order.js';
 import { createSemanticQueryIndexIntake } from './query-index.js';
 import { validateSemanticPartitions } from '../../../../semantic/reconcile.js';
 import { queryIndexEntriesForRow } from '../../../../../semantic/query-index.js';
@@ -24,7 +25,7 @@ export const writeValidatedSemanticIndexes = async ({ root, generation, partitio
       root, generation, partitions, diskAccount, signal,
       batchRows: 512, batchBytes: 1048576, maxOpenRuns: 8,
       ...(operation ? { compareRows: compareOperationIndexRows, keyForRow: row => row,
-        validateIndex: assertSemanticOperationIndex, directoryPrefix: 'semantic-operation-index-', schemaVersion: 2 } : {})
+        validateIndex: assertSemanticOperationIndex, directoryPrefix: 'semantic-operation-index-', schemaVersion: SEMANTIC_OPERATION_INDEX_VERSION } : {})
     }));
     const [query, operation] = intakes;
     const sourcePaths = new Map(); // One path per captured inventory entry, never record rows.

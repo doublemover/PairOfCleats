@@ -1,3 +1,4 @@
+import { SEMANTIC_OPERATION_INDEX_VERSION } from '../../../src/semantic/source-order.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -17,7 +18,7 @@ try {
     partitions: [partition], store: base, diskAccount: fixture.account,
     entries: operationIndexEntries(base, [partition]), compareRows: compareOperationIndexRows,
     keyForRow: row => row, validateIndex: assertSemanticOperationIndex,
-    schemaVersion: 2, directoryPrefix: 'semantic-operation-index-', batchRows: 128, batchBytes: 262144 });
+    schemaVersion: SEMANTIC_OPERATION_INDEX_VERSION, directoryPrefix: 'semantic-operation-index-', batchRows: 128, batchBytes: 262144 });
   assert.equal(index.pieces.length, 1);
   const underlying = fixture.store([partition], { operationIndex: index }), metrics={};
   const store={...underlying,findOperations:(selector,options)=>underlying.findOperations(selector,{...options,metrics})};

@@ -1,3 +1,4 @@
+import { SEMANTIC_OPERATION_INDEX_VERSION } from '../../../src/semantic/source-order.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -36,7 +37,7 @@ try {
   const operationIndex = await writeSemanticQueryIndex({ ...options,
     entries: operationIndexEntries(base, [partition]), compareRows: compareOperationIndexRows,
     keyForRow: row => row, validateIndex: assertSemanticOperationIndex,
-    directoryPrefix: 'semantic-operation-index-', schemaVersion: 2 });
+    directoryPrefix: 'semantic-operation-index-', schemaVersion: SEMANTIC_OPERATION_INDEX_VERSION });
   const artifact = f.store([partition], { queryIndex, operationIndex });
   const selector = { field: 'astKind', value: 'Identifier' };
   const operationFiles = new Set(operationIndex.pieces.map(piece => normalizeIdentityPath(path.join(f.stagingRoot, piece.path))));

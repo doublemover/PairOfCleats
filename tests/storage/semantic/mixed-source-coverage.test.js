@@ -1,3 +1,4 @@
+import { SEMANTIC_OPERATION_INDEX_VERSION } from '../../../src/semantic/source-order.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -53,7 +54,7 @@ for (const state of ['missing', 'syntax-only', 'analysis-only', 'partial', 'defe
     const operationIndex = await writeSemanticQueryIndex({ root: fixture.stagingRoot, generation: fixture.generation,
       partitions, store: base, diskAccount: fixture.account, entries: operationIndexEntries(base, partitions),
       compareRows: compareOperationIndexRows, keyForRow: row => row, validateIndex: assertSemanticOperationIndex,
-      schemaVersion: 2, directoryPrefix: 'semantic-operation-index-', batchRows: 3, batchBytes: 4096 });
+      schemaVersion: SEMANTIC_OPERATION_INDEX_VERSION, directoryPrefix: 'semantic-operation-index-', batchRows: 3, batchBytes: 4096 });
     const queryIndex = await writeSemanticQueryIndex({ root: fixture.stagingRoot, generation: fixture.generation,
       partitions, store: base, diskAccount: fixture.account });
     const artifact = fixture.store(partitions, { operationIndex, queryIndex });

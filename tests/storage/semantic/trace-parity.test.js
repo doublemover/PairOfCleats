@@ -1,3 +1,4 @@
+import { SEMANTIC_OPERATION_INDEX_VERSION } from '../../../src/semantic/source-order.js';
 import { assertSemanticOperationIndex } from '../../../src/contracts/validators/semantic-operation-index.js';
 import { operationIndexEntries, compareOperationIndexRows } from '../../../src/semantic/operation-index.js';
 import { createSemanticFindService } from '../../../src/semantic/find.js';
@@ -48,7 +49,7 @@ try {
   ]));
   const analysis = await edgeSink.finalizeSource(), partitions = [syntax, analysis], base = fixture.store(partitions);
   const index = await writeSemanticQueryIndex({ root: fixture.stagingRoot, generation: fixture.generation, partitions, store: base, diskAccount: fixture.account, batchRows: 17, batchBytes: 8192, maxOpenRuns: 2 });
-  const operationIndex = await writeSemanticQueryIndex({ root: fixture.stagingRoot, generation: fixture.generation, partitions, store: base, diskAccount: fixture.account, entries: operationIndexEntries(base, partitions), compareRows: compareOperationIndexRows, keyForRow: row => row, validateIndex: assertSemanticOperationIndex, directoryPrefix: 'semantic-operation-index-', schemaVersion: 2, batchRows: 17, batchBytes: 8192, maxOpenRuns: 2 });
+  const operationIndex = await writeSemanticQueryIndex({ root: fixture.stagingRoot, generation: fixture.generation, partitions, store: base, diskAccount: fixture.account, entries: operationIndexEntries(base, partitions), compareRows: compareOperationIndexRows, keyForRow: row => row, validateIndex: assertSemanticOperationIndex, directoryPrefix: 'semantic-operation-index-', schemaVersion: SEMANTIC_OPERATION_INDEX_VERSION, batchRows: 17, batchBytes: 8192, maxOpenRuns: 2 });
   const artifact = createArtifactSemanticStore({ root: fixture.stagingRoot, repoRoot: fixture.root, generation: fixture.generation, artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION, partitions, operationIndex, queryIndex: index });
   const related = async (options = {}) => {
     const originalOpen = fs.open, opened = [];

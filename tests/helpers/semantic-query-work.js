@@ -1,3 +1,4 @@
+import { SEMANTIC_OPERATION_INDEX_VERSION } from '../../src/semantic/source-order.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -51,7 +52,7 @@ export const loadQueryWorkArm = async arm => {
 export const queryWorkOptions = (input, extra = {}) => ({
   generation: { baseBuildId: 'query-work-fixture', semanticRevision: 0 }, partitions: input.partitions,
   ...(input.kind === 'operation' ? { compareRows: input.compare, keyForRow: row => row,
-    validateIndex: assertSemanticOperationIndex, directoryPrefix: 'semantic-operation-index-', schemaVersion: 2 } : {}), ...extra
+    validateIndex: assertSemanticOperationIndex, directoryPrefix: 'semantic-operation-index-', schemaVersion: SEMANTIC_OPERATION_INDEX_VERSION } : {}), ...extra
 });
 
 export const readQueryWork = async (root, index) => {

@@ -1,3 +1,4 @@
+import { SEMANTIC_OPERATION_INDEX_VERSION } from '../../src/semantic/source-order.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
@@ -31,7 +32,7 @@ export const createSemanticServingFixture = async ({ withOperands = false, withT
     const operationIndex = await writeSemanticQueryIndex({ ...options,
       entries: operationIndexEntries(store, [partition]), compareRows: compareOperationIndexRows,
       keyForRow: row => row, validateIndex: assertSemanticOperationIndex,
-      directoryPrefix: 'semantic-operation-index-', schemaVersion: 2 });
+      directoryPrefix: 'semantic-operation-index-', schemaVersion: SEMANTIC_OPERATION_INDEX_VERSION });
     const manifest = { schemaVersion: 1, semanticSchemaVersion: 1, artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
       generation: fixture.generation, status: 'partial', partitions: [partition], warnings: ['A'], completedTasks: [] };
     const indexDir = path.join(getBuildsRoot(repoRoot, {}), fixture.generation.baseBuildId, 'index-code');

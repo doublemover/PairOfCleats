@@ -28,7 +28,7 @@ const freeze = value => {
   }
   return value;
 };
-export const isQuestionSourcePath = value => typeof value === 'string' && value.length > 0 && !value.includes('\0')
+export const isQuestionSourcePath = value => typeof value === 'string' && value.length > 0 && !/[\\:\0]/.test(value)
   && !value.startsWith('\\') && !/^[A-Za-z]:/.test(value)
   && value.split('/').every(part => part.length > 0 && part !== '.' && part !== '..');
 const compare = (a, b) => a < b ? -1 : a > b ? 1 : 0;

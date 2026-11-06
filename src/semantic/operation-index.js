@@ -1,12 +1,15 @@
 import { discoveryIndexEntry, DISCOVERY_INDEX_FIELDS } from './discovery-facts.js';
+import { sourceOrderEntry, SOURCE_ORDER_FIELD } from './source-order.js';
 export const OPERATION_SELECTOR_FIELDS = Object.freeze(['astKind', 'operation', 'invocationKind', 'sourcePath', 'sourceUnitId', 'chunkUid']);
-export const OPERATION_INDEX_FIELDS = Object.freeze([...OPERATION_SELECTOR_FIELDS, ...DISCOVERY_INDEX_FIELDS]);
+export const OPERATION_INDEX_FIELDS = Object.freeze([...OPERATION_SELECTOR_FIELDS, ...DISCOVERY_INDEX_FIELDS, SOURCE_ORDER_FIELD]);
 const compare = (a,b) => a < b ? -1 : a > b ? 1 : 0;
 export const compareOperationIndexRows = (a,b) => compare(a.field,b.field) || compare(a.value,b.value) || compare(a.ref.partitionId,b.ref.partitionId) || a.ref.localId-b.ref.localId;
 export function* operationRecordEntries(partition, row, sourcePath) {
   const ref = { partitionId: partition.partitionId, localId: row.id };
   const discovery = discoveryIndexEntry(row, ref);
   if (discovery) yield discovery;
+  const ordered = sourceOrderEntry(row, ref, sourcePath);
+  if (ordered) yield ordered;
   if (row.kind !== 'expression') return;
   for (const field of ['astKind', 'operation', 'invocationKind']) if (typeof row.data[field] === 'string' && row.data[field].length) yield { field, value: row.data[field], ref };
   yield { field: 'sourceUnitId', value: partition.sourceUnitId, ref };

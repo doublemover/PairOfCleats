@@ -1,3 +1,4 @@
+import { SEMANTIC_OPERATION_INDEX_VERSION } from '../../../src/semantic/source-order.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -77,7 +78,7 @@ try {
     const expectedQuery = await writeSemanticQueryIndex(common);
     const expectedOperation = await writeSemanticQueryIndex({ ...common, entries: operationIndexEntries(store, [partition]),
       compareRows: compareOperationIndexRows, keyForRow: row => row, validateIndex: assertSemanticOperationIndex,
-      directoryPrefix: 'semantic-operation-index-', schemaVersion: 2 });
+      directoryPrefix: 'semantic-operation-index-', schemaVersion: SEMANTIC_OPERATION_INDEX_VERSION });
     const readRows = async (index, root) => {
       const rows = [];
       for (const piece of index.pieces) {

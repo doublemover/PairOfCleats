@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["prefix-and-unicode", "keyset-and-order", "bounds-and-stale", "physical-projection"]
+}

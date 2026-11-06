@@ -536,7 +536,9 @@ export const createArtifactSemanticStore = ({
     } catch (caught) { throw retainedSourceFailure(caught); }
     throwIfAborted(signal);
   };
+  const findOperations = createArtifactOperationReader({ index: operationIndex, inventory, generation, readPieceRows, getReadScope: currentReadScope });
   return { withReadScope, getPartitionSourceUnitId: id => inventory.get(id)?.sourceUnitId || null,
-    findOperations: createArtifactOperationReader({ index: operationIndex, inventory, generation, readPieceRows, getReadScope: currentReadScope }), backend: 'artifact', storeId: root, cursorScope: semanticHash('semantic.store-inventory.v1', [...inventory.values()].map(({partitionId, canonicalHash}) => ({partitionId, canonicalHash})).sort((a,b) => a.partitionId < b.partitionId ? -1 : a.partitionId > b.partitionId ? 1 : 0)), verifySource, repoRoot, generation: { ...generation }, getRecords, getSourceReference, getSourceSpans, getCoverage, iterateRows, readMemberRows, getRelatedPage, getNeighbors: createNeighborReader(getRelatedPage) };
+    findOperations, listOperationSourcePaths: findOperations.listSourcePaths, findOperationsInSourceOrder: findOperations.inSourceOrder,
+    backend: 'artifact', storeId: root, cursorScope: semanticHash('semantic.store-inventory.v1', [...inventory.values()].map(({partitionId, canonicalHash}) => ({partitionId, canonicalHash})).sort((a,b) => a.partitionId < b.partitionId ? -1 : a.partitionId > b.partitionId ? 1 : 0)), verifySource, repoRoot, generation: { ...generation }, getRecords, getSourceReference, getSourceSpans, getCoverage, iterateRows, readMemberRows, getRelatedPage, getNeighbors: createNeighborReader(getRelatedPage) };
 
 };

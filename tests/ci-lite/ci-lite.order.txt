@@ -2542,3 +2542,7 @@ semantic/questions/compiler-reference/compiler-contract
 semantic/questions/compiler-reference/identity-and-inputs
 semantic/questions/compiler-reference/bounds-and-unknowns
 semantic/questions/compiler-reference/positions-and-determinism
+storage/semantic/source-order-index/prefix-and-unicode
+storage/semantic/source-order-index/keyset-and-order
+storage/semantic/source-order-index/bounds-and-stale
+storage/semantic/source-order-index/physical-projection

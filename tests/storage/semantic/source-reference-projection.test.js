@@ -1,3 +1,4 @@
+import { SEMANTIC_OPERATION_INDEX_VERSION } from '../../../src/semantic/source-order.js';
 import assert from 'node:assert/strict';
 import Database from 'better-sqlite3';
 import { createRecoveryFixture, semanticNode, sha256 } from '../../helpers/semantic-recovery.js';
@@ -47,7 +48,7 @@ try {
     generation: fixture.generation, partitions, store: base, diskAccount: fixture.account,
     entries: operationIndexEntries(base, partitions), compareRows: compareOperationIndexRows,
     keyForRow: row => row, validateIndex: assertSemanticOperationIndex,
-    schemaVersion: 2, directoryPrefix: 'semantic-operation-index-' });
+    schemaVersion: SEMANTIC_OPERATION_INDEX_VERSION, directoryPrefix: 'semantic-operation-index-' });
   const artifact = fixture.store(partitions, { queryIndex, operationIndex });
   db = new Database(':memory:');
   db.pragma('user_version = ' + SCHEMA_VERSION);

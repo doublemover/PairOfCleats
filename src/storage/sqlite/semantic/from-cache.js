@@ -9,6 +9,7 @@ import { validateSemanticPartitions } from '../../../index/semantic/reconcile.js
 import { canonicalSemanticJson } from '../../../index/semantic/identity.js';
 import { ingestSemanticPartition, removeSemanticSource, removeSemanticPartition } from './ingest.js';
 import { throwIfAborted } from '../../../shared/abort.js';
+import { SOURCE_ORDER_META_KEY, SOURCE_ORDER_VERSION } from '../../../semantic/source-order.js';
 
 const fail = (message) => Object.assign(new Error(message), { code: 'ERR_SEMANTIC_CACHE_INTEGRITY' });
 
@@ -105,15 +106,17 @@ export const applyCachedSemanticPlan = async ({ db, plan, signal = null }) => {
   // Repair derived rows left by older pruning code before publishing this update.
   db.exec('DELETE FROM semantic_discovery WHERE NOT EXISTS (SELECT 1 FROM semantic_analysis a WHERE a.partition_id = semantic_discovery.partition_id)');
   let changedPartitions = 0;
+  const currentOrdering = db.prepare('SELECT value FROM index_format_meta WHERE key=?').get(SOURCE_ORDER_META_KEY)?.value === SOURCE_ORDER_VERSION;
   for (const descriptor of plan.partitions) {
     throwIfAborted(signal);
     const existing = db.prepare('SELECT canonical_hash FROM semantic_analysis WHERE partition_id = ?').get(descriptor.partitionId);
-    if (existing?.canonical_hash === descriptor.canonicalHash) continue;
+    if (currentOrdering && existing?.canonical_hash === descriptor.canonicalHash) continue;
     await ingestSemanticPartition({ db, store: plan.store, descriptor, signal });
     changedPartitions += 1;
   }
   db.prepare('INSERT OR REPLACE INTO index_format_meta(key,value) VALUES (?,?)')
     .run('semanticGeneration', canonicalSemanticJson(plan.generation));
+  db.prepare('INSERT OR REPLACE INTO index_format_meta(key,value) VALUES (?,?)').run(SOURCE_ORDER_META_KEY, SOURCE_ORDER_VERSION);
   throwIfAborted(signal);
   return { changedPartitions, removedSources };
 };

@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 2374,
+    "hero": 2378,
     "matrix": 110,
     "meta": 54,
     "soak": 1,
@@ -15247,6 +15247,30 @@
     {
       "id": "semantic/questions/compiler-reference/positions-and-determinism",
       "order": 2539,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/semantic/source-order-index/prefix-and-unicode",
+      "order": 2540,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/semantic/source-order-index/keyset-and-order",
+      "order": 2541,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/semantic/source-order-index/bounds-and-stale",
+      "order": 2542,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/semantic/source-order-index/physical-projection",
+      "order": 2543,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

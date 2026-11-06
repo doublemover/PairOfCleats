@@ -5,6 +5,7 @@ import { throwIfAborted } from '../../../shared/abort.js';
 import { assertSemanticEnvelope } from '../../../contracts/validators/semantic-envelopes.js';
 import { assertSemanticTask } from '../../../contracts/validators/semantic-task.js';
 import { discoveryIndexEntry } from '../../../semantic/discovery-facts.js';
+import { sourceOrderEntry } from '../../../semantic/source-order.js';
 
 export const SEMANTIC_PARTITION_TABLES = Object.freeze(['semantic_records', 'semantic_discovery', 'semantic_operands', 'semantic_edges',
   'semantic_ownership', 'semantic_coverage', 'semantic_lookup', 'semantic_frontier', 'semantic_analysis']);
@@ -44,13 +45,14 @@ export const ingestSemanticPartition = async ({ db, store, descriptor, signal = 
     removeSemanticPartition({ db, partitionId });
     const sourceInsert = db.prepare('INSERT INTO semantic_sources(source_id, byte_hash, payload) VALUES (?, ?, ?) ON CONFLICT(source_id) DO NOTHING');
     const sourceRead = db.prepare('SELECT payload FROM semantic_sources WHERE source_id = ?');
-    let sources = 0;
+    let sources = 0, sourcePath;
     for await (const row of readRows('semantic_sources')) {
       if (row.sourceUnitId !== descriptor.sourceUnitId) throw new Error('Semantic source/partition mismatch.');
       const payload = canonicalSemanticJson(row);
       const existing = sourceRead.get(row.sourceUnitId);
       if (existing && existing.payload !== payload) throw new Error('Conflicting immutable source identity.');
       sourceInsert.run(row.sourceUnitId, row.byteHash, payload);
+      sourcePath = row.path;
       sources += 1;
     }
     if (sources !== 1) throw new Error('Semantic partition requires exactly one source manifest.');
@@ -63,6 +65,8 @@ export const ingestSemanticPartition = async ({ db, store, descriptor, signal = 
       insertNode.run(partitionId, row.id, row.kind, canonicalSemanticJson(row));
       const discovery = discoveryIndexEntry(row, { partitionId, localId: row.id });
       if (discovery) insertDiscovery.run(partitionId, row.id, discovery.field, discovery.value);
+      const ordered = sourceOrderEntry(row, { partitionId, localId: row.id }, sourcePath);
+      if (ordered) insertDiscovery.run(partitionId, row.id, ordered.field, ordered.value);
     }
     const insertOperand = db.prepare('INSERT INTO semantic_operands VALUES (?, ?, ?, ?, ?, ?)');
     for await (const row of readRows('semantic_operands')) {

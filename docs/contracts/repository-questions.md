@@ -6,6 +6,22 @@ MCP yet. Those adapters, durable/replayable result pages and advanced semantic
 profiles remain implementation work under #1534. The existing text search parser
 and its Boolean semantics are unchanged.
 
+The underlying operation index now has version 3 source-position keys, shared
+with the existing SQLite discovery table. Segment-aware prefix enumeration
+jumps between distinct indexed source paths; exact-path operation pages seek
+after the last `(path, span, record-ref)` key. Neither requires a corpus scan,
+whole-file sort or offset walk. UTF-16 path units are hex encoded so JavaScript
+and SQLite BINARY ordering agree, including astral and private-use characters.
+Unknown-span expressions remain enumerable after positioned expressions.
+This inventory covers expression-bearing retained sources, not every file in
+the filesystem. It is a reader building block, not a completed live executor.
+
+Version 2 operation manifests are rejected. SQLite source-order reads require
+the current projection version; published imports stamp it after all partitions
+are ingested. Incremental application rebuilds unchanged canonical partitions
+when their derived projection is old, then publishes the marker in the caller's
+transaction. Discovery producer version 10 prevents old derived replay meaning.
+
 `compileRepositoryQuestion` accepts schema version 1, an explicit immutable world,
 one source-scoped Invocation scan, typed binders, a conjunction, a projection and
 source ordering. The supported predicates are `recordedTargetCandidate`,

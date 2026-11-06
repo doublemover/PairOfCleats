@@ -1,4 +1,5 @@
 import { createSqliteRelatedReader } from './sqlite-related.js';
+import { createSqliteSourceOrderReader } from './sqlite-source-order.js';
 import { captureOperationSelector } from './operation-reader.js';
 import { createSourceReferenceReader } from './source-references.js';
 import { createNeighborReader } from './neighbors.js';
@@ -168,6 +169,6 @@ export const createSqliteSemanticStore = ({
     const rows = db.prepare(sql).all(selector.value,limit+1,offset);
     return { refs: rows.slice(0,limit).map(row => ({partitionId:row.partition_id,localId:row.local_id})),offset:offset+Math.min(limit,rows.length),done:rows.length<=limit };
   };
-  return { findOperations, iterateRows, getExplainInventory, getPartitionSourceUnitId: id => sourceUnitsByPartition.get(id) || null,
+  return { ...createSqliteSourceOrderReader(db), findOperations, iterateRows, getExplainInventory, getPartitionSourceUnitId: id => sourceUnitsByPartition.get(id) || null,
     backend: 'sqlite', storeId: indexPath, cursorScope: semanticHash('semantic.store-inventory.v1', physicalPartitions.map(entry => { const descriptor = JSON.parse(entry.descriptor); return { partitionId: descriptor.partitionId, canonicalHash: descriptor.canonicalHash }; })), repoRoot, generation: { ...generation }, getRecords, getSourceReference, getCoverage, getRelatedPage, getNeighbors: createNeighborReader(getRelatedPage) };
 };

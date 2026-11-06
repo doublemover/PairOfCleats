@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-06T07:44:35.841Z",
+  "generatedAt": "2026-11-06T08:16:25.904Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
@@ -4889,6 +4889,7 @@
         "tests/storage/semantic/runtime-import-reuse.test.js",
         "tests/storage/semantic/runtime-source-reference-authority.test.js",
         "tests/storage/semantic/runtime-writer-resource-ownership.test.js",
+        "tests/storage/semantic/source-order-index.test.js",
         "tests/storage/semantic/source-retention-partition-work.test.js",
         "tests/storage/semantic/trace-continuation-state.test.js",
         "tests/storage/semantic/working-set-directory-ownership.test.js",
