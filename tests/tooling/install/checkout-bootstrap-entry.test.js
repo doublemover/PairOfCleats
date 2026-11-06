@@ -12,14 +12,32 @@ import { copyBootstrapMetadataSources } from '../../helpers/bootstrap-metadata-s
 
 applyTestEnv();
 const mode = process.env.PAIROFCLEATS_TEST_ID?.split('tooling/install/checkout-bootstrap-entry/')[1];
-assert.ok(['strict-arguments', 'dependency-free-information', 'ordered-stages', 'prepared-and-resolution', 'failure-and-cancellation', 'captured-context'].includes(mode));
+assert.ok(['strict-arguments', 'dependency-free-information', 'ordered-stages', 'prepared-and-resolution', 'failure-and-cancellation', 'captured-context',
+  'original-progress-before-mutation'].includes(mode));
 const calls = [], messages = [];
 const fixtureRoot = await makeTempDir('checkout-bootstrap-entry-');
 try {
   const base = { root: fixtureRoot, env: {}, captureInputs: () => [['fixture-input', 'source-digest']],
     inspect: async () => ({ ready: false, reason: 'fixture not prepared' }), progress: message => messages.push(message),
     command: async (command, args, options) => { calls.push({ command, args, options }); return { ok: true, status: 0, signal: null }; } };
-  if (mode === 'strict-arguments') {
+  if (mode === 'original-progress-before-mutation') {
+    const entered = Promise.withResolvers(), release = Promise.withResolvers(); let first = true;
+    const pending = runCheckoutBootstrap(['locked'], { ...base, progress: async () => {
+      if (first) { first = false; entered.resolve(); await release.promise; }
+    } });
+    try { await entered.promise; assert.equal(calls.length, 0, 'dependency children wait for the actual initial progress callback'); }
+    finally { release.resolve(); }
+    assert.equal((await pending).exitCode, 0); assert.ok(calls.length > 0); calls.length = 0;
+    let current = 'admitted-input';
+    await assert.rejects(runCheckoutBootstrap(['locked'], { ...base, captureInputs: () => [['source', current]],
+      progress: async () => { current = 'changed-during-original-progress'; }
+    }), { code: 'ERR_CHECKOUT_BOOTSTRAP_INPUT_CHANGED' });
+    assert.equal(calls.length, 0, 'changed setup inputs are rechecked after asynchronous progress and before native/install admission');
+    let rejected = false;
+    try { await runCheckoutBootstrap(['locked'], { ...base, progress: async () => { throw false; } }); }
+    catch (error) { rejected = true; assert.equal(error, false); }
+    assert.equal(rejected, true); assert.equal(calls.length, 0);
+  } else if (mode === 'strict-arguments') {
     for (const policy of ['locked', 'resolve']) {
       assert.equal(parseCheckoutBootstrapArguments([policy]).mode, 'prepare');
       for (const flag of ['--help', '--plan', '--status', '--verify', '--repair']) assert.equal(parseCheckoutBootstrapArguments([policy, flag]).mode, flag.slice(2));

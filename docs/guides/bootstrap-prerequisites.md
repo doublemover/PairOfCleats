@@ -196,6 +196,17 @@ observations report actual observed bytes and log paths, not persistence.
 Asynchronous diagnostic callbacks drain under the original task reservation;
 renderer failure cancels new admission while active owners settle.
 
+Live task transitions and canonical stage progress await the original writable callback, with one error/close
+listener pair per actual transport. Accepted buffering is not completion.
+The internal bounds are 128 pending writes, 8 KiB per control-free line and a
+10-second callback deadline. A timeout retains the original callback observation;
+it cannot authorize checkout retirement. The existing mutation owner captures
+one aggregate prerequisite before status IO. Status writers never close, end or
+destroy the caller's terminal. Transport failures flow through the existing task
+observer cancellation/drain path, preserving independent compiler failures.
+The canonical frontdoor awaits custom progress observations and rechecks admitted
+inputs and cancellation after them, before launching the next stage.
+
 Native probes now launch their actual bounded Node operations through that same
 owner, without the former synchronous layer or extra per-package wrapper process.
 SQLite promotion and ONNX import orders retain original callback failures;

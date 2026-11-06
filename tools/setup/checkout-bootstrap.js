@@ -5,6 +5,7 @@ import { createHash } from 'node:crypto';
 import { isDirectExecution } from '../../src/shared/direct-execution.js';
 import { CHECKOUT_BOOTSTRAP_USAGE, parseCheckoutBootstrapArguments } from './checkout-bootstrap-arguments.js';
 import { readErrorDataProperty } from '../../src/shared/error-data.js';
+import { writeBootstrapStatus } from './task-progress-output.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const immutable = value => {
@@ -17,9 +18,10 @@ const hash = value => createHash('sha256').update(JSON.stringify(value)).digest(
  * Information paths load only dependency-free metadata readers, never children.
  */
 export const runCheckoutBootstrap = async (args, { root = ROOT, env = process.env, signal = null,
-  inspect = null, captureInputs = null, command = null, progress = message => process.stderr.write(message + '\n') } = {}) => {
+  inspect = null, captureInputs = null, command = null, progress = null } = {}) => {
   const options = parseCheckoutBootstrapArguments(args);
   if (options.mode === 'help') return immutable({ schemaVersion: 1, kind: 'checkout-bootstrap-help', text: CHECKOUT_BOOTSTRAP_USAGE, exitCode: 0 });
+  if (progress !== null && typeof progress !== 'function') throw new TypeError('Checkout progress requires its original observation callback.');
   root = path.resolve(root); env = { ...env };
   const readiness = await import('../../src/shared/bootstrap-readiness.js');
   inspect ||= readiness.inspectBootstrapReadiness;
@@ -53,6 +55,7 @@ export const runCheckoutBootstrap = async (args, { root = ROOT, env = process.en
   const { withCheckoutStageJournal } = await import('./checkout-stage-journal.js');
   const { addStorageFailureContext } = await import('../../src/shared/storage/operation-error.js');
   return withCheckoutMutation(root, session => withCheckoutStageJournal(root, session, plan, async journal => {
+    const reportProgress = progress ?? (line => writeBootstrapStatus(line, process.stderr, { root, session }));
     const checkInputs = () => {
       requireCheckoutMutationSession(root, session);
       const selected = rows => options.policy === 'resolve' ? rows.filter(([file]) => file !== 'package-lock.json') : rows;
@@ -75,7 +78,8 @@ export const runCheckoutBootstrap = async (args, { root = ROOT, env = process.en
     const results = [];
     for (const stage of stages) {
       signal?.throwIfAborted(); checkInputs();
-      progress('[bootstrap] started: ' + stage.id);
+      await reportProgress('[bootstrap] started: ' + stage.id);
+      signal?.throwIfAborted(); checkInputs();
       const result = await journal.runStage(stage.id, async () => {
         const actual = await execute(stage);
         try { checkInputs(); }
@@ -86,7 +90,8 @@ export const runCheckoutBootstrap = async (args, { root = ROOT, env = process.en
       if (!result.ok) throw Object.assign(new Error('Checkout bootstrap failed at ' + stage.id + '.'), {
         code: 'ERR_CHECKOUT_BOOTSTRAP_STAGE', stage: stage.id, result, plan, results
       });
-      checkInputs(); progress('[bootstrap] completed: ' + stage.id);
+      checkInputs(); await reportProgress('[bootstrap] completed: ' + stage.id);
+      signal?.throwIfAborted(); checkInputs();
     }
     return { schemaVersion: 1, kind: 'checkout-bootstrap-result', plan, results, exitCode: 0,
       transaction: { runId: session.runId, scope: 'application-checkout-dependency-tree' },

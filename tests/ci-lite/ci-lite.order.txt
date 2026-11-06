@@ -2782,3 +2782,9 @@ tooling/install/checkout-evidence-retention/producer-byte-proof-required
 tooling/install/checkout-evidence-retention/single-journal-per-original-session
 tooling/install/native-diagnostic-ownership/whole-publication-scope-drain
 tooling/install/checkout-evidence-retention/pending-diagnostic-blocks-completed-status
+tooling/install/bootstrap-status-output/real-completion-and-provider-capture
+tooling/install/bootstrap-status-output/real-broken-pipe-task-drain
+tooling/install/bootstrap-status-output/timeout-original-checkout-retirement
+tooling/install/bootstrap-status-output/bounded-shared-transport
+tooling/install/checkout-bootstrap-entry/original-progress-before-mutation
+tooling/install/bootstrap-status-output/checkout-observer-aggregation

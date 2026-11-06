@@ -20,6 +20,7 @@ import { isDirectExecution } from '../../src/shared/direct-execution.js';
 import { readErrorDataProperty } from '../../src/shared/error-data.js';
 import { addStorageFailureContext } from '../../src/shared/storage/operation-error.js';
 import { formatBootstrapTaskProgress } from './task-progress.js';
+import { writeBootstrapStatus } from './task-progress-output.js';
 import { createNativeSetupDiagnostics } from './native-diagnostics.js';
 import { createHash } from 'node:crypto';
 import { withCheckoutStageJournal } from './checkout-stage-journal.js';
@@ -78,7 +79,7 @@ const runNativeRebuildOwned = async ({ verifyOnly, repairOnly }, { root, session
   };
   const taskProgress = label => event => {
     const line = formatBootstrapTaskProgress(event, label);
-    if (line) console.error(line);
+    if (line) return writeBootstrapStatus(line, process.stderr, { root, session });
   };
 
   const REQUIRED_NATIVE_PACKAGES = [

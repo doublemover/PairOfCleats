@@ -1,4 +1,4 @@
 {
   "schemaVersion": 1,
-  "cases": ["strict-arguments", "dependency-free-information", "ordered-stages", "prepared-and-resolution", "failure-and-cancellation", "captured-context"]
+  "cases": ["strict-arguments", "dependency-free-information", "ordered-stages", "prepared-and-resolution", "failure-and-cancellation", "captured-context", "original-progress-before-mutation"]
 }

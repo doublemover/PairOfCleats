@@ -12,6 +12,7 @@ import { addStorageFailureContext } from '../../src/shared/storage/operation-err
 import { withCheckoutMutation, requireCheckoutMutationSession } from './checkout-mutation.js';
 import { withPackagePatchStage } from './patch-stage.js';
 import { formatBootstrapTaskProgress } from './task-progress.js';
+import { writeBootstrapStatus } from './task-progress-output.js';
 
 const MAX_PATCH_BYTES = 1024 * 1024;
 const MAX_FILE_BYTES = 16 * 1024 * 1024;
@@ -305,7 +306,7 @@ const applyPatchesOwned = async (cwd, { verifyOnly = false, signal = null,
     })
   })), { budget, signal, eventContext: { runId: session.runId }, onEvent: event => {
     const line = formatBootstrapTaskProgress(event, 'patch-preparation');
-    if (line) console.error(line);
+    if (line) return writeBootstrapStatus(line, process.stderr, { root, session });
   } });
   // Input order owns diagnostics and publication even when preparation overlaps.
   const failure = outcome.results.find(row => row.status === 'failed');

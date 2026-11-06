@@ -1,0 +1,5 @@
+{
+  "schemaVersion": 1,
+  "cases": ["real-completion-and-provider-capture", "real-broken-pipe-task-drain",
+    "timeout-original-checkout-retirement", "bounded-shared-transport", "checkout-observer-aggregation"]
+}
