@@ -8566,5 +8566,13 @@
     "nativeIndex": "21pass/1search-published timeout",
     "broadSuites": "cancelled after newer publication; not final-head acceptance"
   },
-  "provenance": "Author-workspace .tmp/.testLogs paths are historical. Current raw focused reports and24 samples are retained here; no promised clean-checkout receipts."
+  "provenance": "Author-workspace .tmp/.testLogs paths are historical. Current raw focused reports and24 samples are retained here; no promised clean-checkout receipts.",
+  "issueClosure": {
+    "number": 1242,
+    "state": "closed",
+    "stateReason": "completed",
+    "verifiedByReadback": true,
+    "sourceCommit": "7c37e425e1b97efeeeabb75830f3802fdba5e265",
+    "remainingOpen": 354
+  }
 }

@@ -16,7 +16,8 @@
     1634,
     1255,
     1204,
-    1252
+    1252,
+    1242
   ],
   "scope": "All open issues except user-excluded editor work and native Tantivy; mixed issues retain their non-editor scope",
   "routing": "Initial grouping by issue scope and recorded source owners; source-review-pending is not an implementation or acceptance claim",
@@ -2482,15 +2483,17 @@
       "title": "[Perf] Reuse one verified artifact snapshot during fixture health evaluation",
       "batch": "retrieval-performance-and-evaluation",
       "scope": "active",
-      "review": "source-review-pending",
-      "recordedDisposition": "Implementation recorded; qualification pending.",
+      "review": "qualified-closed",
+      "recordedDisposition": "Qualified and closed after40 focused cases,24 serial fresh-process samples and all eight publication checks at7c37e425e1b97efeeeabb75830f3802fdba5e265.",
       "owners": [
         "src/index/validate.js",
         "src/index/validate/manifest.js",
         "src/index/validate/read-plan.js",
         "docs/archived/github-issue-closeout-2026-10-26.json",
         "docs/archived/github-issue-closeout-2026-10-26.md"
-      ]
+      ],
+      "receipt": "docs/archived/fixture-health-snapshot-closeout-2026-11-05.md",
+      "closedAtSource": "7c37e425e1b97efeeeabb75830f3802fdba5e265"
     },
     {
       "number": 1244,
@@ -5426,8 +5429,8 @@
   ],
   "liveReconciliation": {
     "date": "2026-11-05",
-    "openCount": 355,
-    "closedAfterCapture": 12,
-    "method": "Fresh357-ID four-page census minus verified #1204 and #1252 completed closures/readbacks at302ad8e4d andee2652a4b. No new full census after those closures is claimed."
+    "openCount": 354,
+    "closedAfterCapture": 13,
+    "method": "Fresh357-ID four-page census minus verified completed closures/readbacks #1204,#1252,#1242 at302ad8e4d,ee2652a4b,7c37e425e. No subsequent full census is claimed."
   }
 }
