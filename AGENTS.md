@@ -43,8 +43,8 @@ git diff --check
 - This excludes platform/Rust, broader integration, optional-backend and performance acceptance. `npm run verify` is much broader; do not substitute it automatically.
 
 ## Generated docs and status hygiene
-- `docs/roadmap.md` is the single active source for status, execution order and remaining work. Keep it under its existing 20 KB contract; retain detailed completed receipts in `docs/archived/`, linked from the active summary.
-- Archive superseded specs instead of deleting them; preserve filenames where possible. Add a DEPRECATED header with replacement, reason, date and PR/commit. Do not revive competing root roadmap files.
+- `docs/roadmap.md` is the single active source for status, execution order and remaining work. Keep it under its existing 20 KB contract and describe the current deliverable. Avoid routine historical repair logs and competing roadmap files.
+- Use hard cutovers. Remove superseded implementations, compatibility adapters and obsolete documentation once their callers and meaningful coverage have moved to the current contract. Reject obsolete persisted versions and require regeneration; do not retain old behavior merely to preserve history. Git retains removed source and documents.
 - Update docs with schema/CLI changes. Refresh affected generated output using `docs/tooling/generated-surfaces.json`, then check freshness; do not hand-edit generated reports or weaken drift checks.
 - For a new public knob, update the config allowlist/budget only as an explicit reviewed surface change with purpose/default/tests. The count is maintenance governance, not a runtime/security boundary.
 - Label author-workspace `.testLogs`/`.tmp/` (legacy `temp/`) receipts historical. Preserve provenance; do not promise them in clean checkouts or fabricate evidence.
