@@ -2396,3 +2396,11 @@ perf/indexing/fixtures/health-snapshot-work/warm-reference
 indexing/fixtures/health-snapshot-parity/json-records
 indexing/fixtures/health-snapshot-parity/gzip-prose
 indexing/fixtures/health-snapshot-parity/mixed-compatibility
+tooling/install/estimate-destination-identity/aliases
+tooling/install/estimate-destination-identity/required-conflict
+tooling/install/estimate-destination-identity/free-conflict
+tooling/install/estimate-destination-identity/hard-conflict
+tooling/install/estimate-destination-identity/invalid-budget
+tooling/install/estimate-destination-identity/uncovered
+tooling/install/estimate-destination-identity/managed-child
+tooling/install/estimate-destination-identity/field-order

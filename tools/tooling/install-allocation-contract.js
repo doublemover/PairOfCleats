@@ -1,23 +1,17 @@
 import path from 'node:path';
 
-/** Canonical recipes declare the peak additional allocation, including expanded
- * artifacts, package/build caches and staging. Archive length alone is not that
- * estimate; unknown transitive package writes stay unknown rather than zero.
- */
-export const resolveDeclaredInstallAdmission = recipe => {
-  const estimate = recipe?.storageEstimate;
-  const budget = (write, key, fallback) => {
-    const value = write?.[key];
-    if (value === undefined || value === null) return fallback;
-    if (!Number.isSafeInteger(value) || value < 0) throw new TypeError('Declared install storage budget must be a nonnegative safe integer.');
-    return value;
-  };
-  const forecast = estimate?.basis === 'canonical-build-forecast-v1';
-  if ((estimate?.complete !== true && !forecast) || !Array.isArray(estimate?.writes) || !estimate.writes.length || estimate.writes.length > 64) {
-    return { writes: null, state: 'deferred-unknown-allocation', source: 'unknown-artifact-build-allocation',
-      nextAction: 'The selected product recipe needs qualified storage bounds; use an already verified compatible tool or update this recipe.' };
-  }
-  const writes = estimate.writes.map(write => {
+const budget = (write, key, fallback) => {
+  const value = write?.[key];
+  if (value === undefined || value === null) return fallback;
+  if (!Number.isSafeInteger(value) || value < 0) throw new TypeError('Declared install storage budget must be a nonnegative safe integer.');
+  return value;
+};
+
+/** Shape validation only. Projection of a forecast cannot grant write admission. */
+export const normalizeInstallAllocationWrites = writes => {
+  if (!Array.isArray(writes) || !writes.length || writes.length > 64) return null;
+  return writes.map(write => {
+    if (!write || typeof write !== 'object') throw new TypeError('Declared install allocation requires a destination record.');
     const selectors = [write.root, write.destination, write.environmentKey].filter(value => value !== undefined);
     if (selectors.length !== 1 || selectors.some(value => typeof value !== 'string' || !value)
       || (write.root && !path.isAbsolute(write.root))
@@ -27,6 +21,20 @@ export const resolveDeclaredInstallAdmission = recipe => {
     return { ...(write.root ? { root: path.resolve(write.root) } : write.destination ? { destination: write.destination } : { environmentKey: write.environmentKey }),
       requiredBytes, minimumFreeBytes: budget(write, 'minimumFreeBytes', 0), hardBytes: budget(write, 'hardBytes', null) };
   });
+};
+
+/** Canonical recipes declare the peak additional allocation, including expanded
+ * artifacts, package/build caches and staging. Archive length alone is not that
+ * estimate; unknown transitive package writes stay unknown rather than zero.
+ */
+export const resolveDeclaredInstallAdmission = recipe => {
+  const estimate = recipe?.storageEstimate;
+  const forecast = estimate?.basis === 'canonical-build-forecast-v1';
+  if ((estimate?.complete !== true && !forecast) || !Array.isArray(estimate?.writes) || !estimate.writes.length || estimate.writes.length > 64) {
+    return { writes: null, state: 'deferred-unknown-allocation', source: 'unknown-artifact-build-allocation',
+      nextAction: 'The selected product recipe needs qualified storage bounds; use an already verified compatible tool or update this recipe.' };
+  }
+  const writes = normalizeInstallAllocationWrites(estimate.writes);
   if (estimate.basis !== undefined && !['canonical-build-forecast-v1', 'bounded-archive-owner-v1'].includes(estimate.basis)) {
     throw new TypeError('Unknown canonical install allocation basis.');
   }

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Source regression authored for the development batch; UNVALIDATED.
+// Original actual-allocation admission and no-mutation controls.
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';

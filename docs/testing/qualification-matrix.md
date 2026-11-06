@@ -27,6 +27,12 @@ Canonical full reports match the eager control; large JSONL stored-byte work is
 8,599,189→4,300,158 bytes. Timings/heap are mixed. Six original fixture-health
 close failures are repaired; broader health qualification is recorded below.
 
+[Managed destination allocation](../archived/managed-install-destination-repairs-2026-11-05.md)
+repairs seven demonstrated alias/shape/order failures and passes15 affected cases,
+including actual managed-child admission and close under two bounded roots.
+#1559 stays open for package-closure/build-allocation qualification; forecasts
+still grant no admission. Completed roadmap detail stays in the linked archive.
+
 [Fixture-health snapshots](../archived/fixture-health-snapshot-closeout-2026-11-05.md)
 qualify40 focused Windows cases and24 serial raw samples with exact authority/
 decision parity. Cold code work is4,663,342→1,168,735 bytes; warm evaluations

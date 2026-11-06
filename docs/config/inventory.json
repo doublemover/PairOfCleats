@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-06T01:55:20.785Z",
+  "generatedAt": "2026-11-06T02:26:22.226Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
@@ -4907,6 +4907,7 @@
         "tests/tooling/index/clean-artifacts-multi-repository.test.js",
         "tests/tooling/index/recovery-cli-authority.test.js",
         "tests/tooling/install/clangd-owned-acquisition.test.js",
+        "tests/tooling/install/estimate-destination-identity.test.js",
         "tests/tooling/install/managed-selection-lifetime.test.js",
         "tests/tooling/install/managed-tool-file-lifetime.test.js",
         "tests/tooling/install/no-fallback-scope-consumer.test.js",
@@ -7505,6 +7506,14 @@
         ]
       },
       {
+        "file": "tests/tooling/install/estimate-destination-identity.test.js",
+        "flags": [
+          "cwd",
+          "stdio",
+          "timeoutMs"
+        ]
+      },
+      {
         "file": "tests/tooling/install/gopls-allocation-recipe.test.js",
         "flags": [
           "cwd"
@@ -9491,6 +9500,16 @@
         ]
       },
       {
+        "flag": "cwd",
+        "count": 4,
+        "files": [
+          "tests/tooling/install/estimate-destination-identity.test.js",
+          "tests/tooling/install/gopls-allocation-recipe.test.js",
+          "tests/tooling/install/managed-child-storage-settlement.test.js",
+          "tools/dicts/generate-repo-dict.js"
+        ]
+      },
+      {
         "flag": "dir",
         "count": 4,
         "files": [
@@ -9705,15 +9724,6 @@
         ]
       },
       {
-        "flag": "cwd",
-        "count": 3,
-        "files": [
-          "tests/tooling/install/gopls-allocation-recipe.test.js",
-          "tests/tooling/install/managed-child-storage-settlement.test.js",
-          "tools/dicts/generate-repo-dict.js"
-        ]
-      },
-      {
         "flag": "depth",
         "count": 3,
         "files": [
@@ -9900,6 +9910,15 @@
           "tests/indexing/semantic/compiler-type-fact-scalar-anchors.test.js",
           "tools/tui/build.js",
           "tools/tui/install.js"
+        ]
+      },
+      {
+        "flag": "timeoutMs",
+        "count": 3,
+        "files": [
+          "src/shared/kill-tree/windows.js",
+          "tests/tooling/install/estimate-destination-identity.test.js",
+          "tools/reports/report-code-map.js"
         ]
       },
       {
@@ -10466,19 +10485,19 @@
         ]
       },
       {
+        "flag": "stdio",
+        "count": 2,
+        "files": [
+          "src/shared/kill-tree/windows.js",
+          "tests/tooling/install/estimate-destination-identity.test.js"
+        ]
+      },
+      {
         "flag": "surface",
         "count": 2,
         "files": [
           "tools/docs/generated-surfaces.js",
           "tools/release/verify-surface.js"
-        ]
-      },
-      {
-        "flag": "timeoutMs",
-        "count": 2,
-        "files": [
-          "src/shared/kill-tree/windows.js",
-          "tools/reports/report-code-map.js"
         ]
       },
       {

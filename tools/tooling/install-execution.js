@@ -3,12 +3,15 @@ import { spawnResolvedSubprocess } from '../../src/shared/subprocess/command-inv
 import { runManagedChildWithStorage } from '../../src/shared/storage/managed-child-session.js';
 import { isPathWithinRoot } from '../../src/shared/file-paths.js';
 
+import { normalizeInstallAllocationWrites } from './install-allocation-contract.js';
 export { resolveDeclaredInstallAdmission } from './install-allocation-contract.js';
 
 /** Pure destination projection. Forecast destinations grant no write admission. */
 export const resolveInstallEstimateDestinations = (estimates, { storagePlan, artifactRoot } = {}) => {
-  if (!Array.isArray(estimates) || !estimates.length || estimates.length > 64 || !path.isAbsolute(artifactRoot || '')) return null;
-  const writes = estimates.map(write => {
+  if (!path.isAbsolute(artifactRoot || '')) return null;
+  const normalized = normalizeInstallAllocationWrites(estimates);
+  if (!normalized) return null;
+  const writes = normalized.map(write => {
     if (write.root) return write;
     const location = write.environmentKey ? storagePlan.locations.find(value => value.environmentKey.toLowerCase() === write.environmentKey.toLowerCase()) : null;
     const root = write.destination === 'artifacts' ? artifactRoot : write.destination === 'scratch' ? storagePlan.scratch
@@ -19,10 +22,13 @@ export const resolveInstallEstimateDestinations = (estimates, { storagePlan, art
   const actual = [artifactRoot, ...storagePlan.locations.map(location => location.file ? path.dirname(location.path) : location.path)];
   if (actual.some(root => !writes.some(write => isPathWithinRoot(path.resolve(root), write.root)))) return null;
   const byRoot = new Map();
+  const identity = root => process.platform === 'win32' ? root.toLowerCase() : root;
   for (const write of writes) {
-    const prior = byRoot.get(write.root);
-    if (prior && JSON.stringify(prior) !== JSON.stringify(write)) throw new Error('Conflicting allocation estimates for the same actual destination.');
-    byRoot.set(write.root, write);
+    const key = identity(write.root), prior = byRoot.get(key);
+    if (prior && ['requiredBytes', 'minimumFreeBytes', 'hardBytes'].some(field => prior[field] !== write[field])) {
+      throw new Error('Conflicting allocation estimates for the same actual destination.');
+    }
+    if (!prior) byRoot.set(key, write);
   }
   return { writes: [...byRoot.values()] };
 };

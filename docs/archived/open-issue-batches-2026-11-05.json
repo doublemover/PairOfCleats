@@ -4726,15 +4726,16 @@
       "title": "Make selected provider install recipes satisfy managed storage admission on clean machines",
       "batch": "storage-publication-lifetimes",
       "scope": "active",
-      "review": "source-review-pending",
-      "recordedDisposition": "Implementation or accepted completion remains to be established.",
+      "review": "implementation-partial",
+      "recordedDisposition": "Native destination aliases, field-order/default equivalence and allocation shape are repaired with seven original failures and15 focused passes. Exact package closures and qualified build allowances remain open;see the source-bound receipt.",
       "owners": [
         "tools/tooling/utils.js",
         "tools/tooling/install-execution.js",
         "tools/tooling/install.js",
         "docs/archived/github-issue-closeout-2026-10-26.json",
         "docs/archived/github-issue-closeout-2026-10-26.md"
-      ]
+      ],
+      "receipt": "docs/archived/managed-install-destination-repairs-2026-11-05.md"
     },
     {
       "number": 1560,
