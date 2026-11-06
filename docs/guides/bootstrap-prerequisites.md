@@ -114,6 +114,9 @@ its actual descriptor remains open. The group captures at most 1024 owners and
 retains independent persistence failures; unknown overriding open results remain
 unconfirmed. Exact ordinary ancestors and file identity are checked around open.
 Closing lifetime authority never deletes the retained artifact.
+The same group preserves an original rejected child's retirement observer even
+when the caller handles that rejection. Closed log files alone cannot release
+the checkout while that actual child remains alive.
 
 The root lock is .tmp/checkout-bootstrap/mutation.lock. Ordinary commands are
 blocked while mutation or retained original work owns it. Age, PID death and

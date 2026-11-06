@@ -2764,3 +2764,4 @@ tooling/install/checkout-evidence-files/held-descriptor-retains-root
 tooling/install/checkout-evidence-files/original-path-and-link-admission
 tooling/install/checkout-evidence-files/unknown-open-retains-root
 tooling/install/checkout-evidence-files/changed-parent-closes-original-descriptor
+tooling/install/native-diagnostic-ownership/handled-live-child-retains-root

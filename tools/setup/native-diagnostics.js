@@ -136,7 +136,10 @@ export const createNativeSetupDiagnostics = (root, session, { limits = NATIVE_DI
         childAdmitted = true;
         result = await spawn(command, selected.args, { ...options, stdio: 'pipe', captureStdout: false, captureStderr: false,
           onStdoutChunk: receive(streams[0]), onStderrChunk: receive(streams[1]) });
-      } catch (error) { primary = error; failed = true; if (!childAdmitted) remember(error); }
+      } catch (error) {
+        primary = error; failed = true; evidence.remember(error);
+        if (!childAdmitted) remember(error);
+      }
       active = false;
       for (const stream of streams) {
         try { stream.owner.runSync(descriptor => {

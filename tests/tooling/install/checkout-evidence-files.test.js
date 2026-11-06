@@ -42,8 +42,8 @@ try {
     await assert.rejects(withCheckoutMutation(root, () => assert.fail('successor admitted with a live evidence descriptor')), { code: 'ERR_CHECKOUT_MUTATION_BUSY' });
     owner.runSync(() => {});
     assert.throws(() => fs.fstatSync(fd), { code: 'EBADF' });
-    assert.equal(failure.cacheOwnershipReleased(), true);
     await retireCheckoutMutationSession(failure.checkoutMutationSession);
+    assert.equal(failure.cacheOwnershipReleased(), true);
     assert.equal(fs.existsSync(lock), false); assert.equal(fs.existsSync(file), true, 'retiring lifetime authority does not delete diagnostic artifacts');
   } else if (mode === 'original-path-and-link-admission') {
     await withCheckoutMutation(root, session => {

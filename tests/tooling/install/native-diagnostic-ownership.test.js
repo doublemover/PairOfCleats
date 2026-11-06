@@ -4,23 +4,68 @@ import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { createNativeSetupDiagnostics, NATIVE_DIAGNOSTIC_LIMITS, isNativeDiagnosticFailure } from '../../../tools/setup/native-diagnostics.js';
 import { runNativeSetupCommand } from '../../../tools/setup/native-command-result.js';
-import { withCheckoutMutation } from '../../../tools/setup/checkout-mutation.js';
+import { withCheckoutMutation, retireCheckoutMutationSession } from '../../../tools/setup/checkout-mutation.js';
 import { CHECKOUT_MUTATION_LOCK } from '../../../tools/setup/checkout-bootstrap-paths.js';
 import { makeTempDir } from '../../helpers/temp.js';
 import { errorGraphIncludes } from '../../helpers/error-graph.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
+import { spawn } from 'node:child_process';
 
 applyTestEnv();
 const mode = process.env.PAIROFCLEATS_TEST_ID?.split('tooling/install/native-diagnostic-ownership/')[1];
 assert.ok(['exact-bytes-and-tails', 'attempt-history-and-concurrency', 'original-log-failures', 'bounded-admission-and-output',
-  'unknown-close-retains-owner', 'original-structured-output', 'structured-output-fences', 'first-byte-observation', 'unknown-write-retains-owner'].includes(mode));
+  'unknown-close-retains-owner', 'original-structured-output', 'structured-output-fences', 'first-byte-observation', 'unknown-write-retains-owner',
+  'handled-live-child-retains-root'].includes(mode));
 const root = await makeTempDir('native-diagnostics-');
 const retainedFixtureFds = new Set();
+let liveChild = null, childClosed = false;
+const childClosure = Promise.withResolvers();
 const commandOptions = { cwd: root, stdio: 'pipe', timeoutMs: 5000, maxOutputBytes: 16,
   rejectOnNonZeroExit: false, killTree: false, windowsHide: true };
 const compact = { ...NATIVE_DIAGNOSTIC_LIMITS, attempts: 8, diskBytes: 1024 * 1024, attemptBytes: 128 * 1024, tailBytes: 64 };
 try {
-  if (['unknown-close-retains-owner', 'unknown-write-retains-owner'].includes(mode)) {
+  if (mode === 'handled-live-child-retains-root') {
+    const original = Object.assign(new Error('original child is still waiting for its input owner'), {
+      cacheOwnershipPending: true, cacheOwnershipReleased: () => childClosed
+    });
+    const failure = await withCheckoutMutation(root, async session => {
+      const diagnostics = createNativeSetupDiagnostics(root, session, { limits: compact });
+      await assert.rejects(diagnostics.run(process.execPath,
+        ['-e', 'process.stdout.write("child-ready\\n");process.stdin.resume();'], commandOptions,
+        async (command, args, options) => {
+          // Deliberately incomplete adapter: its logical rejection precedes
+          // this actual child's close. The original guard retains authority.
+          liveChild = spawn(command, args, { cwd: root, stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true });
+          liveChild.once('close', (code, signal) => { childClosed = true; childClosure.resolve({ code, signal }); });
+          await new Promise((resolve, reject) => {
+            let output = '';
+            const timer = setTimeout(() => finish(new Error('owned child did not become ready')), 5000);
+            const finish = error => {
+              clearTimeout(timer); liveChild.stdout.off('data', receive); liveChild.off('error', finish);
+              if (error) reject(error); else resolve();
+            };
+            const receive = chunk => {
+              try {
+                options.onStdoutChunk(chunk); output += chunk.toString(); assert.ok(output.length <= 64);
+                if (output.includes('\n')) { assert.equal(output, 'child-ready\n'); finish(); }
+              } catch (error) { finish(error); }
+            };
+            liveChild.once('error', finish); liveChild.stdout.on('data', receive);
+          });
+          throw original;
+        }), error => errorGraphIncludes(error, original));
+      // Handling the API rejection cannot retire the real child on its behalf.
+    }).catch(error => error);
+    assert.ok(failure, 'a handled live-child failure must retain the checkout');
+    assert.equal(errorGraphIncludes(failure, original), true); assert.equal(childClosed, false);
+    assert.equal(fs.existsSync(path.join(root, CHECKOUT_MUTATION_LOCK)), true);
+    assert.equal(failure.cacheOwnershipReleased(), false);
+    liveChild.stdin.end();
+    assert.deepEqual(await childClosure.promise, { code: 0, signal: null });
+    await retireCheckoutMutationSession(failure.checkoutMutationSession);
+    assert.equal(failure.cacheOwnershipReleased(), true);
+    assert.equal(fs.existsSync(path.join(root, CHECKOUT_MUTATION_LOCK)), false);
+  } else if (['unknown-close-retains-owner', 'unknown-write-retains-owner'].includes(mode)) {
     const original = Object.freeze(new Error('actual close returned no confirmation'));
     const io = mode === 'unknown-close-retains-owner' ? { ...fs, closeSync(fd) { fs.closeSync(fd); throw original; } } : { ...fs,
       openSync(...args) { const fd = fs.openSync(...args); retainedFixtureFds.add(fd); return fd; },
@@ -144,6 +189,11 @@ try {
     }
   });
 } finally {
+  if (liveChild && !childClosed) {
+    liveChild.stdin.end();
+    const cleanup = setTimeout(() => liveChild.kill('SIGKILL'), 2000); cleanup.unref();
+    try { await childClosure.promise; } finally { clearTimeout(cleanup); }
+  }
   for (const fd of retainedFixtureFds) fs.closeSync(fd); // Exact no-work injected descriptors, never reused by this fixture.
   fs.rmSync(root, { recursive: true, force: true });
 }
