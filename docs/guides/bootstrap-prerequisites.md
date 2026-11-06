@@ -91,9 +91,23 @@ The npm version/path fields describe npm's launch environment when supplied;
 they do not claim an npm executable was activated by diagnosis.
 
 From the checkout root, `node tools/setup/preflight.js` performs a bounded,
-dependency-free prerequisite check. Both `npm run bootstrap:ci` (locked install)
-and `npm run bootstrap` (intentional dependency resolution) run it before npm
-downloads/replaces dependencies. Unsupported Node or missing Git/Python/build
+dependency-free prerequisite check. The canonical npm commands now use one
+strict dependency-free entry. `npm run bootstrap:ci -- --help`, `--plan` and
+`--status` launch no child or mutation; append `--json` for their machine reports.
+Unknown options, repeated options and conflicting modes fail before input reads
+or prerequisite probes. `--verify` selects the existing native/patch verifier;
+`--repair` applies required patches and selects targeted native repair. A locked
+repeat with intact readiness verifies without reinstalling. `npm run bootstrap`
+still explicitly requests dependency resolution, even in a prepared checkout.
+
+Normal `npm run bootstrap:ci` (locked install) and `npm run bootstrap`
+(intentional dependency resolution) run preflight before npm downloads/replaces
+dependencies. Stages stop at the original failure or cancellation, with actual
+child settlement managed by the existing command owner. Checkout preparation
+always targets the application checkout, separately from target provisioning.
+The six added entry regressions await execution. Checkout-wide mutation admission,
+durable stage journals and final-generation sealing remain the next #1555 work.
+Unsupported Node or missing Git/Python/build
 tools stop immediately with a prerequisite error. Windows discovers the target
 compiler, MSBuild and SDK, then the direct preflight entry compiles and links a
 tiny C++20 program using those selected C++/Windows/UCRT headers and target

@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 2491,
+    "hero": 2497,
     "matrix": 110,
     "meta": 54,
     "soak": 1,
@@ -15949,6 +15949,42 @@
     {
       "id": "tooling/install/bootstrap-failure-observation/observer-errors",
       "order": 2656,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/checkout-bootstrap-entry/strict-arguments",
+      "order": 2657,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/checkout-bootstrap-entry/dependency-free-information",
+      "order": 2658,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/checkout-bootstrap-entry/ordered-stages",
+      "order": 2659,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/checkout-bootstrap-entry/prepared-and-resolution",
+      "order": 2660,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/checkout-bootstrap-entry/failure-and-cancellation",
+      "order": 2661,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/checkout-bootstrap-entry/captured-context",
+      "order": 2662,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     }

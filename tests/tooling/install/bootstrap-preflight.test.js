@@ -82,10 +82,8 @@ try {
   assert.match(readme, /Python 3 and supported C\/C\+\+[\r\n ]+build tools are mandatory/);
   assert.match(readme, /bootstrap always rebuilds the required patched Perl parser from source/);
   for (const name of ['bootstrap', 'bootstrap:ci']) {
-    const commands = manifest.scripts[name].split(' && ');
-    assert.equal(commands[0], 'node tools/setup/preflight.js');
-    assert.equal(commands[1], `npm ${name === 'bootstrap:ci' ? 'ci' : 'install'} --include=dev --ignore-scripts`);
-    assert.deepEqual(commands.slice(2), ['node tools/setup/apply-patches.js', 'node tools/setup/rebuild-native.js']);
+    assert.equal(manifest.scripts[name], `node tools/setup/checkout-bootstrap.js ${name === 'bootstrap:ci' ? 'locked' : 'resolve'}`,
+      'one strict entry admits forwarded arguments before prerequisite/install stages');
   }
   const checkout = path.join(root, 'checkout');
   const preflight = path.join(checkout, 'tools/setup/preflight.js'), marker = path.join(root, 'installer-started');

@@ -54,7 +54,10 @@ assert.deepEqual(installJobs.sort(), [
 ].sort(), 'every bootstrap/verification step retains the CPU installation policy, including both native-inspection steps');
 const manifest = JSON.parse(await fs.readFile(path.join(root, 'package.json'), 'utf8'));
 assert.ok(manifest.dependencies['onnxruntime-node']);
-assert.match(manifest.scripts['bootstrap:ci'], /tools\/setup\/rebuild-native\.js/);
+assert.equal(manifest.scripts['bootstrap:ci'], 'node tools/setup/checkout-bootstrap.js locked');
+const checkoutBootstrap = await fs.readFile(path.join(root, 'tools/setup/checkout-bootstrap.js'), 'utf8');
+assert.match(checkoutBootstrap, /tools\/setup\/rebuild-native\.js/,
+  'the canonical entry retains the required native verifier');
 const rebuild = await fs.readFile(path.join(root, 'tools/setup/rebuild-native.js'), 'utf8');
 assert.match(rebuild, /const REQUIRED_NATIVE_PACKAGES = \[[\s\S]*?'onnxruntime-node'/,
   'CPU ONNX remains a required native dependency');

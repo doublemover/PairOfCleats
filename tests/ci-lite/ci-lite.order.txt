@@ -2659,3 +2659,9 @@ tooling/install/bootstrap-failure-observation/falsy-task-failures
 tooling/install/bootstrap-failure-observation/accessor-errors
 tooling/install/bootstrap-failure-observation/observer-settlement
 tooling/install/bootstrap-failure-observation/observer-errors
+tooling/install/checkout-bootstrap-entry/strict-arguments
+tooling/install/checkout-bootstrap-entry/dependency-free-information
+tooling/install/checkout-bootstrap-entry/ordered-stages
+tooling/install/checkout-bootstrap-entry/prepared-and-resolution
+tooling/install/checkout-bootstrap-entry/failure-and-cancellation
+tooling/install/checkout-bootstrap-entry/captured-context

@@ -13,6 +13,10 @@ import { resolveBootstrapBudget, runBootstrapTasks } from './bootstrap-tasks.js'
 import { createNativeBuildTasks, inspectNativeBuildAdapter } from './native-build-plan.js';
 import { formatSetupPreflight, runSetupPreflight } from './preflight.js';
 import { verifyWindowsCompilerCapability } from './windows-capability.js';
+import { parseNativeRebuildArguments, NATIVE_REBUILD_USAGE } from './checkout-bootstrap-arguments.js';
+
+const { help, verifyOnly, repairOnly } = parseNativeRebuildArguments(process.argv.slice(2));
+if (help) { process.stderr.write(NATIVE_REBUILD_USAGE + '\n'); process.exit(0); }
 
 const REQUIRED_NATIVE_PACKAGES = [
   'tree-sitter',
@@ -44,12 +48,10 @@ const TREE_SITTER_PERL_PATCH_MARKERS = [
 ];
 
 const root = process.cwd();
-const verifyOnly = process.argv.includes('--verify');
 const selectedToolchain = verifyOnly ? null : runSetupPreflight();
 if (selectedToolchain) console.error(formatSetupPreflight(selectedToolchain));
 if (selectedToolchain?.platform === 'win32') selectedToolchain.capability = await verifyWindowsCompilerCapability(selectedToolchain,
   { scratchRoot: path.join(root, '.tmp', 'bootstrap-prerequisites') });
-const repairOnly = process.argv.includes('--repair');
 const bootstrapBudget = resolveBootstrapBudget();
 const [nodeMajor, nodeMinor, nodePatch] = process.versions.node.split('.').map(Number);
 if (nodeMajor !== 26 || nodeMinor < 12 || (nodeMinor === 12 && nodePatch < 1)) {
