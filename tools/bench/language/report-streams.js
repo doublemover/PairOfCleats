@@ -4,6 +4,8 @@ import { assertNoSymlinkPath, openContainedFile, verifyContainedFileHandle } fro
 import { readExactAt } from '../../../src/shared/io/read-exact.js';
 import { throwIfAborted } from '../../../src/shared/abort.js';
 import { addStorageFailureContext } from '../../../src/shared/storage/operation-error.js';
+import { withStorageDirectory } from '../../../src/shared/storage/directory.js';
+import { describeStorageFailure } from '../../../src/shared/storage/failure-observation.js';
 
 const READ_BYTES = 64 * 1024;
 const REPORT_UTF8_DECODER = new TextDecoder('utf-8', { fatal: true });
@@ -11,43 +13,85 @@ export const REPORT_MAX_LINE_BYTES = 1024 * 1024;
 const SUFFIXES = ['.diagnostics.jsonl', '.progress-confidence.jsonl', '.log'];
 const stamp = (stat) => ['dev', 'ino', 'size', 'mtimeNs', 'ctimeNs'].map(key => String(stat[key]));
 const sameStamp = (left, right) => left.every((value, index) => value === right[index]);
+export const REPORT_STREAM_INVENTORY_LIMITS = Object.freeze({ entries: 65536, directories: 4096, depth: 64,
+  pathBytes: 8 * 1024 * 1024, capturedBytes: 1024 * 1024 * 1024, workMs: 5000 });
 
 /** One invocation inventory. No links are followed and every length is captured before reduction. */
-export const discoverReportStreams = async (resultsRoot, { runSuffix = null, signal = null } = {}) => {
+export const discoverReportStreams = async (resultsRoot, { runSuffix = null, signal = null, limits = REPORT_STREAM_INVENTORY_LIMITS } = {}) => {
+  const bounds = { ...REPORT_STREAM_INVENTORY_LIMITS, ...limits };
+  for (const [name, value] of Object.entries(bounds)) {
+    if (!Object.hasOwn(REPORT_STREAM_INVENTORY_LIMITS, name) || !Number.isSafeInteger(value)
+      || value < 1 || value > REPORT_STREAM_INVENTORY_LIMITS[name]) throw new RangeError('Invalid report inventory bound: ' + name);
+  }
   const root = resultsRoot ? path.resolve(resultsRoot, 'logs', 'bench-language') : null;
-  const inventory = { root, entries: [], errors: [], directoryVisits: 0 };
+  const inventory = { root, entries: [], errors: [], errorCount: 0, errorsOmitted: 0, directoryVisits: 0,
+    entriesVisited: 0, directoriesDiscovered: root ? 1 : 0, retainedPathBytes: root ? Buffer.byteLength(root) : 0,
+    capturedBytes: 0, limits: bounds, stopped: false };
   if (!root) return inventory;
+  const record = error => {
+    inventory.errorCount++;
+    if (inventory.errors.length < 128) inventory.errors.push(error); else inventory.errorsOmitted++;
+  };
+  const stop = (reason, target) => {
+    if (!inventory.stopped) record({ path: target, code: 'ERR_REPORT_INVENTORY_LIMIT', reason });
+    inventory.stopped = true;
+  };
+  const began = performance.now();
+  const check = target => {
+    throwIfAborted(signal);
+    if (performance.now() - began >= bounds.workMs) stop('workMs', target);
+    return !inventory.stopped;
+  };
+  if (inventory.retainedPathBytes > bounds.pathBytes) stop('pathBytes', root);
   const suffix = String(runSuffix || '').trim();
   const prefix = suffix ? `${suffix.startsWith('run-') ? suffix : `run-${suffix}`}-` : null;
-  const pending = [root];
-  while (pending.length) {
-    throwIfAborted(signal);
-    const dir = pending.pop();
-    let children;
+  const pending = [{ directory: root, depth: 0 }];
+  while (pending.length && check(root)) {
+    const { directory: dir, depth } = pending.pop();
     try {
       // Recheck directory components so an enumerated directory cannot be swapped for a link.
       assertNoSymlinkPath(root, dir);
       inventory.directoryVisits += 1;
-      children = await fs.readdir(dir, { withFileTypes: true });
+      await withStorageDirectory(dir, async reader => {
+        assertNoSymlinkPath(root, dir);
+        while (check(dir)) {
+          if (inventory.entriesVisited >= bounds.entries) { stop('entries', dir); break; }
+          const child = await reader.read();
+          if (!check(dir)) break;
+          if (!child) break;
+          inventory.entriesVisited++;
+          const filePath = path.join(dir, child.name);
+          if (child.isDirectory()) {
+            if (depth + 1 > bounds.depth) { stop('depth', filePath); break; }
+            if (inventory.directoriesDiscovered >= bounds.directories) { stop('directories', filePath); break; }
+            if (inventory.retainedPathBytes + Buffer.byteLength(filePath) > bounds.pathBytes) { stop('pathBytes', filePath); break; }
+            inventory.directoriesDiscovered++; inventory.retainedPathBytes += Buffer.byteLength(filePath);
+            pending.push({ directory: filePath, depth: depth + 1 }); continue;
+          }
+          if (!child.isFile() || !SUFFIXES.some(value => child.name.endsWith(value)) || (prefix && !child.name.startsWith(prefix))) continue;
+          if (inventory.retainedPathBytes + Buffer.byteLength(filePath) > bounds.pathBytes) { stop('pathBytes', filePath); break; }
+          try {
+            const stat = await fs.lstat(filePath, { bigint: true });
+            if (!stat.isFile() || stat.isSymbolicLink() || stat.size > BigInt(Number.MAX_SAFE_INTEGER)) throw Object.assign(new Error('Unsupported report file.'), { code: 'ERR_REPORT_FILE' });
+            if (stat.size > BigInt(bounds.capturedBytes - inventory.capturedBytes)) { stop('capturedBytes', filePath); break; }
+            inventory.retainedPathBytes += Buffer.byteLength(filePath); inventory.capturedBytes += Number(stat.size);
+            inventory.entries.push(Object.freeze({ path: filePath, bytes: Number(stat.size), stamp: Object.freeze(stamp(stat)),
+              identity: Object.freeze({ dev: String(stat.dev), ino: String(stat.ino) }) }));
+          } catch (error) {
+            const { code } = describeStorageFailure(error, { phase: 'bench-report-file-inventory', defaultCode: 'ERR_REPORT_FILE' });
+            record({ path: filePath, code });
+          }
+        }
+      });
     } catch (error) {
-      if (dir !== root || error?.code !== 'ENOENT') inventory.errors.push({ path: dir, code: error?.code || 'ERR_REPORT_DIRECTORY' });
-      continue;
-    }
-    for (const child of children) {
+      // An unconfirmed original directory close is a resource failure, never an
+      // ordinary inventory warning that permits reduction to continue.
+      const { code } = describeStorageFailure(error, { phase: 'bench-report-directory-inventory', defaultCode: 'ERR_REPORT_DIRECTORY' });
       throwIfAborted(signal);
-      const filePath = path.join(dir, child.name);
-      if (child.isDirectory()) { pending.push(filePath); continue; }
-      if (!child.isFile() || !SUFFIXES.some(value => child.name.endsWith(value)) || (prefix && !child.name.startsWith(prefix))) continue;
-      try {
-        const stat = await fs.lstat(filePath, { bigint: true });
-        if (!stat.isFile() || stat.isSymbolicLink() || stat.size > BigInt(Number.MAX_SAFE_INTEGER)) throw Object.assign(new Error('Unsupported report file.'), { code: 'ERR_REPORT_FILE' });
-        inventory.entries.push(Object.freeze({ path: filePath, bytes: Number(stat.size), stamp: Object.freeze(stamp(stat)),
-          identity: Object.freeze({ dev: String(stat.dev), ino: String(stat.ino) }) }));
-      } catch (error) {
-        inventory.errors.push({ path: filePath, code: error?.code || 'ERR_REPORT_FILE' });
-      }
+      if (dir !== root || code !== 'ENOENT') record({ path: dir, code });
     }
   }
+  check(root);
   inventory.entries.sort((left, right) => left.path.localeCompare(right.path));
   return inventory;
 };
@@ -143,7 +187,8 @@ export const readReportStream = async (inventory, entry, onLine, {
 };
 
 export const createReportStreamContext = (inventory, { signal = null } = {}) => {
-  const metrics = { directoryVisits: inventory.directoryVisits, fileOpens: 0, bytesRead: 0 };
+  const metrics = { directoryVisits: inventory.directoryVisits, entriesVisited: inventory.entriesVisited,
+    retainedPathBytes: inventory.retainedPathBytes, capturedBytes: inventory.capturedBytes, fileOpens: 0, bytesRead: 0 };
   const reads = [];
   const entries = new Map(inventory.entries.map(entry => [entry.path, entry]));
   return {
@@ -158,6 +203,7 @@ export const createReportStreamContext = (inventory, { signal = null } = {}) => 
     summary() {
       return { schemaVersion: 1, boundary: 'captured-file-length', maxLineBytes: REPORT_MAX_LINE_BYTES,
         incomplete: inventory.errors.length > 0 || reads.some(entry => entry.incomplete),
+        inventoryLimits: inventory.limits, errorCount: inventory.errorCount, errorsOmitted: inventory.errorsOmitted,
         errors: inventory.errors, files: reads, metrics: { ...metrics } };
     }
   };

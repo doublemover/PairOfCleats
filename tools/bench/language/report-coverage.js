@@ -49,7 +49,7 @@ export const buildBenchParityCoverage = ({ tasks, logFiles, diagnosticFiles, dia
   const malformedDiagnosticLines = diagnosticsStream.malformedLines;
   const unknownDiagnosticEvents = diagnosticsStream.unknownTypeCount;
   const incompleteStreams = new Set([...streamRead.files.filter(file => file.incomplete).map(file => key(file.path)), ...unread]).size;
-  const inventoryErrors = streamRead.errors.length;
+  const inventoryErrors = streamRead.errorCount ?? streamRead.errors.length;
   const pairedSources = [...stems.values()].filter(pair => pair.log && pair.diagnostics).length;
   const unobserved = observed.size === 0;
   const complete = !unobserved && pairedSources > 0 && !missing.length && !unpaired.length && !malformedDiagnosticLines

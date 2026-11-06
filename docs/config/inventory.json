@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-06T23:34:22.897Z",
+  "generatedAt": "2026-11-06T23:54:46.679Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
@@ -5009,6 +5009,7 @@
         "tests/tooling/providers/tooling-guard-original-lifetime.test.js",
         "tests/tooling/reports/bench-parity-input-observation.test.js",
         "tests/tooling/reports/bench-stream-close-failure.test.js",
+        "tests/tooling/reports/bench-stream-inventory-bounds.test.js",
         "tests/tooling/reports/compare-models-observed-corpus.test.js",
         "tests/tooling/reports/compare-models-partial-ranks.test.js",
         "tests/tooling/reports/diagnostics-report-selection.test.js",

@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 2685,
+    "hero": 2689,
     "matrix": 110,
     "meta": 54,
     "soak": 1,
@@ -17113,6 +17113,30 @@
     {
       "id": "tooling/reports/bench-stream-close-failure/falsey-primary-and-original-close",
       "order": 2850,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/reports/bench-stream-inventory-bounds/complete-quiet-inventory",
+      "order": 2851,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/reports/bench-stream-inventory-bounds/entry-and-captured-byte-bounds",
+      "order": 2852,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/reports/bench-stream-inventory-bounds/path-and-directory-bounds",
+      "order": 2853,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/reports/bench-stream-inventory-bounds/original-directory-close-failure",
+      "order": 2854,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

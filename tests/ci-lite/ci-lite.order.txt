@@ -2853,3 +2853,7 @@ tooling/reports/bench-parity-input-observation/run-retains-earlier-write-failure
 tooling/reports/bench-parity-input-observation/footer-summary-is-not-event-source
 tooling/reports/bench-stream-close-failure/close-failure-is-not-coverage
 tooling/reports/bench-stream-close-failure/falsey-primary-and-original-close
+tooling/reports/bench-stream-inventory-bounds/complete-quiet-inventory
+tooling/reports/bench-stream-inventory-bounds/entry-and-captured-byte-bounds
+tooling/reports/bench-stream-inventory-bounds/path-and-directory-bounds
+tooling/reports/bench-stream-inventory-bounds/original-directory-close-failure

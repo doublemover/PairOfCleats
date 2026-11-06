@@ -16,6 +16,21 @@ retains bounded missing-source samples and records producer/read/parse errors.
 An actually captured empty diagnostic file paired with a quiet log is complete;
 two absent files cannot establish zero warnings or parity.
 
+Discovery reads entries incrementally through the existing storage-directory
+owner, which awaits its original reads and close. Per invocation it admits at
+most 65,536 visited entries, 4,096 discovered directories, depth 64, 8 MiB of
+retained path bytes and 1 GiB of captured selected-stream bytes. Its five-second
+work allowance is cooperative at read/close boundaries; it cannot cancel an
+outstanding native read. Internal test limits may only tighten these maxima.
+An entry boundary may conservatively stop before the final EOF probe.
+
+Limit stops record the exact reason and make coverage incomplete. A narrower
+existing run-suffix selection reduces selected bytes; no partial inventory is
+reported as a complete campaign. Error samples are capped at 128 with exact
+total/omitted counts. Unconfirmed original directory closure propagates through
+the shared observation policy before diagnostic fields can be inspected. No
+retry, lease release or cache cleanup follows from that classification.
+
 Malformed JSON, non-event objects, unrecognized event types, invalid UTF-8,
 oversized/truncated/replaced input, incomplete reads and inventory errors cannot
 produce clean parity. Per-file diagnostics retain captured/read bytes and malformed
@@ -67,3 +82,9 @@ and exact close/error retention. Existing rollout,
 comparison, waiver-count and single-pass controls retain their original assertions,
 count cases and thresholds, with actual quiet source-pair fixtures replacing fabricated healthy
 parity. Real campaign/performance and final runtime acceptance remain pending.
+
+Four further unrun cases exercise the original discovery owner with actual quiet
+files, entry/byte/path/directory/depth bounds, cancellation and an explicit
+unconfirmed-close owner model. The original diagnostics-summary fixture now
+rejects its deliberately malformed row, then removes only that row to retain
+the matching-event clean positive control and all original counts.

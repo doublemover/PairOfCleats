@@ -176,7 +176,8 @@ assert.equal(stream.required.fallback_used, 1, 'expected duplicated fallback eve
 
 const parity = output?.diagnostics?.parity;
 assert.ok(parity && typeof parity === 'object', 'expected diagnostics parity summary');
-assert.equal(parity.status, 'ok', 'expected diagnostics parity to agree with aggregate logs');
+assert.equal(parity.status, 'error', 'malformed input cannot establish clean parity even when all recognized events agree');
+assert.equal(parity.coverage.malformedDiagnosticLines, 1);
 assert.equal(parity.materialMismatchCount, 0, 'expected no material diagnostics parity mismatches');
 assert.equal(parity.countScopes?.countsFromLogs, 'event_presence', 'expected parity event scope label');
 assert.equal(parity.countScopes?.repoCountsFromLogs, 'repo_presence', 'expected parity repo scope label');
@@ -197,6 +198,17 @@ assert.equal(
   true,
   'expected master diagnostics stream summary'
 );
+
+// Retain the original positive event-count/parity control on complete inputs.
+// Only the deliberately malformed row changes; all recognized events remain.
+const original = await fsPromises.readFile(streamA, 'utf8');
+await fsPromises.writeFile(streamA, original.split(/\r?\n/u).filter(line => line !== '{malformed').join('\n'));
+const cleanOutput = await buildReportOutput({ configPath: '/tmp/repos.json', cacheRoot: '/tmp/cache',
+  resultsRoot: tempRoot, results: [], config: {} });
+assert.equal(cleanOutput.diagnostics.parity.status, 'ok', 'complete matching streams retain the clean positive control');
+assert.equal(cleanOutput.diagnostics.parity.materialMismatchCount, 0);
+assert.deepEqual(cleanOutput.diagnostics.stream.countsByType, stream.countsByType);
+assert.equal(cleanOutput.diagnostics.stream.eventCount, stream.eventCount);
 
 await fsPromises.rm(tempRoot, { recursive: true, force: true });
 
