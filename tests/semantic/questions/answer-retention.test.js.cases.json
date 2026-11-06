@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["immutable-shared-graph", "intent-and-base-conflicts", "interruption-and-resume", "corruption-and-authority", "quotas-and-leases", "native-failure-ownership"]
+}

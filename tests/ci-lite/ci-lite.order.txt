@@ -2570,3 +2570,9 @@ semantic/questions/answer-admission/live-query-and-quotes
 semantic/questions/answer-admission/publication-and-failures
 semantic/questions/answer-admission/request-and-history
 semantic/questions/answer-admission/transport-parity
+semantic/questions/answer-retention/immutable-shared-graph
+semantic/questions/answer-retention/intent-and-base-conflicts
+semantic/questions/answer-retention/interruption-and-resume
+semantic/questions/answer-retention/corruption-and-authority
+semantic/questions/answer-retention/quotas-and-leases
+semantic/questions/answer-retention/native-failure-ownership

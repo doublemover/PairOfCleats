@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 2402,
+    "hero": 2408,
     "matrix": 110,
     "meta": 54,
     "soak": 1,
@@ -15415,6 +15415,42 @@
     {
       "id": "semantic/questions/answer-admission/transport-parity",
       "order": 2567,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "semantic/questions/answer-retention/immutable-shared-graph",
+      "order": 2568,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "semantic/questions/answer-retention/intent-and-base-conflicts",
+      "order": 2569,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "semantic/questions/answer-retention/interruption-and-resume",
+      "order": 2570,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "semantic/questions/answer-retention/corruption-and-authority",
+      "order": 2571,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "semantic/questions/answer-retention/quotas-and-leases",
+      "order": 2572,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "semantic/questions/answer-retention/native-failure-ownership",
+      "order": 2573,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

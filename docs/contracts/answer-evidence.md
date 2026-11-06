@@ -4,8 +4,9 @@ The answer core compiles admitted indexed-query receipts and exact source
 quotations into deterministic text, typed claims and UTF-16 fragment/source maps.
 It also validates historical content and constructs exact-base answer patches.
 Live query/source admission is available through `repository-answer`, MCP
-`repository_answer` and HTTP `POST /analysis/repository-answer`. Optional durable
-publication remains implementation work under #1532. All authored runtime cases
+`repository_answer` and HTTP `POST /analysis/repository-answer`. An opt-in
+[retention owner](answer-retention.md) now provides immutable support graphs and
+exact-intent publication; transport integration remains. All authored runtime cases
 are unexecuted; this contract is not a qualification receipt.
 
 `compileAdmittedQueryAnswer` is an internal consumer of already-admitted results.
@@ -82,7 +83,7 @@ Five authored, unexecuted cases cover visible text and quote maps, Unicode
 boundaries, typed values and unknown scalar metadata, qualified/empty counts,
 open requirements, exact-base retractions, stale patches, cyclic support edits,
 quotation-content disagreement, duplicate citations, bounded mandatory overflow,
-cancellation and owner-proven invocation metadata separation. The live controls below are authored; retained-artifact work and all runtime/cost
+cancellation and owner-proven invocation metadata separation. The live controls below are authored; retention integration and all runtime/cost
 qualification remain.
 
 Public requests use `mode: "compile"`, a `questionRef` and the existing typed

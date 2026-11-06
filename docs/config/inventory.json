@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-06T10:10:00.213Z",
+  "generatedAt": "2026-11-06T10:47:04.697Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
@@ -4835,6 +4835,7 @@
         "tests/runner/run-execution.js",
         "tests/security/download-redirect-deadline.test.js",
         "tests/semantic/questions/answer-admission.test.js",
+        "tests/semantic/questions/answer-retention.test.js",
         "tests/semantic/questions/answer-revisions.test.js",
         "tests/semantic/questions/clause-explanation.test.js",
         "tests/semantic/questions/compiler-reference.test.js",
