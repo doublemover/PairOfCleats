@@ -5,7 +5,7 @@ import { createHash } from 'node:crypto';
 import { isDirectExecution } from '../../src/shared/direct-execution.js';
 import { CHECKOUT_BOOTSTRAP_USAGE, parseCheckoutBootstrapArguments } from './checkout-bootstrap-arguments.js';
 import { readErrorDataProperty } from '../../src/shared/error-data.js';
-import { writeBootstrapStatus } from './task-progress-output.js';
+import { writeBootstrapStatus, writeBootstrapText } from './task-progress-output.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const immutable = value => {
@@ -101,24 +101,28 @@ export const runCheckoutBootstrap = async (args, { root = ROOT, env = process.en
   }), { signal });
 };
 
+export const writeCheckoutBootstrapResult = async (result, options, { stdout = process.stdout, stderr = process.stderr } = {}) => {
+  if (options.json) await writeBootstrapText(JSON.stringify(result) + '\n', stdout);
+  else if (options.mode === 'help') await writeBootstrapText(result.text + '\n', stderr);
+  else if (['plan', 'status'].includes(options.mode)) await writeBootstrapText(JSON.stringify(result, null, 2) + '\n', stderr);
+};
+
 if (isDirectExecution(import.meta.url)) {
   // Admission is synchronous and precedes signal handlers, metadata reads and
   // dynamic owner imports. A misspelled/help flag cannot reach npm or patches.
   let options;
   try { options = parseCheckoutBootstrapArguments(process.argv.slice(2)); }
-  catch (error) { process.stderr.write(error.message + '\n'); process.exitCode = 2; }
+  catch (error) { await writeBootstrapText(error.message + '\n', process.stderr).catch(() => {}); process.exitCode = 2; }
   if (options) {
     const controller = new AbortController(), interrupt = () => controller.abort('SIGINT'), terminate = () => controller.abort('SIGTERM');
     process.on('SIGINT', interrupt); process.on('SIGTERM', terminate);
     try {
       const result = await runCheckoutBootstrap(process.argv.slice(2), { signal: controller.signal });
-      if (options.json) process.stdout.write(JSON.stringify(result) + '\n');
-      else if (options.mode === 'help') process.stderr.write(result.text + '\n');
-      else if (['plan', 'status'].includes(options.mode)) process.stderr.write(JSON.stringify(result, null, 2) + '\n');
+      await writeCheckoutBootstrapResult(result, options);
       process.exitCode = result.exitCode;
     } catch (error) {
       const message = readErrorDataProperty(error, 'message'), status = readErrorDataProperty(readErrorDataProperty(error, 'result'), 'status');
-      process.stderr.write((typeof message === 'string' ? message : 'Checkout bootstrap failed; original failure retained by the stage owner.') + '\n');
+      await writeBootstrapText((typeof message === 'string' ? message : 'Checkout bootstrap failed; original failure retained by the stage owner.') + '\n', process.stderr).catch(() => {});
       process.exitCode = controller.signal.aborted ? controller.signal.reason === 'SIGTERM' ? 143 : 130
         : Number.isInteger(status) && status > 0 ? status : 1;
     } finally { process.off('SIGINT', interrupt); process.off('SIGTERM', terminate); }

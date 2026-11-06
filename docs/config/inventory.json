@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-06T21:43:02.946Z",
+  "generatedAt": "2026-11-06T21:56:38.512Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
@@ -4965,6 +4965,7 @@
         "tests/tooling/install/checkout-evidence-retention.test.js",
         "tests/tooling/install/checkout-mutation-owner.test.js",
         "tests/tooling/install/checkout-recovery.test.js",
+        "tests/tooling/install/checkout-response-output.test.js",
         "tests/tooling/install/checkout-stage-journal.test.js",
         "tests/tooling/install/clangd-owned-acquisition.test.js",
         "tests/tooling/install/estimate-destination-identity.test.js",

@@ -216,6 +216,11 @@ its synchronous validation/mutation boundary; bounded summaries flush afterward
 through awaited default or custom callbacks. Existing stdout text/counts and the
 integer patch result are retained. Logging failure reports actual publication
 counts and preserves an independent publication error.
+Help/plan/status and JSON result delivery also await original callbacks. Exact
+UTF-8 output is chunked without changing or truncating the response. A closed
+stdout pipe produces a failing CLI result; final diagnostic delivery is best
+effort when stderr itself is unavailable. Metadata output never creates a
+checkout mutation session.
 
 Native probes now launch their actual bounded Node operations through that same
 owner, without the former synchronous layer or extra per-package wrapper process.

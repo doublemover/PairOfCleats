@@ -112,3 +112,20 @@ export const writeBootstrapDiagnosticBytes = (bytes, stream, context) => {
     failure('ERR_BOOTSTRAP_STATUS_BYTES', 'Bootstrap diagnostic writes require a bounded original byte buffer.'));
   return writeOriginalBytes(Buffer.from(bytes), stream, context);
 };
+
+/** Exact metadata/help/diagnostic text, chunked through the same callback owner.
+ * No total-response truncation or control projection changes its wire bytes. */
+export const writeBootstrapText = (text, stream, context) => {
+  if (typeof text !== 'string') return Promise.reject(new TypeError('Bootstrap output requires original text.'));
+  try {
+    const { root, session } = context || {}, captured = Object.freeze({ root, session }), bytes = Buffer.from(text);
+    if (session) requireCheckoutMutationSession(root, session);
+    captureOutput(stream);
+    const write = async () => {
+      for (let offset = 0; offset < bytes.length; offset += BOOTSTRAP_STATUS_OUTPUT_LIMITS.lineBytes) {
+        await writeBootstrapDiagnosticBytes(bytes.subarray(offset, offset + BOOTSTRAP_STATUS_OUTPUT_LIMITS.lineBytes), stream, captured);
+      }
+    };
+    return session ? withCheckoutMutation(root, write, { session }) : write();
+  } catch (error) { return Promise.reject(error); }
+};

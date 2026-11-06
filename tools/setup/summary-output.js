@@ -1,5 +1,5 @@
 import { stripVTControlCharacters } from 'node:util';
-import { writeBootstrapStatus, writeBootstrapDiagnosticBytes, BOOTSTRAP_STATUS_OUTPUT_LIMITS } from './task-progress-output.js';
+import { writeBootstrapStatus, writeBootstrapText } from './task-progress-output.js';
 import { createStorageObservationLedger } from '../../src/shared/storage/failure-observation.js';
 import { addStorageFailureContext } from '../../src/shared/storage/operation-error.js';
 import { requireCheckoutMutationSession } from './checkout-mutation.js';
@@ -41,8 +41,7 @@ export const withBootstrapSummaryOutput = async (root, session, operation, { std
       if (errors.length) return;
       try {
         if (typeof text !== 'string' || Buffer.byteLength(text) > 65536) throw new TypeError('Bootstrap diagnostic tail exceeds its original text bound.');
-        const bytes = Buffer.from(text), count = BOOTSTRAP_STATUS_OUTPUT_LIMITS.lineBytes;
-        for (let offset = 0; offset < bytes.length; offset += count) await writeBootstrapDiagnosticBytes(bytes.subarray(offset, offset + count), stream, context);
+        await writeBootstrapText(text, stream, context);
       } catch (error) { remember(error); }
     }
   });

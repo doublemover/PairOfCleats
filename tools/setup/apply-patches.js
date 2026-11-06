@@ -12,7 +12,7 @@ import { addStorageFailureContext } from '../../src/shared/storage/operation-err
 import { withCheckoutMutation, requireCheckoutMutationSession } from './checkout-mutation.js';
 import { withPackagePatchStage } from './patch-stage.js';
 import { formatBootstrapTaskProgress } from './task-progress.js';
-import { writeBootstrapStatus, writeBootstrapDiagnosticBytes, BOOTSTRAP_STATUS_OUTPUT_LIMITS } from './task-progress-output.js';
+import { writeBootstrapStatus, writeBootstrapText } from './task-progress-output.js';
 
 const MAX_PATCH_BYTES = 1024 * 1024;
 const MAX_FILE_BYTES = 16 * 1024 * 1024;
@@ -326,8 +326,7 @@ const applyPatchesOwned = async (cwd, { verifyOnly = false, signal = null,
     for (const message of messages) {
       if (log) await log(message);
       else {
-        const bytes = Buffer.from(message + '\n'), size = BOOTSTRAP_STATUS_OUTPUT_LIMITS.lineBytes;
-        for (let offset = 0; offset < bytes.length; offset += size) await writeBootstrapDiagnosticBytes(bytes.subarray(offset, offset + size), process.stdout, { root, session });
+        await writeBootstrapText(message + '\n', process.stdout, { root, session });
       }
     }
   } catch (logging) {

@@ -20,7 +20,7 @@ import { isDirectExecution } from '../../src/shared/direct-execution.js';
 import { readErrorDataProperty } from '../../src/shared/error-data.js';
 import { addStorageFailureContext } from '../../src/shared/storage/operation-error.js';
 import { formatBootstrapTaskProgress } from './task-progress.js';
-import { writeBootstrapStatus } from './task-progress-output.js';
+import { writeBootstrapStatus, writeBootstrapText } from './task-progress-output.js';
 import { withBootstrapSummaryOutput } from './summary-output.js';
 import { createNativeSetupDiagnostics } from './native-diagnostics.js';
 import { createHash } from 'node:crypto';
@@ -617,11 +617,11 @@ if (isDirectExecution(import.meta.url)) {
   process.on('SIGINT', interrupt); process.on('SIGTERM', terminate);
   try {
     const result = await runNativeRebuild(process.argv.slice(2), { signal: controller.signal });
-    if (result.help) process.stderr.write(result.help + '\n');
+    if (result.help) await writeBootstrapText(result.help + '\n', process.stderr);
     process.exitCode = result.exitCode;
   } catch (error) {
     const message = readErrorDataProperty(error, 'message');
-    process.stderr.write('[rebuild:native] ' + (typeof message === 'string' ? message : 'Native setup failed.') + '\n');
+    await writeBootstrapText('[rebuild:native] ' + (typeof message === 'string' ? message : 'Native setup failed.') + '\n', process.stderr).catch(() => {});
     process.exitCode = controller.signal.aborted ? controller.signal.reason === 'SIGTERM' ? 143 : 130 : 1;
   } finally { process.off('SIGINT', interrupt); process.off('SIGTERM', terminate); }
 }

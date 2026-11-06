@@ -2799,3 +2799,6 @@ tooling/install/checkout-command-evidence/late-cancellation-keeps-original-resul
 tooling/install/checkout-command-evidence/spawn-error-keeps-original-packet
 tooling/install/checkout-command-evidence/canonical-command-stage-owned-evidence
 tooling/install/checkout-command-evidence/annotated-diagnostic-failure-stays-terminal
+tooling/install/checkout-response-output/large-json-and-help-byte-parity
+tooling/install/checkout-response-output/original-full-text-scope-and-provider
+tooling/install/checkout-response-output/closed-stdout-cli-failure
