@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["private-oracle-visible-packets", "alternative-and-q-of-oracle", "unknown-and-verified-empty", "lineage-splits-and-quarantine", "source-authority-and-failures"]
+}

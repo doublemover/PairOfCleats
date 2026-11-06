@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 2473,
+    "hero": 2478,
     "matrix": 110,
     "meta": 54,
     "soak": 1,
@@ -15841,6 +15841,36 @@
     {
       "id": "tooling/eval/intervention-dataset/profile-errors-and-report-bounds",
       "order": 2638,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/eval/finite-evidence-task/private-oracle-visible-packets",
+      "order": 2639,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/eval/finite-evidence-task/alternative-and-q-of-oracle",
+      "order": 2640,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/eval/finite-evidence-task/unknown-and-verified-empty",
+      "order": 2641,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/eval/finite-evidence-task/lineage-splits-and-quarantine",
+      "order": 2642,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/eval/finite-evidence-task/source-authority-and-failures",
+      "order": 2643,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }
