@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 2452,
+    "hero": 2457,
     "matrix": 110,
     "meta": 54,
     "soak": 1,
@@ -15715,6 +15715,36 @@
     {
       "id": "graph/hypotheses/finite-causal-prediction/scope-and-cursor-ownership",
       "order": 2617,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "graph/hypotheses/finite-causal-discrimination/common-cause-minimax-and-ties",
+      "order": 2618,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "graph/hypotheses/finite-causal-discrimination/mediator-admissibility-and-held-fixed",
+      "order": 2619,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "graph/hypotheses/finite-causal-discrimination/compensating-and-nondiscriminating-actions",
+      "order": 2620,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "graph/hypotheses/finite-causal-discrimination/overlapping-unknown-outcome-oracle",
+      "order": 2621,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "graph/hypotheses/finite-causal-discrimination/investigation-read-only-handoff",
+      "order": 2622,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

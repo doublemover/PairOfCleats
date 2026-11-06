@@ -2620,3 +2620,8 @@ graph/hypotheses/finite-causal-prediction/collider-conditioning
 graph/hypotheses/finite-causal-prediction/weights-and-incomplete-support
 graph/hypotheses/finite-causal-prediction/factorized-support-parity
 graph/hypotheses/finite-causal-prediction/scope-and-cursor-ownership
+graph/hypotheses/finite-causal-discrimination/common-cause-minimax-and-ties
+graph/hypotheses/finite-causal-discrimination/mediator-admissibility-and-held-fixed
+graph/hypotheses/finite-causal-discrimination/compensating-and-nondiscriminating-actions
+graph/hypotheses/finite-causal-discrimination/overlapping-unknown-outcome-oracle
+graph/hypotheses/finite-causal-discrimination/investigation-read-only-handoff

@@ -94,5 +94,46 @@ Five additional unexecuted cases cover common-cause versus direct models,
 factual counterfactuals versus resampling, collider conditioning, exact rational
 mass/zero mass, incomplete support, missing instrumentation, 64-assignment flat/
 factorized parity, assignment counts, stale scopes, bounded private cursors,
-output failure and cancellation. Action discrimination is a subsequent consumer;
-statistical/learned identification remains unqualified and disabled.
+output failure and cancellation. Statistical/learned identification remains
+unqualified and disabled.
+
+## Inert discrimination advice
+
+`planFiniteCausalDiscrimination` compares up to eight supplied models and eight
+supplied actions using original owned prediction receipts. Every query must match
+the model, world, operational definitions, factual conditions, intervention and
+task/branch/assumption revision. Missing/incomplete predictions survive every
+outcome, including the unknown-outcome bucket. Complete overlapping prediction
+sets remain overlapping; an arbitrary representative cannot turn them into
+disjoint partitions or create false model eliminations.
+
+Advice minimizes the worst-case surviving model count, then the declared action
+plus proof cost, then stable action ID. Tied alternatives, prediction references,
+unknown survivors, worst-case witnesses and residual ambiguity remain explicit.
+This is a minimax choice among the supplied candidates and declared costs; the
+model/action candidate sets need not be exhaustive. A 250 ms cooperative action
+boundary leaves unchecked action IDs and unresolved optimality when exhausted.
+The advice packet remains under 128 KiB and does not retain expanded prediction
+snapshots. Prediction construction/traversal/evaluation work remains charged by
+the referenced receipts rather than disappearing from a performance comparison.
+
+An action requires explicit finite-model admissibility and supplied receipt IDs;
+every model must admit the intervention. Held-fixed requirements need a complete
+joint prediction containing the named variables and satisfying those values.
+Descendants cannot be frozen implicitly. A hypothetical declaration grants no
+permission to run an experiment, edit source or upload traces.
+
+`planInvestigationCausalEvidence` binds an original plan to the exact existing
+investigation and projection revision. It hands only matching, independently
+owner-admitted read actions to the existing next-evidence advisor. Source-inspected
+requirements retain their actual source roles; a model consequence does not
+satisfy them. Stale plans, changed branches/assumptions/worlds and execution-class
+actions fail the existing boundaries. The seam adds no observations or support.
+Realized intervention/replay admission remains the separate #1526 owner.
+
+Five unexecuted cases cover common-cause/direct minimax and stable ties,
+mediator interventions versus unavailable actions, explicit held-fixed rejection,
+compensating mechanisms versus no effect under nondiscriminating actions,
+an independent Boolean-outcome oracle over every subset of unknown predictions,
+incomplete overlapping outcomes and current-revision read-only investigation
+handoff. No causal identification or experiment execution is claimed.

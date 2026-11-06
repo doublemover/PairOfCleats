@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["common-cause-minimax-and-ties", "mediator-admissibility-and-held-fixed", "compensating-and-nondiscriminating-actions", "overlapping-unknown-outcome-oracle", "investigation-read-only-handoff"]
+}
