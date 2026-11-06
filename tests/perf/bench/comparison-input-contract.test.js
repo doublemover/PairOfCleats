@@ -43,6 +43,9 @@ invalid(input => { delete input.diagnostics.parity; });
 invalid(input => { delete input.diagnostics.parity.coverage; });
 invalid(input => { input.diagnostics.parity.schemaVersion = 1; });
 invalid(input => { input.diagnostics.parity.inputIncomplete = true; input.diagnostics.parity.status = 'error'; });
+invalid(input => { input.diagnostics.parity.coverage.runProducerState = 'complete'; });
+invalid(input => { input.diagnostics.streamProducer = { complete: true }; });
+invalid(input => { input.diagnostics.parity.coverage.runProducerState = 'unknown'; });
 for (const field of ['missingStreams', 'unpairedSources', 'malformedDiagnosticLines', 'unknownDiagnosticEvents', 'incompleteStreams', 'inventoryErrors', 'producerIncompleteTasks']) {
   invalid(input => { input.diagnostics.parity.coverage[field] = 1; });
 }

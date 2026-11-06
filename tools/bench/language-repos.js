@@ -715,6 +715,7 @@ const output = await buildReportOutput({
   results,
   config,
   environmentMetadata: benchEnvironmentMetadata,
+  streamProducerEvidence: processRunner.getDiagnosticProducerCoverage(),
   runLabel: runSuffix,
   runSuffix,
   waiverFile,

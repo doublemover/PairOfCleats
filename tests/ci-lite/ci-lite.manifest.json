@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 2684,
+    "hero": 2685,
     "matrix": 110,
     "meta": 54,
     "soak": 1,
@@ -17093,20 +17093,26 @@
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/reports/bench-parity-input-observation/footer-summary-is-not-event-source",
+      "id": "tooling/reports/bench-parity-input-observation/run-retains-earlier-write-failure",
       "order": 2847,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/reports/bench-stream-close-failure/close-failure-is-not-coverage",
+      "id": "tooling/reports/bench-parity-input-observation/footer-summary-is-not-event-source",
       "order": 2848,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/reports/bench-stream-close-failure/falsey-primary-and-original-close",
+      "id": "tooling/reports/bench-stream-close-failure/close-failure-is-not-coverage",
       "order": 2849,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/reports/bench-stream-close-failure/falsey-primary-and-original-close",
+      "order": 2850,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

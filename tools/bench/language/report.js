@@ -701,7 +701,8 @@ const buildReportStreamSummaries = async (tasks, resultsRoot, options) => {
   const streamRead = context.summary();
   const diagnosticsParity = parity.finalize();
   diagnosticsParity.coverage = buildBenchParityCoverage({ tasks, logFiles: files,
-    diagnosticFiles: context.files(DIAGNOSTIC_STREAM_FILE_SUFFIX), diagnosticsStream, streamRead });
+    diagnosticFiles: context.files(DIAGNOSTIC_STREAM_FILE_SUFFIX), diagnosticsStream, streamRead,
+    streamProducerEvidence: options.streamProducerEvidence });
   if (streamRead.incomplete || diagnosticsStream.incomplete || diagnosticsParity.coverage.state !== 'complete') {
     diagnosticsParity.inputIncomplete = true;
     diagnosticsParity.status = 'error';
@@ -1535,6 +1536,7 @@ export const buildReportOutput = async ({
   results,
   config,
   environmentMetadata = null,
+  streamProducerEvidence = null,
   runLabel = null,
   runSuffix = null,
   waiverFile = null,
@@ -1587,7 +1589,7 @@ export const buildReportOutput = async ({
   const overallSummary = summarizeResults(tasks, { metricTags, methodology });
   const crashRetention = buildCrashRetentionSummary(tasks);
   const { diagnosticsStream, diagnosticsParity, reuseDiagnostics, progressConfidence, preflight, streamRead }
-    = await buildReportStreamSummaries(tasks, resultsRoot, { runSuffix });
+    = await buildReportStreamSummaries(tasks, resultsRoot, { runSuffix, streamProducerEvidence });
   const throughputLedger = buildThroughputLedgerSummary(tasks);
   const stageTimingTasks = tasks
     .filter((entry) => entry?.stageTimingProfile)
@@ -1666,6 +1668,7 @@ export const buildReportOutput = async ({
     diagnostics: {
       crashRetention,
       streamRead,
+      streamProducer: streamProducerEvidence,
       stream: diagnosticsStream,
       parity: diagnosticsParity,
       reuse: reuseDiagnostics,

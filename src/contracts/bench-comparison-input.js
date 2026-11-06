@@ -1,4 +1,4 @@
-import { BENCH_PARITY_OBSERVATION_VERSION, validateBenchDiagnosticCoverage } from './bench-diagnostic-coverage.js';
+import { BENCH_PARITY_OBSERVATION_VERSION, benchRunProducerState, validateBenchDiagnosticCoverage } from './bench-diagnostic-coverage.js';
 
 export const BENCH_VERDICT_SCHEMA_VERSION = 1;
 
@@ -58,6 +58,7 @@ export const validateBenchComparisonInput = payload => {
     const coverage = validateBenchDiagnosticCoverage(parity.coverage);
     if (parity.schemaVersion !== BENCH_PARITY_OBSERVATION_VERSION) fail('diagnostics.parity requires current observation version 2');
     for (const error of coverage.errors) fail('diagnostics.parity: ' + error);
+    if (parity.coverage?.runProducerState !== benchRunProducerState(diagnostics.streamProducer)) fail('diagnostics.parity run producer state disagrees with the supplied producer observation');
     if (parity.coverage?.state !== 'complete') fail('diagnostics.parity requires complete observed diagnostic/log stream coverage');
     if (parity.inputIncomplete === true) fail('diagnostics.parity input is explicitly incomplete');
     if (parity.materialMismatchCount > parity.mismatchCount) fail('material parity mismatches cannot exceed all mismatches');

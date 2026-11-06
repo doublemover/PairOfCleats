@@ -38,6 +38,15 @@ is unqualified. The actual benchmark frontdoor flushes its original master/repo
 log writers with fatal error handling before capturing report inputs. Periodic
 operator flushing keeps its existing nonfatal policy.
 
+The same process-runner instance retains run-wide execution, unconfirmed-flush
+and write/flush-failure counters. A later successful command cannot erase an
+earlier delivery failure, and a write queued while an older generation drains
+remains unconfirmed. Counters retain constant-size state without keeping every
+command or path. The actual frontdoor supplies this snapshot to the report;
+`runProducerState` distinguishes complete, incomplete and not-supplied evidence.
+Raw captured-file report generation may omit this observation and cannot claim
+run-wide producer delivery. This metadata does not grant resource retirement.
+
 An original report-stream close failure propagates instead of returning apparently
 usable parse metadata. If reduction already failed, the existing storage failure
 context owner preserves both original errors, including frozen and falsey values.
@@ -51,9 +60,10 @@ reports it. Timing nulls remain unknown and measured zero stays distinct.
 This validates supplied report evidence; it does not establish benchmark origin,
 representativeness, final filesystem snapshot continuity or performance gains.
 
-Nine new locally unrun cases cover absent/quiet pairs, malformed/non-event and
+Ten new locally unrun cases cover absent/quiet pairs, malformed/non-event and
 invalid-UTF-8 input, out-of-inventory declarations, real quiet/failing stream
-producers, footer provenance, and exact close/error retention. Existing rollout,
+producers, failure followed by a separate successful command, footer provenance,
+and exact close/error retention. Existing rollout,
 comparison, waiver-count and single-pass controls retain their original assertions,
 count cases and thresholds, with actual quiet source-pair fixtures replacing fabricated healthy
 parity. Real campaign/performance and final runtime acceptance remain pending.

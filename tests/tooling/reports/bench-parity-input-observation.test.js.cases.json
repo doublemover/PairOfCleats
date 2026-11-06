@@ -1,4 +1,4 @@
 {
   "schemaVersion": 1,
-  "cases": ["missing-is-unobserved", "quiet-pair-is-observed", "malformed-and-invalid-utf8", "declared-source-remains-unread", "real-quiet-producer", "real-producer-write-failure", "footer-summary-is-not-event-source"]
+  "cases": ["missing-is-unobserved", "quiet-pair-is-observed", "malformed-and-invalid-utf8", "declared-source-remains-unread", "real-quiet-producer", "real-producer-write-failure", "run-retains-earlier-write-failure", "footer-summary-is-not-event-source"]
 }

@@ -838,6 +838,10 @@ export const createProcessRunner = ({
   let activeLabel = '';
   let exitLogged = false;
   const interactiveDiagnostics = new Map();
+  // Retain failed/unknown delivery across commands without retaining every path
+  // or child. This observes telemetry only, not physical process retirement.
+  const diagnosticProducer = { schemaVersion: 1, kind: 'bench-process-runner', observationId: randomUUID(),
+    executionCount: 0, unconfirmedFlushes: 0, writeFailures: 0, flushFailures: 0 };
   const ACTIVE_CHILD_SHUTDOWN_WAIT_MS = 15000;
   const processActivityState = {
     childPid: null,
@@ -1359,9 +1363,17 @@ export const createProcessRunner = ({
     const schedulerEvents = [];
     const telemetryWriteQueues = new Map();
     const telemetryWriteFailures = new Map();
+    diagnosticProducer.executionCount++;
+    diagnosticProducer.unconfirmedFlushes++;
+    let flushConfirmed = false, writeGeneration = 0;
+    const markTelemetryPending = () => {
+      if (flushConfirmed) { diagnosticProducer.unconfirmedFlushes++; flushConfirmed = false; }
+      telemetryWritesSettled = false;
+    };
     let telemetryWritesSettled = false, telemetryFailureCount = 0, telemetryFlushFailures = 0;
     const queueTelemetry = (file, payload, options) => {
-      telemetryWritesSettled = false;
+      markTelemetryPending();
+      writeGeneration++;
       appendJsonLineQueued(telemetryWriteQueues, telemetryWriteFailures, file, payload, options);
     };
     // An observed empty diagnostic stream is different from a missing stream.
@@ -1402,7 +1414,8 @@ export const createProcessRunner = ({
     };
 
     const flushTelemetryWrites = async (reason = 'flush') => {
-      telemetryWritesSettled = false;
+      markTelemetryPending();
+      const capturedGeneration = writeGeneration;
       try {
         await runWithTimeout(
           () => flushQueuedJsonLines(telemetryWriteQueues, telemetryWriteFailures),
@@ -1414,16 +1427,25 @@ export const createProcessRunner = ({
             })
           }
         );
-        telemetryWritesSettled = true;
+        // A write arriving while this captured queue drains needs its own
+        // observed completion; awaiting an earlier generation cannot prove it.
+        if (capturedGeneration === writeGeneration) {
+          telemetryWritesSettled = true;
+          flushConfirmed = true;
+          diagnosticProducer.unconfirmedFlushes--;
+        }
       } catch (error) {
         telemetryFlushFailures++;
+        diagnosticProducer.flushFailures++;
         appendLog(
           `[bench] telemetry flush did not settle during ${reason}: ${error?.message || String(error)}`,
           'warn'
         );
       }
       if (telemetryWriteFailures.size > 0) {
-        telemetryFailureCount += [...telemetryWriteFailures.values()].reduce((sum, entry) => sum + entry.count, 0);
+        const failures = [...telemetryWriteFailures.values()].reduce((sum, entry) => sum + entry.count, 0);
+        telemetryFailureCount += failures;
+        diagnosticProducer.writeFailures += failures;
         const summary = Array.from(telemetryWriteFailures.entries())
           .map(([filePath, info]) => `${path.basename(filePath)} x${info.count}${info.lastMessage ? ` (${info.lastMessage})` : ''}`)
           .join('; ');
@@ -2373,6 +2395,9 @@ export const createProcessRunner = ({
 
   return {
     runProcess,
+    getDiagnosticProducerCoverage: () => Object.freeze({ ...diagnosticProducer,
+      complete: diagnosticProducer.executionCount > 0 && diagnosticProducer.unconfirmedFlushes === 0
+        && diagnosticProducer.writeFailures === 0 && diagnosticProducer.flushFailures === 0 }),
     killProcessTree,
     terminateActiveChild,
     logExit,

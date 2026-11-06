@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { benchRunProducerState } from '../../../src/contracts/bench-diagnostic-coverage.js';
 export { BENCH_PARITY_OBSERVATION_VERSION } from '../../../src/contracts/bench-diagnostic-coverage.js';
 const key = file => process.platform === 'win32' ? path.resolve(file).toLowerCase() : path.resolve(file);
 const diagnosticSuffix = '.diagnostics.jsonl';
@@ -28,8 +29,9 @@ const declarations = tasks => {
 const selectLogs = (logFiles, declared) => logFiles.filter(file => !file.endsWith('-footer.log') || declared.has(key(file)));
 export const selectBenchParityLogFiles = (logFiles, tasks) => selectLogs(logFiles, declarations(tasks).declared);
 
-export const buildBenchParityCoverage = ({ tasks, logFiles, diagnosticFiles, diagnosticsStream, streamRead }) => {
+export const buildBenchParityCoverage = ({ tasks, logFiles, diagnosticFiles, diagnosticsStream, streamRead, streamProducerEvidence = null }) => {
   const { declared, producerIncompleteTasks } = declarations(tasks);
+  const runProducerState = benchRunProducerState(streamProducerEvidence);
   // Canonical footer summaries are not independent raw-event sources. A caller
   // explicitly declaring such a path as its actual log still retains it.
   const logs = selectLogs(logFiles, declared);
@@ -51,12 +53,12 @@ export const buildBenchParityCoverage = ({ tasks, logFiles, diagnosticFiles, dia
   const pairedSources = [...stems.values()].filter(pair => pair.log && pair.diagnostics).length;
   const unobserved = observed.size === 0;
   const complete = !unobserved && pairedSources > 0 && !missing.length && !unpaired.length && !malformedDiagnosticLines
-    && !unknownDiagnosticEvents && !incompleteStreams && !inventoryErrors && !producerIncompleteTasks;
+    && !unknownDiagnosticEvents && !incompleteStreams && !inventoryErrors && !producerIncompleteTasks && runProducerState !== 'incomplete';
   return { schemaVersion: 1, state: complete ? 'complete' : unobserved ? 'unobserved' : 'incomplete',
     expectedSourcePolicy: 'captured-log-diagnostic-pairs-and-declared-process-paths-v1',
     logStreams: logs.length, diagnosticStreams: diagnosticFiles.length, pairedSources,
     expectedStreams: expected.size, observedStreams: observed.size, missingStreams: missing.length,
     unpairedSources: unpaired.length, malformedDiagnosticLines, unknownDiagnosticEvents, incompleteStreams,
-    inventoryErrors, producerIncompleteTasks, missingSamples: missing.slice(0, 8), missingSamplesOmitted: Math.max(0, missing.length - 8),
+    inventoryErrors, producerIncompleteTasks, runProducerState, missingSamples: missing.slice(0, 8), missingSamplesOmitted: Math.max(0, missing.length - 8),
     unpairedSamples: unpaired.slice(0, 8), unpairedSamplesOmitted: Math.max(0, unpaired.length - 8) };
 };
