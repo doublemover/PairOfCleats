@@ -21,6 +21,7 @@ import { readErrorDataProperty } from '../../src/shared/error-data.js';
 import { addStorageFailureContext } from '../../src/shared/storage/operation-error.js';
 import { formatBootstrapTaskProgress } from './task-progress.js';
 import { writeBootstrapStatus } from './task-progress-output.js';
+import { withBootstrapSummaryOutput } from './summary-output.js';
 import { createNativeSetupDiagnostics } from './native-diagnostics.js';
 import { createHash } from 'node:crypto';
 import { withCheckoutStageJournal } from './checkout-stage-journal.js';
@@ -55,8 +56,23 @@ export const runNativeRebuild = async (args, options = {}) => {
       inputId: createHash('sha256').update(originalInputs).digest('hex'), inputs: JSON.parse(originalInputs), stages: [{ id: stage }] };
     return withCheckoutStageJournal(root, session, plan, async (journal, owned) => {
       const execute = async () => {
-        const result = await runNativeRebuildOwned(admission, { root, signal, session, checkInputs });
-        checkInputs(); return result;
+        const observedFailures = [];
+        const retainNativeFailure = fields => {
+          if (observedFailures.length >= 512) throw new Error('Native failure observation allowance exhausted.');
+          const entry = nativeFailureEntry(fields); observedFailures.push(entry); return entry;
+        };
+        try {
+          const result = await withBootstrapSummaryOutput(root, session, summary => runNativeRebuildOwned(admission, {
+            root, signal, session, summary, retainNativeFailure, checkInputs: () => { checkInputs(); summary.check(); }
+          }));
+          checkInputs(); return result;
+        } catch (error) {
+          if (!observedFailures.length) throw error;
+          throw addStorageFailureContext(error, { nativeObservedFailures: Object.freeze([...observedFailures]) },
+            createNativeFailureError('Native failure observations retained before terminal failure.', 'ERR_NATIVE_SETUP_OBSERVATIONS', {
+              failures: observedFailures
+            }), { secondaryPresent: true });
+        }
       };
       return owned ? journal.runStage(stage, execute) : execute();
     });
@@ -64,10 +80,11 @@ export const runNativeRebuild = async (args, options = {}) => {
   { session: parentSession, signal, kind: 'native-rebuild' });
 };
 
-const runNativeRebuildOwned = async ({ verifyOnly, repairOnly }, { root, session, checkInputs, signal: invocationSignal = null } = {}) => {
+const runNativeRebuildOwned = async ({ verifyOnly, repairOnly }, { root, session, checkInputs, summary, retainNativeFailure, signal: invocationSignal = null } = {}) => {
   invocationSignal?.throwIfAborted(); root = path.resolve(root);
   const { requireCheckoutMutationSession } = await import('./checkout-mutation.js');
   requireCheckoutMutationSession(root, session);
+  const status = summary.status;
   const checkCompletedInputs = result => {
     try { checkInputs(); }
     catch (error) {
@@ -112,7 +129,8 @@ const runNativeRebuildOwned = async ({ verifyOnly, repairOnly }, { root, session
   ];
 
   const selectedToolchain = verifyOnly ? null : runSetupPreflight();
-  if (selectedToolchain) console.error(formatSetupPreflight(selectedToolchain));
+  if (selectedToolchain) await status(formatSetupPreflight(selectedToolchain));
+  checkInputs();
   if (selectedToolchain?.platform === 'win32') selectedToolchain.capability = await verifyWindowsCompilerCapability(selectedToolchain,
     { scratchRoot: path.join(root, '.tmp', 'bootstrap-prerequisites'), signal: invocationSignal });
   checkInputs();
@@ -216,9 +234,10 @@ const runNativeRebuildOwned = async ({ verifyOnly, repairOnly }, { root, session
       cwd, stdio: capture ? 'pipe' : 'inherit', env, signal, timeoutMs: 600000,
       maxOutputBytes: 8 * 1024 * 1024, rejectOnNonZeroExit: false, windowsHide: true
     }, { diagnostics: nativeDiagnostics, observeOutput });
+    if (!result.ok) retainNativeFailure({ pkgName: path.basename(cwd), result, phase: 'native-command-attempt' });
     if (!nativeLogLocationReported && result.diagnosticsPath) {
       nativeLogLocationReported = true;
-      console.error('[rebuild:native] retained attempt logs: ' + path.dirname(result.diagnosticsPath));
+      await status('[rebuild:native] retained attempt logs: ' + path.dirname(result.diagnosticsPath));
     }
     return checkCompletedInputs(result);
   };
@@ -337,22 +356,22 @@ const runNativeRebuildOwned = async ({ verifyOnly, repairOnly }, { root, session
       const row = outcome.results[index];
       const result = row.result || { ok: false, message: readErrorDataProperty(row.error, 'message') ?? row.status };
       if (!isInstalled(pkgName)) {
-        console.error(`[${label}] required package is missing: ${pkgName}`);
-        failures.push(nativeFailureEntry({ pkgName, result, row, missing: true, phase: label }));
+        await status(`[${label}] required package is missing: ${pkgName}`);
+        failures.push(retainNativeFailure({ pkgName, result, row, missing: true, phase: label }));
         continue;
       }
 
       if (!result.ok) {
-        console.error(`[${label}] required package is not loadable (${pkgName}): ${result.message}`);
-        failures.push(nativeFailureEntry({ pkgName, result, row, phase: label }));
+        await status(`[${label}] required package is not loadable (${pkgName}): ${result.message}`);
+        failures.push(retainNativeFailure({ pkgName, result, row, phase: label }));
         continue;
       }
 
       if (pkgName === TREE_SITTER_PERL_PACKAGE) {
         const perlPatchCheck = verifyPerlScannerPatch();
         if (!perlPatchCheck.ok) {
-          console.error(`[${label}] required perl scanner patch check failed (${pkgName}): ${perlPatchCheck.message}`);
-          failures.push(nativeFailureEntry({ pkgName, result: perlPatchCheck, phase: 'perl-scanner-patch' }));
+          await status(`[${label}] required perl scanner patch check failed (${pkgName}): ${perlPatchCheck.message}`);
+          failures.push(retainNativeFailure({ pkgName, result: perlPatchCheck, phase: 'perl-scanner-patch' }));
         }
       }
     }
@@ -380,48 +399,48 @@ const runNativeRebuildOwned = async ({ verifyOnly, repairOnly }, { root, session
       message: readErrorDataProperty(realmRow.error, 'message') ?? realmRow.status };
     invocationSignal?.throwIfAborted();
     if (!realmProbe.ok) {
-      console.error(`[verify:native] Node VM worker lifecycle failed: ${realmProbe.message}`);
-      failures.push(nativeFailureEntry({ pkgName: 'node:vm', result: realmProbe, row: realmRow, phase: 'vm-worker-lifecycle' }));
+      await status(`[verify:native] Node VM worker lifecycle failed: ${realmProbe.message}`);
+      failures.push(retainNativeFailure({ pkgName: 'node:vm', result: realmProbe, row: realmRow, phase: 'vm-worker-lifecycle' }));
     }
 
     if (failures.length > 0) {
-      console.error(`[verify:native] failed with ${failures.length} required package failure(s).`);
+      await status(`[verify:native] failed with ${failures.length} required package failure(s).`);
       throw createNativeFailureError('Required native activation failed.', 'ERR_NATIVE_SETUP_ACTIVATION', { failures });
     }
 
-    console.error('[verify:native] required packages loadable; registered native language routes parser-activated; mixed-consumer ONNX inference/disposal verified.');
+    await status('[verify:native] required packages loadable; registered native language routes parser-activated; mixed-consumer ONNX inference/disposal verified.');
     return verification;
   };
 
   const repairRequiredPackages = async () => {
     const failures = await getRequiredPackageFailures({ label: 'repair:native' });
     if (failures.length === 0) {
-      console.error('[repair:native] no required package repairs needed.');
+      await status('[repair:native] no required package repairs needed.');
       return;
     }
 
     let repairFailures = 0;
     const repairEvidence = [...failures], repairTerminals = [];
     const rememberRepair = (pkgName, result, phase, terminal = false) => {
-      const entry = nativeFailureEntry({ pkgName, result, phase });
+      const entry = retainNativeFailure({ pkgName, result, phase });
       repairEvidence.push(entry); if (terminal) repairTerminals.push(entry);
     };
 
     for (const failure of failures) {
       if (failure.missing) {
         repairTerminals.push(failure);
-        console.error(`[repair:native] cannot rebuild missing required package: ${failure.pkgName}`);
+        await status(`[repair:native] cannot rebuild missing required package: ${failure.pkgName}`);
         repairFailures += 1;
         continue;
       }
 
-      console.error(`[repair:native] rebuilding required package: ${failure.pkgName}`);
+      await status(`[repair:native] rebuilding required package: ${failure.pkgName}`);
       const rebuildResult = await rebuildPackage(failure.pkgName, {
         buildFromSource: failure.pkgName === TREE_SITTER_PERL_PACKAGE
       });
       if (!rebuildResult.ok) rememberRepair(failure.pkgName, rebuildResult, 'rebuild', true);
       if (!rebuildResult.ok) {
-        console.error(`[repair:native] failed required package ${failure.pkgName}: ${rebuildResult.message}`);
+        await status(`[repair:native] failed required package ${failure.pkgName}: ${rebuildResult.message}`);
         repairFailures += 1;
         continue;
       }
@@ -429,11 +448,11 @@ const runNativeRebuildOwned = async ({ verifyOnly, repairOnly }, { root, session
       const probeResult = await probePackage(failure.pkgName);
       if (!probeResult.ok) rememberRepair(failure.pkgName, probeResult, 'after-rebuild');
       if (!probeResult.ok) {
-        console.error(`[repair:native] required package still not loadable (${failure.pkgName}) after rebuild; retrying from source.`);
+        await status(`[repair:native] required package still not loadable (${failure.pkgName}) after rebuild; retrying from source.`);
         const sourceRebuildResult = await rebuildPackage(failure.pkgName, { buildFromSource: true });
         if (!sourceRebuildResult.ok) rememberRepair(failure.pkgName, sourceRebuildResult, 'source-rebuild', true);
         if (!sourceRebuildResult.ok) {
-          console.error(`[repair:native] source rebuild failed required package ${failure.pkgName}: ${sourceRebuildResult.message}`);
+          await status(`[repair:native] source rebuild failed required package ${failure.pkgName}: ${sourceRebuildResult.message}`);
           repairFailures += 1;
           continue;
         }
@@ -441,11 +460,11 @@ const runNativeRebuildOwned = async ({ verifyOnly, repairOnly }, { root, session
         const sourceProbeResult = await probePackage(failure.pkgName);
         if (!sourceProbeResult.ok) rememberRepair(failure.pkgName, sourceProbeResult, 'after-source-rebuild');
         if (!sourceProbeResult.ok) {
-          console.error(`[repair:native] required package still not loadable (${failure.pkgName}) after source rebuild; running package install script.`);
+          await status(`[repair:native] required package still not loadable (${failure.pkgName}) after source rebuild; running package install script.`);
           const installScriptResult = await runPackageInstallScript(failure.pkgName, { buildFromSource: true });
           if (!installScriptResult.ok) rememberRepair(failure.pkgName, installScriptResult, 'install-script', true);
           if (!installScriptResult.ok) {
-            console.error(`[repair:native] package install script failed for ${failure.pkgName}: ${installScriptResult.message}`);
+            await status(`[repair:native] package install script failed for ${failure.pkgName}: ${installScriptResult.message}`);
             repairFailures += 1;
             continue;
           }
@@ -453,7 +472,7 @@ const runNativeRebuildOwned = async ({ verifyOnly, repairOnly }, { root, session
           const installProbeResult = await probePackage(failure.pkgName);
           if (!installProbeResult.ok) rememberRepair(failure.pkgName, installProbeResult, 'after-install-script', true);
           if (!installProbeResult.ok) {
-            console.error(`[repair:native] required package still not loadable (${failure.pkgName}) after package install script: ${installProbeResult.message}`);
+            await status(`[repair:native] required package still not loadable (${failure.pkgName}) after package install script: ${installProbeResult.message}`);
             repairFailures += 1;
           }
         }
@@ -462,20 +481,20 @@ const runNativeRebuildOwned = async ({ verifyOnly, repairOnly }, { root, session
         const perlPatchCheck = verifyPerlScannerPatch();
         if (!perlPatchCheck.ok) {
           rememberRepair(failure.pkgName, perlPatchCheck, 'perl-scanner-patch', true);
-          console.error(`[repair:native] perl scanner patch check failed (${failure.pkgName}): ${perlPatchCheck.message}`);
+          await status(`[repair:native] perl scanner patch check failed (${failure.pkgName}): ${perlPatchCheck.message}`);
           repairFailures += 1;
         }
       }
     }
 
     if (repairFailures > 0) {
-      console.error(`[repair:native] failed with ${repairFailures} required package repair failure(s).`);
+      await status(`[repair:native] failed with ${repairFailures} required package repair failure(s).`);
       throw createNativeFailureError('Required native repair failed.', 'ERR_NATIVE_SETUP_REPAIR', {
         repairFailures, failures: repairTerminals, history: repairEvidence
       });
     }
 
-    console.error(`[repair:native] repaired ${failures.length} required package(s).`);
+    await status(`[repair:native] repaired ${failures.length} required package(s).`);
   };
 
   const recordReadiness = async verification => {
@@ -487,7 +506,7 @@ const runNativeRebuildOwned = async ({ verifyOnly, repairOnly }, { root, session
       nativeCapabilities: [...nativeCapabilities.values()].flat().sort((a, b) =>
         (a.languageId ?? a.id).localeCompare(b.languageId ?? b.id))
     });
-    console.error('[bootstrap] Verified readiness receipt saved.');
+    await status('[bootstrap] Verified readiness receipt saved.');
   };
 
   if (verifyOnly) {
@@ -552,7 +571,7 @@ const runNativeRebuildOwned = async ({ verifyOnly, repairOnly }, { root, session
       run: (command, args, options) => runLoggedProbe(command, args, options, context.observeOutput) });
     return result;
   };
-  console.error('[rebuild:native] dependency plan: ' + JSON.stringify({
+  await status('[rebuild:native] dependency plan: ' + JSON.stringify({
     jobs: bootstrapBudget.jobs, cpuTokens: bootstrapBudget.cpuCount,
     compilerJobsPerLocalTask: bootstrapBudget.compilerJobs, memoryBytes: bootstrapBudget.memoryBytes,
     packageLocal: [...adapters.keys()], exclusiveFallback: packages.filter(entry => !adapters.has(entry.packageName))
@@ -568,27 +587,27 @@ const runNativeRebuildOwned = async ({ verifyOnly, repairOnly }, { root, session
   for (const row of outcome.results) {
     const stdout = readErrorDataProperty(row.result, 'stdout'), stderr = readErrorDataProperty(row.result, 'stderr'),
       message = readErrorDataProperty(row.error, 'message');
-    if (typeof stdout === 'string' && stdout) process.stdout.write(stdout);
-    if (typeof stderr === 'string' && stderr) process.stderr.write(stderr);
-    console.error('[rebuild:native] ' + row.id + ': ' + row.status
+    if (typeof stdout === 'string' && stdout) await summary.raw(stdout, process.stdout);
+    if (typeof stderr === 'string' && stderr) await summary.raw(stderr, process.stderr);
+    await status('[rebuild:native] ' + row.id + ': ' + row.status
     + (typeof message === 'string' ? ' (' + message + ')' : ''));
   }
   for (const packageName of OPTIONAL_NATIVE_PACKAGES.filter(name => !isInstalled(name))) {
-    console.error('[rebuild:native] optional package not installed; skipping: ' + packageName);
+    await status('[rebuild:native] optional package not installed; skipping: ' + packageName);
   }
   if (unsuccessful(buildCounts.required) > 0) {
-    console.error('[rebuild:native] failed with ' + buildCounts.required.failed
+    await status('[rebuild:native] failed with ' + buildCounts.required.failed
     + ' required rebuild failure(s); ' + buildCounts.required.cancelled + ' cancelled and '
     + buildCounts.required.blocked + ' blocked required task(s).');
     throw createNativeFailureError('Required native builds failed.', 'ERR_NATIVE_SETUP_BUILD', { results: outcome.results,
-      failures: outcome.results.filter(row => row.status !== 'succeeded').map(row => nativeFailureEntry({
+      failures: outcome.results.filter(row => row.status !== 'succeeded').map(row => retainNativeFailure({
         pkgName: row.id, result: row.result, row, phase: 'native-build'
       })) });
   }
-  if (unsuccessful(buildCounts.optional) > 0) console.error('[rebuild:native] completed with '
+  if (unsuccessful(buildCounts.optional) > 0) await status('[rebuild:native] completed with '
   + buildCounts.optional.failed + ' optional rebuild failure(s); ' + buildCounts.optional.cancelled
   + ' cancelled and ' + buildCounts.optional.blocked + ' blocked optional task(s).');
-  else console.error('[rebuild:native] completed successfully.');
+  else await status('[rebuild:native] completed successfully.');
   await recordReadiness(await verifyRequiredPackages());
   return { exitCode: 0, mode: 'prepare' };
 };

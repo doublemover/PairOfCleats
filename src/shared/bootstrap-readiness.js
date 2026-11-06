@@ -27,6 +27,7 @@ export const BOOTSTRAP_INPUTS = Object.freeze(['package.json', 'package-lock.jso
   'tools/setup/patch-stage.js',
   'tools/setup/task-progress.js',
   'tools/setup/task-progress-output.js',
+  'tools/setup/summary-output.js',
   'tools/setup/postinstall.js',
   'src/shared/locks/file-lock-publication.js', 'src/shared/io/file-identity.js',
   'src/shared/file-read-resource.js',

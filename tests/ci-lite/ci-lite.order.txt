@@ -2788,3 +2788,9 @@ tooling/install/bootstrap-status-output/timeout-original-checkout-retirement
 tooling/install/bootstrap-status-output/bounded-shared-transport
 tooling/install/checkout-bootstrap-entry/original-progress-before-mutation
 tooling/install/bootstrap-status-output/checkout-observer-aggregation
+tooling/install/bootstrap-summary-output/independent-domain-and-transport-failures
+tooling/install/bootstrap-summary-output/failed-transport-stops-admission
+tooling/install/bootstrap-summary-output/human-projection-and-raw-byte-parity
+tooling/install/bootstrap-summary-output/raw-buffer-captured-before-admission
+tooling/install/patch-summary-settlement/original-callback-after-publication
+tooling/install/patch-summary-settlement/independent-publication-and-logging-failures

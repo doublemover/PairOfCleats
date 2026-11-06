@@ -12,7 +12,7 @@ import { addStorageFailureContext } from '../../src/shared/storage/operation-err
 import { withCheckoutMutation, requireCheckoutMutationSession } from './checkout-mutation.js';
 import { withPackagePatchStage } from './patch-stage.js';
 import { formatBootstrapTaskProgress } from './task-progress.js';
-import { writeBootstrapStatus } from './task-progress-output.js';
+import { writeBootstrapStatus, writeBootstrapDiagnosticBytes, BOOTSTRAP_STATUS_OUTPUT_LIMITS } from './task-progress-output.js';
 
 const MAX_PATCH_BYTES = 1024 * 1024;
 const MAX_FILE_BYTES = 16 * 1024 * 1024;
@@ -272,11 +272,12 @@ const publishPatches = (root, prepared, { verifyOnly, verbose, log, started }) =
   }
   const hunks = prepared.reduce((total, item) => total + item.hunks, 0);
   log(`[patches] ${verifyOnly ? 'verify-only' : 'apply'}: ${packages.size} packages, ${prepared.length} target files, ${hunks} hunks; ${published} files changed; ${Math.max(0, performance.now() - started).toFixed(0)}ms`);
-  return prepared.length;
+  return Object.freeze({ targets: prepared.length, publishedFiles: published, packages: packages.size, hunks });
 };
 
 export const applyPatchesAsync = async (cwd = process.cwd(), options = {}) => {
-  const { verifyOnly = false, signal = null, verbose = false, log = console.log, session = null, budget } = options;
+  const { verifyOnly = false, signal = null, verbose = false, log = null, session = null, budget } = options;
+  if (log !== null && typeof log !== 'function') throw new TypeError('Patch diagnostics require their original observation callback.');
   const capturedBudget = budget ? Object.freeze({ ...budget }) : undefined;
   return withCheckoutMutation(cwd, async actual => {
     const execute = () => applyPatchesOwned(cwd, { verifyOnly, signal, verbose, log, session: actual,
@@ -291,7 +292,7 @@ export const applyPatchesAsync = async (cwd = process.cwd(), options = {}) => {
 };
 
 const applyPatchesOwned = async (cwd, { verifyOnly = false, signal = null,
-  verbose = false, log = console.log, session,
+  verbose = false, log, session,
   budget = resolveBootstrapBudget({ bytesPerJob: 128 * 1024 * 1024 }) } = {}) => {
   const started = performance.now();
   const { root, inputs } = collectPatchInputs(cwd);
@@ -316,7 +317,25 @@ const applyPatchesOwned = async (cwd, { verifyOnly = false, signal = null,
   throwIfAborted(signal, 'Package patch preparation cancelled.');
   if (!outcome.ok) throw new Error('Package patch preparation cancelled.');
   requireCheckoutMutationSession(root, session);
-  return publishPatches(root, outcome.results.map(row => row.result), { verifyOnly, verbose, log, started });
+  const messages = []; let published, primary, failed = false;
+  try { published = publishPatches(root, outcome.results.map(row => row.result), { verifyOnly, verbose, log: message => messages.push(message), started }); }
+  catch (error) { primary = error; failed = true; }
+  // Publication remains one synchronous validation/mutation boundary. Its
+  // bounded summaries flush afterward through their actual write callbacks.
+  try {
+    for (const message of messages) {
+      if (log) await log(message);
+      else {
+        const bytes = Buffer.from(message + '\n'), size = BOOTSTRAP_STATUS_OUTPUT_LIMITS.lineBytes;
+        for (let offset = 0; offset < bytes.length; offset += size) await writeBootstrapDiagnosticBytes(bytes.subarray(offset, offset + size), process.stdout, { root, session });
+      }
+    }
+  } catch (logging) {
+    throw failed ? addStorageFailureContext(primary, {}, logging, { secondaryPresent: true })
+      : addStorageFailureContext(logging, { patchPublication: published });
+  }
+  if (failed) throw primary;
+  return published.targets;
 };
 
 export const exitPatchFailure = (error) => {

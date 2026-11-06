@@ -207,6 +207,16 @@ observer cancellation/drain path, preserving independent compiler failures.
 The canonical frontdoor awaits custom progress observations and rechecks admitted
 inputs and cancellation after them, before launching the next stage.
 
+Native summaries use the same callback owner, with bounded control-free human
+projections and exact separately forwarded diagnostic-tail bytes. A reporting
+failure allows existing results to be classified, then blocks new native work
+and readiness. Terminal errors retain prior native failure observations rather
+than replacing compiler results with an output error. Patch publication keeps
+its synchronous validation/mutation boundary; bounded summaries flush afterward
+through awaited default or custom callbacks. Existing stdout text/counts and the
+integer patch result are retained. Logging failure reports actual publication
+counts and preserves an independent publication error.
+
 Native probes now launch their actual bounded Node operations through that same
 owner, without the former synchronous layer or extra per-package wrapper process.
 SQLite promotion and ONNX import orders retain original callback failures;

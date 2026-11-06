@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 2620,
+    "hero": 2626,
     "matrix": 110,
     "meta": 54,
     "soak": 1,
@@ -16723,6 +16723,42 @@
     {
       "id": "tooling/install/bootstrap-status-output/checkout-observer-aggregation",
       "order": 2785,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/bootstrap-summary-output/independent-domain-and-transport-failures",
+      "order": 2786,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/bootstrap-summary-output/failed-transport-stops-admission",
+      "order": 2787,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/bootstrap-summary-output/human-projection-and-raw-byte-parity",
+      "order": 2788,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/bootstrap-summary-output/raw-buffer-captured-before-admission",
+      "order": 2789,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/patch-summary-settlement/original-callback-after-publication",
+      "order": 2790,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/patch-summary-settlement/independent-publication-and-logging-failures",
+      "order": 2791,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     }

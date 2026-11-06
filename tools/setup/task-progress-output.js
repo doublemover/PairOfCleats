@@ -77,11 +77,7 @@ const captureOutput = stream => {
   outputs.set(stream, state); return state;
 };
 
-/** Bounded human status only. Original callback/error observations feed the
- * existing task/root owners; accepted buffering alone is never completion. */
-export const writeBootstrapStatus = (line, stream = process.stderr, { root, session } = {}) => {
-  if (typeof line !== 'string' || /[\u0000-\u001f\u007f-\u009f]/.test(line) || Buffer.byteLength(line) + 1 > BOOTSTRAP_STATUS_OUTPUT_LIMITS.lineBytes) return Promise.reject(
-    failure('ERR_BOOTSTRAP_STATUS_LINE', 'Bootstrap status line exceeds its finite byte allowance.'));
+const writeOriginalBytes = (bytes, stream, { root, session } = {}) => {
   try {
     if (session) requireCheckoutMutationSession(root, session);
     const output = captureOutput(stream);
@@ -95,8 +91,24 @@ export const writeBootstrapStatus = (line, stream = process.stderr, { root, sess
       if (original.transports.size >= 16 && !original.transports.has(output)) throw failure('ERR_BOOTSTRAP_STATUS_LIMIT', 'Checkout status requires at most 16 original transports.');
       original.transports.add(output);
     }
-    return session ? withCheckoutMutation(root, () => output.write(line + '\n', original), { session })
-      : output.write(line + '\n');
+    return session ? withCheckoutMutation(root, () => output.write(bytes, original), { session })
+      : output.write(bytes);
   }
   catch (error) { return Promise.reject(error); }
+};
+
+/** Bounded human status only. Original callback/error observations feed the
+ * existing task/root owners; accepted buffering alone is never completion. */
+export const writeBootstrapStatus = (line, stream = process.stderr, context) => {
+  if (typeof line !== 'string' || /[\u0000-\u001f\u007f-\u009f]/.test(line) || Buffer.byteLength(line) + 1 > BOOTSTRAP_STATUS_OUTPUT_LIMITS.lineBytes) return Promise.reject(
+    failure('ERR_BOOTSTRAP_STATUS_LINE', 'Bootstrap status line exceeds its finite byte allowance.'));
+  return writeOriginalBytes(line + '\n', stream, context);
+};
+
+/** Preserve already bounded raw diagnostic bytes through the same transport
+ * owner. Capture before asynchronous checkout admission; no status projection. */
+export const writeBootstrapDiagnosticBytes = (bytes, stream, context) => {
+  if (!Buffer.isBuffer(bytes) || bytes.length > BOOTSTRAP_STATUS_OUTPUT_LIMITS.lineBytes) return Promise.reject(
+    failure('ERR_BOOTSTRAP_STATUS_BYTES', 'Bootstrap diagnostic writes require a bounded original byte buffer.'));
+  return writeOriginalBytes(Buffer.from(bytes), stream, context);
 };
