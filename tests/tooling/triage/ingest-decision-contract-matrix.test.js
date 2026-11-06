@@ -6,7 +6,7 @@ import path from 'node:path';
 
 import { getTriageContext, runJson } from '../../helpers/triage.js';
 import { promoteRecordFields, snapshotFindingPackages } from '../../../src/integrations/triage/record-utils.js';
-import { buildTriageHistory } from '../../../tools/triage/history.js';
+import { buildTriageHistorySelection } from '../../../tools/triage/history-selection.js';
 
 const runLegacyWrapperCase = async () => {
   const { root, repoRoot, cacheRoot, env } = await getTriageContext({
@@ -172,8 +172,10 @@ const runInspectorDecisionOccurrences = async () => {
     assert.ok(markdown.includes(pkg.fixedVersion)); assert.ok(markdown.includes(pkg.manifestPath));
   }
   assert.deepEqual(promoteRecordFields(decision, ['packageName']).packageName, ['alpha', 'zeta']);
-  const related = { recordId: 'other-finding', packages: [stored.packages.find(pkg => pkg.name === 'zeta')] };
-  const history = await buildTriageHistory({ recordsDir: saved.recordsDir, recordId: related.recordId, finding: related });
+  const related = { recordId: 'other-finding', recordType: 'finding', source: stored.source,
+    packages: [stored.packages.find(pkg => pkg.name === 'zeta')] };
+  const { history } = await buildTriageHistorySelection({ recordsDir: saved.recordsDir, repoRoot,
+    recordId: related.recordId, finding: related });
   assert.ok(history.some(row => row.recordId === saved.recordId), 'nonrepresentative package alone contributes to actual history matching');
   const legacy = { package: { name: 'legacy', installedVersion: '1' } };
   assert.deepEqual(snapshotFindingPackages(legacy).packages, [legacy.package]);

@@ -8,7 +8,7 @@ The ranking policy is `exact-lineage-route-affinity-v1`.
 
 An explicit finding link within the selected record namespace is exact lineage.
 A conflicting repository or original finding-observation identity disqualifies
-that relation. Missing legacy observation receipts remain unknown. Vulnerability,
+that relation. Missing observation receipts remain unknown. Vulnerability,
 package, common manifest basename and route matches are related precedents;
 they never establish entity identity. The decision source `manual` is not
 mistaken for the original finding's ingestion source.
@@ -62,8 +62,14 @@ boundary, not a claim those records were delivered to another client.
 cursor, with a 32 KiB input limit and strict fields/types. A changed finding,
 root, budget, record set or unknown boundary requires a fresh initial selection.
 This adds an explicit continuation surface; it does not relax existing record,
-request, authority or error contracts. Legacy affinity-only helper coverage is
-retained through the same scan owner.
+request, authority or error contracts. The CLI and fixtures use only
+`history-selection.js`; the unused affinity-only selector has been removed.
+The bounded-selection fixture checks an independent exact/route/score/time/ID
+oracle, all three retained lanes, four-read admission, bounded redacted failure
+diagnostics, zero/invalid budgets and real canonical reads. The ingest/decision
+matrix verifies matching a nonrepresentative affected package through this same
+production selector. Contradictory record/file identities are refused by the
+canonical snapshot reader rather than resolved by directory ordinal.
 
 New decision Markdown uses renderer 2 and includes the original finding link and
 historical interpretation. Stored renderer-1 generations verify with their exact

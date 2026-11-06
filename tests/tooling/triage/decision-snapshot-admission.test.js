@@ -7,7 +7,7 @@ import { getTriageContext } from '../../helpers/triage.js';
 import { runNode } from '../../helpers/run-node.js';
 import { getTriageConfig } from '../../../src/shared/dict-utils.js';
 import { loadTriageRecordSnapshot } from '../../../tools/triage/record-snapshot.js';
-import { readTriageHistoryRecord } from '../../../tools/triage/history.js';
+import { readTriageHistoryRecord } from '../../../tools/triage/history-scan.js';
 import { withTemporaryEnv } from '../../helpers/test-env.js';
 
 const { root, repoRoot, env } = await getTriageContext({ name: 'triage-decision-snapshot', fixtureBuilder: async () => {} });
