@@ -2843,3 +2843,12 @@ shared/storage/lifecycle-operator-review/same-inventory-overlap-and-no-mutation
 shared/storage/lifecycle-operator-review/original-owner-diagnosis-and-review-bound
 shared/storage/probe-policy-semantic-equality/semantic-policy-equality
 shared/storage/probe-policy-semantic-equality/strict-fields-and-stale-plan
+tooling/reports/bench-parity-input-observation/missing-is-unobserved
+tooling/reports/bench-parity-input-observation/quiet-pair-is-observed
+tooling/reports/bench-parity-input-observation/malformed-and-invalid-utf8
+tooling/reports/bench-parity-input-observation/declared-source-remains-unread
+tooling/reports/bench-parity-input-observation/real-quiet-producer
+tooling/reports/bench-parity-input-observation/real-producer-write-failure
+tooling/reports/bench-parity-input-observation/footer-summary-is-not-event-source
+tooling/reports/bench-stream-close-failure/close-failure-is-not-coverage
+tooling/reports/bench-stream-close-failure/falsey-primary-and-original-close

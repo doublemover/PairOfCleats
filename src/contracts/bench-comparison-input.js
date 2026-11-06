@@ -1,3 +1,5 @@
+import { BENCH_PARITY_OBSERVATION_VERSION, validateBenchDiagnosticCoverage } from './bench-diagnostic-coverage.js';
+
 export const BENCH_VERDICT_SCHEMA_VERSION = 1;
 
 const record = value => value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -53,8 +55,14 @@ export const validateBenchComparisonInput = payload => {
     || !count(parity.mismatchCount) || !count(parity.materialMismatchCount)) {
     fail('diagnostics.parity requires explicit status and nonnegative mismatch counts');
   } else {
+    const coverage = validateBenchDiagnosticCoverage(parity.coverage);
+    if (parity.schemaVersion !== BENCH_PARITY_OBSERVATION_VERSION) fail('diagnostics.parity requires current observation version 2');
+    for (const error of coverage.errors) fail('diagnostics.parity: ' + error);
+    if (parity.coverage?.state !== 'complete') fail('diagnostics.parity requires complete observed diagnostic/log stream coverage');
+    if (parity.inputIncomplete === true) fail('diagnostics.parity input is explicitly incomplete');
     if (parity.materialMismatchCount > parity.mismatchCount) fail('material parity mismatches cannot exceed all mismatches');
-    const expected = parity.materialMismatchCount > 0 ? 'error' : parity.mismatchCount > 0 ? 'warn' : 'ok';
+    const expected = parity.coverage?.state !== 'complete' || parity.inputIncomplete === true || parity.materialMismatchCount > 0
+      ? 'error' : parity.mismatchCount > 0 ? 'warn' : 'ok';
     if (parity.status !== expected) fail('diagnostics.parity status disagrees with mismatch evidence');
   }
   const summary = payload.overallSummary;

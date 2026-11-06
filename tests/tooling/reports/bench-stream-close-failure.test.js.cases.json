@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["close-failure-is-not-coverage", "falsey-primary-and-original-close"]
+}

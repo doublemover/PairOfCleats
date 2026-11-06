@@ -23,6 +23,10 @@ for (const tasks of [[], [healthy], [healthy, failed]]) {
   assert.deepEqual(result.run.issues.unwaived.filter(row => row.repo === null).map(row => row.message), loadErrors);
 }
 const waiverFile = path.join(dir, 'waivers.json');
+const resultsRoot = path.join(dir, 'results'), logsRoot = path.join(resultsRoot, 'logs', 'bench-language');
+await fs.mkdir(logsRoot, { recursive: true });
+await fs.writeFile(path.join(logsRoot, 'run-waiver-all.log'), 'Quiet waiver-count fixture source.\n');
+await fs.writeFile(path.join(logsRoot, 'run-waiver-all.diagnostics.jsonl'), '');
 const valid = { id: 'bounded', owner: 'fixture-owner', justification: 'known failed task',
   allowedUntil: '2099-01-01T00:00:00.000Z', failureClass: 'benchmark_failed', repo: 'failed' };
 for (const waivers of [[valid], [{ ...valid, allowedUntil: '2000-01-01T00:00:00Z' }],
@@ -31,7 +35,7 @@ for (const waivers of [[valid], [{ ...valid, allowedUntil: '2000-01-01T00:00:00Z
   await fs.writeFile(waiverFile, JSON.stringify({ schemaVersion: 1, waivers }));
   const policy = await loadBenchPolicy({ waiverFile });
   const report = await buildReportOutput({ configPath: path.join(process.cwd(), 'benchmarks/repos.json'),
-    cacheRoot: path.join(dir, 'cache'), resultsRoot: path.join(dir, 'results'),
+    cacheRoot: path.join(dir, 'cache'), resultsRoot,
     results: [healthy, failed], config: { javascript: { label: 'JavaScript' } }, waiverFile });
   assert.equal(report.run.repoCounts.total, 2); assert.equal(report.run.repoCounts.passed, 1); assert.equal(report.run.repoCounts.failed, 1);
   assert.equal(Object.values(report.run.countsByResultClass).reduce((sum, count) => sum + count, 0), 2);
@@ -48,10 +52,9 @@ for (const waivers of [[valid], [{ ...valid, allowedUntil: '2000-01-01T00:00:00Z
     assert.equal(report.run.policy.activeWaiverCount, 0);
     assert.equal(report.run.exitCode, 1);
   }
-  // The comparison contract still requires independently observed diagnostic
-  // parity. Supply that separate control without changing producer counts.
-  const roundtrip = JSON.parse(JSON.stringify({ ...report, diagnostics: { ...report.diagnostics,
-    crashRetention: { retainedCount: 0 }, parity: { status: 'ok', mismatchCount: 0, materialMismatchCount: 0 } } }));
+  // Actual observed quiet source files supply the independent parity control;
+  // no overwritten healthy status can hide missing inputs or alter task counts.
+  const roundtrip = JSON.parse(JSON.stringify(report));
   const admitted = validateBenchComparisonInput(roundtrip);
   assert.equal(admitted.ok, true, admitted.errors.join('; '));
 }

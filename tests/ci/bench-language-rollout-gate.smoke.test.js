@@ -7,12 +7,15 @@ import { writeJsonFile } from '../../src/shared/json-file.js';
 import { applyTestEnv } from '../helpers/test-env.js';
 import { runNode } from '../helpers/run-node.js';
 import { BENCH_VERDICT_SCHEMA_VERSION } from '../../src/contracts/bench-comparison-input.js';
+import { observedQuietBenchParity } from '../helpers/bench-parity-sources.js';
+import { BENCH_PARITY_OBSERVATION_VERSION } from '../../src/contracts/bench-diagnostic-coverage.js';
 
 const ROOT = process.cwd();
 const gatePath = path.join(ROOT, 'tools', 'ci', 'bench-language-rollout-gate.js');
 const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'pairofcleats-bench-language-rollout-gate-'));
 const jsonPath = path.join(tempRoot, 'rollout-gate.json');
 const env = applyTestEnv({ syncProcess: false });
+const observedCoverage = await observedQuietBenchParity();
 
 const writeReport = async (filePath, {
   aggregateResultClass,
@@ -53,6 +56,8 @@ const writeReport = async (filePath, {
         retainedCount: retained
       },
       parity: {
+        schemaVersion: BENCH_PARITY_OBSERVATION_VERSION,
+        coverage: observedCoverage,
         status: parityStatus,
         mismatchCount: materialParityMismatches,
         materialMismatchCount: materialParityMismatches

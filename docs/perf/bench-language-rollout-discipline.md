@@ -55,7 +55,8 @@ All four comparison inputs must satisfy the current report projection in
 `src/contracts/bench-comparison-input.js`: supported verdict version, timestamp,
 at least one evaluated repository, nonnegative safe integer counts with matching
 category/result-class totals, retained-crash evidence, and explicit diagnostics
-parity status/counts. Empty, unrelated, unsupported or internally inconsistent
+parity version 2, counts and [complete observed stream coverage](../contracts/benchmark-diagnostic-coverage.md).
+Empty, unrelated, unsupported or internally inconsistent
 reports cannot become healthy summaries. Informational mode records these
 failures with warning status; `--enforce` fails. A policy-load failure that makes
 repository counts inconsistent is not admissible comparison evidence.

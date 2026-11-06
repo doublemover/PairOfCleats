@@ -1,4 +1,5 @@
 import { buildRemediationSummary } from './remediation.js';
+import { buildBenchParityCoverage, selectBenchParityLogFiles, BENCH_PARITY_OBSERVATION_VERSION } from './report-coverage.js';
 import { createDiagnosticReplay, observedDiagnosticCost } from './diagnostic-replay.js';
 import { resolveRecordedMeasurementInputs, canReuseRecordedLedger } from './metrics/recorded-evidence.js';
 import fsPromises from 'node:fs/promises';
@@ -205,6 +206,7 @@ const parseDiagnosticEventLine = (line) => {
   }
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null;
   const eventType = typeof parsed.eventType === 'string' ? parsed.eventType.trim() : '';
+  if (!eventType) return null;
   const signature = typeof parsed.signature === 'string'
     ? parsed.signature
     : buildBenchDiagnosticSignature({
@@ -388,15 +390,18 @@ const buildDiagnosticsStreamSummary = async (context) => {
   const perFile = [];
   let rawEventCount = 0;
   let malformedLines = 0;
+  let inputIncomplete = false;
 
   for (const filePath of orderedFiles) {
     const fileCounts = new Map();
     const fileSeverityCounts = new Map();
     let fileEventCount = 0;
-    await context.consume(filePath, (line) => {
+    let fileMalformedLines = 0;
+    const read = await context.consume(filePath, (line) => {
       const parsed = parseDiagnosticEventLine(line);
       if (!parsed) {
         malformedLines += 1;
+        fileMalformedLines += 1;
         return;
       }
       if (!parsed.eventType) return;
@@ -426,8 +431,10 @@ const buildDiagnosticsStreamSummary = async (context) => {
       fileCounts.set(parsed.eventType, (fileCounts.get(parsed.eventType) || 0) + 1);
       fileSeverityCounts.set(parsed.severity, (fileSeverityCounts.get(parsed.severity) || 0) + 1);
     });
+    inputIncomplete ||= read.incomplete;
     perFile.push({
       path: filePath,
+      inputComplete: !read.incomplete, capturedBytes: read.capturedBytes, bytesRead: read.bytesRead, malformedLines: fileMalformedLines,
       eventCount: fileEventCount,
       countsByType: Object.fromEntries(
         Array.from(fileCounts.entries()).sort(([left], [right]) => left.localeCompare(right))
@@ -491,7 +498,7 @@ const buildDiagnosticsStreamSummary = async (context) => {
     countsByQualityImpact: sortMapObject(countsByQualityImpact),
     required,
     unknownTypeCount,
-    malformedLines
+    malformedLines, incomplete: inputIncomplete || malformedLines > 0 || unknownTypeCount > 0
   };
 };
 
@@ -605,7 +612,7 @@ const createDiagnosticsParityReducer = (diagnosticsStream) => {
       const totalMismatchCount = mismatches.length + repoMismatches.length;
     
       return {
-        schemaVersion: 1,
+        schemaVersion: BENCH_PARITY_OBSERVATION_VERSION,
         trackedTypes: BENCH_DIAGNOSTIC_PARITY_EVENT_TYPES.slice(),
         materialTypes: BENCH_DIAGNOSTIC_MATERIAL_PARITY_EVENT_TYPES.slice(),
         countScopes: {
@@ -668,6 +675,7 @@ const buildReportStreamSummaries = async (tasks, resultsRoot, options) => {
   const diagnosticsStream = await buildDiagnosticsStreamSummary(context);
   const progressConfidence = await buildProgressConfidenceSummary(context);
   const files = context.files(LOG_FILE_SUFFIX);
+  const parityFiles = new Set(selectBenchParityLogFiles(files, tasks));
   const parity = createDiagnosticsParityReducer(diagnosticsStream);
   const preflight = createPreflightLogReducer(files);
   const taskReuse = resolveTaskReuseDiagnosticsSummary(tasks);
@@ -675,7 +683,7 @@ const buildReportStreamSummaries = async (tasks, resultsRoot, options) => {
   const ordered = files.slice().sort((left, right) => Number(isMasterBenchStreamFile(left))
     - Number(isMasterBenchStreamFile(right)) || left.localeCompare(right));
   for (const filePath of ordered) {
-    const consumeParity = parity.forFile(filePath);
+    const consumeParity = parityFiles.has(filePath) ? parity.forFile(filePath) : () => {};
     const consumePreflight = preflight.forFile(filePath);
     const observations = [];
     await context.consume(filePath, (line) => {
@@ -692,7 +700,9 @@ const buildReportStreamSummaries = async (tasks, resultsRoot, options) => {
   const observations = taskReuse ? [] : files.flatMap(file => observationsByFile.get(file) || []);
   const streamRead = context.summary();
   const diagnosticsParity = parity.finalize();
-  if (streamRead.incomplete || diagnosticsStream.incomplete) {
+  diagnosticsParity.coverage = buildBenchParityCoverage({ tasks, logFiles: files,
+    diagnosticFiles: context.files(DIAGNOSTIC_STREAM_FILE_SUFFIX), diagnosticsStream, streamRead });
+  if (streamRead.incomplete || diagnosticsStream.incomplete || diagnosticsParity.coverage.state !== 'complete') {
     diagnosticsParity.inputIncomplete = true;
     diagnosticsParity.status = 'error';
   }

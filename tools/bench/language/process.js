@@ -453,7 +453,7 @@ const recordTelemetryWriteFailure = (failureState, filePath, error) => {
   failureState.set(filePath, current);
 };
 
-const appendJsonLineQueued = (queueByPath, failureState, filePath, payload) => {
+const appendJsonLineQueued = (queueByPath, failureState, filePath, payload, { initialize = false } = {}) => {
   if (!(queueByPath instanceof Map)) return;
   if (!filePath) return;
   const prior = queueByPath.get(filePath) || Promise.resolve();
@@ -461,7 +461,7 @@ const appendJsonLineQueued = (queueByPath, failureState, filePath, payload) => {
     .catch(() => {})
     .then(async () => {
       await fsPromises.mkdir(path.dirname(filePath), { recursive: true });
-      await fsPromises.appendFile(filePath, `${JSON.stringify(payload)}\n`, 'utf8');
+      await fsPromises.appendFile(filePath, initialize ? '' : `${JSON.stringify(payload)}\n`, 'utf8');
     })
     .catch((error) => {
       recordTelemetryWriteFailure(failureState, filePath, error);
@@ -1359,6 +1359,17 @@ export const createProcessRunner = ({
     const schedulerEvents = [];
     const telemetryWriteQueues = new Map();
     const telemetryWriteFailures = new Map();
+    let telemetryWritesSettled = false, telemetryFailureCount = 0, telemetryFlushFailures = 0;
+    const queueTelemetry = (file, payload, options) => {
+      telemetryWritesSettled = false;
+      appendJsonLineQueued(telemetryWriteQueues, telemetryWriteFailures, file, payload, options);
+    };
+    // An observed empty diagnostic stream is different from a missing stream.
+    // Use the same ordered producer queue and original flush boundary as events.
+    for (const file of diagnosticStreams) queueTelemetry(file, null, { initialize: true });
+    const streamWriteSummary = () => ({ schemaVersion: 1, initializedStreams: diagnosticStreams.length,
+      complete: telemetryWritesSettled && telemetryFailureCount === 0 && telemetryFlushFailures === 0,
+      writeFailures: telemetryFailureCount, flushFailures: telemetryFlushFailures });
     const diagnosticExecutionId = randomUUID();
     let diagnosticEventCount = 0;
     const diagnosticCountByType = new Map();
@@ -1391,6 +1402,7 @@ export const createProcessRunner = ({
     };
 
     const flushTelemetryWrites = async (reason = 'flush') => {
+      telemetryWritesSettled = false;
       try {
         await runWithTimeout(
           () => flushQueuedJsonLines(telemetryWriteQueues, telemetryWriteFailures),
@@ -1402,13 +1414,16 @@ export const createProcessRunner = ({
             })
           }
         );
+        telemetryWritesSettled = true;
       } catch (error) {
+        telemetryFlushFailures++;
         appendLog(
           `[bench] telemetry flush did not settle during ${reason}: ${error?.message || String(error)}`,
           'warn'
         );
       }
       if (telemetryWriteFailures.size > 0) {
+        telemetryFailureCount += [...telemetryWriteFailures.values()].reduce((sum, entry) => sum + entry.count, 0);
         const summary = Array.from(telemetryWriteFailures.entries())
           .map(([filePath, info]) => `${path.basename(filePath)} x${info.count}${info.lastMessage ? ` (${info.lastMessage})` : ''}`)
           .join('; ');
@@ -1422,6 +1437,7 @@ export const createProcessRunner = ({
       executionId: diagnosticExecutionId,
       costScope: 'sum-observed-occurrence-deltas-not-wall-time',
       streamPaths: diagnosticStreams,
+      streamWrite: streamWriteSummary(),
       eventCount: diagnosticEventCount,
       uniqueEventCount: diagnosticCountById.size,
       countsByType: Object.fromEntries(
@@ -1608,7 +1624,7 @@ export const createProcessRunner = ({
         stallEvents: snapshot.stallEvents
       };
       for (const filePath of progressConfidenceStreams) {
-        appendJsonLineQueued(telemetryWriteQueues, telemetryWriteFailures, filePath, payload);
+        queueTelemetry(filePath, payload);
       }
 
       if (!interactive) return;
@@ -1891,7 +1907,7 @@ export const createProcessRunner = ({
         chunkCount: (priorSummary.chunkCount || 0) + (payload.chunkCount || 0)
       });
       for (const filePath of diagnosticStreams) {
-        appendJsonLineQueued(telemetryWriteQueues, telemetryWriteFailures, filePath, payload);
+        queueTelemetry(filePath, payload);
       }
       maybeEmitInteractiveDiagnostic({
         eventType,
@@ -2171,6 +2187,7 @@ export const createProcessRunner = ({
       const diagnosticsSummary = buildDiagnosticsSummary();
       if (crashAttribution) diagnosticsSummary.crashAttribution = crashAttribution;
       await flushTelemetryWrites('failure-return');
+      diagnosticsSummary.streamWrite = streamWriteSummary();
       return {
         ok: false,
         code: code ?? 1,
@@ -2317,6 +2334,7 @@ export const createProcessRunner = ({
         interactive: false
       });
       await flushTelemetryWrites('spawn-error-return');
+      diagnosticsSummary.streamWrite = streamWriteSummary();
       const crashAttribution = buildBenchCrashAttribution({
         code: failureStatus,
         signal: failureSignal,

@@ -42,7 +42,7 @@ export const isDiskFullMessage = (line) => {
  * @returns {{
  *   initMasterLog:() => void,
  *   initRepoLog:(input:{label:string,tier?:string,repoPath:string,slug:string}) => Promise<(string|null)>,
- *   flushLogs:() => Promise<void>,
+ *   flushLogs:(options?:{fatal?:boolean}) => Promise<void>,
  *   closeRepoLog:() => Promise<void>,
  *   closeMasterLog:() => Promise<void>,
  *   closeLogsSync:() => void,
@@ -213,12 +213,12 @@ export const createBenchLogger = ({
     }
   };
 
-  const flushLogs = async () => {
+  const flushLogs = async ({ fatal = false } = {}) => {
     const results = await Promise.allSettled([
       flushWriter(masterLogWriter, 'periodic-master'),
       flushWriter(repoLogWriter, 'periodic-repo')
     ]);
-    handleLogOpSettled(results, { reason: 'periodic flush', fatal: false });
+    handleLogOpSettled(results, { reason: fatal ? 'report-boundary flush' : 'periodic flush', fatal });
   };
 
   const closeRepoLog = async () => {

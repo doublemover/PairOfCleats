@@ -707,6 +707,7 @@ const results = await runBenchExecutionLoop({
   benchTimeoutMs
 });
 
+await logger.flushLogs({ fatal: true });
 const output = await buildReportOutput({
   configPath,
   cacheRoot,

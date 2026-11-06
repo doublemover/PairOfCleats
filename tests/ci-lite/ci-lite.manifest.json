@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 2675,
+    "hero": 2684,
     "matrix": 110,
     "meta": 54,
     "soak": 1,
@@ -17053,6 +17053,60 @@
     {
       "id": "shared/storage/probe-policy-semantic-equality/strict-fields-and-stale-plan",
       "order": 2840,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/reports/bench-parity-input-observation/missing-is-unobserved",
+      "order": 2841,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/reports/bench-parity-input-observation/quiet-pair-is-observed",
+      "order": 2842,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/reports/bench-parity-input-observation/malformed-and-invalid-utf8",
+      "order": 2843,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/reports/bench-parity-input-observation/declared-source-remains-unread",
+      "order": 2844,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/reports/bench-parity-input-observation/real-quiet-producer",
+      "order": 2845,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/reports/bench-parity-input-observation/real-producer-write-failure",
+      "order": 2846,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/reports/bench-parity-input-observation/footer-summary-is-not-event-source",
+      "order": 2847,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/reports/bench-stream-close-failure/close-failure-is-not-coverage",
+      "order": 2848,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/reports/bench-stream-close-failure/falsey-primary-and-original-close",
+      "order": 2849,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

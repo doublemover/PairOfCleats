@@ -3,8 +3,10 @@ import path from 'node:path';
 import { assertNoSymlinkPath, openContainedFile, verifyContainedFileHandle } from '../../../src/shared/contained-file.js';
 import { readExactAt } from '../../../src/shared/io/read-exact.js';
 import { throwIfAborted } from '../../../src/shared/abort.js';
+import { addStorageFailureContext } from '../../../src/shared/storage/operation-error.js';
 
 const READ_BYTES = 64 * 1024;
+const REPORT_UTF8_DECODER = new TextDecoder('utf-8', { fatal: true });
 export const REPORT_MAX_LINE_BYTES = 1024 * 1024;
 const SUFFIXES = ['.diagnostics.jsonl', '.progress-confidence.jsonl', '.log'];
 const stamp = (stat) => ['dev', 'ino', 'size', 'mtimeNs', 'ctimeNs'].map(key => String(stat[key]));
@@ -59,6 +61,7 @@ export const readReportStream = async (inventory, entry, onLine, {
     unterminatedFinalLine: false, incomplete: false, reason: null };
   let handle = null;
   let primary = null;
+  let primaryPresent = false;
   let consumerFailed = false;
   try {
     throwIfAborted(signal);
@@ -80,7 +83,7 @@ export const readReportStream = async (inventory, entry, onLine, {
       if (oversized) {
         result.oversizedLines += 1; result.incomplete = true; result.reason ||= 'line-too-large';
       } else if (lineBytes) {
-        const line = Buffer.concat(chunks, lineBytes).toString('utf8').trim();
+        const line = REPORT_UTF8_DECODER.decode(Buffer.concat(chunks, lineBytes)).trim();
         if (line) {
           try {
             const completion = onLine(line);
@@ -122,15 +125,18 @@ export const readReportStream = async (inventory, entry, onLine, {
     }
     return result;
   } catch (error) {
-    primary = error;
+    primary = error; primaryPresent = true;
     if (consumerFailed || signal?.aborted || error?.name === 'AbortError') throw error;
     result.incomplete = true; result.reason = error?.code || 'ERR_REPORT_READ';
     return result;
   } finally {
     if (handle) {
       try { await handle.close(); } catch (error) {
-        result.incomplete = true; result.reason ||= error?.code || 'ERR_REPORT_CLOSE';
-        if (primary && typeof primary === 'object') primary.closeError = error;
+        result.incomplete = true; result.reason ||= 'original-close-failed';
+        // A failed original close is not an ignorable parse observation. Keep
+        // the real resource failure, including a falsey original consumer error.
+        throw primaryPresent ? addStorageFailureContext(primary, { reportStreamPath: entry.path }, error,
+          { secondaryPresent: true }) : error;
       }
     }
   }

@@ -2,16 +2,19 @@ import assert from 'node:assert/strict';
 import { BENCH_VERDICT_SCHEMA_VERSION, validateBenchComparisonInput } from '../../../src/contracts/bench-comparison-input.js';
 import { buildReportOutput } from '../../../tools/bench/language/report.js';
 import { ensureTestingEnv } from '../../helpers/test-env.js';
+import { withBenchParitySources, observedQuietBenchParity } from '../../helpers/bench-parity-sources.js';
+import { BENCH_PARITY_OBSERVATION_VERSION } from '../../../src/contracts/bench-diagnostic-coverage.js';
 
 // Authored actual report-producer/contract controls; execution deferred.
 ensureTestingEnv(process.env);
+const coverage = await observedQuietBenchParity();
 const valid = {
   generatedAt: '2026-10-22T00:00:00.000Z',
   run: { schemaVersion: BENCH_VERDICT_SCHEMA_VERSION, aggregateResultClass: 'repo_failed',
     repoCounts: { total: 3, failed: 1, passed: 1, passedWithDegradation: 1, skipped: 0 },
     countsByResultClass: { repo_failed: 1, passed: 1, passed_with_degradation: 1 },
     countsByDiagnosticType: { parser_crash: 1 } },
-  diagnostics: { crashRetention: { retainedCount: 1 }, parity: { status: 'ok', mismatchCount: 0, materialMismatchCount: 0 } },
+  diagnostics: { crashRetention: { retainedCount: 1 }, parity: { schemaVersion: BENCH_PARITY_OBSERVATION_VERSION, coverage, status: 'ok', mismatchCount: 0, materialMismatchCount: 0 } },
   overallSummary: { buildMs: { index: 0, sqlite: null } }
 };
 assert.equal(validateBenchComparisonInput(valid).ok, true);
@@ -37,6 +40,12 @@ invalid(input => { input.run.repoCounts.total = 4; });
 invalid(input => { input.run.countsByResultClass = {}; });
 invalid(input => { input.run.countsByDiagnosticType.parser_crash = 4; });
 invalid(input => { delete input.diagnostics.parity; });
+invalid(input => { delete input.diagnostics.parity.coverage; });
+invalid(input => { input.diagnostics.parity.schemaVersion = 1; });
+invalid(input => { input.diagnostics.parity.inputIncomplete = true; input.diagnostics.parity.status = 'error'; });
+for (const field of ['missingStreams', 'unpairedSources', 'malformedDiagnosticLines', 'unknownDiagnosticEvents', 'incompleteStreams', 'inventoryErrors', 'producerIncompleteTasks']) {
+  invalid(input => { input.diagnostics.parity.coverage[field] = 1; });
+}
 invalid(input => { input.diagnostics.parity.materialMismatchCount = 1; });
 invalid(input => { input.diagnostics.parity.status = 'warn'; });
 invalid(input => { input.generatedAt = 'unknown'; });
@@ -55,12 +64,12 @@ Object.assign(empty.run.repoCounts, { total: 3, skipped: 3 });
 empty.run.countsByResultClass = { skipped: 3 };
 assert.equal(validateBenchComparisonInput(empty).ok, false, 'an all-skipped report has no evaluated repository');
 
-const output = await buildReportOutput({ configPath: 'comparison-fixture.json', cacheRoot: null, resultsRoot: null,
+const output = await withBenchParitySources(async source => { await source.writeQuiet(); return buildReportOutput({ configPath: 'comparison-fixture.json', cacheRoot: null, resultsRoot: source.root,
   config: { javascript: { label: 'JavaScript', repos: {} } }, results: [
     { language: 'javascript', tier: 'small', repo: 'fixture/one', summary: {
       backends: ['memory'], latencyMsAvg: { memory: 0 }, hitRate: { memory: 1 }, resultCountAvg: { memory: 1 },
       memoryRss: { memory: { mean: 1024 } }, buildMs: { index: 0 } } }
-  ] });
+  ] }); });
 const roundtrip = JSON.parse(JSON.stringify(output));
 const validation = validateBenchComparisonInput(roundtrip);
 assert.equal(validation.ok, true, validation.errors.join('; '));
