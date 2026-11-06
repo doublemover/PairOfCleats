@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["shared-physical-read", "scope-and-revocation", "waiter-cancellation-and-dispose", "native-cleanup-retention", "work-and-waiter-bounds"]
+}

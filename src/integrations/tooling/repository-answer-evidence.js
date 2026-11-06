@@ -5,7 +5,7 @@ import { loadUserConfig } from '../../shared/dict-utils.js';
 import { throwIfAborted } from '../../shared/abort.js';
 import { openSemanticQueryStore } from '../../semantic/query-store.js';
 import { resolveSemanticGenerationIndexDir } from '../../semantic/generation.js';
-import { withSemanticReaderCleanup } from '../../semantic/reader-lifetime.js';
+import { withSemanticReaderCleanup, semanticReadDeadlineFailure } from '../../semantic/reader-lifetime.js';
 import { createCurrentQuestionFacts } from '../../semantic/questions/current-reader-facts.js';
 import { compileRepositoryQuestion } from '../../semantic/questions/compile.js';
 import { admitCurrentReaderQuestion } from '../../semantic/questions/current-reader-profile.js';
@@ -34,7 +34,7 @@ export const createRepositoryAnswerEvidenceVerifier = ({ openStore = openSemanti
     if (performance.now() - began >= 250) throw Object.assign(new Error('Exact answer evidence revalidation exceeded its bounded interval. Select a smaller query/quotation page.'), { code: 'ERR_SEMANTIC_OUTPUT_LIMIT' });
     throwIfAborted(readSignal);
   };
-  const indexDir = await resolveIndexDir({ repoRoot, generation: request.query.generation, userConfig: config, signal: readSignal });
+  let indexDir;
   const withStore = async (backend, run) => {
     check();
     const opened = await openStore({ indexDir, repoRoot, generation: request.query.generation, backend, requireQueryIndex: true, signal: readSignal });
@@ -49,34 +49,40 @@ export const createRepositoryAnswerEvidenceVerifier = ({ openStore = openSemanti
     }, () => close?.());
     check();
   };
-  await withStore(request.query.backend || 'artifact', async (store, profile) => {
-    const state = { seed: null };
-    const facts = createCurrentQuestionFacts({ store, profile, state, signal: readSignal, maxStateBytes: 8 * 1024 * 1024,
-      diagnose: () => { throw fail('Delivered binding is no longer qualified by the retained reader.'); } });
-    for (const row of answer.inputs.queryReceipt.rows) {
-      state.seed = { ref: row.bindings.find(binding => binding.sort === 'Invocation').ref };
-      for (const expected of row.bindings) {
-        check();
-        const actual = await facts.readEntity(expected.ref, expected.sort, null), { variable: _variable, ...binding } = expected;
-        if (!actual || !equal(actual, binding)) throw fail('Delivered binding source, name, invocation or typed scalar differs.');
+  try {
+    indexDir = await resolveIndexDir({ repoRoot, generation: request.query.generation, userConfig: config, signal: readSignal });
+    await withStore(request.query.backend || 'artifact', async (store, profile) => {
+      const state = { seed: null };
+      const facts = createCurrentQuestionFacts({ store, profile, state, signal: readSignal, maxStateBytes: 8 * 1024 * 1024,
+        diagnose: () => { throw fail('Delivered binding is no longer qualified by the retained reader.'); } });
+      for (const row of answer.inputs.queryReceipt.rows) {
+        state.seed = { ref: row.bindings.find(binding => binding.sort === 'Invocation').ref };
+        for (const expected of row.bindings) {
+          check();
+          const actual = await facts.readEntity(expected.ref, expected.sort, null), { variable: _variable, ...binding } = expected;
+          if (!actual || !equal(actual, binding)) throw fail('Delivered binding source, name, invocation or typed scalar differs.');
+        }
+        for (const witness of row.witnesses) if (witness.fact) { check(); await facts.verifyFact(witness); }
       }
-      for (const witness of row.witnesses) if (witness.fact) { check(); await facts.verifyFact(witness); }
-    }
-  });
-  if (answer.inputs.quotations.length) await withStore('artifact', async store => {
-    if (answer.inputs.quotations.length !== (request.quoteRefs?.length || 0)) throw fail('Delivered quotation selection differs.');
-    const records = await store.getRecords(request.quoteRefs, ['span'], { signal: readSignal }); check();
-    const excerpts = await store.getSourceSpans(request.quoteRefs, { signal: readSignal, maxBytes: 32768 }); check();
-    for (const [index, quote] of answer.inputs.quotations.entries()) {
-      const record = records[index], excerpt = excerpts[index];
-      if (!record || !equal(record.ref, request.quoteRefs[index])) throw fail('Delivered quotation record is missing.');
-      const header = await store.getSourceReference(record, { signal: readSignal }); check();
-      if (!header || !excerpt || !equal(excerpt.ref, record.ref) || header.sourceUnitId !== quote.source.sourceUnitId
+    });
+    if (answer.inputs.quotations.length) await withStore('artifact', async store => {
+      if (answer.inputs.quotations.length !== (request.quoteRefs?.length || 0)) throw fail('Delivered quotation selection differs.');
+      const records = await store.getRecords(request.quoteRefs, ['span'], { signal: readSignal }); check();
+      const excerpts = await store.getSourceSpans(request.quoteRefs, { signal: readSignal, maxBytes: 32768 }); check();
+      for (const [index, quote] of answer.inputs.quotations.entries()) {
+        const record = records[index], excerpt = excerpts[index];
+        if (!record || !equal(record.ref, request.quoteRefs[index])) throw fail('Delivered quotation record is missing.');
+        const header = await store.getSourceReference(record, { signal: readSignal }); check();
+        if (!header || !excerpt || !equal(excerpt.ref, record.ref) || header.sourceUnitId !== quote.source.sourceUnitId
         || header.sourceHash !== quote.source.sourceHash || header.path !== quote.source.path || header.coordinateUnit !== 'utf16'
         || !equal(record.span, quote.source.span) || !equal(excerpt.span, quote.source.span) || excerpt.sourceHash !== quote.source.sourceHash
         || excerpt.sourceUnitId !== quote.source.sourceUnitId || excerpt.coordinateUnit !== 'utf16' || excerpt.text !== quote.text) throw fail('Delivered quotation differs from its freshly verified retained source.');
-    }
-  });
-  check();
+      }
+    });
+    check();
+  } catch (error) {
+    throw semanticReadDeadlineFailure(error, { signal, deadline,
+      createLimitError: () => Object.assign(new Error('Exact answer evidence revalidation exceeded its bounded interval. Select a smaller query/quotation page.'), { code: 'ERR_SEMANTIC_OUTPUT_LIMIT' }) });
+  }
 };
 export const verifyRepositoryAnswerEvidence = createRepositoryAnswerEvidenceVerifier();

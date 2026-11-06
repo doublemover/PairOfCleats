@@ -53,13 +53,18 @@ token savings, latency improvement or host prompt guarantee is claimed.
 
 Six unexecuted pure cases cover full source/role manifests, 256 independent full/delta
 subset reconstructions, consumer/reset/scope isolation, loss/order/eviction,
-corrupt maps and packet bodies, Unicode, full-cost bounds and cancellation. A
-shared hydration and workload qualification remain before issue #1533 closes.
+corrupt maps and packet bodies, Unicode, full-cost bounds and cancellation.
+Workload qualification remains before issue #1533 closes.
 
 `createEvidenceDeliveryHost` takes installed boundary, provider and exact-window
 adapter functions. The boundary binds consumer identity out of band and rechecks
 epoch/task/world/scope/policy before and after work. A request cannot name another
-consumer. Provider selection uses a closed schema; bodies and checked claims are
+consumer. Installed `authorizeSelection` and `authorizeEvidence` callbacks admit
+the exact selected request and actual reconstructed source/representation set,
+independently of repository admission. They run before expansion and release/reuse.
+Fulfilled resource-owning permission results retain their original observations;
+only a literal positive decision authorizes access. Provider selection uses a
+closed schema; bodies and checked claims are
 not request fields. There are at most sixteen consumer states, one current pending
 packet each and 4 MiB of charged pending plan/selection/reconstructed-window bytes.
 Native provider errors retain their original observations and block another
@@ -118,3 +123,47 @@ Three unexecuted transport cases cover untrusted-base/full-source behavior,
 strict world/question/field admission, source-close and overflow publication
 negatives, and real CLI/MCP/HTTP parity. External host qualification and shared
 hydration promotion remain separate from this full-pack route.
+
+`createRetainedSourceHydrationPool` is an explicit experimental host facility;
+public/default answer delivery continues using independent reads. It coalesces
+only identical in-flight canonical source selections, including world, source and
+partition identities, cache/home namespace, byte limit, scope and policy. Each
+consumer independently binds identity and must authorize that source ID before
+joining. Current identity, epoch/task/world/policy and exact verified source-path
+permission are checked again before release. Repository admission alone is
+insufficient, and one consumer's grant never authorizes another.
+
+The pool uses the existing queue, storage session, pinned artifact reader,
+contained-file read and source-snapshot admission owners. It shares immutable text
+and a deeply captured manifest, never a mutable Buffer. Completed captures are not
+a warm path/stat authority cache. Source reads verify retained byte hashes and
+complete source identity; worktree files cannot substitute for pinned inputs.
+
+There are at most sixteen admitted callers, four live captures and two occupied
+physical read slots. Encoded-retention reservations are bounded by 64 MiB plus
+128 KiB of total fixed capture overhead; these are charged bounds, not measured
+RSS or allocated-disk claims. Each capture admits at most 1 MiB through the
+existing source owner and a 250 ms read interval. Unconfirmed native cleanup keeps
+its actual storage leases, read slot and reservation; a rejected promise is not
+physical settlement. Cleanup recovery releases existing ownership only and never
+replays hydration.
+
+Cancelling one waiter stops its delivery while authorized peers continue. The last
+waiter cancels and drains original work before leaving. A queued cancellation
+does not wait for unrelated readers. Disposal stops admission, cancels queued and
+active work, and observes all admitted calls. Pending native errors surface with
+their existing descriptor/session capabilities; no failed close is hidden as a
+cache miss or cancellation.
+
+Internal read limits are attributed only when the failure carries that exact
+deadline reason. A coincident timer cannot relabel unrelated cancellation or I/O.
+Original pending/inspection observations are captured before diagnostic fields;
+user cancellation and falsey failures remain distinct. The shared pure deadline
+regression is authored and unexecuted.
+
+Five additional unexecuted cases cover actual retained-source FileHandle byte
+counts, fresh/corrupt-cache controls, independent scope/source authorization,
+revocation, waiter/all/queued cancellation, shutdown, native-close retention and
+explicit original cleanup, plus entry/waiter bounds. Sharing remains off the
+default path until correctness and serial workload qualification demonstrate
+useful physical-read savings without scope or tail-latency regression.

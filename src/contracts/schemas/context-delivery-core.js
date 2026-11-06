@@ -1,6 +1,7 @@
 import { semanticObject as object, semanticInteger as uint } from './semantic-envelopes.js';
 import { QUESTION_WORLD_SCHEMA, QUESTION_SOURCE_REFERENCE_SCHEMA } from './repository-question.js';
 import { ANSWER_QUESTION_REF_SCHEMA } from './answer-evidence.js';
+import { SEMANTIC_RECORD_REF_SCHEMA } from './semantic.js';
 
 export const CONTEXT_DELIVERY_VERSION = 1;
 const version = { const: CONTEXT_DELIVERY_VERSION };
@@ -35,6 +36,9 @@ const plan = object({ schemaVersion: version, kind: { const: 'evidence-delivery-
     invalidateCurrentUse: { anyOf: [hashes(128), { const: 'all-previous-window' }] } }),
   cost: object({ transmittedBytes: uint, reconstructedPackBytes: uint, fullPromptBytes: { type: 'null' }, fullPromptTokens: { type: 'null' } }) });
 export const CONTEXT_DELIVERY_CORE_SCHEMAS = { request, entry, descriptor, manifest, window, plan,
+  sourceRequest: object({ worldRef: QUESTION_WORLD_SCHEMA, partitionId: SEMANTIC_RECORD_REF_SCHEMA.properties.partitionId,
+    sourceUnitId: QUESTION_SOURCE_REFERENCE_SCHEMA.properties.sourceUnitId, sourceHash: hash,
+    maxBytes: { type: 'integer', minimum: 1, maximum: 1024 * 1024 } }),
   context: DELIVERY_CONTEXT_SCHEMA,
   receipt: object({ schemaVersion: version, kind: { const: 'evidence-window-receipt' }, packetId: hash, baseDigest: nullable(hash),
     targetDigest: hash, contextRef: DELIVERY_CONTEXT_SCHEMA, rendererId: { const: 'evidence-window-json-v1' },

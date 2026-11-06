@@ -22,13 +22,14 @@ const create = (overrides = {}) => {
     taskRef: { id: 'question', revision: '1' }, branchId: 'branch', scopeDigest: 'd'.repeat(64), policyDigest: 'e'.repeat(64), worldRef: world };
   const channels = new Map([[Symbol('implementer'), { ...context }], [Symbol('reviewer'), { ...context, consumerId: 'reviewer' }]]);
   const [a, b] = channels.keys(), memory = createMemoryEvidenceWindowAdapter();
-  let allowed = true, beforeProduce = null, calls = 0, published = 0;
+  let allowed = true, selectionAllowed = true, evidenceAllowed = true, beforeProduce = null, calls = 0, published = 0;
   const authority = ({ windowRevision: _revision, ...value }) => value;
   const boundary = { bind: async transport => {
     const current = channels.get(transport); if (!current) throw Object.assign(new Error('unbound channel'), { code: 'ERR_SCOPE_DENIED' });
     const captured = structuredClone(current), actual = await memory.readWindow({ contextRef: current });
     const contextRef = { ...captured, windowRevision: actual?.manifest.contextRef.contextEpoch === current.contextEpoch ? actual.manifest.contextRef.windowRevision : 0 };
-    return { contextRef, recheck: async () => allowed && deliveryJson(authority(captured)) === deliveryJson(authority(channels.get(transport))) };
+    return { contextRef, recheck: async () => allowed && deliveryJson(authority(captured)) === deliveryJson(authority(channels.get(transport))),
+      authorizeSelection: async () => allowed && selectionAllowed, authorizeEvidence: async () => allowed && evidenceAllowed };
   } };
   const provider = { captureSelection: input => {
     assert.deepEqual(Object.keys(input), ['choice']); assert.ok([0, 1].includes(input.choice)); return Object.freeze({ choice: input.choice });
@@ -44,7 +45,8 @@ const create = (overrides = {}) => {
       limits: { packetBytes: 131072, reconstructedBytes: 131072 }, ...more };
   };
   return { host, memory, boundary, channels, a, b, request, counts: () => ({ calls, published }),
-    allow: value => { allowed = value; }, produce: callback => { beforeProduce = callback; } };
+    allow: value => { allowed = value; }, allowSelection: value => { selectionAllowed = value; }, allowEvidence: value => { evidenceAllowed = value; },
+    produce: callback => { beforeProduce = callback; } };
 };
 if (mode === 'bound-consumer-and-reset') {
   const fixture = create(), input = await fixture.request(), forged = structuredClone(input); forged.contextRef.consumerId = 'reviewer';
@@ -74,7 +76,20 @@ if (mode === 'bound-consumer-and-reset') {
   await fixture.host.apply(newer.packetId, fixture.a);
   assert.ok(fixture.counts().calls >= 6, 'every release revalidates actual selected evidence instead of trusting a stale receipt');
 } else if (mode === 'source-and-permission-recheck') {
-  const fixture = create(), first = await fixture.host.plan(await fixture.request(), { choice: 0 }, fixture.a);
+  const fixture = create(), input = await fixture.request();
+  fixture.allowSelection(false);
+  await assert.rejects(fixture.host.plan(input, { choice: 0 }, fixture.a), { reason: 'ScopeDenied' }); assert.equal(fixture.counts().calls, 0);
+  fixture.allowSelection(true); fixture.produce(() => { fixture.allowEvidence(false); });
+  await assert.rejects(fixture.host.plan(input, { choice: 0 }, fixture.a), { reason: 'ScopeDenied' }); assert.equal(fixture.counts().published, 0);
+  fixture.allowEvidence(true); fixture.produce(null);
+  let decisionReady = false;
+  const decision = Object.freeze({ cacheOwnershipPending: true, cacheOwnershipReleased() { assert.equal(this, decision); return decisionReady; } });
+  fixture.allowEvidence(decision);
+  await assert.rejects(fixture.host.plan(input, { choice: 0 }, fixture.a), error => error.cacheOwnershipReleased() === false);
+  const decisions = fixture.counts().calls; fixture.allowEvidence(true);
+  await assert.rejects(fixture.host.plan(input, { choice: 0 }, fixture.a)); assert.equal(fixture.counts().calls, decisions);
+  decisionReady = true;
+  const first = await fixture.host.plan(input, { choice: 0 }, fixture.a);
   fixture.allow(false);
   await assert.rejects(fixture.host.redeliver(first.packetId, fixture.a), { reason: 'ScopeDenied' });
   await assert.rejects(fixture.host.apply(first.packetId, fixture.a), { reason: 'ScopeDenied' });

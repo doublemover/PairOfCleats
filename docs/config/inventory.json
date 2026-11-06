@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-06T11:31:13.157Z",
+  "generatedAt": "2026-11-06T11:56:10.740Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
@@ -3718,6 +3718,7 @@
         "src/shared/env/runtime.js",
         "src/shared/storage/configured-native-coordination.js",
         "src/shared/storage/layout.js",
+        "tests/context-pack/delivery/hydration.test.js",
         "tests/context-pack/risk-truncation-contract.test.js",
         "tests/fixtures/sublime/native-package-host.js",
         "tests/fixtures/vscode/native-package-host.js",
@@ -4697,6 +4698,7 @@
         "tests/context-pack/complete-function-surfaces.test.js",
         "tests/context-pack/complete-function-unit.test.js",
         "tests/context-pack/delivery/host.test.js",
+        "tests/context-pack/delivery/hydration.test.js",
         "tests/context-pack/delivery/protocol.test.js",
         "tests/context-pack/evidence-selection-source.test.js",
         "tests/context-pack/evidence-selection-surfaces.test.js",

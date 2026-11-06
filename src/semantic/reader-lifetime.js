@@ -1,4 +1,19 @@
 import { addStorageFailureContext } from '../shared/storage/operation-error.js';
+import { observeStorageResource } from '../shared/storage/failure-observation.js';
+
+/** Attribute a read limit only to its actual deadline reason. Preserve original
+ * native/inspection ownership before projecting names or cancellation causes. */
+export const semanticReadDeadlineFailure = (error, { signal = null, deadline, createLimitError }) => {
+  const observation = observeStorageResource(error, { phase: 'semantic-read-deadline' });
+  try {
+    observation.requireSettled();
+    const name = error?.name, cause = error?.cause;
+    observation.requireSettled();
+    if (!signal?.aborted && deadline.aborted && (error === deadline.reason
+      || ['AbortError', 'TimeoutError'].includes(name) && cause === deadline.reason)) return observation.wrap(createLimitError());
+    return error;
+  } catch (inspection) { return observation.retain(inspection, { inspectionPresent: true }); }
+};
 
 /** Preserve each original descriptor failure and its private recovery session.
  * Composition grants no group release capability and never retries a close.

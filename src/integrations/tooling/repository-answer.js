@@ -4,7 +4,6 @@ import { canonicalSemanticJson, semanticHash } from '../../index/semantic/identi
 import { throwIfAborted } from '../../shared/abort.js';
 import { getRepoRoot } from '../../shared/repo-paths.js';
 import { loadUserConfig } from '../../shared/dict-utils.js';
-import { observeStorageResource } from '../../shared/storage/failure-observation.js';
 import { captureSemanticRequest } from '../../semantic/request-snapshot.js';
 import { REPOSITORY_ANSWER_REQUEST_SCHEMA } from '../../contracts/schemas/repository-answer.js';
 import { ANSWER_EVIDENCE_VERSION } from '../../contracts/schemas/answer-evidence.js';
@@ -13,7 +12,7 @@ import { compileAdmittedQueryAnswer, inspectAnswerRevision, queryAnswerReceipt, 
 import { reconcileAnswerRevisions } from '../../context-pack/answers/reconcile.js';
 import { openSemanticQueryStore } from '../../semantic/query-store.js';
 import { resolveSemanticGenerationIndexDir } from '../../semantic/generation.js';
-import { withSemanticReaderCleanup } from '../../semantic/reader-lifetime.js';
+import { withSemanticReaderCleanup, semanticReadDeadlineFailure } from '../../semantic/reader-lifetime.js';
 import { publishSemanticPage, stageSemanticPagePublication } from '../../semantic/page-publication.js';
 import { runRepositoryQuery, captureRepositoryQueryRequest } from './repository-query.js';
 
@@ -150,14 +149,8 @@ export const createRepositoryAnswerRunner = ({ queryRunner = runRepositoryQuery,
         }, () => close?.());
         checkSource();
       } catch (caught) {
-        const observation = observeStorageResource(caught, { phase: 'answer-source-admission' }); observation.requireSettled();
-        let name;
-        try { name = caught?.name; } catch (inspection) { throw observation.retain(inspection, { inspectionPresent: true }); }
-        observation.requireSettled();
-        if (!signal?.aborted && deadline.aborted && (caught === deadline.reason || ['AbortError', 'TimeoutError'].includes(name))) {
-          throw observation.wrap(fail('ERR_SEMANTIC_OUTPUT_LIMIT', 'Answer source admission exceeded its bounded interval. Request fewer/smaller source quotations.'));
-        }
-        throw caught;
+        throw semanticReadDeadlineFailure(caught, { signal, deadline,
+          createLimitError: () => fail('ERR_SEMANTIC_OUTPUT_LIMIT', 'Answer source admission exceeded its bounded interval. Request fewer/smaller source quotations.') });
       }
     }
     throwIfAborted(signal);

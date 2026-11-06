@@ -5,6 +5,7 @@ import { captureDelivery, deliveryJson, deliveryBytes, deliveryError, buildEvide
 import { planEvidenceDelivery } from './plan.js';
 import { applyEvidenceDelivery } from './apply.js';
 import { createEvidenceWindowWitnessOwner } from './window-witness.js';
+import { confirmDeliveryPermission } from './permission.js';
 
 const equal = (a, b) => deliveryJson(a) === deliveryJson(b);
 const key = context => JSON.stringify([context.consumerId, context.sessionId]);
@@ -25,13 +26,14 @@ export const createEvidenceDeliveryHost = ({ boundary, adapter, provider } = {})
   const bind = async (transport, signal) => {
     throwIfAborted(signal);
     const bound = await boundary.bind(transport, 'evidence-delivery');
-    if (!requiredMethods(bound, ['recheck'])) throw deliveryError('ScopeDenied', 'Host boundary supplied no current admission check.');
+    const observation = observeStorageResource(bound, { phase: 'evidence-host-binding' }); observation.requireSettled();
+    if (!requiredMethods(bound, ['recheck', 'authorizeSelection', 'authorizeEvidence'])) throw deliveryError('ScopeDenied', 'Host boundary supplied no current selection/evidence admission owner.');
     const contextRef = captureDelivery('context', bound.contextRef);
-    if (await bound.recheck() !== true) throw deliveryError('ScopeDenied', 'Host consumer or scope is no longer admitted.');
+    await confirmDeliveryPermission(bound.recheck(), 'Host consumer or scope is no longer admitted.'); observation.requireSettled();
     throwIfAborted(signal); return { bound, contextRef };
   };
   const recheck = async (binding, transport, signal) => {
-    if (await binding.bound.recheck() !== true) throw deliveryError('ScopeDenied', 'Host consumer or scope changed during evidence work.');
+    await confirmDeliveryPermission(binding.bound.recheck(), 'Host consumer or scope changed during evidence work.');
     const current = await bind(transport, signal);
     if (!equal(authority(current.contextRef), authority(binding.contextRef))) throw deliveryError('ScopeDenied', 'Host epoch, task, scope, policy or world changed during evidence work.');
     return current;
@@ -62,6 +64,7 @@ export const createEvidenceDeliveryHost = ({ boundary, adapter, provider } = {})
     throwIfAborted(signal); return actual === null ? null : inspectEvidenceWindow(actual, { signal });
   };
   const produce = async (selection, request, binding, signal) => {
+    await confirmDeliveryPermission(binding.bound.authorizeSelection(selection, { contextRef: request.contextRef, phase: 'admit' }), 'Selected evidence request is outside this consumer authority.');
     const admitted = await provider.admit(selection, { contextRef: request.contextRef, binding: binding.bound, signal });
     throwIfAborted(signal);
     const world = admitted?.worldRef;
@@ -70,6 +73,8 @@ export const createEvidenceDeliveryHost = ({ boundary, adapter, provider } = {})
     return admitted;
   };
   const revalidate = async (pending, binding, signal) => {
+    await confirmDeliveryPermission(binding.bound.authorizeSelection(pending.selection, { contextRef: pending.request.contextRef, phase: 'reuse' }), 'Selected evidence can no longer be expanded by this consumer.');
+    await confirmDeliveryPermission(binding.bound.authorizeEvidence(pending.window, { phase: 'reuse' }), 'Selected source/representation is no longer permitted for this consumer.');
     if (typeof provider.revalidate === 'function') {
       const result = await provider.revalidate(pending.selection, { contextRef: pending.request.contextRef,
         binding: binding.bound, window: pending.window, signal });
@@ -115,6 +120,7 @@ export const createEvidenceDeliveryHost = ({ boundary, adapter, provider } = {})
         const current = await recheck(binding, transport, signal);
         const latest = await read(current, signal);
         if ((latest?.manifest.digest ?? null) !== (actual?.manifest.digest ?? null)) throw deliveryError('UnknownBase', 'Host window changed while planning evidence.');
+        await confirmDeliveryPermission(current.bound.authorizeEvidence(window, { phase: 'release' }), 'Actual evidence sources are outside this consumer authority.');
         throwIfAborted(signal);
         const published = await admitted.publish?.();
         observeStorageResource(published, { phase: 'evidence-provider-publication' }).requireSettled();
@@ -132,7 +138,9 @@ export const createEvidenceDeliveryHost = ({ boundary, adapter, provider } = {})
       if ((actual?.manifest.digest ?? null) !== pending.sourceBaseDigest && actual?.manifest.digest !== pending.plan.target.digest) {
         throw deliveryError('UnknownBase', 'Host window changed before redelivery.');
       }
-      await revalidate(pending, binding, signal); await recheck(binding, transport, signal);
+      await revalidate(pending, binding, signal);
+      const current = await recheck(binding, transport, signal);
+      await confirmDeliveryPermission(current.bound.authorizeEvidence(pending.window, { phase: 'release' }), 'Evidence permission changed before redelivery.');
       return pending.plan;
     }),
     apply: async (packetId, transport, { signal = null } = {}) => run(transport, signal, async (binding, state) => {
@@ -158,6 +166,7 @@ export const createEvidenceDeliveryHost = ({ boundary, adapter, provider } = {})
       const current = await recheck(binding, transport, signal), committed = await read(current, signal);
       if (!committed || committed.manifest.digest !== staged.manifest.digest || !equal(committed, staged)
         || current.contextRef.windowRevision !== plan.target.contextRef.windowRevision) throw deliveryError('TargetDigestMismatch', 'Host readback/revision differs from the reconstructed target.');
+      await confirmDeliveryPermission(current.bound.authorizeEvidence(committed, { phase: 'ack' }), 'Evidence permission changed before acknowledgement.');
       // Only this point is an ACK. No provider response or transport send can
       // advance the acknowledged witness, and no native work is retained here.
       state.owner.issue(committed); return receipt(plan);

@@ -2597,3 +2597,9 @@ semantic/questions/answer-delivery/source-and-untrusted-base
 semantic/questions/answer-delivery/publication-and-overflow
 semantic/questions/answer-delivery/transport-parity
 shared/storage/session-retirement-order/receipt-changes-during-retirement
+context-pack/delivery/hydration/shared-physical-read
+context-pack/delivery/hydration/scope-and-revocation
+context-pack/delivery/hydration/waiter-cancellation-and-dispose
+context-pack/delivery/hydration/native-cleanup-retention
+context-pack/delivery/hydration/work-and-waiter-bounds
+semantic/reader-deadline
