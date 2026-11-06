@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "cases": [
+    "json-code",
+    "json-three",
+    "jsonl-code",
+    "jsonl-three",
+    "sharded-code",
+    "sharded-three",
+    "gzip-code",
+    "gzip-three",
+    "empty-code",
+    "empty-three",
+    "missing-dialect",
+    "missing-uid",
+    "missing-risk",
+    "bad-watch",
+    "same-stat-replacement",
+    "linked-piece",
+    "json-records",
+    "gzip-prose",
+    "mixed-compatibility"
+  ]
+}

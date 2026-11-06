@@ -22,6 +22,9 @@ const artifactLeaseWorkIds = JSON.parse(fs.readFileSync(path.join(root,
 const validationWorkIds = JSON.parse(fs.readFileSync(path.join(root,
   'tests/perf/indexing/validate/manifest-fusion-work.test.js.cases.json'), 'utf8')).cases
   .map(id => `perf/indexing/validate/manifest-fusion-work/${id}`);
+const healthWorkIds = JSON.parse(fs.readFileSync(path.join(root,
+  'tests/perf/indexing/fixtures/health-snapshot-work.test.js.cases.json'), 'utf8')).cases
+  .map(id => `perf/indexing/fixtures/health-snapshot-work/${id}`);
 const sourceAuthorityIds = JSON.parse(fs.readFileSync(path.join(root,
   'tests/storage/semantic/runtime-source-reference-authority.test.js.cases.json'), 'utf8')).cases
   .map(id => `storage/semantic/runtime-source-reference-authority/${id}`);
@@ -105,6 +108,7 @@ for (const mode of ['ci', 'nightly']) {
               ...riskWitnessWorkIds,
               ...artifactLeaseWorkIds,
               ...validationWorkIds,
+              ...healthWorkIds,
               'indexing/embeddings/artifact-installed-closure', 'embeddings/onnx/installation-closure',
               'embeddings/onnx/downloader-installation-consumer',
               'indexing/artifacts/binary-frame-manifest-integrity', 'indexing/semantic/sealed-piece-manifest-work',

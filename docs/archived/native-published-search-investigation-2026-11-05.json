@@ -1,0 +1,1771 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-11-05",
+  "status": "Open:full native seed leaves insufficient consumer budget; no accepted native repair",
+  "sourceCommit": "0536c89e9e62c83b96a57f65533a3c7898d765a8",
+  "hosted": {
+    "run": 42141387530,
+    "job": 127643385405,
+    "artifact": 13468521758,
+    "artifactBytes": 1050027,
+    "artifactSha256": "4509f77125c589a7c106b8de8b9864196b742c07351d2a05063f3ca57756f631",
+    "failure": {
+      "schemaVersion": 1,
+      "testId": "tui/native-index-workflows/search-published",
+      "attempt": 1,
+      "recordedBy": "test-runner-parent",
+      "invocation": {
+        "executable": "C:\\hostedtoolcache\\windows\\node\\26.13.0\\x64\\node.exe",
+        "resolvedExecutable": "C:\\hostedtoolcache\\windows\\node\\26.13.0\\x64\\node.exe",
+        "arguments": [
+          "D:\\a\\PairOfCleats\\PairOfCleats\\tests\\tui\\native-index-workflows.test.js"
+        ],
+        "argumentsRedacted": false,
+        "cwd": "D:\\a\\PairOfCleats\\PairOfCleats",
+        "runtime": {
+          "node": "v26.13.0",
+          "v8": "14.6.202.34-node.40",
+          "modules": "147",
+          "platform": "win32",
+          "arch": "x64",
+          "basis": "same executable as parent"
+        }
+      },
+      "process": {
+        "parentPid": 5932,
+        "childPid": 7244,
+        "startedAt": "2026-11-06T01:11:16.146Z",
+        "endedAt": "2026-11-06T01:11:46.328Z"
+      },
+      "outcome": {
+        "status": "failed",
+        "rawExitStatus": 1,
+        "unsignedDecimal": 1,
+        "signedDecimal": 1,
+        "hex": "0x00000001",
+        "interpretation": null,
+        "signal": null,
+        "spawnError": null,
+        "timedOut": true,
+        "termination": {
+          "terminated": true,
+          "forced": true,
+          "fallbackAttempted": false,
+          "fallbackTerminated": 0
+        },
+        "interruption": null,
+        "statusSource": "test-process-close-event",
+        "propagation": "Parent recorded the directly spawned test process status; descendant status propagation is not inferred."
+      },
+      "phase": {
+        "crashPhase": "unknown",
+        "lastObservedMarker": {
+          "stream": "stdout",
+          "line": "[cleanup] runtime.logger.close done (0ms)",
+          "observedAt": "2026-11-06T01:11:43.774Z"
+        },
+        "basis": "Last captured child log marker; not a native stack or proof of crash location."
+      },
+      "output": {
+        "logPath": "D:\\a\\PairOfCleats\\PairOfCleats\\.testLogs\\run-1793927394368-h1duqc\\tui_native-index-workflows_search-published.attempt-1.log",
+        "captured": true,
+        "stdout": {
+          "observedStringUnits": 8887,
+          "retainedStringUnits": 8887,
+          "truncated": false,
+          "configuredLimit": 5242880,
+          "limitUnit": "javascript-string-units"
+        },
+        "stderr": {
+          "observedStringUnits": 6145,
+          "retainedStringUnits": 6145,
+          "truncated": false,
+          "configuredLimit": 5242880,
+          "limitUnit": "javascript-string-units"
+        },
+        "streamOrdering": "stdout and stderr are captured separately; no total ordering guaranteed"
+      }
+    },
+    "log": "id: tui/native-index-workflows/search-published\npath: tui/native-index-workflows.test.js\nattempt: 1\nstatus: failed\nexit: 1\nsignal: null\ntimedOut: true\ntimeoutClass: timed_out_with_failure\nskipReason: \ntermination: {\"terminated\":true,\"forced\":true,\"fallbackAttempted\":false,\"fallbackTerminated\":0}\n\n--- stdout ---\n{\"nativeWorkflowPhase\":{\"mode\":\"search-published\",\"phase\":\"seed-complete-build:start\",\"elapsedMs\":186}}\n[init] load config (2ms)\n[init] auto policy (provided)\n[init] learned auto profile (0ms)\n[init] cache root (env): D:\\a\\PairOfCleats\\PairOfCleats\\.tmp\\dev\\tests\\cache\\ni-5u90Hc\\cache\n[init] repo cache root: D:\\a\\PairOfCleats\\PairOfCleats\\.tmp\\dev\\tests\\cache\\ni-5u90Hc\\cache\\repos\\selected-repository-ba2e760c3fc0\n[init] platform preset: win32:ntfs (fs=ntfs, subprocessFanout=4, reason=win32-ntfs-startup-cost).\n[init] startup calibration (2ms)\n[init] startup calibration: io=2ms (bytes=8192).\n[init] runtime envelope (1ms)\n[scm] provider=none; SCM provenance unavailable.\n[init] repo provenance (0ms)\n[runtime] attempt d9cd9ac8-2fe6-414f-ad21-145042c5d064; receipt: D:\\a\\PairOfCleats\\PairOfCleats\\.tmp\\dev\\tests\\cache\\ni-5u90Hc\\cache\\repos\\selected-repository-ba2e760c3fc0\\builds\\20261106T011118Z_34dd8c9c_noscm_263b974e\\build_state.json (durable).\n[init] build root: D:\\a\\PairOfCleats\\PairOfCleats\\.tmp\\dev\\tests\\cache\\ni-5u90Hc\\cache\\repos\\selected-repository-ba2e760c3fc0\\builds\\20261106T011118Z_34dd8c9c_noscm_263b974e\n[init] current index root: D:\\a\\PairOfCleats\\PairOfCleats\\.tmp\\dev\\tests\\cache\\ni-5u90Hc\\cache\\repos\\selected-repository-ba2e760c3fc0\n[scm] annotate disabled: provider=none.\n[scm] policy provider=none annotate=off timeoutCaps=guardrail-only benchRun=0 metaTimeoutMs=default annotateTimeoutMs=default annotateLadder=default\n[init] tree-sitter config (1ms)\nJS file caps default to tree-sitter maxBytes (786432).\n[init] embedding runtime (3ms)\n[init] ignore rules (3ms)\n[init] dictionaries (29ms)\n[init] dictionaries (29ms)\nWordlists disabled: no dictionary files found; identifier splitting will be limited.\nCode dictionaries enabled: 2 file(s), 16 words (typescript) [bundle=bench-2026.02].\nTwo-stage indexing: stage2 (enrichment) running.\nIndex profile: default.\nEmbeddings: deferred to stage3 (stage2).\nQueue concurrency: io=16, cpu=1.\nMemory policy: workerHeap=1024MB (effective=1024MB, min=1024MB, max=2048MB), workerCache=512MB, writeBuffer=358MB.\nSCM annotate metadata disabled via indexing.scm.annotate.enabled.\nRisk analysis disabled via indexing.riskAnalysis.\nWorker pool enabled (auto, maxThreads=4).\nWorker heap policy: target=1024MB (min=1024MB, max=2048MB).\nWorker pool auto threshold: maxFileBytes=2097152.\n[init] worker pools (10ms)\nBuild environment snapshot.\n[init] runtime receipt (15ms)\n[init] runtime ready (211ms)\n[init] code index dir: D:\\a\\PairOfCleats\\PairOfCleats\\.tmp\\dev\\tests\\cache\\ni-5u90Hc\\cache\\repos\\selected-repository-ba2e760c3fc0\\builds\\20261106T011118Z_34dd8c9c_noscm_263b974e\\index-code\n\n📄  Scanning code ...\n→ Reusing shared discovery results.\n→ Found 1 files.\nScanning for imports...\n→ Imports: modules=0, edges=0, files=0\nAuto-selected context window: 3 lines\nProcessing and indexing files...\nIndexing Concurrency: Files: 2, Imports: 2, IO: 16, CPU: 1\n[stage1] admission parse=r0/p0/cap1/min1/max4 stage1.cpu=r0/p0/ready0/blocked0/wait0s stage1.io=r0/p0/ready0/blocked0/wait0s stage1.proc=r0/p0/ready0/blocked0/wait0s stage1.postings=r0/p0/ready0/blocked0/wait0s\n[tree-sitter:schedule] planning global batches...\n[tree-sitter:schedule] batch 1/1: native:javascript#pool1 (waves=1, lane=1/1, plannedCost=3, balance=count, timeout=45120ms)\n[tree-sitter:schedule] plan ready: grammars=1 entries=1 cache=0\n→ Imports: resolved=0, external=0, unresolved=0\n[imports] resolver budgets: fsProbe<=48, fallbackCandidates<=72, fallbackDepth<=20, adaptive=on (profile=normal, scale=1.500).\n[imports] fs-exists-index: enabled=yes, complete=yes, indexed=2, exactHits=0, negativeSkips=0, unknownFallbacks=0\n[imports] resolver pipeline: none\n[imports] resolver pipeline highlights: elapsed=none, budget=none, degraded=none\nEmbeddings disabled (stage2); skipping dense vector build.\n   → Indexed 1 chunks, total tokens: 11\n[chunk_meta] writing JSON\n📦  code : 1 chunks, 11 tokens, dims=0\n→ Wrote .filelists.json (samples only).\n→ Wrote pieces manifest (57 entries).\n[cleanup] runtime.resources.stop-admission start\n[cleanup] runtime.resources.stop-admission done (0ms)\n[cleanup] runtime.scheduler.shutdown start\n[cleanup] runtime.scheduler.shutdown done (0ms)\n[cleanup] runtime.worker-pools.destroy start\n[cleanup] runtime.worker-pools.destroy done (2ms)\n[cleanup] runtime.stage1-subprocesses.terminate start\n[cleanup] runtime.stage1-subprocesses.terminate done (1ms)\n[cleanup] runtime.embeddings.close start\n[cleanup] runtime.embeddings.close done (0ms)\n[cleanup] runtime.preflight-subprocesses.terminate start\n[cleanup] runtime.preflight-subprocesses.terminate done (0ms)\n[cleanup] runtime.resources.release start\n[cleanup] runtime.resources.release done (0ms)\n[cleanup] runtime.cache-writers.drain start\n[cleanup] runtime.cache-writers.drain done (0ms)\n[cleanup] runtime.semantic-replay.clear start\n[cleanup] runtime.semantic-replay.clear done (0ms)\n[cleanup] runtime.logger.close start\n[cleanup] runtime.logger.close done (0ms)\n[init] load config (1ms)\n[init] auto policy (provided)\n[init] learned auto profile (0ms)\n[init] cache root (env): D:\\a\\PairOfCleats\\PairOfCleats\\.tmp\\dev\\tests\\cache\\ni-5u90Hc\\cache\n[init] repo cache root: D:\\a\\PairOfCleats\\PairOfCleats\\.tmp\\dev\\tests\\cache\\ni-5u90Hc\\cache\\repos\\selected-repository-ba2e760c3fc0\n[init] platform preset: win32:ntfs (fs=ntfs, subprocessFanout=4, reason=win32-ntfs-startup-cost).\n[init] startup calibration (1ms)\n[init] startup calibration: io=1ms (bytes=8192).\n[init] runtime envelope (1ms)\n[scm] provider=none; SCM provenance unavailable.\n[init] repo provenance (0ms)\n[runtime] attempt ea299f44-bc75-4a1f-9b85-7e04076dbb96; receipt: D:\\a\\PairOfCleats\\PairOfCleats\\.tmp\\dev\\tests\\cache\\ni-5u90Hc\\cache\\repos\\selected-repository-ba2e760c3fc0\\builds\\20261106T011118Z_34dd8c9c_noscm_263b974e\\build_state.json (durable).\n[init] build root: D:\\a\\PairOfCleats\\PairOfCleats\\.tmp\\dev\\tests\\cache\\ni-5u90Hc\\cache\\repos\\selected-repository-ba2e760c3fc0\\builds\\20261106T011118Z_34dd8c9c_noscm_263b974e (override)\n[init] current index root: D:\\a\\PairOfCleats\\PairOfCleats\\.tmp\\dev\\tests\\cache\\ni-5u90Hc\\cache\\repos\\selected-repository-ba2e760c3fc0\n[scm] annotate disabled: provider=none.\n[scm] policy provider=none annotate=off timeoutCaps=guardrail-only benchRun=0 metaTimeoutMs=default annotateTimeoutMs=default annotateLadder=default\n[init] tree-sitter config (0ms)\nJS file caps default to tree-sitter maxBytes (786432).\n[init] embedding runtime (1ms)\n[init] ignore rules (3ms)\n[init] dictionaries (23ms)\n[init] dictionaries (24ms)\nWordlists disabled: no dictionary files found; identifier splitting will be limited.\nCode dictionaries enabled: 2 file(s), 16 words (typescript) [bundle=bench-2026.02].\nIndexing stage4 (sqlite/ann pass) running.\nIndex profile: default.\nEmbeddings: disabled.\nQueue concurrency: io=16, cpu=1.\nMemory policy: workerHeap=1024MB (effective=1024MB, min=1024MB, max=2048MB), workerCache=512MB, writeBuffer=358MB.\nTree-sitter chunking disabled via indexing.treeSitter.enabled.\nSCM annotate metadata disabled via indexing.scm.annotate.enabled.\nLint metadata disabled via indexing.lint.\nComplexity metadata disabled via indexing.complexity.\nRisk analysis disabled via indexing.riskAnalysis.\n{\"nativeWorkflowPhase\":{\"mode\":\"search-published\",\"phase\":\"seed-native-admission\",\"elapsedMs\":16843}}\n{\"nativeWorkflowPhase\":{\"mode\":\"search-published\",\"phase\":\"terminal-capture:start\",\"elapsedMs\":16843}}\nWorker pool enabled (auto, maxThreads=4).\nWorker heap policy: target=1024MB (min=1024MB, max=2048MB).\nWorker pool auto threshold: maxFileBytes=2097152.\n[init] worker pools (4ms)\nBuild environment snapshot.\n[init] runtime receipt (18ms)\n[init] runtime ready (220ms)\n{\"nativeWorkflowPhase\":{\"mode\":\"search-published\",\"phase\":\"native-ui:ready\",\"elapsedMs\":18601}}\n[build] updated current.json\n[cleanup] runtime.resources.stop-admission start\n[cleanup] runtime.resources.stop-admission done (1ms)\n[cleanup] runtime.scheduler.shutdown start\n[cleanup] runtime.scheduler.shutdown done (0ms)\n[cleanup] runtime.worker-pools.destroy start\n[cleanup] runtime.worker-pools.destroy done (1ms)\n[cleanup] runtime.stage1-subprocesses.terminate start\n[cleanup] runtime.stage1-subprocesses.terminate done (0ms)\n[cleanup] runtime.embeddings.close start\n[cleanup] runtime.embeddings.close done (1ms)\n[cleanup] runtime.preflight-subprocesses.terminate start\n[cleanup] runtime.preflight-subprocesses.terminate done (0ms)\n[cleanup] runtime.resources.release start\n[cleanup] runtime.resources.release done (0ms)\n[cleanup] runtime.cache-writers.drain start\n[cleanup] runtime.cache-writers.drain done (0ms)\n[cleanup] runtime.semantic-replay.clear start\n[cleanup] runtime.semantic-replay.clear done (0ms)\n[cleanup] runtime.logger.close start\n[cleanup] runtime.logger.close done (0ms)\n{\"nativeWorkflowPhase\":{\"mode\":\"search-published\",\"phase\":\"seed-complete-build:complete\",\"elapsedMs\":27283}}\n\n--- stderr ---\nOverall 0/8 (0.0%)\nStage 1/6 (16.7%)\n[           Code | Stage 1]\nOverall 1/8 (12.5%)\nStage 2/6 (33.3%)\nImports 1/1 (100.0%)\nImports 1/1 (100.0%)\nOverall 2/8 (25.0%)\nStage 3/6 (50.0%)\n[watchdog] stage1 hang policy heartbeat=30000ms snapshot=30000ms softKick=360000ms abort=720000ms softKickMaxAttempts=2 orderedFlushTimeout=90000ms\nFiles 1/1 (100.0%)\nFiles 1/1 (100.0%)\nOverall 3/8 (37.5%)\nStage 4/6 (66.7%)\nOverall 4/8 (50.0%)\nStage 5/6 (83.3%)\nOverall 5/8 (62.5%)\nStage 6/6 (100.0%)\nWriting index files (26 artifacts)...\n[perf] adaptive artifact write concurrency 3 -> 4 (backlog, pending=26, mem=0.44, gc=0.40, rss=0.02, writeQ={pending=0, oldest=0ms, p95=0ms})\nArtifacts 1/26 (3.8%)\nWriting index files 1/26 (3.8%) | file_meta.json\nArtifacts 2/26 (7.7%)\nArtifacts 3/26 (11.5%)\nArtifacts 4/26 (15.4%)\nArtifacts 5/26 (19.2%)\nArtifacts 6/26 (23.1%)\nArtifacts 7/26 (26.9%)\nArtifacts 8/26 (30.8%)\nArtifacts 9/26 (34.6%)\nArtifacts 10/26 (38.5%)\nArtifacts 11/26 (42.3%)\nArtifacts 12/26 (46.2%)\nArtifacts 13/26 (50.0%)\nArtifacts 14/26 (53.8%)\nArtifacts 15/26 (57.7%)\nArtifacts 16/26 (61.5%)\nArtifacts 17/26 (65.4%)\nArtifacts 18/26 (69.2%)\nArtifacts 19/26 (73.1%)\nArtifacts 20/26 (76.9%)\nArtifacts 21/26 (80.8%)\nArtifacts 22/26 (84.6%)\nArtifacts 23/26 (88.5%)\nArtifacts 24/26 (92.3%)\nArtifacts 25/26 (96.2%)\nArtifacts 26/26 (100.0%)\nWriting index files 26/26 (100.0%) | semantic-family\n\nWriting index files (28 artifacts)...\nArtifacts 27/28 (96.4%)\nArtifacts 28/28 (100.0%)\nWriting index files 28/28 (100.0%) | index_state.json\n\nOverall 6/8 (75.0%)\nEmbeddings 0/1 (0.0%)\n[runtime] attempt 8ac6ce12-6988-42d7-80f4-aee2b7f16a60; receipt: D:\\a\\PairOfCleats\\PairOfCleats\\.tmp\\dev\\tests\\cache\\ni-5u90Hc\\cache\\repos\\selected-repository-ba2e760c3fc0\\builds\\20261106T011118Z_34dd8c9c_noscm_263b974e\\build_state.json (durable).\nEmbeddings 0/1 (0.0%)\nEmbeddings 0/1 (0.0%)\n[embeddings] code: stub fast-path active; persistent/global chunk cache disabled.\nFiles 0/1 (0.0%)\nChunks 0/1 (0.0%)\nCache 0/1 (0.0%)\nEmbed 0/0 (0.0%)\nWriter 0/0 (0.0%)\nBundles 0/1 (0.0%)\nBackends 0/5 (0.0%)\n[embeddings] code: stub fast-path active; global micro-batching/in-flight coalescing disabled.\n[embeddings] code: incremental bundle refresh parallelism enabled (16 workers).\n[embeddings] code: perf_progress files_total=1 files_done=1 chunks_total=1 chunks_done=1 cache_attempts=0 cache_hits=0 cache_misses=0 cache_rejected=0 cache_fast_rejects=0 cache_hit_files=0 computed_files=1 skipped_files=0 texts_scheduled=1 texts_resolved=1 texts_embedded=1 batches_completed=1 tokens_processed=7 inflight_join_hits=0 inflight_claims=0 embed_compute_ms=22 elapsed_ms=30 files_per_sec=33.333 chunks_per_sec=33.333 embed_resolved_per_sec=33.333 file_parallelism_current=1 file_parallelism_peak=1 file_parallelism_adjustments=0 writer_pending=0 writer_max_pending=4 queue_compute_pending=0 queue_io_pending=0 queue_compute_running=0 queue_io_running=0 writer_peak_pending=0 writer_pending_bytes=0 writer_cap_reason=default batch_pending_requests=0 batch_pending_texts=0 batch_pending_tokens=0 provider_active=0 provider_peak_active=1 inflight_live=0 tokens_padded=7 work_remaining_tokens_estimate=0 work_remaining_groups=1 eta_sample_batches=1 eta_compute_seconds=0 eta_basis=recent-token-cost\nFiles 1/1 (100.0%)\nFiles 1/1 (100.0%)\nFiles 1/1 (100.0%)\nChunks 1/1 (100.0%)\nChunks 1/1 (100.0%)\nChunks 1/1 (100.0%)\nCache 0/1 (0.0%)\nEmbed 1/1 (100.0%)\nEmbed 1/1 (100.0%)\nEmbed 1/1 (100.0%)\nWriter 0/0 (0.0%)\n[embeddings] code: perf_summary files_total=1 files_done=1 chunks_total=1 chunks_done=1 cache_attempts=0 cache_hits=0 cache_misses=0 cache_rejected=0 cache_fast_rejects=0 cache_hit_files=0 computed_files=1 skipped_files=0 texts_scheduled=1 texts_resolved=1 texts_embedded=1 batches_completed=1 tokens_processed=7 inflight_join_hits=0 inflight_claims=0 embed_compute_ms=22 elapsed_ms=32 files_per_sec=31.250 chunks_per_sec=31.250 embed_resolved_per_sec=31.250 file_parallelism_current=1 file_parallelism_peak=1 file_parallelism_adjustments=0 writer_pending=0 writer_max_pending=4 queue_compute_pending=0 queue_io_pending=0 queue_compute_running=0 queue_io_running=0 writer_peak_pending=0 writer_pending_bytes=0 writer_cap_reason=default batch_pending_requests=0 batch_pending_texts=0 batch_pending_tokens=0 provider_active=0 provider_peak_active=1 inflight_live=0 tokens_padded=7 work_remaining_tokens_estimate=0 work_remaining_groups=0 eta_sample_batches=1 eta_compute_seconds=0 eta_basis=recent-token-cost\nFiles 1/1 (100.0%)\nFiles 1/1 (100.0%)\nFiles 1/1 (100.0%)\nChunks 1/1 (100.0%)\nChunks 1/1 (100.0%)\nChunks 1/1 (100.0%)\nCache 0/1 (0.0%)\nEmbed 1/1 (100.0%)\nEmbed 1/1 (100.0%)\nEmbed 1/1 (100.0%)\nWriter 0/0 (0.0%)\nCache 0/1 (0.0%)\nCache 0/1 (0.0%)\nEmbed 1/1 (100.0%)\nEmbed 1/1 (100.0%)\nWriter 0/0 (0.0%)\nWriter 0/0 (0.0%)\nBundles 0/1 (0.0%)\nBundles 0/1 (0.0%)\nBundles 0/1 (0.0%)\nBackends 0/5 (0.0%)\nBackends 1/5 (20.0%)\n[embeddings] code/merged: wrote HNSW index (1 vectors).\n[embeddings] code/code: wrote HNSW index (1 vectors).\n[2026-11-06T01:11:29Z WARN  lance::dataset::write::insert] No existing dataset at D:\\a\\PairOfCleats\\PairOfCleats\\.tmp\\dev\\tests\\cache\\ni-5u90Hc\\cache\\repos\\selected-repository-ba2e760c3fc0\\.ann-HFjSIb\\.lb-QUHEX3\\vectors.lance, it will be created\n[embeddings] code/merged: wrote LanceDB table (1 vectors).\n[2026-11-06T01:11:29Z WARN  lance::dataset::write::insert] No existing dataset at D:\\a\\PairOfCleats\\PairOfCleats\\.tmp\\dev\\tests\\cache\\ni-5u90Hc\\cache\\repos\\selected-repository-ba2e760c3fc0\\.ann-HFjSIb\\.lb-Gys0fx\\vectors.lance, it will be created\n[embeddings] code/code: wrote LanceDB table (1 vectors).\nBackends 2/5 (40.0%)\nBackends 3/5 (60.0%)\nBackends 4/5 (80.0%)\n[embeddings] code: wrote 1 vectors (dims=384).\n[embeddings] code: in-flight coalescing (joins=0, claims=0, bypassed=0, peak=0).\nBackends 4/5 (80.0%)\nBackends 4/5 (80.0%)\nEmbeddings 1/1 (100.0%)\nEmbeddings 1/1 (100.0%)\nEmbeddings 1/1 (100.0%)\nOverall 7/8 (87.5%)\nEmbeddings 1/1 (100.0%)\n[sqlite] Vector extension unavailable for code: missing extension (C:\\Users\\runneradmin\\AppData\\Local\\PairOfCleats\\extensions\\sqlite-vec\\win32-x64\\vec0.dll)\nOverall 8/8 (100.0%)\nOverall 8/8 (100.0%)\n",
+    "phases": "{\"mode\":\"search-published\",\"phase\":\"seed-complete-build:start\",\"elapsedMs\":186}\n{\"mode\":\"search-published\",\"phase\":\"seed-native-admission\",\"elapsedMs\":16843}\n{\"mode\":\"search-published\",\"phase\":\"terminal-capture:start\",\"elapsedMs\":16843}\n{\"mode\":\"search-published\",\"phase\":\"native-ui:ready\",\"elapsedMs\":18601}\n{\"mode\":\"search-published\",\"phase\":\"seed-complete-build:complete\",\"elapsedMs\":27283}\n",
+    "seed": {
+      "owner": "buildIndex",
+      "options": {
+        "modes": [
+          "code"
+        ],
+        "threads": 1,
+        "stubEmbeddings": true,
+        "progress": "off"
+      },
+      "durationMs": 25168,
+      "outcome": {
+        "schemaVersion": 1,
+        "repo": "d:\\a\\pairofcleats\\pairofcleats\\.tmp\\dev\\tests\\cache\\ni-5u90hc\\selected repository",
+        "status": "index-published",
+        "capabilities": [
+          {
+            "capability": "semantic-enrichment",
+            "status": "completed",
+            "modes": [
+              "code"
+            ],
+            "reason": null
+          },
+          {
+            "capability": "embeddings",
+            "status": "completed",
+            "modes": [
+              "code"
+            ],
+            "reason": null
+          },
+          {
+            "capability": "sqlite",
+            "status": "completed",
+            "modes": [
+              "code"
+            ],
+            "reason": null
+          }
+        ],
+        "requestedStages": [
+          "stage2",
+          "stage3",
+          "stage4"
+        ],
+        "stages": [
+          {
+            "stage": "stage2",
+            "status": "completed",
+            "modes": [
+              "code"
+            ],
+            "reason": null,
+            "queueId": null,
+            "validation": {
+              "status": "passed",
+              "ok": true,
+              "issueCount": 0,
+              "warningCount": 4,
+              "issues": null
+            },
+            "publication": {
+              "status": "retained",
+              "buildId": "20261106T011118Z_34dd8c9c_noscm_263b974e",
+              "modes": [
+                "code"
+              ]
+            },
+            "diagnosticEvidence": null,
+            "admission": {
+              "status": "not-reported",
+              "requestedModeCount": null,
+              "admittedModeCount": null,
+              "rejectedModes": [],
+              "jobs": []
+            },
+            "perMode": null
+          },
+          {
+            "stage": "stage3",
+            "status": "completed",
+            "modes": [
+              "code"
+            ],
+            "reason": null,
+            "queueId": null,
+            "validation": {
+              "status": "unknown"
+            },
+            "publication": {
+              "status": "unknown"
+            },
+            "diagnosticEvidence": null,
+            "admission": {
+              "status": "not-reported",
+              "requestedModeCount": null,
+              "admittedModeCount": null,
+              "rejectedModes": [],
+              "jobs": []
+            },
+            "perMode": [
+              {
+                "mode": "code",
+                "embeddings": {
+                  "queued": false,
+                  "inline": true
+                }
+              }
+            ]
+          },
+          {
+            "stage": "stage4",
+            "status": "completed",
+            "modes": [
+              "code"
+            ],
+            "reason": null,
+            "queueId": null,
+            "validation": {
+              "status": "passed"
+            },
+            "publication": {
+              "status": "published",
+              "modeBuildRoots": {
+                "code": "D:\\a\\PairOfCleats\\PairOfCleats\\.tmp\\dev\\tests\\cache\\ni-5u90Hc\\cache\\repos\\selected-repository-ba2e760c3fc0\\builds\\20261106T011118Z_34dd8c9c_noscm_263b974e"
+              }
+            },
+            "diagnosticEvidence": null,
+            "admission": {
+              "status": "not-reported",
+              "requestedModeCount": null,
+              "admittedModeCount": null,
+              "rejectedModes": [],
+              "jobs": []
+            },
+            "perMode": null
+          }
+        ],
+        "generations": [
+          {
+            "stage": "stage2",
+            "buildId": "20261106T011118Z_34dd8c9c_noscm_263b974e",
+            "buildRoot": "D:\\a\\PairOfCleats\\PairOfCleats\\.tmp\\dev\\tests\\cache\\ni-5u90Hc\\cache\\repos\\selected-repository-ba2e760c3fc0\\builds\\20261106T011118Z_34dd8c9c_noscm_263b974e",
+            "attemptId": "d9cd9ac8-2fe6-414f-ad21-145042c5d064",
+            "modes": [
+              "code"
+            ],
+            "receiptPath": "D:\\a\\PairOfCleats\\PairOfCleats\\.tmp\\dev\\tests\\cache\\ni-5u90Hc\\cache\\repos\\selected-repository-ba2e760c3fc0\\builds\\20261106T011118Z_34dd8c9c_noscm_263b974e/build_state.json"
+          },
+          {
+            "stage": "stage4",
+            "buildId": "20261106T011118Z_34dd8c9c_noscm_263b974e",
+            "buildRoot": "D:\\a\\PairOfCleats\\PairOfCleats\\.tmp\\dev\\tests\\cache\\ni-5u90Hc\\cache\\repos\\selected-repository-ba2e760c3fc0\\builds\\20261106T011118Z_34dd8c9c_noscm_263b974e",
+            "attemptId": "ea299f44-bc75-4a1f-9b85-7e04076dbb96",
+            "modes": [
+              "code"
+            ],
+            "receiptPath": "D:\\a\\PairOfCleats\\PairOfCleats\\.tmp\\dev\\tests\\cache\\ni-5u90Hc\\cache\\repos\\selected-repository-ba2e760c3fc0\\builds\\20261106T011118Z_34dd8c9c_noscm_263b974e/build_state.json"
+          }
+        ],
+        "counts": null,
+        "error": null
+      }
+    },
+    "jobBoundaries": [
+      {
+        "proto": "poc.progress@2",
+        "event": "job:start",
+        "ts": "2026-11-06T01:11:35.141Z",
+        "runId": "index-workflow-native-all",
+        "jobId": "native-workflow-1",
+        "seq": 1,
+        "title": "Index workflow",
+        "internal": true
+      },
+      {
+        "proto": "poc.progress@2",
+        "event": "job:end",
+        "ts": "2026-11-06T01:11:35.745Z",
+        "runId": "index-workflow-native-all",
+        "jobId": "native-workflow-1",
+        "seq": 2,
+        "internal": true,
+        "durationMs": 604,
+        "signal": null,
+        "status": "done",
+        "exitCode": 0,
+        "resultState": "complete",
+        "result": {
+          "method": "select",
+          "data": {
+            "id": "ecd88cf2-92f6-4a95-b9c7-f6bdad7a927e",
+            "kind": "repo",
+            "target": "D:\\a\\PairOfCleats\\PairOfCleats\\.tmp\\dev\\tests\\cache\\ni-5u90Hc\\selected repository",
+            "configRoot": "D:\\a\\PairOfCleats\\PairOfCleats\\.tmp\\dev\\tests\\cache\\ni-5u90Hc\\selected repository",
+            "name": "selected repository"
+          }
+        }
+      },
+      {
+        "proto": "poc.progress@2",
+        "event": "job:start",
+        "ts": "2026-11-06T01:11:35.800Z",
+        "runId": "index-workflow-native-all",
+        "jobId": "native-workflow-2",
+        "seq": 1,
+        "title": "Index workflow",
+        "internal": true
+      },
+      {
+        "proto": "poc.progress@2",
+        "event": "job:start",
+        "ts": "2026-11-06T01:11:43.776Z",
+        "runId": "index-workflow-native-all",
+        "jobId": "native-workflow-3",
+        "seq": 1,
+        "title": "Index workflow",
+        "internal": true
+      },
+      {
+        "proto": "poc.progress@2",
+        "event": "job:end",
+        "ts": "2026-11-06T01:11:44.861Z",
+        "runId": "index-workflow-native-all",
+        "jobId": "native-workflow-3",
+        "seq": 2,
+        "internal": true,
+        "durationMs": 1085,
+        "signal": null,
+        "status": "done",
+        "exitCode": 0,
+        "resultState": "complete",
+        "result": {
+          "method": "status",
+          "data": {
+            "scope": {
+              "id": "ecd88cf2-92f6-4a95-b9c7-f6bdad7a927e",
+              "kind": "repo",
+              "target": "D:\\a\\PairOfCleats\\PairOfCleats\\.tmp\\dev\\tests\\cache\\ni-5u90Hc\\selected repository",
+              "configRoot": "D:\\a\\PairOfCleats\\PairOfCleats\\.tmp\\dev\\tests\\cache\\ni-5u90Hc\\selected repository",
+              "name": "selected repository"
+            },
+            "publications": [
+              {
+                "repo": "D:\\a\\PairOfCleats\\PairOfCleats\\.tmp\\dev\\tests\\cache\\ni-5u90Hc\\selected repository",
+                "generation": {
+                  "currentJsonPath": "D:\\a\\PairOfCleats\\PairOfCleats\\.tmp\\dev\\tests\\cache\\ni-5u90Hc\\cache\\repos\\selected-repository-ba2e760c3fc0\\builds\\current.json",
+                  "currentJsonExists": true,
+                  "currentJsonMtimeMs": 1793927503727.3828,
+                  "parseOk": true,
+                  "buildId": "20261106T011118Z_34dd8c9c_noscm_263b974e",
+                  "buildRoot": "d:\\a\\pairofcleats\\pairofcleats\\.tmp\\dev\\tests\\cache\\ni-5u90hc\\cache\\repos\\selected-repository-ba2e760c3fc0\\builds\\20261106t011118z_34dd8c9c_noscm_263b974e",
+                  "activeRoot": "d:\\a\\pairofcleats\\pairofcleats\\.tmp\\dev\\tests\\cache\\ni-5u90hc\\cache\\repos\\selected-repository-ba2e760c3fc0\\builds\\20261106t011118z_34dd8c9c_noscm_263b974e",
+                  "buildRoots": {
+                    "code": "d:\\a\\pairofcleats\\pairofcleats\\.tmp\\dev\\tests\\cache\\ni-5u90hc\\cache\\repos\\selected-repository-ba2e760c3fc0\\builds\\20261106t011118z_34dd8c9c_noscm_263b974e"
+                  },
+                  "generationKey": "{\"buildId\":\"20261106T011118Z_34dd8c9c_noscm_263b974e\",\"buildRoot\":\"d:\\\\a\\\\pairofcleats\\\\pairofcleats\\\\.tmp\\\\dev\\\\tests\\\\cache\\\\ni-5u90hc\\\\cache\\\\repos\\\\selected-repository-ba2e760c3fc0\\\\builds\\\\20261106t011118z_34dd8c9c_noscm_263b974e\",\"activeRoot\":\"d:\\\\a\\\\pairofcleats\\\\pairofcleats\\\\.tmp\\\\dev\\\\tests\\\\cache\\\\ni-5u90hc\\\\cache\\\\repos\\\\selected-repository-ba2e760c3fc0\\\\builds\\\\20261106t011118z_34dd8c9c_noscm_263b974e\",\"buildRoots\":{\"code\":\"d:\\\\a\\\\pairofcleats\\\\pairofcleats\\\\.tmp\\\\dev\\\\tests\\\\cache\\\\ni-5u90hc\\\\cache\\\\repos\\\\selected-repository-ba2e760c3fc0\\\\builds\\\\20261106t011118z_34dd8c9c_noscm_263b974e\"}}"
+                },
+                "published": true,
+                "validated": true,
+                "promoted": true,
+                "ready": true,
+                "readinessCheck": "canonical-current-artifact-validation",
+                "producerContractValid": true,
+                "validation": {
+                  "ok": true,
+                  "issueCount": 0,
+                  "warningCount": 4,
+                  "issues": null
+                },
+                "observationUnchanged": true,
+                "currentValidation": {
+                  "ok": true,
+                  "strict": true,
+                  "issues": [],
+                  "warningCount": 4
+                },
+                "validatedModes": [
+                  "code"
+                ],
+                "stage": "stage4",
+                "producerCorrelations": [
+                  "pc-6dd1427d-790c-4dfe-8bd2-04015cfa3570",
+                  "pc-6dd1427d-790c-4dfe-8bd2-04015cfa3570",
+                  "pc-6dd1427d-790c-4dfe-8bd2-04015cfa3570"
+                ],
+                "phases": {
+                  "discovery": {
+                    "status": "done",
+                    "updatedAt": "2026-11-06T01:11:21.657Z",
+                    "finishedAt": "2026-11-06T01:11:21.657Z"
+                  },
+                  "preprocessing": {
+                    "status": "done",
+                    "updatedAt": "2026-11-06T01:11:21.648Z",
+                    "finishedAt": "2026-11-06T01:11:21.648Z"
+                  },
+                  "stage2": {
+                    "status": "done",
+                    "updatedAt": "2026-11-06T01:11:32.620Z",
+                    "finishedAt": "2026-11-06T01:11:32.620Z"
+                  },
+                  "relations-physical:code:propagate": {
+                    "status": "done",
+                    "updatedAt": "2026-11-06T01:11:23.093Z",
+                    "finishedAt": "2026-11-06T01:11:23.093Z"
+                  },
+                  "stage3": {
+                    "status": "done",
+                    "updatedAt": "2026-11-06T01:11:32.327Z",
+                    "finishedAt": "2026-11-06T01:11:32.327Z"
+                  },
+                  "validation": {
+                    "status": "done",
+                    "updatedAt": "2026-11-06T01:11:43.515Z",
+                    "finishedAt": "2026-11-06T01:11:43.515Z"
+                  },
+                  "stage4": {
+                    "status": "done",
+                    "updatedAt": "2026-11-06T01:11:41.720Z",
+                    "finishedAt": "2026-11-06T01:11:41.720Z"
+                  },
+                  "promote": {
+                    "status": "done",
+                    "updatedAt": "2026-11-06T01:11:43.741Z",
+                    "finishedAt": "2026-11-06T01:11:43.741Z"
+                  }
+                },
+                "note": "Current published generation observed independently of this process exit status."
+              }
+            ],
+            "maintenance": null,
+            "services": [],
+            "indexers": [],
+            "continuations": []
+          }
+        }
+      },
+      {
+        "proto": "poc.progress@2",
+        "event": "job:start",
+        "ts": "2026-11-06T01:11:45.035Z",
+        "runId": "index-workflow-native-all",
+        "jobId": "native-search-1",
+        "seq": 1,
+        "title": "Search",
+        "internal": true
+      },
+      {
+        "proto": "poc.progress@2",
+        "event": "job:end",
+        "ts": "2026-11-06T01:11:45.101Z",
+        "runId": "index-workflow-native-all",
+        "jobId": "native-search-1",
+        "seq": 2,
+        "internal": true,
+        "durationMs": 66,
+        "signal": null,
+        "status": "done",
+        "exitCode": 0,
+        "resultState": "complete",
+        "result": {
+          "method": "describe",
+          "data": {
+            "schema": {
+              "type": "object",
+              "additionalProperties": false,
+              "anyOf": [
+                {
+                  "required": [
+                    "query"
+                  ],
+                  "properties": {
+                    "query": {
+                      "type": "string",
+                      "pattern": "\\S"
+                    }
+                  }
+                },
+                {
+                  "required": [
+                    "type"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "pattern": "\\S"
+                    }
+                  }
+                },
+                {
+                  "required": [
+                    "author"
+                  ],
+                  "properties": {
+                    "author": {
+                      "type": "string",
+                      "pattern": "\\S"
+                    }
+                  }
+                },
+                {
+                  "required": [
+                    "import"
+                  ],
+                  "properties": {
+                    "import": {
+                      "type": "string",
+                      "pattern": "\\S"
+                    }
+                  }
+                },
+                {
+                  "required": [
+                    "calls"
+                  ],
+                  "properties": {
+                    "calls": {
+                      "type": "string",
+                      "pattern": "\\S"
+                    }
+                  }
+                },
+                {
+                  "required": [
+                    "uses"
+                  ],
+                  "properties": {
+                    "uses": {
+                      "type": "string",
+                      "pattern": "\\S"
+                    }
+                  }
+                },
+                {
+                  "required": [
+                    "signature"
+                  ],
+                  "properties": {
+                    "signature": {
+                      "type": "string",
+                      "pattern": "\\S"
+                    }
+                  }
+                },
+                {
+                  "required": [
+                    "param"
+                  ],
+                  "properties": {
+                    "param": {
+                      "type": "string",
+                      "pattern": "\\S"
+                    }
+                  }
+                },
+                {
+                  "required": [
+                    "decorator"
+                  ],
+                  "properties": {
+                    "decorator": {
+                      "type": "string",
+                      "pattern": "\\S"
+                    }
+                  }
+                },
+                {
+                  "required": [
+                    "inferredType"
+                  ],
+                  "properties": {
+                    "inferredType": {
+                      "type": "string",
+                      "pattern": "\\S"
+                    }
+                  }
+                },
+                {
+                  "required": [
+                    "returnType"
+                  ],
+                  "properties": {
+                    "returnType": {
+                      "type": "string",
+                      "pattern": "\\S"
+                    }
+                  }
+                },
+                {
+                  "required": [
+                    "throws"
+                  ],
+                  "properties": {
+                    "throws": {
+                      "type": "string",
+                      "pattern": "\\S"
+                    }
+                  }
+                },
+                {
+                  "required": [
+                    "reads"
+                  ],
+                  "properties": {
+                    "reads": {
+                      "type": "string",
+                      "pattern": "\\S"
+                    }
+                  }
+                },
+                {
+                  "required": [
+                    "writes"
+                  ],
+                  "properties": {
+                    "writes": {
+                      "type": "string",
+                      "pattern": "\\S"
+                    }
+                  }
+                },
+                {
+                  "required": [
+                    "mutates"
+                  ],
+                  "properties": {
+                    "mutates": {
+                      "type": "string",
+                      "pattern": "\\S"
+                    }
+                  }
+                },
+                {
+                  "required": [
+                    "alias"
+                  ],
+                  "properties": {
+                    "alias": {
+                      "type": "string",
+                      "pattern": "\\S"
+                    }
+                  }
+                },
+                {
+                  "required": [
+                    "awaits"
+                  ],
+                  "properties": {
+                    "awaits": {
+                      "type": "string",
+                      "pattern": "\\S"
+                    }
+                  }
+                },
+                {
+                  "required": [
+                    "risk"
+                  ],
+                  "properties": {
+                    "risk": {
+                      "type": "string",
+                      "pattern": "\\S"
+                    }
+                  }
+                },
+                {
+                  "required": [
+                    "riskTag"
+                  ],
+                  "properties": {
+                    "riskTag": {
+                      "type": "string",
+                      "pattern": "\\S"
+                    }
+                  }
+                },
+                {
+                  "required": [
+                    "riskSource"
+                  ],
+                  "properties": {
+                    "riskSource": {
+                      "type": "string",
+                      "pattern": "\\S"
+                    }
+                  }
+                },
+                {
+                  "required": [
+                    "riskSink"
+                  ],
+                  "properties": {
+                    "riskSink": {
+                      "type": "string",
+                      "pattern": "\\S"
+                    }
+                  }
+                },
+                {
+                  "required": [
+                    "riskCategory"
+                  ],
+                  "properties": {
+                    "riskCategory": {
+                      "type": "string",
+                      "pattern": "\\S"
+                    }
+                  }
+                },
+                {
+                  "required": [
+                    "riskFlow"
+                  ],
+                  "properties": {
+                    "riskFlow": {
+                      "type": "string",
+                      "pattern": "\\S"
+                    }
+                  }
+                },
+                {
+                  "required": [
+                    "chunkAuthor"
+                  ],
+                  "properties": {
+                    "chunkAuthor": {
+                      "type": "string",
+                      "pattern": "\\S"
+                    }
+                  }
+                },
+                {
+                  "required": [
+                    "modifiedAfter"
+                  ],
+                  "properties": {
+                    "modifiedAfter": {
+                      "type": "string",
+                      "pattern": "\\S"
+                    }
+                  }
+                },
+                {
+                  "required": [
+                    "visibility"
+                  ],
+                  "properties": {
+                    "visibility": {
+                      "type": "string",
+                      "pattern": "\\S"
+                    }
+                  }
+                },
+                {
+                  "required": [
+                    "extends"
+                  ],
+                  "properties": {
+                    "extends": {
+                      "type": "string",
+                      "pattern": "\\S"
+                    }
+                  }
+                },
+                {
+                  "required": [
+                    "lang"
+                  ],
+                  "properties": {
+                    "lang": {
+                      "type": "string",
+                      "pattern": "\\S"
+                    }
+                  }
+                },
+                {
+                  "required": [
+                    "filter"
+                  ],
+                  "properties": {
+                    "filter": {
+                      "type": "string",
+                      "pattern": "\\S"
+                    }
+                  }
+                },
+                {
+                  "required": [
+                    "branchesMin"
+                  ],
+                  "properties": {
+                    "branchesMin": {
+                      "type": "integer",
+                      "minimum": 0
+                    }
+                  }
+                },
+                {
+                  "required": [
+                    "loopsMin"
+                  ],
+                  "properties": {
+                    "loopsMin": {
+                      "type": "integer",
+                      "minimum": 0
+                    }
+                  }
+                },
+                {
+                  "required": [
+                    "breaksMin"
+                  ],
+                  "properties": {
+                    "breaksMin": {
+                      "type": "integer",
+                      "minimum": 0
+                    }
+                  }
+                },
+                {
+                  "required": [
+                    "continuesMin"
+                  ],
+                  "properties": {
+                    "continuesMin": {
+                      "type": "integer",
+                      "minimum": 0
+                    }
+                  }
+                },
+                {
+                  "required": [
+                    "churnMin"
+                  ],
+                  "properties": {
+                    "churnMin": {
+                      "type": "integer",
+                      "minimum": 0
+                    }
+                  }
+                },
+                {
+                  "required": [
+                    "modifiedSince"
+                  ],
+                  "properties": {
+                    "modifiedSince": {
+                      "type": "integer",
+                      "minimum": 0
+                    }
+                  }
+                },
+                {
+                  "required": [
+                    "lint"
+                  ],
+                  "properties": {
+                    "lint": {
+                      "const": true
+                    }
+                  }
+                },
+                {
+                  "required": [
+                    "async"
+                  ],
+                  "properties": {
+                    "async": {
+                      "const": true
+                    }
+                  }
+                },
+                {
+                  "required": [
+                    "generator"
+                  ],
+                  "properties": {
+                    "generator": {
+                      "const": true
+                    }
+                  }
+                },
+                {
+                  "required": [
+                    "returns"
+                  ],
+                  "properties": {
+                    "returns": {
+                      "const": true
+                    }
+                  }
+                },
+                {
+                  "required": [
+                    "path"
+                  ],
+                  "properties": {
+                    "path": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "pattern": "\\S"
+                        },
+                        {
+                          "type": "array",
+                          "minItems": 1,
+                          "items": {
+                            "type": "string",
+                            "pattern": "\\S"
+                          }
+                        },
+                        {
+                          "type": "object",
+                          "minProperties": 1
+                        }
+                      ]
+                    }
+                  }
+                },
+                {
+                  "required": [
+                    "paths"
+                  ],
+                  "properties": {
+                    "paths": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "pattern": "\\S"
+                        },
+                        {
+                          "type": "array",
+                          "minItems": 1,
+                          "items": {
+                            "type": "string",
+                            "pattern": "\\S"
+                          }
+                        },
+                        {
+                          "type": "object",
+                          "minProperties": 1
+                        }
+                      ]
+                    }
+                  }
+                },
+                {
+                  "required": [
+                    "file"
+                  ],
+                  "properties": {
+                    "file": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "pattern": "\\S"
+                        },
+                        {
+                          "type": "array",
+                          "minItems": 1,
+                          "items": {
+                            "type": "string",
+                            "pattern": "\\S"
+                          }
+                        },
+                        {
+                          "type": "object",
+                          "minProperties": 1
+                        }
+                      ]
+                    }
+                  }
+                },
+                {
+                  "required": [
+                    "ext"
+                  ],
+                  "properties": {
+                    "ext": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "pattern": "\\S"
+                        },
+                        {
+                          "type": "array",
+                          "minItems": 1,
+                          "items": {
+                            "type": "string",
+                            "pattern": "\\S"
+                          }
+                        },
+                        {
+                          "type": "object",
+                          "minProperties": 1
+                        }
+                      ]
+                    }
+                  }
+                },
+                {
+                  "required": [
+                    "meta"
+                  ],
+                  "properties": {
+                    "meta": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "pattern": "\\S"
+                        },
+                        {
+                          "type": "array",
+                          "minItems": 1,
+                          "items": {
+                            "type": "string",
+                            "pattern": "\\S"
+                          }
+                        },
+                        {
+                          "type": "object",
+                          "minProperties": 1
+                        }
+                      ]
+                    }
+                  }
+                },
+                {
+                  "required": [
+                    "metaJson"
+                  ],
+                  "properties": {
+                    "metaJson": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "pattern": "\\S"
+                        },
+                        {
+                          "type": "array",
+                          "minItems": 1,
+                          "items": {
+                            "type": "string",
+                            "pattern": "\\S"
+                          }
+                        },
+                        {
+                          "type": "object",
+                          "minProperties": 1
+                        }
+                      ]
+                    }
+                  }
+                }
+              ],
+              "properties": {
+                "query": {
+                  "type": "string"
+                },
+                "asOf": {
+                  "type": "string"
+                },
+                "snapshot": {
+                  "type": "string"
+                },
+                "snapshotId": {
+                  "type": "string"
+                },
+                "mode": {
+                  "type": "string",
+                  "enum": [
+                    "code",
+                    "prose",
+                    "records",
+                    "both",
+                    "all",
+                    "extracted-prose"
+                  ]
+                },
+                "backend": {
+                  "type": "string",
+                  "enum": [
+                    "auto",
+                    "memory",
+                    "sqlite",
+                    "sqlite-fts",
+                    "lmdb"
+                  ]
+                },
+                "top": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "context": {
+                  "type": "integer",
+                  "const": 0,
+                  "deprecated": true
+                },
+                "type": {
+                  "type": "string"
+                },
+                "author": {
+                  "type": "string"
+                },
+                "import": {
+                  "type": "string"
+                },
+                "calls": {
+                  "type": "string"
+                },
+                "uses": {
+                  "type": "string"
+                },
+                "signature": {
+                  "type": "string"
+                },
+                "param": {
+                  "type": "string"
+                },
+                "decorator": {
+                  "type": "string"
+                },
+                "inferredType": {
+                  "type": "string"
+                },
+                "returnType": {
+                  "type": "string"
+                },
+                "throws": {
+                  "type": "string"
+                },
+                "reads": {
+                  "type": "string"
+                },
+                "writes": {
+                  "type": "string"
+                },
+                "mutates": {
+                  "type": "string"
+                },
+                "alias": {
+                  "type": "string"
+                },
+                "awaits": {
+                  "type": "string"
+                },
+                "risk": {
+                  "type": "string"
+                },
+                "riskTag": {
+                  "type": "string"
+                },
+                "riskSource": {
+                  "type": "string"
+                },
+                "riskSink": {
+                  "type": "string"
+                },
+                "riskCategory": {
+                  "type": "string"
+                },
+                "riskFlow": {
+                  "type": "string"
+                },
+                "chunkAuthor": {
+                  "type": "string"
+                },
+                "modifiedAfter": {
+                  "type": "string"
+                },
+                "visibility": {
+                  "type": "string"
+                },
+                "extends": {
+                  "type": "string"
+                },
+                "lang": {
+                  "type": "string"
+                },
+                "branch": {
+                  "type": "string"
+                },
+                "filter": {
+                  "type": "string"
+                },
+                "branchesMin": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "loopsMin": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "breaksMin": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "continuesMin": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "churnMin": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "modifiedSince": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "ann": {
+                  "type": "boolean"
+                },
+                "allowSparseFallback": {
+                  "type": "boolean"
+                },
+                "allowUnsafeMix": {
+                  "type": "boolean"
+                },
+                "lint": {
+                  "type": "boolean"
+                },
+                "async": {
+                  "type": "boolean"
+                },
+                "generator": {
+                  "type": "boolean"
+                },
+                "returns": {
+                  "type": "boolean"
+                },
+                "case": {
+                  "type": "boolean"
+                },
+                "caseFile": {
+                  "type": "boolean"
+                },
+                "caseTokens": {
+                  "type": "boolean"
+                },
+                "path": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  ]
+                },
+                "paths": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  ]
+                },
+                "file": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  ]
+                },
+                "ext": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  ]
+                },
+                "meta": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "array",
+                      "items": {
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "boolean"
+                          },
+                          {
+                            "type": "object"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      }
+                    },
+                    {
+                      "type": "object",
+                      "additionalProperties": true
+                    }
+                  ]
+                },
+                "metaJson": {
+                  "type": [
+                    "string",
+                    "object",
+                    "array",
+                    "number",
+                    "boolean",
+                    "null"
+                  ]
+                }
+              }
+            },
+            "resultModes": [
+              "code",
+              "prose",
+              "extracted-prose",
+              "records"
+            ],
+            "defaults": {
+              "mode": "all",
+              "backend": "auto",
+              "top": 10
+            },
+            "limits": {
+              "maxHits": 500,
+              "maxCaptureBytes": 786432,
+              "maxSourceBytes": 67108864,
+              "maxExcerptBytes": 16384
+            }
+          }
+        }
+      }
+    ],
+    "pids": "{\"native\":4420}\r\n{\"proxy\":3172,\"supervisor\":7048}\n{\"request\":{\"credits\":256,\"op\":\"flow:credit\",\"proto\":\"poc.tui@1\"}}\n{\"request\":{\"credits\":1,\"op\":\"flow:credit\",\"proto\":\"poc.tui@1\"}}\n{\"request\":{\"jobId\":\"native-workflow-1\",\"method\":\"select\",\"op\":\"workflow:run\",\"params\":{\"kind\":\"repo\",\"target\":\"D:\\\\a\\\\PairOfCleats\\\\PairOfCleats\\\\.tmp\\\\dev\\\\tests\\\\cache\\\\ni-5u90Hc\\\\selected repository\"},\"proto\":\"poc.tui@1\"}}\n{\"request\":{\"credits\":1,\"op\":\"flow:credit\",\"proto\":\"poc.tui@1\"}}\n{\"request\":{\"credits\":2,\"op\":\"flow:credit\",\"proto\":\"poc.tui@1\"}}\n{\"request\":{\"jobId\":\"native-workflow-2\",\"method\":\"describe\",\"op\":\"workflow:run\",\"params\":{},\"proto\":\"poc.tui@1\"}}\n{\"request\":{\"credits\":31,\"op\":\"flow:credit\",\"proto\":\"poc.tui@1\"}}\n{\"request\":{\"credits\":1,\"op\":\"flow:credit\",\"proto\":\"poc.tui@1\"}}\n{\"request\":{\"credits\":1,\"op\":\"flow:credit\",\"proto\":\"poc.tui@1\"}}\n{\"request\":{\"credits\":1,\"op\":\"flow:credit\",\"proto\":\"poc.tui@1\"}}\n{\"request\":{\"credits\":1,\"op\":\"flow:credit\",\"proto\":\"poc.tui@1\"}}\n{\"request\":{\"credits\":1,\"op\":\"flow:credit\",\"proto\":\"poc.tui@1\"}}\n{\"request\":{\"credits\":1,\"op\":\"flow:credit\",\"proto\":\"poc.tui@1\"}}\n{\"request\":{\"credits\":1,\"op\":\"flow:credit\",\"proto\":\"poc.tui@1\"}}\n{\"request\":{\"jobId\":\"native-workflow-3\",\"method\":\"status\",\"op\":\"workflow:run\",\"params\":{\"scopeId\":\"ecd88cf2-92f6-4a95-b9c7-f6bdad7a927e\"},\"proto\":\"poc.tui@1\"}}\n{\"request\":{\"credits\":1,\"op\":\"flow:credit\",\"proto\":\"poc.tui@1\"}}\n{\"request\":{\"credits\":1,\"op\":\"flow:credit\",\"proto\":\"poc.tui@1\"}}\n{\"request\":{\"credits\":1,\"op\":\"flow:credit\",\"proto\":\"poc.tui@1\"}}\n{\"request\":{\"jobId\":\"native-search-1\",\"method\":\"describe\",\"op\":\"search:run\",\"params\":{},\"proto\":\"poc.tui@1\"}}\n{\"request\":{\"credits\":1,\"op\":\"flow:credit\",\"proto\":\"poc.tui@1\"}}\n{\"request\":{\"credits\":3,\"op\":\"flow:credit\",\"proto\":\"poc.tui@1\"}}\n"
+  },
+  "focusedAttempt": {
+    "parentCommit": "386e8c88807acc43b8c7b5aa89886fd238ffe629",
+    "report": {
+      "junit": null,
+      "logDir": "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793928856056-b3wqse",
+      "summary": {
+        "durationMs": 30494,
+        "failed": 1,
+        "passed": 0,
+        "skipped": 0,
+        "total": 1
+      },
+      "tests": [
+        {
+          "attempts": 1,
+          "durationMs": 30484,
+          "exitCode": 1,
+          "id": "tui/native-index-workflows/search-published",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793928856056-b3wqse\\tui_native-index-workflows_search-published.attempt-1.log",
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793928856056-b3wqse\\tui_native-index-workflows_search-published.attempt-1.failure.json"
+          ],
+          "path": "tui/native-index-workflows.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "failed",
+          "tags": [
+            "integration"
+          ],
+          "termination": {
+            "fallbackAttempted": false,
+            "fallbackTerminated": 0,
+            "forced": true,
+            "terminated": true
+          },
+          "timedOut": true,
+          "timeoutClass": "timed_out_with_failure"
+        }
+      ]
+    },
+    "log": "id: tui/native-index-workflows/search-published\npath: tui/native-index-workflows.test.js\nattempt: 1\nstatus: failed\nexit: 1\nsignal: null\ntimedOut: true\ntimeoutClass: timed_out_with_failure\nskipReason: \ntermination: {\"terminated\":true,\"forced\":true,\"fallbackAttempted\":false,\"fallbackTerminated\":0}\n\n--- stdout ---\n{\"nativeWorkflowPhase\":{\"mode\":\"search-published\",\"phase\":\"seed-complete-build:start\",\"elapsedMs\":204}}\n[init] load config (2ms)\n[init] auto policy (provided)\n[init] learned auto profile (1ms)\n[init] cache root (env): C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\ni-fB76Rq\\cache\n[init] repo cache root: C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\ni-fB76Rq\\cache\\repos\\selected-repository-60c33a5d391d\n[init] platform preset: win32:ntfs (fs=ntfs, subprocessFanout=16, reason=win32-ntfs-startup-cost).\n[init] startup calibration (2ms)\n[init] startup calibration: io=1ms (bytes=8192).\n[init] runtime envelope (1ms)\n[scm] provider=none; SCM provenance unavailable.\n[init] repo provenance (0ms)\n[runtime] attempt eaebf9d0-51d3-47a3-b84c-e9c4d3593897; receipt: C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\ni-fB76Rq\\cache\\repos\\selected-repository-60c33a5d391d\\builds\\20261106T013419Z_f1f8a116_noscm_43bf2c1f\\build_state.json (durable).\n[init] build root: C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\ni-fB76Rq\\cache\\repos\\selected-repository-60c33a5d391d\\builds\\20261106T013419Z_f1f8a116_noscm_43bf2c1f\n[init] current index root: C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\ni-fB76Rq\\cache\\repos\\selected-repository-60c33a5d391d\n[scm] annotate disabled: provider=none.\n[scm] policy provider=none annotate=off timeoutCaps=guardrail-only benchRun=0 metaTimeoutMs=default annotateTimeoutMs=default annotateLadder=default\n[init] tree-sitter config (0ms)\nJS file caps default to tree-sitter maxBytes (786432).\n[init] embedding runtime (4ms)\n[init] ignore rules (5ms)\n[init] dictionaries (45ms)\n[init] dictionaries (45ms)\nWordlists disabled: no dictionary files found; identifier splitting will be limited.\nCode dictionaries enabled: 2 file(s), 16 words (typescript) [bundle=bench-2026.02].\nTwo-stage indexing: stage2 (enrichment) running.\nIndex profile: default.\nEmbeddings: deferred to stage3 (stage2).\nQueue concurrency: io=16, cpu=1.\nMemory policy: workerHeap=2048MB (effective=2048MB, min=1024MB, max=2048MB), workerCache=1024MB, writeBuffer=640MB.\nHigh-memory profile (eligible): threshold=16384MB, cacheScale=1.25x, writeScale=1.2x, postingsScale=1.15x.\nSCM annotate metadata disabled via indexing.scm.annotate.enabled.\nRisk analysis disabled via indexing.riskAnalysis.\nWorker pool enabled (auto, maxThreads=4).\nWorker heap policy: target=2048MB (min=1024MB, max=2048MB).\nWorker pool auto threshold: maxFileBytes=2097152.\n[init] worker pools (12ms)\nBuild environment snapshot.\n[init] runtime receipt (18ms)\n[init] runtime ready (254ms)\n[init] code index dir: C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\ni-fB76Rq\\cache\\repos\\selected-repository-60c33a5d391d\\builds\\20261106T013419Z_f1f8a116_noscm_43bf2c1f\\index-code\n\n📄  Scanning code ...\n→ Reusing shared discovery results.\n→ Found 1 files.\nScanning for imports...\n→ Imports: modules=0, edges=0, files=0\nAuto-selected context window: 3 lines\nProcessing and indexing files...\nIndexing Concurrency: Files: 2, Imports: 2, IO: 16, CPU: 1\n[stage1] admission parse=r0/p0/cap2/min1/max4 stage1.cpu=r0/p0/ready0/blocked0/wait0s stage1.io=r0/p0/ready0/blocked0/wait0s stage1.proc=r0/p0/ready0/blocked0/wait0s stage1.postings=r0/p0/ready0/blocked0/wait0s\n[tree-sitter:schedule] planning global batches...\n[tree-sitter:schedule] batch 1/1: native:javascript#pool1 (waves=1, lane=1/1, plannedCost=3, balance=count, timeout=45120ms)\n[tree-sitter:schedule] plan ready: grammars=1 entries=1 cache=0\n→ Imports: resolved=0, external=0, unresolved=0\n[imports] resolver budgets: fsProbe<=48, fallbackCandidates<=72, fallbackDepth<=20, adaptive=on (profile=normal, scale=1.500).\n[imports] fs-exists-index: enabled=yes, complete=yes, indexed=2, exactHits=0, negativeSkips=0, unknownFallbacks=0\n[imports] resolver pipeline: none\n[imports] resolver pipeline highlights: elapsed=none, budget=none, degraded=none\nEmbeddings disabled (stage2); skipping dense vector build.\n   → Indexed 1 chunks, total tokens: 11\n[chunk_meta] writing JSON\n📦  code : 1 chunks, 11 tokens, dims=0\n→ Wrote .filelists.json (samples only).\n→ Wrote pieces manifest (57 entries).\n[cleanup] runtime.resources.stop-admission start\n[cleanup] runtime.resources.stop-admission done (0ms)\n[cleanup] runtime.scheduler.shutdown start\n[cleanup] runtime.scheduler.shutdown done (0ms)\n[cleanup] runtime.worker-pools.destroy start\n[cleanup] runtime.worker-pools.destroy done (3ms)\n[cleanup] runtime.stage1-subprocesses.terminate start\n[cleanup] runtime.stage1-subprocesses.terminate done (1ms)\n[cleanup] runtime.embeddings.close start\n[cleanup] runtime.embeddings.close done (1ms)\n[cleanup] runtime.preflight-subprocesses.terminate start\n[cleanup] runtime.preflight-subprocesses.terminate done (0ms)\n[cleanup] runtime.resources.release start\n[cleanup] runtime.resources.release done (0ms)\n[cleanup] runtime.cache-writers.drain start\n[cleanup] runtime.cache-writers.drain done (0ms)\n[cleanup] runtime.semantic-replay.clear start\n[cleanup] runtime.semantic-replay.clear done (0ms)\n[cleanup] runtime.logger.close start\n[cleanup] runtime.logger.close done (0ms)\n[init] load config (7ms)\n[init] auto policy (provided)\n[init] learned auto profile (0ms)\n[init] cache root (env): C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\ni-fB76Rq\\cache\n[init] repo cache root: C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\ni-fB76Rq\\cache\\repos\\selected-repository-60c33a5d391d\n[init] platform preset: win32:ntfs (fs=ntfs, subprocessFanout=16, reason=win32-ntfs-startup-cost).\n[init] startup calibration (9ms)\n[init] startup calibration: io=8ms (bytes=8192).\n[init] runtime envelope (19ms)\n[scm] provider=none; SCM provenance unavailable.\n[init] repo provenance (0ms)\n[runtime] attempt bbe8a90c-db36-4b4f-9b72-260a5cfd7309; receipt: C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\ni-fB76Rq\\cache\\repos\\selected-repository-60c33a5d391d\\builds\\20261106T013419Z_f1f8a116_noscm_43bf2c1f\\build_state.json (durable).\n[init] build root: C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\ni-fB76Rq\\cache\\repos\\selected-repository-60c33a5d391d\\builds\\20261106T013419Z_f1f8a116_noscm_43bf2c1f (override)\n[init] current index root: C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\ni-fB76Rq\\cache\\repos\\selected-repository-60c33a5d391d\n[scm] annotate disabled: provider=none.\n[scm] policy provider=none annotate=off timeoutCaps=guardrail-only benchRun=0 metaTimeoutMs=default annotateTimeoutMs=default annotateLadder=default\n[init] tree-sitter config (0ms)\nJS file caps default to tree-sitter maxBytes (786432).\n[init] embedding runtime (15ms)\n[init] ignore rules (7ms)\n[init] dictionaries (99ms)\n[init] dictionaries (101ms)\nWordlists disabled: no dictionary files found; identifier splitting will be limited.\nCode dictionaries enabled: 2 file(s), 16 words (typescript) [bundle=bench-2026.02].\nIndexing stage4 (sqlite/ann pass) running.\nIndex profile: default.\nEmbeddings: disabled.\nQueue concurrency: io=16, cpu=1.\nMemory policy: workerHeap=2048MB (effective=2048MB, min=1024MB, max=2048MB), workerCache=1024MB, writeBuffer=640MB.\nHigh-memory profile (eligible): threshold=16384MB, cacheScale=1.25x, writeScale=1.2x, postingsScale=1.15x.\nTree-sitter chunking disabled via indexing.treeSitter.enabled.\nSCM annotate metadata disabled via indexing.scm.annotate.enabled.\nLint metadata disabled via indexing.lint.\nComplexity metadata disabled via indexing.complexity.\nRisk analysis disabled via indexing.riskAnalysis.\n{\"nativeWorkflowPhase\":{\"mode\":\"search-published\",\"phase\":\"seed-native-admission\",\"elapsedMs\":20079}}\n{\"nativeWorkflowPhase\":{\"mode\":\"search-published\",\"phase\":\"terminal-capture:start\",\"elapsedMs\":20082}}\nWorker pool enabled (auto, maxThreads=4).\nWorker heap policy: target=2048MB (min=1024MB, max=2048MB).\nWorker pool auto threshold: maxFileBytes=2097152.\n[init] worker pools (16ms)\nBuild environment snapshot.\n[init] runtime receipt (243ms)\n[init] runtime ready (700ms)\n{\"nativeWorkflowPhase\":{\"mode\":\"search-published\",\"phase\":\"native-ui:ready\",\"elapsedMs\":22845}}\n[build] updated current.json\n[cleanup] runtime.resources.stop-admission start\n[cleanup] runtime.resources.stop-admission done (0ms)\n[cleanup] runtime.scheduler.shutdown start\n[cleanup] runtime.scheduler.shutdown done (0ms)\n[cleanup] runtime.worker-pools.destroy start\n[cleanup] runtime.worker-pools.destroy done (2ms)\n[cleanup] runtime.stage1-subprocesses.terminate start\n[cleanup] runtime.stage1-subprocesses.terminate done (0ms)\n[cleanup] runtime.embeddings.close start\n[cleanup] runtime.embeddings.close done (1ms)\n[cleanup] runtime.preflight-subprocesses.terminate start\n[cleanup] runtime.preflight-subprocesses.terminate done (0ms)\n[cleanup] runtime.resources.release start\n[cleanup] runtime.resources.release done (0ms)\n[cleanup] runtime.cache-writers.drain start\n[cleanup] runtime.cache-writers.drain done (0ms)\n[cleanup] runtime.semantic-replay.clear start\n[cleanup] runtime.semantic-replay.clear done (0ms)\n[cleanup] runtime.logger.close start\n[cleanup] runtime.logger.close done (0ms)\n{\"nativeWorkflowPhase\":{\"mode\":\"search-published\",\"phase\":\"seed-complete-build:complete\",\"elapsedMs\":29441}}\n\n--- stderr ---\nOverall 0/8 (0.0%)\nStage 1/6 (16.7%)\n[           Code | Stage 1]\nOverall 1/8 (12.5%)\nStage 2/6 (33.3%)\nImports 1/1 (100.0%)\nImports 1/1 (100.0%)\nOverall 2/8 (25.0%)\nStage 3/6 (50.0%)\n[watchdog] stage1 hang policy heartbeat=30000ms snapshot=30000ms softKick=360000ms abort=720000ms softKickMaxAttempts=2 orderedFlushTimeout=90000ms\nFiles 1/1 (100.0%)\nFiles 1/1 (100.0%)\nOverall 3/8 (37.5%)\nStage 4/6 (66.7%)\nOverall 4/8 (50.0%)\nStage 5/6 (83.3%)\nOverall 5/8 (62.5%)\nStage 6/6 (100.0%)\nWriting index files (26 artifacts)...\n[perf] adaptive artifact write concurrency 10 -> 11 (backlog, pending=26, mem=0.57, gc=0.00, rss=0.00, writeQ={pending=0, oldest=0ms, p95=0ms})\nArtifacts 1/26 (3.8%)\nWriting index files 1/26 (3.8%) | field_tokens.parts\nArtifacts 2/26 (7.7%)\nArtifacts 3/26 (11.5%)\nArtifacts 4/26 (15.4%)\nArtifacts 5/26 (19.2%)\nArtifacts 6/26 (23.1%)\nArtifacts 7/26 (26.9%)\nArtifacts 8/26 (30.8%)\nArtifacts 9/26 (34.6%)\nArtifacts 10/26 (38.5%)\nArtifacts 11/26 (42.3%)\nArtifacts 12/26 (46.2%)\nArtifacts 13/26 (50.0%)\nArtifacts 14/26 (53.8%)\nArtifacts 15/26 (57.7%)\nArtifacts 16/26 (61.5%)\nArtifacts 17/26 (65.4%)\nArtifacts 18/26 (69.2%)\nArtifacts 19/26 (73.1%)\nArtifacts 20/26 (76.9%)\nArtifacts 21/26 (80.8%)\nArtifacts 22/26 (84.6%)\nArtifacts 23/26 (88.5%)\nArtifacts 24/26 (92.3%)\nArtifacts 25/26 (96.2%)\nArtifacts 26/26 (100.0%)\nWriting index files 26/26 (100.0%) | semantic-family\n\nWriting index files (28 artifacts)...\nArtifacts 27/28 (96.4%)\nArtifacts 28/28 (100.0%)\nWriting index files 28/28 (100.0%) | index_state.json\n\nOverall 6/8 (75.0%)\nEmbeddings 0/1 (0.0%)\n[runtime] attempt 585b43ae-dfd4-44db-87a9-48d9999c86a6; receipt: C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\ni-fB76Rq\\cache\\repos\\selected-repository-60c33a5d391d\\builds\\20261106T013419Z_f1f8a116_noscm_43bf2c1f\\build_state.json (durable).\nEmbeddings 0/1 (0.0%)\nEmbeddings 0/1 (0.0%)\n[embeddings] code: stub fast-path active; persistent/global chunk cache disabled.\nFiles 0/1 (0.0%)\nChunks 0/1 (0.0%)\nCache 0/1 (0.0%)\nEmbed 0/0 (0.0%)\nWriter 0/0 (0.0%)\nBundles 0/1 (0.0%)\nBackends 0/5 (0.0%)\n[embeddings] code: stub fast-path active; global micro-batching/in-flight coalescing disabled.\n[embeddings] code: incremental bundle refresh parallelism enabled (16 workers).\n[embeddings] code: perf_progress files_total=1 files_done=1 chunks_total=1 chunks_done=1 cache_attempts=0 cache_hits=0 cache_misses=0 cache_rejected=0 cache_fast_rejects=0 cache_hit_files=0 computed_files=1 skipped_files=0 texts_scheduled=1 texts_resolved=1 texts_embedded=1 batches_completed=1 tokens_processed=7 inflight_join_hits=0 inflight_claims=0 embed_compute_ms=26 elapsed_ms=35 files_per_sec=28.571 chunks_per_sec=28.571 embed_resolved_per_sec=28.571 file_parallelism_current=1 file_parallelism_peak=1 file_parallelism_adjustments=0 writer_pending=0 writer_max_pending=4 queue_compute_pending=0 queue_io_pending=0 queue_compute_running=0 queue_io_running=0 writer_peak_pending=0 writer_pending_bytes=0 writer_cap_reason=default batch_pending_requests=0 batch_pending_texts=0 batch_pending_tokens=0 provider_active=0 provider_peak_active=1 inflight_live=0 tokens_padded=7 work_remaining_tokens_estimate=0 work_remaining_groups=1 eta_sample_batches=1 eta_compute_seconds=0 eta_basis=recent-token-cost\nFiles 1/1 (100.0%)\nFiles 1/1 (100.0%)\nFiles 1/1 (100.0%)\nChunks 1/1 (100.0%)\nChunks 1/1 (100.0%)\nChunks 1/1 (100.0%)\nCache 0/1 (0.0%)\nEmbed 1/1 (100.0%)\nEmbed 1/1 (100.0%)\nEmbed 1/1 (100.0%)\nWriter 0/0 (0.0%)\n[embeddings] code: perf_summary files_total=1 files_done=1 chunks_total=1 chunks_done=1 cache_attempts=0 cache_hits=0 cache_misses=0 cache_rejected=0 cache_fast_rejects=0 cache_hit_files=0 computed_files=1 skipped_files=0 texts_scheduled=1 texts_resolved=1 texts_embedded=1 batches_completed=1 tokens_processed=7 inflight_join_hits=0 inflight_claims=0 embed_compute_ms=26 elapsed_ms=37 files_per_sec=27.027 chunks_per_sec=27.027 embed_resolved_per_sec=27.027 file_parallelism_current=1 file_parallelism_peak=1 file_parallelism_adjustments=0 writer_pending=0 writer_max_pending=4 queue_compute_pending=0 queue_io_pending=0 queue_compute_running=0 queue_io_running=0 writer_peak_pending=0 writer_pending_bytes=0 writer_cap_reason=default batch_pending_requests=0 batch_pending_texts=0 batch_pending_tokens=0 provider_active=0 provider_peak_active=1 inflight_live=0 tokens_padded=7 work_remaining_tokens_estimate=0 work_remaining_groups=0 eta_sample_batches=1 eta_compute_seconds=0 eta_basis=recent-token-cost\nFiles 1/1 (100.0%)\nFiles 1/1 (100.0%)\nFiles 1/1 (100.0%)\nChunks 1/1 (100.0%)\nChunks 1/1 (100.0%)\nChunks 1/1 (100.0%)\nCache 0/1 (0.0%)\nEmbed 1/1 (100.0%)\nEmbed 1/1 (100.0%)\nEmbed 1/1 (100.0%)\nWriter 0/0 (0.0%)\nCache 0/1 (0.0%)\nCache 0/1 (0.0%)\nEmbed 1/1 (100.0%)\nEmbed 1/1 (100.0%)\nWriter 0/0 (0.0%)\nWriter 0/0 (0.0%)\nBundles 0/1 (0.0%)\nBundles 0/1 (0.0%)\nBundles 0/1 (0.0%)\nBackends 0/5 (0.0%)\nBackends 1/5 (20.0%)\n[embeddings] code/merged: wrote HNSW index (1 vectors).\n[embeddings] code/code: wrote HNSW index (1 vectors).\n[2026-11-06T01:34:29Z WARN  lance::dataset::write::insert] No existing dataset at C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\ni-fB76Rq\\cache\\repos\\selected-repository-60c33a5d391d\\.ann-Un5vQl\\.lb-63Uxzy\\vectors.lance, it will be created\n[embeddings] code/merged: wrote LanceDB table (1 vectors).\n[2026-11-06T01:34:29Z WARN  lance::dataset::write::insert] No existing dataset at C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\ni-fB76Rq\\cache\\repos\\selected-repository-60c33a5d391d\\.ann-Un5vQl\\.lb-tcpmQe\\vectors.lance, it will be created\n[embeddings] code/code: wrote LanceDB table (1 vectors).\nBackends 2/5 (40.0%)\nBackends 3/5 (60.0%)\nBackends 4/5 (80.0%)\n[embeddings] code: wrote 1 vectors (dims=384).\n[embeddings] code: in-flight coalescing (joins=0, claims=0, bypassed=0, peak=0).\nBackends 4/5 (80.0%)\nBackends 4/5 (80.0%)\nEmbeddings 1/1 (100.0%)\nEmbeddings 1/1 (100.0%)\nEmbeddings 1/1 (100.0%)\nOverall 7/8 (87.5%)\nEmbeddings 1/1 (100.0%)\n[sqlite] Vector extension unavailable for code: missing extension (C:\\Users\\sneak\\AppData\\Local\\PairOfCleats\\extensions\\sqlite-vec\\win32-x64\\vec0.dll)\nOverall 8/8 (100.0%)\nOverall 8/8 (100.0%)\n",
+    "phases": "{\"mode\":\"search-published\",\"phase\":\"seed-complete-build:start\",\"elapsedMs\":204}\n{\"mode\":\"search-published\",\"phase\":\"seed-native-admission\",\"elapsedMs\":20079}\n{\"mode\":\"search-published\",\"phase\":\"terminal-capture:start\",\"elapsedMs\":20082}\n{\"mode\":\"search-published\",\"phase\":\"native-ui:ready\",\"elapsedMs\":22845}\n{\"mode\":\"search-published\",\"phase\":\"seed-complete-build:complete\",\"elapsedMs\":29441}\n",
+    "seed": {
+      "owner": "buildIndex",
+      "options": {
+        "modes": [
+          "code"
+        ],
+        "threads": 1,
+        "stubEmbeddings": true,
+        "progress": "off"
+      },
+      "durationMs": 26323,
+      "outcome": {
+        "schemaVersion": 1,
+        "repo": "c:\\users\\sneak\\development\\pairofcleats\\.tmp\\dev\\tests\\cache\\ni-fb76rq\\selected repository",
+        "status": "index-published",
+        "capabilities": [
+          {
+            "capability": "semantic-enrichment",
+            "status": "completed",
+            "modes": [
+              "code"
+            ],
+            "reason": null
+          },
+          {
+            "capability": "embeddings",
+            "status": "completed",
+            "modes": [
+              "code"
+            ],
+            "reason": null
+          },
+          {
+            "capability": "sqlite",
+            "status": "completed",
+            "modes": [
+              "code"
+            ],
+            "reason": null
+          }
+        ],
+        "requestedStages": [
+          "stage2",
+          "stage3",
+          "stage4"
+        ],
+        "stages": [
+          {
+            "stage": "stage2",
+            "status": "completed",
+            "modes": [
+              "code"
+            ],
+            "reason": null,
+            "queueId": null,
+            "validation": {
+              "status": "passed",
+              "ok": true,
+              "issueCount": 0,
+              "warningCount": 4,
+              "issues": null
+            },
+            "publication": {
+              "status": "retained",
+              "buildId": "20261106T013419Z_f1f8a116_noscm_43bf2c1f",
+              "modes": [
+                "code"
+              ]
+            },
+            "diagnosticEvidence": null,
+            "admission": {
+              "status": "not-reported",
+              "requestedModeCount": null,
+              "admittedModeCount": null,
+              "rejectedModes": [],
+              "jobs": []
+            },
+            "perMode": null
+          },
+          {
+            "stage": "stage3",
+            "status": "completed",
+            "modes": [
+              "code"
+            ],
+            "reason": null,
+            "queueId": null,
+            "validation": {
+              "status": "unknown"
+            },
+            "publication": {
+              "status": "unknown"
+            },
+            "diagnosticEvidence": null,
+            "admission": {
+              "status": "not-reported",
+              "requestedModeCount": null,
+              "admittedModeCount": null,
+              "rejectedModes": [],
+              "jobs": []
+            },
+            "perMode": [
+              {
+                "mode": "code",
+                "embeddings": {
+                  "queued": false,
+                  "inline": true
+                }
+              }
+            ]
+          },
+          {
+            "stage": "stage4",
+            "status": "completed",
+            "modes": [
+              "code"
+            ],
+            "reason": null,
+            "queueId": null,
+            "validation": {
+              "status": "passed"
+            },
+            "publication": {
+              "status": "published",
+              "modeBuildRoots": {
+                "code": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\ni-fB76Rq\\cache\\repos\\selected-repository-60c33a5d391d\\builds\\20261106T013419Z_f1f8a116_noscm_43bf2c1f"
+              }
+            },
+            "diagnosticEvidence": null,
+            "admission": {
+              "status": "not-reported",
+              "requestedModeCount": null,
+              "admittedModeCount": null,
+              "rejectedModes": [],
+              "jobs": []
+            },
+            "perMode": null
+          }
+        ],
+        "generations": [
+          {
+            "stage": "stage2",
+            "buildId": "20261106T013419Z_f1f8a116_noscm_43bf2c1f",
+            "buildRoot": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\ni-fB76Rq\\cache\\repos\\selected-repository-60c33a5d391d\\builds\\20261106T013419Z_f1f8a116_noscm_43bf2c1f",
+            "attemptId": "eaebf9d0-51d3-47a3-b84c-e9c4d3593897",
+            "modes": [
+              "code"
+            ],
+            "receiptPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\ni-fB76Rq\\cache\\repos\\selected-repository-60c33a5d391d\\builds\\20261106T013419Z_f1f8a116_noscm_43bf2c1f/build_state.json"
+          },
+          {
+            "stage": "stage4",
+            "buildId": "20261106T013419Z_f1f8a116_noscm_43bf2c1f",
+            "buildRoot": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\ni-fB76Rq\\cache\\repos\\selected-repository-60c33a5d391d\\builds\\20261106T013419Z_f1f8a116_noscm_43bf2c1f",
+            "attemptId": "bbe8a90c-db36-4b4f-9b72-260a5cfd7309",
+            "modes": [
+              "code"
+            ],
+            "receiptPath": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\ni-fB76Rq\\cache\\repos\\selected-repository-60c33a5d391d\\builds\\20261106T013419Z_f1f8a116_noscm_43bf2c1f/build_state.json"
+          }
+        ],
+        "counts": null,
+        "error": null
+      }
+    },
+    "unqualifiedSourceSha256": "2e2103530bbe976c6554091f6a5bd191035e040cdd72ae94c05f3dbc0168b1b4",
+    "patch": "diff --git a/tests/tui/native-index-workflows.test.js b/tests/tui/native-index-workflows.test.js\nindex 85ac07de6..83997372b 100644\n--- a/tests/tui/native-index-workflows.test.js\n+++ b/tests/tui/native-index-workflows.test.js\n@@ -315,9 +315,16 @@ try {\n           } else {\n             await closeCatalog(); terminal.write('R'); await rendered('Ready; Enter runs a canonical search');\n             const searchAfter = await last('native-search-');\n-            terminal.write('nativeWorkflowAnswer\\t\\x15code\\t\\x15memory\\t\\x155\\t\\t\\t\\x15{\"ann\":false}\\r');\n+            // Paste each literal field through the real native input dispatcher.\n+            // Per-character events redraw the complete terminal for every byte;\n+            // batching preserves the same edit/tab/submit sequence and values.\n+            await recordFixturePhase('published-search-form:ready');\n+            terminal.write(paste('nativeWorkflowAnswer') + '\\t\\x15' + paste('code') + '\\t\\x15'\n+              + paste('memory') + '\\t\\x15' + paste('5') + '\\t\\t\\t\\x15' + paste('{\"ann\":false}') + '\\r');\n+            await recordFixturePhase('published-search-form:submitted');\n             const search = await settled('native-search-', 'query', searchAfter);\n             assert.ok(search.hits.some(hit => hit.file === 'answer.js'), JSON.stringify(search));\n+            await recordFixturePhase('published-search-result:ready');\n             await rendered('answer.js'); terminal.write('\\x1b'); await rendered('Tab pane'); terminal.write('q');\n           }\n         } else if (mode === 'stats-conflict') {\n@@ -462,7 +469,13 @@ try {\n   const owned = [...new Set(recorded.flatMap(row => ['native', 'proxy', 'supervisor', 'job'].map(key => row[key]).filter(Number.isInteger)))];\n   assert.deepEqual(owned.filter(isProcessAlive), []);\n   if (mode !== 'search-published') assert.ok(recorded.some(row => row.request?.op === 'workflow:run' && row.request.method === 'preview'));\n-  else assert.ok(recorded.some(row => row.request?.op === 'search:run' && row.request.method === 'query'));\n+  else {\n+    const queried = recorded.filter(row => row.request?.op === 'search:run' && row.request.method === 'query');\n+    assert.equal(queried.length, 1, 'paste/edit input submits exactly one real query');\n+    assert.deepEqual(queried[0].request.params, { repoPath: repo,\n+      search: { query: 'nativeWorkflowAnswer', mode: 'code', backend: 'memory', top: 5, ann: false } },\n+    'the real supervisor receives every unchanged literal field and predicate');\n+  }\n   if (['build-search', 'validate-published', 'search-published'].includes(mode)) {\n     const selected = recorded.find(row => row.request?.op === 'workflow:run' && row.request.method === 'select');\n     assert.equal(selected.request.params.kind, 'repo'); assert.equal(selected.request.params.target, repo);\n",
+    "decision": "Bracketed-paste batching was not exercised:the canonical full seed settled at29.441s and the outer fixture timed out at30.5s. The unqualified implementation is reverted; original assertions/backend/settings/deadlines remain unchanged.",
+    "recordedOwnerSurvivors": {
+      "pids": [
+        29140,
+        28284,
+        33012
+      ],
+      "alive": 0,
+      "basis": "Fresh OS process census after focused timeout; original test-owned native/proxy/supervisor PIDs only."
+    }
+  },
+  "stageObservations": {
+    "stage-audit-code-multi.json": [
+      {
+        "at": "2026-11-06T01:34:20.660Z",
+        "elapsedMs": 5,
+        "stage": "stage1",
+        "step": "discovery",
+        "label": null
+      },
+      {
+        "at": "2026-11-06T01:34:20.716Z",
+        "elapsedMs": 61,
+        "stage": "stage1",
+        "step": "imports",
+        "label": null
+      },
+      {
+        "at": "2026-11-06T01:34:22.034Z",
+        "elapsedMs": 1379,
+        "stage": "stage1",
+        "step": "processing",
+        "label": null
+      },
+      {
+        "at": "2026-11-06T01:34:22.358Z",
+        "elapsedMs": 1703,
+        "stage": "stage2",
+        "step": "relations",
+        "label": null
+      },
+      {
+        "at": "2026-11-06T01:34:22.360Z",
+        "elapsedMs": 1705,
+        "stage": "stage1",
+        "step": "postings",
+        "label": null
+      },
+      {
+        "at": "2026-11-06T01:34:22.655Z",
+        "elapsedMs": 2000,
+        "stage": "artifacts",
+        "step": "byte-budget",
+        "label": "token_postings"
+      },
+      {
+        "at": "2026-11-06T01:34:22.663Z",
+        "elapsedMs": 2008,
+        "stage": "artifacts",
+        "step": "byte-budget",
+        "label": "file_meta"
+      },
+      {
+        "at": "2026-11-06T01:34:22.667Z",
+        "elapsedMs": 2012,
+        "stage": "artifacts",
+        "step": "byte-budget",
+        "label": "chunk_meta"
+      },
+      {
+        "at": "2026-11-06T01:34:22.667Z",
+        "elapsedMs": 2012,
+        "stage": "stage2",
+        "step": "artifact",
+        "label": "chunk_meta"
+      },
+      {
+        "at": "2026-11-06T01:34:22.683Z",
+        "elapsedMs": 2028,
+        "stage": "artifacts",
+        "step": "byte-budget",
+        "label": "chunk_uid_map"
+      },
+      {
+        "at": "2026-11-06T01:34:22.686Z",
+        "elapsedMs": 2031,
+        "stage": "artifacts",
+        "step": "byte-budget",
+        "label": "vfs_manifest"
+      },
+      {
+        "at": "2026-11-06T01:34:22.690Z",
+        "elapsedMs": 2035,
+        "stage": "artifacts",
+        "step": "byte-budget",
+        "label": "repo_map"
+      },
+      {
+        "at": "2026-11-06T01:34:22.721Z",
+        "elapsedMs": 2066,
+        "stage": "artifacts",
+        "step": "byte-budget",
+        "label": "file_relations"
+      },
+      {
+        "at": "2026-11-06T01:34:22.732Z",
+        "elapsedMs": 2077,
+        "stage": "artifacts",
+        "step": "byte-budget",
+        "label": "call_sites"
+      },
+      {
+        "at": "2026-11-06T01:34:22.732Z",
+        "elapsedMs": 2077,
+        "stage": "stage2",
+        "step": "artifact",
+        "label": "call_sites"
+      },
+      {
+        "at": "2026-11-06T01:34:22.738Z",
+        "elapsedMs": 2083,
+        "stage": "stage2",
+        "step": "artifact",
+        "label": "symbols"
+      },
+      {
+        "at": "2026-11-06T01:34:22.740Z",
+        "elapsedMs": 2085,
+        "stage": "artifacts",
+        "step": "byte-budget",
+        "label": "symbol_occurrences"
+      },
+      {
+        "at": "2026-11-06T01:34:22.740Z",
+        "elapsedMs": 2085,
+        "stage": "stage2",
+        "step": "artifact",
+        "label": "symbol_occurrences"
+      },
+      {
+        "at": "2026-11-06T01:34:22.742Z",
+        "elapsedMs": 2087,
+        "stage": "artifacts",
+        "step": "byte-budget",
+        "label": "symbol_edges"
+      },
+      {
+        "at": "2026-11-06T01:34:22.742Z",
+        "elapsedMs": 2087,
+        "stage": "stage2",
+        "step": "artifact",
+        "label": "symbol_edges"
+      },
+      {
+        "at": "2026-11-06T01:34:24.121Z",
+        "elapsedMs": 3466,
+        "stage": "stage2",
+        "step": "write",
+        "label": null
+      }
+    ],
+    "stage-audit-code-stage3.json": [
+      {
+        "at": "2026-11-06T01:34:27.786Z",
+        "elapsedMs": 0,
+        "stage": "stage3",
+        "step": "chunks",
+        "label": null
+      },
+      {
+        "at": "2026-11-06T01:34:27.796Z",
+        "elapsedMs": 10,
+        "stage": "stage3",
+        "step": "vectors-allocated",
+        "label": null
+      },
+      {
+        "at": "2026-11-06T01:34:27.841Z",
+        "elapsedMs": 55,
+        "stage": "stage3",
+        "step": "vectors-filled",
+        "label": null
+      },
+      {
+        "at": "2026-11-06T01:34:29.759Z",
+        "elapsedMs": 1973,
+        "stage": "stage3",
+        "step": "write",
+        "label": null
+      }
+    ],
+    "stage-audit-code-stage4.json": [
+      {
+        "at": "2026-11-06T01:34:40.806Z",
+        "elapsedMs": 2724,
+        "stage": "stage4",
+        "step": "start",
+        "label": null
+      },
+      {
+        "at": "2026-11-06T01:34:41.514Z",
+        "elapsedMs": 3432,
+        "stage": "stage4",
+        "step": "build",
+        "label": null
+      }
+    ]
+  },
+  "limits": "No native exception is observed or attributed. No retries, disabled backends, larger deadlines or local Linux/WSL execution. Historical author-workspace paths are provenance,not clean-checkout dependencies."
+}

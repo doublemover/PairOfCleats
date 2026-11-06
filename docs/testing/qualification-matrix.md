@@ -25,7 +25,14 @@ family discovers22; search-published has a separate30.2-second timeout.
 qualifies70 distinct Windows controls and24 serial fresh-process measurements.
 Canonical full reports match the eager control; large JSONL stored-byte work is
 8,599,189→4,300,158 bytes. Timings/heap are mixed. Six original fixture-health
-close failures are repaired; #1242 performance/locking qualification remains open.
+close failures are repaired; broader health qualification is recorded below.
+
+[Fixture-health snapshots](../archived/fixture-health-snapshot-closeout-2026-11-05.md)
+qualify40 focused Windows cases and24 serial raw samples with exact authority/
+decision parity. Cold code work is4,663,342→1,168,735 bytes; warm evaluations
+remain fully verified and measure slower. Actual lock/stamp isolation is covered.
+The separate [native search investigation](../archived/native-published-search-investigation-2026-11-05.json)
+retains the unresolved full-seed budget failure and reverted experiment.
 
 [Artifact verification leases](../archived/embedding-artifact-lease-closeout-2026-11-05.md)
 qualify56 focused Windows controls and24 fresh-process raw samples. Concurrent

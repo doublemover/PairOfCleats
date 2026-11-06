@@ -46,6 +46,6 @@ index construction and do not qualify cold-device storage or a universal speedup
 
 Fixture-health authority has its own independent scope. Its checksum-only reader
 uses the existing contained-file disposal owner and publishes only after confirmed
-original closure. The five disposal controls fail against the former helper and
+original closure. The six disposal controls fail against the former helper and
 preserve held-close, false-close and frozen/falsey original-error evidence. Broader
-fixture-health qualification remains tracked separately by #1242.
+fixture-health qualification is recorded in the [separate receipt](../archived/fixture-health-snapshot-closeout-2026-11-05.md).

@@ -51,6 +51,9 @@ SERIAL_RUNTIME_BUDGET_IDS.push(...artifactLeaseWorkCases.cases.map(id => `perf/e
 const validationWorkCases = JSON.parse(await fsPromises.readFile(
   path.join(ROOT, 'tests/perf/indexing/validate/manifest-fusion-work.test.js.cases.json'), 'utf8'));
 SERIAL_RUNTIME_BUDGET_IDS.push(...validationWorkCases.cases.map(id => `perf/indexing/validate/manifest-fusion-work/${id}`));
+const healthWorkCases = JSON.parse(await fsPromises.readFile(
+  path.join(ROOT, 'tests/perf/indexing/fixtures/health-snapshot-work.test.js.cases.json'), 'utf8'));
+SERIAL_RUNTIME_BUDGET_IDS.push(...healthWorkCases.cases.map(id => `perf/indexing/fixtures/health-snapshot-work/${id}`));
 const SERIAL_ANN_GENERATION_IDS = ['retrieval/ann/generation-publication',
   'retrieval/ann/generation-rebuild-failure', 'retrieval/ann/generation-lmdb'];
 const nativePublicationCases = JSON.parse(await fsPromises.readFile(

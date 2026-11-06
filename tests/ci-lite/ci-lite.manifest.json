@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 2200,
+    "hero": 2228,
     "matrix": 110,
     "meta": 54,
     "soak": 1,
@@ -14203,6 +14203,174 @@
     {
       "id": "indexing/fixtures/health-verification-close/snapshot-unsettled-close",
       "order": 2365,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/fixtures/health-snapshot-parity/json-code",
+      "order": 2366,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/fixtures/health-snapshot-parity/json-three",
+      "order": 2367,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/fixtures/health-snapshot-parity/jsonl-code",
+      "order": 2368,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/fixtures/health-snapshot-parity/jsonl-three",
+      "order": 2369,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/fixtures/health-snapshot-parity/sharded-code",
+      "order": 2370,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/fixtures/health-snapshot-parity/sharded-three",
+      "order": 2371,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/fixtures/health-snapshot-parity/gzip-code",
+      "order": 2372,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/fixtures/health-snapshot-parity/gzip-three",
+      "order": 2373,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/fixtures/health-snapshot-parity/empty-code",
+      "order": 2374,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/fixtures/health-snapshot-parity/empty-three",
+      "order": 2375,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/fixtures/health-snapshot-parity/missing-dialect",
+      "order": 2376,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/fixtures/health-snapshot-parity/missing-uid",
+      "order": 2377,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/fixtures/health-snapshot-parity/missing-risk",
+      "order": 2378,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/fixtures/health-snapshot-parity/bad-watch",
+      "order": 2379,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/fixtures/health-snapshot-parity/same-stat-replacement",
+      "order": 2380,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/fixtures/health-snapshot-parity/linked-piece",
+      "order": 2381,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/fixtures/health-lock-snapshot-isolation",
+      "order": 2382,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/indexing/fixtures/health-snapshot-work/small-snapshot",
+      "order": 2383,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/indexing/fixtures/health-snapshot-work/small-reference",
+      "order": 2384,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/indexing/fixtures/health-snapshot-work/code-snapshot",
+      "order": 2385,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/indexing/fixtures/health-snapshot-work/code-reference",
+      "order": 2386,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/indexing/fixtures/health-snapshot-work/three-snapshot",
+      "order": 2387,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/indexing/fixtures/health-snapshot-work/three-reference",
+      "order": 2388,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/indexing/fixtures/health-snapshot-work/warm-snapshot",
+      "order": 2389,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/indexing/fixtures/health-snapshot-work/warm-reference",
+      "order": 2390,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/fixtures/health-snapshot-parity/json-records",
+      "order": 2391,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/fixtures/health-snapshot-parity/gzip-prose",
+      "order": 2392,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/fixtures/health-snapshot-parity/mixed-compatibility",
+      "order": 2393,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

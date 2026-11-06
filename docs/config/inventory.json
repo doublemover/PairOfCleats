@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-06T01:23:35.078Z",
+  "generatedAt": "2026-11-06T01:55:20.785Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
@@ -4628,6 +4628,7 @@
         "tests/indexing/embeddings/intent-boundary-parity.test.js",
         "tests/indexing/embeddings/sqlite-dense-isolate.test.js",
         "tests/indexing/fixtures/health-authority.test.js",
+        "tests/indexing/fixtures/health-lock-snapshot-isolation.test.js",
         "tests/indexing/piece-assembly/core.test.js",
         "tests/indexing/postings/helpers/vector-only-cleanup-fixture.js",
         "tests/ops/failure-injection/retrieval-hotpath.test.js",
@@ -4734,6 +4735,7 @@
         "tests/indexing/file-processor/serial-compute-wait-ownership.test.js",
         "tests/indexing/file-processor/tokenizer-resource-fallback-authority.test.js",
         "tests/indexing/fixtures/health-authority.test.js",
+        "tests/indexing/fixtures/health-snapshot-parity.test.js",
         "tests/indexing/fixtures/health-verification-close.test.js",
         "tests/indexing/forensic-publication-ordering.test.js",
         "tests/indexing/imports/json-collector-admission.test.js",
@@ -4802,6 +4804,7 @@
         "tests/perf/bench/vfs-producer-accounting.test.js",
         "tests/perf/crash-log-error-latency.test.js",
         "tests/perf/embeddings/artifact-lease-work.test.js",
+        "tests/perf/indexing/fixtures/health-snapshot-work.test.js",
         "tests/perf/indexing/validate/manifest-fusion-work.test.js",
         "tests/perf/risk/witness-retention-work.test.js",
         "tests/perf/tooling/bench/sqlite-benchmark-cli.test.js",
