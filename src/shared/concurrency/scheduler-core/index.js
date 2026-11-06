@@ -6,6 +6,7 @@ import { createSchedulerDispatch } from './dispatch.js';
 import { createSchedulerQueueLifecycle } from './queue-lifecycle.js';
 import { createSchedulerShutdown } from './shutdown.js';
 import { createSchedulerDispatchReplay } from '../scheduler-dispatch-replay.js';
+import { createSchedulerWorkloadObservation } from '../scheduler-workload-observation.js';
 
 /**
  * Create a build scheduler that coordinates CPU/IO/memory tokens across queues.
@@ -22,11 +23,13 @@ export function createBuildScheduler(input = {}) {
     globalInFlightBytes: 0,
     telemetryStage: config.telemetryStage,
     telemetryStageEpoch: 0,
+    workloadScope: null,
     traceIntervalMs: config.traceIntervalMs,
     queueDepthSnapshotIntervalMs: config.queueDepthSnapshotIntervalMs,
     queueDepthSnapshotsEnabled: config.queueDepthSnapshotsEnabled,
     lastMemorySignals: null,
     lastSystemSignals: null,
+    lastSystemSignalsAt: null,
     lastAdaptiveAt: 0,
     adaptiveCurrentIntervalMs: config.adaptiveMinIntervalMs,
     adaptiveMode: 'steady',
@@ -38,6 +41,16 @@ export function createBuildScheduler(input = {}) {
   };
 
   const queueLifecycle = createSchedulerQueueLifecycle({ config });
+  const resources = { tokens: state.tokens, counters: config.counters,
+    get inFlightBytes() { return state.globalInFlightBytes; },
+    get active() { return state.runningTasks.size > 0 || state.globalInFlightBytes > 0
+      || state.tokens.cpu.used > 0 || state.tokens.io.used > 0 || state.tokens.mem.used > 0; } };
+  const workloadContext = { get buildId() { return state.workloadScope?.buildId; },
+    get mode() { return state.workloadScope?.mode; }, get stage() { return state.telemetryStage; },
+    get stageEpoch() { return state.telemetryStageEpoch; } };
+  state.workloadObservation = createSchedulerWorkloadObservation({ nowMs: config.nowMs,
+    readResources: () => resources, readContext: () => workloadContext, resourceIdentity: input.resourceIdentity });
+  state.workloadObservation.resourcesChanged();
   const dispatchReplay = createSchedulerDispatchReplay({ nowMs: config.nowMs,
     startedAtMs: config.startedAtMs, starvationMs: config.starvationMs });
   dispatchReplay.configure(input.dispatchReplay);
@@ -55,6 +68,7 @@ export function createBuildScheduler(input = {}) {
     evaluateWriteBackpressure: queueLifecycle.evaluateWriteBackpressure,
     writeBackpressureState: config.writeBackpressureState,
     cloneTokenState,
+    onSchedulingSample: sample => state.workloadObservation.sample(sample.activity, state.lastSystemSignals, state.lastSystemSignalsAt),
     traceMaxSamples: config.traceMaxSamples,
     queueDepthSnapshotMaxSamples: config.queueDepthSnapshotMaxSamples,
     getStage: () => state.telemetryStage,
@@ -125,13 +139,15 @@ export function createBuildScheduler(input = {}) {
       adaptiveSurfaceControllersEnabled: config.adaptiveSurfaceControllersEnabled,
       adaptiveDecisionTrace: config.adaptiveDecisionTrace,
       lastSystemSignals: state.lastSystemSignals,
+      lastSystemSignalsAt: state.lastSystemSignalsAt,
       evaluateWriteBackpressure: queueLifecycle.evaluateWriteBackpressure,
       writeBackpressure: config.writeBackpressure,
       telemetryStage: state.telemetryStage,
       traceIntervalMs: state.traceIntervalMs,
       queueDepthSnapshotIntervalMs: state.queueDepthSnapshotIntervalMs,
       queueDepthSnapshotsEnabled: state.queueDepthSnapshotsEnabled,
-      telemetryCapture
+      telemetryCapture,
+      workloadObservation: state.workloadObservation
     }) };
   };
 

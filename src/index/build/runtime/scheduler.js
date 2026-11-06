@@ -5,7 +5,7 @@ import {
 } from '../../../shared/number-coerce.js';
 import { stableStringify } from '../../../shared/stable-json.js';
 import { sha1 } from '../../../shared/hash.js';
-import { SCHEDULER_AUTOTUNE_PROFILE_VERSION } from './scheduler-autotune-policy.js';
+import { SCHEDULER_AUTOTUNE_PROFILE_VERSION, isQualifiedSchedulerProfile } from './scheduler-autotune-policy.js';
 
 /**
  * Normalize permissive boolean input used by CLI/env flags.
@@ -602,14 +602,16 @@ export const resolveSchedulerConfig = ({
   };
   const resourceIdentity = sha1(stableStringify(basePolicy));
   const profileAgeMs = Date.now() - Date.parse(autoTuneProfile?.generatedAt || '');
-  const profileEligible = autoTuneProfile?.version === SCHEDULER_AUTOTUNE_PROFILE_VERSION
+  const profileEligible = isQualifiedSchedulerProfile(autoTuneProfile)
     && autoTuneProfile.resourceIdentity === resourceIdentity && Number.isFinite(profileAgeMs)
     && profileAgeMs >= 0 && profileAgeMs <= 7 * 24 * 60 * 60 * 1000;
   const autoTuneProfileState = profileEligible ? autoTuneProfile : null;
   const resolveMaximum = (name, option, initial) => {
     const learned = autoTuneEnabled && profileEligible
       ? coercePositiveInt(autoTuneProfileState?.recommended?.[name]) : null;
-    return resolveNumber({ ...option, fallback: learned == null ? option.fallback : Math.max(initial, learned) });
+    const hardMaximum = Math.max(initial, resolveNumber(option));
+    return Math.min(hardMaximum, resolveNumber({ ...option,
+      fallback: learned == null ? option.fallback : Math.max(initial, learned) }));
   };
   const maxCpuTokens = resolveMaximum('maxCpuTokens', cpuMaximum, cpuTokens);
   const maxIoTokens = resolveMaximum('maxIoTokens', ioMaximum, ioTokens);

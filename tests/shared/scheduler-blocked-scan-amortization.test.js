@@ -2,8 +2,13 @@ import assert from 'node:assert/strict';
 import { createSchedulerCoreConfig } from '../../src/shared/concurrency/scheduler-core/config.js';
 import { createSchedulerQueueLifecycle } from '../../src/shared/concurrency/scheduler-core/queue-lifecycle.js';
 import { createSchedulerDispatch } from '../../src/shared/concurrency/scheduler-core/dispatch.js';
+import { createSchedulerWorkloadObservation } from '../../src/shared/concurrency/scheduler-workload-observation.js';
 const config=createSchedulerCoreConfig({enabled:true,cpuTokens:1,ioTokens:1,memoryTokens:1,queues:{work:{maxPending:1000}}});
 const state={tokens:config.createTokenState(),shuttingDown:false,runningTasks:new Set(),globalInFlightBytes:0};
+state.workloadObservation = createSchedulerWorkloadObservation({ nowMs: config.nowMs,
+  readContext: () => ({ buildId: 'blocked-scan', mode: 'code', stage: 'processing', stageEpoch: 1 }),
+  readResources: () => ({ tokens: state.tokens, counters: config.counters,
+    inFlightBytes: state.globalInFlightBytes, active: state.runningTasks.size > 0 }), resourceIdentity: 'blocked-scan' });
 state.tokens.cpu.used=1;
 const normalize=config.normalizeRequest;let visits=0;
 config.normalizeRequest=(...args)=>{visits+=1;return normalize(...args);};

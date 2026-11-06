@@ -12,6 +12,7 @@ export function createAdaptiveSurfaceController({
     const snapshots = buildAdaptiveSurfaceSnapshots(at);
     const signals = readSystemSignals(at);
     state.lastSystemSignals = signals;
+    state.lastSystemSignalsAt = at;
     for (const [surfaceName, surfaceState] of config.adaptiveSurfaceStates.entries()) {
       const snapshot = snapshots[surfaceName];
       if (!snapshot) continue;

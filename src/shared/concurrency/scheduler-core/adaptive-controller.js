@@ -37,6 +37,10 @@ export function createAdaptiveSchedulerController({ config, state, queueLifecycl
     buildAdaptiveSurfaceSnapshots,
     readSystemSignals,
     maybeAdaptSurfaceControllers,
-    maybeAdaptTokens
+    maybeAdaptTokens: () => {
+      const previous = state.lastAdaptiveAt;
+      maybeAdaptTokens();
+      if (state.lastAdaptiveAt !== previous) state.workloadObservation.resourcesChanged();
+    }
   };
 }

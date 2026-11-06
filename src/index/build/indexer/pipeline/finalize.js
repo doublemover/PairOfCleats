@@ -51,17 +51,19 @@ export const finalizePipelineModeRun = async ({
     const finalStage = stagePlan[stagePlan.length - 1];
     runtimeRef.overallProgress.advance({ message: `${mode} ${finalStage.label}` });
   }
-  await writeSchedulerAutoTuneProfile({
-    repoCacheRoot: runtimeRef.repoCacheRoot,
-    schedulerStats: getSchedulerStats(),
-    schedulerConfig: runtimeRef.schedulerConfig,
-    buildId: runtimeRef.buildId,
-    log
-  });
   if (runtime.enqueueServiceEmbeddings !== false) {
     await enqueueEmbeddingJob({ runtime: runtimeRef, mode, indexDir: outDir, abortSignal: effectiveAbortSignal });
   }
   throwIfAborted(effectiveAbortSignal);
   crashLogger.updatePhase('done');
   cacheReporter.report();
+  await writeSchedulerAutoTuneProfile({
+    repoCacheRoot: runtimeRef.repoCacheRoot,
+    schedulerStats: getSchedulerStats(),
+    schedulerConfig: runtimeRef.schedulerConfig,
+    buildId: runtimeRef.buildId,
+    mode,
+    outcome: 'completed',
+    log
+  });
 };

@@ -27,6 +27,8 @@ retain original failures and source identities. No new full-suite run is schedul
 
 [Semantic part lifetimes](archived/semantic-part-lifetime-implementation-2026-11-05.md) repair original close/work, cleanup/release observations and final data descriptor reuse. #1214/#1330 remain open. At user direction, runtime validation is now deferred until all in-scope implementation work is complete; lint/static maintenance continue. [Implementation record](archived/frontloaded-implementation-2026-11-05.md) tracks deferred acceptance.
 
+[Scheduler workload observations](contracts/scheduler-workload-observations.md) replace drained-snapshot autotune learning with bounded run/mode/stage evidence and profile version 4. Obsolete profiles are rejected; current hard limits remain binding. Architecture reports require 1.1.0, and parser degradation requires typed current receipts. Runtime acceptance remains pending.
+
 [Dependency retirements](archived/dependency-consumer-closeout-2026-11-05.md)
 remove110 lock records and pass14 focused consumer controls, real Windows ripgrep/ast-grep, fresh native verification and43 gate fixtures. #672/#681 are closed after publication and GitHub readback.
 

@@ -86,6 +86,8 @@ export function createSchedulerTelemetryCapture(deps = {}) {
     let pendingBytes = 0;
     let running = 0;
     let inFlightBytes = 0;
+    let runnable = 0;
+    const blockedBy = {};
     for (const queue of queueOrder) {
       const queuePending = queue.pending.length;
       const queuePendingBytes = normalizeByteCount(queue.pendingBytes);
@@ -95,15 +97,18 @@ export function createSchedulerTelemetryCapture(deps = {}) {
       pendingBytes += queuePendingBytes;
       running += queueRunning;
       inFlightBytes += queueInFlightBytes;
+      const admission = typeof deps.snapshotQueueAdmission === 'function' ? deps.snapshotQueueAdmission(queue, at) : {};
+      runnable += admission.runnable || 0;
+      for (const [reason, count] of Object.entries(admission.blockedBy || {})) blockedBy[reason] = (blockedBy[reason] || 0) + count;
       byQueue[queue.name] = {
-        ...(typeof deps.snapshotQueueAdmission === 'function' ? deps.snapshotQueueAdmission(queue, at) : {}),
+        ...admission,
         pending: queuePending,
         pendingBytes: queuePendingBytes,
         running: queueRunning,
         inFlightBytes: queueInFlightBytes
       };
     }
-    return { byQueue, pending, pendingBytes, running, inFlightBytes };
+    return { byQueue, pending, pendingBytes, running, inFlightBytes, runnable, blockedBy };
   };
 
   const captureSchedulingTraceAt = (now, reason, force) => {
@@ -118,6 +123,8 @@ export function createSchedulerTelemetryCapture(deps = {}) {
       activity: {
         pending: queueDepth.pending,
         pendingBytes: queueDepth.pendingBytes,
+        runnable: queueDepth.runnable,
+        blockedBy: queueDepth.blockedBy,
         running: queueDepth.running,
         inFlightBytes: queueDepth.inFlightBytes
       },
@@ -129,6 +136,7 @@ export function createSchedulerTelemetryCapture(deps = {}) {
     };
     lastTraceAtMs = now;
     appendBounded(schedulingTrace, sample, traceMaxSamples);
+    deps.onSchedulingSample?.(sample);
     return sample;
   };
 

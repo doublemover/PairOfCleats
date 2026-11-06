@@ -51,13 +51,15 @@ export const buildSchedulerStatsSnapshot = ({
   adaptiveSurfaceControllersEnabled,
   adaptiveDecisionTrace,
   lastSystemSignals,
+  lastSystemSignalsAt,
   evaluateWriteBackpressure,
   writeBackpressure,
   telemetryStage,
   traceIntervalMs,
   queueDepthSnapshotIntervalMs,
   queueDepthSnapshotsEnabled,
-  telemetryCapture
+  telemetryCapture,
+  workloadObservation
 }) => {
   captureTelemetryIfDue('stats');
   const queueStats = {};
@@ -69,10 +71,12 @@ export const buildSchedulerStatsSnapshot = ({
   let totalPendingBytes = 0;
   let totalRunning = 0;
   let totalInFlightBytesValue = 0;
+  const blockedBy = {};
   for (const q of queueOrder) {
     const oldest = q.pending.length ? Math.max(0, sampledAt - q.pending[0].enqueuedAt) : 0;
     const admission = snapshotQueueAdmission(q, sampledAt, backpressureState);
     totalRunnable += admission.runnable;
+    for (const [reason, count] of Object.entries(admission.blockedBy)) blockedBy[reason] = (blockedBy[reason] || 0) + count;
     totalBlocked += admission.blocked;
     totalPending += q.pending.length;
     totalPendingBytes += normalizeByteCount(q.pendingBytes);
@@ -139,7 +143,10 @@ export const buildSchedulerStatsSnapshot = ({
       snapshot
     };
   }
+  workloadObservation?.sample({ pending: totalPending, pendingBytes: totalPendingBytes,
+    runnable: totalRunnable, blockedBy }, lastSystemSignals, lastSystemSignalsAt);
   return {
+    workloadObservations: workloadObservation?.snapshot() || null,
     queues: queueStats,
     counters: {
       ...counters,

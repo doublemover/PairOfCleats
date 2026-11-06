@@ -56,6 +56,7 @@ export function createSchedulerShutdown({
     state.tokens.cpu.total = config.limitState.cpuTokens;
     state.tokens.io.total = config.limitState.ioTokens;
     state.tokens.mem.total = config.limitState.memoryTokens;
+    state.workloadObservation.resourcesChanged();
     for (const [surfaceName, surfaceState] of config.adaptiveSurfaceStates.entries()) {
       if (!surfaceState || typeof surfaceState !== 'object') continue;
       const bounds = config.resolveSurfaceDefaultBounds(surfaceName);
@@ -82,6 +83,16 @@ export function createSchedulerShutdown({
   };
 
   const setTelemetryOptions = (options = {}) => {
+    // Flush the old scope before changing it, including a drained boundary.
+    state.workloadObservation.resourcesChanged();
+    if (Object.prototype.hasOwnProperty.call(options, 'workloadScope')) {
+      const scope = options.workloadScope;
+      if (!scope || !['buildId', 'mode'].every(key => typeof scope[key] === 'string'
+        && scope[key].length > 0 && scope[key].length <= 256)) {
+        throw new TypeError('Scheduler workload scope requires a bounded buildId and mode.');
+      }
+      state.workloadScope = { buildId: scope.buildId, mode: scope.mode };
+    }
     if (typeof options?.stage === 'string') {
       const nextStage = normalizeTelemetryStage(options.stage, state.telemetryStage);
       if (nextStage !== state.telemetryStage) state.telemetryStageEpoch = (state.telemetryStageEpoch || 0) + 1;
@@ -96,6 +107,7 @@ export function createSchedulerShutdown({
     if (Number.isFinite(Number(options?.queueDepthSnapshotIntervalMs))) {
       state.queueDepthSnapshotIntervalMs = Math.max(1000, Math.floor(Number(options.queueDepthSnapshotIntervalMs)));
     }
+    state.workloadObservation.resourcesChanged();
     const now = config.nowMs();
     captureSchedulingTrace({ now, reason: 'telemetry-options', force: true });
     if (state.queueDepthSnapshotsEnabled) {

@@ -142,6 +142,7 @@ export function createSchedulerDispatch({
       queue.inFlightBytes = config.normalizeByteCount(queue.inFlightBytes) + normalized.bytes;
       state.globalInFlightBytes = config.normalizeByteCount(state.globalInFlightBytes) + normalized.bytes;
     }
+    state.workloadObservation.resourcesChanged();
     return normalized;
   };
 
@@ -157,6 +158,7 @@ export function createSchedulerDispatch({
         config.normalizeByteCount(state.globalInFlightBytes) - normalized.bytes
       );
     }
+    state.workloadObservation.resourcesChanged();
   };
 
   const findStartableIndex = (queue, backpressureState = null) => {
@@ -270,6 +272,7 @@ export function createSchedulerDispatch({
       if (!lease.suspended) {
         lease.suspended = true; lease.surfaceActive = false;
         lease.used.cpu = 0; state.tokens.cpu.used = Math.max(0, state.tokens.cpu.used - cpu);
+        state.workloadObservation.resourcesChanged();
         queue.suspendedCpu += 1; queueLifecycle.bumpSurfaceRunning(queue.surface, -1);
         lease.resumePromise = new Promise((resolve, reject) => { lease.resumeResolve = resolve; lease.resumeReject = reject; });
         lease.resumePromise.catch(() => {});
@@ -337,6 +340,8 @@ export function createSchedulerDispatch({
     const admittedAt = config.nowMs();
     queueLifecycle.recordQueueWaitTime(queue, admittedAt - next.enqueuedAt);
     const blocked = next.lastAdmissionBlock;
+    if (blocked) state.workloadObservation.observeAdmissionWait(blocked.reason,
+      Math.max(0, (blocked.until ?? admittedAt) - blocked.since));
     if (next.tokens.io > 0 && blocked && ['io-tokens', 'write-backpressure'].includes(blocked.reason)) {
       const samples = queue.stats.ioAdmissionSamples ||= [];
       const observedAt = blocked.until ?? admittedAt;
@@ -391,6 +396,7 @@ export function createSchedulerDispatch({
           if (lease.surfaceActive) queueLifecycle.bumpSurfaceRunning(queue.surface, -1);
           release(queue, used);
           state.runningTasks.delete(done);
+          state.workloadObservation.resourcesChanged();
           pump();
           // Completion is observable only after this exact task's reservations
           // retire. Immediate optional-child admission must see the released state.
@@ -399,6 +405,7 @@ export function createSchedulerDispatch({
           } else {
             queue.stats.completed += 1; config.counters.completed += 1; next.resolve(outcome.value);
           }
+          state.workloadObservation.resourcesChanged();
         };
         if (outcome.failed) {
           const observation = observeStorageResource(outcome.error, { phase: 'scheduler-task-resource-retirement' });
@@ -424,6 +431,7 @@ export function createSchedulerDispatch({
         next.reject(error);
       });
     state.runningTasks.add(done);
+    state.workloadObservation.resourcesChanged();
     void done;
   };
 

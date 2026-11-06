@@ -487,6 +487,7 @@ async function createBuildRuntimeImpl({
         autoTuneProfile: schedulerAutoTuneProfile
       });
       const scheduler = createBuildScheduler({
+        resourceIdentity: schedulerConfig.resourceIdentity,
         memoryBudget: { configuredLimitBytes: memorySnapshot.totalBytes },
         maxInFlightBytes: Math.max(1, Math.floor(memorySnapshot.freeBytes * 0.25)),
         enabled: schedulerConfig.enabled,

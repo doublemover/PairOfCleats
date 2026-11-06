@@ -2,6 +2,8 @@
 import assert from 'node:assert/strict';
 import { resolveSchedulerConfig } from '../../../src/index/build/runtime/scheduler.js';
 import { SCHEDULER_AUTOTUNE_PROFILE_VERSION } from '../../../src/index/build/runtime/scheduler-autotune-policy.js';
+import { schedulerWorkloadInput } from '../../helpers/scheduler-workload.js';
+import { deriveSchedulerAutoTuneRecommendation } from '../../../src/index/build/runtime/scheduler-autotune-profile.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 
 applyTestEnv();
@@ -113,30 +115,17 @@ const autotuneInput = {
   }
 };
 const baselineAutotune = resolveSchedulerConfig(autotuneInput);
-const autotuned = resolveSchedulerConfig({
-  ...autotuneInput,
-  autoTuneProfile: {
-    version: SCHEDULER_AUTOTUNE_PROFILE_VERSION,
-    generatedAt: new Date().toISOString(),
-    resourceIdentity: baselineAutotune.resourceIdentity,
-    sourceBuildId: 'prev-build',
-    recommended: {
-      maxCpuTokens: 7,
-      maxIoTokens: 9,
-      maxMemoryTokens: 8
-    }
-  }
-});
-assert.equal(autotuned.maxCpuTokens, 7, 'expected max CPU tokens to use autotune recommendation');
-assert.equal(autotuned.maxIoTokens, 9, 'expected max IO tokens to use autotune recommendation');
-assert.equal(autotuned.maxMemoryTokens, 8, 'expected max memory tokens to use autotune recommendation');
-assert.equal(autotuned.autoTune.sourceBuildId, 'prev-build', 'expected autotune source build metadata');
+const qualifiedProfile = deriveSchedulerAutoTuneRecommendation(schedulerWorkloadInput({ config: baselineAutotune, buildId: 'prev-build' }));
+qualifiedProfile.recommended = { maxCpuTokens: 7, maxIoTokens: 9, maxMemoryTokens: 8 };
+const autotuned = resolveSchedulerConfig({ ...autotuneInput, autoTuneProfile: qualifiedProfile });
+assert.equal(autotuned.maxCpuTokens, Math.min(7, baselineAutotune.maxCpuTokens));
+assert.equal(autotuned.maxIoTokens, Math.min(9, baselineAutotune.maxIoTokens));
+assert.equal(autotuned.maxMemoryTokens, Math.min(8, baselineAutotune.maxMemoryTokens));
+assert.equal(autotuned.autoTune.sourceBuildId, 'prev-build');
 assert.equal(autotuned.autoTune.profileEligible, true);
-for (const patch of [{ version: 1 }, { version: 2 }, { resourceIdentity: 'other-machine' }, { generatedAt: '2020-01-01T00:00:00Z' }]) {
-  const rejected = resolveSchedulerConfig({ ...autotuneInput, autoTuneProfile: {
-    version: SCHEDULER_AUTOTUNE_PROFILE_VERSION, generatedAt: new Date().toISOString(), resourceIdentity: baselineAutotune.resourceIdentity,
-    recommended: { maxCpuTokens: 7 }, ...patch
-  } });
+for (const patch of [{ version: 1 }, { version: 2 }, { version: 3 }, { version: String(SCHEDULER_AUTOTUNE_PROFILE_VERSION) },
+  { resourceIdentity: 'other-machine' }, { generatedAt: '2020-01-01T00:00:00Z' }, { evidence: null }]) {
+  const rejected = resolveSchedulerConfig({ ...autotuneInput, autoTuneProfile: { ...qualifiedProfile, ...patch } });
   assert.equal(rejected.autoTune.profileEligible, false);
   assert.equal(rejected.maxCpuTokens, baselineAutotune.maxCpuTokens);
 }

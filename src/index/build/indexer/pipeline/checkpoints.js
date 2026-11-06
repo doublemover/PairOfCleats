@@ -44,6 +44,8 @@ export const sanitizeRuntimeSnapshotForCheckpoint = (snapshot) => {
     scheduler.queues = queues;
   }
   if (scheduler) {
+    // Invocation observations feed runtime learning, never checkpoint identity.
+    delete scheduler.workloadObservations;
     sanitized.scheduler = scheduler;
   }
   return sanitized;
@@ -77,7 +79,8 @@ export const createPipelineCheckpointController = ({
   let queueDepthSnapshotsEnabled = false;
   const setSchedulerTelemetryStage = (stageId) => {
     if (!schedulerTelemetry || typeof stageId !== 'string') return;
-    schedulerTelemetry.setTelemetryOptions({ stage: stageId });
+    schedulerTelemetry.setTelemetryOptions({ stage: stageId,
+      workloadScope: { buildId: runtime.buildId, mode } });
   };
   const enableQueueDepthSnapshots = () => {
     if (!schedulerTelemetry || queueDepthSnapshotsEnabled) return;
