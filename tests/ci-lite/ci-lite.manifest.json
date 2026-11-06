@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 2310,
+    "hero": 2318,
     "matrix": 110,
     "meta": 54,
     "soak": 1,
@@ -14863,6 +14863,54 @@
     {
       "id": "storage/semantic/part-original-lifetime/false-release",
       "order": 2475,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/semantic/runtime-family-catalog/bounded-pages",
+      "order": 2476,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/semantic/runtime-family-catalog/snapshot-inserts",
+      "order": 2477,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/semantic/runtime-family-catalog/interrupted-selector",
+      "order": 2478,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/semantic/runtime-family-catalog/missing-corrupt",
+      "order": 2479,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/semantic/runtime-family-catalog/uncataloged-cutover",
+      "order": 2480,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/semantic/runtime-family-catalog/initial-header-recovery",
+      "order": 2481,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/semantic/runtime-family-catalog/cancellation-budget",
+      "order": 2482,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/semantic/runtime-family-catalog/writer-authority",
+      "order": 2483,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

@@ -582,6 +582,12 @@ query contract in `src/contracts/schemas/runtime-query.js`. Destinations resolve
 relative to the repository and must remain within it or its configured repository
 cache after resolving symlinks and junctions.
 
+Discovery uses the [saved-runtime catalog](../contracts/runtime-family-catalog.md)
+and pins its published snapshot across cursor pages. `maxScan` bounds catalog-node
+reads; the generations directory is not rescanned. Imports on either side of an
+existing cursor appear only in a fresh discovery pass. Uncataloged destinations
+and obsolete cursors require fresh ingestion/discovery rather than a scan fallback.
+
 The nested query pins `repositoryNamespace`, the source `generation` and
 `familyGenerations`. Selectors match capture IDs, executable/version/platform,
 workload fingerprint and phase, session/process/isolate/worker, exact source hashes,

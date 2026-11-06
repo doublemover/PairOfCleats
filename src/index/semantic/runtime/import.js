@@ -1,3 +1,4 @@
+import { publishRuntimeControl, isMissingRuntimeMember } from './control-publication.js';
 import { observeStorageResource, describeStorageFailure } from '../../../shared/storage/failure-observation.js';
 import { addStorageFailureContext } from '../../../shared/storage/operation-error.js';
 import { readRuntimeMemberBytes, readRuntimeMemberJson, openVerifiedRuntimeMember } from './verified-reads.js';
@@ -21,8 +22,9 @@ import { adaptCpuProfile } from './adapters/cpu-profile.js';
 import { adaptCodeLog } from './adapters/code-log.js';
 import { selectOfflineRuntimeAdapter } from './adapters/inventory.js';
 import { writeRuntimeQueryIndex, openRuntimeQueryIndex, assertRuntimeIndexedRow } from './query-index.js';
-import { createRuntimePublicationWork, runtimeImportRecipe, applyRuntimeCoverage, publishRuntimeControl,
-  readRuntimeRecipeCandidate, writeRuntimeRecipe, isMissingRuntimeMember } from './publication-reuse.js';
+import { prepareRuntimeFamilyCatalog, registerRuntimeFamily } from './family-catalog.js';
+import { createRuntimePublicationWork, runtimeImportRecipe, applyRuntimeCoverage,
+  readRuntimeRecipeCandidate, writeRuntimeRecipe } from './publication-reuse.js';
 
 const MAX_MANIFEST_BYTES = 16 * 1024 * 1024;
 const jsonBytes = value => Buffer.from(canonicalSemanticJson(value) + '\n');
@@ -146,6 +148,8 @@ const importRuntimeEvidenceOwned = async ({ destination, capture: suppliedCaptur
     release(bytes) { sharedAccount.release(bytes); importBudget.release(bytes); }
   };
   capture.parser = OFFLINE_RUNTIME_PARSER;
+  const catalogOptions = { destination, account: sharedAccount, diskReserveBytes: capture.limits.diskReserveBytes, signal, work };
+  await prepareRuntimeFamilyCatalog(catalogOptions);
   for (let index = 0; index < capture.rawArtifacts.length; index += 1) {
     const artifact = capture.rawArtifacts[index];
     capture.rawArtifacts[index] = await retainRuntimeRaw({ destination, inputPath: inputMap.get(artifact.artifactId),
@@ -163,6 +167,7 @@ const importRuntimeEvidenceOwned = async ({ destination, capture: suppliedCaptur
       const verified = await verifyRuntimeFamily({ destination, pointer: candidate, maxBytes: importOptions.maxDiskWorkingSetBytes,
         signal, expectedCapture: capture, sourceCandidates, metrics: work.reads });
       work.add('reusedFamilies');
+      await registerRuntimeFamily({ ...catalogOptions, generationId: candidate.generationId });
       if (await publishRuntimeControl({ root: destination, relativePath: 'current.json', bytes: jsonBytes(candidate), account,
         diskReserveBytes: capture.limits.diskReserveBytes, signal, work })) work.add('pointerOnlyRepairs');
       return { executionAuthorized: false, pointer: candidate, capture: verified.capture,
@@ -271,6 +276,7 @@ const importRuntimeEvidenceOwned = async ({ destination, capture: suppliedCaptur
       }
     }
     await verifyRuntimeFamily({ destination, pointer, maxBytes: importOptions.maxDiskWorkingSetBytes, signal, metrics: work.reads });
+    await registerRuntimeFamily({ ...catalogOptions, generationId: family.generationId });
     await assertRuntimeDiskReserve({ destination, diskReserveBytes: capture.limits.diskReserveBytes });
     throwIfAborted(signal);
     await publishRuntimeControl({ root: destination, relativePath: 'current.json', bytes: jsonBytes(assertRuntimeFamily('pointer', pointer)),

@@ -9,6 +9,7 @@ import { createSemanticDiskAccount } from '../../build/artifacts/writers/semanti
 import { readVerifiedContainedFile } from '../../../shared/contained-file.js';
 import { atomicWriteText } from '../../../shared/io/atomic-write.js';
 import { throwIfAborted, raceAbort } from '../../../shared/abort.js';
+import { withRuntimeDestinationAccount } from './destination-writer-context.js';
 
 const charges = new WeakMap(), queues = new WeakMap(), accountingOwners = new WeakMap();
 const receiptName = '.storage-budget.json';
@@ -115,7 +116,7 @@ export const withRuntimeDestinationWriter = async ({ destination, maxDiskWorking
       account.release(oldBytes);
     }
     check();
-    return await operation({ destination: root, account });
+    return await withRuntimeDestinationAccount(root, account, () => operation({ destination: root, account }));
   } catch (error) { operationFailed = true; operationError = error; throw error; }
   finally {
     const cleanupErrors = [];

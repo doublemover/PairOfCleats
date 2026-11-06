@@ -62,8 +62,19 @@ try {
   assert.equal((await post('/analysis/runtime-evidence', { ...payload, repoRoot: outside })).status, 403);
   await assert.rejects(handleToolCall('runtime_evidence', { ...payload, destination: outside }), { code: 'ERR_RUNTIME_DESTINATION_FORBIDDEN' });
   const escape = path.join(fixture.root, 'escape');
-  await fs.symlink(outside, escape, process.platform === 'win32' ? 'junction' : 'dir');
-  assert.equal((await post('/analysis/runtime-evidence', { ...payload, destination: 'escape' })).status, 403);
+  const realpath = fs.realpath;
+  const canonicalKey = value => process.platform === 'win32' ? path.resolve(value).toLowerCase() : path.resolve(value);
+  let aliasResolutions = 0;
+  try {
+    fs.realpath = async (filename, ...options) => {
+      if (typeof filename === 'string' && canonicalKey(filename) === canonicalKey(escape)) {
+        aliasResolutions++; return realpath(outside, ...options);
+      }
+      return realpath(filename, ...options);
+    };
+    assert.equal((await post('/analysis/runtime-evidence', { ...payload, destination: 'escape' })).status, 403);
+    assert.ok(aliasResolutions > 0, 'the real request owner rejects an observed canonical alias outside its roots');
+  } finally { fs.realpath = realpath; }
   const ownedCache = path.join(getRepoCacheRoot(fixture.root, {}), 'runtime-evidence');
   await fs.mkdir(path.dirname(ownedCache), { recursive: true });
   await fs.cp(fixture.options().destination, ownedCache, { recursive: true });
@@ -71,14 +82,14 @@ try {
   const execute = promisify(execFile), requestPath = path.join(fixture.root, 'query.json');
   await fs.writeFile(requestPath, JSON.stringify(payload));
   const { stdout } = await execute(process.execPath, ['bin/pairofcleats.js', 'runtime', 'lookup', '--request', requestPath, '--all'], {
-    cwd: process.cwd(), timeout: 15000, maxBuffer: 1048576 });
+    cwd: process.cwd(), timeout: 15000, maxBuffer: 1048576, windowsHide: true });
   const pages = stdout.trim().split('\n').map(line => JSON.parse(line));
   assert.equal(pages.length, 4); assert.equal(pages.at(-1).nextCursor, null);
   assert.equal(new Set(pages.flatMap(page => page.observations.map(row => row.evidenceId))).size, 7);
   assert.ok(pages.every(page => page.executionAuthorized === false));
   await fs.writeFile(requestPath, JSON.stringify(discovery));
   const listing = await execute(process.execPath, ['bin/pairofcleats.js', 'runtime', 'families', '--request', requestPath], {
-    cwd: process.cwd(), timeout: 15000, maxBuffer: 1048576 });
+    cwd: process.cwd(), timeout: 15000, maxBuffer: 1048576, windowsHide: true });
   assert.deepEqual(JSON.parse(listing.stdout), families);
   const familyManifest = path.join(fixture.options().destination, 'generations', imported.pointer.generationId, 'manifest.json');
   const original = await fs.readFile(familyManifest);
@@ -87,6 +98,15 @@ try {
   const unavailable = await post('/analysis/runtime-evidence', payload);
   assert.equal(unavailable.status, 409); assert.equal(unavailable.body.runtimeCode, 'ERR_RUNTIME_QUERY_INDEX_UNAVAILABLE');
   await fs.writeFile(familyManifest, original);
+  const catalogPath = path.join(fixture.options().destination, 'family-catalog.json');
+  const catalog = await fs.readFile(catalogPath);
+  await fs.rm(catalogPath);
+  const missingCatalog = await post('/analysis/runtime-families', discovery);
+  assert.equal(missingCatalog.status, 409); assert.equal(missingCatalog.body.runtimeCode, 'ERR_RUNTIME_CATALOG_REQUIRED');
+  await assert.rejects(handleToolCall('runtime_families', discovery), { code: 'ERR_RUNTIME_CATALOG_REQUIRED' });
+  assert.deepEqual(clean(await runRuntimeEvidenceLookup(payload)), clean(expected),
+    'healthy explicitly pinned lookup does not depend on discovery catalog availability');
+  await fs.writeFile(catalogPath, catalog);
   console.log('saved runtime CLI/MCP/HTTP lookup and discovery share exact scope, bounded pages and canonical destination authority');
 } finally {
   if (server) await new Promise(resolve => server.close(resolve));

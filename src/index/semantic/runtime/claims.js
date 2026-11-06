@@ -18,7 +18,8 @@ import { RUNTIME_QUERY_LIMITS_SCHEMA } from '../../../contracts/schemas/runtime-
 import { addStorageFailureContext } from '../../../shared/storage/operation-error.js';
 import { createRuntimeClaimPublicationState } from '../../../shared/runtime-claim-publication.js';
 import { createRuntimeClaimVerification } from '../../../shared/runtime-claim-verification.js';
-import { createRuntimePublicationWork, publishRuntimeControl, isMissingRuntimeMember } from './publication-reuse.js';
+import { createRuntimePublicationWork } from './publication-reuse.js';
+import { publishRuntimeControl, isMissingRuntimeMember } from './control-publication.js';
 
 const domain = 'pairofcleats.runtime.claim-family.v1';
 const fail = message => { throw runtimeImportError(message, 'ERR_RUNTIME_CLAIMS_INTEGRITY'); };

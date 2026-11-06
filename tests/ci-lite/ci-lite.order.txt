@@ -2478,3 +2478,11 @@ storage/semantic/part-original-lifetime/false-cleanup
 storage/semantic/part-original-lifetime/frozen-cleanup
 storage/semantic/part-original-lifetime/null-release
 storage/semantic/part-original-lifetime/false-release
+storage/semantic/runtime-family-catalog/bounded-pages
+storage/semantic/runtime-family-catalog/snapshot-inserts
+storage/semantic/runtime-family-catalog/interrupted-selector
+storage/semantic/runtime-family-catalog/missing-corrupt
+storage/semantic/runtime-family-catalog/uncataloged-cutover
+storage/semantic/runtime-family-catalog/initial-header-recovery
+storage/semantic/runtime-family-catalog/cancellation-budget
+storage/semantic/runtime-family-catalog/writer-authority
