@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["inert-and-help", "strict-admission-and-cancellation"]
+}

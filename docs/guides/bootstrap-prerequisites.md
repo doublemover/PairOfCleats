@@ -119,6 +119,11 @@ preserve the prior receipt and require fresh verification. Obsolete receipt
 formats are rejected. Artifact metadata remains distinct from content hashing.
 Four added generation regressions await execution. Checkout-wide mutation
 admission and durable stage journals remain the next #1555 work.
+The native entry now exposes its same implementation as an inert imported
+operation, without exiting its caller. The checkout transaction can reuse that
+owner in-process; no environment-based readiness or ownership bypass is added.
+Invocation cancellation reaches native build/probe schedulers, patch verification
+and child commands. Two import/admission controls await execution.
 Unsupported Node or missing Git/Python/build
 tools stop immediately with a prerequisite error. Windows discovers the target
 compiler, MSBuild and SDK, then the direct preflight entry compiles and links a

@@ -12,8 +12,10 @@ assert.match(source, /rebuildPatchedPerlFromSource[\s\S]*?node-gyp', 'bin', 'nod
   'patched Perl must compile directly without the npm legacy-config warning');
 assert.match(source, /return rebuildPatchedPerlFromSource\(options\)/,
   'serial fallback must retain patched Perl source ownership');
-assert.match(source, /spawnResolvedSubprocess\(command, args,/,
-  'async commands must retain the shared Windows shim, cancellation and tree owner');
+assert.match(source, /return runNativeSetupCommand\(command, args,/,
+  'async commands must reach the current original-settlement projection');
+assert.match(fs.readFileSync(path.join(root, 'tools/setup/native-command-result.js'), 'utf8'), /spawn = spawnResolvedSubprocess/,
+  'the extracted command projection retains the shared Windows shim, cancellation and tree owner');
 assert.match(source, /runNativeCommand\('npm', args, options\)/,
   'exclusive npm commands must use that same subprocess owner');
 assert.match(source, /rebuildSqliteNativeFromSourceAsync\(root,[\s\S]*?runNpmCommand\(args, \{ \.\.\.options, \.\.\.sqliteOptions \}\)/,

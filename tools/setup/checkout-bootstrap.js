@@ -66,8 +66,8 @@ if (isDirectExecution(import.meta.url)) {
   try { options = parseCheckoutBootstrapArguments(process.argv.slice(2)); }
   catch (error) { process.stderr.write(error.message + '\n'); process.exitCode = 2; }
   if (options) {
-    const controller = new AbortController(), abort = () => controller.abort();
-    process.on('SIGINT', abort); process.on('SIGTERM', abort);
+    const controller = new AbortController(), interrupt = () => controller.abort('SIGINT'), terminate = () => controller.abort('SIGTERM');
+    process.on('SIGINT', interrupt); process.on('SIGTERM', terminate);
     try {
       const result = await runCheckoutBootstrap(process.argv.slice(2), { signal: controller.signal });
       if (options.json) process.stdout.write(JSON.stringify(result) + '\n');
@@ -77,7 +77,8 @@ if (isDirectExecution(import.meta.url)) {
     } catch (error) {
       const message = readErrorDataProperty(error, 'message'), status = readErrorDataProperty(readErrorDataProperty(error, 'result'), 'status');
       process.stderr.write((typeof message === 'string' ? message : 'Checkout bootstrap failed; original failure retained by the stage owner.') + '\n');
-      process.exitCode = controller.signal.aborted ? 130 : Number.isInteger(status) && status > 0 ? status : 1;
-    } finally { process.off('SIGINT', abort); process.off('SIGTERM', abort); }
+      process.exitCode = controller.signal.aborted ? controller.signal.reason === 'SIGTERM' ? 143 : 130
+        : Number.isInteger(status) && status > 0 ? status : 1;
+    } finally { process.off('SIGINT', interrupt); process.off('SIGTERM', terminate); }
   }
 }

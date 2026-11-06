@@ -15,487 +15,513 @@ import { formatSetupPreflight, runSetupPreflight } from './preflight.js';
 import { verifyWindowsCompilerCapability } from './windows-capability.js';
 import { runNativeSetupCommand, settledNativeSetupFailure } from './native-command-result.js';
 import { parseNativeRebuildArguments, NATIVE_REBUILD_USAGE } from './checkout-bootstrap-arguments.js';
+import { isDirectExecution } from '../../src/shared/direct-execution.js';
+import { readErrorDataProperty } from '../../src/shared/error-data.js';
 
-const { help, verifyOnly, repairOnly } = parseNativeRebuildArguments(process.argv.slice(2));
-if (help) { process.stderr.write(NATIVE_REBUILD_USAGE + '\n'); process.exit(0); }
+/** Importing the native owner is inert. The checkout transaction can call this
+ * same implementation under its original session without spawning a second
+ * coordinator or delegating ownership through ambient environment flags.
+ */
+export const runNativeRebuild = async (args, { root = process.cwd(), signal: invocationSignal = null } = {}) => {
+  const { help, verifyOnly, repairOnly } = parseNativeRebuildArguments(args);
+  if (help) return { exitCode: 0, help: NATIVE_REBUILD_USAGE };
+  invocationSignal?.throwIfAborted(); root = path.resolve(root);
 
-const REQUIRED_NATIVE_PACKAGES = [
-  'tree-sitter',
-  ...listNativeTreeSitterGrammarModuleNames(),
-  'better-sqlite3',
-  'node-pty',
-  'hnswlib-node',
-  'onnxruntime-node',
-  '@lancedb/lancedb',
-  'lmdb'
-];
+  const REQUIRED_NATIVE_PACKAGES = [
+    'tree-sitter',
+    ...listNativeTreeSitterGrammarModuleNames(),
+    'better-sqlite3',
+    'node-pty',
+    'hnswlib-node',
+    'onnxruntime-node',
+    '@lancedb/lancedb',
+    'lmdb'
+  ];
 
-const OPTIONAL_NATIVE_PACKAGES = [
-  'sharp',
-  '@mongodb-js/zstd',
-  '@parcel/watcher',
-  're2',
-  '@node-rs/xxhash'
-];
-const TREE_SITTER_PERL_PACKAGE = '@ganezdragon/tree-sitter-perl';
-const TREE_SITTER_PERL_PATCH_VERSION = '1.1.1';
-const TREE_SITTER_PERL_PATCH_MARKERS = [
-  'dynamic STRING queue in C',
-  'clearStringQueue(scanner->heredoc.heredoc_identifier_queue);',
-  'clearBoolQueue(scanner->heredoc.heredoc_allows_interpolation);',
-  'All lexical state participates in parser branch restoration and incremental edits.',
-  'dequeueBoolQueue(scanner->heredoc.heredoc_allows_indent);',
-  'if (scanner == NULL) return NULL;'
-];
+  const OPTIONAL_NATIVE_PACKAGES = [
+    'sharp',
+    '@mongodb-js/zstd',
+    '@parcel/watcher',
+    're2',
+    '@node-rs/xxhash'
+  ];
+  const TREE_SITTER_PERL_PACKAGE = '@ganezdragon/tree-sitter-perl';
+  const TREE_SITTER_PERL_PATCH_VERSION = '1.1.1';
+  const TREE_SITTER_PERL_PATCH_MARKERS = [
+    'dynamic STRING queue in C',
+    'clearStringQueue(scanner->heredoc.heredoc_identifier_queue);',
+    'clearBoolQueue(scanner->heredoc.heredoc_allows_interpolation);',
+    'All lexical state participates in parser branch restoration and incremental edits.',
+    'dequeueBoolQueue(scanner->heredoc.heredoc_allows_indent);',
+    'if (scanner == NULL) return NULL;'
+  ];
 
-const root = process.cwd();
-const selectedToolchain = verifyOnly ? null : runSetupPreflight();
-if (selectedToolchain) console.error(formatSetupPreflight(selectedToolchain));
-if (selectedToolchain?.platform === 'win32') selectedToolchain.capability = await verifyWindowsCompilerCapability(selectedToolchain,
-  { scratchRoot: path.join(root, '.tmp', 'bootstrap-prerequisites') });
-const bootstrapBudget = resolveBootstrapBudget();
-const [nodeMajor, nodeMinor, nodePatch] = process.versions.node.split('.').map(Number);
-if (nodeMajor !== 26 || nodeMinor < 12 || (nodeMinor === 12 && nodePatch < 1)) {
-  console.error('[bootstrap] Node.js >=26.12.1 <27 is required for safe VM worker teardown.');
-  process.exit(1);
-}
-
-const resolveNodeModulesPath = (pkgName) => (
-  path.join(root, 'node_modules', ...pkgName.split('/'))
-);
-
-const isInstalled = (pkgName) => fs.existsSync(resolveNodeModulesPath(pkgName));
-
-const readInstalledPackageVersion = (pkgName) => {
-  try {
-    const packageJsonPath = path.join(resolveNodeModulesPath(pkgName), 'package.json');
-    const raw = fs.readFileSync(packageJsonPath, 'utf8');
-    const parsed = JSON.parse(raw);
-    return typeof parsed?.version === 'string' ? parsed.version : null;
-  } catch {
-    return null;
+  const selectedToolchain = verifyOnly ? null : runSetupPreflight();
+  if (selectedToolchain) console.error(formatSetupPreflight(selectedToolchain));
+  if (selectedToolchain?.platform === 'win32') selectedToolchain.capability = await verifyWindowsCompilerCapability(selectedToolchain,
+    { scratchRoot: path.join(root, '.tmp', 'bootstrap-prerequisites'), signal: invocationSignal });
+  const bootstrapBudget = resolveBootstrapBudget();
+  const [nodeMajor, nodeMinor, nodePatch] = process.versions.node.split('.').map(Number);
+  if (nodeMajor !== 26 || nodeMinor < 12 || (nodeMinor === 12 && nodePatch < 1)) {
+    console.error('[bootstrap] Node.js >=26.12.1 <27 is required for safe VM worker teardown.');
+    throw Object.assign(new Error('Node.js >=26.12.1 <27 is required.'), { code: 'ERR_NATIVE_SETUP_RUNTIME' });
   }
-};
 
-const verifyPerlScannerPatch = () => {
-  if (!isInstalled(TREE_SITTER_PERL_PACKAGE)) {
-    return { ok: false, message: `${TREE_SITTER_PERL_PACKAGE} is missing` };
-  }
-  const version = readInstalledPackageVersion(TREE_SITTER_PERL_PACKAGE);
-  if (version !== TREE_SITTER_PERL_PATCH_VERSION) {
-    return { ok: true, message: null };
-  }
-  const scannerPath = path.join(resolveNodeModulesPath(TREE_SITTER_PERL_PACKAGE), 'src', 'scanner.c');
-  let scannerSource = '';
-  try {
-    scannerSource = fs.readFileSync(scannerPath, 'utf8');
-  } catch (err) {
-    return {
-      ok: false,
-      message: `failed to read scanner source (${err?.message || err})`
-    };
-  }
-  for (const marker of TREE_SITTER_PERL_PATCH_MARKERS) {
-    if (!scannerSource.includes(marker)) {
+  const resolveNodeModulesPath = (pkgName) => (
+    path.join(root, 'node_modules', ...pkgName.split('/'))
+  );
+
+  const isInstalled = (pkgName) => fs.existsSync(resolveNodeModulesPath(pkgName));
+
+  const readInstalledPackageVersion = (pkgName) => {
+    try {
+      const packageJsonPath = path.join(resolveNodeModulesPath(pkgName), 'package.json');
+      const raw = fs.readFileSync(packageJsonPath, 'utf8');
+      const parsed = JSON.parse(raw);
+      return typeof parsed?.version === 'string' ? parsed.version : null;
+    } catch {
+      return null;
+    }
+  };
+
+  const verifyPerlScannerPatch = () => {
+    if (!isInstalled(TREE_SITTER_PERL_PACKAGE)) {
+      return { ok: false, message: `${TREE_SITTER_PERL_PACKAGE} is missing` };
+    }
+    const version = readInstalledPackageVersion(TREE_SITTER_PERL_PACKAGE);
+    if (version !== TREE_SITTER_PERL_PATCH_VERSION) {
+      return { ok: true, message: null };
+    }
+    const scannerPath = path.join(resolveNodeModulesPath(TREE_SITTER_PERL_PACKAGE), 'src', 'scanner.c');
+    let scannerSource = '';
+    try {
+      scannerSource = fs.readFileSync(scannerPath, 'utf8');
+    } catch (err) {
       return {
         ok: false,
-        message: `patched scanner markers missing in ${scannerPath}`
+        message: `failed to read scanner source (${err?.message || err})`
       };
     }
-  }
-  return { ok: true, message: null };
-};
+    for (const marker of TREE_SITTER_PERL_PATCH_MARKERS) {
+      if (!scannerSource.includes(marker)) {
+        return {
+          ok: false,
+          message: `patched scanner markers missing in ${scannerPath}`
+        };
+      }
+    }
+    return { ok: true, message: null };
+  };
 
-/**
+  /**
  * Build npm subprocess env with explicit script/source-build policy.
  *
  * @param {{buildFromSource?:boolean}} [options]
  * @returns {NodeJS.ProcessEnv}
  */
-const buildNpmEnv = ({ buildFromSource = false } = {}) => {
-  const env = {};
-  for (const [key, value] of Object.entries(process.env)) {
-    if (!key) continue;
-    const normalizedKey = key.toLowerCase();
-    if (normalizedKey === 'npm_config_build-from-source' || normalizedKey === 'npm_config_build_from_source') {
-      continue;
+  const buildNpmEnv = ({ buildFromSource = false } = {}) => {
+    const env = {};
+    for (const [key, value] of Object.entries(process.env)) {
+      if (!key) continue;
+      const normalizedKey = key.toLowerCase();
+      if (normalizedKey === 'npm_config_build-from-source' || normalizedKey === 'npm_config_build_from_source') {
+        continue;
+      }
+      if (value == null) continue;
+      env[key] = typeof value === 'string' ? value : String(value);
     }
-    if (value == null) continue;
-    env[key] = typeof value === 'string' ? value : String(value);
-  }
-  env.npm_config_ignore_scripts = 'false';
-  // Nested npx installers otherwise hide the cause behind an outer exit 1.
-  env.npm_config_foreground_scripts = 'true';
-  if (buildFromSource) {
-    env.npm_config_build_from_source = 'true';
-  }
-  Object.assign(env, selectedToolchain?.childEnv || {});
-  return env;
-};
+    env.npm_config_ignore_scripts = 'false';
+    // Nested npx installers otherwise hide the cause behind an outer exit 1.
+    env.npm_config_foreground_scripts = 'true';
+    if (buildFromSource) {
+      env.npm_config_build_from_source = 'true';
+    }
+    Object.assign(env, selectedToolchain?.childEnv || {});
+    return env;
+  };
 
-const runNativeCommand = async (command, args, { cwd = root, buildFromSource = false,
-  signal = null, compilerJobs = bootstrapBudget.cpuCount, env: extraEnv = {}, capture = false } = {}) => {
-  const env = { ...buildNpmEnv({ buildFromSource }), ...extraEnv,
-    npm_package_config_node_gyp_jobs: String(compilerJobs) };
-  return runNativeSetupCommand(command, args, {
-    cwd, stdio: capture ? 'pipe' : 'inherit', env, signal, timeoutMs: 600000,
-    maxOutputBytes: 8 * 1024 * 1024, rejectOnNonZeroExit: false, windowsHide: true
-  });
-};
-const runNpmCommand = (args, options) => runNativeCommand('npm', args, options);
+  const runNativeCommand = async (command, args, { cwd = root, buildFromSource = false,
+    signal = invocationSignal, compilerJobs = bootstrapBudget.cpuCount, env: extraEnv = {}, capture = false } = {}) => {
+    const env = { ...buildNpmEnv({ buildFromSource }), ...extraEnv,
+      npm_package_config_node_gyp_jobs: String(compilerJobs) };
+    return runNativeSetupCommand(command, args, {
+      cwd, stdio: capture ? 'pipe' : 'inherit', env, signal, timeoutMs: 600000,
+      maxOutputBytes: 8 * 1024 * 1024, rejectOnNonZeroExit: false, windowsHide: true
+    });
+  };
+  const runNpmCommand = (args, options) => runNativeCommand('npm', args, options);
 
-const normalizePackageNameResult = (pkgName) => {
-  const normalizedPkgName = typeof pkgName === 'string' ? pkgName.trim() : '';
-  if (!normalizedPkgName) {
-    return {
-      ok: false,
-      message: `invalid package name: ${String(pkgName)}`
-    };
-  }
-  return { ok: true, pkgName: normalizedPkgName };
-};
+  const normalizePackageNameResult = (pkgName) => {
+    const normalizedPkgName = typeof pkgName === 'string' ? pkgName.trim() : '';
+    if (!normalizedPkgName) {
+      return {
+        ok: false,
+        message: `invalid package name: ${String(pkgName)}`
+      };
+    }
+    return { ok: true, pkgName: normalizedPkgName };
+  };
 
-// This grammar carries a patched C scanner. Build its binding from the patched
-// source directly: npm 11 warns about the legacy build-from-source config key,
-// and a prebuilt binding would not contain the scanner repair.
-const rebuildPatchedPerlFromSource = (options = {}) => runNativeCommand(process.execPath, [
-  path.join(root, 'node_modules', 'node-gyp', 'bin', 'node-gyp.js'), 'rebuild',
-  '--jobs=' + (options.compilerJobs || bootstrapBudget.cpuCount)
-], { ...options, cwd: resolveNodeModulesPath(TREE_SITTER_PERL_PACKAGE) });
+  // This grammar carries a patched C scanner. Build its binding from the patched
+  // source directly: npm 11 warns about the legacy build-from-source config key,
+  // and a prebuilt binding would not contain the scanner repair.
+  const rebuildPatchedPerlFromSource = (options = {}) => runNativeCommand(process.execPath, [
+    path.join(root, 'node_modules', 'node-gyp', 'bin', 'node-gyp.js'), 'rebuild',
+    '--jobs=' + (options.compilerJobs || bootstrapBudget.cpuCount)
+  ], { ...options, cwd: resolveNodeModulesPath(TREE_SITTER_PERL_PACKAGE) });
 
-// Windows lineage uses a source-patched node-pty metadata export. Always compile
-// that binding; an otherwise loadable upstream prebuild cannot satisfy it.
-const rebuildWindowsProcessBindingFromSource = (options = {}) => runNativeCommand(process.execPath, [
-  path.join(root, 'node_modules', 'node-gyp', 'bin', 'node-gyp.js'), 'rebuild',
-  '--jobs=' + (options.compilerJobs || bootstrapBudget.cpuCount),
-  '--devdir=' + path.join(root, '.cache', 'native-build', 'headers'),
-  '--dist-url=https://nodejs.org/download/release', '--target=' + process.versions.node, '--arch=' + process.arch
-], { ...options, cwd: resolveNodeModulesPath('node-pty') });
+  // Windows lineage uses a source-patched node-pty metadata export. Always compile
+  // that binding; an otherwise loadable upstream prebuild cannot satisfy it.
+  const rebuildWindowsProcessBindingFromSource = (options = {}) => runNativeCommand(process.execPath, [
+    path.join(root, 'node_modules', 'node-gyp', 'bin', 'node-gyp.js'), 'rebuild',
+    '--jobs=' + (options.compilerJobs || bootstrapBudget.cpuCount),
+    '--devdir=' + path.join(root, '.cache', 'native-build', 'headers'),
+    '--dist-url=https://nodejs.org/download/release', '--target=' + process.versions.node, '--arch=' + process.arch
+  ], { ...options, cwd: resolveNodeModulesPath('node-pty') });
 
-const rebuildPackage = async (pkgName, { buildFromSource = false, ...options } = {}) => {
-  const packageNameResult = normalizePackageNameResult(pkgName);
-  if (!packageNameResult.ok) {
-    return packageNameResult;
-  }
+  const rebuildPackage = async (pkgName, { buildFromSource = false, ...options } = {}) => {
+    const packageNameResult = normalizePackageNameResult(pkgName);
+    if (!packageNameResult.ok) {
+      return packageNameResult;
+    }
 
-  if (process.platform === 'win32' && packageNameResult.pkgName === 'node-pty') {
-    return rebuildWindowsProcessBindingFromSource(options);
-  }
+    if (process.platform === 'win32' && packageNameResult.pkgName === 'node-pty') {
+      return rebuildWindowsProcessBindingFromSource(options);
+    }
 
-  if (packageNameResult.pkgName === TREE_SITTER_PERL_PACKAGE && buildFromSource) {
-    return rebuildPatchedPerlFromSource(options);
-  }
+    if (packageNameResult.pkgName === TREE_SITTER_PERL_PACKAGE && buildFromSource) {
+      return rebuildPatchedPerlFromSource(options);
+    }
 
-  if (packageNameResult.pkgName === 'better-sqlite3' && buildFromSource
+    if (packageNameResult.pkgName === 'better-sqlite3' && buildFromSource
     && Number(readInstalledPackageVersion(pkgName)?.split('.')[0]) >= 13) {
-    return rebuildSqliteNativeFromSourceAsync(root, (args, sqliteOptions) =>
-      runNpmCommand(args, { ...options, ...sqliteOptions }));
-  }
+      return rebuildSqliteNativeFromSourceAsync(root, (args, sqliteOptions) =>
+        runNpmCommand(args, { ...options, ...sqliteOptions }));
+    }
 
-  const args = ['rebuild', packageNameResult.pkgName];
-  return runNpmCommand(args, { ...options, buildFromSource });
-};
+    const args = ['rebuild', packageNameResult.pkgName];
+    return runNpmCommand(args, { ...options, buildFromSource });
+  };
 
-const runPackageInstallScript = (pkgName, { buildFromSource = false } = {}) => {
-  const packageNameResult = normalizePackageNameResult(pkgName);
-  if (!packageNameResult.ok) {
-    return packageNameResult;
-  }
+  const runPackageInstallScript = (pkgName, { buildFromSource = false } = {}) => {
+    const packageNameResult = normalizePackageNameResult(pkgName);
+    if (!packageNameResult.ok) {
+      return packageNameResult;
+    }
 
-  const args = ['run', 'install', '--if-present'];
-  return runNpmCommand(args, {
-    cwd: resolveNodeModulesPath(packageNameResult.pkgName),
-    buildFromSource
-  });
-};
+    const args = ['run', 'install', '--if-present'];
+    return runNpmCommand(args, {
+      cwd: resolveNodeModulesPath(packageNameResult.pkgName),
+      buildFromSource
+    });
+  };
 
-const LANGUAGE_SAMPLES = {
-  javascript: 'function ok() { return 1; }', jsx: 'const view = <div />;',
-  typescript: 'const value: number = 1;', tsx: 'const view = <div />;',
-  python: 'value = 1\n', json: '{}', yaml: 'value: 1\n', toml: 'value = 1\n',
-  xml: '<root/>', markdown: '# ok\n', kotlin: 'val value = 1', csharp: 'class Ok {}',
-  clike: 'int ok(void) { return 1; }', c: 'int ok(void) { return 1; }',
-  cpp: 'int ok() { return 1; }', objc: 'int ok(void) { return 1; }',
-  go: 'package main\nfunc main() {}', rust: 'fn main() {}', java: 'class Ok {}',
-  dart: 'void main() {}', scala: 'object Ok {}', groovy: 'def value = 1',
-  r: 'value <- 1', julia: 'value = 1', ruby: 'value = 1', php: '<?php echo 1;',
-  perl: 'my $value = 1;', shell: 'echo ok', sql: 'SELECT 1;', css: 'a { color: red; }',
-  html: '<p>ok</p>', lua: 'return 1', swift: 'let value = 1'
-};
-const nativeCapabilities = new Map();
-const probePackage = async (pkgName, signal) => {
-  const grammarRoutes = Object.entries(NATIVE_GRAMMAR_MODULES)
-    .filter(([, spec]) => spec.moduleName === pkgName)
-    .map(([languageId, spec]) => ({ ...spec, languageId, source: LANGUAGE_SAMPLES[languageId] }));
-  if (grammarRoutes.some((route) => !route.source)) throw new Error('Missing bounded native language activation sample.');
-  const result = await probePackageIsolated(pkgName, grammarRoutes, signal);
-  if (result.ok && result.capabilities) nativeCapabilities.set(pkgName, result.capabilities);
-  return result;
-};
+  const LANGUAGE_SAMPLES = {
+    javascript: 'function ok() { return 1; }', jsx: 'const view = <div />;',
+    typescript: 'const value: number = 1;', tsx: 'const view = <div />;',
+    python: 'value = 1\n', json: '{}', yaml: 'value: 1\n', toml: 'value = 1\n',
+    xml: '<root/>', markdown: '# ok\n', kotlin: 'val value = 1', csharp: 'class Ok {}',
+    clike: 'int ok(void) { return 1; }', c: 'int ok(void) { return 1; }',
+    cpp: 'int ok() { return 1; }', objc: 'int ok(void) { return 1; }',
+    go: 'package main\nfunc main() {}', rust: 'fn main() {}', java: 'class Ok {}',
+    dart: 'void main() {}', scala: 'object Ok {}', groovy: 'def value = 1',
+    r: 'value <- 1', julia: 'value = 1', ruby: 'value = 1', php: '<?php echo 1;',
+    perl: 'my $value = 1;', shell: 'echo ok', sql: 'SELECT 1;', css: 'a { color: red; }',
+    html: '<p>ok</p>', lua: 'return 1', swift: 'let value = 1'
+  };
+  const nativeCapabilities = new Map();
+  const probePackage = async (pkgName, signal = invocationSignal) => {
+    const grammarRoutes = Object.entries(NATIVE_GRAMMAR_MODULES)
+      .filter(([, spec]) => spec.moduleName === pkgName)
+      .map(([languageId, spec]) => ({ ...spec, languageId, source: LANGUAGE_SAMPLES[languageId] }));
+    if (grammarRoutes.some((route) => !route.source)) throw new Error('Missing bounded native language activation sample.');
+    const result = await probePackageIsolated(pkgName, grammarRoutes, signal);
+    if (result.ok && result.capabilities) nativeCapabilities.set(pkgName, result.capabilities);
+    return result;
+  };
 
-const probePackageIsolated = async (pkgName, grammarRoutes, signal) => {
+  const probePackageIsolated = async (pkgName, grammarRoutes, signal) => {
   // The compatibility probe owner uses synchronous child operations. Put that
   // owner in an isolated process so scheduling actually overlaps bounded probes
   // without changing its public sync APIs or loading natives in this coordinator.
-  const probeUrl = pathToFileURL(path.join(root, 'src/shared/native-package-probe.js')).href;
-  const script = `import { probeNativePackage } from ${JSON.stringify(probeUrl)};
+    const probeUrl = pathToFileURL(path.join(root, 'src/shared/native-package-probe.js')).href;
+    const script = `import { probeNativePackage } from ${JSON.stringify(probeUrl)};
     const request = JSON.parse(process.argv[1]);
     const result = await probeNativePackage(request.root, request.pkgName, { grammarRoutes: request.grammarRoutes });
     process.stdout.write(JSON.stringify(result));`;
-  try {
-    const child = await spawnResolvedSubprocess(process.execPath, ['--input-type=module', '-e', script,
-      JSON.stringify({ root, pkgName, grammarRoutes })], {
-      cwd: root, stdio: 'pipe',
-      signal, timeoutMs: 30000, maxOutputBytes: 1024 * 1024, windowsHide: true
-    });
-    if (child.stderr?.trim()) return { ok: false, message: child.stderr.trim() };
-    return JSON.parse(child.stdout);
-  } catch (error) {
-    const failure = settledNativeSetupFailure(error, 'native-activation-probe');
-    return { ...failure, message: failure.stderr?.trim() || failure.message };
-  }
-};
-
-const getRequiredPackageFailures = async ({ label = 'verify:native' } = {}) => {
-  const failures = [];
-  const outcome = await runBootstrapTasks(REQUIRED_NATIVE_PACKAGES.map(pkgName => ({
-    id: 'probe:' + pkgName, bytes: 256 * 1024 * 1024,
-    run: async ({ signal }) => {
-      if (!isInstalled(pkgName)) return { ok: false, missing: true, message: 'required package is missing' };
-      const result = await probePackage(pkgName, signal);
-      if (result.ok && pkgName === TREE_SITTER_PERL_PACKAGE) return verifyPerlScannerPatch();
-      return result;
-    }
-  })), { budget: bootstrapBudget, stopOnRequiredFailure: false });
-  for (const [index, pkgName] of REQUIRED_NATIVE_PACKAGES.entries()) {
-    const row = outcome.results[index];
-    const result = row.result || { ok: false, message: row.error?.message || row.status };
-    if (!isInstalled(pkgName)) {
-      console.error(`[${label}] required package is missing: ${pkgName}`);
-      failures.push({
-        pkgName,
-        missing: true,
-        message: 'required package is missing'
+    try {
+      const child = await spawnResolvedSubprocess(process.execPath, ['--input-type=module', '-e', script,
+        JSON.stringify({ root, pkgName, grammarRoutes })], {
+        cwd: root, stdio: 'pipe',
+        signal, timeoutMs: 30000, maxOutputBytes: 1024 * 1024, windowsHide: true
       });
-      continue;
+      if (child.stderr?.trim()) return { ok: false, message: child.stderr.trim() };
+      return JSON.parse(child.stdout);
+    } catch (error) {
+      const failure = settledNativeSetupFailure(error, 'native-activation-probe');
+      return { ...failure, message: failure.stderr?.trim() || failure.message };
     }
+  };
 
-    if (!result.ok) {
-      console.error(`[${label}] required package is not loadable (${pkgName}): ${result.message}`);
-      failures.push({
-        pkgName,
-        missing: false,
-        message: result.message || 'required package is not loadable'
-      });
-      continue;
-    }
+  const getRequiredPackageFailures = async ({ label = 'verify:native' } = {}) => {
+    const failures = [];
+    const outcome = await runBootstrapTasks(REQUIRED_NATIVE_PACKAGES.map(pkgName => ({
+      id: 'probe:' + pkgName, bytes: 256 * 1024 * 1024,
+      run: async ({ signal }) => {
+        if (!isInstalled(pkgName)) return { ok: false, missing: true, message: 'required package is missing' };
+        const result = await probePackage(pkgName, signal);
+        if (result.ok && pkgName === TREE_SITTER_PERL_PACKAGE) return verifyPerlScannerPatch();
+        return result;
+      }
+    })), { budget: bootstrapBudget, signal: invocationSignal, stopOnRequiredFailure: false });
+    for (const [index, pkgName] of REQUIRED_NATIVE_PACKAGES.entries()) {
+      const row = outcome.results[index];
+      const result = row.result || { ok: false, message: row.error?.message || row.status };
+      if (!isInstalled(pkgName)) {
+        console.error(`[${label}] required package is missing: ${pkgName}`);
+        failures.push({
+          pkgName,
+          missing: true,
+          message: 'required package is missing'
+        });
+        continue;
+      }
 
-    if (pkgName === TREE_SITTER_PERL_PACKAGE) {
-      const perlPatchCheck = verifyPerlScannerPatch();
-      if (!perlPatchCheck.ok) {
-        console.error(`[${label}] required perl scanner patch check failed (${pkgName}): ${perlPatchCheck.message}`);
+      if (!result.ok) {
+        console.error(`[${label}] required package is not loadable (${pkgName}): ${result.message}`);
         failures.push({
           pkgName,
           missing: false,
-          message: perlPatchCheck.message || 'perl scanner patch check failed'
+          message: result.message || 'required package is not loadable'
         });
+        continue;
+      }
+
+      if (pkgName === TREE_SITTER_PERL_PACKAGE) {
+        const perlPatchCheck = verifyPerlScannerPatch();
+        if (!perlPatchCheck.ok) {
+          console.error(`[${label}] required perl scanner patch check failed (${pkgName}): ${perlPatchCheck.message}`);
+          failures.push({
+            pkgName,
+            missing: false,
+            message: perlPatchCheck.message || 'perl scanner patch check failed'
+          });
+        }
       }
     }
-  }
 
-  return failures;
-};
+    return failures;
+  };
 
-const verifyRequiredPackages = async () => {
-  const verification = captureBootstrapVerification(root);
-  const failures = await getRequiredPackageFailures({ label: 'verify:native' });
+  const verifyRequiredPackages = async () => {
+    invocationSignal?.throwIfAborted();
+    const verification = captureBootstrapVerification(root);
+    const failures = await getRequiredPackageFailures({ label: 'verify:native' });
+    invocationSignal?.throwIfAborted();
 
-  const realmProbe = probeNodeRealmLifecycle(root);
-  if (!realmProbe.ok) {
-    console.error(`[verify:native] Node VM worker lifecycle failed: ${realmProbe.message}`);
-    failures.push({ pkgName: 'node:vm', missing: false,
-      message: realmProbe.message || 'worker lifecycle failed' });
-  }
-
-  if (failures.length > 0) {
-    console.error(`[verify:native] failed with ${failures.length} required package failure(s).`);
-    process.exit(1);
-  }
-
-  console.error('[verify:native] required packages loadable; registered native language routes parser-activated; mixed-consumer ONNX inference/disposal verified.');
-  return verification;
-};
-
-const repairRequiredPackages = async () => {
-  const failures = await getRequiredPackageFailures({ label: 'repair:native' });
-  if (failures.length === 0) {
-    console.error('[repair:native] no required package repairs needed.');
-    return;
-  }
-
-  let repairFailures = 0;
-
-  for (const failure of failures) {
-    if (failure.missing) {
-      console.error(`[repair:native] cannot rebuild missing required package: ${failure.pkgName}`);
-      repairFailures += 1;
-      continue;
+    const realmProbe = probeNodeRealmLifecycle(root);
+    invocationSignal?.throwIfAborted();
+    if (!realmProbe.ok) {
+      console.error(`[verify:native] Node VM worker lifecycle failed: ${realmProbe.message}`);
+      failures.push({ pkgName: 'node:vm', missing: false,
+        message: realmProbe.message || 'worker lifecycle failed' });
     }
 
-    console.error(`[repair:native] rebuilding required package: ${failure.pkgName}`);
-    const rebuildResult = await rebuildPackage(failure.pkgName, {
-      buildFromSource: failure.pkgName === TREE_SITTER_PERL_PACKAGE
-    });
-    if (!rebuildResult.ok) {
-      console.error(`[repair:native] failed required package ${failure.pkgName}: ${rebuildResult.message}`);
-      repairFailures += 1;
-      continue;
+    if (failures.length > 0) {
+      console.error(`[verify:native] failed with ${failures.length} required package failure(s).`);
+      throw Object.assign(new Error('Required native activation failed.'), { code: 'ERR_NATIVE_SETUP_ACTIVATION', failures });
     }
 
-    const probeResult = await probePackage(failure.pkgName);
-    if (!probeResult.ok) {
-      console.error(`[repair:native] required package still not loadable (${failure.pkgName}) after rebuild; retrying from source.`);
-      const sourceRebuildResult = await rebuildPackage(failure.pkgName, { buildFromSource: true });
-      if (!sourceRebuildResult.ok) {
-        console.error(`[repair:native] source rebuild failed required package ${failure.pkgName}: ${sourceRebuildResult.message}`);
+    console.error('[verify:native] required packages loadable; registered native language routes parser-activated; mixed-consumer ONNX inference/disposal verified.');
+    return verification;
+  };
+
+  const repairRequiredPackages = async () => {
+    const failures = await getRequiredPackageFailures({ label: 'repair:native' });
+    if (failures.length === 0) {
+      console.error('[repair:native] no required package repairs needed.');
+      return;
+    }
+
+    let repairFailures = 0;
+
+    for (const failure of failures) {
+      if (failure.missing) {
+        console.error(`[repair:native] cannot rebuild missing required package: ${failure.pkgName}`);
         repairFailures += 1;
         continue;
       }
 
-      const sourceProbeResult = await probePackage(failure.pkgName);
-      if (!sourceProbeResult.ok) {
-        console.error(`[repair:native] required package still not loadable (${failure.pkgName}) after source rebuild; running package install script.`);
-        const installScriptResult = await runPackageInstallScript(failure.pkgName, { buildFromSource: true });
-        if (!installScriptResult.ok) {
-          console.error(`[repair:native] package install script failed for ${failure.pkgName}: ${installScriptResult.message}`);
+      console.error(`[repair:native] rebuilding required package: ${failure.pkgName}`);
+      const rebuildResult = await rebuildPackage(failure.pkgName, {
+        buildFromSource: failure.pkgName === TREE_SITTER_PERL_PACKAGE
+      });
+      if (!rebuildResult.ok) {
+        console.error(`[repair:native] failed required package ${failure.pkgName}: ${rebuildResult.message}`);
+        repairFailures += 1;
+        continue;
+      }
+
+      const probeResult = await probePackage(failure.pkgName);
+      if (!probeResult.ok) {
+        console.error(`[repair:native] required package still not loadable (${failure.pkgName}) after rebuild; retrying from source.`);
+        const sourceRebuildResult = await rebuildPackage(failure.pkgName, { buildFromSource: true });
+        if (!sourceRebuildResult.ok) {
+          console.error(`[repair:native] source rebuild failed required package ${failure.pkgName}: ${sourceRebuildResult.message}`);
           repairFailures += 1;
           continue;
         }
 
-        const installProbeResult = await probePackage(failure.pkgName);
-        if (!installProbeResult.ok) {
-          console.error(`[repair:native] required package still not loadable (${failure.pkgName}) after package install script: ${installProbeResult.message}`);
+        const sourceProbeResult = await probePackage(failure.pkgName);
+        if (!sourceProbeResult.ok) {
+          console.error(`[repair:native] required package still not loadable (${failure.pkgName}) after source rebuild; running package install script.`);
+          const installScriptResult = await runPackageInstallScript(failure.pkgName, { buildFromSource: true });
+          if (!installScriptResult.ok) {
+            console.error(`[repair:native] package install script failed for ${failure.pkgName}: ${installScriptResult.message}`);
+            repairFailures += 1;
+            continue;
+          }
+
+          const installProbeResult = await probePackage(failure.pkgName);
+          if (!installProbeResult.ok) {
+            console.error(`[repair:native] required package still not loadable (${failure.pkgName}) after package install script: ${installProbeResult.message}`);
+            repairFailures += 1;
+          }
+        }
+      }
+      if (failure.pkgName === TREE_SITTER_PERL_PACKAGE) {
+        const perlPatchCheck = verifyPerlScannerPatch();
+        if (!perlPatchCheck.ok) {
+          console.error(`[repair:native] perl scanner patch check failed (${failure.pkgName}): ${perlPatchCheck.message}`);
           repairFailures += 1;
         }
       }
     }
-    if (failure.pkgName === TREE_SITTER_PERL_PACKAGE) {
-      const perlPatchCheck = verifyPerlScannerPatch();
-      if (!perlPatchCheck.ok) {
-        console.error(`[repair:native] perl scanner patch check failed (${failure.pkgName}): ${perlPatchCheck.message}`);
-        repairFailures += 1;
-      }
+
+    if (repairFailures > 0) {
+      console.error(`[repair:native] failed with ${repairFailures} required package repair failure(s).`);
+      throw Object.assign(new Error('Required native repair failed.'), { code: 'ERR_NATIVE_SETUP_REPAIR', repairFailures });
     }
+
+    console.error(`[repair:native] repaired ${failures.length} required package(s).`);
+  };
+
+  const recordReadiness = async verification => {
+    await applyPatchesAsync(root, { verifyOnly: true, signal: invocationSignal });
+    recordBootstrapReadiness(root, REQUIRED_NATIVE_PACKAGES, {
+      verification,
+      nativeCapabilities: [...nativeCapabilities.values()].flat().sort((a, b) =>
+        (a.languageId ?? a.id).localeCompare(b.languageId ?? b.id))
+    });
+    console.error('[bootstrap] Verified readiness receipt saved.');
+  };
+
+  if (verifyOnly) {
+    await recordReadiness(await verifyRequiredPackages());
+    return { exitCode: 0, mode: 'verify' };
   }
 
-  if (repairFailures > 0) {
-    console.error(`[repair:native] failed with ${repairFailures} required package repair failure(s).`);
-    process.exit(1);
+  if (repairOnly) {
+    await repairRequiredPackages();
+    await recordReadiness(await verifyRequiredPackages());
+    return { exitCode: 0, mode: 'repair' };
   }
 
-  console.error(`[repair:native] repaired ${failures.length} required package(s).`);
-};
-
-const recordReadiness = async verification => {
-  await applyPatchesAsync(root, { verifyOnly: true });
-  recordBootstrapReadiness(root, REQUIRED_NATIVE_PACKAGES, {
-    verification,
-    nativeCapabilities: [...nativeCapabilities.values()].flat().sort((a, b) =>
-      (a.languageId ?? a.id).localeCompare(b.languageId ?? b.id))
-  });
-  console.error('[bootstrap] Verified readiness receipt saved.');
-};
-
-if (verifyOnly) {
-  await recordReadiness(await verifyRequiredPackages());
-  process.exit(0);
-}
-
-if (repairOnly) {
-  await repairRequiredPackages();
-  await recordReadiness(await verifyRequiredPackages());
-  process.exit(0);
-}
-
-const packages = [
-  ...REQUIRED_NATIVE_PACKAGES.map(packageName => ({ packageName, required: true })),
-  ...OPTIONAL_NATIVE_PACKAGES.filter(isInstalled).map(packageName => ({ packageName, required: false }))
-];
-const adapters = new Map(packages.map(entry => [entry.packageName, inspectNativeBuildAdapter(root, entry.packageName)])
-  .filter(([, adapter]) => adapter));
-const headerCache = path.join(root, '.cache', 'native-build', 'headers');
-const prepareHeaders = async ({ signal, compilerJobs }) => {
+  const packages = [
+    ...REQUIRED_NATIVE_PACKAGES.map(packageName => ({ packageName, required: true })),
+    ...OPTIONAL_NATIVE_PACKAGES.filter(isInstalled).map(packageName => ({ packageName, required: false }))
+  ];
+  const adapters = new Map(packages.map(entry => [entry.packageName, inspectNativeBuildAdapter(root, entry.packageName)])
+    .filter(([, adapter]) => adapter));
+  const headerCache = path.join(root, '.cache', 'native-build', 'headers');
+  const prepareHeaders = async ({ signal, compilerJobs }) => {
   // No concurrent node-gyp downloads or global header-cache mutation. The
   // prepared headers become read-only inputs to every package-local build.
-  let current = root;
-  for (const part of ['.cache', 'native-build', 'headers']) {
-    current = path.join(current, part);
-    try { fs.mkdirSync(current); } catch (error) { if (error.code !== 'EEXIST') throw error; }
-    const stat = fs.lstatSync(current);
-    if (!stat.isDirectory() || stat.isSymbolicLink()) throw new Error('Native header cache must be a regular directory: ' + current);
-  }
-  const adapter = adapters.values().next().value;
-  return runNativeCommand(process.execPath, [adapter.nodeGyp, 'install', '--ensure',
-    '--devdir=' + headerCache, '--dist-url=https://nodejs.org/download/release',
-    '--target=' + process.versions.node, '--arch=' + process.arch], { signal, compilerJobs });
-};
-const buildLocal = async (adapter, context) => {
+    let current = root;
+    for (const part of ['.cache', 'native-build', 'headers']) {
+      current = path.join(current, part);
+      try { fs.mkdirSync(current); } catch (error) { if (error.code !== 'EEXIST') throw error; }
+      const stat = fs.lstatSync(current);
+      if (!stat.isDirectory() || stat.isSymbolicLink()) throw new Error('Native header cache must be a regular directory: ' + current);
+    }
+    const adapter = adapters.values().next().value;
+    return runNativeCommand(process.execPath, [adapter.nodeGyp, 'install', '--ensure',
+      '--devdir=' + headerCache, '--dist-url=https://nodejs.org/download/release',
+      '--target=' + process.versions.node, '--arch=' + process.arch], { signal, compilerJobs });
+  };
+  const buildLocal = async (adapter, context) => {
   // Recheck the admitted owner at dispatch, not only while constructing the DAG.
-  const current = inspectNativeBuildAdapter(root, adapter.packageName);
-  if (!current || current.nodeGyp !== adapter.nodeGyp) return { ok: false, message: 'Native adapter input changed before dispatch.' };
-  // Downloaded node-gyp headers use <version>/<arch>/node.lib on Windows.
-  // --nodedir describes a Node source tree and instead selects Release/node.lib.
-  // Keep the prepared task cache, using node-gyp's installed-header layout.
-  const env = { npm_package_config_node_gyp_nodedir: '', npm_package_config_node_gyp_devdir: headerCache };
-  const options = { ...context, cwd: adapter.packageRoot, capture: true, env };
-  if (!adapter.forceSource) {
-    const prebuild = await runNativeCommand(process.execPath, [adapter.prebuildTest], options);
-    if (prebuild.ok) return prebuild;
-    if (context.signal.aborted) return prebuild;
-  }
-  return runNativeCommand(process.execPath, [adapter.nodeGyp, 'rebuild',
-    '--jobs=' + context.compilerJobs, '--devdir=' + headerCache,
-    '--dist-url=https://nodejs.org/download/release', '--target=' + process.versions.node,
-    '--arch=' + process.arch], options);
-};
-const buildFallback = async (entry, context) => {
-  if (!isInstalled(entry.packageName)) return { ok: false, message: 'required package is missing' };
-  const result = await rebuildPackage(entry.packageName, { ...context,
-    buildFromSource: ['tree-sitter', TREE_SITTER_PERL_PACKAGE, 'tree-sitter-swift', 'better-sqlite3']
-      .includes(entry.packageName) });
-  if (result.ok && entry.packageName === TREE_SITTER_PERL_PACKAGE) return verifyPerlScannerPatch();
-  if (result.ok && entry.packageName === 'better-sqlite3') return probeSqliteNative(root);
-  return result;
-};
-console.error('[rebuild:native] dependency plan: ' + JSON.stringify({
-  jobs: bootstrapBudget.jobs, cpuTokens: bootstrapBudget.cpuCount,
-  compilerJobsPerLocalTask: bootstrapBudget.compilerJobs, memoryBytes: bootstrapBudget.memoryBytes,
-  packageLocal: [...adapters.keys()], exclusiveFallback: packages.filter(entry => !adapters.has(entry.packageName))
-    .map(entry => entry.packageName), cpuMethod: bootstrapBudget.cpuMethod, memoryMethod: bootstrapBudget.memoryMethod
-}));
-const outcome = await runBootstrapTasks(createNativeBuildTasks({
-  packages, adapters, budget: bootstrapBudget, prepareHeaders, buildLocal, buildFallback
-}), { budget: bootstrapBudget });
-const buildCounts = summarizeNativeBuildResults(outcome.results);
-const unsuccessful = counts => counts.failed + counts.cancelled + counts.blocked;
-// Report in dependency/input order regardless of completion order.
-for (const row of outcome.results) {
-  if (row.result?.stdout) process.stdout.write(row.result.stdout);
-  if (row.result?.stderr) process.stderr.write(row.result.stderr);
-  console.error('[rebuild:native] ' + row.id + ': ' + row.status
+    const current = inspectNativeBuildAdapter(root, adapter.packageName);
+    if (!current || current.nodeGyp !== adapter.nodeGyp) return { ok: false, message: 'Native adapter input changed before dispatch.' };
+    // Downloaded node-gyp headers use <version>/<arch>/node.lib on Windows.
+    // --nodedir describes a Node source tree and instead selects Release/node.lib.
+    // Keep the prepared task cache, using node-gyp's installed-header layout.
+    const env = { npm_package_config_node_gyp_nodedir: '', npm_package_config_node_gyp_devdir: headerCache };
+    const options = { ...context, cwd: adapter.packageRoot, capture: true, env };
+    if (!adapter.forceSource) {
+      const prebuild = await runNativeCommand(process.execPath, [adapter.prebuildTest], options);
+      if (prebuild.ok) return prebuild;
+      if (context.signal.aborted) return prebuild;
+    }
+    return runNativeCommand(process.execPath, [adapter.nodeGyp, 'rebuild',
+      '--jobs=' + context.compilerJobs, '--devdir=' + headerCache,
+      '--dist-url=https://nodejs.org/download/release', '--target=' + process.versions.node,
+      '--arch=' + process.arch], options);
+  };
+  const buildFallback = async (entry, context) => {
+    if (!isInstalled(entry.packageName)) return { ok: false, message: 'required package is missing' };
+    const result = await rebuildPackage(entry.packageName, { ...context,
+      buildFromSource: ['tree-sitter', TREE_SITTER_PERL_PACKAGE, 'tree-sitter-swift', 'better-sqlite3']
+        .includes(entry.packageName) });
+    if (result.ok && entry.packageName === TREE_SITTER_PERL_PACKAGE) return verifyPerlScannerPatch();
+    if (result.ok && entry.packageName === 'better-sqlite3') return probeSqliteNative(root);
+    return result;
+  };
+  console.error('[rebuild:native] dependency plan: ' + JSON.stringify({
+    jobs: bootstrapBudget.jobs, cpuTokens: bootstrapBudget.cpuCount,
+    compilerJobsPerLocalTask: bootstrapBudget.compilerJobs, memoryBytes: bootstrapBudget.memoryBytes,
+    packageLocal: [...adapters.keys()], exclusiveFallback: packages.filter(entry => !adapters.has(entry.packageName))
+      .map(entry => entry.packageName), cpuMethod: bootstrapBudget.cpuMethod, memoryMethod: bootstrapBudget.memoryMethod
+  }));
+  const outcome = await runBootstrapTasks(createNativeBuildTasks({
+    packages, adapters, budget: bootstrapBudget, prepareHeaders, buildLocal, buildFallback
+  }), { budget: bootstrapBudget, signal: invocationSignal });
+  const buildCounts = summarizeNativeBuildResults(outcome.results);
+  const unsuccessful = counts => counts.failed + counts.cancelled + counts.blocked;
+  // Report in dependency/input order regardless of completion order.
+  for (const row of outcome.results) {
+    if (row.result?.stdout) process.stdout.write(row.result.stdout);
+    if (row.result?.stderr) process.stderr.write(row.result.stderr);
+    console.error('[rebuild:native] ' + row.id + ': ' + row.status
     + (row.error ? ' (' + row.error.message + ')' : ''));
-}
-for (const packageName of OPTIONAL_NATIVE_PACKAGES.filter(name => !isInstalled(name))) {
-  console.error('[rebuild:native] optional package not installed; skipping: ' + packageName);
-}
-if (unsuccessful(buildCounts.required) > 0) {
-  console.error('[rebuild:native] failed with ' + buildCounts.required.failed
+  }
+  for (const packageName of OPTIONAL_NATIVE_PACKAGES.filter(name => !isInstalled(name))) {
+    console.error('[rebuild:native] optional package not installed; skipping: ' + packageName);
+  }
+  if (unsuccessful(buildCounts.required) > 0) {
+    console.error('[rebuild:native] failed with ' + buildCounts.required.failed
     + ' required rebuild failure(s); ' + buildCounts.required.cancelled + ' cancelled and '
     + buildCounts.required.blocked + ' blocked required task(s).');
-  process.exit(1);
-}
-if (unsuccessful(buildCounts.optional) > 0) console.error('[rebuild:native] completed with '
+    throw Object.assign(new Error('Required native builds failed.'), { code: 'ERR_NATIVE_SETUP_BUILD', results: outcome.results });
+  }
+  if (unsuccessful(buildCounts.optional) > 0) console.error('[rebuild:native] completed with '
   + buildCounts.optional.failed + ' optional rebuild failure(s); ' + buildCounts.optional.cancelled
   + ' cancelled and ' + buildCounts.optional.blocked + ' blocked optional task(s).');
-else console.error('[rebuild:native] completed successfully.');
-await recordReadiness(await verifyRequiredPackages());
+  else console.error('[rebuild:native] completed successfully.');
+  await recordReadiness(await verifyRequiredPackages());
+  return { exitCode: 0, mode: 'prepare' };
+};
+
+if (isDirectExecution(import.meta.url)) {
+  const controller = new AbortController(), interrupt = () => controller.abort('SIGINT'), terminate = () => controller.abort('SIGTERM');
+  process.on('SIGINT', interrupt); process.on('SIGTERM', terminate);
+  try {
+    const result = await runNativeRebuild(process.argv.slice(2), { signal: controller.signal });
+    if (result.help) process.stderr.write(result.help + '\n');
+    process.exitCode = result.exitCode;
+  } catch (error) {
+    const message = readErrorDataProperty(error, 'message');
+    process.stderr.write('[rebuild:native] ' + (typeof message === 'string' ? message : 'Native setup failed.') + '\n');
+    process.exitCode = controller.signal.aborted ? controller.signal.reason === 'SIGTERM' ? 143 : 130 : 1;
+  } finally { process.off('SIGINT', interrupt); process.off('SIGTERM', terminate); }
+}

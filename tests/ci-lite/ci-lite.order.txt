@@ -2673,3 +2673,5 @@ tooling/install/native-setup-failure-fence/original-failures
 tooling/install/native-setup-failure-fence/pending-resource-fence
 tooling/install/native-setup-failure-fence/transcript-status
 tooling/install/native-setup-failure-fence/cancellation-and-status
+tooling/install/native-rebuild-import/inert-and-help
+tooling/install/native-rebuild-import/strict-admission-and-cancellation
