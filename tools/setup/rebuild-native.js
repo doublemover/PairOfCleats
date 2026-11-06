@@ -6,13 +6,14 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { spawnResolvedSubprocess } from '../../src/shared/subprocess/command-invocation.js';
-import { formatSpawnFailureReason, summarizeNativeBuildResults } from './rebuild-native-exit.js';
+import { summarizeNativeBuildResults } from './rebuild-native-exit.js';
 import { probeSqliteNative, rebuildSqliteNativeFromSourceAsync } from './rebuild-native-sqlite.js';
 import { listNativeTreeSitterGrammarModuleNames, NATIVE_GRAMMAR_MODULES } from '../../src/lang/tree-sitter/native-runtime.js';
 import { resolveBootstrapBudget, runBootstrapTasks } from './bootstrap-tasks.js';
 import { createNativeBuildTasks, inspectNativeBuildAdapter } from './native-build-plan.js';
 import { formatSetupPreflight, runSetupPreflight } from './preflight.js';
 import { verifyWindowsCompilerCapability } from './windows-capability.js';
+import { runNativeSetupCommand, settledNativeSetupFailure } from './native-command-result.js';
 import { parseNativeRebuildArguments, NATIVE_REBUILD_USAGE } from './checkout-bootstrap-arguments.js';
 
 const { help, verifyOnly, repairOnly } = parseNativeRebuildArguments(process.argv.slice(2));
@@ -136,25 +137,10 @@ const runNativeCommand = async (command, args, { cwd = root, buildFromSource = f
   signal = null, compilerJobs = bootstrapBudget.cpuCount, env: extraEnv = {}, capture = false } = {}) => {
   const env = { ...buildNpmEnv({ buildFromSource }), ...extraEnv,
     npm_package_config_node_gyp_jobs: String(compilerJobs) };
-  try {
-    const result = await spawnResolvedSubprocess(command, args, {
-      cwd, stdio: capture ? 'pipe' : 'inherit', env, signal, timeoutMs: 600000,
-      maxOutputBytes: 8 * 1024 * 1024, rejectOnNonZeroExit: false, windowsHide: true
-    });
-    const truncated = result.outputCapture?.stdout?.truncated || result.outputCapture?.stderr?.truncated;
-    return {
-      ok: result.exitCode === 0 && !truncated,
-      stdout: result.stdout, stderr: result.stderr,
-      message: truncated ? 'Native task output exceeded the bounded transcript capacity.' : result.exitCode === 0
-        ? null
-        : formatSpawnFailureReason({ status: result.exitCode, signal: result.signal })
-    };
-  } catch (err) {
-    return {
-      ok: false,
-      message: err?.message || String(err), stdout: err.result?.stdout, stderr: err.result?.stderr
-    };
-  }
+  return runNativeSetupCommand(command, args, {
+    cwd, stdio: capture ? 'pipe' : 'inherit', env, signal, timeoutMs: 600000,
+    maxOutputBytes: 8 * 1024 * 1024, rejectOnNonZeroExit: false, windowsHide: true
+  });
 };
 const runNpmCommand = (args, options) => runNativeCommand('npm', args, options);
 
@@ -265,7 +251,8 @@ const probePackageIsolated = async (pkgName, grammarRoutes, signal) => {
     if (child.stderr?.trim()) return { ok: false, message: child.stderr.trim() };
     return JSON.parse(child.stdout);
   } catch (error) {
-    return { ok: false, message: error.result?.stderr?.trim() || error.message };
+    const failure = settledNativeSetupFailure(error, 'native-activation-probe');
+    return { ...failure, message: failure.stderr?.trim() || failure.message };
   }
 };
 

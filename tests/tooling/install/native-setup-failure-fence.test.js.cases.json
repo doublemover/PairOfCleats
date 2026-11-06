@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["original-failures", "pending-resource-fence", "transcript-status", "cancellation-and-status"]
+}

@@ -28,6 +28,12 @@ distinct from compiler outcomes and cancel further admission while already
 running owners drain. Diagnostic accessors are not invoked to classify failures.
 The added failure/observer regressions await execution; this is not a native
 readiness or complete bootstrap qualification.
+Native build and activation-probe failures use the original storage-observation
+owner before projecting diagnostics. Unsettled children and actual cancellation
+escape the ordinary failed-result path, so they cannot trigger a fallback build
+or successor probe. A settled compiler with truncated output has a separate
+terminal transcript error retaining its actual compiler status and original
+captured bytes. Four added controls await execution.
 
 ## Windows
 

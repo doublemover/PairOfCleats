@@ -2669,3 +2669,7 @@ tooling/install/bootstrap-verification-generation/setup-input-drift
 tooling/install/bootstrap-verification-generation/dependency-artifact-drift
 tooling/install/bootstrap-verification-generation/original-single-use-capture
 tooling/install/bootstrap-verification-generation/receipt-evidence-and-cutover
+tooling/install/native-setup-failure-fence/original-failures
+tooling/install/native-setup-failure-fence/pending-resource-fence
+tooling/install/native-setup-failure-fence/transcript-status
+tooling/install/native-setup-failure-fence/cancellation-and-status

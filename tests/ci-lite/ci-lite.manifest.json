@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 2501,
+    "hero": 2505,
     "matrix": 110,
     "meta": 54,
     "soak": 1,
@@ -16009,6 +16009,30 @@
     {
       "id": "tooling/install/bootstrap-verification-generation/receipt-evidence-and-cutover",
       "order": 2666,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/native-setup-failure-fence/original-failures",
+      "order": 2667,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/native-setup-failure-fence/pending-resource-fence",
+      "order": 2668,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/native-setup-failure-fence/transcript-status",
+      "order": 2669,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/native-setup-failure-fence/cancellation-and-status",
+      "order": 2670,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     }

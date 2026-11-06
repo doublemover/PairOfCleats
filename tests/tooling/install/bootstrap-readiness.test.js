@@ -21,6 +21,7 @@ const inputs = ['.nvmrc', 'tools/setup/checkout-diagnose.js', 'tools/setup/prefl
   'tools/setup/rebuild-native-sqlite.js', 'tools/setup/readiness.js', 'src/shared/native-package-probe.js',
   'src/shared/native-onnx-probe.js',
   'tools/setup/bootstrap-tasks.js', 'tools/setup/native-build-plan.js',
+  'tools/setup/native-command-result.js',
   'tools/setup/windows-capability.js',
   'src/shared/bootstrap-readiness.js', 'src/lang/tree-sitter/native-runtime.js',
   'src/lang/tree-sitter/native-grammar-binding.js',
