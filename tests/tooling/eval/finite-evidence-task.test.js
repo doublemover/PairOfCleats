@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { authoredEvidenceTask, evidenceTaskHash as hash } from '../../helpers/finite-evidence-task.js';
 import { compileEvidenceTask, inspectEvidenceTaskCompilation, projectCandidateEvidenceTask,
-  readCandidateEvidenceSource, disposeEvidenceTask } from '../../../src/retrieval/evaluation/tasks/compiler.js';
+  readCandidateEvidenceSource, disposeEvidenceTask, evidenceTaskSourceReference } from '../../../src/retrieval/evaluation/tasks/compiler.js';
 import { assignEvidenceTaskSplits, evidenceTaskSplitMembership, projectRunnableEvidenceTask } from '../../../src/retrieval/evaluation/tasks/splits.js';
 import { scoreEvidenceTask, inspectEvidenceTaskOutcome } from '../../../src/retrieval/evaluation/tasks/score.js';
 
@@ -78,7 +78,8 @@ if (mode === 'private-oracle-visible-packets') {
   inputs[1].lineage.issueFixFamilyIds = [hash('fix-two-three')]; inputs[2].lineage.issueFixFamilyIds = [hash('fix-two-three')];
   inputs[4].sourceSnapshot[0].text = inputs[3].sourceSnapshot[0].text;
   // Recompile its source-bound private reference after the exact text change.
-  const publicFour = prepare(inputs[3]); inputs[4].privateOracle.units[0].source = publicFour.input.privateOracle.units[0].source;
+  inputs[4].privateOracle.units[0].source = evidenceTaskSourceReference({ repositoryNamespace: inputs[4].spec.worldRef.repositoryNamespace,
+    ...inputs[4].sourceSnapshot[0], span: [0, inputs[4].sourceSnapshot[0].text.length] });
   const tasks = inputs.map(input => compileEvidenceTask(input)), manifest = assignEvidenceTaskSplits(tasks, policy), reverse = assignEvidenceTaskSplits([...tasks].reverse(), policy);
   assert.equal(manifest.manifestId, reverse.manifestId); assert.deepEqual(manifest.assignments, reverse.assignments);
   const members = tasks.map(task => evidenceTaskSplitMembership(manifest, task));
@@ -86,6 +87,14 @@ if (mode === 'private-oracle-visible-packets') {
   assert.equal(members[3].groupId, members[4].groupId); assert.notEqual(members[0].groupId, members[3].groupId);
   assert.equal(manifest.audit.nearDuplicateCoverage, 'unchecked'); assert.equal(manifest.audit.trainingContamination, 'not-established');
   assert.equal(manifest.work.sourceIdentityReuse, 'compiler-owned-digests; no-text-rehash');
+  const sameRepository = authoredEvidenceTask('same-repository-new-task');
+  sameRepository.spec.worldRef.repositoryNamespace = inputs[0].spec.worldRef.repositoryNamespace;
+  sameRepository.privateOracle.units.forEach((unit, index) => { unit.source = evidenceTaskSourceReference({
+    repositoryNamespace: sameRepository.spec.worldRef.repositoryNamespace, ...sameRepository.sourceSnapshot[index], span: [0, sameRepository.sourceSnapshot[index].text.length] }); });
+  const sameTask = compileEvidenceTask(sameRepository), sameManifest = assignEvidenceTaskSplits([tasks[0], sameTask], policy);
+  assert.notEqual(inputs[0].lineage.repositoryFamilyId, sameRepository.lineage.repositoryFamilyId);
+  assert.equal(evidenceTaskSplitMembership(sameManifest, tasks[0]).groupId, evidenceTaskSplitMembership(sameManifest, sameTask).groupId,
+    'canonical repository equality cannot be overridden by different declared family labels');
   const future = authoredEvidenceTask(); future.sourceSnapshot[0].availableAt = future.spec.cutoffAt + 1;
   const quarantined = prepare(future); assert.equal(inspectEvidenceTaskCompilation(quarantined.task).state, 'quarantined');
   assert.throws(() => projectRunnableEvidenceTask(quarantined.manifest, quarantined.task), { code: 'ERR_EVIDENCE_TASK_SPLIT' });

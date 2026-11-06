@@ -44,8 +44,10 @@ separate axes, and no submitted span is inferred to have been read or used.
 
 `assignEvidenceTaskSplits` freezes up to 64 original compiled tasks under weights
 summing to 10,000. Connected declared repository/clone/fix/trajectory/origin/
-synthesis ancestry and exact source hashes stay in one split. Original compiler
-digests are reused without hashing source text again. Seeded component assignment
+synthesis ancestry and exact source hashes stay in one split.
+Canonical repository namespaces also group together even when supplied family
+labels disagree; those labels cannot split one known repository across holdouts.
+Compiler digests are reused without hashing source text again. Seeded component assignment
 is independent of corpus order and oracle answers. Near-duplicate recall,
 below-threshold review, historical exposure and training contamination remain
 explicitly unchecked. Equal utility text can conservatively overcluster tasks;

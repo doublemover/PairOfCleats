@@ -5,6 +5,7 @@ import { evidenceTaskSourceReference } from '../../src/retrieval/evaluation/task
 export const evidenceTaskHash = value => createHash('sha256').update(value).digest('hex');
 export const authoredEvidenceTask = (seed = 'one') => {
   const hash = evidenceTaskHash, worldRef = createRepositoryAnswerInput().queryReceipt.world;
+  worldRef.repositoryNamespace = 'authored-task-repository-' + seed;
   const sourceSnapshot = [{ path: 'src/main.js', language: 'javascript', text: 'export const main = 42; // ' + seed, availableAt: 10, role: 'source' },
     { path: 'src/alternative.js', language: 'javascript', text: 'export const alternative = true; // ' + seed, availableAt: 10, role: 'source' },
     { path: 'src/helper.js', language: 'javascript', text: 'export const helper = "😀"; // ' + seed, availableAt: 10, role: 'source' }];

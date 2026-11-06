@@ -41,6 +41,7 @@ export const assignEvidenceTaskSplits = (tasks, policy, { signal = null } = {}) 
     if (row.report.state === 'quarantined') continue;
     const lineage = row.input.lineage;
     row.keys.add('public-task:' + row.report.publicTaskId); row.keys.add('repository:' + lineage.repositoryFamilyId);
+    row.keys.add('repository-namespace:' + hash('repository-namespace', row.input.spec.worldRef.repositoryNamespace));
     for (const name of ['cloneFamilyIds', 'issueFixFamilyIds', 'trajectoryFamilyIds', 'sourceOriginIds', 'synthesisAncestorIds']) {
       for (const id of lineage[name]) row.keys.add(name + ':' + id);
     }
