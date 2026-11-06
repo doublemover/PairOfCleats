@@ -46,7 +46,7 @@ export const createRepositoryQueryRunner = ({ openStore = openSemanticQueryStore
       throwIfAborted(signal);
       const value = await service({ store: opened.store, request, signal, deferPublication: true });
       throwIfAborted(signal);
-      assertRepositoryQuery(request.mode === 'describe' ? 'description' : 'page', value);
+      assertRepositoryQuery(request.mode === 'describe' ? 'description' : request.mode === 'explain' ? 'explanation' : 'page', value);
       return value;
     }, () => close?.());
     throwIfAborted(signal);

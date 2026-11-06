@@ -16,7 +16,7 @@ const locator = (owner, member, offset, row) => ({ owner, member, offset, rowHas
 /** One request-local facade over existing admitted readers. Retained state is
  * refs, source sort keys and exact reader positions; never native resources.
  */
-export const createCurrentQuestionFacts = ({ store, profile, state, signal, diagnose, maxStateBytes }) => {
+export const createCurrentQuestionFacts = ({ store, profile, state, signal, diagnose, maxStateBytes, diagnosticMode = false }) => {
   const targets = new Set(state.seed?.targets.map(entry => questionRefKey(entry.ref)) || []);
   const literals = new Set(state.seed?.literals.map(entry => questionRefKey(entry.ref)) || []);
   const record = async ref => {
@@ -123,7 +123,7 @@ export const createCurrentQuestionFacts = ({ store, profile, state, signal, diag
       seed.operandOffset = page.offset;
       if (page.done) {
         if (!seed.sawOperand) diagnose('refuted', profile.operand.operatorId, 'operand-absent-from-retained-facts', seed.ref);
-        seed.phase = seed.literals.length ? 'direct-targets' : 'done';
+        seed.phase = diagnosticMode || seed.literals.length ? 'direct-targets' : 'done';
       }
       return;
     }
@@ -191,5 +191,5 @@ export const createCurrentQuestionFacts = ({ store, profile, state, signal, diag
     if (seed.outer === outer.length) seed.phase = 'done';
     state.emitted++;
   };
-  return { advance, row, consumeRow };
+  return { advance, row, consumeRow, readEntity: entity, verifyFact };
 };

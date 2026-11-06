@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["same-binding-truth", "unknown-and-authority", "paging-and-transports"]
+}

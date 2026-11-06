@@ -22,12 +22,12 @@ export const runRepositoryQueryCli = async (argv = process.argv, { output = proc
   let cursor = request.cursor || null;
   do {
     throwIfAborted(signal);
-    const value = request.mode === 'execute' ? { ...request, cursor } : request;
+    const value = request.mode === 'describe' ? request : { ...request, cursor };
     const result = await runner(value, { signal });
-    assertRepositoryQuery(request.mode === 'describe' ? 'description' : 'page', result);
+    assertRepositoryQuery(request.mode === 'describe' ? 'description' : request.mode === 'explain' ? 'explanation' : 'page', result);
     throwIfAborted(signal);
     if (!output.write(JSON.stringify(result) + '\n')) await once(output, 'drain', { signal });
-    cursor = args.all && request.mode === 'execute' ? result.cursor : null;
+    cursor = args.all && request.mode !== 'describe' ? result.cursor : null;
   } while (cursor);
 };
 if (isDirectExecution(import.meta.url)) runRepositoryQueryCli().catch(error => {

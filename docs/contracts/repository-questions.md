@@ -138,7 +138,7 @@ identity and coordinates; it is not a verified source quotation. Mapped/binary
 coordinates, external source-less declarations, unavailable scalars and oversized
 values produce explicit unknown diagnostics. Exact refutations describe only
 retained clauses. The diagnostic list is a bounded selection with omitted counts;
-it is not a causal explanation or exhaustive why-not service.
+execution diagnostics are not a causal or exhaustive why-not explanation.
 
 Enumeration, observed analysis coverage and program semantics remain separate.
 Exact totals count only an exhausted retained relation with no unresolved
@@ -153,3 +153,30 @@ clause positions; replay/expiry/world/backend authority; falsey close failure an
 publication ordering; retention/cancellation/oversized candidate state; physical
 profile admission and wrong-call witnesses; and CLI/MCP/HTTP parity with streamed
 backpressure. Existing source-open and semantic reader coverage remains in place.
+
+For a complete original tuple, `mode: "explain"` accepts the same typed question
+plus `bindingRefs: {invocation, declaration, literal}`. The Invocation must be
+inside the original source domain and have the requested invocation kind. Every
+ref must belong to the opened immutable generation and have its declared sort.
+The explainer evaluates all compiled clauses at those exact refs, including name
+and scalar filters after a failed target/operand join. It does not search for a
+different tuple or silently relax the question.
+
+Explanations reuse the production target/operand reader and continuation owner.
+They collect the bounded call facts without the conjunction optimizer's filter
+short-circuit, then report each clause as satisfied, refuted in retained input,
+or unknown. Refuted membership requires exhaustion of that retained call's
+facts; incomplete source/operand qualification stays unknown. These are not
+runtime absence, type/effect, feasibility or causal claims. Equivalent compiled
+clauses retain every original authored ID/path in the shared origin map.
+
+Explanations page with the same byte/work/retention limits; `limits.records`
+bounds returned clauses in this mode. Each page rehydrates the three selected
+bindings and verifies selected witness positions. Cursors bind the full tuple,
+question, mode and backend and publish only after reader cleanup. Original
+expected and retained actual name/scalar values remain typed. Final clause
+completion and overall conjunction truth are separate from analysis coverage
+and program semantics; a refuted conjunct can decide the retained tuple even
+when another conjunct remains unknown. Three authored, unexecuted cases cover
+same-call truth, independent failed clauses, duplicate clause origins, source
+unknowns, scope/sort negatives, SQLite parity, cursor authority and CLI/MCP paging.

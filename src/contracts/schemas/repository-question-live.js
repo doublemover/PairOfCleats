@@ -3,6 +3,7 @@ import { SEMANTIC_RECORD_REF_SCHEMA as ref } from './semantic.js';
 import { SEMANTIC_DETAIL_REQUEST_SCHEMA } from './semantic-query.js';
 import { REPOSITORY_QUESTION_SCHEMA, QUESTION_WORLD_SCHEMA as world, QUESTION_SCAN_SCHEMA as scan,
   QUESTION_BINDING_SCHEMA as binding, QUESTION_GENERATION_SCHEMA as generation, REPOSITORY_QUESTION_VERSION } from './repository-question.js';
+import { QUESTION_SCALAR_SCHEMA } from './repository-question.js';
 
 const text = maximum => ({ type: 'string', minLength: 1, maxLength: maximum });
 const list = (items, maximum) => ({ type: 'array', items, maxItems: maximum });
@@ -11,9 +12,12 @@ const bounded = maximum => ({ type: 'integer', minimum: 1, maximum });
 const backend = { enum: ['artifact', 'sqlite'] };
 const envelope = { schemaVersion: { const: REPOSITORY_QUESTION_VERSION }, repoRoot: text(4096), generation };
 const limits = object({}, { records: bounded(128), bytes: { type: 'integer', minimum: 1024, maximum: 65536 }, workMs: bounded(250) });
+const bindingRefs = object({ invocation: ref, declaration: ref, literal: ref });
 export const REPOSITORY_QUERY_REQUEST_SCHEMA = { type: 'object', oneOf: [
   object({ ...envelope, mode: { const: 'describe' }, scan }, { backend }),
   object({ ...envelope, mode: { const: 'execute' }, question: REPOSITORY_QUESTION_SCHEMA }, { backend,
+    cursor: { anyOf: [text(128), { type: 'null' }] }, limits }),
+  object({ ...envelope, mode: { const: 'explain' }, question: REPOSITORY_QUESTION_SCHEMA, bindingRefs }, { backend,
     cursor: { anyOf: [text(128), { type: 'null' }] }, limits })
 ] };
 const operatorId = { type: 'integer', minimum: 0, maximum: 63 };
@@ -23,12 +27,13 @@ const witness = { oneOf: [object({ operatorId, ref }),
     certainty: { enum: ['exact-static', 'modeled', 'heuristic'] } }),
   object({ operatorId, meaning: { const: 'syntactic-zero-based-argument' }, fact })] };
 const diagnostic = object({ operatorId: { anyOf: [operatorId, { type: 'null' }] }, reason: text(128) }, { ref });
+const originMap = list(object({ operatorId, authored: list(object({ clauseId: text(64),
+  path: list({ anyOf: [text(64), uint] }, 8) }), 64) }), 64);
 export const REPOSITORY_QUERY_PAGE_SCHEMA = object({ schemaVersion: { const: REPOSITORY_QUESTION_VERSION },
   kind: { const: 'repository-question-indexed-page' }, profile: text(128), world, requestDigest: hash, logicalPlanId: hash, physicalPlanId: hash,
   status: { enum: ['partial', 'complete-in-retained-input'] }, rows: list(object({ rowId: hash, bindings: list(binding, 3),
     witnesses: list(witness, 64), detailRequest: SEMANTIC_DETAIL_REQUEST_SCHEMA }), 128),
-  originMap: list(object({ operatorId, authored: list(object({ clauseId: text(64),
-    path: list({ anyOf: [text(64), uint] }, 8) }), 64) }), 64),
+  originMap,
   frontier: list(diagnostic, 64), refutations: list(diagnostic, 64), frontierOmitted: uint, refutationsOmitted: uint,
   completion: object({ enumeration: { enum: ['partial', 'complete-in-retained-input'] },
     analysis: { enum: ['unobserved', 'incomplete', 'complete'] }, programSemantics: { const: 'not-established' }, rankedPrefix: { const: 'not-established' } }),
@@ -42,3 +47,16 @@ export const REPOSITORY_QUERY_DESCRIPTION_SCHEMA = object({ schemaVersion: { con
   predicates: list(object({ id: text(128), version: bounded(65536), meaning: text(128) }), 4),
   liveFragment: { const: 'one Invocation, one Declaration, one Literal; conjunctive target/argument producers and pure filters; select all three, Invocation first' },
   sourceDomain: { const: 'expression-bearing-retained-sources' }, programSemantics: { const: 'not-established' } });
+const observedValue = { anyOf: [{ type: 'string', maxLength: 4096 }, QUESTION_SCALAR_SCHEMA, { type: 'null' }] };
+export const REPOSITORY_QUERY_EXPLANATION_SCHEMA = object({ schemaVersion: { const: REPOSITORY_QUESTION_VERSION },
+  kind: { const: 'repository-question-clause-page' }, profile: text(128), world, requestDigest: hash, logicalPlanId: hash, physicalPlanId: hash,
+  bindingRefs, qualifiedBindings: list(binding, 3), originMap,
+  clauses: list(object({ operatorId, status: { enum: ['satisfied-in-retained-input', 'refuted-in-retained-input', 'unknown'] },
+    meaning: text(128), reason: text(128), witnesses: list(witness, 1) }, { expected: observedValue, actual: observedValue }), 64),
+  questionAtBinding: { enum: ['incomplete', 'satisfied-in-retained-input', 'refuted-in-retained-input', 'unknown'] },
+  frontier: list(diagnostic, 64), frontierOmitted: uint,
+  completion: object({ clauses: { enum: ['partial', 'complete'] }, analysis: { enum: ['unobserved', 'incomplete', 'complete'] },
+    programSemantics: { const: 'not-established' } }),
+  counts: object({ returnedClauses: uint, evaluatedThroughCursor: uint, totalClauses: bounded(64) }),
+  verification: { const: 'retained-records-and-source-headers' }, diagnosticSelection: { const: 'all-compiled-clauses-at-the-original-binding' },
+  cursor: { anyOf: [text(128), { type: 'null' }] }, work: object({ steps: uint, elapsedMs: { type: 'number', minimum: 0 }, retainedStateBytes: uint }) });

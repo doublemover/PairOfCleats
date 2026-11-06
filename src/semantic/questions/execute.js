@@ -6,20 +6,16 @@ import { captureSemanticRequest } from '../request-snapshot.js';
 import { REPOSITORY_QUERY_REQUEST_SCHEMA } from '../../contracts/schemas/repository-question-live.js';
 import { assertRepositoryQuery } from '../../contracts/validators/repository-question-live.js';
 import { REPOSITORY_QUESTION_VERSION } from '../../contracts/schemas/repository-question.js';
-import { createSemanticCoverageQualification, semanticCoverageIsComplete } from '../coverage-qualification.js';
+import { semanticCoverageIsComplete } from '../coverage-qualification.js';
 import { createSemanticContinuationBudget, isSemanticContinuationBudget } from '../continuation-budget.js';
 import { stageSemanticPagePublication } from '../page-publication.js';
 import { compileRepositoryQuestion, QUESTION_PREDICATES } from './compile.js';
 import { admitCurrentReaderQuestion, describeQuestionWorld, CURRENT_READER_QUESTION_PROFILE, normalizeQuestionScan } from './current-reader-profile.js';
 import { createCurrentQuestionFacts } from './current-reader-facts.js';
+import { QUESTION_BASE_STATE_BYTES as BASE_STATE_BYTES, createQuestionSeed, createQuestionReaderState } from './current-reader-state.js';
+import { explainRepositoryQuestion } from './explain.js';
 
 const fail = (code, message) => Object.assign(new Error(message), { code });
-const BASE_STATE_BYTES = 65536;
-const createSeed = ref => ({ ref, phase: 'admit', operandOffset: 0, edgeOffset: 0, occurrenceOffset: 0,
-  occurrence: null, occurrenceDone: false, sawOperand: false, source: null, targets: [], literals: [], outer: 0, inner: 0 });
-const initialState = () => ({ path: null, pathAfter: null, pathIndex: 0, pathDone: false, sourcesDone: false, after: null,
-  seed: null, retainedBytes: BASE_STATE_BYTES, emitted: 0, unknown: false, unresolved: 0, done: false,
-  lastCoverageSourceUnit: null, qualification: createSemanticCoverageQualification() });
 const retirement = (continuations, token) => () => continuations.delete(token);
 // Factory outside the page activation: retained callbacks cannot keep hydrated
 // rows, a native store, a reader scope or the current response alive.
@@ -81,7 +77,11 @@ export const createRepositoryQuestionService = ({ maxRecords = 128, maxBytes = 6
     retentionBudget.sweep();
     const saved = request.cursor ? continuations.get(request.cursor) : null;
     if (request.cursor && (!saved || saved.key !== key || saved.expires <= Date.now())) throw fail('ERR_SEMANTIC_CURSOR_EXPIRED', 'Question cursor expired or belongs to another request, generation, backend or input inventory. Restart the original question.');
-    const state = saved ? structuredClone(saved.state) : initialState();
+    const state = saved ? structuredClone(saved.state) : createQuestionReaderState();
+    if (request.mode === 'explain') {
+      const result = await explainRepositoryQuestion({ store, request, profile, plan, state, signal, limits, began, maxStateBytes });
+      return { result, entry: result.cursor ? { key, state } : null };
+    }
     const result = { schemaVersion: REPOSITORY_QUESTION_VERSION, kind: 'repository-question-indexed-page', profile: CURRENT_READER_QUESTION_PROFILE,
       world: profile.world, requestDigest: plan.requestDigest, logicalPlanId: plan.logicalPlanId, physicalPlanId: plan.physicalPlanId,
       status: 'partial', rows: [], originMap: plan.originMap, frontier: [], refutations: [], frontierOmitted: 0, refutationsOmitted: 0,
@@ -137,7 +137,7 @@ export const createRepositoryQuestionService = ({ maxRecords = 128, maxBytes = 6
         if (page.refs.length > 1 || !page.done && !page.refs.length) throw fail('ERR_SEMANTIC_INTEGRITY', 'Ordered operation reader failed bounded progress.');
         state.pathDone = page.done; state.after = page.after;
         if (page.refs.length) {
-          state.seed = createSeed(page.refs[0]);
+          state.seed = createQuestionSeed(page.refs[0]);
           facts = createCurrentQuestionFacts({ store, profile, state, signal, diagnose, maxStateBytes });
         }
       }

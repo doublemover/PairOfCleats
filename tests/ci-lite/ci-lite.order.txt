@@ -2558,3 +2558,6 @@ shared/storage/error-projection-originals/pending-originals
 shared/storage/error-projection-originals/metadata-observers
 shared/storage/error-projection-originals/inspection-and-falsey
 shared/storage/error-projection-originals/bounded-and-reentrant
+semantic/questions/clause-explanation/same-binding-truth
+semantic/questions/clause-explanation/unknown-and-authority
+semantic/questions/clause-explanation/paging-and-transports

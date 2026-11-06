@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 2390,
+    "hero": 2393,
     "matrix": 110,
     "meta": 54,
     "soak": 1,
@@ -15343,6 +15343,24 @@
     {
       "id": "shared/storage/error-projection-originals/bounded-and-reentrant",
       "order": 2555,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "semantic/questions/clause-explanation/same-binding-truth",
+      "order": 2556,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "semantic/questions/clause-explanation/unknown-and-authority",
+      "order": 2557,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "semantic/questions/clause-explanation/paging-and-transports",
+      "order": 2558,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }
