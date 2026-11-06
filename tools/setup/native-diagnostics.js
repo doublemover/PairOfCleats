@@ -9,7 +9,7 @@ import { createCollector } from '../../src/shared/subprocess/options.js';
 import { addStorageFailureContext } from '../../src/shared/storage/operation-error.js';
 import { readErrorDataProperty } from '../../src/shared/error-data.js';
 import { requireCheckoutMutationSession } from './checkout-mutation.js';
-import { getCheckoutEvidenceFiles } from './checkout-evidence-files.js';
+import { getCheckoutEvidenceFiles, captureCheckoutEvidenceIO } from './checkout-evidence-files.js';
 
 const MIB = 1024 * 1024, METADATA_RESERVE = 32 * 1024;
 export const NATIVE_DIAGNOSTIC_LIMITS = Object.freeze({ attempts: 384, diskBytes: 32 * MIB,
@@ -31,7 +31,7 @@ export const createNativeSetupDiagnostics = (root, session, { limits = NATIVE_DI
   for (const key of Object.keys(NATIVE_DIAGNOSTIC_LIMITS)) {
     if (!Number.isSafeInteger(limits[key]) || limits[key] < 1 || limits[key] > NATIVE_DIAGNOSTIC_LIMITS[key]) throw new TypeError('Invalid native diagnostic bound.');
   }
-  const evidence = getCheckoutEvidenceFiles(root, session);
+  const evidence = getCheckoutEvidenceFiles(root, session), capturedIO = captureCheckoutEvidenceIO(io);
   let directory = null, directoryIdentity = null, reservedBytes = 0, writtenBytes = 0, attempts = 0;
   let terminalFailure = null;
   const rows = [];
@@ -99,7 +99,7 @@ export const createNativeSetupDiagnostics = (root, session, { limits = NATIVE_DI
           check(); const file = prefix + '.' + channel;
           const stream = { channel, file, owner: null, tail: createCollector({ enabled: true, maxOutputBytes: limits.tailBytes, encoding: 'utf8' }),
             hash: createHash('sha256'), writtenBytes: 0, observedBytes: 0 };
-          stream.owner = evidence.open(file, { io });
+          stream.owner = evidence.open(file, { io: capturedIO });
           streams.push(stream);
         }
         const receive = stream => chunk => {

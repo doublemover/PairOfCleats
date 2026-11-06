@@ -2765,3 +2765,8 @@ tooling/install/checkout-evidence-files/original-path-and-link-admission
 tooling/install/checkout-evidence-files/unknown-open-retains-root
 tooling/install/checkout-evidence-files/changed-parent-closes-original-descriptor
 tooling/install/native-diagnostic-ownership/handled-live-child-retains-root
+tooling/install/checkout-stage-journal/durable-start-before-borrowed-work
+tooling/install/checkout-stage-journal/whole-owner-publication-drain
+tooling/install/checkout-stage-journal/closed-owner-rejects-borrowed-work
+tooling/install/checkout-stage-journal/captured-plan-and-io-provider
+tooling/install/native-diagnostic-ownership/original-io-provider-capture

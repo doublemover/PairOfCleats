@@ -107,6 +107,11 @@ original checkout mutation session. Nested operations borrow its opaque
 capability; environment flags and serialized metadata cannot grant ownership.
 Imports are inert. The existing subprocess/task owners handle cancellation,
 actual child close, original resource observations and shutdown.
+The complete journal startup/final publication scope is tracked by that original
+mutation owner. Borrowers wait for durable startup, and finalization closes
+admission before draining existing work.
+Plan data and original IO methods/receivers are captured before asynchronous
+admission, so later caller edits cannot change the selected operation.
 
 Journal/native stream descriptors register with one original evidence-file group
 before admission. Even a caller returning early cannot retire the checkout while

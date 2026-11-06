@@ -7,9 +7,24 @@ import { createStorageObservationLedger } from '../../src/shared/storage/failure
 import { requireCheckoutMutationSession, retainCheckoutMutationPrerequisite } from './checkout-mutation.js';
 
 const groups = new WeakMap();
+const ioCaptures = new WeakMap(), nativeOpen = fs.openSync;
 const LIMIT = 1024; // One journal plus two streams for each of 384 native attempts.
 const failure = message => Object.assign(new Error(message), { code: 'ERR_CHECKOUT_EVIDENCE_FILE' });
 const admitted = /^(?:\.tmp\/checkout-bootstrap\/j-[a-zA-Z0-9_-]{6,32}\/stages\.jsonl|\.tmp\/checkout-bootstrap\/logs\/n-[a-zA-Z0-9_-]{6,32}\/\d{3}\.(?:stdout|stderr))$/;
+
+/** Method/receiver capture only, not permission to open a path. A clone cannot
+ * stand in for this original provider snapshot after async admission. */
+export const captureCheckoutEvidenceIO = io => {
+  if (ioCaptures.has(io)) return io;
+  if (!io || !['object', 'function'].includes(typeof io)) throw new TypeError('Evidence IO requires an original provider.');
+  const captured = { receiver: io };
+  for (const field of ['openSync', 'fstatSync', 'readSync', 'closeSync', 'writeSync', 'fsyncSync']) {
+    const method = io[field];
+    if (typeof method !== 'function') throw new TypeError('Evidence IO requires its original ' + field + ' method.');
+    captured[field] = method;
+  }
+  const token = Object.freeze({ kind: 'checkout-evidence-io-capture' }); ioCaptures.set(token, Object.freeze(captured)); return token;
+};
 
 /** Original contained descriptors, aggregated once under their checkout owner.
  * Paths/identities are comparison data; copied metadata grants no IO authority.
@@ -40,16 +55,17 @@ export const getCheckoutEvidenceFiles = (root, session) => {
         if (stat.isSymbolicLink()) throw failure('Evidence file ancestors must be ordinary directories.');
         assertDirectoryIdentity(stat); directories.push([parent, stat]);
       }
-      const open = io.openSync, methods = { receiver: io, stat: io.fstatSync, read: io.readSync, close: io.closeSync,
-        write: io.writeSync, sync: io.fsyncSync };
+      const captured = ioCaptures.get(captureCheckoutEvidenceIO(io)), open = captured.openSync;
+      const methods = { receiver: captured.receiver, stat: captured.fstatSync, read: captured.readSync, close: captured.closeSync,
+        write: captured.writeSync, sync: captured.fsyncSync };
       let fd, owner;
       opening = true;
       try {
-        try { fd = open.call(io, file, fs.constants.O_CREAT | fs.constants.O_EXCL | fs.constants.O_WRONLY | (fs.constants.O_NOFOLLOW || 0), 0o600); }
+        try { fd = open.call(captured.receiver, file, fs.constants.O_CREAT | fs.constants.O_EXCL | fs.constants.O_WRONLY | (fs.constants.O_NOFOLLOW || 0), 0o600); }
         catch (error) {
           // The standard synchronous API does not return an acquired fd when it
           // throws. An overriding adapter cannot provide that same guarantee.
-          if (open !== fs.openSync) unknownOpen = true;
+          if (open !== nativeOpen) unknownOpen = true;
           if (unknownOpen) observations.markIncomplete();
           throw error;
         }

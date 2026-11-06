@@ -15,7 +15,7 @@ applyTestEnv();
 const mode = process.env.PAIROFCLEATS_TEST_ID?.split('tooling/install/native-diagnostic-ownership/')[1];
 assert.ok(['exact-bytes-and-tails', 'attempt-history-and-concurrency', 'original-log-failures', 'bounded-admission-and-output',
   'unknown-close-retains-owner', 'original-structured-output', 'structured-output-fences', 'first-byte-observation', 'unknown-write-retains-owner',
-  'handled-live-child-retains-root'].includes(mode));
+  'handled-live-child-retains-root', 'original-io-provider-capture'].includes(mode));
 const root = await makeTempDir('native-diagnostics-');
 const retainedFixtureFds = new Set();
 let liveChild = null, childClosed = false;
@@ -24,7 +24,21 @@ const commandOptions = { cwd: root, stdio: 'pipe', timeoutMs: 5000, maxOutputByt
   rejectOnNonZeroExit: false, killTree: false, windowsHide: true };
 const compact = { ...NATIVE_DIAGNOSTIC_LIMITS, attempts: 8, diskBytes: 1024 * 1024, attemptBytes: 128 * 1024, tailBytes: 64 };
 try {
-  if (mode === 'handled-live-child-retains-root') {
+  if (mode === 'original-io-provider-capture') {
+    await withCheckoutMutation(root, async session => {
+      let opens = 0, closes = 0;
+      const io = { ...fs, openSync(...args) { assert.equal(this, io); opens++; return fs.openSync(...args); },
+        closeSync(fd) { assert.equal(this, io); closes++; return fs.closeSync(fd); } };
+      const diagnostics = createNativeSetupDiagnostics(root, session, { io, limits: compact });
+      io.openSync = () => assert.fail('caller replaced captured log open');
+      io.closeSync = () => assert.fail('caller replaced captured log close');
+      const result = await diagnostics.run('inert-fixture-command', [], commandOptions, async (command, args, options) => {
+        options.onStdoutChunk(Buffer.from('original provider bytes')); return { exitCode: 0, signal: null };
+      });
+      assert.equal(result.diagnostics.evidenceComplete, true); assert.equal(opens, 2); assert.equal(closes, 2);
+      assert.equal(diagnostics.readOutput(result.diagnostics, 'stdout'), 'original provider bytes');
+    });
+  } else if (mode === 'handled-live-child-retains-root') {
     const original = Object.assign(new Error('original child is still waiting for its input owner'), {
       cacheOwnershipPending: true, cacheOwnershipReleased: () => childClosed
     });
@@ -60,6 +74,9 @@ try {
     assert.equal(errorGraphIncludes(failure, original), true); assert.equal(childClosed, false);
     assert.equal(fs.existsSync(path.join(root, CHECKOUT_MUTATION_LOCK)), true);
     assert.equal(failure.cacheOwnershipReleased(), false);
+    original.cacheOwnershipPending = false; original.cacheOwnershipReleased = () => true;
+    await assert.rejects(retireCheckoutMutationSession(failure.checkoutMutationSession));
+    assert.equal(childClosed, false); assert.equal(fs.existsSync(path.join(root, CHECKOUT_MUTATION_LOCK)), true);
     liveChild.stdin.end();
     assert.deepEqual(await childClosure.promise, { code: 0, signal: null });
     await retireCheckoutMutationSession(failure.checkoutMutationSession);

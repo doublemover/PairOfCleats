@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 2597,
+    "hero": 2602,
     "matrix": 110,
     "meta": 54,
     "soak": 1,
@@ -16585,6 +16585,36 @@
     {
       "id": "tooling/install/native-diagnostic-ownership/handled-live-child-retains-root",
       "order": 2762,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/checkout-stage-journal/durable-start-before-borrowed-work",
+      "order": 2763,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/checkout-stage-journal/whole-owner-publication-drain",
+      "order": 2764,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/checkout-stage-journal/closed-owner-rejects-borrowed-work",
+      "order": 2765,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/checkout-stage-journal/captured-plan-and-io-provider",
+      "order": 2766,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/native-diagnostic-ownership/original-io-provider-capture",
+      "order": 2767,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     }

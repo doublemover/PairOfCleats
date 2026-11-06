@@ -10,7 +10,7 @@ import { createStorageObservationLedger } from '../../src/shared/storage/failure
 import { readErrorDataProperty } from '../../src/shared/error-data.js';
 import { requireCheckoutMutationSession, withCheckoutMutation } from './checkout-mutation.js';
 import { BOOTSTRAP_RECEIPT } from './checkout-bootstrap-paths.js';
-import { getCheckoutEvidenceFiles } from './checkout-evidence-files.js';
+import { getCheckoutEvidenceFiles, captureCheckoutEvidenceIO } from './checkout-evidence-files.js';
 
 export const CHECKOUT_JOURNAL_VERSION = 1;
 export const CHECKOUT_JOURNAL_STATUS = '.tmp/checkout-bootstrap/journal-status.json';
@@ -86,11 +86,10 @@ export const readCheckoutJournalStatus = root => {
   return record;
 };
 
-const createJournal = (root, session, plan, { io = fs, publish = atomicWriteJson } = {}) => {
-  requireCheckoutMutationSession(root, session); root = session.root;
+const capturePlan = plan => {
   const serializedPlan = JSON.stringify(plan);
   if (typeof serializedPlan !== 'string' || Buffer.byteLength(serializedPlan) > CHECKOUT_JOURNAL_LIMITS.planBytes) throw failure('Checkout plan exceeds its journal byte bound.');
-  const captured = JSON.parse(serializedPlan), stages = captured.stages;
+  const captured = JSON.parse(serializedPlan), stages = captured?.stages;
   const pendingObjects = [captured]; let objects = 0;
   while (pendingObjects.length) {
     const value = pendingObjects.pop();
@@ -101,6 +100,15 @@ const createJournal = (root, session, plan, { io = fs, publish = atomicWriteJson
   if (!Array.isArray(stages) || !stages.length || stages.length > CHECKOUT_JOURNAL_LIMITS.stages
     || stages.some(stage => typeof stage.id !== 'string' || !/^[a-zA-Z0-9:_-]{1,96}$/.test(stage.id))
     || new Set(stages.map(stage => stage.id)).size !== stages.length) throw failure('Checkout journal requires a bounded ordered stage plan.');
+  return Object.freeze({ serializedPlan, captured, stages });
+};
+
+const createJournal = (root, session, { serializedPlan, captured, stages }, { io, publish }) => {
+  requireCheckoutMutationSession(root, session); root = session.root;
+  const started = Promise.withResolvers();
+  // Its owner still receives the exact startup rejection; this observation
+  // prevents an unused admission gate from becoming an unhandled promise.
+  started.promise.catch(() => {});
   const parent = path.join(root, '.tmp', 'checkout-bootstrap'), directory = fs.mkdtempSync(path.join(parent, 'j-'));
   const directoryIdentity = fs.lstatSync(directory, { bigint: true }); assertDirectoryIdentity(directoryIdentity);
   const file = path.join(directory, 'stages.jsonl'), statusFile = path.join(root, CHECKOUT_JOURNAL_STATUS);
@@ -119,7 +127,7 @@ const createJournal = (root, session, plan, { io = fs, publish = atomicWriteJson
     return pending;
   };
   const planId = createHash('sha256').update(serializedPlan).digest('hex');
-  let bytes = 0, sequence = 0, activeStage = null, closed = false, generationId = null, lastMetadata = null, priorReadiness = null,
+  let bytes = 0, sequence = 0, activeStage = null, accepting = true, closed = false, generationId = null, lastMetadata = null, priorReadiness = null,
     appendFailed = false, stageFailed = false, fileVerified = false, runError = null;
   const check = () => {
     requireCheckoutMutationSession(root, session);
@@ -169,12 +177,12 @@ const createJournal = (root, session, plan, { io = fs, publish = atomicWriteJson
   const journal = Object.freeze({ root, runId: session.runId, planId, file, statusFile,
     snapshot: () => lastMetadata,
     bindVerifiedGeneration: value => {
-      check(); if (closed || typeof value !== 'string' || !/^[a-f0-9]{64}$/.test(value)) throw failure('Checkout verification requires its original active journal and exact generation identity.');
+      check(); if (!accepting || closed || typeof value !== 'string' || !/^[a-f0-9]{64}$/.test(value)) throw failure('Checkout verification requires its original active journal and exact generation identity.');
       if (generationId && generationId !== value) throw failure('Checkout journal already identifies a different verified generation.');
       generationId = value;
     },
     runStage: (id, action) => track(async () => {
-      check(); if (closed || activeStage || stageFailed || stages[outcomes.length]?.id !== id || typeof action !== 'function') throw failure('Checkout stages must execute exactly once in their admitted order.');
+      check(); if (!accepting || closed || activeStage || stageFailed || stages[outcomes.length]?.id !== id || typeof action !== 'function') throw failure('Checkout stages must execute exactly once in their admitted order.');
       activeStage = id;
       const began = append({ state: 'stage-started', stageId: id });
       let result, primary, failed = false;
@@ -249,36 +257,45 @@ const createJournal = (root, session, plan, { io = fs, publish = atomicWriteJson
     }
     if (hasFailure) throw failureValue;
   };
-  return { journal, finish, hasPendingWork: () => pendingWork.size > 0,
-    drain: () => Promise.allSettled([...pendingWork]), borrow: operation => track(() => operation(journal, false)),
+  return { journal, finish, stopAdmission: () => { accepting = false; }, hasPendingWork: () => pendingWork.size > 0,
+    drain: () => Promise.allSettled([...pendingWork]), borrow: operation => {
+      check(); if (!accepting || closed) return Promise.reject(failure('Checkout journal no longer admits borrowed work.'));
+      return track(async () => {
+        await started.promise; check();
+        if (!accepting || closed) throw failure('Checkout journal no longer admits borrowed work.');
+        return operation(journal, false);
+      });
+    },
     start: async () => {
-      initialIdentity = persistenceFileIdentity(owner.operations.stat({ bigint: true }));
-      const previous = path.join(root, BOOTSTRAP_RECEIPT);
-      let stat;
-      try { stat = fs.lstatSync(previous, { bigint: true }); }
-      catch (error) { if (readErrorDataProperty(error, 'code') !== 'ENOENT') throw error; }
-      if (stat) {
-        const parent = fs.lstatSync(path.dirname(previous));
-        if (!parent.isDirectory() || parent.isSymbolicLink()) throw failure('Prior readiness preservation requires an ordinary dependency directory.');
-        const original = persistenceFileIdentity(stat), admit = actual => {
-          if (actual.size > CHECKOUT_JOURNAL_LIMITS.priorReceiptBytes) throw failure('Prior readiness exceeds its preservation byte bound.');
-        };
-        const data = readFileResourceBytesSync(previous, admit, actual => assertPersistenceFileIdentity(actual, original));
-        assertPersistenceFileIdentity(fs.lstatSync(previous, { bigint: true }), original);
-        const target = path.join(directory, 'prior-readiness.json');
-        const actual = await atomicWriteText(target, data, { mkdir: false, mode: 0o600, beforeCommit: () => {
-          check(); assertPersistenceFileIdentity(fs.lstatSync(previous, { bigint: true }), original);
-        } });
-        if (actual !== target) throw failure('Prior readiness preservation did not confirm its original destination.');
-        const sealed = persistenceFileIdentity(fs.lstatSync(target, { bigint: true }));
-        const copied = readFileResourceBytesSync(target, admit, actual => assertPersistenceFileIdentity(actual, sealed));
-        assertPersistenceFileIdentity(fs.lstatSync(target, { bigint: true }), sealed);
-        if (!copied.equals(data)) throw failure('Preserved prior readiness differs from its exact original bytes.');
-        priorReadiness = Object.freeze({ state: 'historical-only-not-current-readiness',
-          path: path.relative(root, target).replaceAll('\\', '/'), bytes: data.length,
-          sha256: createHash('sha256').update(data).digest('hex'), source: BOOTSTRAP_RECEIPT });
-      }
-      append({ state: 'run-started', plan: captured }); await persist('running');
+      try {
+        initialIdentity = persistenceFileIdentity(owner.operations.stat({ bigint: true }));
+        const previous = path.join(root, BOOTSTRAP_RECEIPT);
+        let stat;
+        try { stat = fs.lstatSync(previous, { bigint: true }); }
+        catch (error) { if (readErrorDataProperty(error, 'code') !== 'ENOENT') throw error; }
+        if (stat) {
+          const parent = fs.lstatSync(path.dirname(previous));
+          if (!parent.isDirectory() || parent.isSymbolicLink()) throw failure('Prior readiness preservation requires an ordinary dependency directory.');
+          const original = persistenceFileIdentity(stat), admit = actual => {
+            if (actual.size > CHECKOUT_JOURNAL_LIMITS.priorReceiptBytes) throw failure('Prior readiness exceeds its preservation byte bound.');
+          };
+          const data = readFileResourceBytesSync(previous, admit, actual => assertPersistenceFileIdentity(actual, original));
+          assertPersistenceFileIdentity(fs.lstatSync(previous, { bigint: true }), original);
+          const target = path.join(directory, 'prior-readiness.json');
+          const actual = await atomicWriteText(target, data, { mkdir: false, mode: 0o600, beforeCommit: () => {
+            check(); assertPersistenceFileIdentity(fs.lstatSync(previous, { bigint: true }), original);
+          } });
+          if (actual !== target) throw failure('Prior readiness preservation did not confirm its original destination.');
+          const sealed = persistenceFileIdentity(fs.lstatSync(target, { bigint: true }));
+          const copied = readFileResourceBytesSync(target, admit, actual => assertPersistenceFileIdentity(actual, sealed));
+          assertPersistenceFileIdentity(fs.lstatSync(target, { bigint: true }), sealed);
+          if (!copied.equals(data)) throw failure('Preserved prior readiness differs from its exact original bytes.');
+          priorReadiness = Object.freeze({ state: 'historical-only-not-current-readiness',
+            path: path.relative(root, target).replaceAll('\\', '/'), bytes: data.length,
+            sha256: createHash('sha256').update(data).digest('hex'), source: BOOTSTRAP_RECEIPT });
+        }
+        append({ state: 'run-started', plan: captured }); await persist('running'); started.resolve();
+      } catch (error) { started.reject(error); throw error; }
     } };
 };
 
@@ -288,20 +305,35 @@ const createJournal = (root, session, plan, { io = fs, publish = atomicWriteJson
  */
 export const withCheckoutStageJournal = async (root, session, plan, operation, options = {}) => {
   requireCheckoutMutationSession(root, session);
+  if (typeof operation !== 'function') throw new TypeError('Checkout journal requires its original operation callback.');
   const borrowed = journals.get(session);
   if (borrowed) return borrowed.borrow(operation);
-  const owner = createJournal(root, session, plan, options);
-  journals.set(session, owner);
-  let result, primary, failed = false;
-  try { await owner.start(); result = await operation(owner.journal, true); }
-  catch (error) { primary = error; failed = true; }
-  if (owner.hasPendingWork()) {
-    const unawaited = failure('Checkout journal returned with outstanding original stage or borrowed work.');
-    primary = failed ? addStorageFailureContext(primary, { checkoutJournal: owner.journal.file }, unawaited, { secondaryPresent: true }) : unawaited;
-    failed = true;
-    for (const result of await owner.drain()) if (result.status === 'rejected') primary = addStorageFailureContext(primary, {}, result.reason, { secondaryPresent: true });
-  }
-  try { await owner.finish(primary, failed); }
-  finally { journals.delete(session); }
-  return result;
+  const capturedPlan = capturePlan(plan), { io = fs, publish = atomicWriteJson } = options;
+  if (typeof publish !== 'function') throw new TypeError('Checkout journal requires its original publication callback.');
+  const capturedOptions = Object.freeze({ io: captureCheckoutEvidenceIO(io), publish });
+  return withCheckoutMutation(root, async () => {
+    // A concurrent original caller may have installed the owner while this
+    // borrowed mutation admission was waiting for its microtask.
+    const admitted = journals.get(session);
+    if (admitted) return admitted.borrow(operation);
+    const owner = createJournal(root, session, capturedPlan, capturedOptions);
+    journals.set(session, owner);
+    let result, primary, failed = false, operationStarted = false;
+    try { await owner.start(); operationStarted = true; result = await operation(owner.journal, true); }
+    catch (error) { primary = error; failed = true; }
+    owner.stopAdmission();
+    if (owner.hasPendingWork()) {
+      if (operationStarted) {
+        const unawaited = failure('Checkout journal returned with outstanding original stage or borrowed work.');
+        primary = failed ? addStorageFailureContext(primary, { checkoutJournal: owner.journal.file }, unawaited, { secondaryPresent: true }) : unawaited;
+        failed = true;
+      }
+      for (const result of await owner.drain()) if (result.status === 'rejected' && result.reason !== primary) {
+        primary = failed ? addStorageFailureContext(primary, {}, result.reason, { secondaryPresent: true }) : result.reason; failed = true;
+      }
+    }
+    try { await owner.finish(primary, failed); }
+    finally { journals.delete(session); }
+    return result;
+  }, { session });
 };

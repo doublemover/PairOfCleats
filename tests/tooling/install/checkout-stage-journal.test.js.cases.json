@@ -1,5 +1,6 @@
 {
   "schemaVersion": 1,
   "cases": ["ordered-original-stage-evidence", "strict-and-borrowed-plan", "original-failures-and-incomplete-plan", "independent-log-failures", "unknown-close-retains-owner", "original-outstanding-stage-drain", "unknown-write-retains-owner",
-    "prior-readiness-preserved-before-mutation", "prior-readiness-byte-bound"]
+    "prior-readiness-preserved-before-mutation", "prior-readiness-byte-bound", "durable-start-before-borrowed-work",
+    "whole-owner-publication-drain", "closed-owner-rejects-borrowed-work", "captured-plan-and-io-provider"]
 }

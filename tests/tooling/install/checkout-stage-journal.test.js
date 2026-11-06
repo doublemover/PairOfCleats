@@ -14,14 +14,92 @@ applyTestEnv();
 const mode = process.env.PAIROFCLEATS_TEST_ID?.split('tooling/install/checkout-stage-journal/')[1];
 assert.ok(['ordered-original-stage-evidence', 'strict-and-borrowed-plan', 'original-failures-and-incomplete-plan',
   'independent-log-failures', 'unknown-close-retains-owner', 'original-outstanding-stage-drain', 'unknown-write-retains-owner',
-  'prior-readiness-preserved-before-mutation', 'prior-readiness-byte-bound'].includes(mode));
+  'prior-readiness-preserved-before-mutation', 'prior-readiness-byte-bound', 'durable-start-before-borrowed-work',
+  'whole-owner-publication-drain', 'closed-owner-rejects-borrowed-work', 'captured-plan-and-io-provider'].includes(mode));
 const root = await makeTempDir('checkout-stage-journal-');
 const retainedFixtureFds = new Set();
 const status = () => JSON.parse(fs.readFileSync(path.join(root, CHECKOUT_JOURNAL_STATUS), 'utf8'));
 const plan = { root, inputId: '1'.repeat(64), stages: [{ id: 'dependencies' }, { id: 'verification' }] };
 const owned = (operation, options) => withCheckoutMutation(root, session => withCheckoutStageJournal(root, session, plan, operation, options));
 try {
-  if (mode === 'prior-readiness-preserved-before-mutation') {
+  if (mode === 'captured-plan-and-io-provider') {
+    await withCheckoutMutation(root, async session => {
+      const request = structuredClone(plan); let opens = 0, closes = 0;
+      const io = { ...fs, openSync(...args) { assert.equal(this, io); opens++; return fs.openSync(...args); },
+        closeSync(fd) { assert.equal(this, io); closes++; return fs.closeSync(fd); } };
+      const options = { io, publish: atomicWriteJson };
+      const pending = withCheckoutStageJournal(root, session, request, async journal => {
+        assert.deepEqual(journal.snapshot().selectedPlan.stages.map(row => row.id), ['dependencies', 'verification']);
+        await journal.runStage('dependencies', async () => ({ ok: true }));
+        await journal.runStage('verification', async () => ({ ok: true }));
+      }, options);
+      request.stages[0].id = 'changed-plan';
+      options.publish = () => assert.fail('caller replaced original publication'); options.io = {};
+      io.openSync = () => assert.fail('caller replaced original descriptor open');
+      io.closeSync = () => assert.fail('caller replaced original descriptor close');
+      await pending; assert.equal(opens, 1); assert.equal(closes, 1);
+    });
+    assert.equal(status().state, 'completed');
+  } else if (mode === 'durable-start-before-borrowed-work') {
+    for (const startupFails of [false, true]) await withCheckoutMutation(root, async session => {
+      const entered = Promise.withResolvers(), release = Promise.withResolvers(); let calls = 0, borrowedRan = false;
+      const first = withCheckoutStageJournal(root, session, plan, async journal => {
+        await journal.runStage('dependencies', async () => ({ ok: true }));
+        await journal.runStage('verification', async () => ({ ok: true }));
+      }, { publish: async (...args) => {
+        if (++calls === 1) { entered.resolve(); await release.promise; if (startupFails) throw false; }
+        return atomicWriteJson(...args);
+      } });
+      await entered.promise;
+      const second = withCheckoutStageJournal(root, session, null, async (journal, owned) => {
+        borrowedRan = true; assert.equal(owned, false); assert.equal(journal.snapshot().state, 'running');
+        return 'borrowed-after-durable-start';
+      });
+      const outcomes = Promise.allSettled([first, second]);
+      try { await new Promise(resolve => setImmediate(resolve)); assert.equal(borrowedRan, false); }
+      finally { release.resolve(); }
+      const actual = await outcomes;
+      if (startupFails) {
+        assert.equal(borrowedRan, false);
+        assert.deepEqual(actual.map(row => [row.status, row.reason]), [['rejected', false], ['rejected', false]]);
+      } else {
+        assert.equal(borrowedRan, true); assert.equal(actual[0].status, 'fulfilled');
+        assert.equal(actual[1].value, 'borrowed-after-durable-start');
+      }
+    });
+    assert.equal(fs.existsSync(path.join(root, CHECKOUT_MUTATION_LOCK)), false);
+  } else if (mode === 'whole-owner-publication-drain') {
+    const entered = Promise.withResolvers(), release = Promise.withResolvers(); let returned = false, journalOutcome;
+    const rootOutcome = withCheckoutMutation(root, session => {
+      journalOutcome = withCheckoutStageJournal(root, session, plan,
+        () => assert.fail('an unawaited journal admitted work after its parent returned'), { publish: async (...args) => {
+          entered.resolve(); await release.promise; return atomicWriteJson(...args);
+        } }).then(value => ({ ok: true, value }), error => ({ ok: false, error }));
+    }).then(value => { returned = true; return { ok: true, value }; }, error => { returned = true; return { ok: false, error }; });
+    await entered.promise;
+    try {
+      await new Promise(resolve => setImmediate(resolve));
+      assert.equal(returned, false, 'the original root must drain the journal startup/publication promise, not return with just a retained fd');
+      assert.equal(fs.existsSync(path.join(root, CHECKOUT_MUTATION_LOCK)), true);
+    } finally { release.resolve(); }
+    const [outer, inner] = await Promise.all([rootOutcome, journalOutcome]);
+    assert.equal(outer.ok, false); assert.equal(inner.ok, false);
+    assert.match(outer.error.message, /outstanding|Outstanding/);
+    assert.equal(fs.existsSync(path.join(root, CHECKOUT_MUTATION_LOCK)), false, 'known metadata IO and original descriptor close complete before retirement');
+  } else if (mode === 'closed-owner-rejects-borrowed-work') {
+    await withCheckoutMutation(root, session => withCheckoutStageJournal(root, session, plan, async journal => {
+      await journal.runStage('dependencies', async () => ({ ok: true }));
+      await journal.runStage('verification', async () => ({ ok: true }));
+    }, { publish: async (...args) => {
+      if (args[1].state === 'completed') {
+        let ran = false;
+        await assert.rejects(withCheckoutStageJournal(root, session, null, () => { ran = true; }), /no longer admits borrowed work/);
+        assert.equal(ran, false, 'metadata finalization cannot admit another native/mutation callback');
+      }
+      return atomicWriteJson(...args);
+    } }));
+    assert.equal(status().state, 'completed'); assert.equal(fs.existsSync(path.join(root, CHECKOUT_MUTATION_LOCK)), false);
+  } else if (mode === 'prior-readiness-preserved-before-mutation') {
     const previous = Buffer.from([0x7b, 0x22, 0xff, 0x00, 0x7d]);
     fs.mkdirSync(path.join(root, 'node_modules')); fs.writeFileSync(path.join(root, BOOTSTRAP_RECEIPT), previous);
     let preserved;
