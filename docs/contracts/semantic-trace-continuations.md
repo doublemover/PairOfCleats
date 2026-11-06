@@ -16,7 +16,9 @@ headers and UTF-16 text enter logical accounting; it does not claim measured
 V8 heap/RSS, nor an aggregate limit on concurrently executing requests.
 
 Saved state defaults to 32 MiB per service. Each trace or explain runner shares
-one 64 MiB retention owner across its repository/policy services. Snapshots are
+one 64 MiB retention owner across its repository/policy services. The internal
+`continuation-budget.js` owner also supports other semantic query cursors;
+trace traversal state remains in `trace-continuation-state.js`. Snapshots are
 charged conservatively in full even when physical subtrees are shared. TTL,
 cursor-count and byte eviction remove the original service's cursor together
 with its accounting lease. Service-cache retirement releases its retained

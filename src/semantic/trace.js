@@ -10,7 +10,8 @@ import { SEMANTIC_TRACE_REQUEST_SCHEMA } from '../contracts/schemas/semantic-tra
 import { semanticTracePathDeclaration, semanticPathExecution } from './path-capabilities.js';
 import { inspectSemanticPathEdge } from './path-edge.js';
 import { stageSemanticPagePublication } from './page-publication.js';
-import { createTraceTraversalState, createTraceContinuationBudget, isTraceContinuationBudget } from './trace-continuation-state.js';
+import { createTraceTraversalState } from './trace-continuation-state.js';
+import { createSemanticContinuationBudget, isSemanticContinuationBudget } from './continuation-budget.js';
 const fail = (code, message) => Object.assign(new Error(message), { code });
 export const DEFAULT_TRACE_KINDS = Object.freeze('defines reads writes mutates returns captures flowsTo argumentToParameter returnToResult sharesStorage copies packs transfers dispatches consumes'.split(' '));
 const refKey = ref => canonicalSemanticJson(ref);
@@ -29,8 +30,8 @@ export const createSemanticTraceService = ({ maxRecords = 128, maxEdges = 512, m
     || !Number.isSafeInteger(maxContinuationBytes) || maxContinuationBytes < maxStateBytes || maxContinuationBytes > 256 * 1024 * 1024) {
     throw new TypeError('Invalid semantic trace state/retention byte bounds.');
   }
-  if (retentionBudget !== null && !isTraceContinuationBudget(retentionBudget)) throw new TypeError('Invalid semantic trace aggregate retention owner.');
-  retentionBudget ||= createTraceContinuationBudget({ maxBytes: maxContinuationBytes });
+  if (retentionBudget !== null && !isSemanticContinuationBudget(retentionBudget)) throw new TypeError('Invalid semantic trace aggregate retention owner.');
+  retentionBudget ||= createSemanticContinuationBudget({ maxBytes: maxContinuationBytes });
   const continuations = new Map();
   let continuationBytes = 0, disposed = false, lastPageWork = null;
   const removeContinuation = cursor => continuations.get(cursor)?.lease.release();

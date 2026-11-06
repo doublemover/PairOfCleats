@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
-import { createTraceTraversalState, createTraceContinuationBudget } from '../../../src/semantic/trace-continuation-state.js';
+import { createTraceTraversalState } from '../../../src/semantic/trace-continuation-state.js';
+import { createSemanticContinuationBudget } from '../../../src/semantic/continuation-budget.js';
 import { createSemanticTraceService } from '../../../src/semantic/trace.js';
 import { createRecoveryFixture, semanticNode } from '../../helpers/semantic-recovery.js';
 import { writeSemanticQueryIndex } from '../../../src/index/build/artifacts/writers/semantic/query-index.js';
@@ -66,7 +67,7 @@ if (selected === 'persistent-order') {
   assert.throws(() => smallest.reset(item(0), 'seed'), { code: 'ERR_SEMANTIC_OUTPUT_LIMIT' });
   assert.equal(smallest.size, 0); assert.equal(smallest.seenCount, 0);
 } else if (selected === 'retention') {
-  const budget = createTraceContinuationBudget({ maxBytes: 8192 }), retired = [], expires = Date.now() + 60000;
+  const budget = createSemanticContinuationBudget({ maxBytes: 8192 }), retired = [], expires = Date.now() + 60000;
   const first = budget.retain(4096, expires, () => { retired.push('first'); });
   budget.retain(4096, expires, () => { retired.push('second'); });
   budget.retain(4096, expires, () => { retired.push('third'); });
@@ -89,7 +90,7 @@ if (selected === 'persistent-order') {
     const request = { repoRoot: fixture.root, generation: fixture.generation, seed: ref(0), direction: 'downstream', kinds: ['flowsTo'],
       limits: { records: 1, edges: 128, depth: 64, bytes: 65536 } };
     if (selected === 'aggregate-services') {
-      const budget = createTraceContinuationBudget({ maxBytes: 12288 });
+      const budget = createSemanticContinuationBudget({ maxBytes: 12288 });
       const services = [createSemanticTraceService({ retentionBudget: budget }), createSemanticTraceService({ retentionBudget: budget })];
       let first;
       for (let n = 0; n < 16; n++) {
