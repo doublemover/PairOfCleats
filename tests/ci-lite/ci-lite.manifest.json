@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 2329,
+    "hero": 2337,
     "matrix": 110,
     "meta": 54,
     "soak": 1,
@@ -14977,6 +14977,54 @@
     {
       "id": "tooling/consumer-proof-index/consolidation-controls",
       "order": 2494,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/storage-observation-ledger/original-callbacks",
+      "order": 2495,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/storage-observation-ledger/getter-failures",
+      "order": 2496,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/storage-observation-ledger/duplicates-cycles",
+      "order": 2497,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/storage-observation-ledger/bounds",
+      "order": 2498,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/storage-observation-ledger/reentrancy",
+      "order": 2499,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/storage-observation-ledger/late-context",
+      "order": 2500,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/storage-observation-ledger/directory-adapter",
+      "order": 2501,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/storage-observation-ledger/transfer-adapter",
+      "order": 2502,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

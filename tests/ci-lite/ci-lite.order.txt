@@ -2497,3 +2497,11 @@ tooling/consumer-proof-index/projection
 tooling/consumer-proof-index/reference-guards
 tooling/consumer-proof-index/source-diff
 tooling/consumer-proof-index/consolidation-controls
+shared/storage/storage-observation-ledger/original-callbacks
+shared/storage/storage-observation-ledger/getter-failures
+shared/storage/storage-observation-ledger/duplicates-cycles
+shared/storage/storage-observation-ledger/bounds
+shared/storage/storage-observation-ledger/reentrancy
+shared/storage/storage-observation-ledger/late-context
+shared/storage/storage-observation-ledger/directory-adapter
+shared/storage/storage-observation-ledger/transfer-adapter
