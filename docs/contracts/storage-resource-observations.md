@@ -27,6 +27,14 @@ result contract. Neither ledger settlement nor another adapter's aggregate grant
 authority to close, unlink, retry, admit a generation or release reservations.
 An already failed operation remains failed after its resources settle.
 
+Storage-session retirement rechecks the captured original settlement receipt
+before and after every lease removal. The composed session runner forwards its
+original action and receipt observers into that interval. A newly pending
+observation blocks later removals; confirmed earlier removals remain recorded and
+are never replayed. The added retirement case changes the original observer after
+one real metadata removal and requires all remaining leases to stay protected.
+It is authored and unexecuted.
+
 Semantic working-set inventory uses the same original directory read/close
 owner. Missing-file classification follows original resource observation; a
 diagnostic getter cannot erase pending work or return disk credits.

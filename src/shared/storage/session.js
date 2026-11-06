@@ -113,10 +113,13 @@ export const acquireStorageSession = ({ roots, coordinationRoot, authorizedRoots
       for (const lease of [...leases].sort((left, right) => right.root.length - left.root.length)) {
         if (lease.released || blockedRoots.some(root => isPathWithinRoot(root, lease.root))) continue;
         try {
+          captured.requireSettled();
           lease.observation?.requireSettled();
+          captured.requireSettled();
           if (lease.release() !== true) throw Object.assign(new Error('A storage session lease changed before release.'),
             { leaseId: lease.leaseId });
           lease.released = true;
+          captured.requireSettled();
         } catch (error) {
           lease.observation = observeStorageResource(observeStorageResource(error,
             { phase: 'storage-session-metadata-release' }).retain(), { phase: 'storage-session-metadata-release' });
@@ -177,7 +180,8 @@ export const runWithStorageSession = async (input, action, { settlement } = {}) 
     original.requireSettled();
     captured.requireSettled();
     original.requireSettled();
-    session.releaseAfterSettlement(captured.receipt);
+    session.releaseAfterSettlement(Object.freeze({ ...captured.receipt, cacheOwnershipPending: true,
+      cacheOwnershipReleased: () => { original.requireSettled(); captured.requireSettled(); return true; } }));
   } catch (settlementError) {
     throw retainSessionFailure(operationError, settlementError, session, { resourceObservation, primaryPresent: operationFailed });
   }
