@@ -153,7 +153,7 @@ export const runTreeSitterScheduler = async ({
     const crashSummary = crashTracker.summarize();
     const failedGrammarKeySet = new Set(crashSummary.failedGrammarKeys);
     const successfulGrammarKeys = grammarKeys.filter((grammarKey) => !failedGrammarKeySet.has(grammarKey));
-    const degradation = createSchedulerDegradationQuery(crashSummary);
+    const degradation = createSchedulerDegradationQuery(crashSummary.degradation);
     const quarantineDecisionCount = Array.isArray(crashSummary.quarantineDecisions)
       ? crashSummary.quarantineDecisions.length
       : 0;
@@ -262,7 +262,6 @@ export const runTreeSitterScheduler = async ({
         failureClasses: { ...(crashSummary.failureClasses || {}) }
       }),
       queryDegradation: degradation.query,
-      isDegradedVirtualPath: (virtualPath) => degradation.query({ virtualPath }).degraded,
       plannedSegmentsByContainer,
       loadPlannedSegments: (containerPath) => {
         if (!containerPath || !plannedSegmentsByContainer.has(containerPath)) return null;

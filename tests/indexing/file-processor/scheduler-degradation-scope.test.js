@@ -19,15 +19,14 @@ const input = (relKey, segments, scheduler) => ({ segments, tokenMode: 'code', m
   text, ext: '.js', relKey, mode: 'code', lang: { id: 'javascript' }, segmentContext: null,
   lineIndex: null, logLine: null, updateCrashStage: () => {} });
 
-const run = async (relKey, degradedVirtualPaths, { parts = [segment()], failedGrammarKeys = [], typed = false } = {}) => {
+const run = async (relKey, degradedVirtualPaths, { parts = [segment()], failedGrammarKeys = [], shared = false } = {}) => {
   const summary = { failedGrammarKeys, degradedVirtualPaths };
-  if (typed) summary.degradation = buildSchedulerDegradationReceipt(summary);
-  const owner = createSchedulerDegradationQuery(summary);
+  summary.degradation = buildSchedulerDegradationReceipt(summary);
+  const owner = createSchedulerDegradationQuery(summary.degradation);
   const loaded = [], released = [];
   const scheduler = { index: new Map(), scheduledLanguageIds: new Set(['javascript', 'json']),
     getCrashSummary: () => summary,
-    isDegradedVirtualPath: value => degradedVirtualPaths.includes(value),
-    ...(typed ? { queryDegradation: owner.query } : {}),
+    ...(shared ? { queryDegradation: owner.query } : {}),
     loadChunksBatch: async paths => paths.map(value => {
       loaded.push(value);
       const part = parts.find(part => virtual(relKey, part, part.languageId === 'json' ? '.json' : '.js') === value);
@@ -41,8 +40,8 @@ const run = async (relKey, degradedVirtualPaths, { parts = [segment()], failedGr
 
 for (const [healthy, failed] of [['src/a.js', 'src/a.json'], ['src/a.json', 'src/a.js'],
   ['src/a.js', 'src/a.js.backup'], ['src/a.js', 'other/src/a.js'], ['src/sub/a.js', 'src/a.js']]) {
-  for (const typed of [false, true]) {
-    const result = await run(healthy, [virtual(failed)], { failedGrammarKeys: [LANGUAGE_GRAMMAR_KEYS.json], typed });
+  for (const shared of [false, true]) {
+    const result = await run(healthy, [virtual(failed)], { failedGrammarKeys: [LANGUAGE_GRAMMAR_KEYS.json], shared });
     assert.equal(result.loaded.length, 1, `${failed} must not suppress ${healthy}`);
     assert.equal(result.chunkingDiagnostics.schedulerDegradedCount, 0);
     assert.equal(result.chunkingDiagnostics.usedHeuristicChunking, false);
@@ -50,8 +49,8 @@ for (const [healthy, failed] of [['src/a.js', 'src/a.json'], ['src/a.json', 'src
   }
 }
 const parts = [segment(0, firstEnd), segment(firstEnd, text.length)];
-for (const typed of [false, true]) {
-  const exact = await run('src/a.js', [virtual('src/a.js', parts[0])], { parts, typed });
+for (const shared of [false, true]) {
+  const exact = await run('src/a.js', [virtual('src/a.js', parts[0])], { parts, shared });
   assert.deepEqual(exact.loaded, [virtual('src/a.js', parts[1])], 'one segment failure cannot widen to its sibling occurrence');
   assert.equal(exact.chunkingDiagnostics.schedulerDegradedCount, 1);
   assert.equal(exact.chunkingDiagnostics.schedulerDegradation.scopeCounts.segment, 1);
@@ -62,38 +61,43 @@ for (const typed of [false, true]) {
     chunker: () => { coldCalls += 1; throw new Error('healthy checkpoint must not re-chunk'); }, input: {} });
   assert.equal(coldCalls, 0); assert.deepEqual(replay.chunks, exact.chunks);
   assert.deepEqual(replay.chunkingDiagnostics, exact.chunkingDiagnostics, 'replay preserves actual scope/cause and counters');
-  const container = await run('src/a.js', [virtual('src/a.js')], { parts, typed });
+  const container = await run('src/a.js', [virtual('src/a.js')], { parts, shared });
   assert.equal(container.loaded.length, 0); assert.equal(container.chunkingDiagnostics.schedulerDegradedCount, 2);
   assert.equal(container.chunkingDiagnostics.schedulerDegradation.scopeCounts.container, 2);
   const mixed = await run('src/mixed.js', [], { parts: [parts[0], { ...parts[1], languageId: 'json' }],
-    failedGrammarKeys: [LANGUAGE_GRAMMAR_KEYS.json], typed });
+    failedGrammarKeys: [LANGUAGE_GRAMMAR_KEYS.json], shared });
   assert.deepEqual(mixed.loaded, [virtual('src/mixed.js', parts[0])]);
   assert.equal(mixed.chunkingDiagnostics.schedulerDegradation.scopeCounts.grammar, 1);
 }
 for (const containerPath of ['src/a#b%25.js', 'src/日本語.js', 'src/É.js']) {
   const path = virtual(containerPath, parts[0]);
   assert.equal(parseVfsVirtualPathIdentity(path).containerPath, containerPath);
-  const owner = createSchedulerDegradationQuery({ degradedVirtualPaths: [path] });
+  const owner = createSchedulerDegradationQuery(buildSchedulerDegradationReceipt({ degradedVirtualPaths: [path] }));
   assert.equal(owner.query({ virtualPath: path }).degraded, true);
   assert.equal(owner.query({ virtualPath: virtual(containerPath, parts[1]) }).degraded, false);
 }
 const canonical = virtual('src/Case.js', parts[0]);
-const owner = createSchedulerDegradationQuery({ degradedVirtualPaths: [canonical,
-  '.poc-vfs/src/a.js#seg:legacy.js', '.poc-vfs/src/a%2f.js', '.poc-vfs/../outside.js', 'src/a.js'] });
+const owner = createSchedulerDegradationQuery(buildSchedulerDegradationReceipt({ degradedVirtualPaths: [canonical,
+  '.poc-vfs/src/a.js#seg:legacy.js', '.poc-vfs/src/a%2f.js', '.poc-vfs/../outside.js', 'src/a.js'] }));
 assert.equal(owner.query({ virtualPath: virtual('src/case.js', parts[0]) }).degraded, false, 'VFS identities preserve case');
 assert.equal(owner.unknown.length, 4, 'ambiguous historical/raw paths remain explicitly unqualified');
 assert.equal(owner.query({ virtualPath: virtual('src/a.js', parts[0]) }).degraded, false);
-const future = createSchedulerDegradationQuery({ degradation: { schemaVersion: 99, scopes: [{ scope: 'container', virtualPath: virtual('src/a.js') }] } });
-assert.equal(future.unknown[0].reason, 'unsupported-receipt-version');
-assert.equal(future.query({ virtualPath: virtual('src/a.js', parts[0]) }).degraded, false);
-const futureGrammar = createSchedulerDegradationQuery({ failedGrammarKeys: [LANGUAGE_GRAMMAR_KEYS.json],
-  degradation: { schemaVersion: 99, scopes: [] } });
-assert.equal(futureGrammar.query({ virtualPath: canonical, grammarKey: LANGUAGE_GRAMMAR_KEYS.json }).degraded, true,
-  'an unqualified path receipt cannot revoke an independently explicit failed grammar');
-const mutable = { degradation: buildSchedulerDegradationReceipt({ degradedVirtualPaths: [canonical] }) };
+for (const obsolete of [{ degradedVirtualPaths: [canonical] }, { failedGrammarKeys: [LANGUAGE_GRAMMAR_KEYS.json] },
+  { schemaVersion: 99, scopes: [], unknown: [] }]) {
+  assert.throws(() => createSchedulerDegradationQuery(obsolete), error => error.code === 'ERR_SCHEDULER_DEGRADATION_VERSION');
+}
+const currentGrammar = createSchedulerDegradationQuery(buildSchedulerDegradationReceipt({
+  failedGrammarKeys: [LANGUAGE_GRAMMAR_KEYS.json], degradedVirtualPaths: ['unqualified/path.js'] }));
+assert.equal(currentGrammar.query({ virtualPath: canonical, grammarKey: LANGUAGE_GRAMMAR_KEYS.json }).degraded, true,
+  'current explicit grammar authority remains independent of an unqualified path');
+const mutable = buildSchedulerDegradationReceipt({ degradedVirtualPaths: [canonical] });
 const captured = createSchedulerDegradationQuery(mutable);
-mutable.degradation.scopes[0].virtualPath = virtual('src/other.js');
+mutable.scopes[0].virtualPath = virtual('src/other.js');
 assert.equal(captured.query({ virtualPath: canonical }).degraded, true, 'query authority captures its admitted receipt');
+await assert.rejects(chunkWithScheduler(input('src/a.js', [segment()], {
+  scheduledLanguageIds: new Set(['javascript']), isDegradedVirtualPath: () => true,
+  loadChunksBatch() { assert.fail('obsolete adapters cannot reach a chunk lookup'); }
+})), error => error.code === 'ERR_SCHEDULER_DEGRADATION_VERSION');
 const unknown = await run('src/a.js', ['src/a.js']);
 assert.equal(unknown.chunkingDiagnostics.schedulerDegradation.unknownReceipts, 1);
 assert.equal(unknown.chunkingDiagnostics.schedulerDegradedCount, 0);

@@ -87,7 +87,7 @@ try {
       'expected degraded virtual paths to be tracked'
     );
     assert.ok(
-      typeof scheduler?.isDegradedVirtualPath === 'function',
+      typeof scheduler?.queryDegradation === 'function',
       'expected degraded virtual path checker'
     );
     const crashSummary = scheduler.getCrashSummary();

@@ -13,7 +13,8 @@ import {
 import { LANGUAGE_GRAMMAR_KEYS, TREE_SITTER_LANGUAGE_IDS } from '../../../../lang/tree-sitter/config.js';
 import { isTreeSitterEnabled } from '../../../../lang/tree-sitter/options.js';
 import { exceedsTreeSitterLimits } from './guardrails.js';
-import { createSchedulerDegradationQuery } from '../../tree-sitter-scheduler/degradation.js';
+import { assertSchedulerDegradationReceipt, buildSchedulerDegradationReceipt,
+  createSchedulerDegradationQuery } from '../../tree-sitter-scheduler/degradation.js';
 
 const TREE_SITTER_LANG_IDS = new Set(TREE_SITTER_LANGUAGE_IDS);
 
@@ -255,13 +256,14 @@ export const chunkWithScheduler = async ({
     : null;
   const schedulerCrashSummary = typeof treeSitterScheduler?.getCrashSummary === 'function'
     ? treeSitterScheduler.getCrashSummary() : {};
+  const hasUnversionedFailure = schedulerCrashSummary?.failedGrammarKeys?.length
+    || schedulerCrashSummary?.degradedVirtualPaths?.length || typeof treeSitterScheduler?.isDegradedVirtualPath === 'function';
+  const receipt = assertSchedulerDegradationReceipt(schedulerCrashSummary?.degradation
+    || (hasUnversionedFailure ? null : buildSchedulerDegradationReceipt()));
   const degradation = typeof treeSitterScheduler?.queryDegradation === 'function'
     ? { query: treeSitterScheduler.queryDegradation.bind(treeSitterScheduler),
-      unknown: schedulerCrashSummary?.degradation?.unknown || [] }
-    : createSchedulerDegradationQuery(schedulerCrashSummary || {}, {
-      legacyExactCheck: typeof treeSitterScheduler?.isDegradedVirtualPath === 'function'
-        ? treeSitterScheduler.isDegradedVirtualPath.bind(treeSitterScheduler) : null
-    });
+      unknown: receipt.unknown }
+    : createSchedulerDegradationQuery(receipt);
   const scopeCounts = { grammar: 0, container: 0, segment: 0 };
   const decisions = [];
   const schedulerLookupItems = [];
