@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-06T13:09:45.583Z",
+  "generatedAt": "2026-11-06T13:17:45.520Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
@@ -4937,6 +4937,7 @@
         "tests/tooling/ci/lsp-runtime-qualification.test.js",
         "tests/tooling/consumer-proof-index.test.js",
         "tests/tooling/eval/coverage-and-default-datasets.test.js",
+        "tests/tooling/eval/origin-observation.test.js",
         "tests/tooling/fixtures/fixture-eval.test.js",
         "tests/tooling/index-stats/additional-family-producers.test.js",
         "tests/tooling/index-stats/option-admission.test.js",

@@ -49,7 +49,8 @@ fixed conditions, contradicted assumptions, direct/common-cause discrimination,
 late revision rejection, unavailable factual premises, strict adapter selection,
 bounded output/work, private receipts and cancellation.
 
-This profile supplies the deterministic finite-system/revision seam. The broader
-origin/trace laboratory, independent source-support attacks, task executor,
+This profile supplies the deterministic finite-system/revision seam. The
+[origin/trace baseline](origin-observation-evaluation.md) separately evaluates
+lineage and reported transfers. Independent source-support attacks, task executor,
 clustered paired reporting and optional provider qualification remain #1526 work;
 this adapter does not establish those qualifications.

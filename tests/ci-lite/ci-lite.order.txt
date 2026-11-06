@@ -2630,3 +2630,7 @@ graph/hypotheses/paired-intervention/no-change-and-execution-cost
 graph/hypotheses/paired-intervention/held-fixed-admissibility
 graph/hypotheses/paired-intervention/hypothesis-revision-handoff
 graph/hypotheses/paired-intervention/profile-contract-and-cancellation
+tooling/eval/origin-observation/one-origin-many-paths
+tooling/eval/origin-observation/same-text-independent-origins
+tooling/eval/origin-observation/unknown-stale-and-invalid-traces
+tooling/eval/origin-observation/paired-scope-and-ownership
