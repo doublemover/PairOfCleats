@@ -2655,3 +2655,7 @@ tooling/eval/evidence-task-cohort/capture-cancellation-and-budgets
 tooling/eval/evidence-task-quality/owned-paired-metric-and-work
 tooling/eval/evidence-task-quality/unknown-labels-and-incomplete-cohort
 tooling/eval/evidence-task-quality/identity-and-cancellation
+tooling/install/bootstrap-failure-observation/falsy-task-failures
+tooling/install/bootstrap-failure-observation/accessor-errors
+tooling/install/bootstrap-failure-observation/observer-settlement
+tooling/install/bootstrap-failure-observation/observer-errors

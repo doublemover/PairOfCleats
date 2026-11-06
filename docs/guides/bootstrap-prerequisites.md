@@ -21,6 +21,14 @@ selected interpreters retain their selection and have no ambient fallback.
 Native build/activation and runtime qualification follow successful discovery.
 Ordinary test capsules retain their separate30-second limits and zero retries.
 
+The existing bounded task scheduler preserves original compiler failures,
+including non-Error rejections. Result callbacks receive fixed outcome records;
+their asynchronous work must settle before completion. Callback failures remain
+distinct from compiler outcomes and cancel further admission while already
+running owners drain. Diagnostic accessors are not invoked to classify failures.
+The added failure/observer regressions await execution; this is not a native
+readiness or complete bootstrap qualification.
+
 ## Windows
 
 Install [Python 3](https://www.python.org/downloads/windows/),

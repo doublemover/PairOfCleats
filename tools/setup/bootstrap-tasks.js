@@ -1,6 +1,7 @@
 import { createBuildScheduler } from '../../src/shared/concurrency/scheduler-core.js';
 import { readEffectiveCpu } from '../../src/shared/effective-cpu.js';
 import { readEffectiveMemory } from '../../src/shared/effective-memory.js';
+import { readErrorDataProperty } from '../../src/shared/error-data.js';
 
 const MIB = 1024 * 1024;
 
@@ -34,6 +35,7 @@ const dependency = value => typeof value === 'string' ? { id: value, settled: fa
  * owner never runs concurrent root npm mutations. */
 export const runBootstrapTasks = async (tasks, { budget = resolveBootstrapBudget(), signal = null,
   onResult = () => {}, stopOnRequiredFailure = true } = {}) => {
+  if (typeof onResult !== 'function') throw new TypeError('Bootstrap result observation requires a function.');
   const byId = new Map();
   for (const task of tasks) {
     if (!task || typeof task.id !== 'string' || !task.id || byId.has(task.id) || typeof task.run !== 'function') {
@@ -71,7 +73,7 @@ export const runBootstrapTasks = async (tasks, { budget = resolveBootstrapBudget
       maxInFlightBytes: budget.memoryBytes } }, traceMaxSamples: Math.max(1, tasks.length * 2)
   });
   const promises = new Map();
-  let observerError = null;
+  const observerErrors = [];
   const execute = task => {
     if (promises.has(task.id)) return promises.get(task.id);
     const pending = (async () => {
@@ -98,16 +100,19 @@ export const runBootstrapTasks = async (tasks, { budget = resolveBootstrapBudget
           });
           row.status = 'succeeded';
         } catch (error) {
-          row.status = controller.signal.aborted && error?.name === 'AbortError' ? 'cancelled' : 'failed';
-          row.result = error.result || null;
+          row.status = controller.signal.aborted && readErrorDataProperty(error, 'name') === 'AbortError' ? 'cancelled' : 'failed';
+          row.result = readErrorDataProperty(error, 'result') ?? null;
           row.error = error;
           if (row.required && stopOnRequiredFailure && !controller.signal.aborted) controller.abort(error);
         }
       }
       row.finishedAt = Date.now();
       row.durationMs = row.startedAt == null ? 0 : Math.max(0, row.finishedAt - row.startedAt);
-      try { onResult(row); } catch (error) {
-        observerError ||= error;
+      Object.freeze(row);
+      // Observe the original callback's full settlement, including asynchronous
+      // and falsy rejection. Diagnostic callbacks cannot rewrite task outcomes.
+      try { await onResult(row); } catch (error) {
+        observerErrors.push(error);
         controller.abort(error);
       }
       return row;
@@ -117,7 +122,8 @@ export const runBootstrapTasks = async (tasks, { budget = resolveBootstrapBudget
   };
   try {
     const results = await Promise.all(tasks.map(execute));
-    if (observerError) throw observerError;
+    if (observerErrors.length === 1) throw observerErrors[0];
+    if (observerErrors.length > 1) throw new AggregateError(observerErrors, 'Bootstrap result observation failed.', { cause: observerErrors[0] });
     return { ok: results.every(row => !row.required || row.status === 'succeeded'), results, budget };
   } finally {
     signal?.removeEventListener?.('abort', abort);
