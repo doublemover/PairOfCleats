@@ -1,8 +1,8 @@
 # Phase 12 Tooling and API Contract Spec (Refined)
 
 **Document ID:** PHASE12_TOOLING_AND_API_CONTRACT_SPEC_REFINED  
-**Status:** Active implemented public tooling/API contract; current MCP schema version is `1.11.0`.
-**Last audited:** 2026-05-21
+**Status:** Active implemented public tooling/API contract; current MCP schema version is `1.16.0`.
+**Last updated:** 2026-11-06
 
 ## 0. Purpose
 
@@ -193,6 +193,18 @@ Rules:
 - Tool definitions MUST be sourced from a single place: `src/integrations/mcp/defs.js`.
 - `tools/list` MUST return the full set of tool definitions.
 - Tool names MUST remain stable within a schemaVersion major.
+
+The current source catalog also exposes `repository_query` and
+`repository_answer`. Their closed request and result contracts are specified in
+[repository questions](../contracts/repository-questions.md),
+[answer evidence](../contracts/answer-evidence.md) and
+[answer retention](../contracts/answer-retention.md). Answer delivery returns
+complete evidence packets through public transports, with the source authority,
+revision and visibility requirements in
+[context evidence delivery](../contracts/context-evidence-delivery.md).
+The complete current tool definitions remain in the
+[generated catalog](../contracts/mcp-tools.schema.json); this specification's
+required baseline below is not an exhaustive discovery response.
 
 #### 6.5.2 Required tool set (schemaVersion 1.x)
 The following tool names MUST exist (currently present in `defs.js`):
