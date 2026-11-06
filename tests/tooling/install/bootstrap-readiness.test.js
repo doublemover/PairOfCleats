@@ -25,6 +25,8 @@ const inputs = ['.nvmrc', 'tools/setup/checkout-diagnose.js', 'tools/setup/prefl
   'tools/setup/rebuild-native-sqlite.js', 'tools/setup/readiness.js', 'src/shared/native-package-probe.js',
   'src/shared/native-onnx-probe.js',
   'tools/setup/bootstrap-tasks.js', 'tools/setup/native-build-plan.js',
+  'src/shared/concurrency/scheduler-core/dispatch.js', 'src/shared/concurrency/scheduler-core/shutdown.js',
+  'src/shared/concurrency/scheduler-core/index.js',
   'tools/setup/native-command-result.js',
   'src/shared/abort.js', 'src/shared/subprocess/errors.js', 'src/shared/subprocess/runner-async.js',
   'tools/setup/windows-capability.js',

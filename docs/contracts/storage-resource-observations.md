@@ -27,6 +27,15 @@ result contract. Neither ledger settlement nor another adapter's aggregate grant
 authority to close, unlink, retry, admit a generation or release reservations.
 An already failed operation remains failed after its resources settle.
 
+Scheduler shutdown snapshots the original completion promises and reservation
+set. A timeout stops its waiter and leaves both intact. Once that terminal waiter
+ends, retained-observation polling no longer pins an otherwise finished host;
+it still observes the original callbacks whenever the host runs. This does not
+close a child, release tokens, retire an owner record or authorize successor work.
+The fresh-process handoff regression asserts natural exit with an unresolved
+reservation and an orphaned checkout lock that still rejects a successor. It
+uses an injected pending observation and awaits execution.
+
 Storage-session retirement rechecks the captured original settlement receipt
 before and after every lease removal. The composed session runner forwards its
 original action and receipt observers into that interval. A newly pending

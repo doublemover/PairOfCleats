@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-11-06T16:57:46.429Z",
+  "generatedAt": "2026-11-06T16:59:42.585Z",
   "summary": {
     "lanes": 5,
-    "tests": 3014,
+    "tests": 3015,
     "exactDuplicates": 0,
     "hotspotKinds": 10,
     "families": 433,
@@ -11,7 +11,7 @@
     "timingCoverage": {
       "freshArtifactTests": 0,
       "historicalFallbackTests": 74,
-      "missingTests": 2940
+      "missingTests": 2941
     }
   },
   "lanes": [
@@ -35,7 +35,7 @@
       "targetMaxDurationSeconds": 15,
       "orderFile": "tests/ci-lite/ci-lite.order.txt",
       "timingArtifactPath": ".testLogs/ci-lite-testRunTimes.txt",
-      "totalTests": 2698,
+      "totalTests": 2699,
       "knownDurationTests": 49,
       "knownDurationMs": 27090,
       "p50DurationMs": 190,
@@ -43,7 +43,7 @@
       "resolvedTimingArtifactPaths": [],
       "timingSources": {
         "historical-test-times": 49,
-        "missing": 2649
+        "missing": 2650
       }
     },
     {
@@ -542,9 +542,9 @@
     },
     {
       "key": "shared/concurrency",
-      "count": 12,
+      "count": 13,
       "knownDurationMs": 0,
-      "unknownDurationCount": 12
+      "unknownDurationCount": 13
     },
     {
       "key": "indexing/relations",

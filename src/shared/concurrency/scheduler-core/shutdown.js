@@ -7,6 +7,7 @@ export function createSchedulerShutdown({
   telemetryTimer,
   captureSchedulingTrace,
   captureQueueDepthSnapshot,
+  handoffRetainedSettlementWait = () => {},
   pump
 }) {
   const shutdown = ({
@@ -16,9 +17,9 @@ export function createSchedulerShutdown({
     state.shuttingDown = true;
     if (telemetryTimer) clearInterval(telemetryTimer);
     queueLifecycle.clearAllQueues('scheduler shutdown');
-    if (!awaitRunning) return;
+    if (!awaitRunning) { handoffRetainedSettlementWait(); return; }
     const originalRunning = state.runningTasks, pending = Array.from(originalRunning);
-    if (!pending.length) return;
+    if (!pending.length) { handoffRetainedSettlementWait(); return; }
     let originalPromisesSettled = false;
     const originalDrainSettled = () => originalPromisesSettled && pending.every(task => !originalRunning.has(task));
     const drainFailure = (code, message, details = {}) => {
@@ -36,7 +37,7 @@ export function createSchedulerShutdown({
     const resolvedTimeoutMs = Number.isFinite(Number(timeoutMs))
       ? Math.max(0, Math.floor(Number(timeoutMs)))
       : 0;
-    if (resolvedTimeoutMs <= 0) return joined;
+    if (resolvedTimeoutMs <= 0) return joined.finally(handoffRetainedSettlementWait);
     let timeoutHandle = null;
     const timeoutPromise = new Promise((resolve, reject) => {
       timeoutHandle = setTimeout(() => {
@@ -50,6 +51,7 @@ export function createSchedulerShutdown({
     return Promise.race([joined, timeoutPromise])
       .finally(() => {
         if (timeoutHandle) clearTimeout(timeoutHandle);
+        handoffRetainedSettlementWait();
       });
   };
 

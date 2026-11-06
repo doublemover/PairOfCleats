@@ -109,6 +109,7 @@ export function createBuildScheduler(input = {}) {
     telemetryTimer,
     captureSchedulingTrace,
     captureQueueDepthSnapshot,
+    handoffRetainedSettlementWait: dispatch.handoffRetainedSettlementWait,
     pump: dispatch.pump
   });
 

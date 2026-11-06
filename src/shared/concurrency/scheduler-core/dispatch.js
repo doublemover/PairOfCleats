@@ -15,6 +15,17 @@ export function createSchedulerDispatch({
   const blockedScans = new WeakMap();
   const retainedSettlements = new Set();
   let settlementTimer = null;
+  let terminalWaitHandedOff = false;
+  const scheduleSettlementObservation = () => {
+    settlementTimer = setTimeout(observeRetainedSettlements, 25);
+    if (terminalWaitHandedOff) settlementTimer.unref();
+  };
+  const handoffRetainedSettlementWait = () => {
+    // Stop keeping the host alive after its shutdown waiter ends. Original
+    // observations, reservations and completion promises remain untouched;
+    // actual children/handles and persistent owner records keep their authority.
+    terminalWaitHandedOff = true; settlementTimer?.unref();
+  };
   const observeRetainedSettlements = () => {
     settlementTimer = null;
     for (const entry of retainedSettlements) {
@@ -25,7 +36,7 @@ export function createSchedulerDispatch({
       entry.retire(); entry.resolve();
     }
     if (retainedSettlements.size) {
-      settlementTimer = setTimeout(observeRetainedSettlements, 25);
+      scheduleSettlementObservation();
     }
   };
   const replayEnvelope = () => ({ tokens: { cpu: { ...state.tokens.cpu }, io: { ...state.tokens.io }, mem: { ...state.tokens.mem } },
@@ -419,7 +430,7 @@ export function createSchedulerDispatch({
             lease.active = false;
             const held = new Promise(resolve => { retainedSettlements.add({ observation, resolve, retire: () => retire(true) }); });
             if (!settlementTimer) {
-              settlementTimer = setTimeout(observeRetainedSettlements, 25);
+              scheduleSettlementObservation();
             }
             queue.stats.failed += 1; config.counters.failed += 1; next.reject(pendingFailure);
             return held;
@@ -589,6 +600,7 @@ export function createSchedulerDispatch({
   const scheduleIfAvailable = (queueName, tokensReq, fn) => enqueue(queueName, tokensReq, fn, true);
 
   return {
+    handoffRetainedSettlementWait,
     getReplayResourceIdentity: () => config.queueOrder.length <= 64
       && config.queueOrder.every(queue => typeof queue.name === 'string' && queue.name.length <= 128)
       ? schedulerReplayLimitIdentity(replayEnvelope()) : null,
