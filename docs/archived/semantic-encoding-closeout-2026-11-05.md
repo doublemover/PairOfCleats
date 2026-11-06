@@ -1,6 +1,6 @@
 # Semantic encoding qualification — #1212
 
-All original and follow-up acceptance is qualified locally on the recorded Windows source candidate. Publication and GitHub closure follow this receipt. Work remains solo; editor and Tantivy exclusions are unchanged.
+All original and follow-up acceptance is qualified locally on the recorded Windows source candidate, published as5f0e2cca7a4d29e005d494c8f1f7f6aaebd162ab. #1212 is closed with completed-state/body readback. Work remains solo; editor and Tantivy exclusions are unchanged.
 
 The shared producer now charges the existing row/batch allowance before JSON escape allocation, snapshotting or freezing. Actual JavaScript, TypeScript, native-C, derived-analysis and ownership controls demonstrate five original late-allocation failures. Derived analysis/ownership retain their original ERR_SEMANTIC_CONTRACT classification; syntax retains ERR_SEMANTIC_RECORD_LIMIT. Only actual encoder-owned budget errors are remapped. The sink still validates producer byteCount, schema, sequence and reference bounds; copied/encoded-looking data cannot mint a receipt.
 

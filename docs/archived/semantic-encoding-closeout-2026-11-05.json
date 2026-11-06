@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "date": "2026-11-05",
   "issue": 1212,
-  "status": "qualified-awaiting-publication-and-GitHub-closure",
+  "status": "qualified-published-and-closed",
   "parentCommit": "0efcb553d111c1c297bd11dfe14e9f977b492b33",
   "branch": "codex/pr557-audit-repairs-20261012",
   "candidateIdentity": {
@@ -9313,5 +9313,13 @@
     "nativeInspectionAllThreeOS": "success",
     "broadSuites": "in-progress at capture",
     "scope": "Parent-only observation. Later unchanged settings/full-seed success does not attribute or resolve earlier intermittent deadline failures."
+  },
+  "sourceCommit": "5f0e2cca7a4d29e005d494c8f1f7f6aaebd162ab",
+  "githubClosure": {
+    "state": "closed",
+    "stateReason": "completed",
+    "closedAt": "2026-11-06T03:25:04Z",
+    "updatedAt": "2026-11-06T03:25:05Z",
+    "url": "https://github.com/doublemover/PairOfCleats/issues/1212"
   }
 }

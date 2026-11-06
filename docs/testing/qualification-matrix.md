@@ -32,7 +32,7 @@ qualifies52 correctness cases and16 serial work cases with48 raw samples.
 Partition envelopes and final query/operation encodings halve with exact stored
 bytes/offsets/hashes/counts/keys. Timing/heap are mixed; Buffer bytes stay equal.
 Nine original consumer/mutation regressions are repaired; assembly identity6
-invalidates older derived output. #1212 awaits source publication and closure.
+invalidates older derived output. #1212 is published/closed at5f0e2cca7 after GitHub readback.
 
 [Capped-reader ownership](../archived/capped-reader-lifecycle-repairs-2026-11-05.md)
 repairs eight original open/read/close failures and retains the existing cleanup

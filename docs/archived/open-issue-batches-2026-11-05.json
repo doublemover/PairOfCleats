@@ -17,7 +17,8 @@
     1255,
     1204,
     1252,
-    1242
+    1242,
+    1212
   ],
   "scope": "All open issues except user-excluded editor work and native Tantivy; mixed issues retain their non-editor scope",
   "routing": "Initial grouping by issue scope and recorded source owners; source-review-pending is not an implementation or acceptance claim",
@@ -2045,7 +2046,7 @@
       "title": "[Perf] Encode semantic rows once per admitted batch for sizing, hashing and writing",
       "batch": "retrieval-performance-and-evaluation",
       "scope": "active",
-      "review": "qualified-awaiting-publication",
+      "review": "qualified-and-closed",
       "recordedDisposition": "Implementation recorded; qualification pending.",
       "owners": [
         "src/index/build/artifacts/writers/semantic/partition.js",
@@ -2055,7 +2056,15 @@
         "docs/archived/github-issue-closeout-2026-10-26.md"
       ],
       "receipt": "docs/archived/semantic-encoding-closeout-2026-11-05.json",
-      "remaining": "Publish the qualified source, then close and verify GitHub state. Partition and final query/operation follow-up qualification is complete on the recorded Windows candidate."
+      "remaining": "",
+      "sourceCommit": "5f0e2cca7a4d29e005d494c8f1f7f6aaebd162ab",
+      "closure": {
+        "state": "closed",
+        "stateReason": "completed",
+        "closedAt": "2026-11-06T03:25:04Z",
+        "updatedAt": "2026-11-06T03:25:05Z",
+        "url": "https://github.com/doublemover/PairOfCleats/issues/1212"
+      }
     },
     {
       "number": 1213,
@@ -5434,8 +5443,8 @@
   ],
   "liveReconciliation": {
     "date": "2026-11-05",
-    "openCount": 354,
-    "closedAfterCapture": 13,
-    "method": "Fresh357-ID four-page census minus verified completed closures/readbacks #1204,#1252,#1242 at302ad8e4d,ee2652a4b,7c37e425e. No subsequent full census is claimed."
+    "openCount": 353,
+    "closedAfterCapture": 14,
+    "method": "Fresh357-ID four-page census minus verified completed closures/readbacks #1204,#1252,#1242,#1212. Latest source-qualified closure5f0e2cca7. No subsequent full census is claimed."
   }
 }
