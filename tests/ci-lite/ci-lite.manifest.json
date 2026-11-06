@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 2457,
+    "hero": 2462,
     "matrix": 110,
     "meta": 54,
     "soak": 1,
@@ -15745,6 +15745,36 @@
     {
       "id": "graph/hypotheses/finite-causal-discrimination/investigation-read-only-handoff",
       "order": 2622,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "graph/hypotheses/paired-intervention/realized-descendant-replay",
+      "order": 2623,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "graph/hypotheses/paired-intervention/no-change-and-execution-cost",
+      "order": 2624,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "graph/hypotheses/paired-intervention/held-fixed-admissibility",
+      "order": 2625,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "graph/hypotheses/paired-intervention/hypothesis-revision-handoff",
+      "order": 2626,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "graph/hypotheses/paired-intervention/profile-contract-and-cancellation",
+      "order": 2627,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

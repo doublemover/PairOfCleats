@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-11-06T13:01:52.577Z",
+  "generatedAt": "2026-11-06T13:09:43.316Z",
   "summary": {
     "lanes": 5,
-    "tests": 2938,
+    "tests": 2943,
     "exactDuplicates": 0,
     "hotspotKinds": 10,
     "families": 433,
@@ -11,7 +11,7 @@
     "timingCoverage": {
       "freshArtifactTests": 0,
       "historicalFallbackTests": 74,
-      "missingTests": 2864
+      "missingTests": 2869
     }
   },
   "lanes": [
@@ -35,7 +35,7 @@
       "targetMaxDurationSeconds": 15,
       "orderFile": "tests/ci-lite/ci-lite.order.txt",
       "timingArtifactPath": ".testLogs/ci-lite-testRunTimes.txt",
-      "totalTests": 2622,
+      "totalTests": 2627,
       "knownDurationTests": 49,
       "knownDurationMs": 27090,
       "p50DurationMs": 190,
@@ -43,7 +43,7 @@
       "resolvedTimingArtifactPaths": [],
       "timingSources": {
         "historical-test-times": 49,
-        "missing": 2573
+        "missing": 2578
       }
     },
     {
@@ -427,6 +427,12 @@
       "unknownDurationCount": 24
     },
     {
+      "key": "graph/hypotheses",
+      "count": 23,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 23
+    },
+    {
       "key": "retrieval/pipeline",
       "count": 22,
       "knownDurationMs": 0,
@@ -452,12 +458,6 @@
     },
     {
       "key": "context-pack/delivery",
-      "count": 18,
-      "knownDurationMs": 0,
-      "unknownDurationCount": 18
-    },
-    {
-      "key": "graph/hypotheses",
       "count": 18,
       "knownDurationMs": 0,
       "unknownDurationCount": 18

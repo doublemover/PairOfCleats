@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-06T13:01:55.733Z",
+  "generatedAt": "2026-11-06T13:09:45.583Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
@@ -4714,6 +4714,7 @@
         "tests/graph/hypotheses/finite-causal-discrimination.test.js",
         "tests/graph/hypotheses/finite-causal-model.test.js",
         "tests/graph/hypotheses/finite-causal-prediction.test.js",
+        "tests/graph/hypotheses/paired-intervention.test.js",
         "tests/graph/hypotheses/positive-repair.test.js",
         "tests/graph/impact-indexed-source-cli.test.js",
         "tests/helpers/test-env.js",

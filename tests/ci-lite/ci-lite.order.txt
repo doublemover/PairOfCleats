@@ -2625,3 +2625,8 @@ graph/hypotheses/finite-causal-discrimination/mediator-admissibility-and-held-fi
 graph/hypotheses/finite-causal-discrimination/compensating-and-nondiscriminating-actions
 graph/hypotheses/finite-causal-discrimination/overlapping-unknown-outcome-oracle
 graph/hypotheses/finite-causal-discrimination/investigation-read-only-handoff
+graph/hypotheses/paired-intervention/realized-descendant-replay
+graph/hypotheses/paired-intervention/no-change-and-execution-cost
+graph/hypotheses/paired-intervention/held-fixed-admissibility
+graph/hypotheses/paired-intervention/hypothesis-revision-handoff
+graph/hypotheses/paired-intervention/profile-contract-and-cancellation

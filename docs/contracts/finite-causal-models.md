@@ -129,7 +129,9 @@ owner-admitted read actions to the existing next-evidence advisor. Source-inspec
 requirements retain their actual source roles; a model consequence does not
 satisfy them. Stale plans, changed branches/assumptions/worlds and execution-class
 actions fail the existing boundaries. The seam adds no observations or support.
-Realized intervention/replay admission remains the separate #1526 owner.
+[Paired finite-model replay](paired-finite-interventions.md) records realized
+mechanism replacements under #1526. Actual source/experiment realization and
+telemetry admission remain separate qualifications.
 
 Five unexecuted cases cover common-cause/direct minimax and stable ties,
 mediator interventions versus unavailable actions, explicit held-fixed rejection,
