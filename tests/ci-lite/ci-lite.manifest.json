@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 2435,
+    "hero": 2439,
     "matrix": 110,
     "meta": 54,
     "soak": 1,
@@ -15613,6 +15613,30 @@
     {
       "id": "semantic/reader-deadline",
       "order": 2600,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/semantic/positive-rule-view/finite-model-oracle",
+      "order": 2601,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/semantic/positive-rule-view/producer-only-deltas",
+      "order": 2602,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/semantic/positive-rule-view/recursive-retraction",
+      "order": 2603,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/semantic/positive-rule-view/contract-and-authority",
+      "order": 2604,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

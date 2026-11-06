@@ -2603,3 +2603,7 @@ context-pack/delivery/hydration/waiter-cancellation-and-dispose
 context-pack/delivery/hydration/native-cleanup-retention
 context-pack/delivery/hydration/work-and-waiter-bounds
 semantic/reader-deadline
+indexing/semantic/positive-rule-view/finite-model-oracle
+indexing/semantic/positive-rule-view/producer-only-deltas
+indexing/semantic/positive-rule-view/recursive-retraction
+indexing/semantic/positive-rule-view/contract-and-authority

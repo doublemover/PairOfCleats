@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["finite-model-oracle", "producer-only-deltas", "recursive-retraction", "contract-and-authority"]
+}
