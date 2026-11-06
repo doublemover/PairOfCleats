@@ -5,6 +5,23 @@ Unvalidated first source slice of #1507, consuming the #1506 lexical pilot.
 semantic source snapshots, source spans, and a caller-admitted reference universe.
 It generates source overlays in memory and never writes files or invokes tools.
 
+The #1697 implementation captures bounded operation metadata and prepares one
+private lexical model for the base world and one for the overlay world. Edits
+are grouped by source once. Exact UTF8 output sizes are computed from the
+admitted original source bytes, removed spellings and replacement spellings
+before constructing any expanded source or snapshot. Ordered unchanged slices
+and replacements are assembled once per admitted source; original spans remain
+UTF16 scalar coordinates. Aggregate source and overlay allowances are distinct.
+
+An internal64Mi-unit operation allowance charges model records, candidate-bucket
+preparation, lookup visits, path witnesses and conservative assembly characters.
+Preparation/assembly refusal raises the existing preconstruction contract error;
+query exhaustion yields an unknown work frontier. Counters separate admitted
+assembly characters from actual assembled characters/bytes. Cancellation stops
+new overlay construction. These logical counters do not describe total V8 heap
+or establish speedups. Final runtime validation is deferred with the broader
+implementation pass; the inert-only restrictions below remain unchanged.
+
 Every supplied reference is resolved before and after the rename, including
 untouched references and formerly failed lookups. A changed free binding refutes
 preservation. An incomplete reference universe or resolution frontier returns

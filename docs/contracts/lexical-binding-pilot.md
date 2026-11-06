@@ -9,6 +9,17 @@ frontier. A completed lookup does not certify whole-program well-formedness.
 Candidate counts and expanded path witness references have independent bounds;
 either limit retains an unknown frontier instead of slicing a complete answer.
 
+The internal prepared-model owner snapshots at most16MiB of canonical metadata
+before constructing scope/parent indexes and sorted namespace/datum buckets.
+Canonical declaration keys and candidate/parent digests are prepared once.
+Its opaque handle belongs to the exact captured immutable world and profile;
+copied/forged handles and changed-world queries are rejected. Private records
+are never returned or retained globally by name. The raw-input binding function
+prepares a model for its one query; the rename planner shares a base model and a
+separate overlay model across all its checks. Answers still carry independently
+qualified world, query and positive/negative dependencies. This implementation
+awaits the deferred semantic/mutation/cost qualification.
+
 `src/semantic/lexical-binding.js` consumes existing canonical scope/declaration
 records and requires upstream admitted closure receipts plus explicit profile
 namespace/datum/access annotations. Syntax coverage cannot supply those binding

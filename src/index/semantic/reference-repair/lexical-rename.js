@@ -1,7 +1,7 @@
 import { canonicalSemanticJson, semanticHash } from '../identity.js';
 import { createSemanticSourceSnapshot } from '../source.js';
 import { admitOwnedSemanticSourceSnapshot } from '../source-snapshot-admission.js';
-import { resolveLexicalBinding } from '../bindings/lexical.js';
+import { prepareLexicalBindingModel, resolvePreparedLexicalBinding } from '../bindings/lexical.js';
 
 const key = canonicalSemanticJson;
 const sameTargets = (left, right) => left.status === right.status
@@ -28,6 +28,20 @@ export const proposeLexicalRename = ({ world, profile, scopes, declarations, sou
     || sources.length > 256 || !Number.isSafeInteger(maxQueries) || maxQueries < 0 || maxQueries > 32769
     || !Number.isSafeInteger(maxEvidenceBytes) || maxEvidenceBytes < 1024 || maxEvidenceBytes > 4 * 1024 * 1024
     || !Number.isSafeInteger(maxSourceBytes) || maxSourceBytes < 1) invalid('Invalid bounded rename inputs.');
+  const work = { limitUnits: 64 * 1024 * 1024, totalUnits: 0, preparationRecords: 0,
+    preparedBuckets: 0, lookupVisits: 0, witnessRefs: 0, admittedAssemblyChars: 0, assemblyChars: 0 };
+  const charge = (kind, units) => {
+    if (!Number.isSafeInteger(units) || units < 0 || units > work.limitUnits - work.totalUnits) return false;
+    work.totalUnits += units; work[kind] += units; return true;
+  };
+  // Capture once before consulting caller-owned cancellation observations.
+  // Both prepared models and every occurrence use this same bounded inventory.
+  let captured;
+  try { captured = JSON.parse(key({ world, profile, scopes, declarations, target, declarationSite,
+    occurrences, newName, referenceUniverse: referenceUniverse ?? null }, { maxBytes: 16 * 1024 * 1024 })); }
+  catch { invalid('Rename metadata exceeds its bounded JSON contract.'); }
+  ({ world, profile, scopes, declarations, target, declarationSite, occurrences, newName, referenceUniverse } = captured);
+  const baseModel = prepareLexicalBindingModel({ world, profile, scopes, declarations }, { charge });
   const locked = declarations.filter(row => key(row.ref) === key(target));
   if (locked.length !== 1) invalid('Exactly one admitted target declaration is required.');
   const declaration = locked[0];
@@ -59,7 +73,7 @@ export const proposeLexicalRename = ({ world, profile, scopes, declarations, sou
     seen.add(id);
     validateSite(occurrence.site, occurrence.query.datumKey);
   }
-  const base = { world, profile, scopes, declarations, maxVisits, maxCandidates, maxWitnessRefs, signal };
+  const base = { world, maxVisits, maxCandidates, maxWitnessRefs, signal };
   const checks = [];
   const frontier = [];
   let retainedEvidenceBytes = 0, evidenceExhausted = false;
@@ -77,7 +91,7 @@ export const proposeLexicalRename = ({ world, profile, scopes, declarations, sou
       frontier.push({ reason: signal?.aborted ? 'cancelled' : 'query-budget', occurrence: occurrence.query.occurrence });
       break;
     }
-    const before = resolveLexicalBinding({ ...base, query: occurrence.query });
+    const before = resolvePreparedLexicalBinding(baseModel, { ...base, query: occurrence.query });
     workQueries++;
     if (!retain(before)) break;
     const editsTarget = before.completeInProfile && before.status === 'resolved'
@@ -91,17 +105,40 @@ export const proposeLexicalRename = ({ world, profile, scopes, declarations, sou
     sourceUnitId: check.occurrence.site.sourceUnitId, span: [...check.occurrence.site.span],
     expectedText: check.occurrence.query.datumKey, replacement: newName, reason: 'locked-reference-rename'
   });
-  const overlays = [];
-  let overlayBytes = 0;
+  const editsBySource = new Map();
+  for (const edit of edits) {
+    if (!editsBySource.has(edit.sourceUnitId)) editsBySource.set(edit.sourceUnitId, []);
+    editsBySource.get(edit.sourceUnitId).push(edit);
+  }
+  const overlayInputs = [], overlays = [];
+  let plannedOverlayBytes = 0, overlayBytes = 0;
+  // Admit the exact aggregate UTF8 size before constructing any expanded text.
+  // Original coordinates remain UTF16 scalar boundaries, validated above.
   for (const [sourceUnitId, source] of bySource) {
-    const selected = edits.filter(edit => edit.sourceUnitId === sourceUnitId).sort((a, b) => a.span[0] - b.span[0]);
-    for (let index = 1; index < selected.length; index++) {
-      if (selected[index].span[0] < selected[index - 1].span[1]) invalid('Overlapping rename edits.');
+    if (signal?.aborted) { frontier.push({ reason: 'cancelled' }); break; }
+    const selected = editsBySource.get(sourceUnitId) || [];
+    selected.sort((a, b) => a.span[0] - b.span[0]);
+    let bytes = source.byteLength;
+    for (let index = 0; index < selected.length; index++) {
+      const edit = selected[index];
+      if (index && edit.span[0] < selected[index - 1].span[1]) invalid('Overlapping rename edits.');
+      bytes += Buffer.byteLength(edit.replacement) - Buffer.byteLength(edit.expectedText);
     }
-    let text = source.text;
-    for (const edit of [...selected].reverse()) text = text.slice(0, edit.span[0]) + edit.replacement + text.slice(edit.span[1]);
-    overlayBytes += Buffer.byteLength(text);
-    if (overlayBytes > maxSourceBytes) invalid('Expanded source overlay allowance exceeded.');
+    plannedOverlayBytes += bytes;
+    if (!Number.isSafeInteger(plannedOverlayBytes) || plannedOverlayBytes > maxSourceBytes) invalid('Expanded source overlay allowance exceeded.');
+    if (!charge('admittedAssemblyChars', source.text.length + selected.length * newName.length)) invalid('Source overlay assembly work allowance exceeded.');
+    overlayInputs.push({ sourceUnitId, source, selected, bytes });
+  }
+  if (!signal?.aborted) for (const { sourceUnitId, source, selected, bytes } of overlayInputs) {
+    if (signal?.aborted) { frontier.push({ reason: 'cancelled' }); break; }
+    const pieces = []; let position = 0;
+    for (const edit of selected) {
+      pieces.push(source.text.slice(position, edit.span[0]), edit.replacement); position = edit.span[1];
+    }
+    pieces.push(source.text.slice(position));
+    const text = selected.length ? pieces.join('') : source.text;
+    if (Buffer.byteLength(text) !== bytes) invalid('Source overlay byte preflight differs from assembly.');
+    overlayBytes += bytes; work.assemblyChars += text.length;
     const snapshot = createSemanticSourceSnapshot({ bytes: Buffer.from(text),
       repositoryNamespace: source.manifest.repositoryNamespace, path: source.manifest.path,
       language: source.manifest.language, dialect: source.manifest.dialect, mapping: source.manifest.mapping });
@@ -112,9 +149,10 @@ export const proposeLexicalRename = ({ world, profile, scopes, declarations, sou
   });
   const overlayWorld = { ...world, sourceSnapshotId: overlayId };
   const overlayDeclarations = declarations.map(row => key(row.ref) === key(target) ? { ...row, datumKey: newName } : row);
-  let declarationCheck = null;
+  let declarationCheck = null, overlayModel = null;
   if (!signal?.aborted && !evidenceExhausted && workQueries < maxQueries) {
-    declarationCheck = resolveLexicalBinding({ ...base, world: overlayWorld, declarations: overlayDeclarations,
+    overlayModel = prepareLexicalBindingModel({ world: overlayWorld, profile, scopes, declarations: overlayDeclarations }, { charge });
+    declarationCheck = resolvePreparedLexicalBinding(overlayModel, { ...base, world: overlayWorld,
       query: { occurrence: target, startScope: declaration.scope, namespace: declaration.namespace, datumKey: newName } });
     workQueries++;
     if (!retain(declarationCheck)) declarationCheck = null;
@@ -123,11 +161,12 @@ export const proposeLexicalRename = ({ world, profile, scopes, declarations, sou
   const preservation = [];
   for (const check of checks) {
     if (evidenceExhausted) break;
+    if (!overlayModel) { frontier.push({ reason: signal?.aborted ? 'cancelled' : 'query-budget' }); break; }
     if (signal?.aborted || workQueries >= maxQueries) {
       frontier.push({ reason: signal?.aborted ? 'cancelled' : 'query-budget', occurrence: check.occurrence.query.occurrence });
       break;
     }
-    const after = resolveLexicalBinding({ ...base, world: overlayWorld, declarations: overlayDeclarations,
+    const after = resolvePreparedLexicalBinding(overlayModel, { ...base, world: overlayWorld,
       query: check.editsTarget ? { ...check.occurrence.query, datumKey: newName } : check.occurrence.query });
     workQueries++;
     if (!retain(after)) break;
@@ -146,7 +185,7 @@ export const proposeLexicalRename = ({ world, profile, scopes, declarations, sou
     schemaVersion: 1, intent: 'rename', baseWorld: structuredClone(world), overlayWorld, overlayId,
     lockedTarget: structuredClone(target), targetCorrespondence: { kind: 'same-lexical-scope',
       before: structuredClone(target), afterProposalLocal: structuredClone(target) },
-    edits, overlays, preservation, declarationCheck, frontier, workQueries, retainedEvidenceBytes, sourceBytes, overlayBytes,
+    edits, overlays, preservation, declarationCheck, frontier, workQueries, retainedEvidenceBytes, sourceBytes, overlayBytes, work,
     bindingPreservation: changed ? 'refuted-in-model' : frontier.length ? 'unknown' : 'preserved-in-model',
     syntaxValidity: 'not-checked', nativeValidation: 'not-run', behaviorPreservation: 'not-claimed',
     authority: 'inert-proposal', applySupported: false

@@ -1,4 +1,5 @@
 import { canonicalSemanticJson } from './identity.js';
+import { isSemanticJsonBudgetError } from './canonical-json-bounds.js';
 import { createSemanticSourceSnapshot } from './source.js';
 import { readSemanticSourceCapability } from './source-capability.js';
 import { assertSemanticEnvelope } from '../../contracts/validators/semantic-envelopes.js';
@@ -14,8 +15,12 @@ export const admitOwnedSemanticSourceSnapshot = (snapshot, { maxBytes = 8 * 1024
     throw new TypeError('Bounded owned semantic source snapshot required.');
   }
   // Canonical encoding rejects getters/custom JSON objects before source metadata is consumed.
-  const original = canonicalSemanticJson(manifestField.value);
-  if (Buffer.byteLength(original) > maxBytes) throw new RangeError('Semantic source manifest allowance exceeded.');
+  let original;
+  try { original = canonicalSemanticJson(manifestField.value, { maxBytes }); }
+  catch (error) {
+    if (!isSemanticJsonBudgetError(error)) throw error;
+    throw new RangeError('Semantic source manifest allowance exceeded.', { cause: error });
+  }
   const manifest = assertSemanticEnvelope('source', JSON.parse(original));
   if (repositoryNamespace !== null && manifest.repositoryNamespace !== repositoryNamespace) {
     throw new TypeError('Semantic source repository mismatch.');
