@@ -99,6 +99,36 @@ candidate/corpus retirement, original handles, Unicode prefix boundaries, source
 read budgets, action authority and cancellation. Existing finite-model, origin,
 answer-attack and dataset checks retain their coverage through the registry move.
 
+## Shared cohort execution
+
+`tools/eval/tasks/cohort.js` admits up to eight authored tasks and two distinct
+candidate methods, under 8 MiB of input. It compiles the whole declared corpus and
+assigns one split manifest before any candidate executes. Both methods receive
+identical declared budgets and each pair uses the same original compiled source.
+An aggregate deadline can refuse a method; it cannot silently tighten one
+method's policy while claiming matched budgets.
+
+Every declared task/method remains in the funnel, including malformed semantic
+fixtures, quarantine, unrun methods, tool errors and unknown labels. Incomplete
+runs do not traverse oracle alternatives. A method's legitimate failure is
+separate from execution failure; complete finite evidence checks can reject a
+candidate without claiming a program failure. Unreported oversized results remain
+explicit unknown entries instead of contributing a passing count.
+
+The runner yields at compilation/candidate boundaries for cancellation. Original
+abort errors retain their causes, including falsey reasons, and a bounded partial
+denominator with completed/canceled rows. Candidate views and compiled source
+owners retire before a successful report publishes; failure/cancellation uses the
+same original retirement owners. No native resource, process or filesystem
+workspace is created. Repeated runs have distinct execution/receipt identities
+while stable input and semantic split identities remain comparable.
+
+Three unexecuted cases cover shared actual preparation, independently rejected
+versus accepted controls, repeated execution identity, failed/unknown/quarantined
+denominators, original error/cancellation data, capture isolation, matched-budget
+admission, bounded output and confirmed owner retirement. This bounded finite
+cohort is not a global contamination or production-policy qualification.
+
 Five unexecuted cases exercise private-label noninterference, actual snapshot
 immutability, all eight evidence subsets for alternative and q-of requirements,
 overlap/contiguous coverage, unknown versus verified-empty labels, failed run

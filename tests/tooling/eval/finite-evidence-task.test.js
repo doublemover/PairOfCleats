@@ -71,6 +71,7 @@ if (mode === 'private-oracle-visible-packets') {
   assert.equal(score(prepare(unverified), [unverified.privateOracle.units[1].source]).taskResult, 'unknown');
   for (const status of ['not-run', 'timeout', 'canceled', 'tool-error']) {
     const outcome = score(task, [], { status, abstain: true }); assert.equal(outcome.executionStatus, status); assert.equal(outcome.taskResult, 'unknown');
+    assert.equal(outcome.evidence.analysisState, 'not-evaluated-incomplete-run-or-fixture'); assert.deepEqual(outcome.evidence.alternatives, []);
   }
 } else if (mode === 'lineage-splits-and-quarantine') {
   const inputs = ['one', 'two', 'three', 'four', 'five'].map(authoredEvidenceTask);

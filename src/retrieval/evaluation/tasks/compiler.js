@@ -7,6 +7,7 @@ import { isUtf16Boundary } from '../../../shared/embedded-content.js';
 import { throwIfAborted } from '../../../shared/abort.js';
 import { EVIDENCE_TASK_SCHEMAS, EVIDENCE_TASK_VERSION } from '../../../contracts/schemas/evidence-task.js';
 import { assertEvidenceTask } from '../../../contracts/validators/evidence-task.js';
+import { isSemanticJsonBudgetError } from '../../../index/semantic/canonical-json-bounds.js';
 
 const tasks = new WeakMap(), retired = new WeakMap(), MAX_BYTES = 4 * 1024 * 1024;
 const key = value => canonicalSemanticJson(value, { maxBytes: MAX_BYTES });
@@ -40,7 +41,12 @@ const get = handle => {
  */
 export const compileEvidenceTask = (input, { signal = null } = {}) => {
   const began = performance.now(); throwIfAborted(signal);
-  input = captureSemanticRequest(input, EVIDENCE_TASK_SCHEMAS.compilation); assertEvidenceTask('compilation', input); key(input);
+  input = captureSemanticRequest(input, EVIDENCE_TASK_SCHEMAS.compilation); assertEvidenceTask('compilation', input);
+  try { key(input); }
+  catch (cause) {
+    if (!isSemanticJsonBudgetError(cause)) throw cause;
+    throw Object.assign(new Error('Finite task compiler canonical-input allowance exceeded.', { cause }), { code: 'ERR_EVIDENCE_TASK_INPUT_LIMIT' });
+  }
   const reasons = [], files = new Map(), bySource = new Map(), units = new Map(), groupDefinitions = new Map(); let sourceBytes = 0;
   const quarantine = (reason, path = null) => { reasons.push({ reason, path }); };
   if (input.spec.taskAvailableAt > input.spec.cutoffAt) quarantine('task-unavailable-at-cutoff');

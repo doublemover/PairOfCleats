@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 2481,
+    "hero": 2484,
     "matrix": 110,
     "meta": 54,
     "soak": 1,
@@ -15889,6 +15889,24 @@
     {
       "id": "tooling/eval/evidence-task-candidate-view/prefix-budgets-and-authority",
       "order": 2646,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/eval/evidence-task-cohort/shared-corpus-and-fixed-controls",
+      "order": 2647,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/eval/evidence-task-cohort/failed-and-unknown-denominators",
+      "order": 2648,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/eval/evidence-task-cohort/capture-cancellation-and-budgets",
+      "order": 2649,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

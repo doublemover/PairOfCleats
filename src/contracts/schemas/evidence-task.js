@@ -26,6 +26,7 @@ export const EVIDENCE_TASK_SCHEMAS = {
       evidenceGroups: { enum: ['one-declared-alternative-complete', 'incomplete-or-unknown'] }, observedReadOrUse: { const: 'not-established' },
       semanticClosure: { const: 'not-implied' }, downstreamOutcome: { const: 'not-assessed' } }),
     evidence: object({ submittedSpans: uint(32), uniqueSourceUnits: uint(32), unionSourceBytes: uint(4194304), withinDeclaredBudget: { type: 'boolean' },
+      analysisState: { enum: ['declared-oracle-evaluated', 'not-evaluated-incomplete-run-or-fixture'] },
       rejected: list(object({ index: uint(31), reason: { const: 'source-identity-or-original-utf16-span-mismatch' } }), 32), coveredOracleUnits: uint(128),
       alternatives: list(object({ id: text(64), satisfied: { type: 'boolean' }, requiredGroups: uint(32), satisfiedGroups: uint(32) }), 32),
       selectedAlternative: { anyOf: [selectedAlternative, { type: 'null' }] }, selection: { const: 'one-complete-or-best-partial-declared-alternative' } }),

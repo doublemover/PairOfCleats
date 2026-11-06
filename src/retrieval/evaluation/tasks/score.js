@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { performance } from 'node:perf_hooks';
 import { canonicalSemanticJson, semanticHash } from '../../../index/semantic/identity.js';
 import { captureSemanticRequest } from '../../../semantic/request-snapshot.js';
@@ -50,10 +51,11 @@ export const scoreEvidenceTask = ({ task, manifest, submission }, { signal = nul
     for (const [start, end] of merged) visitedSourceBytes += Buffer.byteLength(file.text.slice(start, end));
   }
   const coveredUnits = new Set();
-  for (const unit of input.privateOracle.units) {
+  const analyze = submission.status === 'completed' && membership.state === 'frozen';
+  for (const unit of analyze ? input.privateOracle.units : []) {
     if (selected.get(unit.source.sourceUnitId)?.some(([start, end]) => start <= unit.source.span[0] && end >= unit.source.span[1])) coveredUnits.add(unit.id);
   }
-  const alternatives = input.privateOracle.alternatives.map(alternative => {
+  const alternatives = (analyze ? input.privateOracle.alternatives : []).map(alternative => {
     const groups = alternative.groups.map(group => ({ id: group.id, required: group.require,
       coveredUnitIds: group.unitIds.filter(id => coveredUnits.has(id)).sort(order) }));
     return { id: alternative.id, groups, satisfied: groups.every(group => group.coveredUnitIds.length >= group.required),
@@ -78,6 +80,7 @@ export const scoreEvidenceTask = ({ task, manifest, submission }, { signal = nul
       evidenceGroups: selectedAlternative?.satisfied ? 'one-declared-alternative-complete' : 'incomplete-or-unknown',
       observedReadOrUse: 'not-established', semanticClosure: 'not-implied', downstreamOutcome: 'not-assessed' },
     evidence: { submittedSpans: submission.evidence.length, uniqueSourceUnits: selected.size, unionSourceBytes: visitedSourceBytes,
+      analysisState: analyze ? 'declared-oracle-evaluated' : 'not-evaluated-incomplete-run-or-fixture',
       withinDeclaredBudget: withinBudget, rejected, coveredOracleUnits: coveredUnits.size,
       alternatives: alternatives.map(row => ({ id: row.id, satisfied: row.satisfied, requiredGroups: row.groups.length, satisfiedGroups: row.satisfiedGroups })),
       selectedAlternative, selection: 'one-complete-or-best-partial-declared-alternative' },
@@ -98,4 +101,3 @@ export const scoreEvidenceTask = ({ task, manifest, submission }, { signal = nul
 export const inspectEvidenceTaskOutcome = result => {
   if (!result || !owned.has(result)) throw fail('OUTCOME_HANDLE', 'Original finite evidence-task outcome required.'); return result;
 };
-import { randomUUID } from 'node:crypto';

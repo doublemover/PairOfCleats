@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { performance } from 'node:perf_hooks';
 import { semanticHash } from '../../../index/semantic/identity.js';
 import { captureSemanticRequest } from '../../../semantic/request-snapshot.js';
@@ -92,4 +93,3 @@ export const projectRunnableEvidenceTask = (manifest, task, options = {}) => {
   // and private leakage keys. Only the trusted runner sees this manifest.
   return projectCandidateEvidenceTask(task, options);
 };
-import { randomUUID } from 'node:crypto';

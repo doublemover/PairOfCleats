@@ -2649,3 +2649,6 @@ tooling/eval/finite-evidence-task/source-authority-and-failures
 tooling/eval/evidence-task-candidate-view/oracle-blind-baselines
 tooling/eval/evidence-task-candidate-view/candidate-view-retirement
 tooling/eval/evidence-task-candidate-view/prefix-budgets-and-authority
+tooling/eval/evidence-task-cohort/shared-corpus-and-fixed-controls
+tooling/eval/evidence-task-cohort/failed-and-unknown-denominators
+tooling/eval/evidence-task-cohort/capture-cancellation-and-budgets
