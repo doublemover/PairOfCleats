@@ -10,6 +10,8 @@ import { readVerifiedContainedFile } from '../../../shared/contained-file.js';
 import { atomicWriteText } from '../../../shared/io/atomic-write.js';
 import { throwIfAborted, raceAbort } from '../../../shared/abort.js';
 import { withRuntimeDestinationAccount } from './destination-writer-context.js';
+import { observeStorageResource } from '../../../shared/storage/failure-observation.js';
+import { retainPublishedFileLockPrerequisite } from '../../../shared/locks/file-lock-producer-observations.js';
 
 const charges = new WeakMap(), queues = new WeakMap(), accountingOwners = new WeakMap();
 const receiptName = '.storage-budget.json';
@@ -50,12 +52,27 @@ export const withRuntimeDestinationWriter = async ({ destination, maxDiskWorking
     pollMs: 25, signal, metadata: { scope: 'runtime-destination', destination: root } });
   if (!rawLock) { check(); throw Object.assign(new Error('Runtime destination writer is busy.'), { code: 'ERR_RUNTIME_WRITER_BUSY' }); }
   const lock = createLockReleaseHandle({ lock: rawLock, releaseLabel: 'runtime-writer.release' });
+  const observations = [];
+  const remember = value => {
+    const observation = observeStorageResource(value, { phase: 'runtime-destination-writer' });
+    if (observation.hasResourceObservation) {
+      observations.push(observation);
+      // The original metadata owner also guards its own asynchronous release
+      // and synchronous exit cleanup. A report cannot replace this observer.
+      retainPublishedFileLockPrerequisite(rawLock, observation.retain());
+    }
+    return observation;
+  };
+  const releaseAfterFailure = async error => {
+    remember(error);
+    await closeRuntimeResources([{ close: () => lock.release() }], error, { hasOperationError: true });
+  };
   let lockBytes;
   try { check(); lockBytes = (await fs.lstat(rawLock.lockPath)).size; check(); }
-  catch (error) { await closeRuntimeResources([{ close: () => lock.release() }], error, { hasOperationError: true }); }
+  catch (error) { await releaseAfterFailure(error); }
   if (maxDiskWorkingSetBytes == null) {
     try { maxDiskWorkingSetBytes = await readRuntimeDestinationBudget(root, signal); }
-    catch (error) { await closeRuntimeResources([{ close: () => lock.release() }], error, { hasOperationError: true }); }
+    catch (error) { await releaseAfterFailure(error); }
   }
   const shared = diskAccount || createSemanticDiskAccount(maxDiskWorkingSetBytes);
   const accountingOwner = accountingOwners.get(shared) || shared;
@@ -67,7 +84,7 @@ export const withRuntimeDestinationWriter = async ({ destination, maxDiskWorking
   catch (error) {
     // Do not unblock a later shared-account owner before the earlier one drains.
     previous.then(unlock, unlock);
-    await closeRuntimeResources([{ close: () => lock.release() }], error, { hasOperationError: true });
+    await releaseAfterFailure(error);
   }
   let charged = 0, admitted = false;
   let retainedBaseline = null;
@@ -116,23 +133,30 @@ export const withRuntimeDestinationWriter = async ({ destination, maxDiskWorking
       account.release(oldBytes);
     }
     check();
-    return await withRuntimeDestinationAccount(root, account, () => operation({ destination: root, account }));
-  } catch (error) { operationFailed = true; operationError = error; throw error; }
+    const result = await withRuntimeDestinationAccount(root, account, () => operation({ destination: root, account }));
+    remember(result).requireSettled();
+    return result;
+  } catch (error) { operationFailed = true; operationError = error; remember(error); throw error; }
   finally {
     const cleanupErrors = [];
+    let retainedBytes = null;
     try {
       if (admitted) {
         try {
+          // Filesystem inventory cannot prove outstanding native writes have
+          // drained. Keep every reservation until that original owner settles.
+          for (const observation of observations) observation.requireSettled();
           const retained = (await inventory(root, null)).retainedBytes;
           if (retained > charged) account.reserve(retained - charged);
-          else account.release(charged - retained);
+          retainedBytes = retained;
         } finally { ledger.set(root, charged); }
       }
-    } catch (error) { cleanupErrors.push(error); }
+    } catch (error) { remember(error); cleanupErrors.push(error); }
     try {
       await lock.release();
-      // Only confirmed removal returns these exact lock credits.
-      if (admitted) account.release(lockBytes);
+      // Delay all reconciliation refunds until confirmed metadata removal.
+      // The same original observers can change during release inspection.
+      if (admitted) account.release(retainedBytes === null ? lockBytes : charged - retainedBytes + lockBytes);
     } catch (error) { cleanupErrors.push(error); }
     finally {
       try { if (admitted) ledger.set(root, charged); }

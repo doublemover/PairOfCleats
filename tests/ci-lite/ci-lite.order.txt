@@ -2486,3 +2486,10 @@ storage/semantic/runtime-family-catalog/uncataloged-cutover
 storage/semantic/runtime-family-catalog/initial-header-recovery
 storage/semantic/runtime-family-catalog/cancellation-budget
 storage/semantic/runtime-family-catalog/writer-authority
+storage/semantic/runtime-writer-resource-ownership/rejected-original
+storage/semantic/runtime-writer-resource-ownership/fulfilled-original
+storage/semantic/runtime-writer-resource-ownership/cleanup-original
+storage/semantic/runtime-writer-resource-ownership/metadata-original
+storage/semantic/runtime-writer-resource-ownership/initialization-original
+storage/semantic/runtime-writer-resource-ownership/falsey-errors
+storage/semantic/runtime-writer-resource-ownership/shared-account

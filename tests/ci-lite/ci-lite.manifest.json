@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 2318,
+    "hero": 2325,
     "matrix": 110,
     "meta": 54,
     "soak": 1,
@@ -14911,6 +14911,48 @@
     {
       "id": "storage/semantic/runtime-family-catalog/writer-authority",
       "order": 2483,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/semantic/runtime-writer-resource-ownership/rejected-original",
+      "order": 2484,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/semantic/runtime-writer-resource-ownership/fulfilled-original",
+      "order": 2485,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/semantic/runtime-writer-resource-ownership/cleanup-original",
+      "order": 2486,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/semantic/runtime-writer-resource-ownership/metadata-original",
+      "order": 2487,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/semantic/runtime-writer-resource-ownership/initialization-original",
+      "order": 2488,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/semantic/runtime-writer-resource-ownership/falsey-errors",
+      "order": 2489,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/semantic/runtime-writer-resource-ownership/shared-account",
+      "order": 2490,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

@@ -24,6 +24,14 @@ Reading or verifying the whole store is not an interactive fallback.
 
 ## Publication and recovery
 
+The destination writer retains original fulfilled-result, operation-error and
+cleanup resource observations in its existing file-lock owner. Outstanding work
+keeps both metadata and disk reservations fenced. Inventory refunds occur only
+after confirmed metadata release; settlement alone does not remove that lock.
+After the original native owner settles, its exact file-lock publication session
+can release metadata without replaying the operation. A subsequent admitted writer
+reconciles the retained ledger.
+
 Only an active account from the original destination writer can mutate the
 catalog. An insertion plans at most 66 nodes, appends their bounded bytes as one
 batch, syncs and closes the actual descriptor, then publishes the small commit
