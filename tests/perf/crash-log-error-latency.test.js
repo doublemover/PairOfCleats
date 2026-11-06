@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
+import fsSync from 'node:fs';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { performance } from 'node:perf_hooks';
@@ -15,6 +16,38 @@ const syncP95LimitMs = 250, settledP95LimitMs = 1000;
 const warnings = [], warn = console.warn, samples = [];
 console.warn = (...values) => warnings.push(values.join(' '));
 const percentile = (values, fraction) => [...values].sort((a, b) => a - b)[Math.ceil(values.length * fraction) - 1];
+// Keep the actual synchronous operation timings on both success and failure.
+// The unchanged percentile includes observation overhead; no slow sample is
+// filtered and durable terminal/control publication still uses the real owner.
+const observeSyncIo = operation => {
+  const methods = ['openSync', 'closeSync', 'readFileSync', 'writeFileSync', 'fsyncSync',
+    'statSync', 'fstatSync', 'lstatSync', 'existsSync', 'mkdirSync', 'renameSync', 'unlinkSync', 'rmSync'];
+  const originals = new Map(methods.map(name => [name, fsSync[name]]));
+  const descriptors = new Map(), events = [];
+  let depth = 0, truncated = false;
+  for (const [name, original] of originals) fsSync[name] = function (...args) {
+    const level = depth++, started = performance.now();
+    const target = typeof args[0] === 'number' ? descriptors.get(args[0]) : String(args[0]);
+    try {
+      const value = Reflect.apply(original, this, args);
+      if (name === 'openSync') descriptors.set(value, String(args[0]));
+      if (name === 'closeSync') descriptors.delete(args[0]);
+      return value;
+    } finally {
+      const durationMs = performance.now() - started; depth--;
+      if (events.length < 512) events.push({ operation: name, depth: level, durationMs,
+        target: target ? path.basename(target) : null });
+      else truncated = true;
+    }
+  };
+  const started = performance.now(), cpu = process.cpuUsage();
+  try {
+    const value = operation(), wallMs = performance.now() - started;
+    const observedIoMs = events.filter(row => row.depth === 0).reduce((sum, row) => sum + row.durationMs, 0);
+    return { value, wallMs, cpuMicroseconds: process.cpuUsage(cpu),
+      syncIo: { events, truncated, observedIoMs, unattributedMs: Math.max(0, wallMs - observedIoMs) } };
+  } finally { for (const [name, original] of originals) fsSync[name] = original; }
+};
 const tail = async file => {
   const handle = await fs.open(file, 'r');
   try {
@@ -31,7 +64,7 @@ try {
     const error = Object.freeze(Object.assign(new Error(`${message} token=${secret}`), { code: 'LATENCY_ORIGINAL' }));
     const logger = await createCrashLogger({ repoCacheRoot: dir, enabled: true,
       buildId: 'serial-latency', attemptId: selected, mode: 'code' });
-    let evidence, syncMs, settledMs;
+    let evidence, syncMs, settledMs, observation;
     const files = [path.join(dir, 'logs', 'index-crash.log'), logger.paths.logPath];
     assert.equal(new Set(files).size, 2, 'measure both independent append sinks');
     const identities = new Map();
@@ -44,7 +77,8 @@ try {
       logger.updatePhase(`before-${index}`);
       await logger.flush();
       const started = performance.now();
-      evidence = logger.logError(error);
+      observation = observeSyncIo(() => logger.logError(error));
+      evidence = observation.value;
       syncMs = performance.now() - started;
       await logger.flush();
       settledMs = performance.now() - started;
@@ -70,7 +104,12 @@ try {
       // independent of sample count; no live descriptor or author cache is reset.
       if (index !== sampleCount - 1) await fs.truncate(file, 0);
     }
-    if (index >= 0) samples.push({ syncMs, settledMs,
+    assert.equal(observation.syncIo.truncated, false, 'every measured synchronous operation is retained');
+    for (const operation of ['writeFileSync', 'fsyncSync', 'renameSync']) {
+      assert.ok(observation.syncIo.events.some(row => row.operation === operation),
+        `actual terminal publication must expose its ${operation} operation`);
+    }
+    if (index >= 0) samples.push({ syncMs, settledMs, cpuMicroseconds: observation.cpuMicroseconds, syncIo: observation.syncIo,
       terminalSha256: createHash('sha256').update(terminalBytes).digest('hex') });
   }
   assert.deepEqual(warnings, []);

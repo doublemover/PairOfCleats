@@ -6,6 +6,7 @@ import { createPublishedSemanticWitness } from '../../helpers/published-semantic
 import { createRuntimeImportFixture } from '../../helpers/runtime-import-fixture.js';
 import { importRuntimeEvidence } from '../../../src/index/semantic/runtime/import.js';
 import { qualifyRuntimeSourceCandidates } from '../../../src/index/semantic/runtime/source-authority.js';
+import { DEFAULT_COMPILER_ADMISSION_POLICY } from '../../../src/index/semantic/compiler-admission.js';
 
 const root = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-runtime-foreign-reference-'));
 let fixture;
@@ -14,6 +15,7 @@ try {
   // while unrelated compiler rows and indexed config metadata need no hydration.
   const selection = { threads: 1, extraIgnore: ['tsconfig.json', 'package.json'],
     semanticProfile: 'targeted', enrichment: { bindings: 'eager', localFlow: 'deferred', crossFileFlow: 'deferred' },
+    compilerAdmission: DEFAULT_COMPILER_ADMISSION_POLICY,
     compilerOptions: { types: [], lib: ['ES5'] },
     sourceFiles: {
       'snapshot.ts': 'export function build(seed:number) { return seed + 1; }\n',
@@ -28,7 +30,18 @@ try {
     }
   }
   assert.equal(binding, true, 'the reduced source fixture still publishes actual compiler bindings');
-  const other = await createPublishedSemanticWitness({ ...selection, root: path.join(root, 'changed'), revision: 1 });
+  // Publish the next real generation of this repository. Holding namespace
+  // constant makes the negative discriminate generation authority itself;
+  // incremental preparation reuses the unchanged compiler/configuration closure.
+  const other = await createPublishedSemanticWitness({ ...selection, root: path.join(root, 'source'), revision: 1,
+    incremental: true });
+  let otherBinding = false;
+  for (const partition of other.manifest.partitions.filter(row => row.partitionId.startsWith('sa1:'))) {
+    for await (const row of other.store.iterateRows(partition.partitionId, 'semantic_records')) {
+      if (row.kind === 'binding') { otherBinding = true; break; }
+    }
+  }
+  assert.equal(otherBinding, true, 'the next generation also publishes actual compiler bindings');
   const source = [...witness.sources.values()].find(row => row.path === 'snapshot.ts');
   const target = witness.records.find(row => row.kind === 'scope' && row.data.scopeKind === 'FunctionDeclaration'
     && row.sourceUnitId === source.sourceUnitId);
@@ -45,6 +58,8 @@ try {
     'the real published function is authorized by its own pinned generation');
   assert.equal(qualified[0].targetReason, null);
   assert.notDeepEqual(other.manifest.generation, witness.manifest.generation);
+  assert.equal([...other.sources.values()][0].repositoryNamespace, source.repositoryNamespace,
+    'repository identity is held constant so only a foreign generation can refuse the reference');
   await assert.rejects(importRuntimeEvidence({ ...options, semanticContext: other.semanticContext }),
     { code: 'ERR_RUNTIME_QUERY_SCOPE' }, 'a second published generation cannot verify the first source');
   console.log('Foreign published semantic generation cannot authorize runtime source references');

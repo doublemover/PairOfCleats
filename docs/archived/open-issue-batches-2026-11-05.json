@@ -13,7 +13,8 @@
     821,
     1240,
     1234,
-    1634
+    1634,
+    1255
   ],
   "scope": "All open issues except user-excluded editor work and native Tantivy; mixed issues retain their non-editor scope",
   "routing": "Initial grouping by issue scope and recorded source owners; source-review-pending is not an implementation or acceptance claim",
@@ -2669,14 +2670,15 @@
       "title": "[Perf] Share risk witness prefixes and release consumed traversal states",
       "batch": "storage-publication-lifetimes",
       "scope": "active",
-      "review": "source-review-pending",
-      "recordedDisposition": "Implementation recorded; qualification pending.",
+      "review": "qualified-closed",
+      "recordedDisposition": "Completed and closed after published source7d7bbdcbc,76 focused cases,43 gate cases and all eight publication checks.",
       "owners": [
         "src/index/risk-interprocedural/engine.js",
         "src/index/risk-interprocedural/config.js",
         "docs/archived/github-issue-closeout-2026-10-26.json",
         "docs/archived/github-issue-closeout-2026-10-26.md"
-      ]
+      ],
+      "receipt": "docs/archived/risk-witness-retention-closeout-2026-11-05.json"
     },
     {
       "number": 1256,
@@ -5419,8 +5421,8 @@
   ],
   "liveReconciliation": {
     "date": "2026-11-05",
-    "openCount": 358,
-    "method": "Four created-date search pages,100/100/100/61 results with three boundary duplicates; exact initial367 minus nine verified closures, no newly opened/reopened IDs.",
-    "closedAfterCapture": 9
+    "openCount": 357,
+    "closedAfterCapture": 10,
+    "method": "Fresh four created-date pages100/100/100/60 with three boundary duplicates: exact initial367 minus ten completed closures, with no new/reopened IDs."
   }
 }

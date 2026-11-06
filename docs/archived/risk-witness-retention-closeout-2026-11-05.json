@@ -7536,5 +7536,16 @@
     "nativeAndAuthority": "All three native inspection jobs, Windows native index, Windows authority, gate and Rust pass.",
     "remaining": "Windows broad in progress at capture; Ubuntu long crash-log p95 250.208ms exceeds unchanged250ms; eight macOS source authority cases fail real compiler binding positives. Their original hosted logs are retained for next repair batch.",
     "relation": "Different owner from risk witness retention; not a current head all-green claim."
+  },
+  "publication": {
+    "sourceHead": "7d7bbdcbcc1dc1a1c0e98a4958e3b579daf7ef03",
+    "remoteBranchShaVerified": true,
+    "githubIssueState": "closed",
+    "githubStateReason": "completed",
+    "readBack": true,
+    "pr": 572,
+    "prBodyReadBack": true,
+    "openCount": 357,
+    "closingReferenceCount": 533
   }
 }

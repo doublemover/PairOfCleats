@@ -12,6 +12,7 @@ import { fileURLToPath } from 'node:url';
 import { applyTestEnv } from '../../helpers/test-env.js';
 import { qualifyRuntimeSourceCandidates, runtimeObservationTargets } from '../../../src/index/semantic/runtime/source-authority.js';
 import { createRuntimeObservation } from '../../../src/index/semantic/runtime/adapters/shared.js';
+import { DEFAULT_COMPILER_ADMISSION_POLICY } from '../../../src/index/semantic/compiler-admission.js';
 
 const selected = process.env.PAIROFCLEATS_TEST_ID?.split('storage/semantic/runtime-source-reference-authority/')[1];
 assert.ok(['source-authority', 'cli-generation-pin', 'cli-generation-repo-only', 'cli-generation-generation-only',
@@ -23,6 +24,8 @@ try {
   // source. Buffer/worker flow workloads belong to their dedicated consumers.
   const witness = await createPublishedSemanticWitness({ root: path.join(root, 'source'), threads: 1,
     semanticProfile: 'targeted', enrichment: { bindings: 'eager', localFlow: 'deferred', crossFileFlow: 'deferred' },
+    compilerAdmission: DEFAULT_COMPILER_ADMISSION_POLICY,
+    compilerOptions: { types: [], lib: ['ES5'] },
     extraIgnore: ['tsconfig.json', 'package.json'],
     sourceFiles: {
       'snapshot.ts': 'export function build(seed:number) { return seed + 1; }\nexport function render(payload:number[]) { return payload.length; }\n',
