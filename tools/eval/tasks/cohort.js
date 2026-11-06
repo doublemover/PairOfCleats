@@ -7,6 +7,7 @@ import { throwIfAborted, isAbortError } from '../../../src/shared/abort.js';
 import { EVIDENCE_TASK_COHORT_SCHEMA } from '../../../src/contracts/schemas/evidence-task-cohort.js';
 import { assertEvidenceTaskCohort } from '../../../src/contracts/validators/evidence-task-cohort.js';
 import { getOfflineEvaluationAdapter } from '../adapters.js';
+import { evidenceBaselineCandidateId } from '../../../src/retrieval/evaluation/tasks/baseline.js';
 
 const cohorts = new WeakMap();
 const key = value => canonicalSemanticJson(value, { maxBytes: 8 * 1024 * 1024 });
@@ -35,7 +36,11 @@ export const evaluateEvidenceTaskCohort = async (input, { signal = null, maxMs =
   input = captureSemanticRequest(input, EVIDENCE_TASK_COHORT_SCHEMA); assertEvidenceTaskCohort(input);
   const taskInputs = new WeakSet(input.compilations), taskInputIds = new WeakMap();
   const encodedHash = encoded => createHash('sha256').update('finite-evidence-task.cohort.v1\0').update(encoded).digest('hex');
-  const encoded = canonicalSemanticJson(input, { maxBytes: 8 * 1024 * 1024, onObjectEncoded(value, text) {
+  // Registered methods use runId only in their returned execution artifact,
+  // never in scoring/selection. Preserve it in candidatePolicies/receipts while
+  // keeping invocation labels out of the semantic corpus identity.
+  const semanticInput = { ...input, candidates: input.candidates.map(({ runId: _run, ...candidate }) => candidate) };
+  const encoded = canonicalSemanticJson(semanticInput, { maxBytes: 8 * 1024 * 1024, onObjectEncoded(value, text) {
     if (taskInputs.has(value)) taskInputIds.set(value, encodedHash(text));
   } });
   if (new Set(input.candidates.map(candidate => candidate.method)).size !== input.candidates.length
@@ -79,7 +84,7 @@ export const evaluateEvidenceTaskCohort = async (input, { signal = null, maxMs =
         executionStatus: report.status === 'invalid-fixture' ? 'invalid-fixture' : 'not-run', taskResult: 'unknown', reason: report.reason || report.message };
       else {
         const submission = status => ({ schemaVersion: 1, publicTaskId: owner.report.publicTaskId,
-          candidateId: hash({ method: candidate.method, candidate, publicTaskId: owner.report.publicTaskId }), runId: candidate.runId,
+          candidateId: evidenceBaselineCandidateId(owner.report.publicTaskId, candidate), runId: candidate.runId,
           status, evidence: [], abstain: false });
         let artifact = null, error = null, outcome;
         if (owner.report.state === 'quarantined') outcome = adapter.score({ task: owner.task, manifest, submission: submission('not-run') }, { signal });

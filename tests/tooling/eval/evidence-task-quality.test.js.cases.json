@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["owned-paired-metric-and-work", "unknown-labels-and-incomplete-cohort", "identity-and-cancellation"]
+}

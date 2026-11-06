@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 2484,
+    "hero": 2487,
     "matrix": 110,
     "meta": 54,
     "soak": 1,
@@ -15907,6 +15907,24 @@
     {
       "id": "tooling/eval/evidence-task-cohort/capture-cancellation-and-budgets",
       "order": 2649,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/eval/evidence-task-quality/owned-paired-metric-and-work",
+      "order": 2650,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/eval/evidence-task-quality/unknown-labels-and-incomplete-cohort",
+      "order": 2651,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/eval/evidence-task-quality/identity-and-cancellation",
+      "order": 2652,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

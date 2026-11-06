@@ -2652,3 +2652,6 @@ tooling/eval/evidence-task-candidate-view/prefix-budgets-and-authority
 tooling/eval/evidence-task-cohort/shared-corpus-and-fixed-controls
 tooling/eval/evidence-task-cohort/failed-and-unknown-denominators
 tooling/eval/evidence-task-cohort/capture-cancellation-and-budgets
+tooling/eval/evidence-task-quality/owned-paired-metric-and-work
+tooling/eval/evidence-task-quality/unknown-labels-and-incomplete-cohort
+tooling/eval/evidence-task-quality/identity-and-cancellation

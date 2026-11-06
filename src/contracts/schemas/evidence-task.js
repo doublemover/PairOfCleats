@@ -8,6 +8,7 @@ const group = object({ id: text(64), require: { type: 'integer', minimum: 1, max
 const uint = maximum => ({ type: 'integer', minimum: 0, maximum });
 const ms = { type: 'number', minimum: 0 };
 const coverage = { enum: ['complete-in-declared-universe', 'partial', 'unknown'] };
+const baselineMethod = { enum: ['lexical-visible-prefix-v1', 'source-order-files-v1'] };
 const compileWork = object({ executionId: hash, sourceBytes: uint(4194304), sourceFiles: uint(128), oracleUnits: uint(128), elapsedMs: ms });
 const splitWork = object({ executionId: hash, sourceBytes: uint(16777216), compiledTasks: uint(64), leakageComponents: uint(64),
   sourceIdentityReuse: { const: 'compiler-owned-digests; no-text-rehash' }, elapsedMs: ms });
@@ -16,7 +17,8 @@ const selectedAlternative = object({ id: text(64), groups: list(object({ id: tex
 export const EVIDENCE_TASK_VERSION = 1;
 export const EVIDENCE_TASK_SCHEMAS = {
   outcome: object({ schemaVersion: { const: EVIDENCE_TASK_VERSION }, kind: { const: 'finite-evidence-task-outcome' }, taskSpecId: hash,
-    publicTaskId: hash, splitManifestId: hash, privateOracleId: hash, candidateId: hash, runId: hash, outputHash: hash, semanticOutcomeId: hash, receiptId: hash,
+    publicTaskId: hash, splitManifestId: hash, privateOracleId: hash, candidateId: hash, runId: hash, outputHash: hash,
+    candidateContentId: hash, semanticOutcomeId: hash, receiptId: hash,
     executionStatus: { enum: ['completed', 'invalid-fixture', 'unsupported', 'not-run', 'timeout', 'canceled', 'tool-error'] },
     taskResult: { enum: ['pass', 'fail', 'unknown'] }, reason: { enum: ['oracle-coverage-or-validation-unavailable', 'quarantined-compiled-task',
       'candidate-submission-not-completed', 'invalid-source-evidence', 'declared-evidence-budget-exceeded', 'explicit-verified-empty-oracle',
@@ -62,8 +64,12 @@ export const EVIDENCE_TASK_SCHEMAS = {
   submission: object({ schemaVersion: { const: EVIDENCE_TASK_VERSION }, publicTaskId: hash,
     candidateId: hash, runId: hash, status: { enum: ['completed', 'not-run', 'timeout', 'canceled', 'tool-error'] },
     evidence: list(QUESTION_SOURCE_REFERENCE_SCHEMA, 32), abstain: { type: 'boolean' } }),
-  baseline: object({ schemaVersion: { const: EVIDENCE_TASK_VERSION }, method: { enum: ['lexical-visible-prefix-v1', 'source-order-files-v1'] },
+  baseline: object({ schemaVersion: { const: EVIDENCE_TASK_VERSION }, method: baselineMethod,
     runId: hash, maxReadBytes: { type: 'integer', minimum: 1, maximum: 1048576 },
     maxSelectedFiles: { type: 'integer', minimum: 1, maximum: 32 }, maxSelectedSourceBytes: { type: 'integer', minimum: 1, maximum: 1048576 },
-    maxWorkMs: { type: 'integer', minimum: 1, maximum: 250 } })
+    maxWorkMs: { type: 'integer', minimum: 1, maximum: 250 } }),
+  quality: object({ schemaVersion: { const: EVIDENCE_TASK_VERSION }, baselineMethod, candidateMethod: baselineMethod,
+    seed: text(256), resamples: { type: 'integer', minimum: 32, maximum: 2048 },
+    limits: object({}, { inputBytes: { type: 'integer', minimum: 1, maximum: 8388608 }, outputBytes: { type: 'integer', minimum: 256, maximum: 1048576 },
+      work: { type: 'integer', minimum: 1, maximum: 2097152 }, maxMs: { type: 'integer', minimum: 1, maximum: 1000 } }) })
 };

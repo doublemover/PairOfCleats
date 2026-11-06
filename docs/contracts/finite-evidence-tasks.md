@@ -63,6 +63,10 @@ remain distinct; unmeasured RSS/build/model work is not reported as a zero.
 Outcome semantic IDs identify equivalent judgments. Receipt IDs additionally
 bind the actual compilation, split and scoring executions; repeated scoring cannot
 collide as one execution or silently erase its additional cost.
+Invocation-only run labels stay in actual artifacts and receipts, while stable
+candidate-content and corpus identities exclude them. Registered method owners
+use those labels only for returned execution provenance; source selection,
+budgets, evidence and oracle/split definitions remain bound in semantic identities.
 Explicit retirement drops the owner's source/oracle references and rejects later
 reads/scoring through that handle. Retirement is idempotent; previously returned
 immutable views remain caller-owned. This profile holds no native resources.
@@ -128,6 +132,35 @@ versus accepted controls, repeated execution identity, failed/unknown/quarantine
 denominators, original error/cancellation data, capture isolation, matched-budget
 admission, bounded output and confirmed owner retirement. This bounded finite
 cohort is not a global contamination or production-policy qualification.
+
+## Paired outcome and cost reports
+
+The task adapter lazily exposes `runCohort` and `compareCohort`; callers that only
+compile/read tasks do not import the resampling owner. Comparison requires the
+original owned cohort and distinct matched-budget methods. It feeds source/task/
+oracle/split-qualified observations into the existing paired-quality owner, using
+the original leakage component as the family cluster. No second bootstrap or
+statistical estimator is introduced.
+
+Known finite-certificate pass/fail outcomes map to one/zero. Unknown labels remain
+missing measurements, with complete-pair conditioning and outcome denominators
+retained by the existing estimator. Incomplete corpus execution/admission/report
+coverage refuses inference over a selected successful subset. Serialized objects
+cannot forge original cohort/outcome ownership. Statistical completion does not
+qualify a production policy, contamination-free population, semantic source
+oracle or executed model/program task.
+
+A read-only work projection counts original compilation/split execution IDs once,
+and every actual candidate/scoring execution separately. It reports known phase
+time and source bytes, names unmeasured failed-candidate phases and keeps the
+whole cohort duration distinct from incomplete phase sums. Missing RSS remains
+null; no latency inference is made. Repeated comparison uses the original seeded
+family estimator while receiving its own execution identity.
+
+Three unexecuted cases cover exact paired finite effects, original shared-work
+counts, seeded replay, unknown labels, incomplete corpus refusal, strict original
+identity/method admission, bounded statistics and cancellation. Empirical
+production-policy evolution remains outside this authored finite qualification.
 
 Five unexecuted cases exercise private-label noninterference, actual snapshot
 immutability, all eight evidence subsets for alternative and q-of requirements,

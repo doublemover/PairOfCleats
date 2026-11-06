@@ -58,6 +58,9 @@ if (mode === 'private-oracle-visible-packets') {
   assert.notEqual(first.work.executionId, repeated.work.executionId);
   assert.equal(first.work.compilation.executionId, repeated.work.compilation.executionId, 'the original preparation remains shared');
   assert.equal(first.work.split.executionId, repeated.work.split.executionId);
+  const renamedRun = score(task, [main, helper], { runId: hash('another-invocation-label') });
+  assert.equal(first.candidateContentId, renamedRun.candidateContentId); assert.equal(first.semanticOutcomeId, renamedRun.semanticOutcomeId);
+  assert.notEqual(first.outputHash, renamedRun.outputHash); assert.notEqual(first.receiptId, renamedRun.receiptId);
 } else if (mode === 'unknown-and-verified-empty') {
   for (const coverage of ['partial', 'unknown']) {
     const input = authoredEvidenceTask(); input.privateOracle.labelCoverage = coverage; input.privateOracle.units = [];

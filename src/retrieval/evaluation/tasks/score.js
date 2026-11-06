@@ -64,6 +64,7 @@ export const scoreEvidenceTask = ({ task, manifest, submission }, { signal = nul
   const selectedAlternative = alternatives[0] ?? null, oracle = input.privateOracle;
   const withinBudget = visitedSourceBytes <= input.spec.limits.maxSelectedSourceBytes && submission.evidence.length <= input.spec.limits.maxEvidenceSpans;
   const sourceValidity = !rejected.length, oracleAdmitted = oracle.validation.status !== 'unverified';
+  const { runId: _submissionRun, ...candidateContent } = submission;
   let executionStatus = submission.status, taskResult = 'unknown', reason = 'oracle-coverage-or-validation-unavailable';
   if (membership.state !== 'frozen') { executionStatus = 'invalid-fixture'; reason = 'quarantined-compiled-task'; }
   else if (submission.status !== 'completed') reason = 'candidate-submission-not-completed';
@@ -74,7 +75,7 @@ export const scoreEvidenceTask = ({ task, manifest, submission }, { signal = nul
   const result = { schemaVersion: EVIDENCE_TASK_VERSION, kind: 'finite-evidence-task-outcome',
     taskSpecId: compilation.compilationId, publicTaskId: compilation.publicTaskId, splitManifestId: membership.manifestId,
     privateOracleId: compilation.privateOracleId, candidateId: submission.candidateId, runId: submission.runId,
-    outputHash: hash('candidate-artifact', submission), executionStatus, taskResult, reason,
+    outputHash: hash('candidate-artifact', submission), candidateContentId: hash('candidate-content', candidateContent), executionStatus, taskResult, reason,
     taskOutcomeMeaning: 'finite-source-evidence-certificate-only', executedCandidateProgram: false,
     axes: { sourceValidity: sourceValidity ? 'matches-compiled-visible-snapshot' : 'invalid', labelCoverage: oracle.labelCoverage,
       evidenceGroups: selectedAlternative?.satisfied ? 'one-declared-alternative-complete' : 'incomplete-or-unknown',
@@ -90,10 +91,14 @@ export const scoreEvidenceTask = ({ task, manifest, submission }, { signal = nul
     work: { executionId: hash('score-execution', randomUUID()), compilation: compilation.work, split: manifest.work, scoringMs: performance.now() - began,
       setupAccounting: 'reference-original-execution-ids-once; fresh-score-work-every-call',
       rssBytes: null, rssReason: 'not-measured', buildOrModelExecution: 'not-requested' } };
-  const { work: _work, ...semantic } = result;
+  // The run label is consumed only as execution provenance. Exact proposed
+  // content remains bound through candidateContentId; actual artifact/run data
+  // stays in the separate execution receipt.
+  const { work: _work, runId: _run, outputHash: _outputHash, ...semantic } = result;
   result.semanticOutcomeId = hash('outcome-semantics', semantic);
   result.receiptId = hash('outcome-receipt', { semanticOutcomeId: result.semanticOutcomeId,
-    compilationExecutionId: compilation.work.executionId, splitExecutionId: manifest.work.executionId, scoringExecutionId: result.work.executionId });
+    runId: result.runId, outputHash: result.outputHash, compilationExecutionId: compilation.work.executionId,
+    splitExecutionId: manifest.work.executionId, scoringExecutionId: result.work.executionId });
   assertEvidenceTask('outcome', result);
   if (Buffer.byteLength(JSON.stringify(result)) + 1 > maxBytes) throw fail('OUTPUT_LIMIT', 'Finite evidence task outcome exceeds the response allowance.');
   throwIfAborted(signal); immutable(result); owned.set(result, { membership, compilationId: compilation.compilationId }); return result;

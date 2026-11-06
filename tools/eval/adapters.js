@@ -23,10 +23,12 @@ const loaders = {
       import('../../src/retrieval/evaluation/tasks/score.js')
     ]);
     return Object.freeze({ id: 'finite-source-evidence-v1', executionClass: 'read-only-compiled-visible-source-only',
-      capabilities: Object.freeze(['compile', 'inspectCompilation', 'assignSplits', 'materialize', 'candidatePacket', 'readSource', 'runCandidate', 'score', 'dispose', 'disposeTask']),
+      capabilities: Object.freeze(['compile', 'inspectCompilation', 'assignSplits', 'materialize', 'candidatePacket', 'readSource', 'runCandidate', 'score', 'runCohort', 'compareCohort', 'dispose', 'disposeTask']),
       compile: compiler.compileEvidenceTask, inspectCompilation: compiler.inspectEvidenceTaskCompilation, assignSplits: split.assignEvidenceTaskSplits,
       materialize: view.materializeEvidenceTaskView, candidatePacket: view.projectEvidenceTaskView,
       readSource: view.readEvidenceTaskViewSource, runCandidate: baseline.runVisibleEvidenceBaseline,
+      runCohort: async (...args) => (await import('./tasks/cohort.js')).evaluateEvidenceTaskCohort(...args),
+      compareCohort: async (...args) => (await import('./tasks/quality.js')).compareEvidenceTaskCohort(...args),
       score: scoring.scoreEvidenceTask, dispose: view.disposeEvidenceTaskView, disposeTask: compiler.disposeEvidenceTask });
   }
 };

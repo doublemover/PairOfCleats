@@ -8,7 +8,7 @@ const policy = { schemaVersion: 1, seed: 'shared-corpus', train: 5000, dev: 2000
 const candidate = method => ({ schemaVersion: 1, method, runId: hash('run-' + method), maxReadBytes: 1048576,
   maxSelectedFiles: 1, maxSelectedSourceBytes: 1048576, maxWorkMs: 100 });
 const make = () => ({ schemaVersion: 1, compilations: ['first', 'second', 'third'].map(seed => {
-  const input = authoredEvidenceTask(seed); input.spec.problem = 'Find main'; return input;
+  const input = authoredEvidenceTask(seed); input.spec.problem = 'Select main and helper together, or select the alternative.'; return input;
 }), splitPolicy: policy, candidates: [candidate('lexical-visible-prefix-v1'), candidate('source-order-files-v1')] });
 if (mode === 'shared-corpus-and-fixed-controls') {
   const input = make(), result = await evaluateEvidenceTaskCohort(input);
@@ -30,6 +30,8 @@ if (mode === 'shared-corpus-and-fixed-controls') {
   const repeated = await evaluateEvidenceTaskCohort(input);
   assert.equal(repeated.inputId, result.inputId); assert.equal(repeated.splitManifest.manifestId, result.splitManifest.manifestId);
   assert.notEqual(repeated.executionId, result.executionId); assert.notEqual(repeated.outcomes[0].outcome.receiptId, result.outcomes[0].outcome.receiptId);
+  const anotherInvocation = structuredClone(input); anotherInvocation.candidates.forEach((row, index) => { row.runId = hash('another-run-' + index); });
+  assert.equal((await evaluateEvidenceTaskCohort(anotherInvocation)).inputId, result.inputId, 'invocation-only labels cannot change semantic corpus identity');
 } else if (mode === 'failed-and-unknown-denominators') {
   const input = make();
   input.compilations[0].sourceSnapshot[0].availableAt = 1000;

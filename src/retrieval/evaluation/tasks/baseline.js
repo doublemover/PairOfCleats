@@ -14,6 +14,11 @@ const immutable = value => {
   if (value && typeof value === 'object') { for (const child of Object.values(value)) immutable(child); Object.freeze(value); } return value;
 };
 
+/** Invocation labels record actual runs; they do not change candidate policy. */
+export const evidenceBaselineCandidateId = (publicTaskId, request) => semanticHash('evidence-task.baseline-candidate.v1', {
+  publicTaskId, request: { ...request, runId: null }
+});
+
 /** Registered cheap baseline. Its imports/capabilities expose visible source
  * only; hidden oracle labels cannot influence file scoring or membership.
  * Lexical features reuse the existing 4096-code-unit/128-term owner.
@@ -58,7 +63,7 @@ export const runVisibleEvidenceBaseline = ({ view, request }, { signal = null } 
       span: [0, source.utf16Length], coordinateUnit: 'utf16' }); selectedBytes += source.byteLength;
   }
   const submission = assertEvidenceTask('submission', { schemaVersion: 1, publicTaskId: view.publicTaskId,
-    candidateId: semanticHash('evidence-task.baseline-candidate.v1', { publicTaskId: view.publicTaskId, request: { ...request, runId: null } }),
+    candidateId: evidenceBaselineCandidateId(view.publicTaskId, request),
     runId: request.runId, status: 'completed', evidence, abstain: false });
   const result = { schemaVersion: 1, kind: 'visible-evidence-baseline', method: request.method, submission,
     featureProfile: lexical ? 'existing-bounded-4096-utf16-prefix-128-term-jaccard' : 'visible-source-code-unit-order',
