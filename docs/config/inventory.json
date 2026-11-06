@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-06T16:48:47.204Z",
+  "generatedAt": "2026-11-06T16:53:57.801Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
@@ -4964,6 +4964,7 @@
         "tests/tooling/install/node-pty-fresh-lifecycle.test.js",
         "tests/tooling/install/patch-stage-ownership.test.js",
         "tests/tooling/install/phpactor-download-authority.test.js",
+        "tests/tooling/install/postinstall-session.test.js",
         "tests/tooling/install/setup-git-metadata-target-handoff.test.js",
         "tests/tooling/lsp/compilation-database-admission.test.js",
         "tests/tooling/lsp/diagnostic-resource-isolation.test.js",

@@ -2693,3 +2693,8 @@ tooling/install/patch-stage-ownership/exact-success-and-failure
 tooling/install/patch-stage-ownership/original-resource-retirement
 tooling/install/patch-stage-ownership/cleanup-failure-and-identity
 tooling/install/patch-stage-ownership/unknown-cleanup-and-nested-enoent
+tooling/install/postinstall-session/empty-and-inert
+tooling/install/postinstall-session/one-session-and-exclusion
+tooling/install/postinstall-session/borrowed-invocation-context
+tooling/install/postinstall-session/original-failure-and-retirement
+tooling/install/postinstall-session/terminal-results-and-cancellation

@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 2525,
+    "hero": 2530,
     "matrix": 110,
     "meta": 54,
     "soak": 1,
@@ -16153,6 +16153,36 @@
     {
       "id": "tooling/install/patch-stage-ownership/unknown-cleanup-and-nested-enoent",
       "order": 2690,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/postinstall-session/empty-and-inert",
+      "order": 2691,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/postinstall-session/one-session-and-exclusion",
+      "order": 2692,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/postinstall-session/borrowed-invocation-context",
+      "order": 2693,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/postinstall-session/original-failure-and-retirement",
+      "order": 2694,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/postinstall-session/terminal-results-and-cancellation",
+      "order": 2695,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     }

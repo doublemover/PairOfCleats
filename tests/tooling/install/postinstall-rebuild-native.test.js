@@ -6,6 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { applyTestEnv } from '../../helpers/test-env.js';
 import { runNode } from '../../helpers/run-node.js';
+import { pathToFileURL } from 'node:url';
 import { createPatchFixture, originalText, patchedText } from './patch-fixture.js';
 import { probeSqliteNative, rebuildSqliteNativeFromSource,
   rebuildSqliteNativeFromSourceAsync } from '../../../tools/setup/rebuild-native-sqlite.js';
@@ -15,26 +16,45 @@ const scriptPath = path.join(process.cwd(), 'tools', 'setup', 'postinstall.js');
 const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-postinstall-rebuild-'));
 const workingRoot = path.join(tempRoot, 'patch %PATH%!runner&cwd');
 const markerPath = path.join(workingRoot, 'rebuild-ran.txt');
-const run = (extraEnv = {}) => runNode([scriptPath], 'postinstall rebuild native contract', workingRoot, {
+const preload = path.join(tempRoot, 'native-owner-hook.mjs');
+const nativeOwnerUrl = pathToFileURL(path.resolve('tools/setup/rebuild-native.js')).href;
+const mutationOwnerUrl = pathToFileURL(path.resolve('tools/setup/checkout-mutation.js')).href;
+const commandOwnerUrl = pathToFileURL(path.resolve('tools/setup/owned-command.js')).href;
+const fixtureCommand = path.join(workingRoot, 'native-fixture.cjs');
+const lockPath = path.join(workingRoot, '.tmp', 'checkout-bootstrap', 'mutation.lock');
+const run = (extraEnv = {}) => runNode(['--import', preload, scriptPath], 'postinstall rebuild native contract', workingRoot, {
   ...env, ...extraEnv
 }, { stdio: 'pipe', allowFailure: true, timeoutMs: 30000 });
 
 try {
   const fixture = await createPatchFixture(workingRoot);
-  await fs.mkdir(path.join(workingRoot, 'tools', 'setup'), { recursive: true });
-  const rebuildScriptPath = path.join(workingRoot, 'tools', 'setup', 'rebuild-native.js');
-  await fs.writeFile(rebuildScriptPath, `const fs = require('node:fs');
+  const selectedNative = `import { requireCheckoutMutationSession } from ${JSON.stringify(mutationOwnerUrl)};
+import { runSetupCommand } from ${JSON.stringify(commandOwnerUrl)};
+export const runNativeRebuild = async (args, options) => {
+  if(args.length) throw new Error('Postinstall changed the selected native mode');
+  requireCheckoutMutationSession(options.root, options.session);
+  const result = await runSetupCommand(process.execPath, [${JSON.stringify(fixtureCommand)}],
+    {cwd:options.root,signal:options.signal,stdio:'inherit',windowsHide:true});
+  requireCheckoutMutationSession(options.root, options.session);
+  return {exitCode:result.status,signal:result.signal};
+};`;
+  await fs.writeFile(preload, `import {registerHooks} from 'node:module';
+registerHooks({load(url,context,next){if(url===${JSON.stringify(nativeOwnerUrl)})return {
+format:'module',source:${JSON.stringify(selectedNative)},shortCircuit:true};return next(url,context);}});`);
+  await fs.writeFile(fixtureCommand, `const fs = require('node:fs');
 if (fs.readFileSync(${JSON.stringify(fixture.target)}, 'utf8') !== ${JSON.stringify(patchedText)}) process.exit(9);
+if (!fs.existsSync(${JSON.stringify(lockPath)})) process.exit(10);
 fs.appendFileSync(${JSON.stringify(markerPath)}, 'ran\\n');
 `);
   assert.equal(run().status, 0, 'clean install should patch before rebuilding');
   assert.equal(run({ npm_config_omit: 'dev' }).status, 0, 'reinstall should work without dev patch tooling');
   assert.equal(await fs.readFile(markerPath, 'utf8'), 'ran\nran\n');
+  assert.equal(fsSync.existsSync(lockPath), false, 'the original session retires after patch and actual child completion');
 
-  await fs.writeFile(rebuildScriptPath, 'process.exit(7);\n');
+  await fs.writeFile(fixtureCommand, 'process.exit(7);\n');
   assert.equal(run().status, 7, 'preserve native rebuild exit codes');
   if (process.platform !== 'win32') {
-    await fs.writeFile(rebuildScriptPath, "process.kill(process.pid, 'SIGTERM');\n");
+    await fs.writeFile(fixtureCommand, "process.kill(process.pid, 'SIGTERM');\n");
     assert.equal(run().signal, 'SIGTERM', 'preserve native rebuild child signals');
   }
 

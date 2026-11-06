@@ -1,38 +1,52 @@
 #!/usr/bin/env node
-import fs from 'node:fs';
-import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { exitLikeChildResult } from './postinstall-exit.js';
-import { applyPatchesAsync, exitPatchFailure } from './apply-patches.js';
+import { applyPatchesAsync } from './apply-patches.js';
+import { withCheckoutMutation, requireCheckoutMutationSession } from './checkout-mutation.js';
+import { readErrorDataProperty } from '../../src/shared/error-data.js';
+import { isDirectExecution } from '../../src/shared/direct-execution.js';
 
-async function run() {
-  const cwd = process.cwd();
-  const rebuildNativeScript = path.join(cwd, 'tools', 'setup', 'rebuild-native.js');
-  let patchCount;
-  try {
-    patchCount = await applyPatchesAsync(cwd);
-  } catch (error) {
-    exitPatchFailure(error);
-    return;
-  }
+/** The npm lifecycle borrows the same original owner across patches and native
+ * preparation. Calling the actual native implementation in-process avoids a
+ * second coordinator waiting on its parent's checkout lock. Imports are inert.
+ */
+export const runPackagePostinstall = async ({ root = process.cwd(), signal = null, session = null,
+  log = console.log, rebuild = null } = {}) => withCheckoutMutation(root, async actual => {
+  root = actual.root;
+  const patchCount = await applyPatchesAsync(root, { signal, session: actual, log });
   if (!patchCount) {
-    console.log('[postinstall] no patch files found; skipping patch step.');
-    return;
+    log('[postinstall] no patch files found; skipping patch step.');
+    return { patchCount, exitCode: 0, signal: null };
   }
+  signal?.throwIfAborted(); requireCheckoutMutationSession(root, actual);
+  const native = rebuild || (await import('./rebuild-native.js')).runNativeRebuild;
+  const result = await native([], { root, signal, session: actual });
+  signal?.throwIfAborted(); requireCheckoutMutationSession(root, actual);
+  const exitCode = readErrorDataProperty(result, 'exitCode'), childSignal = readErrorDataProperty(result, 'signal');
+  if (!(Number.isInteger(exitCode) && exitCode >= 0 && (childSignal == null || childSignal === '')
+    || exitCode == null && typeof childSignal === 'string' && childSignal.length > 0)) throw Object.assign(
+    new Error('Native postinstall did not provide an unambiguous terminal result.'), { code: 'ERR_POSTINSTALL_NATIVE_RESULT', result });
+  return { patchCount, exitCode: exitCode ?? null, signal: childSignal || null };
+}, { signal, session, kind: 'package-postinstall' });
 
-  if (!fs.existsSync(rebuildNativeScript)) {
-    console.error(`[postinstall] rebuild script not found: ${rebuildNativeScript}`);
-    process.exit(1);
+if (isDirectExecution(import.meta.url)) {
+  if (process.argv.length > 2) {
+    process.stderr.write('Usage: node tools/setup/postinstall.js\n'); process.exitCode = 2;
+  } else {
+    const controller = new AbortController(), interrupt = () => controller.abort('SIGINT'), terminate = () => controller.abort('SIGTERM');
+    process.on('SIGINT', interrupt); process.on('SIGTERM', terminate);
+    let terminal;
+    try {
+      const result = await runPackagePostinstall({ signal: controller.signal });
+      terminal = { status: result.exitCode, signal: result.signal };
+    } catch (error) {
+      const message = readErrorDataProperty(error, 'message');
+      process.stderr.write('[postinstall] ' + (typeof message === 'string' ? message : 'Package setup failed; original failure retained.') + '\n');
+      const original = readErrorDataProperty(error, 'childResult');
+      terminal = controller.signal.aborted ? { status: controller.signal.reason === 'SIGTERM' ? 143 : 130, signal: null }
+        : original || { status: 1, signal: null };
+    } finally { process.off('SIGINT', interrupt); process.off('SIGTERM', terminate); }
+    // Dispatch a child signal only after the original mutation owner's actual
+    // retirement and removal of this entry's signal handlers.
+    exitLikeChildResult(terminal);
   }
-
-  const rebuildResult = spawnSync(process.execPath, [rebuildNativeScript], {
-    stdio: 'inherit'
-  });
-  if (rebuildResult.error) {
-    console.error(`[postinstall] Failed to execute rebuild:native: ${rebuildResult.error.message}`);
-    process.exit(1);
-  }
-  exitLikeChildResult(rebuildResult);
 }
-
-await run();

@@ -146,7 +146,12 @@ under `.tmp/checkout-bootstrap/patches/`; outstanding original child work blocks
 their cleanup. A retained staging artifact has a separate original cleanup owner
 and never proves that a child retired. Replacing its directory or editing a
 diagnostic path cannot authorize deletion. Five session and four staging controls
-await execution. Postinstall admission, durable stage journals and cross-process
+await execution. The npm postinstall lifecycle now shares this same session
+across patching and in-process native preparation, with no second coordinator or
+lock gap. Imports are inert; its direct entry preserves terminal status/signals
+after actual retirement. Existing child-status controls explicitly select a
+fixture native adapter, retaining their real child execution boundary. Five
+new session controls await execution. Durable stage journals and cross-process
 qualification remain the next #1555 work.
 
 The synchronous patch API has been removed after moving its 24 remaining calls
