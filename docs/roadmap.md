@@ -85,7 +85,7 @@ intake remain unfinished. LSP identity is 47/rq11; offline runtime parser is 4.
    failures. Batch shared owners. Qualified security/native publication repairs
    retain their receipts above. [Lifecycle/quota planning](contracts/storage-quota-planning.md)
    (#1267) now validates ages, alias accounting, blockers and same-volume reserves;
-   category/operator composition and Windows allocation/pressure remain pending.
+   quota selection/eviction and Windows allocation/pressure remain pending.
 2. Remaining P2/P3 issues, including prior partial owners, ordered by dependency:
    publication/resource ownership; source/cache identities; semantic and retrieval
    correctness; transports/providers; operator and evaluation workflows. Read full

@@ -7,6 +7,7 @@ import { inspectStorageAccess } from './access.js';
 import { readStorageProbePolicy } from './probe-policy-read.js';
 import { inspectStorageRootFailure } from './root-availability.js';
 import { describeStorageFailure } from './failure-observation.js';
+import { reviewStorageLifecycle } from './lifecycle-review.js';
 export { planStorageConfiguration, applyStorageConfiguration } from './configuration.js';
 
 /** Root metadata only; scan bytes explicitly with exact=true. */
@@ -17,7 +18,10 @@ export const inspectStorageLayout = async (layout, { exact = false, extraRoots =
   if (category !== null && !Object.hasOwn(layout.descriptors, category)) throw new TypeError('Unknown logical storage category filter.');
   const roots = [...Object.values(layout.descriptors).map(descriptor => ({ ...descriptor, id: descriptor.category })), ...extraRoots]
     .filter(root => category === null || root.category === category);
-  if (exact) return inspectStorageInventory({ roots, maxEntries, maxDurationMs, signal });
+  if (exact) {
+    const inventory = await inspectStorageInventory({ roots, maxEntries, maxDurationMs, signal });
+    return { ...inventory, lifecycle: reviewStorageLifecycle({ layout, inventory }) };
+  }
   if (roots.length > 1024) throw new TypeError('Storage inspection requires at most 1024 registered roots.');
   const items = [];
   const started = Date.now();
@@ -45,10 +49,11 @@ export const inspectStorageLayout = async (layout, { exact = false, extraRoots =
       complete: false, error: describeStorageFailure(error, { phase: 'storage-layout-inspection',
         defaultCode: 'ERR_STORAGE_INSPECTION' }) }); }
   }
-  return { schemaVersion: 1, scanMode: 'registered-roots-metadata-only', timestamp: new Date().toISOString(),
+  const inventory = { schemaVersion: 1, scanMode: 'registered-roots-metadata-only', timestamp: new Date().toISOString(),
     complete: false, cancelled: Boolean(signal?.aborted), items, stopReason, visitedEntries,
     limits: { maxEntries, maxDurationMs },
     accounting: 'registered-locations-are-not-measured-disk-usage' };
+  return { ...inventory, lifecycle: reviewStorageLifecycle({ layout, inventory }) };
 };
 
 export const explainStorageLayout = layout => ({ schemaVersion: 1, layout,
@@ -112,7 +117,8 @@ export const diagnoseStorageLayout = async (layout, options = {}) => {
   }
   if (leaseStopReason) findings.push({ code: 'storage-owner-inspection-incomplete', reason: leaseStopReason,
     remainingRegisteredRoots: roots.size - leaseInventory.length, operations: 'uninspected-owners-remain-unknown' });
-  return { schemaVersion: 1, timestamp: new Date().toISOString(), findings, inventory,
+  return { schemaVersion: 1, timestamp: new Date().toISOString(), findings,
+    inventory: { ...inventory, lifecycle: reviewStorageLifecycle({ layout, inventory, leaseInventory }) },
     commandProbePolicy, leaseInventory, leaseStopReason,
     leaseInspectionComplete: !leaseStopReason && leaseInventory.every(item => item.complete),
     leaseCoverage: 'existing-repo-access-protocol-only',

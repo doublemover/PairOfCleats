@@ -2838,3 +2838,6 @@ shared/storage/quota-decision-boundaries/epoch-and-stable-alias-order
 shared/storage/quota-decision-boundaries/explained-retention-and-link-blockers
 shared/storage/quota-decision-boundaries/conflicting-and-unknown-allocation
 shared/storage/quota-decision-boundaries/volume-scoped-free-space-reserve
+shared/storage/lifecycle-operator-review/root-intent-and-unknown-accounting
+shared/storage/lifecycle-operator-review/same-inventory-overlap-and-no-mutation
+shared/storage/lifecycle-operator-review/original-owner-diagnosis-and-review-bound

@@ -58,3 +58,29 @@ alias ordering, exact blocked reasons, conflicting/unknown allocation and
 same-volume reserves. Existing evidence-preservation controls remain. This is
 part of #1267; cross-category/operator composition, producer-qualified allocation
 domains and real Windows pressure/convergence acceptance remain required.
+
+## Operator lifecycle review
+
+`storage inspect` now attaches a lifecycle review to the same inventory; exact
+inspection reuses its unique physical/logical totals and attributed root bytes.
+Metadata-only usage remains unknown. `storage doctor` joins that inventory with
+its existing registered owner observations, including the actual home-state
+coordinator and legacy repository scopes. The native TUI's existing inspect/
+doctor path receives the same projection. This adds no traversal, access touch,
+free-space probe, lease acquisition or deletion operation.
+
+The review associates roots with existing class-catalog intent and explains
+durable/evidence retention, offline asset preservation, mixed/unknown category
+ownership, external locations, original leases and unestablished references.
+Root registration, a clear generic lease scan or a parent named cache cannot
+grant cleanup eligibility. Reclaimable allocation and quota admission remain
+unknown until the category's own inventory, producer and retention owner qualify
+them. Existing category-specific inspect/cleanup plans retain their authority.
+
+Review detail is bounded to 128 registered roots by default, with exact omitted
+counts and separate root-coverage/inventory-completeness fields. It does not sum
+overlapping category attribution into a false unique footprint. Three additional
+locally unrun cases cover root intent and unknown measurements, actual overlapping
+fixture inventory without mutation, original held-reader diagnosis, cancellation
+and bounded review output. Global/category/repository quota selection and eviction
+composition remain unfinished; this projection is observation only.

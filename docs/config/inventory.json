@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-06T22:55:26.103Z",
+  "generatedAt": "2026-11-06T23:02:02.656Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
@@ -4869,6 +4869,7 @@
         "tests/shared/storage/error-projection-originals.test.js",
         "tests/shared/storage/free-space-observation.test.js",
         "tests/shared/storage/handoff-drain-ownership.test.js",
+        "tests/shared/storage/lifecycle-operator-review.test.js",
         "tests/shared/storage/managed-child-original-ack.test.js",
         "tests/shared/storage/native-command-observation.test.js",
         "tests/shared/storage/native-command-result-ownership.test.js",

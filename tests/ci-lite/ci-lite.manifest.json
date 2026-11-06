@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 2670,
+    "hero": 2673,
     "matrix": 110,
     "meta": 54,
     "soak": 1,
@@ -17023,6 +17023,24 @@
     {
       "id": "shared/storage/quota-decision-boundaries/volume-scoped-free-space-reserve",
       "order": 2835,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/lifecycle-operator-review/root-intent-and-unknown-accounting",
+      "order": 2836,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/lifecycle-operator-review/same-inventory-overlap-and-no-mutation",
+      "order": 2837,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/lifecycle-operator-review/original-owner-diagnosis-and-review-bound",
+      "order": 2838,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }
