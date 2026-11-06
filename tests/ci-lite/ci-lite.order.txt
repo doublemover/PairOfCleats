@@ -2646,3 +2646,6 @@ tooling/eval/finite-evidence-task/alternative-and-q-of-oracle
 tooling/eval/finite-evidence-task/unknown-and-verified-empty
 tooling/eval/finite-evidence-task/lineage-splits-and-quarantine
 tooling/eval/finite-evidence-task/source-authority-and-failures
+tooling/eval/evidence-task-candidate-view/oracle-blind-baselines
+tooling/eval/evidence-task-candidate-view/candidate-view-retirement
+tooling/eval/evidence-task-candidate-view/prefix-budgets-and-authority

@@ -141,3 +141,11 @@ export const readCandidateEvidenceSource = (handle, reference, { maxBytes = 6553
   const result = { publicTaskId: state.report.publicTaskId, source, text: file.text.slice(...source.span), sourceAuthority: 'compiled-visible-snapshot' };
   if (Buffer.byteLength(JSON.stringify(result)) + 1 > maxBytes) throw fail('OUTPUT_LIMIT', 'Candidate excerpt exceeds its byte allowance.'); return immutable(result);
 };
+export const readCandidateEvidencePrefix = (handle, sourceUnitId, { maxCodeUnits = 4096, maxBytes = 65536 } = {}) => {
+  const state = get(handle), file = state.bySource.get(sourceUnitId);
+  if (!file) throw fail('SOURCE', 'Visible source identity is absent.');
+  if (!Number.isSafeInteger(maxCodeUnits) || maxCodeUnits < 1 || maxCodeUnits > 4096) throw new TypeError('Invalid candidate prefix allowance.');
+  let end = Math.min(file.text.length, maxCodeUnits);
+  if (!isUtf16Boundary(file.text, end)) end--;
+  return readCandidateEvidenceSource(handle, { ...file.ref, span: [0, end] }, { maxBytes });
+};

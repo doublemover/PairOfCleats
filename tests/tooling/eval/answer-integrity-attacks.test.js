@@ -3,7 +3,7 @@ import { createRepositoryAnswerInput, answerQuotation } from '../../helpers/repo
 import { compileAdmittedQueryAnswer, inspectAnswerRevision } from '../../../src/context-pack/answers/render.js';
 import { evaluateAnswerIntegrityAttacks } from '../../../src/retrieval/evaluation/answer-integrity.js';
 import { ANSWER_INTEGRITY_CASES } from '../../../src/contracts/schemas/answer-integrity-evaluation.js';
-import { getInterventionAdapter } from '../../../tools/eval/interventions/adapters.js';
+import { getOfflineEvaluationAdapter } from '../../../tools/eval/adapters.js';
 
 const mode = process.env.PAIROFCLEATS_TEST_ID?.split('tooling/eval/answer-integrity-attacks/')[1];
 assert.ok(['sealed-semantic-attacks', 'partial-and-unsupported-fixtures', 'replacement-input-is-historical', 'strict-profile-and-bounds'].includes(mode));
@@ -12,7 +12,7 @@ const create = (options = {}) => {
   return { schemaVersion: 1, revision: compileAdmittedQueryAnswer(input), cases: [...ANSWER_INTEGRITY_CASES] };
 };
 if (mode === 'sealed-semantic-attacks') {
-  const adapter = await getInterventionAdapter('retained-answer-integrity-v1'), input = create(), before = structuredClone(input);
+  const adapter = await getOfflineEvaluationAdapter('retained-answer-integrity-v1'), input = create(), before = structuredClone(input);
   const result = adapter.evaluate(input);
   assert.equal(result.complete, true); assert.equal(result.allExpectedResultsObserved, true); assert.deepEqual(input, before);
   assert.equal(result.results.length, 8); assert.equal(result.results.filter(row => row.actual === 'rejected').length, 6);

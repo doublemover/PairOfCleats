@@ -60,5 +60,9 @@ export const EVIDENCE_TASK_SCHEMAS = {
     calibration: { type: 'integer', minimum: 0, maximum: 10000 }, test: { type: 'integer', minimum: 0, maximum: 10000 } }),
   submission: object({ schemaVersion: { const: EVIDENCE_TASK_VERSION }, publicTaskId: hash,
     candidateId: hash, runId: hash, status: { enum: ['completed', 'not-run', 'timeout', 'canceled', 'tool-error'] },
-    evidence: list(QUESTION_SOURCE_REFERENCE_SCHEMA, 32), abstain: { type: 'boolean' } })
+    evidence: list(QUESTION_SOURCE_REFERENCE_SCHEMA, 32), abstain: { type: 'boolean' } }),
+  baseline: object({ schemaVersion: { const: EVIDENCE_TASK_VERSION }, method: { enum: ['lexical-visible-prefix-v1', 'source-order-files-v1'] },
+    runId: hash, maxReadBytes: { type: 'integer', minimum: 1, maximum: 1048576 },
+    maxSelectedFiles: { type: 'integer', minimum: 1, maximum: 32 }, maxSelectedSourceBytes: { type: 'integer', minimum: 1, maximum: 1048576 },
+    maxWorkMs: { type: 'integer', minimum: 1, maximum: 250 } })
 };

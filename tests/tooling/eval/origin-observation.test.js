@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { makeTaskSpanTrace, taskTraceFixtureHash as hash } from '../../helpers/task-span-trace-fixture.js';
 import { taskTraceSourceKey } from '../../../src/retrieval/evaluation/task-span-trace.js';
 import { evaluateOriginObservations, compareOriginObservations } from '../../../src/retrieval/evaluation/origin-observation.js';
-import { getInterventionAdapter } from '../../../tools/eval/interventions/adapters.js';
+import { getOfflineEvaluationAdapter } from '../../../tools/eval/adapters.js';
 
 const mode = process.env.PAIROFCLEATS_TEST_ID?.split('tooling/eval/origin-observation/')[1];
 assert.ok(['one-origin-many-paths', 'same-text-independent-origins', 'unknown-stale-and-invalid-traces', 'paired-scope-and-ownership'].includes(mode));
@@ -18,7 +18,7 @@ const addRetrieved = (input, source = 0) => {
     span: { ...input.trace.events[0].span, sourceKey: input.trace.sources[source].key }, rank: 4 });
 };
 if (mode === 'one-origin-many-paths') {
-  const adapter = await getInterventionAdapter('origin-observation-v1'), before = make(), after = make(); addRetrieved(after, 1);
+  const adapter = await getOfflineEvaluationAdapter('origin-observation-v1'), before = make(), after = make(); addRetrieved(after, 1);
   before.edges = [
     { id: hash('transfer'), runKey: before.trace.identity.runKey, fromEventId: 'event-0', toEventId: 'event-4', kind: 'observed-transfer', reporterId: 'fixture', receiptId: hash('transfer-receipt') },
     { id: hash('citation'), runKey: before.trace.identity.runKey, fromEventId: 'event-0', toEventId: 'event-3', kind: 'citation', reporterId: 'fixture', receiptId: hash('citation-receipt') },

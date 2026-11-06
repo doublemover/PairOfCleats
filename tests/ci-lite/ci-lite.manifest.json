@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 2478,
+    "hero": 2481,
     "matrix": 110,
     "meta": 54,
     "soak": 1,
@@ -15871,6 +15871,24 @@
     {
       "id": "tooling/eval/finite-evidence-task/source-authority-and-failures",
       "order": 2643,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/eval/evidence-task-candidate-view/oracle-blind-baselines",
+      "order": 2644,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/eval/evidence-task-candidate-view/candidate-view-retirement",
+      "order": 2645,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/eval/evidence-task-candidate-view/prefix-budgets-and-authority",
+      "order": 2646,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

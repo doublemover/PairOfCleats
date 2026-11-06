@@ -4,7 +4,7 @@ import { canonicalSemanticJson, semanticHash } from '../../../src/index/semantic
 import { snapshotEvaluationData } from '../../../src/retrieval/evaluation/plain-data.js';
 import { readEvaluationData } from '../passive-evidence.js';
 import { throwIfAborted } from '../../../src/shared/abort.js';
-import { getInterventionAdapter } from './adapters.js';
+import { getOfflineEvaluationAdapter } from '../adapters.js';
 
 const prepared = new WeakSet(), MAX_INPUT_BYTES = 8 * 1024 * 1024, MAX_TRIALS = 32;
 const fail = message => Object.assign(new Error(message), { code: 'ERR_EVAL_INTERVENTION_INPUT' });
@@ -72,7 +72,7 @@ export const captureDatasetInterventions = async cases => {
 };
 
 const execute = async (trial, signal, maxMs) => {
-  const began = performance.now(), adapter = await getInterventionAdapter(trial.profile); throwIfAborted(signal);
+  const began = performance.now(), adapter = await getOfflineEvaluationAdapter(trial.profile); throwIfAborted(signal);
   const remainingMs = () => Math.floor(maxMs - (performance.now() - began));
   if (remainingMs() < 1) return { complete: false, reason: 'adapter-admission-deadline' };
   if (trial.profile === 'finite-lookup-v1') {

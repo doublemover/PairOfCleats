@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-06T13:48:36.911Z",
+  "generatedAt": "2026-11-06T14:03:25.244Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
@@ -4938,6 +4938,7 @@
         "tests/tooling/consumer-proof-index.test.js",
         "tests/tooling/eval/answer-integrity-attacks.test.js",
         "tests/tooling/eval/coverage-and-default-datasets.test.js",
+        "tests/tooling/eval/evidence-task-candidate-view.test.js",
         "tests/tooling/eval/finite-evidence-task.test.js",
         "tests/tooling/eval/intervention-dataset.test.js",
         "tests/tooling/eval/origin-observation.test.js",

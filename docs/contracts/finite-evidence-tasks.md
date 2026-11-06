@@ -62,6 +62,38 @@ Explicit retirement drops the owner's source/oracle references and rejects later
 reads/scoring through that handle. Retirement is idempotent; previously returned
 immutable views remain caller-owned. This profile holds no native resources.
 
+## Registered visible-source baselines
+
+The consolidated `tools/eval/adapters.js` registry exposes the finite task profile
+alongside the existing offline intervention profiles. Task compilation, split
+assignment, candidate-view materialization, bounded reads, candidate execution,
+private scoring and retirement use their existing task owners. There is no
+arbitrary plugin or command execution and no compatibility registry at the old
+`interventions/adapters.js` path: all four prior caller families moved, with their
+original fixture IDs and assertions preserved.
+
+A materialized candidate view exposes only its public task identity/profile and
+visible packet/source methods. It has no private-oracle/split accessor. The
+registered lexical baseline imports only this view capability; changing hidden
+labels cannot change its file scores or selected evidence. The separate scorer
+can still reject that unchanged candidate. Retiring one view leaves sibling views
+and the corpus-owned task intact; retiring the task invalidates later source reads.
+
+The two cheap controls are visible source order and prefix lexical Jaccard. The
+latter reuses the existing 4,096-code-unit/128-term feature owner, with exact
+surrogate boundaries and conservative source-byte admission before reading.
+Inspected prefix bytes, selected whole-source bytes and feature work remain
+distinct. Metadata-only selection claims no source read. Uninspected files retain
+an exact source-offset/count frontier, without zero scores or a certified ranked
+prefix. Both methods obey the declared evidence limits and a 250 ms cooperative
+file boundary. They qualify no task model, language behavior or downstream effect.
+
+Three additional unexecuted cases preserve oracle noninterference, an
+independently changed oracle rejecting the same baseline, source-order behavior,
+candidate/corpus retirement, original handles, Unicode prefix boundaries, source
+read budgets, action authority and cancellation. Existing finite-model, origin,
+answer-attack and dataset checks retain their coverage through the registry move.
+
 Five unexecuted cases exercise private-label noninterference, actual snapshot
 immutability, all eight evidence subsets for alternative and q-of requirements,
 overlap/contiguous coverage, unknown versus verified-empty labels, failed run

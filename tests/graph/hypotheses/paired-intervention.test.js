@@ -6,7 +6,7 @@ import { planFiniteCausalDiscrimination } from '../../../src/graph/hypotheses/di
 import { planFiniteModelIntervention, replayFiniteModelIntervention, readFiniteModelIntervention } from '../../../src/graph/hypotheses/paired-intervention.js';
 import { deriveInvestigation } from '../../../src/context-pack/task-evidence/investigation.js';
 import { compareInvestigationFiniteModelPair } from '../../../src/context-pack/task-evidence/causal-advice.js';
-import { getInterventionAdapter } from '../../../tools/eval/interventions/adapters.js';
+import { getOfflineEvaluationAdapter } from '../../../tools/eval/adapters.js';
 
 const mode = process.env.PAIROFCLEATS_TEST_ID?.split('graph/hypotheses/paired-intervention/')[1];
 assert.ok(['realized-descendant-replay', 'no-change-and-execution-cost', 'held-fixed-admissibility', 'hypothesis-revision-handoff', 'profile-contract-and-cancellation'].includes(mode));
@@ -20,7 +20,7 @@ const specFor = (model, assignedIntervention = [bind('X', true)]) => ({ schemaVe
   executionProfile: { kind: 'finite-lookup-only', maxEquationSteps: 64, maxOutputBytes: 131072 } });
 const model = createFiniteCausalModel(finiteCausalInput());
 if (mode === 'realized-descendant-replay') {
-  const adapter = await getInterventionAdapter('finite-lookup-v1'), plan = adapter.plan({ model, spec: specFor(model) });
+  const adapter = await getOfflineEvaluationAdapter('finite-lookup-v1'), plan = adapter.plan({ model, spec: specFor(model) });
   assert.equal(plan.execution, 'none'); assert.equal(plan.sourceExecutionAuthority, 'none');
   const result = adapter.replay(plan);
   assert.deepEqual(result.baselineOutcome, [bind('Y', false)]); assert.deepEqual(result.treatmentOutcome, [bind('Y', true)]);
@@ -88,8 +88,8 @@ if (mode === 'realized-descendant-replay') {
     value => { value.assignedIntervention[0].value = causalValue(1); }, value => { value.execute = () => {}; }]) {
     const spec = specFor(model); mutate(spec); assert.throws(() => planFiniteModelIntervention({ model, spec }));
   }
-  await assert.rejects(getInterventionAdapter('shell'), { code: 'ERR_INTERVENTION_ADAPTER_UNAVAILABLE' });
-  let reads = 0; await assert.rejects(getInterventionAdapter({ toString() { reads++; return 'shell'; } })); assert.equal(reads, 0);
+  await assert.rejects(getOfflineEvaluationAdapter('shell'), { code: 'ERR_INTERVENTION_ADAPTER_UNAVAILABLE' });
+  let reads = 0; await assert.rejects(getOfflineEvaluationAdapter({ toString() { reads++; return 'shell'; } })); assert.equal(reads, 0);
   const spec = specFor(model), plan = planFiniteModelIntervention({ model, spec }); spec.assignedIntervention[0].value.value = false;
   const result = replayFiniteModelIntervention(plan); assert.equal(result.treatmentOutcome[0].value.value, true);
   assert.throws(() => readFiniteModelIntervention({ ...result }), { code: 'ERR_FINITE_MODEL_INTERVENTION_HANDLE' });
