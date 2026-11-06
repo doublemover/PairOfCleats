@@ -10,6 +10,11 @@ const loaders = {
     const owner = await import('../../../src/retrieval/evaluation/origin-observation.js');
     return Object.freeze({ id: 'origin-observation-v1', executionClass: 'supplied-origin-and-telemetry-metadata-only',
       capabilities: Object.freeze(['evaluate', 'compare']), evaluate: owner.evaluateOriginObservations, compare: owner.compareOriginObservations });
+  },
+  'retained-answer-integrity-v1': async () => {
+    const owner = await import('../../../src/retrieval/evaluation/answer-integrity.js');
+    return Object.freeze({ id: 'retained-answer-integrity-v1', executionClass: 'supplied-historical-report-integrity-only',
+      capabilities: Object.freeze(['evaluate']), evaluate: owner.evaluateAnswerIntegrityAttacks });
   }
 };
 

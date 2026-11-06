@@ -2634,3 +2634,7 @@ tooling/eval/origin-observation/one-origin-many-paths
 tooling/eval/origin-observation/same-text-independent-origins
 tooling/eval/origin-observation/unknown-stale-and-invalid-traces
 tooling/eval/origin-observation/paired-scope-and-ownership
+tooling/eval/answer-integrity-attacks/sealed-semantic-attacks
+tooling/eval/answer-integrity-attacks/partial-and-unsupported-fixtures
+tooling/eval/answer-integrity-attacks/replacement-input-is-historical
+tooling/eval/answer-integrity-attacks/strict-profile-and-bounds

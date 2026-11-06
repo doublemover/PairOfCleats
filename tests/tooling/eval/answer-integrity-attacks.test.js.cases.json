@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["sealed-semantic-attacks", "partial-and-unsupported-fixtures", "replacement-input-is-historical", "strict-profile-and-bounds"]
+}
