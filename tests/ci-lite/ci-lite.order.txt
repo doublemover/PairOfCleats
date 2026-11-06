@@ -2723,3 +2723,6 @@ tooling/install/bootstrap-task-events/output-observer-errors
 tooling/install/bootstrap-task-events/output-observer-limits
 tooling/install/native-diagnostic-ownership/first-byte-observation
 tooling/install/bootstrap-task-events/output-original-resource-retirement
+tooling/install/native-failure-summary/original-values-and-packets
+tooling/install/native-failure-summary/row-authority-and-status
+tooling/install/native-failure-summary/original-resource-observations

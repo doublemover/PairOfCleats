@@ -87,6 +87,12 @@ Cross-run log retention, nested VM-probe logs,
 terminal transport qualification and durable root-stage journals remain
 pending. The limits above bound one invocation; they are not a machine-wide quota
 or a measured memory/throughput result.
+Activation/build/repair summaries retain original producer packets, fixed task
+rows, falsey exceptions and each attempt's evidence path. A cancelled peer or
+last stderr line cannot replace the actual failed operation as the primary
+cause. Original resource observers remain live through the terminal aggregate;
+repair attempts retain their own outcomes. Three summary controls and the
+extended native failure projection control await execution.
 
 ## Windows
 

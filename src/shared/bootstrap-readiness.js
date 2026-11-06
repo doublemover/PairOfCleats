@@ -26,6 +26,8 @@ export const BOOTSTRAP_INPUTS = Object.freeze(['package.json', 'package-lock.jso
   'src/shared/concurrency/scheduler-core/dispatch.js', 'src/shared/concurrency/scheduler-core/shutdown.js',
   'src/shared/concurrency/scheduler-core/index.js',
   'tools/setup/native-command-result.js',
+  'tools/setup/rebuild-native-exit.js',
+  'tools/setup/native-failure-summary.js',
   'tools/setup/native-diagnostics.js',
   'src/shared/abort.js', 'src/shared/subprocess/errors.js', 'src/shared/subprocess/runner-async.js',
   'tools/setup/windows-capability.js',

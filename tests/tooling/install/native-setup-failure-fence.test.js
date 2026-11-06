@@ -19,6 +19,18 @@ if (mode === 'original-failures') {
   assert.equal(result.error, original); assert.equal(reads, 0); assert.equal(Object.hasOwn(result, 'stdout'), false);
   const inspection = new Error('message inspection failure'), throwing = Object.defineProperty({}, 'message', { get() { throw inspection; } });
   await assert.rejects(execute(async () => { throw throwing; }), failure => errorGraphIncludes(failure, throwing) && errorGraphIncludes(failure, inspection));
+  const rawResult = Object.freeze({ exitCode: 3221225477, signal: null });
+  const diagnostics = Object.freeze({ logs: Object.freeze([
+    Object.freeze({ channel: 'stdout', tail: 'original output bytes' }),
+    Object.freeze({ channel: 'stderr', tail: 'last JavaScript log is not an exception attribution' })
+  ]) });
+  const crash = Object.freeze(Object.assign(new Error('Native child failed with exit 3221225477'), {
+    result: rawResult, diagnostics, diagnosticsPath: 'owned-attempt.json'
+  }));
+  const projected = await execute(async () => { throw crash; });
+  assert.equal(projected.error, crash); assert.equal(projected.result, rawResult); assert.equal(projected.diagnostics, diagnostics);
+  assert.equal(projected.stdout, 'original output bytes'); assert.equal(projected.stderr, diagnostics.logs[1].tail);
+  assert.equal(projected.diagnosticsPath, 'owned-attempt.json'); assert.match(projected.message, /3221225477.*owned-attempt/);
 } else if (mode === 'pending-resource-fence') {
   for (const boundary of ['build', 'probe']) {
     let settled = false, launches = 0, fallbacks = 0;

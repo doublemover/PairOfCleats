@@ -14,8 +14,20 @@ export const settledNativeSetupFailure = (error, phase) => {
     defaultMessage: 'Native setup command failed; inspect its original failure.' });
   if (readErrorDataProperty(error, 'name') === 'AbortError' || readErrorDataProperty(error, 'code') === 'ABORT_ERR') throw error;
   const result = readErrorDataProperty(error, 'result');
-  const stdout = readErrorDataProperty(result, 'stdout'), stderr = readErrorDataProperty(result, 'stderr');
-  return { ok: false, error, message: description.message, code: description.code,
+  const diagnostics = readErrorDataProperty(error, 'diagnostics'), diagnosticsPath = readErrorDataProperty(error, 'diagnosticsPath');
+  const logs = readErrorDataProperty(diagnostics, 'logs');
+  const logTail = channel => {
+    for (const index of ['0', '1']) {
+      const log = readErrorDataProperty(logs, index);
+      if (readErrorDataProperty(log, 'channel') === channel) return readErrorDataProperty(log, 'tail');
+    }
+    return undefined;
+  };
+  const stdout = readErrorDataProperty(result, 'stdout') ?? logTail('stdout'),
+    stderr = readErrorDataProperty(result, 'stderr') ?? logTail('stderr');
+  return { ok: false, error, message: description.message + (typeof diagnosticsPath === 'string' ? '; log: ' + diagnosticsPath : ''), code: description.code,
+    ...(result ? { result } : {}), ...(diagnostics ? { diagnostics } : {}),
+    ...(typeof diagnosticsPath === 'string' ? { diagnosticsPath } : {}),
     ...(typeof stdout === 'string' ? { stdout } : {}), ...(typeof stderr === 'string' ? { stderr } : {}) };
 };
 
