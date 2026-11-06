@@ -2580,3 +2580,9 @@ semantic/questions/answer-retention-admission/opt-in-and-history
 semantic/questions/answer-retention-admission/late-result-and-publication
 semantic/questions/answer-retention-admission/resume-and-cancellation
 semantic/questions/answer-retention-admission/transport-retention
+context-pack/delivery/protocol/full-source-manifest
+context-pack/delivery/protocol/delta-reconstruction-oracle
+context-pack/delivery/protocol/reset-and-consumer-isolation
+context-pack/delivery/protocol/loss-order-and-eviction
+context-pack/delivery/protocol/integrity-and-coordinates
+context-pack/delivery/protocol/full-cost-and-cancellation

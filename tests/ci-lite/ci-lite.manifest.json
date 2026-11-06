@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 2412,
+    "hero": 2418,
     "matrix": 110,
     "meta": 54,
     "soak": 1,
@@ -15475,6 +15475,42 @@
     {
       "id": "semantic/questions/answer-retention-admission/transport-retention",
       "order": 2577,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "context-pack/delivery/protocol/full-source-manifest",
+      "order": 2578,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "context-pack/delivery/protocol/delta-reconstruction-oracle",
+      "order": 2579,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "context-pack/delivery/protocol/reset-and-consumer-isolation",
+      "order": 2580,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "context-pack/delivery/protocol/loss-order-and-eviction",
+      "order": 2581,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "context-pack/delivery/protocol/integrity-and-coordinates",
+      "order": 2582,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "context-pack/delivery/protocol/full-cost-and-cancellation",
+      "order": 2583,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

@@ -1,17 +1,17 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-11-06T10:55:08.832Z",
+  "generatedAt": "2026-11-06T11:04:50.898Z",
   "summary": {
     "lanes": 5,
-    "tests": 2893,
+    "tests": 2899,
     "exactDuplicates": 0,
     "hotspotKinds": 10,
-    "families": 430,
+    "families": 431,
     "topSlowest": 10,
     "timingCoverage": {
       "freshArtifactTests": 0,
       "historicalFallbackTests": 74,
-      "missingTests": 2819
+      "missingTests": 2825
     }
   },
   "lanes": [
@@ -35,7 +35,7 @@
       "targetMaxDurationSeconds": 15,
       "orderFile": "tests/ci-lite/ci-lite.order.txt",
       "timingArtifactPath": ".testLogs/ci-lite-testRunTimes.txt",
-      "totalTests": 2577,
+      "totalTests": 2583,
       "knownDurationTests": 49,
       "knownDurationMs": 27090,
       "p50DurationMs": 190,
@@ -43,7 +43,7 @@
       "resolvedTimingArtifactPaths": [],
       "timingSources": {
         "historical-test-times": 49,
-        "missing": 2528
+        "missing": 2534
       }
     },
     {
@@ -653,6 +653,12 @@
       "count": 7,
       "knownDurationMs": 0,
       "unknownDurationCount": 7
+    },
+    {
+      "key": "context-pack/delivery",
+      "count": 6,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 6
     },
     {
       "key": "embeddings/runner",
