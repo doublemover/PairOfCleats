@@ -13,10 +13,14 @@ const intent = object({ epoch: { type: 'integer', minimum: 1, maximum: Number.MA
   intentId: { type: 'string', pattern: '^[a-f0-9-]{36}$' }, questionRef: ANSWER_QUESTION_REF_SCHEMA,
   worldId: hash, expectedBaseDigest: nullable(hash) });
 const current = object({ answerDigest: hash, manifestHash: hash, questionRef: ANSWER_QUESTION_REF_SCHEMA, worldId: hash });
+export const ANSWER_RETENTION_INTENT_SCHEMA = intent;
+export const ANSWER_RETENTION_RECEIPT_SCHEMA = object({ ...current.properties, epoch: uint });
+export const ANSWER_RETENTION_OPTION_SCHEMA = object({ expectedBaseDigest: nullable(hash) }, { resumeIntent: intent });
 export const ANSWER_RETENTION_SCHEMAS = {
   marker: object({ schemaVersion: version, kind: { const: 'retained-answers' }, repositoryNamespace: { type: 'string', minLength: 1, maxLength: 4096 } }),
   begin: object({ questionRef: ANSWER_QUESTION_REF_SCHEMA, worldId: hash, expectedBaseDigest: nullable(hash) }),
   intent,
+  receipt: ANSWER_RETENTION_RECEIPT_SCHEMA,
   head: object({ schemaVersion: version, kind: { const: 'retained-answer-head' }, questionId: { type: 'string', minLength: 1, maxLength: 256 },
     epoch: uint, current: nullable(current), pending: nullable(intent) }),
   manifest: object({ schemaVersion: version, kind: { const: 'retained-answer-manifest' }, answerDigest: hash,

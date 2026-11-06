@@ -47,6 +47,11 @@ for (const [nativeCode, code, status] of [
   ['ERR_ANSWER_EVIDENCE_CONTRACT', 'INVALID_REQUEST', 400],
   ['ERR_ANSWER_RESPONSE_BUDGET', 'INVALID_REQUEST', 400],
   ['ERR_ANSWER_BASE_MISMATCH', 'INVALID_REQUEST', 409],
+  ['ERR_ANSWER_RETENTION_CONFLICT', 'INVALID_REQUEST', 409],
+  ['ERR_ANSWER_RETENTION_BUSY', 'INVALID_REQUEST', 409],
+  ['ERR_ANSWER_RETENTION_QUOTA', 'INTERNAL', 507],
+  ['ERR_ANSWER_RETENTION_UNAVAILABLE', 'NO_INDEX', 404],
+  ['ERR_ANSWER_RETENTION_INTEGRITY', 'INTERNAL', 500],
   ['ERR_SEMANTIC_UNEXPECTED', 'INTERNAL', 500]
 ]) {
   const error = Object.assign(new Error('domain failure'), { code: nativeCode,
@@ -57,6 +62,8 @@ for (const [nativeCode, code, status] of [
   assert.deepEqual(payload.details, { requested: 999, maximum: 128 });
   assert.doesNotMatch(JSON.stringify(payload), /never-publish|private-path/);
   if (status === 410) assert.match(payload.hint, /fresh discovery/);
+  if (nativeCode === 'ERR_ANSWER_RETENTION_CONFLICT') assert.match(payload.hint, /current answer base and revision intent/);
+  if (status === 507) assert.match(payload.hint, /no history was pruned/);
 }
 assert.equal(formatToolError(new Error('unknown')).code, 'INTERNAL');
 console.log('MCP handler domain errors preserve bounded structured wire evidence');

@@ -16,6 +16,9 @@ answer)` additionally checks deterministic content integrity, question revision,
 source world and repository. An obsolete result cannot publish over a newer
 intent. Exact completed publication is idempotent after lost delivery; it does
 not replay query work. Conflicts require fresh base/intent admission.
+`prepare` stages an immutable receipt and an explicit commit closure, retaining
+bounded heap data and no native handle. Transport projection admits that receipt
+before calling the closure. Its deeply frozen receipt cannot mutate publication.
 
 Immutable, content-addressed objects factor inputs, claims, support bundles and
 fragment maps. Repeated support nodes share encoded identity rather than
@@ -44,6 +47,9 @@ recompile every deterministic claim and map. `read(questionRef)` selects the
 question slot by ID and returns its historical answer, pending intent, epoch and
 explicit status. It establishes no current source authority. Every new source
 expansion still uses the real pinned query/source admission owners.
+`readRevision(receipt)` loads an exact older immutable revision. A receipt locates
+content; historical inspection does not prove that a valid orphan manifest was
+ever the published head. Reading absent storage creates no answer namespace.
 
 Six regression cases are authored and unexecuted. They cover shared immutable
 graphs, stale intent/base conflicts, interrupted replacement and fresh-process

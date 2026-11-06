@@ -81,12 +81,18 @@ export const createRetainedAnswerStore = ({ repoRoot, userConfig = null } = {}) 
     });
   };
   const mkdir = async directory => { authorize(directory); await fs.mkdir(directory, { recursive: true }); authorize(directory); };
-  const initialize = async signal => {
-    await mkdir(root);
+  const initialize = async (signal, create) => {
+    if (create) await mkdir(root);
+    else {
+      authorize(root);
+      try { if (!(await fs.lstat(root)).isDirectory()) throw fail('INTEGRITY', 'Retained answer root is not a directory.'); }
+      catch (error) { if (errorCode(error) !== 'ENOENT') throw error; return false; }
+    }
     let found;
     try { found = await readJson(markerPath, 8192, signal); }
     catch (error) {
       if (errorCode(error) !== 'ENOENT') throw error;
+      if (!create) throw fail('INTEGRITY', 'Existing retained answer root has no format marker.');
       // An unmarked nonempty folder is foreign or interrupted unknown work.
       // Do not adopt it, clean it or rewrite a corrupt marker.
       await enumerate(root, () => { throw fail('INTEGRITY', 'Unmarked retained-answer storage is not empty.'); }, 1, signal);
@@ -95,13 +101,17 @@ export const createRetainedAnswerStore = ({ repoRoot, userConfig = null } = {}) 
     }
     assertAnswerRetention('marker', found);
     if (!same(marker, found)) throw fail('INTEGRITY', 'Retained-answer storage belongs to another repository.');
-    await mkdir(objectsRoot); await mkdir(slotsRoot);
+    for (const directory of [objectsRoot, slotsRoot]) {
+      if (create) await mkdir(directory);
+      else { authorize(directory); if (!(await fs.lstat(directory)).isDirectory()) throw fail('INTEGRITY', 'Retained answer child root is not a directory.'); }
+    }
     await enumerate(root, entry => {
       if (!['marker.json', 'objects', 'slots'].includes(entry.name)
         || (entry.name === 'marker.json' ? !entry.isFile() : !entry.isDirectory())) throw fail('INTEGRITY', 'Unknown retained-answer root entry requires inspection.');
     }, 3, signal);
+    return true;
   };
-  const locked = async (action, signal) => {
+  const locked = async (action, signal, { create = true } = {}) => {
     throwIfAborted(signal);
     // Admission above retains the existing process lease before root creation.
     assertNoSymlinkPath(path.parse(cacheRoot).root, cacheRoot, { allowMissing: true });
@@ -111,7 +121,7 @@ export const createRetainedAnswerStore = ({ repoRoot, userConfig = null } = {}) 
       metadata: { scope: 'answer-retention', hostname: os.hostname() },
       staleRemovalImpl: async ({ lockPath: candidate, info }) => ({ removed: Boolean(isKnownRepoAccessOwner(info)
         && info.scope === 'answer-retention' && isLocalProcessDefinitelyDead(info.pid) && removeLockFileSyncIfOwned(candidate, info)), removalMode: 'owner' }) }, async () => {
-      entered = true; throwIfAborted(signal); authorize(lockPath); await initialize(signal); return action();
+      entered = true; throwIfAborted(signal); authorize(lockPath); return action(await initialize(signal, create));
     });
     if (!entered) throw fail('BUSY', 'Retained answers are owned by another or unsettled writer.');
     return result;
@@ -155,8 +165,14 @@ export const createRetainedAnswerStore = ({ repoRoot, userConfig = null } = {}) 
     } });
   };
   const readObject = (hash, signal) => readJson(objectPath(hash), 2 * ANSWER_MAX_BYTES, signal, hash);
-  const readAnswer = (current, signal) => readRetainedAnswerGraph(current, hash => readObject(hash, signal), { signal });
-  return Object.freeze({
+  const readAnswer = (current, signal) => {
+    const memo = new Map();
+    return readRetainedAnswerGraph(current, hash => {
+      if (!memo.has(hash)) memo.set(hash, readObject(hash, signal));
+      return memo.get(hash);
+    }, { signal });
+  };
+  const store = Object.freeze({
     /** A serialized intent is resumable in a fresh process while it is still
      * the exact current intent. It grants no source-expansion permission. */
     begin: async (input, { signal = null } = {}) => {
@@ -174,13 +190,13 @@ export const createRetainedAnswerStore = ({ repoRoot, userConfig = null } = {}) 
         return capture('intent', pending);
       }, signal);
     },
-    commit: async (input, answer, { signal = null } = {}) => {
+    prepare: (input, answer, { signal = null } = {}) => {
       const intent = capture('intent', input), graph = buildRetainedAnswerGraph(answer, { signal });
       if (!same(intent.questionRef, graph.answer.questionRef) || intent.worldId !== graph.answer.worldId
         || graph.answer.world.repositoryNamespace !== repositoryNamespace) throw fail('CONFLICT', 'Retained answer differs from the requested question, world or repository.');
-      return locked(async () => {
+      const next = { answerDigest: graph.answer.digest, manifestHash: graph.manifestHash, questionRef: graph.answer.questionRef, worldId: graph.answer.worldId };
+      const commit = () => locked(async () => {
         const head = await readHead(intent.questionRef.id, signal);
-        const next = { answerDigest: graph.answer.digest, manifestHash: graph.manifestHash, questionRef: graph.answer.questionRef, worldId: graph.answer.worldId };
         // Exact replay after successful head publication is idempotent, even
         // when the original caller lost its delivery. Never replay query work.
         if (head && !head.pending && head.epoch === intent.epoch && same(head.current, next)) {
@@ -205,7 +221,9 @@ export const createRetainedAnswerStore = ({ repoRoot, userConfig = null } = {}) 
         await writeHead({ ...head, current: next, pending: null }, head, signal);
         return { ...next, epoch: head.epoch };
       }, signal);
+      return Object.freeze({ receipt: capture('receipt', { ...next, epoch: intent.epoch }), commit });
     },
+    commit: async (input, answer, options = {}) => store.prepare(input, answer, options).commit(),
     resume: async (input, { signal = null } = {}) => {
       const intent = capture('intent', input);
       return locked(async () => {
@@ -216,16 +234,26 @@ export const createRetainedAnswerStore = ({ repoRoot, userConfig = null } = {}) 
         return capture('intent', head.pending);
       }, signal);
     },
+    readRevision: async (input, { signal = null } = {}) => {
+      const receipt = capture('receipt', input);
+      return locked(async ready => {
+        if (!ready) throw fail('UNAVAILABLE', 'Retained answer storage is unavailable.');
+        const answer = await readAnswer(receipt, signal);
+        if (answer.world.repositoryNamespace !== repositoryNamespace) throw fail('INTEGRITY', 'Retained revision belongs to another repository.');
+        return { answer, pending: null, epoch: receipt.epoch, status: 'historical-answer', currentSourceAdmission: 'not-established-by-retention' };
+      }, signal, { create: false });
+    },
     read: async (questionRef, { signal = null } = {}) => {
       // Capture only the original ID; callers cannot select a cache path.
       const request = capture('begin', { questionRef, worldId: '0'.repeat(64), expectedBaseDigest: null });
-      return locked(async () => {
-        const head = await readHead(request.questionRef.id, signal);
+      return locked(async ready => {
+        const head = ready ? await readHead(request.questionRef.id, signal) : null;
         const answer = head?.current ? await readAnswer(head.current, signal) : null;
         return { answer, pending: head?.pending ?? null, epoch: head?.epoch ?? 0,
           status: head?.pending ? 'refresh-pending' : answer ? 'historical-answer' : 'empty',
           currentSourceAdmission: 'not-established-by-retention' };
-      }, signal);
+      }, signal, { create: false });
     }
   });
+  return store;
 };

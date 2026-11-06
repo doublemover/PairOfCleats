@@ -5,8 +5,8 @@ quotations into deterministic text, typed claims and UTF-16 fragment/source maps
 It also validates historical content and constructs exact-base answer patches.
 Live query/source admission is available through `repository-answer`, MCP
 `repository_answer` and HTTP `POST /analysis/repository-answer`. An opt-in
-[retention owner](answer-retention.md) now provides immutable support graphs and
-exact-intent publication; transport integration remains. All authored runtime cases
+[retention owner](answer-retention.md) provides immutable support graphs and
+exact-intent publication through the same transports. All authored runtime cases
 are unexecuted; this contract is not a qualification receipt.
 
 `compileAdmittedQueryAnswer` is an internal consumer of already-admitted results.
@@ -83,7 +83,7 @@ Five authored, unexecuted cases cover visible text and quote maps, Unicode
 boundaries, typed values and unknown scalar metadata, qualified/empty counts,
 open requirements, exact-base retractions, stale patches, cyclic support edits,
 quotation-content disagreement, duplicate citations, bounded mandatory overflow,
-cancellation and owner-proven invocation metadata separation. The live controls below are authored; retention integration and all runtime/cost
+cancellation and owner-proven invocation metadata separation. The live controls below are authored; all runtime/cost
 qualification remain.
 
 Public requests use `mode: "compile"`, a `questionRef` and the existing typed
@@ -122,6 +122,30 @@ source read. It returns the inspected digest, content-integrity and count metada
 with `currentSourceAdmission: "not-established-by-content-inspection"`. It never
 returns a current applicability or read-authorization receipt. All three modes
 have the same closed CLI/MCP/HTTP contract.
+
+Optional `retention: {expectedBaseDigest: null | digest}` on compile/compare
+records the intended question/world revision before query work. Interrupted work
+can explicitly supply the exact `resumeIntent` returned by retained inspection.
+The coordinator validates a complete answer, immutable storage receipt and final
+envelope before object publication. Only successful storage commit publishes the
+original query continuation. Storage time is reported separately as
+`work.retentionElapsedMs` and included in total elapsed time. Retained compilation
+reserves 8 KiB within the existing response ceiling for the delivery/head envelope.
+
+`mode: "retained"` takes `repoRoot` and `questionRef`. It returns the latest
+historical answer and pending intent for that question ID, or an empty result
+without creating an answer namespace. Optional `revisionReceipt` selects an exact
+immutable older revision and must match the requested question revision. The
+receipt locates historical content; it does not prove current applicability or
+that an orphan object was previously the published head. Reads validate content
+and acquire ordinary cache admission, without source expansion. `--all` carries
+each successful retained base digest into the next explicitly paged request.
+It preserves the opaque query continuation and normal output backpressure.
+
+Four additional unexecuted integration cases cover opt-in/history behavior,
+obsolete asynchronous results and unpublished cursor controls, explicit resume
+with cancellation, and real CLI/MCP/HTTP retained paging. No narrative adapter or
+held-out model qualification is enabled.
 
 Four additional integration cases are authored and unexecuted: real query/quote
 admission with edited worktree and corrupt retained-byte controls; original

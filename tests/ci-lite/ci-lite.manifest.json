@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 2408,
+    "hero": 2412,
     "matrix": 110,
     "meta": 54,
     "soak": 1,
@@ -15451,6 +15451,30 @@
     {
       "id": "semantic/questions/answer-retention/native-failure-ownership",
       "order": 2573,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "semantic/questions/answer-retention-admission/opt-in-and-history",
+      "order": 2574,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "semantic/questions/answer-retention-admission/late-result-and-publication",
+      "order": 2575,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "semantic/questions/answer-retention-admission/resume-and-cancellation",
+      "order": 2576,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "semantic/questions/answer-retention-admission/transport-retention",
+      "order": 2577,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

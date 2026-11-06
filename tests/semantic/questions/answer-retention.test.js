@@ -53,6 +53,10 @@ try {
     const read = await store.read(second.questionRef);
     assert.deepEqual(read.answer, second); assert.equal(read.status, 'historical-answer');
     assert.equal(read.currentSourceAdmission, 'not-established-by-retention'); assert.equal(publication.answerDigest, first.digest);
+    assert.deepEqual((await fresh().readRevision(publication)).answer, first, 'the prior immutable revision remains inspectable by its exact receipt');
+    const staged = store.prepare(await begin(store, first, second.digest), first);
+    assert.throws(() => { staged.receipt.questionRef.revision = 'forged'; }, TypeError);
+    assert.equal((await staged.commit()).answerDigest, first.digest);
   } else if (mode === 'intent-and-base-conflicts') {
     await store.commit(await begin(store, first), first);
     const old = make('2'), next = make('3', 'build-2');
@@ -122,6 +126,13 @@ try {
     const before = await fs.readdir(objects);
     await assert.rejects(begin(store, first, null), { code: 'ERR_ANSWER_RETENTION_CONFLICT' });
     assert.deepEqual(await fs.readdir(objects), before, 'no quota recovery silently deletes historical objects');
+    const padding = 'x'.repeat(2 * 128 * 1024 - 128);
+    for (let start = 0; start < 129; start += 8) await Promise.all(Array.from({ length: Math.min(8, 129 - start) }, (_, offset) => {
+      const payload = retainedAnswerBytes({ fixtureInventoryPadding: padding, index: start + offset });
+      return fs.writeFile(path.join(objects, retainedAnswerHash(payload) + '.json'), payload);
+    }));
+    await assert.rejects(begin(store, make('2'), first.digest), { code: 'ERR_ANSWER_RETENTION_QUOTA' }, 'all ordinary encoded object bytes count, including unreferenced objects');
+    assert.equal((await store.read(first.questionRef)).answer.digest, first.digest);
   } else {
     await store.commit(await begin(store, first), first);
     const next = make('2', 'build-2'), intent = await begin(store, next, first.digest), rename = fs.rename;

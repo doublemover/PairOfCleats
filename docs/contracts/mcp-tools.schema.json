@@ -1,5 +1,5 @@
 {
-  "schemaVersion": "1.14.0",
+  "schemaVersion": "1.15.0",
   "tools": [
     {
       "name": "bootstrap",
@@ -1116,7 +1116,7 @@
     },
     {
       "name": "repository_answer",
-      "description": "Experimental: run a pinned typed query and render deterministic qualified facts and optional exact source quotations; compare against a historical answer or inspect content integrity. No narrative synthesis or program-wide completeness claim.",
+      "description": "Experimental: run a pinned typed query and render qualified facts and exact source quotations; compare or inspect historical answers. Explicit retention writes bounded immutable derived answers with expected-base and revision-intent checks; retained mode reads historical storage without current source authority. No narrative synthesis or program-wide completeness claim.",
       "inputSchema": {
         "type": "object",
         "oneOf": [
@@ -1183,6 +1183,83 @@
                   ]
                 },
                 "maxItems": 64
+              },
+              "retention": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "expectedBaseDigest": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "pattern": "^[a-f0-9]{64}$"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "resumeIntent": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "epoch": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 9007199254740991
+                      },
+                      "intentId": {
+                        "type": "string",
+                        "pattern": "^[a-f0-9-]{36}$"
+                      },
+                      "questionRef": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 256
+                          },
+                          "revision": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 256
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "revision"
+                        ]
+                      },
+                      "worldId": {
+                        "type": "string",
+                        "pattern": "^[a-f0-9]{64}$"
+                      },
+                      "expectedBaseDigest": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "pattern": "^[a-f0-9]{64}$"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      }
+                    },
+                    "required": [
+                      "epoch",
+                      "intentId",
+                      "questionRef",
+                      "worldId",
+                      "expectedBaseDigest"
+                    ]
+                  }
+                },
+                "required": [
+                  "expectedBaseDigest"
+                ]
               }
             },
             "required": [
@@ -1258,6 +1335,83 @@
                   ]
                 },
                 "maxItems": 64
+              },
+              "retention": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "expectedBaseDigest": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "pattern": "^[a-f0-9]{64}$"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "resumeIntent": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "epoch": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 9007199254740991
+                      },
+                      "intentId": {
+                        "type": "string",
+                        "pattern": "^[a-f0-9-]{36}$"
+                      },
+                      "questionRef": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 256
+                          },
+                          "revision": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 256
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "revision"
+                        ]
+                      },
+                      "worldId": {
+                        "type": "string",
+                        "pattern": "^[a-f0-9]{64}$"
+                      },
+                      "expectedBaseDigest": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "pattern": "^[a-f0-9]{64}$"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      }
+                    },
+                    "required": [
+                      "epoch",
+                      "intentId",
+                      "questionRef",
+                      "worldId",
+                      "expectedBaseDigest"
+                    ]
+                  }
+                },
+                "required": [
+                  "expectedBaseDigest"
+                ]
               }
             },
             "required": [
@@ -1286,6 +1440,82 @@
               "schemaVersion",
               "mode",
               "revision"
+            ]
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "schemaVersion": {
+                "const": 1
+              },
+              "mode": {
+                "const": "retained"
+              },
+              "repoRoot": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 4096
+              },
+              "questionRef": {
+                "$ref": "#/$defs/questionRef"
+              },
+              "revisionReceipt": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "answerDigest": {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  "manifestHash": {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  "questionRef": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 256
+                      },
+                      "revision": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 256
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "revision"
+                    ]
+                  },
+                  "worldId": {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  "epoch": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "required": [
+                  "answerDigest",
+                  "manifestHash",
+                  "questionRef",
+                  "worldId",
+                  "epoch"
+                ]
+              }
+            },
+            "required": [
+              "schemaVersion",
+              "mode",
+              "repoRoot",
+              "questionRef"
             ]
           }
         ],

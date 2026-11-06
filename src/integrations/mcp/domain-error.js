@@ -72,6 +72,11 @@ export const projectMcpDomainError = error => {
     else if (domain.status === 403) result.hint = 'Use a repository, source and destination authorized for this operation.';
     else if (domain.status === 404) result.hint = 'Select an available published generation or build the required index.';
     else if (domain.status === 499) result.hint = 'Inspect operation state after cancellation before deciding whether to issue a new request.';
+    if (nativeCode.startsWith('ERR_ANSWER_RETENTION_')) {
+      if (domain.status === 409) result.hint = 'Read the retained question slot and revalidate its current answer base and revision intent before resuming.';
+      else if (domain.status === 507) result.hint = 'Retained-answer quota is exhausted. Use ephemeral compilation or explicitly manage disposable derived storage; no history was pruned.';
+      else if (domain.status === 404) result.hint = 'The optional historical answer is unavailable. Reconstruct it only through a fresh admitted query.';
+    }
   }
   return result;
 };

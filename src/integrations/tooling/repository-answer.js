@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { performance } from 'node:perf_hooks';
-import { canonicalSemanticJson } from '../../index/semantic/identity.js';
+import { canonicalSemanticJson, semanticHash } from '../../index/semantic/identity.js';
 import { throwIfAborted } from '../../shared/abort.js';
 import { getRepoRoot } from '../../shared/repo-paths.js';
 import { loadUserConfig } from '../../shared/dict-utils.js';
@@ -26,7 +26,7 @@ export const captureRepositoryAnswerRequest = input => {
   const request = captureSemanticRequest(input, REPOSITORY_ANSWER_REQUEST_SCHEMA);
   if (preparedRequests.has(request)) return request;
   assertRepositoryAnswer('request', request); canonicalSemanticJson(request, { maxBytes: 512 * 1024 });
-  const prepared = request.mode === 'inspect' ? request
+  const prepared = ['inspect', 'retained'].includes(request.mode) ? request
     : Object.freeze({ ...request, query: captureRepositoryQueryRequest(request.query) });
   preparedRequests.add(prepared); return prepared;
 };
@@ -46,7 +46,7 @@ const finalize = result => {
  * Each source phase has a separate bounded interval; total elapsed is reported.
  */
 export const createRepositoryAnswerRunner = ({ queryRunner = runRepositoryQuery, openStore = openSemanticQueryStore,
-  resolveIndexDir = resolveSemanticGenerationIndexDir, maxSourceWorkMs = 250 } = {}) => {
+  resolveIndexDir = resolveSemanticGenerationIndexDir, maxSourceWorkMs = 250, createRetentionStore = null } = {}) => {
   if (!Number.isSafeInteger(maxSourceWorkMs) || maxSourceWorkMs < 1 || maxSourceWorkMs > 250) throw new TypeError('Invalid answer source-work allowance.');
   return async (input, { signal = null, userConfig = null, deferPublication = false } = {}) => {
     const began = performance.now(); throwIfAborted(signal);
@@ -57,6 +57,19 @@ export const createRepositoryAnswerRunner = ({ queryRunner = runRepositoryQuery,
         questionRef: report.questionRef, worldId: report.worldId, claims: report.claims.length, fragments: report.fragments.length,
         contentIntegrity: 'verified-by-deterministic-recomputation', currentSourceAdmission: 'not-established-by-content-inspection', serializedBytes: 0 });
     }
+    // Optional storage remains lazy: ordinary ephemeral answers do not import
+    // the retention graph or acquire a retention lease/create its namespace.
+    const retentionStore = async (root, config) => createRetentionStore ? createRetentionStore({ repoRoot: root, userConfig: config })
+      : (await import('../../context-pack/answers/retention.js')).createRetainedAnswerStore({ repoRoot: root, userConfig: config });
+    if (request.mode === 'retained') {
+      const root = getRepoRoot(request.repoRoot), config = userConfig || loadUserConfig(root);
+      if (request.revisionReceipt && !same(request.questionRef, request.revisionReceipt.questionRef)) {
+        throw fail('ERR_ANSWER_RETENTION_CONFLICT', 'Retained answer receipt differs from the requested question revision.');
+      }
+      const store = await retentionStore(root, config);
+      const historical = request.revisionReceipt ? await store.readRevision(request.revisionReceipt, { signal }) : await store.read(request.questionRef, { signal });
+      return finalize({ schemaVersion: ANSWER_EVIDENCE_VERSION, kind: 'repository-answer-retained', ...historical, serializedBytes: 0 });
+    }
     const repoRoot = getRepoRoot(request.query.repoRoot);
     if (repoRoot !== request.query.repoRoot) request = captureRepositoryAnswerRequest({ ...request, query: { ...request.query, repoRoot } });
     if (request.mode === 'compare') {
@@ -66,6 +79,23 @@ export const createRepositoryAnswerRunner = ({ queryRunner = runRepositoryQuery,
       }
     }
     const config = userConfig || loadUserConfig(repoRoot);
+    let retained = null, intent = null, retentionElapsedMs = 0;
+    if (request.retention) {
+      const retentionBegan = performance.now();
+      const world = request.query.question.world;
+      if (world.repositoryNamespace !== repoRoot || !same(world.generation, request.query.generation)) {
+        throw fail('ERR_SEMANTIC_SCOPE_MISMATCH', 'Answer retention requires the exact requested repository and generation world.');
+      }
+      const worldId = semanticHash('answer.world.v1', world, { maxBytes: ANSWER_MAX_BYTES });
+      const desired = { questionRef: request.questionRef, worldId, expectedBaseDigest: request.retention.expectedBaseDigest };
+      if (request.retention.resumeIntent && (!same(request.retention.resumeIntent.questionRef, desired.questionRef)
+        || request.retention.resumeIntent.worldId !== desired.worldId || request.retention.resumeIntent.expectedBaseDigest !== desired.expectedBaseDigest)) {
+        throw fail('ERR_ANSWER_RETENTION_CONFLICT', 'Resumed answer intent differs from the requested question, world or base.');
+      }
+      retained = await retentionStore(repoRoot, config);
+      intent = request.retention.resumeIntent ? await retained.resume(request.retention.resumeIntent, { signal }) : await retained.begin(desired, { signal });
+      retentionElapsedMs = performance.now() - retentionBegan;
+    }
     const queryPage = await queryRunner(request.query, { signal, userConfig: config, deferPublication: true });
     throwIfAborted(signal);
     const queryReceipt = queryAnswerReceipt(queryPage), sourceBegan = performance.now();
@@ -128,12 +158,26 @@ export const createRepositoryAnswerRunner = ({ queryRunner = runRepositoryQuery,
     throwIfAborted(signal);
     const sourceElapsedMs = performance.now() - sourceBegan, renderBegan = performance.now();
     const answer = compileAdmittedQueryAnswer({ schemaVersion: ANSWER_EVIDENCE_VERSION, questionRef: request.questionRef,
-      queryReceipt, quotations, openRequirements: request.openRequirements || [] }, { maxBytes: ANSWER_MAX_BYTES - 1024, signal });
+      queryReceipt, quotations, openRequirements: request.openRequirements || [] }, { maxBytes: ANSWER_MAX_BYTES - (retained ? 8192 : 1024), signal });
+    const preparedRetention = retained?.prepare(intent, answer, { signal });
     const body = request.mode === 'compare' ? { kind: 'repository-answer-comparison', patch: reconcileAnswerRevisions(request.previous, answer, { signal }) }
       : { kind: 'repository-answer-page', answer };
     const result = finalize({ schemaVersion: ANSWER_EVIDENCE_VERSION, ...body, continuation: queryPage.cursor, serializedBytes: 0,
+      ...(preparedRetention ? { retained: preparedRetention.receipt } : {}),
       work: { queryServiceElapsedMs: queryPage.work.elapsedMs, sourceElapsedMs,
-        renderElapsedMs: performance.now() - renderBegan, totalElapsedMs: performance.now() - began } });
+        renderElapsedMs: performance.now() - renderBegan, retentionElapsedMs, totalElapsedMs: performance.now() - began } });
+    throwIfAborted(signal);
+    // Final report, storage receipt and response bytes are admitted before the
+    // first immutable object is written. A failed commit installs no cursor.
+    if (preparedRetention) {
+      const commitBegan = performance.now();
+      await preparedRetention.commit();
+      result.work.retentionElapsedMs += performance.now() - commitBegan;
+      result.work.totalElapsedMs = performance.now() - began;
+      // The retained answer reserves 8 KiB for this small closed envelope;
+      // timing is delivery metadata and never changes the answer identity.
+      finalize(result);
+    }
     throwIfAborted(signal);
     return stageSemanticPagePublication(result, publication(queryPage, signal), deferPublication);
   };

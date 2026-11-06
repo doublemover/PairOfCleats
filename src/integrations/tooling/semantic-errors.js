@@ -15,9 +15,10 @@ export const classifySemanticDetailError = error => {
   const status = ['ERR_SEMANTIC_QUERY_CONTRACT', 'ERR_SEMANTIC_QUERY_LIMIT', 'ERR_SEMANTIC_OUTPUT_LIMIT', 'ERR_ANSWER_EVIDENCE_CONTRACT', 'ERR_ANSWER_RESPONSE_BUDGET'].includes(semanticCode) ? 400
     : semanticCode === 'ERR_SEMANTIC_CURSOR_EXPIRED' ? 410
       : semanticCode === 'ERR_SEMANTIC_SCOPE_MISMATCH' ? 403
-        : ['ERR_INDEX_FORMAT_UNSUPPORTED', 'ERR_SEMANTIC_GENERATION_MISMATCH', 'ERR_ANSWER_BASE_MISMATCH'].includes(semanticCode) ? 409
-          : ['ERR_SEMANTIC_UNAVAILABLE', 'ERR_SEMANTIC_QUERY_INDEX_UNAVAILABLE', 'ENOENT', 'NO_INDEX'].includes(semanticCode) ? 404
-            : name === 'AbortError' || semanticCode === 'ERR_ABORTED' ? 499 : 500;
+        : ['ERR_INDEX_FORMAT_UNSUPPORTED', 'ERR_SEMANTIC_GENERATION_MISMATCH', 'ERR_ANSWER_BASE_MISMATCH', 'ERR_ANSWER_RETENTION_CONFLICT', 'ERR_ANSWER_RETENTION_BUSY'].includes(semanticCode) ? 409
+          : semanticCode === 'ERR_ANSWER_RETENTION_QUOTA' ? 507
+            : ['ERR_SEMANTIC_UNAVAILABLE', 'ERR_SEMANTIC_QUERY_INDEX_UNAVAILABLE', 'ERR_ANSWER_RETENTION_UNAVAILABLE', 'ENOENT', 'NO_INDEX'].includes(semanticCode) ? 404
+              : name === 'AbortError' || semanticCode === 'ERR_ABORTED' ? 499 : 500;
   return { status, semanticCode, message: typeof message === 'string' && message ? message : 'Semantic detail failed.',
     ...(format ? { details: format } : details ? { details } : {}) };
 };

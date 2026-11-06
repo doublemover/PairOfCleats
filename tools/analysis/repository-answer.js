@@ -16,13 +16,15 @@ export const runRepositoryAnswerCli = async (argv = process.argv, { output = pro
   const filename = path.resolve(args.request), { buffer } = await readVerifiedContainedFile(path.dirname(filename), filename, { maxBytes: 512 * 1024, signal });
   const request = assertRepositoryAnswer('request', JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(buffer)));
   let cursor = request.query?.cursor || null;
+  let retention = request.retention;
   do {
     throwIfAborted(signal);
-    const input = request.mode === 'inspect' ? request : { ...request, query: { ...request.query, cursor } };
+    const input = ['inspect', 'retained'].includes(request.mode) ? request : { ...request, query: { ...request.query, cursor }, ...(retention ? { retention } : {}) };
     const result = assertRepositoryAnswer('result', await runner(input, { signal }));
     throwIfAborted(signal);
     if (!output.write(JSON.stringify(result) + '\n')) await once(output, 'drain', { signal });
-    cursor = args.all && request.mode !== 'inspect' ? result.continuation : null;
+    cursor = args.all && !['inspect', 'retained'].includes(request.mode) ? result.continuation : null;
+    if (retention && result.retained) retention = { expectedBaseDigest: result.retained.answerDigest };
   } while (cursor);
 };
 if (isDirectExecution(import.meta.url)) runRepositoryAnswerCli().catch(error => {

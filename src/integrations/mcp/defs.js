@@ -15,7 +15,7 @@ import { GRAPH_EVIDENCE_REQUEST_SCHEMA } from '../../contracts/schemas/graph-evi
 import { getToolVersion } from '../../../tools/dict-utils/tool.js';
 import { SEARCH_REQUEST_REQUIREMENT } from '../../shared/search-request.js';
 
-export const MCP_SCHEMA_VERSION = '1.14.0';
+export const MCP_SCHEMA_VERSION = '1.15.0';
 
 const STRING_OR_STRING_ARRAY_SCHEMA = Object.freeze({
   anyOf: [
@@ -72,7 +72,7 @@ export function getToolDefs(defaultModelId) {
     { name: 'graph_evidence', description: 'Experimental, qualification pending: page retained call occurrences or resolved adjacency in an explicit immutable build. Bounded retained-family coverage does not establish upstream semantic completeness.', inputSchema: { type: 'object', ...GRAPH_EVIDENCE_REQUEST_SCHEMA } },
     {name:'semantic_find',description:'Experimental, qualification pending: discover pinned structural/compiler-target candidates, exact type-expression facts by source and role, or parser-established scalar literal occurrences. Bounded indexed coverage; no assignability, alias expansion, behavioral equivalence or universal runtime-value claim.',inputSchema:SEMANTIC_FIND_REQUEST_SCHEMA},
     { name: 'repository_query', description: 'Experimental: describe an immutable source domain, execute typed correlated target/literal questions, or explain every original clause at one exact binding tuple. Read-only source-linked retained facts and replayable pages; program semantics and runtime callees are not established.', inputSchema: REPOSITORY_QUERY_REQUEST_SCHEMA },
-    { name: 'repository_answer', description: 'Experimental: run a pinned typed query and render deterministic qualified facts and optional exact source quotations; compare against a historical answer or inspect content integrity. No narrative synthesis or program-wide completeness claim.', inputSchema: REPOSITORY_ANSWER_TOOL_SCHEMA },
+    { name: 'repository_answer', description: 'Experimental: run a pinned typed query and render qualified facts and exact source quotations; compare or inspect historical answers. Explicit retention writes bounded immutable derived answers with expected-base and revision-intent checks; retained mode reads historical storage without current source authority. No narrative synthesis or program-wide completeness claim.', inputSchema: REPOSITORY_ANSWER_TOOL_SCHEMA },
     {name:'semantic_explain',description:'Experimental, qualification pending: explain a pinned static witness and suggest exact source/task plan or enqueue requests. Never executes suggested work automatically.',inputSchema:SEMANTIC_EXPLAIN_REQUEST_SCHEMA},
     {name:'semantic_enrichment',description:'Experimental, qualification pending: plan by default; explicit enqueue persists pending tasks, explicit drain requires verified dependency authority and whole-generation publication. No live retrieval overlays.',inputSchema:SEMANTIC_ENRICHMENT_REQUEST_SCHEMA},
     { name: 'runtime_evidence', description: 'Query explicitly pinned saved runtime families with exact capture/source/workload/code-lifetime selectors. Never executes, probes or attaches.', inputSchema: RUNTIME_LOOKUP_SERVICE_REQUEST_SCHEMA },

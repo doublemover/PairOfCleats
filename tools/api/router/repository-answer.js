@@ -13,9 +13,9 @@ export const handleRepositoryAnswerRoute = async ({ req, res, corsHeaders, parse
   catch (error) { sendError(res, 400, ERROR_CODES.INVALID_REQUEST, error.message, { semanticCode: error.code }, corsHeaders || {}); return true; }
   let request = parsed.payload;
   if (request.mode !== 'inspect') {
-    const resolved = await lifetime.prepare(() => resolveRepoOrSendError(res, resolveRepo, request.query.repoRoot, corsHeaders));
+    const resolved = await lifetime.prepare(() => resolveRepoOrSendError(res, resolveRepo, request.mode === 'retained' ? request.repoRoot : request.query.repoRoot, corsHeaders));
     if (!resolved.ok) return true;
-    request = { ...request, query: { ...request.query, repoRoot: resolved.repoPath } };
+    request = request.mode === 'retained' ? { ...request, repoRoot: resolved.repoPath } : { ...request, query: { ...request.query, repoRoot: resolved.repoPath } };
   }
   try {
     const result = await runRepositoryAnswer(request, { signal: lifetime.signal });
