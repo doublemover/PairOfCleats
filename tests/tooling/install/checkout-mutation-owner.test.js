@@ -12,7 +12,7 @@ import { applyTestEnv } from '../../helpers/test-env.js';
 
 applyTestEnv();
 const mode = process.env.PAIROFCLEATS_TEST_ID?.split('tooling/install/checkout-mutation-owner/')[1];
-assert.ok(['original-session-and-isolation', 'concurrent-and-orphan-protection', 'original-error-and-retirement', 'outstanding-borrowed-work', 'readiness-boundary'].includes(mode));
+assert.ok(['original-session-and-isolation', 'concurrent-and-orphan-protection', 'original-error-and-retirement', 'outstanding-borrowed-work', 'readiness-boundary', 'late-borrowed-retirement-fence'].includes(mode));
 const fixture = mode === 'readiness-boundary' ? await makeBootstrapVerificationFixture() : { root: await makeTempDir('checkout-mutation-') };
 const { root } = fixture, lockPath = path.join(root, CHECKOUT_MUTATION_LOCK);
 const exists = async () => fs.stat(lockPath).then(() => true, error => { if (error.code === 'ENOENT') return false; throw error; });
@@ -94,6 +94,29 @@ try {
     }).catch(error => error);
     assert.equal(errorGraphIncludes(retained, pending), true); assert.equal(await exists(), true);
     retired = true; await retireCheckoutMutationSession(retained.checkoutMutationSession); assert.equal(await exists(), false);
+  } else if (mode === 'late-borrowed-retirement-fence') {
+    const open = fs.open; let retired = true, armed = false, reads = 0, operations = 0;
+    const original = Object.assign(new Error('handled borrowed work becomes pending during actual metadata retirement'), {
+      cacheOwnershipPending: true, cacheOwnershipReleased: () => retired
+    });
+    let failure;
+    try {
+      fs.open = async function (file, flags, ...args) {
+        if (armed && file === lockPath && flags === 'r') { armed = false; reads++; retired = false; }
+        return open.call(this, file, flags, ...args);
+      };
+      failure = await withCheckoutMutation(root, async session => {
+        operations++;
+        await withCheckoutMutation(root, async () => { throw original; }, { session }).catch(() => {});
+        armed = true; return 'logically handled';
+      }).catch(error => error);
+    } finally { fs.open = open; }
+    assert.equal(reads, 1); assert.equal(await exists(), true, 'the producer rechecks original borrowed work inside metadata retirement');
+    assert.equal(errorGraphIncludes(failure, original), true); assert.equal(failure.cacheOwnershipReleased(), false);
+    original.cacheOwnershipReleased = () => true;
+    await assert.rejects(retireCheckoutMutationSession(failure.checkoutMutationSession));
+    retired = true; await retireCheckoutMutationSession(failure.checkoutMutationSession);
+    assert.equal(await exists(), false); assert.equal(operations, 1, 'retirement never replays the mutation');
   } else {
     fixture.record(fixture.capture());
     assert.equal((await inspectBootstrapReadiness({ root, probeNatives: false })).ready, true);

@@ -197,6 +197,9 @@ admission also compares the current lock file to the publisher's original
 descriptor seal; copied nonce/PID metadata cannot replace it. This tuple grants
 no deletion authority. Ordinary
 entry readiness is blocked while that mutation or retained original work exists.
+The publisher also retains the original borrowed-work ledger throughout actual
+metadata retirement. A handled failure becoming pending after the coordinator's
+first check still prevents lock removal; explicit retirement never replays work.
 Age and PID death never reclaim the record. Exact original release can be retried
 only through its retained owner after physical prerequisites settle. Setup input
 drift stops successor stages; explicit dependency resolution alone admits its
@@ -213,6 +216,23 @@ after actual retirement. Existing child-status controls explicitly select a
 fixture native adapter, retaining their real child execution boundary. Five
 new session controls await execution. Durable stage journals and cross-process
 qualification remain the next #1555 work.
+
+The stage-journal owner is authored for that integration: one original session
+captures a bounded ordered plan, writes exact JSONL observations through its
+original descriptor, and publishes read-back-checked status after confirmed
+synchronization/close. Source order, failed predecessors and outstanding borrowed
+stages remain enforced. Its 16-stage, 128-event, 256-KiB journal and 64-KiB plan
+bounds are internal. Seven filesystem/lifetime controls await execution. Canonical
+entry and readiness integration is still pending; a serialized stage record is
+not native qualification or permission to resume a prior operation.
+Atomic persistence now records its two bounded fallback counters without loading
+the Prometheus package. The existing registry projects earlier events once when
+it loads and preserves active reset/increment behavior. This keeps actual durable
+publication usable before dependency installation; three fresh-import/metric
+controls await execution.
+Unknown write results retain the exact journal/log descriptor and root owner;
+they cannot authorize a close, retry or successful evidence claim. The added
+negative log-write control awaits execution.
 
 The synchronous patch API has been removed after moving its 24 remaining calls
 in nine fixtures to the asynchronous owner. Every existing assertion and ordered

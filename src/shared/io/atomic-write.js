@@ -4,7 +4,7 @@ import path from 'node:path';
 import { createTempPath } from './temp-path.js';
 import { replaceFile, replaceFileSync } from './replace-file.js';
 import { joinPathSafe, normalizePathForPlatform } from '../path-normalize.js';
-import { incAtomicPersistenceFallback } from '../metrics/core.js';
+import { incAtomicPersistenceFallback } from '../metrics/atomic-persistence.js';
 import { throwIfAborted } from '../abort.js';
 import { createContainedFileResource, getContainedFileSession } from '../contained-file-resource.js';
 import { observeStorageResource } from '../storage/failure-observation.js';

@@ -116,7 +116,11 @@ export const createNativeSetupDiagnostics = (root, session, { limits = NATIVE_DI
             let offset = 0;
             while (offset < chunk.length) {
               const count = stream.owner.operations.write(chunk, offset, chunk.length - offset, null);
-              if (!Number.isSafeInteger(count) || count < 1 || count > chunk.length - offset) throw problem('Native log write did not confirm exact byte progress.');
+              if (!Number.isSafeInteger(count) || count < 0 || count > chunk.length - offset) {
+                const unknown = Object.assign(problem('Native log write returned unknown original operation evidence.'), { cacheOwnershipPending: true });
+                stream.owner.remember(unknown); throw unknown;
+              }
+              if (count === 0) throw problem('Native log write did not confirm exact byte progress.');
               const written = chunk.subarray(offset, offset + count);
               stream.hash.update(written); stream.tail.push(written); stream.writtenBytes += count;
               writtenBytes += count; attemptBytes += count; offset += count;

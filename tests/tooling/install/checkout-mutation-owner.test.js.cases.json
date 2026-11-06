@@ -1,4 +1,4 @@
 {
   "schemaVersion": 1,
-  "cases": ["original-session-and-isolation", "concurrent-and-orphan-protection", "original-error-and-retirement", "outstanding-borrowed-work", "readiness-boundary"]
+  "cases": ["original-session-and-isolation", "concurrent-and-orphan-protection", "original-error-and-retirement", "outstanding-borrowed-work", "readiness-boundary", "late-borrowed-retirement-fence"]
 }

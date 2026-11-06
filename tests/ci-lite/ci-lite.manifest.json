@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 2558,
+    "hero": 2570,
     "matrix": 110,
     "meta": 54,
     "soak": 1,
@@ -16351,6 +16351,78 @@
     {
       "id": "tooling/install/native-failure-summary/original-resource-observations",
       "order": 2723,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/checkout-stage-journal/ordered-original-stage-evidence",
+      "order": 2724,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/checkout-stage-journal/strict-and-borrowed-plan",
+      "order": 2725,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/checkout-stage-journal/original-failures-and-incomplete-plan",
+      "order": 2726,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/checkout-stage-journal/independent-log-failures",
+      "order": 2727,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/checkout-stage-journal/unknown-close-retains-owner",
+      "order": 2728,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/checkout-stage-journal/original-outstanding-stage-drain",
+      "order": 2729,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/checkout-mutation-owner/late-borrowed-retirement-fence",
+      "order": 2730,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "shared/io/atomic-write-prebootstrap/dependency-free-publication",
+      "order": 2731,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/io/atomic-write-prebootstrap/late-metric-owner",
+      "order": 2732,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/io/atomic-write-prebootstrap/active-metric-reset",
+      "order": 2733,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/install/checkout-stage-journal/unknown-write-retains-owner",
+      "order": 2734,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/native-diagnostic-ownership/unknown-write-retains-owner",
+      "order": 2735,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     }

@@ -2726,3 +2726,15 @@ tooling/install/bootstrap-task-events/output-original-resource-retirement
 tooling/install/native-failure-summary/original-values-and-packets
 tooling/install/native-failure-summary/row-authority-and-status
 tooling/install/native-failure-summary/original-resource-observations
+tooling/install/checkout-stage-journal/ordered-original-stage-evidence
+tooling/install/checkout-stage-journal/strict-and-borrowed-plan
+tooling/install/checkout-stage-journal/original-failures-and-incomplete-plan
+tooling/install/checkout-stage-journal/independent-log-failures
+tooling/install/checkout-stage-journal/unknown-close-retains-owner
+tooling/install/checkout-stage-journal/original-outstanding-stage-drain
+tooling/install/checkout-mutation-owner/late-borrowed-retirement-fence
+shared/io/atomic-write-prebootstrap/dependency-free-publication
+shared/io/atomic-write-prebootstrap/late-metric-owner
+shared/io/atomic-write-prebootstrap/active-metric-reset
+tooling/install/checkout-stage-journal/unknown-write-retains-owner
+tooling/install/native-diagnostic-ownership/unknown-write-retains-owner

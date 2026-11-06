@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-06T17:46:41.186Z",
+  "generatedAt": "2026-11-06T18:30:53.887Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
@@ -4860,6 +4860,7 @@
         "tests/shared/hash/exact-file-observation.test.js",
         "tests/shared/hash/stat-work-bound-consumer.test.js",
         "tests/shared/index-state-serialized-publication.test.js",
+        "tests/shared/io/atomic-write-prebootstrap.test.js",
         "tests/shared/json-stream/sharded-serialization-work.test.js",
         "tests/shared/locks/with-file-lock-result-lifetime.test.js",
         "tests/shared/storage/cleanup-result-ownership.test.js",
@@ -4957,6 +4958,7 @@
         "tests/tooling/install/bootstrap-verification-generation.test.js",
         "tests/tooling/install/checkout-bootstrap-entry.test.js",
         "tests/tooling/install/checkout-mutation-owner.test.js",
+        "tests/tooling/install/checkout-stage-journal.test.js",
         "tests/tooling/install/clangd-owned-acquisition.test.js",
         "tests/tooling/install/estimate-destination-identity.test.js",
         "tests/tooling/install/managed-selection-lifetime.test.js",

@@ -13,20 +13,26 @@ import { applyTestEnv } from '../../helpers/test-env.js';
 applyTestEnv();
 const mode = process.env.PAIROFCLEATS_TEST_ID?.split('tooling/install/native-diagnostic-ownership/')[1];
 assert.ok(['exact-bytes-and-tails', 'attempt-history-and-concurrency', 'original-log-failures', 'bounded-admission-and-output',
-  'unknown-close-retains-owner', 'original-structured-output', 'structured-output-fences', 'first-byte-observation'].includes(mode));
+  'unknown-close-retains-owner', 'original-structured-output', 'structured-output-fences', 'first-byte-observation', 'unknown-write-retains-owner'].includes(mode));
 const root = await makeTempDir('native-diagnostics-');
+const retainedFixtureFds = new Set();
 const commandOptions = { cwd: root, stdio: 'pipe', timeoutMs: 5000, maxOutputBytes: 16,
   rejectOnNonZeroExit: false, killTree: false, windowsHide: true };
 const compact = { ...NATIVE_DIAGNOSTIC_LIMITS, attempts: 8, diskBytes: 1024 * 1024, attemptBytes: 128 * 1024, tailBytes: 64 };
 try {
-  if (mode === 'unknown-close-retains-owner') {
+  if (['unknown-close-retains-owner', 'unknown-write-retains-owner'].includes(mode)) {
     const original = Object.freeze(new Error('actual close returned no confirmation'));
-    const io = { ...fs, closeSync(fd) { fs.closeSync(fd); throw original; } };
+    const io = mode === 'unknown-close-retains-owner' ? { ...fs, closeSync(fd) { fs.closeSync(fd); throw original; } } : { ...fs,
+      openSync(...args) { const fd = fs.openSync(...args); retainedFixtureFds.add(fd); return fd; },
+      writeSync() { return false; }, closeSync(fd) { retainedFixtureFds.delete(fd); return fs.closeSync(fd); }
+    };
     const failure = await withCheckoutMutation(root, async session => {
       const diagnostics = createNativeSetupDiagnostics(root, session, { io, limits: compact });
       await runNativeSetupCommand(process.execPath, ['--eval', 'process.stdout.write("bytes");'], commandOptions, { diagnostics });
     }).catch(error => error);
-    assert.equal(errorGraphIncludes(failure, original), true); assert.equal(failure.cacheOwnershipReleased(), false);
+    if (mode === 'unknown-close-retains-owner') assert.equal(errorGraphIncludes(failure, original), true);
+    else assert.equal(retainedFixtureFds.size, 1, 'an unknown write result cannot authorize descriptor close');
+    assert.equal(failure.cacheOwnershipReleased(), false);
     assert.equal(fs.existsSync(path.join(root, CHECKOUT_MUTATION_LOCK)), true);
     // The fixture's intercepted close did close each real descriptor before
     // throwing. Production is correct to retain uncertainty rather than infer it.
@@ -137,5 +143,8 @@ try {
       assert.ok(output.snapshot().writtenBytes <= 128); assert.ok(overflow.diagnostics.logs[0].observedBytes > 128);
     }
   });
-} finally { fs.rmSync(root, { recursive: true, force: true }); }
+} finally {
+  for (const fd of retainedFixtureFds) fs.closeSync(fd); // Exact no-work injected descriptors, never reused by this fixture.
+  fs.rmSync(root, { recursive: true, force: true });
+}
 console.log('Native attempt logs preserve bounded raw bytes, exact descriptor ownership and independent evidence failures');

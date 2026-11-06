@@ -1,5 +1,7 @@
 import { Counter, Gauge, Histogram, Registry } from '@prometheus-io/client';
 import { getEnvConfig } from '../env.js';
+import { getAtomicPersistenceFallbackCounts, setAtomicPersistenceMetricObserver } from './atomic-persistence.js';
+export { incAtomicPersistenceFallback } from './atomic-persistence.js';
 
 const registry = new Registry();
 let initialized = false;
@@ -30,7 +32,6 @@ const CACHE_RESULTS = new Set(['hit', 'miss', 'unknown']);
 const SURFACES = new Set(['cli', 'api', 'mcp', 'search', 'index', 'unknown']);
 const FALLBACKS = new Set(['backend', 'vector-candidates', 'unknown']);
 const TIMEOUTS = new Set(['tool', 'search', 'index', 'unknown']);
-const ATOMIC_PERSISTENCE_REASONS = new Set(['exdev', 'unknown']);
 const ANN_BACKENDS = new Set(['sqlite-vector', 'lancedb', 'hnsw', 'js', 'unknown']);
 const PUSHDOWN_STRATEGIES = new Set(['none', 'inline', 'temp-table', 'fallback', 'unknown']);
 const CANDIDATE_SIZE_BUCKETS = new Set(['none', '1-32', '33-256', '257-1024', '1025+', 'unknown']);
@@ -74,7 +75,6 @@ const normalizeCacheResult = (value) => normalizeLabel(value, CACHE_RESULTS);
 const normalizeSurface = (value) => normalizeLabel(value, SURFACES);
 const normalizeFallback = (value) => normalizeLabel(value, FALLBACKS);
 const normalizeTimeout = (value) => normalizeLabel(value, TIMEOUTS);
-const normalizeAtomicPersistenceReason = (value) => normalizeLabel(value, ATOMIC_PERSISTENCE_REASONS);
 const normalizeAnnBackend = (value) => normalizeLabel(value, ANN_BACKENDS);
 const normalizePushdownStrategy = (value) => normalizeLabel(value, PUSHDOWN_STRATEGIES);
 const normalizeCandidateSizeBucket = (value) => normalizeLabel(value, CANDIDATE_SIZE_BUCKETS);
@@ -281,7 +281,20 @@ const ensureMetrics = () => {
     })
   };
   initialized = true;
+  for (const { reason, count } of getAtomicPersistenceFallbackCounts()) if (count > 0) {
+    metrics.atomicPersistenceFallbacks.inc({ reason }, count);
+    metrics.atomicPersistenceDegraded.set({ reason }, 1);
+  }
 };
+
+setAtomicPersistenceMetricObserver(reason => {
+  const existing = initialized; ensureMetrics();
+  // First initialization backfills this same event and all earlier ones.
+  if (existing) {
+    metrics.atomicPersistenceFallbacks.inc({ reason });
+    metrics.atomicPersistenceDegraded.set({ reason }, 1);
+  }
+});
 
 const normalizeSeconds = (value) => {
   const parsed = Number(value);
@@ -495,17 +508,6 @@ export function incTimeout({ surface, operation }) {
     surface: normalizeSurface(surface),
     operation: normalizeTimeout(operation)
   });
-}
-
-/**
- * Increment atomic persistence degraded fallback counter.
- * @param {{ reason: string }} input
- */
-export function incAtomicPersistenceFallback({ reason }) {
-  ensureMetrics();
-  const normalizedReason = normalizeAtomicPersistenceReason(reason);
-  metrics.atomicPersistenceFallbacks.inc({ reason: normalizedReason });
-  metrics.atomicPersistenceDegraded.set({ reason: normalizedReason }, 1);
 }
 
 /**

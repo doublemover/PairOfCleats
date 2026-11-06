@@ -5,6 +5,7 @@ import { addStorageFailureContext } from '../../src/shared/storage/operation-err
 import { createStorageObservationLedger } from '../../src/shared/storage/failure-observation.js';
 import { CHECKOUT_MUTATION_LOCK } from './checkout-bootstrap-paths.js';
 import { assertPersistenceFileIdentity } from '../../src/shared/io/file-identity.js';
+import { retainPublishedFileLockPrerequisite } from '../../src/shared/locks/file-lock-producer-observations.js';
 
 const sessions = new WeakMap();
 const fail = (code, message) => Object.assign(new Error(message), { code });
@@ -75,7 +76,11 @@ export const withCheckoutMutation = async (root, operation, { session = null, si
     borrowed: new Set(), borrowedFailures: [], ledger: createStorageObservationLedger() };
   sessions.set(actual, state);
   let result, operationFailed = false;
-  try { requireCheckoutMutationSession(root, actual); result = await operation(actual); requireCheckoutMutationSession(root, actual); }
+  try {
+    if (!retainPublishedFileLockPrerequisite(lock, Object.freeze({ cacheOwnershipPending: true,
+      cacheOwnershipReleased: state.ledger.isSettled }))) throw fail('ERR_CHECKOUT_MUTATION_PUBLICATION', 'Checkout mutation requires its actual published lock owner.');
+    requireCheckoutMutationSession(root, actual); result = await operation(actual); requireCheckoutMutationSession(root, actual);
+  }
   catch (error) { operationFailed = true; state.operationFailure = error; state.ledger.remember(error); }
   if (state.borrowed.size) {
     const unawaited = fail('ERR_CHECKOUT_MUTATION_UNAWAITED_OPERATION', 'Checkout mutation returned with outstanding owned operations; their original work must drain.');
@@ -95,9 +100,11 @@ export const withCheckoutMutation = async (root, operation, { session = null, si
   state.phase = 'retiring';
   try { await retireCheckoutMutationSession(actual); }
   catch (cleanup) {
-    throw operationFailed ? addStorageFailureContext(state.operationFailure, { checkoutMutationSession: actual }, cleanup,
+    let releaseContext = cleanup;
+    for (const original of state.borrowedFailures) releaseContext = addStorageFailureContext(releaseContext, {}, original, { secondaryPresent: true });
+    throw operationFailed ? addStorageFailureContext(state.operationFailure, { checkoutMutationSession: actual }, releaseContext,
       { secondaryPresent: true, nonEnumerable: ['checkoutMutationSession'] })
-      : addStorageFailureContext(cleanup, { checkoutMutationSession: actual }, null, { nonEnumerable: ['checkoutMutationSession'] });
+      : addStorageFailureContext(releaseContext, { checkoutMutationSession: actual }, null, { nonEnumerable: ['checkoutMutationSession'] });
   }
   if (operationFailed) throw state.operationFailure;
   return result;

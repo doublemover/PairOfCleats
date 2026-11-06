@@ -23,6 +23,8 @@ const inputs = ['.nvmrc', 'tools/setup/checkout-diagnose.js', 'tools/setup/prefl
   'tools/setup/task-progress.js',
   'tools/setup/postinstall.js',
   'src/shared/locks/file-lock-publication.js', 'src/shared/io/file-identity.js',
+  'src/shared/locks/file-lock-producer-observations.js',
+  'src/shared/io/atomic-write.js', 'src/shared/metrics/atomic-persistence.js',
   'tools/setup/rebuild-native-sqlite.js', 'tools/setup/readiness.js', 'src/shared/native-package-probe.js',
   'src/shared/native-onnx-probe.js',
   'tools/setup/bootstrap-tasks.js', 'tools/setup/native-build-plan.js',
