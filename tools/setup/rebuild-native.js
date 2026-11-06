@@ -4,7 +4,7 @@ import { applyPatchesAsync } from './apply-patches.js';
 import { probeNodeRealmLifecycle } from '../../src/shared/native-package-probe.js';
 import fs from 'node:fs';
 import path from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { spawnResolvedSubprocess } from '../../src/shared/subprocess/command-invocation.js';
 import { summarizeNativeBuildResults } from './rebuild-native-exit.js';
 import { probeSqliteNative, rebuildSqliteNativeFromSourceAsync } from './rebuild-native-sqlite.js';
@@ -22,10 +22,20 @@ import { readErrorDataProperty } from '../../src/shared/error-data.js';
  * same implementation under its original session without spawning a second
  * coordinator or delegating ownership through ambient environment flags.
  */
-export const runNativeRebuild = async (args, { root = process.cwd(), signal: invocationSignal = null } = {}) => {
-  const { help, verifyOnly, repairOnly } = parseNativeRebuildArguments(args);
-  if (help) return { exitCode: 0, help: NATIVE_REBUILD_USAGE };
+export const runNativeRebuild = async (args, options = {}) => {
+  const admission = parseNativeRebuildArguments(args);
+  if (admission.help) return { exitCode: 0, help: NATIVE_REBUILD_USAGE };
+  const { root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..'), signal = null, session: parentSession = null } = options;
+  signal?.throwIfAborted();
+  const { withCheckoutMutation } = await import('./checkout-mutation.js');
+  return withCheckoutMutation(root, session => runNativeRebuildOwned(admission, { root, signal, session }),
+    { session: parentSession, signal, kind: 'native-rebuild' });
+};
+
+const runNativeRebuildOwned = async ({ verifyOnly, repairOnly }, { root, session, signal: invocationSignal = null } = {}) => {
   invocationSignal?.throwIfAborted(); root = path.resolve(root);
+  const { requireCheckoutMutationSession } = await import('./checkout-mutation.js');
+  requireCheckoutMutationSession(root, session);
 
   const REQUIRED_NATIVE_PACKAGES = [
     'tree-sitter',
@@ -315,6 +325,7 @@ export const runNativeRebuild = async (args, { root = process.cwd(), signal: inv
 
   const verifyRequiredPackages = async () => {
     invocationSignal?.throwIfAborted();
+    requireCheckoutMutationSession(root, session);
     const verification = captureBootstrapVerification(root);
     const failures = await getRequiredPackageFailures({ label: 'verify:native' });
     invocationSignal?.throwIfAborted();
@@ -408,6 +419,7 @@ export const runNativeRebuild = async (args, { root = process.cwd(), signal: inv
 
   const recordReadiness = async verification => {
     await applyPatchesAsync(root, { verifyOnly: true, signal: invocationSignal });
+    requireCheckoutMutationSession(root, session);
     recordBootstrapReadiness(root, REQUIRED_NATIVE_PACKAGES, {
       verification,
       nativeCapabilities: [...nativeCapabilities.values()].flat().sort((a, b) =>

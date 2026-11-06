@@ -43,20 +43,42 @@ export const runCheckoutBootstrap = async (args, { root = ROOT, env = process.en
     readiness: diagnosis, receipt: path.join(root, readiness.BOOTSTRAP_RECEIPT), targetProvisioning: 'none',
     qualification: 'declared-stage-plan-not-executed' });
   if (['plan', 'status'].includes(options.mode)) return { ...plan, exitCode: options.mode === 'status' && !diagnosis.ready ? 1 : 0 };
-  if (!command) command = (await import('./owned-command.js')).runSetupCommand;
-  const results = [];
-  for (const stage of stages) {
-    signal?.throwIfAborted();
-    progress('[bootstrap] started: ' + stage.id);
-    const result = await command(stage.command, stage.args, { cwd: root, env, signal, stdio: 'inherit', windowsHide: true });
-    results.push({ id: stage.id, ok: result.ok, status: result.status, signal: result.signal });
-    if (!result.ok) throw Object.assign(new Error('Checkout bootstrap failed at ' + stage.id + '.'), {
-      code: 'ERR_CHECKOUT_BOOTSTRAP_STAGE', stage: stage.id, result, plan, results
-    });
-    progress('[bootstrap] completed: ' + stage.id);
-  }
-  return { schemaVersion: 1, kind: 'checkout-bootstrap-result', plan, results, exitCode: 0,
-    qualification: 'existing-native-and-patch-verifier-owned; ordinary-entry-rechecks-readiness' };
+  const { withCheckoutMutation, requireCheckoutMutationSession } = await import('./checkout-mutation.js');
+  return withCheckoutMutation(root, async session => {
+    const checkInputs = () => {
+      requireCheckoutMutationSession(root, session);
+      const selected = rows => options.policy === 'resolve' ? rows.filter(([file]) => file !== 'package-lock.json') : rows;
+      if (hash(selected(captureInputs(root))) !== hash(selected(plan.inputs))) throw Object.assign(
+        new Error('Checkout setup inputs changed after admission; inspect a fresh plan before mutation continues.'), { code: 'ERR_CHECKOUT_BOOTSTRAP_INPUT_CHANGED' });
+    };
+    const execute = async stage => {
+      if (command) return command(stage.command, stage.args, { cwd: root, env, signal, stdio: 'inherit', windowsHide: true });
+      if (stage.id === 'patches') {
+        await (await import('./apply-patches.js')).applyPatchesAsync(root, { signal });
+        return { ok: true, status: 0, signal: null };
+      }
+      if (['native-preparation', 'native-verification'].includes(stage.id)) {
+        const native = await (await import('./rebuild-native.js')).runNativeRebuild(stage.args.slice(1), { root, signal, session });
+        return { ok: native.exitCode === 0, status: native.exitCode, signal: null };
+      }
+      return (await import('./owned-command.js')).runSetupCommand(stage.command, stage.args,
+        { cwd: root, env, signal, stdio: 'inherit', windowsHide: true });
+    };
+    const results = [];
+    for (const stage of stages) {
+      signal?.throwIfAborted(); checkInputs();
+      progress('[bootstrap] started: ' + stage.id);
+      const result = await execute(stage);
+      results.push({ id: stage.id, ok: result.ok, status: result.status, signal: result.signal });
+      if (!result.ok) throw Object.assign(new Error('Checkout bootstrap failed at ' + stage.id + '.'), {
+        code: 'ERR_CHECKOUT_BOOTSTRAP_STAGE', stage: stage.id, result, plan, results
+      });
+      checkInputs(); progress('[bootstrap] completed: ' + stage.id);
+    }
+    return { schemaVersion: 1, kind: 'checkout-bootstrap-result', plan, results, exitCode: 0,
+      transaction: { runId: session.runId, scope: 'application-checkout-dependency-tree' },
+      qualification: 'existing-native-and-patch-verifier-owned; ordinary-entry-rechecks-readiness' };
+  }, { signal });
 };
 
 if (isDirectExecution(import.meta.url)) {

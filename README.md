@@ -98,8 +98,8 @@ or build requirements. The interfaces and references are linked below.
 
 The current install path is a source checkout with **Node.js >=26.12.1 <27**
 (prefer the exact `.nvmrc` pin), npm and Git. **Python 3 and supported C/C++
-build tools are mandatory**, even when other packages have prebuilt binaries:
-bootstrap always rebuilds the required patched Perl parser from source. This
+build tools are mandatory** for fresh installation, even with other prebuilts:
+native rebuilding always compiles the required patched Perl parser from source. This
 also applies to sparse-search setup. Install the
 [platform prerequisites](docs/guides/bootstrap-prerequisites.md) before bootstrap.
 
@@ -109,7 +109,8 @@ cd PairOfCleats
 npm run bootstrap:ci
 ```
 
-Development dependencies are needed to apply the checkout's required patches.
+Bootstrap includes the development dependencies required by checkout validation
+and native tooling.
 Bootstrap runs a dependency-free runtime/toolchain preflight before installation;
 missing prerequisites stop before npm downloads or replaces dependencies.
 The examples run the CLI directly, so you do not need a global command install.
@@ -119,6 +120,10 @@ bootstrap is missing, incomplete or stale. Run `npm run bootstrap:ci` from this
 checkout to install dependencies, apply required patches and rebuild/verify native
 modules using the pinned lockfile. Use `npm run bootstrap` only when intentionally
 changing dependency resolution.
+Use `npm run bootstrap:ci -- --plan` to inspect preparation without running a
+child, or `--verify` to refresh native/patch readiness for intact dependencies.
+An intact locked repeat verifies without reinstalling. Active checkout mutation
+or retained original work blocks normal workload admission until its owner retires.
 No command silently installs dependencies or substitutes a fallback for this gate.
 The saved verification evidence is checked against current setup inputs, runtime
 and dependency artifacts, followed by small SQLite-query and parser-activation

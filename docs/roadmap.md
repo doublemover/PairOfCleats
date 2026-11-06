@@ -25,7 +25,7 @@ retain original failures and source identities. No new full-suite run is schedul
 
 [Recent source-bound qualifications](archived/repair-qualification-summary-2026-11-05.md) and the qualification matrix retain completed native, dependency, compiler, validation, health, risk and runtime-reuse receipts. Native workspace/status pass CI2176; [published search](archived/native-published-search-investigation-2026-11-05.json) retains an unresolved full-seed budget failure. [Managed allocation](archived/managed-install-destination-repairs-2026-11-05.md) repairs alias/default-budget identity; #1559 still needs qualified package closures and build allowances. [Capped reads](archived/capped-reader-lifecycle-repairs-2026-11-05.md) repair original open/close ownership; #1330 remains partial. CI2181 adds a discard-frame race and an unexplained settings-child timeout. [Semantic encoding](archived/semantic-encoding-closeout-2026-11-05.md) qualifies #1212 across partitions and query/operation indexes:68 affected cases,48 serial samples; published/closed at5f0e2cca7.
 
-Current implementation, runtime unverified: [lifetimes](contracts/semantic-scheduler-wait-ownership.md)/[observations](contracts/storage-resource-observations.md) retain original work (#1214/#1330/#1765); [runtime catalog](contracts/runtime-family-catalog.md), [consumer proof](contracts/consumer-proof-index.md), [embedded preparation](contracts/embedded-cache-preparation.md) bound discovery/admission (#1618/#1768/#1710). [Questions](contracts/repository-questions.md) page/explain facts (#1534); [answers](contracts/answer-evidence.md) add diffs/[retention](contracts/answer-retention.md) (#1532); [delivery](contracts/context-evidence-delivery.md) has full transports, host ACKs and opt-in hydration (#1533). [Positive rules](contracts/finite-positive-rules.md)/[repair](contracts/finite-positive-repair.md) track producers/replay rollbacks (#1516/#1524). [Causal models](contracts/finite-causal-models.md)/[paired replay](contracts/paired-finite-interventions.md) compare mechanisms, advise reads and export offline evaluations (#1524/#1526). [Task fixtures](contracts/finite-evidence-tasks.md) compile private-oracle cohorts and paired reports (#1525). Runtime checks stay deferred.
+Implementation awaits runtime checks: [Lifetimes](contracts/semantic-scheduler-wait-ownership.md)/[observations](contracts/storage-resource-observations.md) preserve original work (#1214/#1330/#1765); [catalogs](contracts/runtime-family-catalog.md), [consumer proof](contracts/consumer-proof-index.md) and [embedded preparation](contracts/embedded-cache-preparation.md) bound discovery/admission (#1618/#1768/#1710). [Questions](contracts/repository-questions.md) page/explain facts (#1534); [answers](contracts/answer-evidence.md)/[retention](contracts/answer-retention.md) support exact revisions (#1532); [delivery](contracts/context-evidence-delivery.md) adds host ACKs and opt-in hydration (#1533). [Positive rules](contracts/finite-positive-rules.md)/[repair](contracts/finite-positive-repair.md) replay supported rollbacks (#1516/#1524). [Causal models](contracts/finite-causal-models.md)/[paired replay](contracts/paired-finite-interventions.md) compare mechanisms and export offline evaluations (#1524/#1526). [Task fixtures](contracts/finite-evidence-tasks.md) compile private-oracle cohorts/paired reports (#1525). [Checkout bootstrap](guides/bootstrap-prerequisites.md) validates arguments, seals readiness v2 and shares original mutation sessions (#1555/#1557); direct patch/postinstall admission and journals remain.
 
 [Scheduler workload observations](contracts/scheduler-workload-observations.md) replace drained-snapshot autotune learning with bounded run/mode/stage evidence and profile version 4. Obsolete profiles are rejected; current hard limits remain binding. Architecture reports require 1.1.0, and parser degradation requires typed current receipts. Runtime acceptance remains pending.
 
@@ -53,18 +53,8 @@ The [November 5 queue](archived/open-issue-batches-2026-11-05.json) routes every
 
 [Physical filename closeout](archived/coverage-physical-filenames-closeout-2026-11-05.json) closes #1767 with original Ubuntu/macOS physical-consumer logs and matching source blobs; no WSL or replacement platform run was used. Tantivy/editor exclusions remain open under their existing owners. No broad local rerun is scheduled; repair and recheck affected failures.
 
-Current reconciliation, 2026-11-05: the full baseline is complete; shared-failure
-repairs and current qualification continue.
-Gate B1-B7 technical, compatibility, matrix, conformance,
-observability, quality, and security-risk controls need
-reconciled acceptance under the [rollout policy](specs/usr-core-rollout-release-migration.md).
-Historical [459-case observations](archived/windows-historical-rechecks-2026-10-24.md)
-and [subsequent repair receipts](archived/windows-failure-repairs-2026-10-24.md)
-retain their source identities; checkpoint 265 supersedes their active counts.
-The earlier CDB-attributed
-Node-API finalizer lifetime repair retains its fail-before, ten-process and
-exposing-fixture evidence; no crash workaround or Node downgrade is used.
-Older campaign details remain in the linked source-bound receipts.
+[Historical re-checks](archived/windows-historical-rechecks-2026-10-24.md) and [failure repairs](archived/windows-failure-repairs-2026-10-24.md) retain their source identities; checkpoint 265 supersedes their counts. Gate B1-B7 acceptance follows the [rollout policy](specs/usr-core-rollout-release-migration.md). Linked native receipts retain fail-before and ten-process crash evidence; they do not qualify later implementation.
+
 The published document security repair excludes DOCX deleted/moved-from text,
 versions extraction and bundle reuse, and corrects UNC service-root authority.
 Its focused checks/front gate passed. Existing indexes need a normal rebuild.

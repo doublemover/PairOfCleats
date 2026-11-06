@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { runBootstrapTasks } from '../../../tools/setup/bootstrap-tasks.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
+import { errorGraphIncludes } from '../../helpers/error-graph.js';
 
 applyTestEnv();
 const mode = process.env.PAIROFCLEATS_TEST_ID?.split('tooling/install/bootstrap-failure-observation/')[1];
@@ -21,6 +22,10 @@ if (mode === 'falsy-task-failures') {
     assert.equal(result.ok, false); assert.equal(result.results[0].status, 'failed');
     assert.equal(result.results[0].error, original); assert.equal(result.results[0].result, null);
     assert.equal(result.results[1].status, 'blocked'); assert.equal(dependent, false);
+    const adapterResult = { ok: false, message: 'original adapter failure', error: original };
+    const projected = await runBootstrapTasks([{ id: 'adapter', run: async () => adapterResult }], { budget });
+    assert.equal(projected.results[0].result, adapterResult); assert.equal(Object.hasOwn(projected.results[0].error, 'cause'), true);
+    assert.equal(projected.results[0].error.cause, original, 'failed result envelopes preserve an explicitly supplied falsy original cause');
   }
 } else if (mode === 'accessor-errors') {
   let reads = 0;
@@ -74,5 +79,17 @@ if (mode === 'falsy-task-failures') {
   release.resolve(); const error = await outcome;
   assert.equal(drained, true); assert.ok(error instanceof AggregateError); assert.deepEqual(error.errors, [false, null]);
   assert.equal(error.cause, false); assert.equal(observed.length, 2);
+  let retired = false, successorRan = false;
+  const original = Object.assign(new Error('optional native work still owns resources'), {
+    cacheOwnershipPending: true, cacheOwnershipReleased: () => retired
+  });
+  const fenced = await runBootstrapTasks([
+    { id: 'pending-optional', required: false, run: async () => { throw original; } },
+    { id: 'successor', run: async () => { successorRan = true; } }
+  ], { budget: { jobs: 1, cpuCount: 1, memoryBytes: 1024 }, stopOnRequiredFailure: false,
+    onResult: row => { if (row.id === 'pending-optional') setTimeout(() => { retired = true; }, 5); } });
+  assert.equal(successorRan, false, 'even optional/non-stopping verification cannot admit successors after unconfirmed native retirement');
+  assert.equal(fenced.results[1].status, 'cancelled'); assert.equal(retired, true, 'the exact original scheduler work drained before return');
+  assert.equal(errorGraphIncludes(fenced.results[0].error, original), true);
 }
 console.log('Bootstrap preserves original task/observer failures and awaits actual observation settlement');

@@ -2675,3 +2675,9 @@ tooling/install/native-setup-failure-fence/transcript-status
 tooling/install/native-setup-failure-fence/cancellation-and-status
 tooling/install/native-rebuild-import/inert-and-help
 tooling/install/native-rebuild-import/strict-admission-and-cancellation
+tooling/install/checkout-mutation-owner/original-session-and-isolation
+tooling/install/checkout-mutation-owner/concurrent-and-orphan-protection
+tooling/install/checkout-mutation-owner/original-error-and-retirement
+tooling/install/checkout-mutation-owner/outstanding-borrowed-work
+tooling/install/checkout-mutation-owner/readiness-boundary
+tooling/install/native-rebuild-import/captured-mode-and-context

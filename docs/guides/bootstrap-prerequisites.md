@@ -34,6 +34,10 @@ escape the ordinary failed-result path, so they cannot trigger a fallback build
 or successor probe. A settled compiler with truncated output has a separate
 terminal transcript error retaining its actual compiler status and original
 captured bytes. Four added controls await execution.
+Pending original retirement is terminal for admission even during optional or
+collect-all verification. Already running owners drain; queued successors are
+cancelled. Ordinary settled package failures retain their existing collect-all
+behavior.
 
 ## Windows
 
@@ -117,13 +121,25 @@ native probes. Publication rechecks setup hashes, declared dependencies and the
 entire admitted artifact metadata inventory; changed inputs or native artifacts
 preserve the prior receipt and require fresh verification. Obsolete receipt
 formats are rejected. Artifact metadata remains distinct from content hashing.
-Four added generation regressions await execution. Checkout-wide mutation
-admission and durable stage journals remain the next #1555 work.
+Four added generation regressions await execution.
 The native entry now exposes its same implementation as an inert imported
 operation, without exiting its caller. The checkout transaction can reuse that
 owner in-process; no environment-based readiness or ownership bypass is added.
 Invocation cancellation reaches native build/probe schedulers, patch verification
-and child commands. Two import/admission controls await execution.
+and child commands. Mode and invocation context are captured before asynchronous
+admission; changing caller containers cannot turn verification into a rebuild.
+Three import/admission controls await execution.
+
+The canonical checkout coordinator and direct native entry now share one original
+file-lock session spanning their actual work. Nested operations require its
+root-qualified opaque capability and are drained before retirement. Ordinary
+entry readiness is blocked while that mutation or retained original work exists.
+Age and PID death never reclaim the record. Exact original release can be retried
+only through its retained owner after physical prerequisites settle. Setup input
+drift stops successor stages; explicit dependency resolution alone admits its
+intended lockfile change. Five session controls await execution. Direct patch and
+postinstall admission, durable stage journals and cross-process qualification
+remain the next #1555 work.
 Unsupported Node or missing Git/Python/build
 tools stop immediately with a prerequisite error. Windows discovers the target
 compiler, MSBuild and SDK, then the direct preflight entry compiles and links a

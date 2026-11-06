@@ -4,6 +4,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { probeNativePackage } from './native-package-probe.js';
 import { buildReadinessReceipt } from '../../tools/setup/readiness.js';
+import { CHECKOUT_MUTATION_LOCK } from '../../tools/setup/checkout-bootstrap-paths.js';
 
 export const BOOTSTRAP_RECEIPT = 'node_modules/.pairofcleats-bootstrap.json';
 export const BOOTSTRAP_RECEIPT_VERSION = 2;
@@ -13,6 +14,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
 const MAX_RECEIPT_BYTES = 8 * 1024 * 1024;
 export const BOOTSTRAP_INPUTS = Object.freeze(['package.json', 'package-lock.json', '.nvmrc',
   'tools/setup/checkout-bootstrap.js', 'tools/setup/checkout-bootstrap-arguments.js',
+  'tools/setup/checkout-bootstrap-paths.js', 'tools/setup/checkout-mutation.js',
   'tools/setup/preflight.js', 'src/shared/direct-execution.js', 'tools/setup/apply-patches.js', 'tools/setup/rebuild-native.js',
   'tools/setup/rebuild-native-sqlite.js', 'tools/setup/readiness.js', 'src/shared/native-package-probe.js',
   'src/shared/native-onnx-probe.js',
@@ -27,6 +29,11 @@ const runtime = () => ({ node: process.version, abi: process.versions.modules,
 const supportedNodeRuntime = () => {
   const [major, minor, patch] = process.versions.node.split('.').map(Number);
   return major === 26 && (minor > 12 || (minor === 12 && patch >= 1));
+};
+const requireNoCheckoutMutation = root => {
+  try { fs.lstatSync(path.join(root, CHECKOUT_MUTATION_LOCK)); }
+  catch (error) { if (error.code === 'ENOENT') return; throw error; }
+  throw new Error('Checkout dependency mutation or retained original work is active; wait for the original owner to retire.');
 };
 const readiness = (ready, reason = null) => ({
   ...buildReadinessReceipt({ items: [{ id: 'bootstrap', required: true,
@@ -156,6 +163,7 @@ export const inspectBootstrapReadiness = async ({ root = ROOT, probeNatives = tr
     root = fs.realpathSync(root);
     code = 'ERR_BOOTSTRAP_RUNTIME_UNSUPPORTED';
     if (!supportedNodeRuntime()) throw new Error('This checkout requires Node.js >=26.12.1 <27.');
+    code = 'ERR_BOOTSTRAP_MUTATION_ACTIVE'; requireNoCheckoutMutation(root);
     const file = path.join(root, BOOTSTRAP_RECEIPT);
     code = 'ERR_BOOTSTRAP_RECEIPT_MISSING';
     if (!fs.existsSync(file)) throw new Error('Verified bootstrap receipt is missing; installation is incomplete or has not been verified.');
@@ -190,11 +198,12 @@ export const inspectBootstrapReadiness = async ({ root = ROOT, probeNatives = tr
     }
     code = 'ERR_BOOTSTRAP_RECEIPT_REPLACED';
     if (JSON.stringify(signature(file)) !== receiptSignature) throw new Error('Bootstrap receipt changed during inspection; retry after the active verifier finishes.');
+    code = 'ERR_BOOTSTRAP_MUTATION_ACTIVE'; requireNoCheckoutMutation(root);
     return { ...readiness(true), code: null, mismatches: [], nativeProbes: probeNatives ? 'passed' : 'not-run' };
   } catch (error) {
     return { ...readiness(false, error?.message || String(error)), code, mismatches,
       nativeProbes: probeNatives ? 'incomplete' : 'not-run',
-      nextAction: code === 'ERR_BOOTSTRAP_RECEIPT_REPLACED' ? 'retry-after-verifier'
+      nextAction: ['ERR_BOOTSTRAP_RECEIPT_REPLACED', 'ERR_BOOTSTRAP_MUTATION_ACTIVE'].includes(code) ? 'retry-after-verifier'
         : code === 'ERR_BOOTSTRAP_IDENTITY_MISMATCH' && mismatches.every(item => item.field.startsWith('runtime.'))
           ? 'verify-natives-and-patches-under-selected-runtime' : 'locked-bootstrap' };
   }

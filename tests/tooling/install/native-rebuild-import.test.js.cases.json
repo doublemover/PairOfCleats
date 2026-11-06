@@ -1,4 +1,4 @@
 {
   "schemaVersion": 1,
-  "cases": ["inert-and-help", "strict-admission-and-cancellation"]
+  "cases": ["inert-and-help", "strict-admission-and-cancellation", "captured-mode-and-context"]
 }

@@ -2,6 +2,7 @@ import { createBuildScheduler } from '../../src/shared/concurrency/scheduler-cor
 import { readEffectiveCpu } from '../../src/shared/effective-cpu.js';
 import { readEffectiveMemory } from '../../src/shared/effective-memory.js';
 import { readErrorDataProperty } from '../../src/shared/error-data.js';
+import { observeStorageResource } from '../../src/shared/storage/failure-observation.js';
 
 const MIB = 1024 * 1024;
 
@@ -94,7 +95,9 @@ export const runBootstrapTasks = async (tasks, { budget = resolveBootstrapBudget
             const result = await task.run({ signal: controller.signal,
               compilerJobs: task.exclusive ? budget.cpuCount : (task.cpu ?? 1) });
             if (result?.ok === false) {
-              throw Object.assign(new Error(result.message || `${task.id} failed`), { result });
+              const original = Object.getOwnPropertyDescriptor(result, 'error');
+              throw Object.assign(new Error(result.message || `${task.id} failed`,
+                original && Object.hasOwn(original, 'value') ? { cause: original.value } : undefined), { result });
             }
             return result;
           });
@@ -103,7 +106,10 @@ export const runBootstrapTasks = async (tasks, { budget = resolveBootstrapBudget
           row.status = controller.signal.aborted && readErrorDataProperty(error, 'name') === 'AbortError' ? 'cancelled' : 'failed';
           row.result = readErrorDataProperty(error, 'result') ?? null;
           row.error = error;
-          if (row.required && stopOnRequiredFailure && !controller.signal.aborted) controller.abort(error);
+          let retirementPending = false;
+          try { observeStorageResource(error, { phase: 'bootstrap-task-retirement' }).requireSettled(); }
+          catch (pending) { retirementPending = true; row.error = pending; }
+          if ((retirementPending || row.required && stopOnRequiredFailure) && !controller.signal.aborted) controller.abort(row.error);
         }
       }
       row.finishedAt = Date.now();

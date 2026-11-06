@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 2507,
+    "hero": 2513,
     "matrix": 110,
     "meta": 54,
     "soak": 1,
@@ -16045,6 +16045,42 @@
     {
       "id": "tooling/install/native-rebuild-import/strict-admission-and-cancellation",
       "order": 2672,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/checkout-mutation-owner/original-session-and-isolation",
+      "order": 2673,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/checkout-mutation-owner/concurrent-and-orphan-protection",
+      "order": 2674,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/checkout-mutation-owner/original-error-and-retirement",
+      "order": 2675,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/checkout-mutation-owner/outstanding-borrowed-work",
+      "order": 2676,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/checkout-mutation-owner/readiness-boundary",
+      "order": 2677,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/native-rebuild-import/captured-mode-and-context",
+      "order": 2678,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     }

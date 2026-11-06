@@ -80,7 +80,7 @@ try {
   const readme = fs.readFileSync('README.md', 'utf8');
   assert.match(readme, /Node\.js >=26\.12\.1 <27/);
   assert.match(readme, /Python 3 and supported C\/C\+\+[\r\n ]+build tools are mandatory/);
-  assert.match(readme, /bootstrap always rebuilds the required patched Perl parser from source/);
+  assert.match(readme, /native rebuilding always compiles the required patched Perl parser from source/);
   for (const name of ['bootstrap', 'bootstrap:ci']) {
     assert.equal(manifest.scripts[name], `node tools/setup/checkout-bootstrap.js ${name === 'bootstrap:ci' ? 'locked' : 'resolve'}`,
       'one strict entry admits forwarded arguments before prerequisite/install stages');
