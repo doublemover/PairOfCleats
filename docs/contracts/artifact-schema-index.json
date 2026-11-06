@@ -1,5 +1,5 @@
 {
-  "schemaHash": "360619c7306e3aef4074abcc51c4cde8f06ece8b",
+  "schemaHash": "94bf3163a33a571841a73b3c6313494ab00881d3",
   "artifacts": [
     {
       "artifact": "api_contracts",
@@ -1271,7 +1271,7 @@
     {
       "artifact": "semantic_operation_index",
       "schemaVersion": {
-        "const": 2
+        "const": 4
       },
       "requiredFields": [
         "generation",
