@@ -29,6 +29,11 @@ assert.ok(ids.includes('security/repository-authority'));
 assert.ok(available.includes('storage/semantic/runtime-opened-byte-integrity'));
 assert.equal(ids.includes('storage/semantic/runtime-opened-byte-integrity'), false,
   'opened-byte mutation and injected reparse admission run in ordinary CI without creating physical links');
+assert.ok(available.includes('services/api/runtime-evidence'), 'ordinary CI retains live HTTP/MCP/CLI runtime evidence and canonical destination rejection');
+assert.equal(ids.includes('services/api/runtime-evidence'), false,
+  'canonical alias injection exercises the actual HTTP request authority owner without creating a physical link');
+assert.ok(fs.readFileSync(path.join(root, 'tests/ci/ci.order.txt'), 'utf8').split(/\r?\n/).includes('services/api/runtime-evidence'),
+  'portable runtime-evidence authority assertions retain an explicit ordinary CI execution owner');
 assert.ok(ids.includes('tui/operator-search-file-authority'), 'source previews and editor PATH aliases need actual file-link coverage');
 assert.ok(ids.includes('tui/operator-artifact-file-authority'), 'artifact reads and export destinations need actual link authority coverage');
 assert.ok(ids.includes('tooling/reports/map-selected-index-alias'), 'physical selected-index aliases retain their capable execution owner');

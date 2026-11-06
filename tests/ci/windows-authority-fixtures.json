@@ -24,7 +24,6 @@
     "security/tooling-cache-authority",
     "security/tooling-cache-storage",
     "services/api/federated-search-validation-matrix",
-    "services/api/runtime-evidence",
     "services/snapshot-core-contract-matrix",
     "shared/contained-file-verified-read",
     "shared/direct-execution-contract",

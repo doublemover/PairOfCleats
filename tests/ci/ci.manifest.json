@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 208,
+    "hero": 209,
     "matrix": 27,
     "meta": 4,
     "soak": 0,
@@ -1449,6 +1449,12 @@
       "order": 239,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "services/api/runtime-evidence",
+      "order": 240,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
     }
   ]
 }
