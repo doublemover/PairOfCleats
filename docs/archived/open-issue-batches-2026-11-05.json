@@ -15,7 +15,8 @@
     1234,
     1634,
     1255,
-    1204
+    1204,
+    1252
   ],
   "scope": "All open issues except user-excluded editor work and native Tantivy; mixed issues retain their non-editor scope",
   "routing": "Initial grouping by issue scope and recorded source owners; source-review-pending is not an implementation or acceptance claim",
@@ -2628,15 +2629,17 @@
       "title": "[Perf] Fuse manifest integrity reads with artifact decoding during validation",
       "batch": "retrieval-performance-and-evaluation",
       "scope": "active",
-      "review": "source-review-pending",
-      "recordedDisposition": "Implementation recorded; qualification pending.",
+      "review": "qualified-closed",
+      "recordedDisposition": "Qualified and closed after70 distinct focused passes,24 fresh-process work samples and all eight publication checks at ee2652a4b68637fd474aa2275e7232a4f7c36985.",
       "owners": [
         "src/index/validate/manifest.js",
         "src/index/validate.js",
         "src/index/validate/read-plan.js",
         "docs/archived/github-issue-closeout-2026-10-26.json",
         "docs/archived/github-issue-closeout-2026-10-26.md"
-      ]
+      ],
+      "receipt": "docs/archived/validation-integrity-closeout-2026-11-05.md",
+      "closedAtSource": "ee2652a4b68637fd474aa2275e7232a4f7c36985"
     },
     {
       "number": 1253,
@@ -5423,8 +5426,8 @@
   ],
   "liveReconciliation": {
     "date": "2026-11-05",
-    "openCount": 356,
-    "closedAfterCapture": 11,
-    "method": "Fresh357-ID four-page census minus verified #1204 completed closure/readback at302ad8e4d. No new full census after that closure is claimed."
+    "openCount": 355,
+    "closedAfterCapture": 12,
+    "method": "Fresh357-ID four-page census minus verified #1204 and #1252 completed closures/readbacks at302ad8e4d andee2652a4b. No new full census after those closures is claimed."
   }
 }

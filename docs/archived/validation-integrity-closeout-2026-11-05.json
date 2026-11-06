@@ -13203,5 +13203,18 @@
       "timeoutSeconds": 30.2
     },
     "state": "Gate,Rust,Windows authority,Windows/Ubuntu native inspection passed at capture. Broader suites and macOS inspection pending. This is the source parent,not final-head acceptance."
+  },
+  "issueClosure": {
+    "number": 1252,
+    "state": "closed",
+    "stateReason": "completed",
+    "verifiedByReadback": true,
+    "sourceCommit": "ee2652a4b68637fd474aa2275e7232a4f7c36985",
+    "remainingOpen": 355
+  },
+  "publicationSignal": {
+    "pushVerified": true,
+    "remoteBranchSha": "ee2652a4b68637fd474aa2275e7232a4f7c36985",
+    "defaultBranchAdvisoryBanner": "GitHub push reports19 default-branch alerts (10 high,7 moderate,2 low). This is not a fresh dependency audit of the repair branch."
   }
 }

@@ -7,7 +7,7 @@ Canonical for: initiative status, execution order, and remaining work
 
 ## Current GitHub repair program
 
-The [complete open-issue intake](archived/open-issue-batches-2026-11-05.json) captures367 reports, with11 verified closures (#1767/#672/#681/#668/#1574/#821/#1240/#1234/#1634/#1255/#1204). **356 remain open**. Thirteen editor/Tantivy-only reports are excluded; four mixed issues retain their non-editor scope. Detailed closure receipts and prior dated counts remain archived.
+The [complete open-issue intake](archived/open-issue-batches-2026-11-05.json) captures367 reports, with12 verified closures (#1767/#672/#681/#668/#1574/#821/#1240/#1234/#1634/#1255/#1204/#1252). **355 remain open**. Thirteen editor/Tantivy-only reports are excluded; four mixed issues retain their non-editor scope. Detailed closure receipts and prior dated counts remain archived.
 
 P2/P3 has **337 qualified closures /two editor-remainder targets /one deferred native target /six editor exclusions** from346 reports. The broader remaining backlog is now in scope. Work continues solo on Windows: implement related owner repairs, then run affected controls.
 
