@@ -21,6 +21,7 @@ export const BOOTSTRAP_INPUTS = Object.freeze(['package.json', 'package-lock.jso
   'tools/setup/checkout-bootstrap.js', 'tools/setup/checkout-bootstrap-arguments.js',
   'tools/setup/checkout-bootstrap-paths.js', 'tools/setup/checkout-mutation.js',
   'tools/setup/checkout-stage-journal.js',
+  'tools/setup/checkout-evidence-files.js',
   'tools/setup/checkout-recovery.js',
   'tools/setup/patch-stage.js',
   'tools/setup/task-progress.js',

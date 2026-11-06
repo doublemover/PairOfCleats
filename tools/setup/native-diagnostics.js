@@ -4,12 +4,12 @@ import { createHash } from 'node:crypto';
 import { atomicWriteJson } from '../../src/shared/io/atomic-write.js';
 import { assertDirectoryIdentity } from '../../src/shared/io/directory-sync.js';
 import { persistenceFileIdentity, assertPersistenceFileIdentity } from '../../src/shared/io/file-identity.js';
-import { createContainedFileResource } from '../../src/shared/contained-file-resource.js';
 import { readJsonResourceTextSync } from '../../src/shared/file-read-resource.js';
 import { createCollector } from '../../src/shared/subprocess/options.js';
 import { addStorageFailureContext } from '../../src/shared/storage/operation-error.js';
 import { readErrorDataProperty } from '../../src/shared/error-data.js';
 import { requireCheckoutMutationSession } from './checkout-mutation.js';
+import { getCheckoutEvidenceFiles } from './checkout-evidence-files.js';
 
 const MIB = 1024 * 1024, METADATA_RESERVE = 32 * 1024;
 export const NATIVE_DIAGNOSTIC_LIMITS = Object.freeze({ attempts: 384, diskBytes: 32 * MIB,
@@ -31,9 +31,7 @@ export const createNativeSetupDiagnostics = (root, session, { limits = NATIVE_DI
   for (const key of Object.keys(NATIVE_DIAGNOSTIC_LIMITS)) {
     if (!Number.isSafeInteger(limits[key]) || limits[key] < 1 || limits[key] > NATIVE_DIAGNOSTIC_LIMITS[key]) throw new TypeError('Invalid native diagnostic bound.');
   }
-  const methods = { receiver: io, stat: io.fstatSync, read: io.readSync, close: io.closeSync,
-    write: io.writeSync, sync: io.fsyncSync };
-  const open = io.openSync;
+  const evidence = getCheckoutEvidenceFiles(root, session);
   let directory = null, directoryIdentity = null, reservedBytes = 0, writtenBytes = 0, attempts = 0;
   let terminalFailure = null;
   const rows = [];
@@ -56,6 +54,7 @@ export const createNativeSetupDiagnostics = (root, session, { limits = NATIVE_DI
   };
   const markFailure = (value, fields, secondary, present = false) => {
     const error = addStorageFailureContext(value, fields, secondary, { secondaryPresent: present });
+    evidence.remember(error);
     diagnosticFailures.add(error); return error;
   };
   return Object.freeze({
@@ -98,12 +97,10 @@ export const createNativeSetupDiagnostics = (root, session, { limits = NATIVE_DI
         recordPath = prefix + '.json';
         for (const channel of ['stdout', 'stderr']) {
           check(); const file = prefix + '.' + channel;
-          const fd = open.call(io, file, fs.constants.O_CREAT | fs.constants.O_EXCL | fs.constants.O_WRONLY | (fs.constants.O_NOFOLLOW || 0), 0o600);
-          const owner = createContainedFileResource({ fd, sync: true, methods, additionalMethods: ['write', 'sync'] });
-          const stream = { channel, file, owner, tail: createCollector({ enabled: true, maxOutputBytes: limits.tailBytes, encoding: 'utf8' }),
+          const stream = { channel, file, owner: null, tail: createCollector({ enabled: true, maxOutputBytes: limits.tailBytes, encoding: 'utf8' }),
             hash: createHash('sha256'), writtenBytes: 0, observedBytes: 0 };
+          stream.owner = evidence.open(file, { io });
           streams.push(stream);
-          const stat = owner.operations.stat({ bigint: true }); persistenceFileIdentity(stat);
         }
         const receive = stream => chunk => {
           try {

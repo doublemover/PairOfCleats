@@ -108,6 +108,13 @@ capability; environment flags and serialized metadata cannot grant ownership.
 Imports are inert. The existing subprocess/task owners handle cancellation,
 actual child close, original resource observations and shutdown.
 
+Journal/native stream descriptors register with one original evidence-file group
+before admission. Even a caller returning early cannot retire the checkout while
+its actual descriptor remains open. The group captures at most 1024 owners and
+retains independent persistence failures; unknown overriding open results remain
+unconfirmed. Exact ordinary ancestors and file identity are checked around open.
+Closing lifetime authority never deletes the retained artifact.
+
 The root lock is .tmp/checkout-bootstrap/mutation.lock. Ordinary commands are
 blocked while mutation or retained original work owns it. Age, PID death and
 copied lock metadata cannot authorize stealing it. Original late resource

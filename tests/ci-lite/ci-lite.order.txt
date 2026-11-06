@@ -2759,3 +2759,8 @@ tooling/install/native-realm-command/hidden-owned-probes
 tooling/install/native-realm-command/all-probe-original-admission
 tooling/install/sqlite-promotion-probe-owner/original-probe-rejection-and-rollback
 tooling/install/sqlite-promotion-probe-owner/pending-probe-defers-rollback
+tooling/install/checkout-evidence-files/original-closed-file
+tooling/install/checkout-evidence-files/held-descriptor-retains-root
+tooling/install/checkout-evidence-files/original-path-and-link-admission
+tooling/install/checkout-evidence-files/unknown-open-retains-root
+tooling/install/checkout-evidence-files/changed-parent-closes-original-descriptor

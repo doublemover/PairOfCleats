@@ -34,6 +34,15 @@ export const requireCheckoutMutationSession = (root, session) => {
   return session;
 };
 
+/** Capture an original owner-local prerequisite before native admission. This
+ * only retains the existing lock; it cannot create or transfer mutation rights.
+ */
+export const retainCheckoutMutationPrerequisite = (root, session, isSettled) => {
+  requireCheckoutMutationSession(root, session);
+  if (typeof isSettled !== 'function') throw new TypeError('Checkout prerequisite requires its original settlement observer.');
+  sessions.get(session).ledger.remember(Object.freeze({ cacheOwnershipPending: true, cacheOwnershipReleased: isSettled }));
+};
+
 /** Retry only this original lock's release after its captured prerequisites
  * settle. No age/PID inference, child termination, recursive cleanup or stealing.
  */

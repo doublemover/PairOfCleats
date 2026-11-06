@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 2591,
+    "hero": 2596,
     "matrix": 110,
     "meta": 54,
     "soak": 1,
@@ -16549,6 +16549,36 @@
     {
       "id": "tooling/install/sqlite-promotion-probe-owner/pending-probe-defers-rollback",
       "order": 2756,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/checkout-evidence-files/original-closed-file",
+      "order": 2757,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/checkout-evidence-files/held-descriptor-retains-root",
+      "order": 2758,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/checkout-evidence-files/original-path-and-link-admission",
+      "order": 2759,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/checkout-evidence-files/unknown-open-retains-root",
+      "order": 2760,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/checkout-evidence-files/changed-parent-closes-original-descriptor",
+      "order": 2761,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     }

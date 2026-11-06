@@ -4,13 +4,13 @@ import { createHash } from 'node:crypto';
 import { atomicWriteJson, atomicWriteText } from '../../src/shared/io/atomic-write.js';
 import { assertDirectoryIdentity } from '../../src/shared/io/directory-sync.js';
 import { persistenceFileIdentity, assertPersistenceFileIdentity } from '../../src/shared/io/file-identity.js';
-import { createContainedFileResource } from '../../src/shared/contained-file-resource.js';
 import { readJsonResourceTextSync, readFileResourceBytesSync } from '../../src/shared/file-read-resource.js';
 import { addStorageFailureContext } from '../../src/shared/storage/operation-error.js';
 import { createStorageObservationLedger } from '../../src/shared/storage/failure-observation.js';
 import { readErrorDataProperty } from '../../src/shared/error-data.js';
 import { requireCheckoutMutationSession, withCheckoutMutation } from './checkout-mutation.js';
 import { BOOTSTRAP_RECEIPT } from './checkout-bootstrap-paths.js';
+import { getCheckoutEvidenceFiles } from './checkout-evidence-files.js';
 
 export const CHECKOUT_JOURNAL_VERSION = 1;
 export const CHECKOUT_JOURNAL_STATUS = '.tmp/checkout-bootstrap/journal-status.json';
@@ -104,9 +104,7 @@ const createJournal = (root, session, plan, { io = fs, publish = atomicWriteJson
   const parent = path.join(root, '.tmp', 'checkout-bootstrap'), directory = fs.mkdtempSync(path.join(parent, 'j-'));
   const directoryIdentity = fs.lstatSync(directory, { bigint: true }); assertDirectoryIdentity(directoryIdentity);
   const file = path.join(directory, 'stages.jsonl'), statusFile = path.join(root, CHECKOUT_JOURNAL_STATUS);
-  const methods = { receiver: io, stat: io.fstatSync, read: io.readSync, close: io.closeSync, write: io.writeSync, sync: io.fsyncSync };
-  const fd = io.openSync(file, fs.constants.O_CREAT | fs.constants.O_EXCL | fs.constants.O_WRONLY | (fs.constants.O_NOFOLLOW || 0), 0o600);
-  const owner = createContainedFileResource({ fd, sync: true, methods, additionalMethods: ['write', 'sync'] });
+  const evidence = getCheckoutEvidenceFiles(root, session), owner = evidence.open(file, { io });
   let initialIdentity = null;
   const hash = createHash('sha256'), startedAt = Date.now(), outcomes = [], observations = createStorageObservationLedger();
   const pendingWork = new Set(), observedFailures = [];
