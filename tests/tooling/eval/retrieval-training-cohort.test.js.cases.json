@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["stable-source-pinned-tuples", "positive-alternatives-and-conflicts", "held-out-and-stale-authority", "query-specific-queue-masks", "zero-weight-and-missing-negative", "original-task-retirement"]
+}

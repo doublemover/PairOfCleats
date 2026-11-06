@@ -2807,3 +2807,12 @@ tooling/eval/directional-query-adapter/independent-dense-reference
 tooling/eval/directional-query-adapter/directional-contract-rejection
 tooling/eval/directional-query-adapter/factor-integrity-and-numerical-failures
 tooling/eval/directional-query-adapter/private-ownership-and-retirement
+tooling/eval/retrieval-training-cohort/stable-source-pinned-tuples
+tooling/eval/retrieval-training-cohort/positive-alternatives-and-conflicts
+tooling/eval/retrieval-training-cohort/held-out-and-stale-authority
+tooling/eval/retrieval-training-cohort/query-specific-queue-masks
+tooling/eval/retrieval-training-cohort/zero-weight-and-missing-negative
+tooling/eval/retrieval-training-cohort/original-task-retirement
+tooling/eval/masked-contrastive-objective/named-objectives-and-independent-gradients
+tooling/eval/masked-contrastive-objective/stable-temperature-and-masked-queues
+tooling/eval/masked-contrastive-objective/missing-negative-skips-term

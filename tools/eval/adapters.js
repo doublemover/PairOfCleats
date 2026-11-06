@@ -17,14 +17,16 @@ const loaders = {
       capabilities: Object.freeze(['evaluate']), evaluate: owner.evaluateAnswerIntegrityAttacks });
   },
   'finite-source-evidence-v1': async () => {
-    const [compiler, split, view, baseline, scoring] = await Promise.all([
+    const [compiler, split, view, baseline, scoring, judgments] = await Promise.all([
       import('../../src/retrieval/evaluation/tasks/compiler.js'), import('../../src/retrieval/evaluation/tasks/splits.js'),
       import('../../src/retrieval/evaluation/tasks/candidate-view.js'), import('../../src/retrieval/evaluation/tasks/baseline.js'),
-      import('../../src/retrieval/evaluation/tasks/score.js')
+      import('../../src/retrieval/evaluation/tasks/score.js'), import('../../src/retrieval/evaluation/tasks/judgments.js')
     ]);
     return Object.freeze({ id: 'finite-source-evidence-v1', executionClass: 'read-only-compiled-visible-source-only',
-      capabilities: Object.freeze(['compile', 'inspectCompilation', 'assignSplits', 'materialize', 'candidatePacket', 'readSource', 'runCandidate', 'score', 'runCohort', 'compareCohort', 'dispose', 'disposeTask']),
+      capabilities: Object.freeze(['compile', 'inspectCompilation', 'assignSplits', 'compileJudgments', 'inspectJudgments', 'compileTrainingCohort', 'materialize', 'candidatePacket', 'readSource', 'runCandidate', 'score', 'runCohort', 'compareCohort', 'dispose', 'disposeTask']),
       compile: compiler.compileEvidenceTask, inspectCompilation: compiler.inspectEvidenceTaskCompilation, assignSplits: split.assignEvidenceTaskSplits,
+      compileJudgments: judgments.compileEvidenceTaskJudgments, inspectJudgments: judgments.inspectEvidenceTaskJudgments,
+      compileTrainingCohort: async (...args) => (await import('../../src/shared/retrieval-adaptation/cohort.js')).compileRetrievalTrainingCohort(...args),
       materialize: view.materializeEvidenceTaskView, candidatePacket: view.projectEvidenceTaskView,
       readSource: view.readEvidenceTaskViewSource, runCandidate: baseline.runVisibleEvidenceBaseline,
       runCohort: async (...args) => (await import('./tasks/cohort.js')).evaluateEvidenceTaskCohort(...args),

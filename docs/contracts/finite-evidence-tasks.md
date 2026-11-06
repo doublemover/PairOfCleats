@@ -3,7 +3,9 @@
 The initial #1525 compiler admits authored, in-memory source snapshots under the
 closed `finite-source-evidence-v1` profile. It produces visible source manifests,
 private interval-coverage oracles, declared lineage, split manifests and typed
-task outcomes. This supports read-only evidence selection without executing
+task outcomes. [Source-pinned judgments and training cohorts](retrieval-adaptation.md#task-judgments-and-training-cohorts)
+reuse these original task/split owners; candidate views still expose no labels.
+This supports read-only evidence selection without executing
 candidate programs, shell commands, tests or external model providers.
 The base-only profile is implemented; history-permitted records remain
 quarantined until their own qualified adapter is available.

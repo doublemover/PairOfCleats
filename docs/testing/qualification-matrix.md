@@ -23,7 +23,7 @@ bootstrap receipts do not qualify these changed owners.
 
 | Current qualification owner | Required evidence | Status |
 | --- | --- | --- |
-| Directional query adaptation (#1529) | Exact encoder/role/representation pairing, immutable factor bytes, independent dense numerical reference, export parity and retirement | Offline kernel and five fixtures authored, locally unrun; training, serving integration and held-out quality/cost qualification remain |
+| Local retrieval adaptation (#1529) | Source-pinned training-only judgments/masks, named objective gradients, exact directional pairing, immutable factors, independent dense reference and retirement | Cohort/objective/kernel and 14 fixtures authored, locally unrun; optimizer/resume, serving integration and held-out quality/cost qualification remain |
 | Checkout transaction, recovery and readiness | Strict dependency-free information paths; exact locked install; current package/patch/native verification; concurrent and cancelled owners; generation drift | Focused fixtures authored; new runtime acceptance pending |
 | Journal, native command and status lifetimes | Original child/descriptor/callback settlement, falsey failures, independent output/publication errors, no successor admission while pending | Focused fixtures authored; new runtime acceptance pending |
 | Diagnostic budgets and retention | Shared 32 MiB/384-attempt limit, exact raw bytes, closed producer manifests, changed/unknown entries protected, 256 MiB retained-admission bound | Structural fixtures authored; measured work/allocation remains separate |

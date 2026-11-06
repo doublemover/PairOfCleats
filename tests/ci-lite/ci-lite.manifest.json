@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 2639,
+    "hero": 2648,
     "matrix": 110,
     "meta": 54,
     "soak": 1,
@@ -16837,6 +16837,60 @@
     {
       "id": "tooling/eval/directional-query-adapter/private-ownership-and-retirement",
       "order": 2804,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/eval/retrieval-training-cohort/stable-source-pinned-tuples",
+      "order": 2805,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/eval/retrieval-training-cohort/positive-alternatives-and-conflicts",
+      "order": 2806,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/eval/retrieval-training-cohort/held-out-and-stale-authority",
+      "order": 2807,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/eval/retrieval-training-cohort/query-specific-queue-masks",
+      "order": 2808,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/eval/retrieval-training-cohort/zero-weight-and-missing-negative",
+      "order": 2809,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/eval/retrieval-training-cohort/original-task-retirement",
+      "order": 2810,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/eval/masked-contrastive-objective/named-objectives-and-independent-gradients",
+      "order": 2811,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/eval/masked-contrastive-objective/stable-temperature-and-masked-queues",
+      "order": 2812,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/eval/masked-contrastive-objective/missing-negative-skips-term",
+      "order": 2813,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }
