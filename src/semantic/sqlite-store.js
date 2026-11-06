@@ -1,3 +1,4 @@
+import { createSqliteRelatedReader } from './sqlite-related.js';
 import { captureOperationSelector } from './operation-reader.js';
 import { createSourceReferenceReader } from './source-references.js';
 import { createNeighborReader } from './neighbors.js';
@@ -143,53 +144,8 @@ export const createSqliteSemanticStore = ({
     }, iterateRows
   });
   const getExplainInventory=()=>manifest||{generation,partitions:descriptors,completedTasks:null};
-  const incident = 'SELECT rowid, payload FROM semantic_edges INDEXED BY semantic_edges_forward WHERE partition_id = ? AND from_partition = ? AND from_id = ? UNION SELECT rowid, payload FROM semantic_edges INDEXED BY semantic_edges_reverse WHERE partition_id = ? AND to_partition = ? AND to_id = ?';
-  const relatedQueries = Object.fromEntries(Object.entries({
-    semantic_edges: 'SELECT rowid AS hydrationOrdinal,payload FROM (' + incident + ') ORDER BY rowid LIMIT ? OFFSET ?',
-    semantic_records: "SELECT rowid AS hydrationOrdinal,payload FROM semantic_records WHERE partition_id = ? AND record_kind = 'occurrence' AND json_extract(payload, '$.data.expression.partitionId') = ? AND json_extract(payload, '$.data.expression.localId') = ? ORDER BY rowid LIMIT ? OFFSET ?",
-    semantic_operands: 'SELECT rowid AS hydrationOrdinal,payload FROM semantic_operands WHERE partition_id = ? AND parent_partition = ? AND parent_id = ? ORDER BY rowid LIMIT ? OFFSET ?',
-    semantic_ownership: 'SELECT rowid AS hydrationOrdinal,payload FROM semantic_ownership WHERE partition_id = ? AND record_partition = ? AND local_id = ? ORDER BY rowid LIMIT ? OFFSET ?',
-    semantic_lookup: 'SELECT rowid AS hydrationOrdinal,payload FROM semantic_lookup WHERE partition_id = ? AND partition_id = ? AND local_id = ? ORDER BY rowid LIMIT ? OFFSET ?'
-  }).map(([member, query]) => [member, db.prepare(boundedPage(query))]));
-  const relatedCounts = {
-    semantic_edges: db.prepare('SELECT COUNT(*) AS n FROM (' + incident + ')'),
-    semantic_records: db.prepare("SELECT COUNT(*) AS n FROM semantic_records WHERE partition_id = ? AND record_kind = 'occurrence' AND json_extract(payload, '$.data.expression.partitionId') = ? AND json_extract(payload, '$.data.expression.localId') = ?"),
-    semantic_operands: db.prepare('SELECT COUNT(*) AS n FROM semantic_operands WHERE partition_id = ? AND parent_partition = ? AND parent_id = ?'),
-    semantic_ownership: db.prepare('SELECT COUNT(*) AS n FROM semantic_ownership WHERE partition_id = ? AND record_partition = ? AND local_id = ?'),
-    semantic_lookup: db.prepare('SELECT COUNT(*) AS n FROM semantic_lookup WHERE partition_id = ? AND partition_id = ? AND local_id = ?')
-  };
-  const getRelatedPage = async (ref, member, { offset = 0, limit = 128, signal = null, metrics = null } = {}) => {
-    ref = captureSemanticRecordRef(ref, requestError);
-    if (!partition.get(ref.partitionId)
-      || !Object.hasOwn(relatedQueries, member) || !Number.isSafeInteger(offset) || offset < 0
-      || !Number.isSafeInteger(limit) || limit < 1 || limit > 512) throw new Error('Invalid related semantic request.');
-    const rows = [];
-    const hydration = createHydration(metrics);
-    let remainingOffset = offset, total = 0;
-    for (const entry of physicalPartitions) {
-      throwIfAborted(signal);
-      const args = [entry.partition_id, ref.partitionId, ref.localId, ...(member === 'semantic_edges' ? [entry.partition_id, ref.partitionId, ref.localId] : [])];
-      const count = relatedCounts[member].get(...args).n;
-      total += count;
-      if (remainingOffset >= count) { remainingOffset -= count; continue; }
-      if (rows.length >= limit) continue;
-      const values = relatedQueries[member].iterate(maxRowBytes, hydration.remaining(), ...args, limit - rows.length, remainingOffset);
-      remainingOffset = 0;
-      const descriptor = JSON.parse(entry.descriptor);
-      for (const stored of values) {
-        throwIfAborted(signal);
-        const row = hydration.parse(stored);
-        const family = { semantic_edges: 'edge', semantic_records: 'node', semantic_operands: 'operand', semantic_ownership: 'ownership', semantic_lookup: 'lookup' }[member];
-        if (!validateSemanticRecord(family, row, { structuralSlots: descriptor.structuralSlots }).ok) throw new Error('Invalid hydrated semantic member.');
-        if (member === 'semantic_edges' && ![row.from, row.to].some(endpoint => canonicalSemanticJson(endpoint) === canonicalSemanticJson(ref))) throw new Error('Semantic edge index points to a different endpoint.');
-        rows.push(member === 'semantic_lookup' ? { partitionId: entry.partition_id, id: row.id, value: row.value }
-          : member === 'semantic_records' ? { ...row, ref: { partitionId: entry.partition_id, localId: row.id },
-            availableFieldGroups: ['span', 'scope', 'data'], omittedFieldGroups: [] } : row);
-      }
-    }
-    if (offset > total) throw new Error('Related semantic cursor exceeds member rows.');
-    return { rows, offset: offset + rows.length, done: offset + rows.length === total };
-  };
+  const readRelatedPage = createSqliteRelatedReader({ db, descriptors, createHydration, maxRowBytes });
+  const getRelatedPage = (ref, member, options) => readRelatedPage(captureSemanticRecordRef(ref, requestError), member, options);
   const findOperations = async (selector, { offset = 0, limit = 128, signal = null } = {}) => {
     selector = captureOperationSelector(selector,offset,limit); throwIfAborted(signal);
     if (['typeExpression', 'literalValue'].includes(selector.field)) {
