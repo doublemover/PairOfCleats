@@ -58,6 +58,9 @@ semantic IDs replay deterministically; separate actual execution IDs retain the
 cost of repeated preparation/scoring. Shared preparation is referenced once by
 its original execution ID. Source bytes, compilation/split work and score work
 remain distinct; unmeasured RSS/build/model work is not reported as a zero.
+Outcome semantic IDs identify equivalent judgments. Receipt IDs additionally
+bind the actual compilation, split and scoring executions; repeated scoring cannot
+collide as one execution or silently erase its additional cost.
 Explicit retirement drops the owner's source/oracle references and rejects later
 reads/scoring through that handle. Retirement is idempotent; previously returned
 immutable views remain caller-owned. This profile holds no native resources.

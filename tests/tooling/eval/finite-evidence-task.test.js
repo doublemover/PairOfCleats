@@ -52,6 +52,12 @@ if (mode === 'private-oracle-visible-packets') {
   assert.equal(result.evidence.unionSourceBytes, Buffer.byteLength(task.input.sourceSnapshot[0].text) + Buffer.byteLength(task.input.sourceSnapshot[2].text));
   const partialMain = [{ ...main, span: [0, 5] }, { ...main, span: [5, main.span[1]] }, helper];
   assert.equal(score(task, partialMain).taskResult, 'pass', 'contiguous verified pieces can cover one original oracle interval');
+  const first = score(task, [main, helper]), repeated = score(task, [main, helper]);
+  assert.equal(first.semanticOutcomeId, repeated.semanticOutcomeId, 'equivalent results keep a stable semantic identity');
+  assert.notEqual(first.receiptId, repeated.receiptId, 'actual repeated scoring must not collide as one immutable execution receipt');
+  assert.notEqual(first.work.executionId, repeated.work.executionId);
+  assert.equal(first.work.compilation.executionId, repeated.work.compilation.executionId, 'the original preparation remains shared');
+  assert.equal(first.work.split.executionId, repeated.work.split.executionId);
 } else if (mode === 'unknown-and-verified-empty') {
   for (const coverage of ['partial', 'unknown']) {
     const input = authoredEvidenceTask(); input.privateOracle.labelCoverage = coverage; input.privateOracle.units = [];

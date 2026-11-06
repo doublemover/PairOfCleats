@@ -88,7 +88,9 @@ export const scoreEvidenceTask = ({ task, manifest, submission }, { signal = nul
       setupAccounting: 'reference-original-execution-ids-once; fresh-score-work-every-call',
       rssBytes: null, rssReason: 'not-measured', buildOrModelExecution: 'not-requested' } };
   const { work: _work, ...semantic } = result;
-  result.receiptId = hash('outcome', semantic);
+  result.semanticOutcomeId = hash('outcome-semantics', semantic);
+  result.receiptId = hash('outcome-receipt', { semanticOutcomeId: result.semanticOutcomeId,
+    compilationExecutionId: compilation.work.executionId, splitExecutionId: manifest.work.executionId, scoringExecutionId: result.work.executionId });
   assertEvidenceTask('outcome', result);
   if (Buffer.byteLength(JSON.stringify(result)) + 1 > maxBytes) throw fail('OUTPUT_LIMIT', 'Finite evidence task outcome exceeds the response allowance.');
   throwIfAborted(signal); immutable(result); owned.set(result, { membership, compilationId: compilation.compilationId }); return result;

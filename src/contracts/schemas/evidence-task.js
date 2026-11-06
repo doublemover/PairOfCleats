@@ -16,7 +16,7 @@ const selectedAlternative = object({ id: text(64), groups: list(object({ id: tex
 export const EVIDENCE_TASK_VERSION = 1;
 export const EVIDENCE_TASK_SCHEMAS = {
   outcome: object({ schemaVersion: { const: EVIDENCE_TASK_VERSION }, kind: { const: 'finite-evidence-task-outcome' }, taskSpecId: hash,
-    publicTaskId: hash, splitManifestId: hash, privateOracleId: hash, candidateId: hash, runId: hash, outputHash: hash, receiptId: hash,
+    publicTaskId: hash, splitManifestId: hash, privateOracleId: hash, candidateId: hash, runId: hash, outputHash: hash, semanticOutcomeId: hash, receiptId: hash,
     executionStatus: { enum: ['completed', 'invalid-fixture', 'unsupported', 'not-run', 'timeout', 'canceled', 'tool-error'] },
     taskResult: { enum: ['pass', 'fail', 'unknown'] }, reason: { enum: ['oracle-coverage-or-validation-unavailable', 'quarantined-compiled-task',
       'candidate-submission-not-completed', 'invalid-source-evidence', 'declared-evidence-budget-exceeded', 'explicit-verified-empty-oracle',
