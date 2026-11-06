@@ -14,6 +14,10 @@ The selected adapter alone is imported when a trial executes. Captured trials ar
 never passed to search, scoring, cohort selection or current retrieval identity.
 Reports retain the existing live metrics and add only `interventionEvaluation`,
 with `currentSearchEvidence: false` and no policy-qualification/task-success claim.
+The original resource scope retires SQLite readers and closes the progress
+display before saved vector, fusion, routing, task-span or intervention replay.
+Cleanup failure prevents replay and report publication. A later offline failure
+retains its original rejection without becoming a native-cache prerequisite.
 
 Known malformed optional data remains a refused input row. A wrong query digest,
 duplicate local trial ID or origin trace tied to a different query is refused
@@ -41,4 +45,6 @@ Three unexecuted cases cover all explicit profiles, immutable pre-search capture
 wrong/unsupported/duplicate records, original inspection errors, profile refusals,
 bounded reporting and cancellation. The existing real report-entry parity fixture
 also compares default, optional and refused runs, requiring identical actual
-search arguments, live identities and primary quality summaries.
+search arguments, live identities and primary quality summaries. It also requires
+confirmed cache/display retirement before replay and unchanged falsy offline
+rejections, with no repeated disposal or unrelated failure registration.

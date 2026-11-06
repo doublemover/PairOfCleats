@@ -80,7 +80,7 @@ const evalCaches = {
   sqliteCache: createSqliteDbCache()
 };
 
-const output = await runEvaluationResourceScope({ sqliteCache: evalCaches.sqliteCache, display }, async () => {
+const { report: output, cases: replayCases, interventionInput } = await runEvaluationResourceScope({ sqliteCache: evalCaches.sqliteCache, display }, async () => {
   const allCases = loadDataset();
   const cases = limit > 0 ? allCases.slice(0, limit) : allCases;
   if (!cases.length) {
@@ -96,7 +96,7 @@ const output = await runEvaluationResourceScope({ sqliteCache: evalCaches.sqlite
   const results = [];
   const queryTask = display.task('Queries', { total: cases.length, stage: 'queries' });
   let processedCases = 0;
-  for (const { entry, query, silver, gold, selection, caseId } of admittedCases) {
+  for (const { query, silver, gold, selection, caseId } of admittedCases) {
     const payload = await runSearch(searchPlan.request(caseId));
     const execution = evidence.observe(payload, selection.modes);
     const cohorts = selection.modes.map(cohortMode => {
@@ -120,9 +120,7 @@ const output = await runEvaluationResourceScope({ sqliteCache: evalCaches.sqlite
       return { recallAtK: Object.fromEntries(ks.map(k => [k, average(row => row.recallAtK[k])])),
         ndcgAtK: Object.fromEntries(ks.map(k => [k, average(row => row.ndcgAtK[k])])), mrr: average(row => row.mrr) };
     };
-    const vectorOracleReplay = await evaluateDatasetVectorReplay({ entry, query, topN });
     results.push({ query, caseId, execution, mode: selection.requestMode || 'default', cohorts,
-      ...(vectorOracleReplay ? { vectorOracleReplay } : {}),
       totals: { relevant: cohorts.reduce((sum, row) => sum + row.totals.relevant, 0),
         gold: cohorts.reduce((sum, row) => sum + row.totals.gold, 0), hits: cohorts.reduce((sum, row) => sum + row.totals.hits, 0) },
       metrics: macroMetrics('metrics'), goldMetrics: macroMetrics('goldMetrics') });
@@ -153,16 +151,24 @@ const output = await runEvaluationResourceScope({ sqliteCache: evalCaches.sqlite
     summary,
     results
   };
-  const fusionReplay = await evaluateDatasetFusionReplay({ cases });
-  if (fusionReplay) report.fusionReplay = fusionReplay;
-  const shadowRouting = evaluateDatasetShadowRouting({ cases });
-  if (shadowRouting) report.shadowRouting = shadowRouting;
-  const taskSpanReplay = await evaluateDatasetTaskSpans({ cases });
-  if (taskSpanReplay) report.taskSpanReplay = taskSpanReplay;
-  const interventionEvaluation = await evaluateDatasetInterventions(interventionInput);
-  if (interventionEvaluation) report.interventionEvaluation = interventionEvaluation;
-  return report;
+  return { report, cases, interventionInput };
 });
+
+// Saved-data replay cannot retain live SQLite readers or progress transports.
+// The original scope must confirm their actual retirement before optional CPU
+// work begins; replay failures have no cache prerequisite-registration authority.
+for (const [index, { query }] of output.results.entries()) {
+  const vectorOracleReplay = await evaluateDatasetVectorReplay({ entry: replayCases[index], query, topN });
+  if (vectorOracleReplay) output.results[index].vectorOracleReplay = vectorOracleReplay;
+}
+const fusionReplay = await evaluateDatasetFusionReplay({ cases: replayCases });
+if (fusionReplay) output.fusionReplay = fusionReplay;
+const shadowRouting = evaluateDatasetShadowRouting({ cases: replayCases });
+if (shadowRouting) output.shadowRouting = shadowRouting;
+const taskSpanReplay = await evaluateDatasetTaskSpans({ cases: replayCases });
+if (taskSpanReplay) output.taskSpanReplay = taskSpanReplay;
+const interventionEvaluation = await evaluateDatasetInterventions(interventionInput);
+if (interventionEvaluation) output.interventionEvaluation = interventionEvaluation;
 
 if (argv.out) {
   fs.writeFileSync(path.resolve(argv.out), JSON.stringify(output, null, 2));

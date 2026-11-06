@@ -1,6 +1,8 @@
 /** Evaluation owns this cache and display only. Capture their actual methods
  * before work; end both lifetimes before a report can be written or displayed.
  * Cache failure retention adds original work prerequisites, never close authority.
+ * Saved-data evaluation runs after this scope; it cannot extend reader lifetime
+ * or register unrelated offline failures as native cleanup prerequisites.
  */
 export const runEvaluationResourceScope = async ({ sqliteCache, display }, operation) => {
   const dispose = sqliteCache.dispose, retain = sqliteCache.retainFailure,
