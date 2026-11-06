@@ -223,7 +223,7 @@ SQLite promotion and ONNX import orders retain original callback failures;
 uncertain native work cannot authorize rollback, fallback or another import
 order. Existing parser/SQLite/ONNX content and disposal controls remain.
 
-Raw compiler/probe streams are retained under
+Raw prerequisite/install/compiler/probe streams are retained under
 .tmp/checkout-bootstrap/logs/n-*/ with original command, status, hash and attempt
 records. The original checkout owner admits at most 384 attempts and 32 MiB
 aggregate storage including reserved metadata across every logger. Individual

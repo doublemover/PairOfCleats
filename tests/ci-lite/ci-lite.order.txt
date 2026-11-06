@@ -2794,3 +2794,7 @@ tooling/install/bootstrap-summary-output/human-projection-and-raw-byte-parity
 tooling/install/bootstrap-summary-output/raw-buffer-captured-before-admission
 tooling/install/patch-summary-settlement/original-callback-after-publication
 tooling/install/patch-summary-settlement/independent-publication-and-logging-failures
+tooling/install/checkout-command-evidence/real-command-bytes-and-terminal-status
+tooling/install/checkout-command-evidence/late-cancellation-keeps-original-result
+tooling/install/checkout-command-evidence/spawn-error-keeps-original-packet
+tooling/install/checkout-command-evidence/canonical-command-stage-owned-evidence

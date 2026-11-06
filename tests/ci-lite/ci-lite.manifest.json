@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 2626,
+    "hero": 2630,
     "matrix": 110,
     "meta": 54,
     "soak": 1,
@@ -16759,6 +16759,30 @@
     {
       "id": "tooling/install/patch-summary-settlement/independent-publication-and-logging-failures",
       "order": 2791,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/checkout-command-evidence/real-command-bytes-and-terminal-status",
+      "order": 2792,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/checkout-command-evidence/late-cancellation-keeps-original-result",
+      "order": 2793,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/checkout-command-evidence/spawn-error-keeps-original-packet",
+      "order": 2794,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/checkout-command-evidence/canonical-command-stage-owned-evidence",
+      "order": 2795,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     }

@@ -56,6 +56,7 @@ export const runCheckoutBootstrap = async (args, { root = ROOT, env = process.en
   const { addStorageFailureContext } = await import('../../src/shared/storage/operation-error.js');
   return withCheckoutMutation(root, session => withCheckoutStageJournal(root, session, plan, async journal => {
     const reportProgress = progress ?? (line => writeBootstrapStatus(line, process.stderr, { root, session }));
+    let commandDiagnostics;
     const checkInputs = () => {
       requireCheckoutMutationSession(root, session);
       const selected = rows => options.policy === 'resolve' ? rows.filter(([file]) => file !== 'package-lock.json') : rows;
@@ -72,8 +73,9 @@ export const runCheckoutBootstrap = async (args, { root = ROOT, env = process.en
         const native = await (await import('./rebuild-native.js')).runNativeRebuild(stage.args.slice(1), { root, signal, session });
         return { ok: native.exitCode === 0, status: native.exitCode, signal: null };
       }
+      commandDiagnostics ||= (await import('./native-diagnostics.js')).createNativeSetupDiagnostics(root, session);
       return (await import('./owned-command.js')).runSetupCommand(stage.command, stage.args,
-        { cwd: root, env, signal, stdio: 'inherit', windowsHide: true });
+        { cwd: root, env, signal, stdio: 'inherit', windowsHide: true }, { diagnostics: commandDiagnostics });
     };
     const results = [];
     for (const stage of stages) {
