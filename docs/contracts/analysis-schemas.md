@@ -245,6 +245,8 @@ Missing optional labels or generation metadata remain explicit; the report
 cannot infer runtime execution. First-match layer ordinals remain ordered.
 Detection counts continue after the retained-detail cap. Cross-field validation
 rejects mismatched policy, edge, index, layer and accounting witnesses.
+Only version1.1.0 is accepted. Older reports must be regenerated; no legacy shape
+adapter or renderer fallback is provided.
 
 Policy identity hashes normalized admitted defaults and ordered rules/layers and
 patterns with SHA256 under a versioned domain. Serialization whitespace does not
@@ -263,9 +265,12 @@ Purpose:
 
 Minimum fields:
 - `version`
+- `policy`
+- `execution`
 - `provenance`
 - `rules[]` summary
 - `violations[]` (bounded)
+- `summary`
 - optional `truncation[]`
 - optional `warnings[]`
 

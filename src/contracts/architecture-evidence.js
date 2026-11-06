@@ -64,7 +64,6 @@ export const architectureViolationEvidence = ({ rule, ruleIndex, policyDigest, e
  * describe this report's edge, policy rule and selected index, not another one.
  */
 export const architectureEvidenceProjectionErrors = report => {
-  if (report.version !== ARCHITECTURE_REPORT_VERSION) return [];
   const errors = [], retainedByRule = new Map();
   if (new Set(report.rules.map(rule => rule.id)).size !== report.rules.length) errors.push('Architecture report has duplicate rule identities.');
   if (report.rules.reduce((total, rule) => total + rule.summary.violations, 0) !== report.summary.detectedViolations) {

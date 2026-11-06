@@ -38,7 +38,7 @@ const architecturePolicySchema = object({ schemaVersion: { const: 1 }, rulesVers
 
 const architectureViolationSchema = {
   type: 'object',
-  required: ['ruleId', 'edge'],
+  required: ['ruleId', 'edge', 'evidence'],
   properties: {
     ruleId: { type: 'string' },
     edge: {
@@ -51,16 +51,16 @@ const architectureViolationSchema = {
       },
       additionalProperties: true
     },
-    evidence: { type: ['object', 'null'] }
+    evidence: object({ note: nullableString, details: ARCHITECTURE_VIOLATION_EVIDENCE_SCHEMA })
   },
   additionalProperties: true
 };
 
 export const ARCHITECTURE_REPORT_SCHEMA = {
   type: 'object',
-  required: ['version', 'rules', 'violations', 'provenance'],
+  required: ['version', 'policy', 'execution', 'rules', 'violations', 'provenance', 'summary'],
   properties: {
-    version: semverString,
+    version: { const: ARCHITECTURE_REPORT_VERSION },
     policy: architecturePolicySchema,
     execution: object({ schemaVersion: { const: 1 }, scope: { const: 'policy-and-graph-evaluation' },
       excluded: { const: ['input-loading', 'rendering'] },
@@ -81,9 +81,9 @@ export const ARCHITECTURE_REPORT_SCHEMA = {
         required: ['id', 'type', 'summary'],
         properties: {
           id: { type: 'string' },
-          type: { type: 'string' },
+          type: { enum: ['forbiddenCall', 'forbiddenImport', 'layering'] },
           severity: nullableString,
-          summary: { type: 'object' }
+          summary: object({ violations: ordinal })
         },
         additionalProperties: true
       }
@@ -99,16 +99,6 @@ export const ARCHITECTURE_REPORT_SCHEMA = {
     truncation: { type: ['array', 'null'], items: truncationRecordSchema },
     warnings: { type: ['array', 'null'], items: warningRecordSchema }
   },
-  allOf: [{ if: { required: ['version'], properties: { version: { const: ARCHITECTURE_REPORT_VERSION } } }, then: {
-    required: ['policy', 'execution', 'summary'], properties: {
-      policy: architecturePolicySchema, execution: { type: 'object' }, summary: { type: 'object' },
-      rules: { type: 'array', items: { type: 'object', properties: {
-        type: { enum: ['forbiddenCall', 'forbiddenImport', 'layering'] }, summary: object({ violations: ordinal })
-      } } },
-      violations: { type: 'array', items: { type: 'object',
-        required: ['evidence'], properties: { evidence: object({ note: nullableString, details: ARCHITECTURE_VIOLATION_EVIDENCE_SCHEMA }) }
-      } } }
-  } }],
   additionalProperties: true
 };
 

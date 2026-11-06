@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { buildArchitectureReport } from '../../../src/graph/architecture.js';
 import assert from 'node:assert/strict';
 import {
   validateGraphContextPack,
@@ -442,12 +443,11 @@ const apiContracts = {
   symbols: []
 };
 
-const architectureReport = {
-  version: '1.0.0',
-  provenance,
-  rules: [],
-  violations: []
-};
+const architectureReport = buildArchitectureReport({ rules: [], provenance });
+assert.equal(validateArchitectureReport({ ...architectureReport, version: '1.0.0' }).ok, false,
+  'obsolete architecture reports must be regenerated');
+const architectureMissingPolicy = { ...architectureReport }; delete architectureMissingPolicy.policy;
+assert.equal(validateArchitectureReport(architectureMissingPolicy).ok, false);
 
 const suggestTests = {
   version: '1.0.0',
