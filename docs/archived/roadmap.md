@@ -798,7 +798,6 @@ After choosing a measured implementation batch, add the batch-specific focused s
 | `docs/archived/phase-11.9-lexicon-aware-relations-and-retrieval-enrichment.md` | Historical only. Replaced by this file for status and active lexicon specs for behavior. |
 | `docs/archived/spec-chargram-enrichment-and-ann-fallback.md` | Historical only. Replaced by `docs/specs/chargram-enrichment-and-ann-fallback.md`. |
 | `docs/worklogs/*.json` | Benchmark/perf evidence inputs. Re-audit before using as current status. |
-| `docs/archived/execution-plan.md` | Historical config/flags/env simplification plan. Deprecated on 2026-05-21; use `docs/config/contract.md`, generated config inventory, command docs, and this roadmap for current status. |
 | `docs/archived/{cross-file-symbol-resolution.md,fts_query_compilation_spec_draft.md,identity-contracts.md,jj_provider_spec_draft.md,mcp-tool-schema-and-proc-kill-spec-draft.md,metaV2_provenance_and_anchor_spec_draft.md,migration-and-backcompat.md,phase13_scm_provider_interface_spec.md,symbol-artifacts-and-pipeline.md,symbol-artifacts.md,symbol-identity-and-symbolref.md}` | Historical Phase 9/13/search/MCP drafts formerly under the staging draft directory. Deprecated on 2026-05-21 after D11-style promotion/archive cleanup; use the promoted `docs/specs/**`, `docs/guides/search.md`, MCP/API contract docs, and this roadmap for current status. |
 | `docs/testing/*`, `docs/contracts/*`, `docs/dependency_references/*` | Contracts/evidence/reference docs. Not roadmap sources unless explicitly linked above. |
 

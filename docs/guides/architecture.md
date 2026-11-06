@@ -27,7 +27,7 @@ graph TD
 
 References:
 - docs/config/contract.md
-- docs/config/hard-cut.md
+- docs/config/surface-directives.md
 - docs/specs/runtime-envelope.md
 
 ### 1) Discovery and Stage1 sequencing

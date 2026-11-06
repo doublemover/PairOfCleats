@@ -2724,7 +2724,7 @@
         "src/retrieval/cli/normalize-options.js",
         "docs/archived/github-issue-closeout-2026-10-26.json",
         "docs/archived/github-issue-closeout-2026-10-26.md",
-        "docs/config/hard-cut.md"
+        "docs/guides/configuration.md"
       ]
     },
     {
@@ -2754,7 +2754,7 @@
         "docs/archived/github-issue-closeout-2026-10-26.json",
         "docs/archived/github-issue-closeout-2026-10-26.md",
         "docs/contracts/artifact-schemas.md",
-        "docs/specs/artifact-schemas.md"
+        "docs/contracts/analysis-schemas.md"
       ]
     },
     {

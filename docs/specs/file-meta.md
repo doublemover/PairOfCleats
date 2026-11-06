@@ -11,7 +11,7 @@ Goal: store per-file metadata used by downstream tooling (language, sizes, paths
 
 Non-goals:
 - Replace `file_manifest`.
-- Change `file_meta` row schema (see `docs/specs/artifact-schemas.md`).
+- Change `file_meta` row schema (see `docs/contracts/artifact-schemas.md`).
 - Persist file contents.
 
 ---
@@ -57,6 +57,6 @@ Rules:
 
 ## 3) Related specs
 
-- `docs/specs/artifact-schemas.md`
+- `docs/contracts/artifact-schemas.md`
 - `docs/specs/cache-key-invalidation.md`
 - `docs/specs/byte-budget-policy.md`

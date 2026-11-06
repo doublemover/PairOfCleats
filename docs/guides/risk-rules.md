@@ -147,4 +147,4 @@ invalidate enrichment.
 - Risk analysis now treats cap exceedance as an early-exit condition (no full-file scanning).
 - SafeRegex evaluation is guarded; regex errors are treated as no-match.
 - A lightweight prefilter is applied before regex evaluation to reduce scan overhead.
-- See `docs/specs/analysis-schemas.md` for analysis policy defaults.
+- See `docs/contracts/analysis-schemas.md` for analysis policy defaults.

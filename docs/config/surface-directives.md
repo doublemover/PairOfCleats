@@ -3,9 +3,7 @@
 This is current contributor guidance. The [schema](schema.json),
 [canonical loader](../../tools/dict-utils/config.js), runtime consumers,
 [environment owner](../../src/shared/env.js) and
-[generated inventory](inventory.md) determine accepted behavior. The old
-[two-key hard-cut proposal](../archived/config-hard-cut.md) is historical design,
-not an instruction to delete shipped settings or backends.
+[generated inventory](inventory.md) determine accepted behavior.
 
 ## Choose a public control deliberately
 

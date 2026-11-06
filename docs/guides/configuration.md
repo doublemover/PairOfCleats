@@ -60,6 +60,3 @@ Use the [schema](../config/schema.json) for accepted structure, the
 A permissive extension namespace does not prove an arbitrary key is consumed.
 Resource/concurrency settings guide admitted work; they are not a fixed RAM cap
 for parsers, subprocesses or every repository.
-
-The [old hard-cut proposal](../archived/config-hard-cut.md) is historical design.
-It does not remove currently accepted backends, namespaces or runtime overrides.

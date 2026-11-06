@@ -110,7 +110,7 @@ const extractScoreBreakdownKeysFromDoc = (text) => {
 };
 
 const extractArtifactsFromDoc = (text) => {
-  const registrySection = extractDocSection(text, '## Artifact registry', '### Phase 11');
+  const registrySection = extractDocSection(text, '## Artifact registry', '### Optional `api_contracts`');
   const artifacts = new Set();
   for (const line of registrySection.split('\n')) {
     if (!line.startsWith('- ')) continue;

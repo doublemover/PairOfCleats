@@ -5,7 +5,7 @@ validators under `src/contracts/` are authoritative; validation is enforced by
 `src/index/validate.js` and the registry in `src/contracts/schemas/artifacts.js`.
 
 `api_contracts` is an optional emitted report artifact where the producer enables
-it. Old phase numbers describe design history, not current qualification status.
+it.
 
 ## General expectations
 
@@ -29,7 +29,7 @@ Artifacts written as `*.jsonl.parts/` must include `*.meta.json` with:
 
 Sharded meta is defined for: `chunk_meta_meta`, `chunk_uid_map_meta`, `vfs_manifest_meta`, `vfs_path_map_meta`, `file_relations_meta`, `symbols_meta`, `symbol_occurrences_meta`, `symbol_edges_meta`, `call_sites_meta`, `risk_summaries_meta`, `risk_flows_meta`, `risk_partial_flows_meta`, `repo_map_meta`, and `graph_relations_meta`.
 
-Optional offsets metadata under `extensions.offsets` declares `version`,
+Optional offsets metadata under `extensions.offsets` declares `version: 1`,
 `format: u64-le`, `compression: none`, a suffix and offsets-part paths. Readers
 must follow the actual supported sidecar version and declared parts; an offset
 is not a source identity or proof of complete artifact publication.
@@ -46,8 +46,7 @@ See [public artifact surfaces](public-artifact-surface.md) and
 A minimal `chunk_meta` row shape is `[{"id":0,"start":0,"end":8}]`;
 `[{"id":0,"start":0}]` is invalid because `end` is missing. This illustrates
 the row schema only, not a complete searchable generation. Source-backed schema
-fixtures live under `tests/shared/contracts/`; actual validator execution for
-this consolidation remains **UNVALIDATED** in the current development batch.
+fixtures live under `tests/shared/contracts/`.
 
 ## Artifact registry
 
@@ -95,7 +94,9 @@ Machine-readable index:
 - `dense_vectors_sqlite_vec_meta` (object): requires `dims`, `count`, `table`. Optional: `embeddingColumn`, `idColumn`, `scale`, `minVal`, `maxVal`, `levels`.
 - `phrase_ngrams` (object): requires `vocab`, `postings`.
 - `chargram_postings` (object): requires `vocab`, `postings`.
+- Token, phrase, character-gram and each field vocabulary must contain unique strings. Each vocabulary position identifies exactly one posting list, so `postings.length` must equal `vocab.length`. Semantic artifact validation checks these constraints in addition to JSON shape. Complete token-vocabulary admission also rejects duplicates and cardinality conflicts before granting query eligibility authority.
 - `filter_index` (object): requires `fileById`, `fileChunksById`. Optional: `fileChargramN`, `byExt`, `byKind`, `byAuthor`, `byChunkAuthor`, `byVisibility`, `fileChargrams`.
+  - Serialized sets are sparse arrays of chunk IDs. Query hydration may build runtime-only bitmap indexes; these must not change serialized rows, ordering hashes or format identity. The producer records the wire version in `filter_index.schemaVersion`.
 - `filelists` (object): requires `generatedAt`, `scanned`, `skipped` (each has `count`, `sample`).
 - `lexicon_relation_filter_report` (object): requires `schemaVersion`, `mode`, `totals`, `files`; `totals` requires dropped counter fields and `files`; each file row requires per-file dropped counters plus categorized drop maps.
 - `pieces_manifest` (object): requires `version`, `artifactSurfaceVersion`, `pieces`. Optional: `compatibilityKey`, `generatedAt`, `updatedAt`, `mode`, `stage`, `repoId`, `buildId`, `extensions`.
@@ -162,8 +163,8 @@ hash/range and optional virtual-source mapping provenance. Existing symbolic
 membership/classification operations and display-type search are separate
 contracts; ordinary return-type filtering does not imply symbolic equivalence.
 
-### Phase 11 optional: `api_contracts` (JSONL)
-If Phase 11 enables artifact emission for API contracts, a new JSONL artifact MAY be produced.
+### Optional `api_contracts` (JSONL)
+The API contract producer may emit this artifact when enabled.
 
 - `api_contracts` (array/JSONL): one record per symbol.
   - Required fields:
@@ -189,14 +190,26 @@ If Phase 11 enables artifact emission for API contracts, a new JSONL artifact MA
 Canonical contract for the report surface:
 - `docs/specs/graph-product-surfaces.md` (`ApiContractsReportV1`)
 
-## Additions and phase notes
+## Related artifacts
 
-- `filter_index` may include an optional `byLang` map keyed by effective language id (Phase 5).
-  - Phase 5 also requires chunk records to expose effective language via `metaV2.lang`.
-- `call_sites` (jsonl or sharded jsonl) contains bounded callsite evidence records (Phase 6).
+- `filter_index` may include an optional `byLang` map keyed by effective language id.
+  - Chunk records expose effective language via `metaV2.lang`.
+- `call_sites` (jsonl or sharded jsonl) contains bounded callsite evidence records.
   - Canonical spec: `docs/specs/risk-flows-and-call-sites.md`.
   - `call_sites_meta` follows the sharded JSONL meta schema (artifact name `call_sites`).
-- `index_state.embeddings` includes identity and backend availability signals when embeddings are present (Phase 7).
+- `index_state.embeddings` includes identity and backend availability signals when embeddings are present.
+
+## Build state
+
+`build_state.json` follows the closed schema in
+`src/contracts/schemas/build-state.js`. Its per-mode `analysisShortcuts`, resolved
+`byteBudgets` and signature records retain typed policy/hash constraints.
+`dependencySignatures` requires the SHA-1 families `parse`, `lexical`, `enrichment`,
+`embeddings` and `artifacts`; supported additional families are declared in that
+schema. Unknown keys and malformed hashes are invalid. Every ordering-ledger
+stage requires an `artifacts` map, including an explicit empty map when only
+discovery seeds have been recorded. Schema validity, completed-stage sealing and
+current artifact readiness are separate checks.
 
 ## Notes
 
