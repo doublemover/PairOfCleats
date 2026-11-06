@@ -2,7 +2,8 @@ import { createBuildScheduler } from '../../src/shared/concurrency/scheduler-cor
 import { readEffectiveCpu } from '../../src/shared/effective-cpu.js';
 import { readEffectiveMemory } from '../../src/shared/effective-memory.js';
 import { readErrorDataProperty } from '../../src/shared/error-data.js';
-import { observeStorageResource } from '../../src/shared/storage/failure-observation.js';
+import { observeStorageResource, createStorageObservationLedger } from '../../src/shared/storage/failure-observation.js';
+import { addStorageFailureContext } from '../../src/shared/storage/operation-error.js';
 
 const MIB = 1024 * 1024;
 
@@ -75,6 +76,7 @@ export const runBootstrapTasks = async (tasks, { budget = resolveBootstrapBudget
   });
   const promises = new Map();
   const observerErrors = [];
+  const observations = createStorageObservationLedger();
   const execute = task => {
     if (promises.has(task.id)) return promises.get(task.id);
     const pending = (async () => {
@@ -109,6 +111,7 @@ export const runBootstrapTasks = async (tasks, { budget = resolveBootstrapBudget
           let retirementPending = false;
           try { observeStorageResource(error, { phase: 'bootstrap-task-retirement' }).requireSettled(); }
           catch (pending) { retirementPending = true; row.error = pending; }
+          observations.remember(row.error);
           if ((retirementPending || row.required && stopOnRequiredFailure) && !controller.signal.aborted) controller.abort(row.error);
         }
       }
@@ -119,6 +122,7 @@ export const runBootstrapTasks = async (tasks, { budget = resolveBootstrapBudget
       // and falsy rejection. Diagnostic callbacks cannot rewrite task outcomes.
       try { await onResult(row); } catch (error) {
         observerErrors.push(error);
+        observations.remember(error);
         controller.abort(error);
       }
       return row;
@@ -126,13 +130,40 @@ export const runBootstrapTasks = async (tasks, { budget = resolveBootstrapBudget
     promises.set(task.id, pending);
     return pending;
   };
+  let results, primary, failed = false;
+  const taskFailures = () => (results || []).filter(row => row.status === 'failed').map(row => row.error);
   try {
-    const results = await Promise.all(tasks.map(execute));
-    if (observerErrors.length === 1) throw observerErrors[0];
-    if (observerErrors.length > 1) throw new AggregateError(observerErrors, 'Bootstrap result observation failed.', { cause: observerErrors[0] });
-    return { ok: results.every(row => !row.required || row.status === 'succeeded'), results, budget };
-  } finally {
-    signal?.removeEventListener?.('abort', abort);
-    await scheduler.shutdown({ awaitRunning: true, timeoutMs: 30000 });
+    results = await Promise.all(tasks.map(execute));
+    if (observerErrors.length) {
+      const originals = [...taskFailures(), ...observerErrors];
+      if (originals.length === 1) throw originals[0];
+      // Keep raw falsey causes in the diagnostic graph. Resource authority is
+      // retained independently by the original observation ledger below.
+      throw new AggregateError(originals, 'Bootstrap task/result observation failed.', { cause: observerErrors[0] });
+    }
+  } catch (error) { primary = error; failed = true; observations.remember(error); }
+  finally { signal?.removeEventListener?.('abort', abort); }
+  const fields = { bootstrapResults: results ? Object.freeze([...results]) : null };
+  const contextOptions = { nonEnumerable: ['bootstrapResults'], secondaryPresent: true };
+  try { await scheduler.shutdown({ awaitRunning: true, timeoutMs: 30000 }); }
+  catch (cleanup) {
+    if (!failed && taskFailures().length) {
+      const originals = taskFailures();
+      primary = new AggregateError(originals, 'Bootstrap tasks failed before scheduler retirement.', { cause: originals[0] }); failed = true;
+    }
+    primary = failed ? addStorageFailureContext(primary, fields, cleanup, contextOptions)
+      : addStorageFailureContext(cleanup, fields, null, { nonEnumerable: ['bootstrapResults'] });
+    failed = true;
   }
+  // Callback rejection is not physical resource retirement, even after all
+  // scheduler tasks drained. Capture these original callbacks before returning
+  // or flattening the raw AggregateError into a coordinator diagnostic.
+  try { observations.requireSettled(); }
+  catch (pending) {
+    primary = failed ? addStorageFailureContext(primary, fields, pending, contextOptions)
+      : addStorageFailureContext(pending, fields, null, { nonEnumerable: ['bootstrapResults'] });
+    failed = true;
+  }
+  if (failed) throw primary;
+  return { ok: results.every(row => !row.required || row.status === 'succeeded'), results, budget };
 };

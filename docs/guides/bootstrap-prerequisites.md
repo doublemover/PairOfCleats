@@ -26,6 +26,9 @@ including non-Error rejections. Result callbacks receive fixed outcome records;
 their asynchronous work must settle before completion. Callback failures remain
 distinct from compiler outcomes and cancel further admission while already
 running owners drain. Diagnostic accessors are not invoked to classify failures.
+Independent drain failures retain original task/callback failures and their fixed
+result rows. Original callback resource observations remain prerequisites even
+after scheduler tasks finish; an aggregate diagnostic cannot discard them.
 The added failure/observer regressions await execution; this is not a native
 readiness or complete bootstrap qualification.
 Native build and activation-probe failures use the original storage-observation
