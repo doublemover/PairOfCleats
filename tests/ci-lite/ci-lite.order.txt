@@ -2536,3 +2536,9 @@ lang/contracts/html-lazy-parser-boundaries/registered-plain-html
 lang/contracts/html-lazy-parser-boundaries/selected-embedded
 lang/contracts/html-lazy-parser-boundaries/failed-parser
 lang/contracts/html-lazy-parser-boundaries/cancelled-first-use
+semantic/questions/compiler-reference/correlated-typed-facts
+semantic/questions/compiler-reference/exhaustive-small-models
+semantic/questions/compiler-reference/compiler-contract
+semantic/questions/compiler-reference/identity-and-inputs
+semantic/questions/compiler-reference/bounds-and-unknowns
+semantic/questions/compiler-reference/positions-and-determinism

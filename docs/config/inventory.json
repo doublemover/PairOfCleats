@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-06T07:09:30.377Z",
+  "generatedAt": "2026-11-06T07:44:35.841Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
@@ -4834,6 +4834,7 @@
         "tests/runner/publication-diagnostic-ownership.test.js",
         "tests/runner/run-execution.js",
         "tests/security/download-redirect-deadline.test.js",
+        "tests/semantic/questions/compiler-reference.test.js",
         "tests/services/api/semantic-detail-format-compatibility.test.js",
         "tests/services/indexer/embedding-replay-publication.test.js",
         "tests/shared/artifact-io/binary-frame-checksum-receipts.test.js",

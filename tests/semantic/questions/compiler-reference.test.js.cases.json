@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["correlated-typed-facts", "exhaustive-small-models", "compiler-contract", "identity-and-inputs", "bounds-and-unknowns", "positions-and-determinism"]
+}

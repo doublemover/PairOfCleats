@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 2368,
+    "hero": 2374,
     "matrix": 110,
     "meta": 54,
     "soak": 1,
@@ -15211,6 +15211,42 @@
     {
       "id": "lang/contracts/html-lazy-parser-boundaries/cancelled-first-use",
       "order": 2533,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "semantic/questions/compiler-reference/correlated-typed-facts",
+      "order": 2534,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "semantic/questions/compiler-reference/exhaustive-small-models",
+      "order": 2535,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "semantic/questions/compiler-reference/compiler-contract",
+      "order": 2536,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "semantic/questions/compiler-reference/identity-and-inputs",
+      "order": 2537,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "semantic/questions/compiler-reference/bounds-and-unknowns",
+      "order": 2538,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "semantic/questions/compiler-reference/positions-and-determinism",
+      "order": 2539,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }
