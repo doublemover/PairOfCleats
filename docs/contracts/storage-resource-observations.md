@@ -31,6 +31,15 @@ Semantic working-set inventory uses the same original directory read/close
 owner. Missing-file classification follows original resource observation; a
 diagnostic getter cannot erase pending work or return disk credits.
 
+Semantic cache copying retains the original synchronization descriptor through
+the contained-file resource owner. Rejected copy/write/sync work gates staging
+deletion; confirmed standard-void removal precedes refunds. Cleanup failures keep
+the original operation cause, including falsey throws, and identify the actual
+cleanup path. Late native settlement never retries a copy or deletes staging
+automatically; the surrounding build retains that cleanup authority. Descriptor
+and replay diagnostics cannot turn pending original I/O into an ordinary cache
+miss or hide it behind cancellation.
+
 The existing directory, transfer and migration lifecycle fixtures remain intact.
 The independently bounded ledger cases add callback/receiver preservation, late
 secondary observations, falsey getter failures, cycles, identity deduplication,

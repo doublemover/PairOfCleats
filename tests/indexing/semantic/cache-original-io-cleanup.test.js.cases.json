@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["copy-pending", "cleanup-pending", "copy-null", "copy-undefined", "cleanup-zero", "descriptor-pending", "reconciliation-pending", "cancelled-descriptor-pending"]
+}

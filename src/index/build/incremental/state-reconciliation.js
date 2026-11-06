@@ -6,6 +6,7 @@ import { normalizeBundleFormat } from '../../../shared/bundle-io-paths.js';
 import { requiresSourceHashVerification } from './source-freshness.js';
 import { readIncrementalSourceSnapshot, isIncrementalSourceMiss } from './source-snapshot.js';
 import { composeAbortSignals, throwIfAborted } from '../../../shared/abort.js';
+import { describeStorageFailure } from '../../../shared/storage/failure-observation.js';
 import {
   entryStatsMatch,
   pathExists,
@@ -97,8 +98,9 @@ export async function readCachedBundle({
       return { cachedBundle, fileHash, buffer: currentBytes, semanticFactsRef, semanticReplayToken: verification?.token,
         semanticReplayVerificationReceipt: verification?.verificationReceipt, ...embedded };
     } catch (error) {
+      const diagnostic = describeStorageFailure(error, { phase: 'semantic-cache-reconciliation' });
       if (!['ERR_SEMANTIC_CACHE_MISMATCH', 'ERR_SEMANTIC_CACHE_INTEGRITY',
-        'ERR_SEMANTIC_INTEGRITY', 'ENOENT', 'ENOTDIR'].includes(error.code)) throw error;
+        'ERR_SEMANTIC_INTEGRITY', 'ENOENT', 'ENOTDIR'].includes(diagnostic.code)) throw error;
       return { cachedBundle: null, fileHash, buffer: currentBytes };
     }
   };

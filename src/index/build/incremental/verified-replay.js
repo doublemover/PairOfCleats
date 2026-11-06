@@ -10,6 +10,7 @@ import { throwIfAborted } from '../../../shared/abort.js';
 import { issueVerifiedReplayToken, consumeVerifiedReplayToken, recordVerifiedReplayConsumption, invalidateVerifiedReplayToken,
   replayIdentity, replayStatIdentity, registerSemanticReplayContext } from './replay-authority.js';
 import { validateEmbeddedCacheSource } from '../../semantic/embedded-cache.js';
+import { describeStorageFailure } from '../../../shared/storage/failure-observation.js';
 
 /** Keep only bounded immutable verification metadata, never source bytes or decoded rows. */
 export const createSemanticReplayVerificationContext = ({ bundleDir, maxBytes, lease }) => {
@@ -113,9 +114,10 @@ export const createSemanticReplayVerificationContext = ({ bundleDir, maxBytes, l
         try { ({ buffer } = await readVerifiedContainedFile(opened.root, path.join(opened.root, relative),
           { maxBytes: 16 * 1024 * 1024, expectedHash: path.basename(relative, '.json'), signal: input.signal })); }
         catch (error) {
+          const diagnostic = describeStorageFailure(error, { phase: 'semantic-replay-mapping-verification' });
           throwIfAborted(input.signal);
-          if (['ERR_FILE_TOO_LARGE', 'ERR_FILE_CHANGED', 'ERR_FILE_INTEGRITY', 'ERR_UNSAFE_FILE_PATH'].includes(error.code)) {
-            throw Object.assign(new Error('Replay mapping verification failed.'), { code: 'ERR_SEMANTIC_CACHE_INTEGRITY' });
+          if (['ERR_FILE_TOO_LARGE', 'ERR_FILE_CHANGED', 'ERR_FILE_INTEGRITY', 'ERR_UNSAFE_FILE_PATH'].includes(diagnostic.code)) {
+            throw Object.assign(new Error('Replay mapping verification failed.'), { code: 'ERR_SEMANTIC_CACHE_INTEGRITY', cause: error });
           }
           throw error;
         }

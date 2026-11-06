@@ -2523,3 +2523,11 @@ indexing/semantic/embedded-cache-prepared-handoff/qualification-guards
 indexing/semantic/embedded-cache-prepared-handoff/changed-child-inventory
 indexing/semantic/embedded-cache-prepared-handoff/destination-copy-failure
 indexing/semantic/embedded-cache-prepared-handoff/cancel-between-children
+indexing/semantic/cache-original-io-cleanup/copy-pending
+indexing/semantic/cache-original-io-cleanup/cleanup-pending
+indexing/semantic/cache-original-io-cleanup/copy-null
+indexing/semantic/cache-original-io-cleanup/copy-undefined
+indexing/semantic/cache-original-io-cleanup/cleanup-zero
+indexing/semantic/cache-original-io-cleanup/descriptor-pending
+indexing/semantic/cache-original-io-cleanup/reconciliation-pending
+indexing/semantic/cache-original-io-cleanup/cancelled-descriptor-pending

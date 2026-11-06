@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 2355,
+    "hero": 2363,
     "matrix": 110,
     "meta": 54,
     "soak": 1,
@@ -15133,6 +15133,54 @@
     {
       "id": "indexing/semantic/embedded-cache-prepared-handoff/cancel-between-children",
       "order": 2520,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/semantic/cache-original-io-cleanup/copy-pending",
+      "order": 2521,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/semantic/cache-original-io-cleanup/cleanup-pending",
+      "order": 2522,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/semantic/cache-original-io-cleanup/copy-null",
+      "order": 2523,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/semantic/cache-original-io-cleanup/copy-undefined",
+      "order": 2524,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/semantic/cache-original-io-cleanup/cleanup-zero",
+      "order": 2525,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/semantic/cache-original-io-cleanup/descriptor-pending",
+      "order": 2526,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/semantic/cache-original-io-cleanup/reconciliation-pending",
+      "order": 2527,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/semantic/cache-original-io-cleanup/cancelled-descriptor-pending",
+      "order": 2528,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

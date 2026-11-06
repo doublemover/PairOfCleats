@@ -13,6 +13,10 @@ import { syncParentDirectory } from '../../../shared/io/persistence-helpers.js';
 import { SEMANTIC_OWNERSHIP_PRODUCER_HASH } from '../../semantic/analysis-versions.js';
 import { readVerifiedContainedFile } from '../../../shared/contained-file.js';
 import { consumeVerifiedReplayToken } from './replay-authority.js';
+import { describeStorageFailure, observeStorageResource } from '../../../shared/storage/failure-observation.js';
+import { addStorageFailureContext } from '../../../shared/storage/operation-error.js';
+import { acquireContainedFileResource } from '../../../shared/contained-file-resource.js';
+import { atomicWriteText } from '../../../shared/io/atomic-write.js';
 
 const fail = (message, code = 'ERR_SEMANTIC_CACHE_INTEGRITY') => Object.assign(new Error(message), { code });
 const MAX_DESCRIPTOR_BYTES = 32 * 1024 * 1024;
@@ -32,6 +36,23 @@ const cacheKeyFor = (factsRef, signatures) => semanticHash('pairofcleats.semanti
   canonicalHash: factsRef.canonicalHash, dependencyHash: dependencyHash(signatures)
 });
 const hashBytes = (bytes) => createHash('sha256').update(bytes).digest('hex');
+/** The surrounding build still owns failed staging. Original pending work
+ * fences deletion/refunds; a close-only native recovery is never a copy retry.
+ */
+const discardTemporary = async ({ directory, diskAccount, bytes, operationError, hasOperationError = false }) => {
+  const original = hasOperationError ? observeStorageResource(operationError, { phase: 'semantic-cache-staging-cleanup' }) : null;
+  try {
+    original?.requireSettled();
+    const result = await fs.rm(directory, { recursive: true, force: true });
+    observeStorageResource(result, { phase: 'semantic-cache-staging-removal' }).requireSettled();
+    if (result !== undefined) throw new Error('Semantic cache staging removal did not confirm its standard void result.');
+    original?.requireSettled();
+    diskAccount.release(bytes);
+  } catch (error) {
+    if (hasOperationError) throw addStorageFailureContext(operationError, { semanticCacheCleanupPath: directory }, error, { secondaryPresent: true });
+    throw addStorageFailureContext(error, { semanticCacheCleanupPath: directory });
+  }
+};
 const assertLocator = (locator, bundleDir, repoRoot) => {
   assertCurrentIndexFormat({ operation: 'resume', component: 'semantic cache locator',
     foundVersion: locator?.artifactSurfaceVersion, repoRoot, indexPath: bundleDir });
@@ -60,8 +81,9 @@ export const openSemanticCacheEntry = async ({ repoRoot = process.cwd(), bundleD
   try { ({ buffer: bytes } = await readVerifiedContainedFile(bundleDir, lexicalDescriptorPath,
     { maxBytes: MAX_DESCRIPTOR_BYTES, expectedHash: locator.descriptorHash, signal })); }
   catch (error) {
+    const diagnostic = describeStorageFailure(error, { phase: 'semantic-cache-descriptor-read' });
     throwIfAborted(signal);
-    if (['ERR_FILE_TOO_LARGE', 'ERR_FILE_CHANGED', 'ERR_FILE_INTEGRITY', 'ERR_UNSAFE_FILE_PATH'].includes(error.code)) throw fail('Semantic cache descriptor checksum/size mismatch.');
+    if (['ERR_FILE_TOO_LARGE', 'ERR_FILE_CHANGED', 'ERR_FILE_INTEGRITY', 'ERR_UNSAFE_FILE_PATH'].includes(diagnostic.code)) throw Object.assign(fail('Semantic cache descriptor checksum/size mismatch.'), { cause: error });
     throw error;
   }
   const envelope = JSON.parse(bytes.toString('utf8'));
@@ -115,9 +137,11 @@ const copyFactsFiles = async ({ factsRef, store, sourceRoot, targetRoot, diskAcc
     const destination = path.join(targetRoot, relative);
     await fs.mkdir(path.dirname(destination), { recursive: true });
     diskAccount.reserve(size); reserved += size; onReserve(size);
-    await fs.copyFile(source, destination, fsConstants.COPYFILE_EXCL);
-    const handle = await fs.open(destination, 'r+');
-    try { await handle.sync(); } finally { await handle.close(); }
+    const copied = await fs.copyFile(source, destination, fsConstants.COPYFILE_EXCL);
+    observeStorageResource(copied, { phase: 'semantic-cache-copy' }).requireSettled();
+    if (copied !== undefined) throw new Error('Semantic cache copy did not confirm its standard void result.');
+    const owner = await acquireContainedFileResource(() => fs.open(destination, 'r+'), { additionalMethods: ['sync'] });
+    await owner.run(descriptor => descriptor.sync());
     await syncParentDirectory(destination);
     // Part/source directories may have been created by this copy.
     await syncParentDirectory(path.dirname(destination));
@@ -179,9 +203,10 @@ export const persistSemanticCacheEntry = async ({ repoRoot = process.cwd(), bund
     await fs.access(finalRoot);
     return await readExisting();
   } catch (error) {
+    const diagnostic = describeStorageFailure(error, { phase: 'semantic-cache-existing-object' });
     throwIfAborted(signal);
-    if (error.code !== 'ENOENT') {
-      if (!['ERR_SEMANTIC_CACHE_INTEGRITY', 'ERR_SEMANTIC_INTEGRITY'].includes(error.code)
+    if (diagnostic.code !== 'ENOENT') {
+      if (!['ERR_SEMANTIC_CACHE_INTEGRITY', 'ERR_SEMANTIC_INTEGRITY'].includes(diagnostic.code)
         && !(error instanceof SyntaxError)) throw error;
       // Preserve damaged evidence for inspection and let only this source
       // recompute. Unrelated immutable objects and descriptors stay valid.
@@ -191,7 +216,7 @@ export const persistSemanticCacheEntry = async ({ repoRoot = process.cwd(), bund
       // An object directory can survive an interruption without its descriptor.
       try {
         await fs.rename(finalRoot, path.join(cacheRoot, '.incomplete-' + cacheKey + '-' + randomUUID()));
-      } catch (missing) { if (missing.code !== 'ENOENT') throw missing; }
+      } catch (missing) { if (describeStorageFailure(missing, { phase: 'semantic-cache-incomplete-object' }).code !== 'ENOENT') throw missing; }
     }
   }
   const sourceRoot = await resolveSemanticPartPath(buildRoot, factsRef.storage.relativePath);
@@ -208,18 +233,16 @@ export const persistSemanticCacheEntry = async ({ repoRoot = process.cwd(), bund
       artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION, generation: portable.storage.generation, partitions: portable.partitions });
     await validateSemanticPartitions({ store: copiedStore, partitions: portable.partitions, signal });
     diskAccount.reserve(bytes.length); reserved += bytes.length;
-    const handle = await fs.open(path.join(temporary, 'descriptor.json'), 'wx');
-    try { await handle.writeFile(bytes); await handle.sync(); } finally { await handle.close(); }
+    await atomicWriteText(path.join(temporary, 'descriptor.json'), bytes, { newline: false });
     await syncParentDirectory(path.join(temporary, 'descriptor.json'));
     throwIfAborted(signal);
     try { await fs.rename(temporary, finalRoot); }
     catch (error) {
-      if (!['EEXIST', 'ENOTEMPTY', 'EPERM'].includes(error.code)) throw error;
+      if (!['EEXIST', 'ENOTEMPTY', 'EPERM'].includes(describeStorageFailure(error, { phase: 'semantic-cache-promotion' }).code)) throw error;
       // Equivalent workers can finish the same immutable identity together.
       // Validate the winning layout before dropping only this writer's copy.
       const existing = await readExisting();
-      await fs.rm(temporary, { recursive: true, force: true });
-      diskAccount.release(reserved); reserved = 0;
+      await discardTemporary({ directory: temporary, diskAccount, bytes: reserved }); reserved = 0;
       await syncParentDirectory(finalRoot);
       return existing;
     }
@@ -231,8 +254,7 @@ export const persistSemanticCacheEntry = async ({ repoRoot = process.cwd(), bund
     // Credits follow physical cleanup, never the rejected copy promise. If
     // promotion happened before a directory-sync error, the bytes still exist.
     if (!promoted) {
-      await fs.rm(temporary, { recursive: true, force: true });
-      diskAccount.release(reserved);
+      await discardTemporary({ directory: temporary, diskAccount, bytes: reserved, operationError: error, hasOperationError: true });
     }
     throw error;
   }
@@ -284,7 +306,7 @@ export const relocateSemanticCacheEntry = async ({ repoRoot = process.cwd(), bun
     const sourceBytes = (await fs.stat(copiedSource)).size;
     try { await fs.link(copiedSource, sourceTarget); retainedSourceBytes = sourceBytes; }
     catch (error) {
-      if (error.code !== 'EEXIST') throw error;
+      if (describeStorageFailure(error, { phase: 'semantic-cache-source-link' }).code !== 'EEXIST') throw error;
       const check = createArtifactSemanticStore({ root: parent, repoRoot,
         artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION, generation: storage.generation, partitions });
       const sources = opened.store.iterateRows(opened.factsRef.syntaxPartitionId, 'semantic_sources', { signal });
@@ -298,7 +320,7 @@ export const relocateSemanticCacheEntry = async ({ repoRoot = process.cwd(), bun
       await fs.mkdir(path.dirname(target), { recursive: true });
       try { await fs.link(from, target); retainedEvidenceBytes += bytes.length; }
       catch (error) {
-        if (error.code !== 'EEXIST') throw error;
+        if (describeStorageFailure(error, { phase: 'semantic-cache-map-link' }).code !== 'EEXIST') throw error;
         if (!(await fs.readFile(target)).equals(bytes)) throw fail('Retained source mapping collision.');
         await fs.unlink(from);
         diskAccount.release(bytes.length); reserved -= bytes.length;
@@ -314,8 +336,8 @@ export const relocateSemanticCacheEntry = async ({ repoRoot = process.cwd(), bun
     throwIfAborted(signal);
     return result;
   } catch (error) {
-    await fs.rm(temporary, { recursive: true, force: true });
-    diskAccount.release(reserved - retainedSourceBytes - retainedEvidenceBytes);
+    await discardTemporary({ directory: temporary, diskAccount, bytes: reserved - retainedSourceBytes - retainedEvidenceBytes,
+      operationError: error, hasOperationError: true });
     throw error;
   }
 };

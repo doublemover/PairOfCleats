@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-06T06:48:12.398Z",
+  "generatedAt": "2026-11-06T06:59:14.687Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
@@ -4761,6 +4761,7 @@
         "tests/indexing/segments/jsx-syntax-ownership.test.js",
         "tests/indexing/segments/parser-comment-occurrences.test.js",
         "tests/indexing/segments/rust-comment-occurrences.test.js",
+        "tests/indexing/semantic/cache-original-io-cleanup.test.js",
         "tests/indexing/semantic/derived-index-owner-composition.test.js",
         "tests/indexing/semantic/drain-falsey-failure-ownership.test.js",
         "tests/indexing/semantic/drain-ownership-cancellation-consumers.test.js",
