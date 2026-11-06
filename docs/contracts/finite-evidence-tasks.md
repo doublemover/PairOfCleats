@@ -90,7 +90,7 @@ labels cannot change its file scores or selected evidence. The separate scorer
 can still reject that unchanged candidate. Retiring one view leaves sibling views
 and the corpus-owned task intact; retiring the task invalidates later source reads.
 
-The two cheap controls are visible source order and prefix lexical Jaccard. The
+The source-selecting controls are visible source order and prefix lexical Jaccard. The
 latter reuses the existing 4,096-code-unit/128-term feature owner, with exact
 surrogate boundaries and conservative source-byte admission before reading.
 Inspected prefix bytes, selected whole-source bytes and feature work remain
@@ -104,6 +104,11 @@ independently changed oracle rejecting the same baseline, source-order behavior,
 candidate/corpus retirement, original handles, Unicode prefix boundaries, source
 read budgets, action authority and cancellation. Existing finite-model, origin,
 answer-attack and dataset checks retain their coverage through the registry move.
+
+The explicit `always-abstain-v1` control selects no source and retains the whole
+uninspected frontier. It supports the independent
+[finite policy qualification](finite-policy-qualification.md) abstention/coverage
+negative without changing the existing methods' empty-selection behavior.
 
 ## Shared cohort execution
 

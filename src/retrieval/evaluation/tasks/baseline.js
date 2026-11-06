@@ -29,12 +29,14 @@ export const runVisibleEvidenceBaseline = ({ view, request }, { signal = null } 
   const first = projectEvidenceTaskView(view, { limit: 1, maxBytes: 131072 }), spec = first.spec;
   if (request.maxSelectedFiles > spec.limits.maxEvidenceSpans || request.maxSelectedSourceBytes > spec.limits.maxSelectedSourceBytes) throw fail('Candidate policy exceeds the task evidence allowance.');
   const lexical = request.method === 'lexical-visible-prefix-v1';
+  const abstainOnly = request.method === 'always-abstain-v1';
   if (lexical && (!spec.allowedActions.includes('inspect-visible-source') || !spec.allowedActions.includes('search-visible-source'))) throw fail('Lexical source inspection/search is not admitted by this task.');
   let featureWork = 0, sourceBytesRead = 0, inspectedFiles = 0;
   const charge = () => { featureWork++; }, terms = lexical ? contextEvidenceTerms(spec.problem, charge) : null;
   const candidates = [], frontier = [];
+  if (abstainOnly) frontier.push({ nextSourceOffset: 0, sourceCount: first.sourceCount, reason: 'explicit-abstention-control' });
   let offset = 0, enumeratedFiles = 0;
-  while (offset < first.sourceCount) {
+  while (!abstainOnly && offset < first.sourceCount) {
     throwIfAborted(signal);
     if (performance.now() - began >= request.maxWorkMs) { frontier.push({ nextSourceOffset: offset, sourceCount: first.sourceCount - offset, reason: 'work-deadline' }); break; }
     const page = offset === 0 ? first : projectEvidenceTaskView(view, { offset, limit: 1, maxBytes: 131072 });
@@ -64,10 +66,10 @@ export const runVisibleEvidenceBaseline = ({ view, request }, { signal = null } 
   }
   const submission = assertEvidenceTask('submission', { schemaVersion: 1, publicTaskId: view.publicTaskId,
     candidateId: evidenceBaselineCandidateId(view.publicTaskId, request),
-    runId: request.runId, status: 'completed', evidence, abstain: false });
+    runId: request.runId, status: 'completed', evidence, abstain: abstainOnly });
   const result = { schemaVersion: 1, kind: 'visible-evidence-baseline', method: request.method, submission,
-    featureProfile: lexical ? 'existing-bounded-4096-utf16-prefix-128-term-jaccard' : 'visible-source-code-unit-order',
-    frontier, excluded, selection: 'bounded-heuristic-not-certified-ranked-prefix',
+    featureProfile: abstainOnly ? 'explicit-no-source-abstention-control' : lexical ? 'existing-bounded-4096-utf16-prefix-128-term-jaccard' : 'visible-source-code-unit-order',
+    frontier, excluded, selection: abstainOnly ? 'explicit-abstention-control' : 'bounded-heuristic-not-certified-ranked-prefix',
     observedReadOrUse: lexical ? 'inspected-prefixes-only; no-model-cognition-claim' : 'visible-metadata-only',
     work: { executionId: randomUUID(), enumeratedFiles, inspectedFiles, sourceBytesRead, selectedSourceBytes: selectedBytes,
       featureWork, elapsedMs: performance.now() - began, sourceTransport: 'compiled-in-memory-snapshot; not-filesystem-io', modelTokens: null } };

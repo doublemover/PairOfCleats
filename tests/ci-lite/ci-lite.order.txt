@@ -2824,3 +2824,12 @@ tooling/eval/retrieval-training/cancellation-and-overlap
 tooling/eval/retrieval-training/missing-negative-skips-updates
 tooling/eval/retrieval-training/retracted-inputs-refuse-continuation
 tooling/eval/retrieval-training/overflow-keeps-complete-checkpoint
+tooling/eval/finite-policy-qualification/original-outcomes-and-shadow-ceiling
+tooling/eval/finite-policy-qualification/concentrated-subgroup-failure
+tooling/eval/finite-policy-qualification/all-abstain-risk-undefined
+tooling/eval/finite-policy-qualification/unknown-label-denominators
+tooling/eval/finite-policy-qualification/repeated-family-support
+tooling/eval/finite-policy-qualification/frozen-plan-and-source-identity
+tooling/eval/finite-policy-qualification/domain-expiry-and-invalidation
+tooling/eval/finite-policy-qualification/execution-failure-and-quarantine
+tooling/eval/finite-policy-qualification/cancellation-consumes-original-plan

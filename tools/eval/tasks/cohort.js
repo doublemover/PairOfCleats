@@ -25,6 +25,22 @@ const compilationSummary = report => ({ compilationId: report.compilationId, pub
   privateOracleId: report.privateOracleId, state: report.state, reasons: report.reasons.slice(0, 8).map(row => ({ reason: row.reason,
     path: row.path === null ? null : row.path.slice(0, 256) })), omittedReasons: Math.max(0, report.reasons.length - 8), work: report.work });
 
+const captureCohort = input => {
+  input = captureSemanticRequest(input, EVIDENCE_TASK_COHORT_SCHEMA); assertEvidenceTaskCohort(input);
+  const taskInputs = new WeakSet(input.compilations), taskInputIds = new WeakMap();
+  const encodedHash = encoded => createHash('sha256').update('finite-evidence-task.cohort.v1\0').update(encoded).digest('hex');
+  // Invocation labels are execution provenance, never policy/source selection.
+  const semanticInput = { ...input, candidates: input.candidates.map(({ runId: _run, ...candidate }) => candidate) };
+  const encoded = canonicalSemanticJson(semanticInput, { maxBytes: 8 * 1024 * 1024, onObjectEncoded(value, text) {
+    if (taskInputs.has(value)) taskInputIds.set(value, encodedHash(text));
+  } });
+  return { input, inputId: encodedHash(encoded), taskInputIds };
+};
+/** Exact same semantic input identity used by the execution owner, before any
+ * registered candidate runs. No new corpus/annotation identity is introduced.
+ */
+export const evidenceTaskCohortInputIdentity = input => captureCohort(input).inputId;
+
 /** Closed read-only cohort execution, not a candidate-code runner. Compile and
  * split the whole admitted corpus before any candidate; reuse its one source
  * owner for matched-budget methods. Every declared task/method keeps an outcome.
@@ -33,19 +49,11 @@ export const evaluateEvidenceTaskCohort = async (input, { signal = null, maxMs =
   const began = performance.now(); throwIfAborted(signal);
   if (!Number.isSafeInteger(maxMs) || maxMs < 1 || maxMs > 1000 || !Number.isSafeInteger(maxOutputBytes)
     || maxOutputBytes < 1024 || maxOutputBytes > 1048576) throw new TypeError('Invalid finite task cohort work/output allowance.');
-  input = captureSemanticRequest(input, EVIDENCE_TASK_COHORT_SCHEMA); assertEvidenceTaskCohort(input);
-  const taskInputs = new WeakSet(input.compilations), taskInputIds = new WeakMap();
-  const encodedHash = encoded => createHash('sha256').update('finite-evidence-task.cohort.v1\0').update(encoded).digest('hex');
-  // Registered methods use runId only in their returned execution artifact,
-  // never in scoring/selection. Preserve it in candidatePolicies/receipts while
-  // keeping invocation labels out of the semantic corpus identity.
-  const semanticInput = { ...input, candidates: input.candidates.map(({ runId: _run, ...candidate }) => candidate) };
-  const encoded = canonicalSemanticJson(semanticInput, { maxBytes: 8 * 1024 * 1024, onObjectEncoded(value, text) {
-    if (taskInputs.has(value)) taskInputIds.set(value, encodedHash(text));
-  } });
+  const captured = captureCohort(input); input = captured.input;
+  const { inputId, taskInputIds } = captured;
   if (new Set(input.candidates.map(candidate => candidate.method)).size !== input.candidates.length
     || input.candidates.some(candidate => sameBudget(candidate) !== sameBudget(input.candidates[0]))) throw fail('Candidate methods must be distinct and have identical declared resource budgets.');
-  const inputId = encodedHash(encoded), executionId = randomUUID(), adapter = await getOfflineEvaluationAdapter('finite-source-evidence-v1');
+  const executionId = randomUUID(), adapter = await getOfflineEvaluationAdapter('finite-source-evidence-v1');
   const tasks = [], reports = [], outcomes = [], remaining = [], views = new Set(), runRecords = [];
   const taskRetirements = [], viewRetirements = [];
   let retiredTasks = 0;

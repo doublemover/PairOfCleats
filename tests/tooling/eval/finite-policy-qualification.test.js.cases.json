@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["original-outcomes-and-shadow-ceiling", "concentrated-subgroup-failure", "all-abstain-risk-undefined", "unknown-label-denominators", "repeated-family-support", "frozen-plan-and-source-identity", "domain-expiry-and-invalidation", "execution-failure-and-quarantine", "cancellation-consumes-original-plan"]
+}

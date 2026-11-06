@@ -8,7 +8,7 @@ const group = object({ id: text(64), require: { type: 'integer', minimum: 1, max
 const uint = maximum => ({ type: 'integer', minimum: 0, maximum });
 const ms = { type: 'number', minimum: 0 };
 const coverage = { enum: ['complete-in-declared-universe', 'partial', 'unknown'] };
-const baselineMethod = { enum: ['lexical-visible-prefix-v1', 'source-order-files-v1'] };
+const baselineMethod = { enum: ['lexical-visible-prefix-v1', 'source-order-files-v1', 'always-abstain-v1'] };
 const compileWork = object({ executionId: hash, sourceBytes: uint(4194304), sourceFiles: uint(128), oracleUnits: uint(128), elapsedMs: ms });
 const splitWork = object({ executionId: hash, sourceBytes: uint(16777216), compiledTasks: uint(64), leakageComponents: uint(64),
   sourceIdentityReuse: { const: 'compiler-owned-digests; no-text-rehash' }, elapsedMs: ms });

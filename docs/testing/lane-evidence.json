@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-11-06T22:33:33.445Z",
+  "generatedAt": "2026-11-06T22:48:25.723Z",
   "summary": {
     "lanes": 5,
-    "tests": 3141,
+    "tests": 3150,
     "exactDuplicates": 0,
     "hotspotKinds": 10,
     "families": 433,
@@ -11,7 +11,7 @@
     "timingCoverage": {
       "freshArtifactTests": 0,
       "historicalFallbackTests": 74,
-      "missingTests": 3067
+      "missingTests": 3076
     }
   },
   "lanes": [
@@ -35,7 +35,7 @@
       "targetMaxDurationSeconds": 15,
       "orderFile": "tests/ci-lite/ci-lite.order.txt",
       "timingArtifactPath": ".testLogs/ci-lite-testRunTimes.txt",
-      "totalTests": 2821,
+      "totalTests": 2830,
       "knownDurationTests": 49,
       "knownDurationMs": 27090,
       "p50DurationMs": 190,
@@ -43,7 +43,7 @@
       "resolvedTimingArtifactPaths": [],
       "timingSources": {
         "historical-test-times": 49,
-        "missing": 2772
+        "missing": 2781
       }
     },
     {
@@ -325,6 +325,12 @@
       "unknownDurationCount": 76
     },
     {
+      "key": "tooling/eval",
+      "count": 61,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 61
+    },
+    {
       "key": "indexing/tree-sitter",
       "count": 57,
       "knownDurationMs": 0,
@@ -341,12 +347,6 @@
       "count": 55,
       "knownDurationMs": 0,
       "unknownDurationCount": 55
-    },
-    {
-      "key": "tooling/eval",
-      "count": 52,
-      "knownDurationMs": 0,
-      "unknownDurationCount": 52
     },
     {
       "key": "tooling/api-mcp",
