@@ -23,6 +23,7 @@ import { formatBootstrapTaskProgress } from './task-progress.js';
 import { createNativeSetupDiagnostics } from './native-diagnostics.js';
 import { createHash } from 'node:crypto';
 import { withCheckoutStageJournal } from './checkout-stage-journal.js';
+import { inspectCheckoutRecovery } from './checkout-recovery.js';
 
 /** Importing the native owner is inert. The checkout transaction can call this
  * same implementation under its original session without spawning a second
@@ -115,6 +116,13 @@ const runNativeRebuildOwned = async ({ verifyOnly, repairOnly }, { root, session
     { scratchRoot: path.join(root, '.tmp', 'bootstrap-prerequisites'), signal: invocationSignal });
   checkInputs();
   const bootstrapBudget = resolveBootstrapBudget();
+  const requireLockedDependencies = () => {
+    const recovery = inspectCheckoutRecovery({ root, readiness: { ready: false }, inputs: captureBootstrapInputs(root) });
+    if (!['verify', 'repair'].includes(recovery.action)) throw Object.assign(
+      new Error('Native setup requires the current locked package versions; run npm run bootstrap:ci. ' + recovery.reason),
+      { code: 'ERR_NATIVE_SETUP_DEPENDENCIES', recovery });
+  };
+  requireLockedDependencies();
   const nativeDiagnostics = createNativeSetupDiagnostics(root, session);
   let nativeLogLocationReported = false;
 
@@ -365,6 +373,7 @@ const runNativeRebuildOwned = async ({ verifyOnly, repairOnly }, { root, session
 
   const verifyRequiredPackages = async () => {
     checkInputs();
+    requireLockedDependencies();
     const verification = captureBootstrapVerification(root, { session });
     const failures = await getRequiredPackageFailures({ label: 'verify:native' });
     invocationSignal?.throwIfAborted();

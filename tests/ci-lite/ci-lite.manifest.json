@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 2575,
+    "hero": 2583,
     "matrix": 110,
     "meta": 54,
     "soak": 1,
@@ -16453,6 +16453,54 @@
     {
       "id": "tooling/install/checkout-stage-journal/prior-readiness-byte-bound",
       "order": 2740,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/checkout-recovery/intact-repeat-and-journal-recovery",
+      "order": 2741,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/checkout-recovery/installed-unverified-targeted-repair",
+      "order": 2742,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/checkout-recovery/source-versus-patch-drift",
+      "order": 2743,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/checkout-recovery/locked-version-and-missing-dependency",
+      "order": 2744,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/checkout-recovery/lock-declarations-and-bounds",
+      "order": 2745,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/checkout-recovery/original-owner-and-runtime-blockers",
+      "order": 2746,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/checkout-recovery/native-artifact-drift-and-no-false-readiness",
+      "order": 2747,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/native-rebuild-import/locked-dependency-admission",
+      "order": 2748,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     }

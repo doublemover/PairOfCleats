@@ -6,10 +6,12 @@ import { fileURLToPath } from 'node:url';
 import { inspectBootstrapReadiness } from '../../src/shared/bootstrap-readiness.js';
 import { isDirectExecution } from '../../src/shared/direct-execution.js';
 import { runSetupPreflight } from './preflight.js';
+import { inspectCheckoutRecovery } from './checkout-recovery.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 export const diagnoseCheckout = async ({ root = ROOT, prerequisites = false } = {}) => {
   const bootstrap = await inspectBootstrapReadiness({ root, probeNatives: false });
+  const recovery = inspectCheckoutRecovery({ root, readiness: bootstrap });
   let prerequisiteReport = { state: 'not-probed' };
   if (prerequisites) {
     try { prerequisiteReport = { state: 'located', ...runSetupPreflight() }; }
@@ -21,12 +23,10 @@ export const diagnoseCheckout = async ({ root = ROOT, prerequisites = false } = 
       platform: process.platform, arch: process.arch, executable: process.execPath,
       npmNodeExecutable: process.env.npm_node_execpath || null,
       npmExecutable: process.env.npm_execpath || null },
-    bootstrap, prerequisites: prerequisiteReport,
+    bootstrap, recovery, prerequisites: prerequisiteReport,
     operationalReadiness: 'not-probed',
-    nextCommands: bootstrap.ready ? ['node tools/setup/rebuild-native.js --verify']
-      : bootstrap.nextAction === 'verify-natives-and-patches-under-selected-runtime'
-        ? ['node tools/setup/rebuild-native.js --verify', 'npm run bootstrap:ci'] : ['npm run bootstrap:ci'],
-    repairQualification: 'Verify-only requires intact dependencies and required patches. Input or patch drift requires locked bootstrap.',
+    nextCommands: recovery.command ? [recovery.command] : [],
+    repairQualification: recovery.reason + ' This read-only metadata selection does not qualify native or target readiness.',
     provisioning: 'Target provisioning is separate: pairofcleats setup --repo <target> --plan. No operation ran.'
   };
 };
@@ -54,7 +54,7 @@ export const handleCheckoutInformation = async (args, { root = ROOT, stdout = pr
       stderr.write(`Checkout: ${report.root}\nNode: ${report.runtime.actual} (${report.runtime.executable}); required ${report.runtime.required}\n`);
       stderr.write(`Bootstrap metadata: ${report.bootstrap.ready ? 'intact; native probes not run' : report.bootstrap.reason}\n`);
       for (const mismatch of report.bootstrap.mismatches) stderr.write(`- ${mismatch.field}: expected ${mismatch.expected}; receipt ${mismatch.observed}\n`);
-      stderr.write(`Next: ${report.nextCommands[0]}\n${report.repairQualification}\n${report.provisioning}\n`);
+      stderr.write(`Next: ${report.nextCommands[0] || report.recovery.action}\n${report.repairQualification}\n${report.provisioning}\n`);
       if (report.prerequisites.state === 'blocked') stderr.write(`Prerequisites: ${report.prerequisites.message}\n`);
     }
     process.exitCode = report.bootstrap.ready && report.prerequisites.state !== 'blocked' ? 0 : 1;

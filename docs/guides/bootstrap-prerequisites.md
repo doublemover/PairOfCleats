@@ -162,11 +162,20 @@ strict dependency-free entry. `npm run bootstrap:ci -- --help`, `--plan` and
 Unknown options, repeated options and conflicting modes fail before input reads
 or prerequisite probes. `--verify` selects the existing native/patch verifier;
 `--repair` applies required patches and selects targeted native repair. A locked
-repeat with intact readiness verifies without reinstalling. `npm run bootstrap`
+repeat with intact readiness verifies without reinstalling. Read-only recovery
+also compares current locked package versions with actual installed manifests.
+Intact recorded native/patch artifacts select fresh verification; present locked
+packages with changed/unverified artifacts select patching and targeted native
+repair. Missing packages, version mismatch or an unsupported lock inventory
+select locked installation with a specific blocker. New setup policy alone can
+be verified without reinstalling unchanged dependencies. Unknown original read
+work stops selection. These metadata observations never establish native
+qualification. The seven recovery controls and direct-native dependency blocker
+control await execution. `npm run bootstrap`
 still explicitly requests dependency resolution, even in a prepared checkout.
 
-Normal `npm run bootstrap:ci` (locked install) and `npm run bootstrap`
-(intentional dependency resolution) run preflight before npm downloads/replaces
+When installation is necessary, `npm run bootstrap:ci` (locked install) and
+`npm run bootstrap` (intentional dependency resolution) run preflight before npm downloads/replaces
 dependencies. Stages stop at the original failure or cancellation, with actual
 child settlement managed by the existing command owner. Checkout preparation
 always targets the application checkout, separately from target provisioning.

@@ -2743,3 +2743,11 @@ tooling/install/bootstrap-verification-generation/journal-identity-and-completio
 tooling/install/bootstrap-verification-generation/journal-frame-integrity
 tooling/install/checkout-stage-journal/prior-readiness-preserved-before-mutation
 tooling/install/checkout-stage-journal/prior-readiness-byte-bound
+tooling/install/checkout-recovery/intact-repeat-and-journal-recovery
+tooling/install/checkout-recovery/installed-unverified-targeted-repair
+tooling/install/checkout-recovery/source-versus-patch-drift
+tooling/install/checkout-recovery/locked-version-and-missing-dependency
+tooling/install/checkout-recovery/lock-declarations-and-bounds
+tooling/install/checkout-recovery/original-owner-and-runtime-blockers
+tooling/install/checkout-recovery/native-artifact-drift-and-no-false-readiness
+tooling/install/native-rebuild-import/locked-dependency-admission

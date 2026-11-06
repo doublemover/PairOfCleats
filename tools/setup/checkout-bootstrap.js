@@ -25,24 +25,30 @@ export const runCheckoutBootstrap = async (args, { root = ROOT, env = process.en
   inspect ||= readiness.inspectBootstrapReadiness;
   captureInputs ||= readiness.captureBootstrapInputs;
   const inputs = captureInputs(root), diagnosis = await inspect({ root, probeNatives: false });
+  const recovery = (await import('./checkout-recovery.js')).inspectCheckoutRecovery({ root, readiness: diagnosis, inputs });
   const native = mode => ({ id: mode === 'verify' ? 'native-verification' : 'native-preparation', command: process.execPath,
     args: [path.join(root, 'tools/setup/rebuild-native.js'), ...(mode === 'verify' ? ['--verify'] : mode === 'repair' ? ['--repair'] : [])] });
   const stages = options.mode === 'verify' ? [native('verify')]
     : options.mode === 'repair' ? [{ id: 'patches', command: process.execPath, args: [path.join(root, 'tools/setup/apply-patches.js')] }, native('repair')]
-      : options.policy === 'locked' && diagnosis.ready ? [native('verify')] : [
-        { id: 'prerequisites', command: process.execPath, args: [path.join(root, 'tools/setup/preflight.js')] },
-        { id: 'dependencies', command: env.npm_execpath && path.isAbsolute(env.npm_execpath) ? process.execPath : 'npm',
-          args: [...(env.npm_execpath && path.isAbsolute(env.npm_execpath) ? [env.npm_execpath] : []),
-            options.policy === 'locked' ? 'ci' : 'install', '--include=dev', '--ignore-scripts'] },
-        { id: 'patches', command: process.execPath, args: [path.join(root, 'tools/setup/apply-patches.js')] }, native('prepare')
-      ];
+      : options.policy === 'locked' && recovery.action === 'verify' ? [native('verify')]
+        : options.policy === 'locked' && recovery.action === 'repair'
+          ? [{ id: 'patches', command: process.execPath, args: [path.join(root, 'tools/setup/apply-patches.js')] }, native('repair')] : [
+            { id: 'prerequisites', command: process.execPath, args: [path.join(root, 'tools/setup/preflight.js')] },
+            { id: 'dependencies', command: env.npm_execpath && path.isAbsolute(env.npm_execpath) ? process.execPath : 'npm',
+              args: [...(env.npm_execpath && path.isAbsolute(env.npm_execpath) ? [env.npm_execpath] : []),
+                options.policy === 'locked' ? 'ci' : 'install', '--include=dev', '--ignore-scripts'] },
+            { id: 'patches', command: process.execPath, args: [path.join(root, 'tools/setup/apply-patches.js')] }, native('prepare')
+          ];
   const plan = immutable({ schemaVersion: 1, kind: 'checkout-bootstrap-plan', root, policy: options.policy, mode: options.mode,
     inputId: hash(inputs), inputs, runtime: { node: process.version, abi: process.versions.modules, platform: process.platform,
       arch: process.arch, executable: process.execPath, npmExecutable: env.npm_execpath || null, npmSelection: 'canonical-npm-command' },
     prerequisites: 'not-probed; existing preflight owns discovery and selected compiler capability', stages,
-    readiness: diagnosis, receipt: path.join(root, readiness.BOOTSTRAP_RECEIPT), targetProvisioning: 'none',
+    readiness: diagnosis, recovery, receipt: path.join(root, readiness.BOOTSTRAP_RECEIPT), targetProvisioning: 'none',
     qualification: 'declared-stage-plan-not-executed' });
   if (['plan', 'status'].includes(options.mode)) return { ...plan, exitCode: options.mode === 'status' && !diagnosis.ready ? 1 : 0 };
+  if (['wait', 'select-runtime'].includes(recovery.action)) throw Object.assign(new Error(recovery.reason), {
+    code: recovery.action === 'wait' ? 'ERR_CHECKOUT_MUTATION_BUSY' : 'ERR_NATIVE_SETUP_RUNTIME', plan
+  });
   const { withCheckoutMutation, requireCheckoutMutationSession } = await import('./checkout-mutation.js');
   const { withCheckoutStageJournal } = await import('./checkout-stage-journal.js');
   const { addStorageFailureContext } = await import('../../src/shared/storage/operation-error.js');
