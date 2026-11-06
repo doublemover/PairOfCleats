@@ -187,6 +187,8 @@ export function spawnSubprocess(command, args, options = {}) {
     const stderrCollector = createCollector({ enabled: captureStderr, maxOutputBytes, encoding });
     const onStdout = typeof options.onStdout === 'function' ? options.onStdout : null;
     const onStderr = typeof options.onStderr === 'function' ? options.onStderr : null;
+    const onStdoutChunk = typeof options.onStdoutChunk === 'function' ? options.onStdoutChunk : null;
+    const onStderrChunk = typeof options.onStderrChunk === 'function' ? options.onStderrChunk : null;
     // Construct before spawning so an invalid decoder encoding cannot leak a child.
     const stdoutDecoder = onStdout ? new StringDecoder(encoding) : null;
     const stderrDecoder = onStderr ? new StringDecoder(encoding) : null;
@@ -298,11 +300,14 @@ export function spawnSubprocess(command, args, options = {}) {
         error
       ));
     };
-    const handleOutput = (collector, handler, decoder, streamName) => (chunk) => {
+    const handleOutput = (collector, handler, chunkHandler, decoder, streamName) => (chunk) => {
       if (settled) return;
       collector.push(chunk);
-      if (!handler) return;
       try {
+        // The byte observer gets its own buffer. Mutating or retaining it cannot
+        // corrupt the captured tail or the independent decoded-text observer.
+        if (chunkHandler) chunkHandler(Buffer.from(chunk));
+        if (!handler) return;
         const text = decoder.write(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk, encoding));
         if (text) handler(text);
       } catch (error) {
@@ -316,11 +321,11 @@ export function spawnSubprocess(command, args, options = {}) {
         if (text) handler(text);
       } catch (error) { onOutputHandlerError(streamName, error); }
     };
-    onStdoutData = captureStdout || onStdout
-      ? handleOutput(stdoutCollector, onStdout, stdoutDecoder, 'stdout')
+    onStdoutData = captureStdout || onStdout || onStdoutChunk
+      ? handleOutput(stdoutCollector, onStdout, onStdoutChunk, stdoutDecoder, 'stdout')
       : null;
-    onStderrData = captureStderr || onStderr
-      ? handleOutput(stderrCollector, onStderr, stderrDecoder, 'stderr')
+    onStderrData = captureStderr || onStderr || onStderrChunk
+      ? handleOutput(stderrCollector, onStderr, onStderrChunk, stderrDecoder, 'stderr')
       : null;
     if (onStdoutData && child.stdout) {
       child.stdout.on('data', onStdoutData);

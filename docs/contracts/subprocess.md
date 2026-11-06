@@ -93,6 +93,15 @@ own live framing and bounded retention. Hook throws use the same termination
 owner. All listeners precede `onSpawn`, and stdin error ownership remains until
 actual close. See [error ownership](subprocess-error-ownership.md).
 
+Internal byte consumers can explicitly select `onStdoutChunk`/`onStderrChunk`.
+Each synchronous callback receives an independent Buffer copy of that live chunk,
+including invalid UTF-8 and terminal bytes. No line/chunk-boundary guarantee is
+added. Mutating that copy does not affect retained capture or decoded callbacks;
+consumers own bounded retention. These callbacks also work with capture disabled,
+and a thrown value follows the same exact-child termination/error owner. Returned
+promises are not awaited, as with the existing text hooks. Raw logs can therefore
+preserve bytes without re-encoding decoded text or retaining full transcripts.
+
 This typed consumer sketch uses an existing exact resource owner; it does not
 invent a new global cleanup mechanism:
 

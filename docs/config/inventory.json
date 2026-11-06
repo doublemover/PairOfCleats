@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-06T17:10:16.168Z",
+  "generatedAt": "2026-11-06T17:13:33.573Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
@@ -4884,6 +4884,7 @@
         "tests/shared/storage/sqlite-probe-lifetime.test.js",
         "tests/shared/storage/storage-observation-ledger.test.js",
         "tests/shared/subprocess/original-failure-causes.test.js",
+        "tests/shared/subprocess/raw-output-observers.test.js",
         "tests/shared/subprocess/sync-timeout-detached-tree.test.js",
         "tests/shared/subprocess/windows-cdb-child.test.js",
         "tests/shared/subprocess/windows-cdb-collector.test.js",

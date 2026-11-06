@@ -70,6 +70,8 @@
  * @property {'string'|'lines'} [outputMode='string'] Capture formatting, not callback framing.
  * @property {(text:string)=>void} [onStdout] Synchronous, decoded live chunks, outside capture cap.
  * @property {(text:string)=>void} [onStderr]
+ * @property {(chunk:Buffer)=>void} [onStdoutChunk] Synchronous, independent raw-byte copy, outside capture cap.
+ * @property {(chunk:Buffer)=>void} [onStderrChunk]
  * @property {(child:import('node:child_process').ChildProcess)=>void} [onSpawn] Synchronous; owners already installed.
  * @property {string|Uint8Array} [input] Ends piped stdin once with these bytes.
  */

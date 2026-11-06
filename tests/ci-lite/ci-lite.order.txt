@@ -2707,3 +2707,7 @@ tooling/install/bootstrap-task-events/ordered-admission-and-timing
 tooling/install/bootstrap-task-events/immediate-failure-and-drain
 tooling/install/bootstrap-task-events/original-observer-failures
 tooling/install/bootstrap-task-events/bounded-diagnostics
+shared/subprocess/original-failure-causes/stdout-byte-callback
+shared/subprocess/original-failure-causes/stderr-byte-callback
+shared/subprocess/raw-output-observers/exact-bytes-without-capture
+shared/subprocess/raw-output-observers/capture-and-text-isolation

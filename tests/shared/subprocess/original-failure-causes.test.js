@@ -9,7 +9,7 @@ import { errorGraphIncludes } from '../../helpers/error-graph.js';
 
 applyTestEnv();
 const mode = process.env.PAIROFCLEATS_TEST_ID?.split('shared/subprocess/original-failure-causes/')[1];
-assert.ok(['constructor-presence', 'spawn-callback', 'stdout-callback', 'stderr-callback', 'stdin-error', 'pre-abort-reasons', 'owned-abort-reasons', 'tree-cleanup-rejections'].includes(mode));
+assert.ok(['constructor-presence', 'spawn-callback', 'stdout-callback', 'stderr-callback', 'stdout-byte-callback', 'stderr-byte-callback', 'stdin-error', 'pre-abort-reasons', 'owned-abort-reasons', 'tree-cleanup-rejections'].includes(mode));
 const originals = [false, 0, '', null, undefined];
 if (mode === 'constructor-presence') {
   const result = Object.freeze({ exitCode: 7 });
@@ -79,7 +79,7 @@ if (mode === 'constructor-presence') {
   for (const original of originals) {
     let child, closed = false;
     const controller = new AbortController();
-    const stdout = mode === 'stdout-callback', stderr = mode === 'stderr-callback';
+    const stdout = ['stdout-callback', 'stdout-byte-callback'].includes(mode), stderr = ['stderr-callback', 'stderr-byte-callback'].includes(mode);
     const script = (stdout ? 'process.stdout.write("original output");' : stderr ? 'process.stderr.write("original error");' : '')
       + 'setInterval(() => {},1000);';
     const options = { stdio: ['pipe', stdout ? 'pipe' : 'ignore', stderr ? 'pipe' : 'ignore'], killTree: false,
@@ -89,7 +89,8 @@ if (mode === 'constructor-presence') {
         if (mode === 'spawn-callback') throw original;
         if (mode === 'stdin-error') child.stdin.emit('error', original);
         if (mode === 'owned-abort-reasons') controller.abort(original);
-      }, ...(stdout ? { onStdout() { throw original; } } : {}), ...(stderr ? { onStderr() { throw original; } } : {}),
+      }, ...(stdout ? { [mode === 'stdout-byte-callback' ? 'onStdoutChunk' : 'onStdout']() { throw original; } } : {}),
+      ...(stderr ? { [mode === 'stderr-byte-callback' ? 'onStderrChunk' : 'onStderr']() { throw original; } } : {}),
       ...(mode === 'owned-abort-reasons' ? { signal: controller.signal } : {}) };
     try {
       const error = await spawnSubprocess(process.execPath, ['-e', script], options)
