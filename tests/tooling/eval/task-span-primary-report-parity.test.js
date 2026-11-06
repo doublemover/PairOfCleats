@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { registerHooks } from 'node:module';
-import { makeTaskSpanTrace, TASK_TRACE_FIXTURE_QUERY as query } from '../../helpers/task-span-trace-fixture.js';
+import { makeTaskSpanTrace, taskTraceFixtureHash as hash, TASK_TRACE_FIXTURE_QUERY as query } from '../../helpers/task-span-trace-fixture.js';
 
 // Execute the actual existing report entry with inert search/filesystem/display
 // boundaries. Optional trace labels must never reach a search request.
@@ -55,6 +55,19 @@ try {
   assert.equal(refused.report.taskSpanReplay.complete, false);
   assert.deepEqual(refused.report.summary, ordinary.report.summary, 'trace refusal retains live judged metrics');
   assert.deepEqual(refused.calls, ordinary.calls);
+  const trace = makeTaskSpanTrace();
+  const interventionEvidence = { schemaVersion: 1, queryDigest: hash(query), trials: [{ id: hash('origin-trial'), profile: 'origin-observation-v1',
+    input: { schemaVersion: 1, trace, origins: [{ id: hash('origin'), dependenceGroupId: null, independence: 'unknown', assumptionIds: [] }],
+      sourceBindings: trace.sources.map(source => ({ sourceKey: source.key, originIds: [hash('origin')], lineage: 'authored-origin', lineageReceiptId: hash(source.key) })), edges: [] } }] };
+  const intervened = await execute([{ ...entry, interventionEvidence }], 'intervention');
+  const { interventionEvaluation, generatedAt: interventionAt, ...interventionPrimary } = intervened.report;
+  assert.equal(typeof interventionAt, 'string'); assert.deepEqual(interventionPrimary, ordinaryPrimary);
+  assert.deepEqual(intervened.calls, ordinary.calls, 'offline model/lineage/attack records cannot alter actual provider requests');
+  assert.equal(interventionEvaluation.currentSearchEvidence, false); assert.equal(interventionEvaluation.summary.evaluatedTrials, 1);
+  const invalidIntervention = await execute([{ ...entry, interventionEvidence: { ...interventionEvidence, queryDigest: '0'.repeat(64) } }], 'refused-intervention');
+  assert.equal(invalidIntervention.report.interventionEvaluation.complete, false);
+  assert.equal(invalidIntervention.report.interventionEvaluation.summary.refusedInputs, 1);
+  assert.deepEqual(invalidIntervention.calls, ordinary.calls); assert.deepEqual(invalidIntervention.report.summary, ordinary.report.summary);
 } finally {
   hooks.deregister(); console.log = log; delete globalThis.taskSpanRunnerFixture;
 }

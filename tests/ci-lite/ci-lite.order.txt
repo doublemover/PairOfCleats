@@ -2638,3 +2638,6 @@ tooling/eval/answer-integrity-attacks/sealed-semantic-attacks
 tooling/eval/answer-integrity-attacks/partial-and-unsupported-fixtures
 tooling/eval/answer-integrity-attacks/replacement-input-is-historical
 tooling/eval/answer-integrity-attacks/strict-profile-and-bounds
+tooling/eval/intervention-dataset/explicit-profile-report
+tooling/eval/intervention-dataset/capture-and-refusal-boundaries
+tooling/eval/intervention-dataset/profile-errors-and-report-bounds

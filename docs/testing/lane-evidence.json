@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-11-06T13:23:00.494Z",
+  "generatedAt": "2026-11-06T13:30:06.582Z",
   "summary": {
     "lanes": 5,
-    "tests": 2951,
+    "tests": 2954,
     "exactDuplicates": 0,
     "hotspotKinds": 10,
     "families": 433,
@@ -11,7 +11,7 @@
     "timingCoverage": {
       "freshArtifactTests": 0,
       "historicalFallbackTests": 74,
-      "missingTests": 2877
+      "missingTests": 2880
     }
   },
   "lanes": [
@@ -35,7 +35,7 @@
       "targetMaxDurationSeconds": 15,
       "orderFile": "tests/ci-lite/ci-lite.order.txt",
       "timingArtifactPath": ".testLogs/ci-lite-testRunTimes.txt",
-      "totalTests": 2635,
+      "totalTests": 2638,
       "knownDurationTests": 49,
       "knownDurationMs": 27090,
       "p50DurationMs": 190,
@@ -43,7 +43,7 @@
       "resolvedTimingArtifactPaths": [],
       "timingSources": {
         "historical-test-times": 49,
-        "missing": 2586
+        "missing": 2589
       }
     },
     {
@@ -493,6 +493,12 @@
       "unknownDurationCount": 16
     },
     {
+      "key": "tooling/eval",
+      "count": 16,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 16
+    },
+    {
       "key": "indexing/stage1",
       "count": 15,
       "knownDurationMs": 0,
@@ -533,12 +539,6 @@
       "count": 14,
       "knownDurationMs": 0,
       "unknownDurationCount": 14
-    },
-    {
-      "key": "tooling/eval",
-      "count": 13,
-      "knownDurationMs": 0,
-      "unknownDurationCount": 13
     },
     {
       "key": "shared/concurrency",

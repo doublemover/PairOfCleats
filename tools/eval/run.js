@@ -19,6 +19,7 @@ import { createEvaluationDepthPlan, evaluationDepthCoverage } from './depth-plan
 import { buildEvaluationSummary } from './summary.js';
 import { captureEvaluationSearchPlan } from './search-plan.js';
 import { captureLiveEvaluationInput, createRetrievalEvidenceRegistry } from '../shared/retrieval-execution-evidence.js';
+import { captureDatasetInterventions, evaluateDatasetInterventions } from './interventions/dataset.js';
 
 const argv = createCli({
   scriptName: 'eval-run',
@@ -88,6 +89,7 @@ const output = await runEvaluationResourceScope({ sqliteCache: evalCaches.sqlite
 
   const capturedCases = captureEvaluationDatasetCases(cases).map(admitted => ({ ...admitted,
     selection: resolveEvaluationCohorts(admitted.mode, [...admitted.silver, ...admitted.gold]) }));
+  const interventionInput = await captureDatasetInterventions(capturedCases);
   const { cases: admittedCases, identity: evaluationInput } = captureLiveEvaluationInput(capturedCases, evaluationPlan, limit);
   const searchPlan = await captureEvaluationSearchPlan({ repoRoot, cases: admittedCases, evaluationInput, topN, backend, annFlag });
   const evidence = createRetrievalEvidenceRegistry();
@@ -157,6 +159,8 @@ const output = await runEvaluationResourceScope({ sqliteCache: evalCaches.sqlite
   if (shadowRouting) report.shadowRouting = shadowRouting;
   const taskSpanReplay = await evaluateDatasetTaskSpans({ cases });
   if (taskSpanReplay) report.taskSpanReplay = taskSpanReplay;
+  const interventionEvaluation = await evaluateDatasetInterventions(interventionInput);
+  if (interventionEvaluation) report.interventionEvaluation = interventionEvaluation;
   return report;
 });
 

@@ -4,6 +4,8 @@ The initial #1526 adapter executes isolated [finite causal models](finite-causal
 It has no source-workspace, shell, provider or trace-upload authority. The explicit
 `finite-lookup-v1` adapter is selected through the offline evaluation registry;
 unsupported profiles fail instead of choosing another executor.
+[Dataset reports](intervention-dataset.md) consume explicitly selected profiles
+without changing current search metrics or qualification.
 
 An immutable specification binds task/split manifests, pair, question, world,
 task/branch/assumption revision, one original exogenous support assignment,
