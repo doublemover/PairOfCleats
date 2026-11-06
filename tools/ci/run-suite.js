@@ -88,7 +88,7 @@ SERIAL_CLI_CONTRACT_IDS.push('storage/semantic/runtime-source-reference-foreign-
 const API_CONTRACT_IDS = ['services/api/router-contract-matrix', 'services/api/core',
   'services/api/repo-authorization', 'services/api/server-stream', 'services/api/search-contract-matrix',
   'services/api/federated-search-validation-matrix', 'services/api/federated-filter-enumeration',
-  'services/api/search-stream-outcomes', 'services/api/graph-evidence-pages'];
+  'services/api/search-stream-outcomes', 'services/api/graph-evidence-pages', 'services/api/runtime-evidence'];
 const exactSelectors = ids => ids.flatMap(id => ['--match', `/^${id.replaceAll('/', '\\/')}$/`]);
 const LSP_FIXTURE_BIN = path.join(ROOT, 'tests', 'fixtures', 'lsp', 'bin');
 

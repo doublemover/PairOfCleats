@@ -1,6 +1,6 @@
 # Platform and performance qualification
 
-Audited: 2026-11-05. Contracts and configured workflows describe requirements;
+Audited: 2026-11-06. Contracts and configured workflows describe requirements;
 execution receipts below bind actual results to their source. The
 [roadmap](../roadmap.md) owns current scope and remaining work.
 
@@ -13,6 +13,26 @@ Download reporting is repaired; parallel POSIX worker hangs remain under diagnos
 retains YAML deadline negatives and places23 compiler/build cases under the
 existing serial30-second owner, with original15-second build CLI limits.
 Current hosted qualification is reported on [PR572](https://github.com/doublemover/PairOfCleats/pull/572).
+
+The current [checkout bootstrap](../guides/bootstrap-prerequisites.md) repairs are
+implemented and **locally unrun**. Readiness v3 binds the original journal and
+probed generation. Prerequisite/install/native commands retain exact bounded
+evidence; status and response writes observe actual callbacks. Closed-file
+retention protects current readiness and incomplete/changed evidence. Earlier
+bootstrap receipts do not qualify these changed owners.
+
+| Current qualification owner | Required evidence | Status |
+| --- | --- | --- |
+| Checkout transaction, recovery and readiness | Strict dependency-free information paths; exact locked install; current package/patch/native verification; concurrent and cancelled owners; generation drift | Focused fixtures authored; new runtime acceptance pending |
+| Journal, native command and status lifetimes | Original child/descriptor/callback settlement, falsey failures, independent output/publication errors, no successor admission while pending | Focused fixtures authored; new runtime acceptance pending |
+| Diagnostic budgets and retention | Shared 32 MiB/384-attempt limit, exact raw bytes, closed producer manifests, changed/unknown entries protected, 256 MiB retained-admission bound | Structural fixtures authored; measured work/allocation remains separate |
+| Terminal presentation and JSON delivery | Actual 80x24/120x30 native terminal capture, no color, visible transitions, expected optional failure, child exit and exact single-JSON pipe output | `tooling/install/bootstrap-terminal-status/*` authored; Windows ConPTY requires Windows execution |
+
+Run affected correctness cohorts with one job, 30-second deadlines and zero
+retries after the implementation pass; run native/performance checks serially.
+Fresh native/patch verification and the complete publication gate remain required.
+PTY results from other platforms cannot substitute for ConPTY; these presentation
+fixtures do not replace native TUI supervisor/terminal-restoration qualification.
 
 
 [Native workspace follow-up](../archived/native-workspace-budget-followup-2026-11-05.md)
