@@ -48,6 +48,9 @@ const artifactLeaseWorkCases = JSON.parse(await fsPromises.readFile(
 SERIAL_RUNTIME_BUDGET_IDS.push(...artifactLeaseWorkCases.cases.map(id => `perf/embeddings/artifact-lease-work/${id}`),
   'indexing/embeddings/artifact-installed-closure', 'embeddings/onnx/installation-closure',
   'embeddings/onnx/downloader-installation-consumer');
+const validationWorkCases = JSON.parse(await fsPromises.readFile(
+  path.join(ROOT, 'tests/perf/indexing/validate/manifest-fusion-work.test.js.cases.json'), 'utf8'));
+SERIAL_RUNTIME_BUDGET_IDS.push(...validationWorkCases.cases.map(id => `perf/indexing/validate/manifest-fusion-work/${id}`));
 const SERIAL_ANN_GENERATION_IDS = ['retrieval/ann/generation-publication',
   'retrieval/ann/generation-rebuild-failure', 'retrieval/ann/generation-lmdb'];
 const nativePublicationCases = JSON.parse(await fsPromises.readFile(

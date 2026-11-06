@@ -1,17 +1,17 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-11-06T00:30:38.552Z",
+  "generatedAt": "2026-11-06T01:23:31.833Z",
   "summary": {
     "lanes": 5,
-    "tests": 2630,
+    "tests": 2681,
     "exactDuplicates": 0,
     "hotspotKinds": 10,
-    "families": 426,
+    "families": 427,
     "topSlowest": 10,
     "timingCoverage": {
       "freshArtifactTests": 0,
       "historicalFallbackTests": 74,
-      "missingTests": 2556
+      "missingTests": 2607
     }
   },
   "lanes": [
@@ -35,7 +35,7 @@
       "targetMaxDurationSeconds": 15,
       "orderFile": "tests/ci-lite/ci-lite.order.txt",
       "timingArtifactPath": ".testLogs/ci-lite-testRunTimes.txt",
-      "totalTests": 2314,
+      "totalTests": 2365,
       "knownDurationTests": 49,
       "knownDurationMs": 27090,
       "p50DurationMs": 190,
@@ -43,7 +43,7 @@
       "resolvedTimingArtifactPaths": [],
       "timingSources": {
         "historical-test-times": 49,
-        "missing": 2265
+        "missing": 2316
       }
     },
     {
@@ -361,6 +361,12 @@
       "unknownDurationCount": 39
     },
     {
+      "key": "indexing/validate",
+      "count": 37,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 37
+    },
+    {
       "key": "perf/risk",
       "count": 36,
       "knownDurationMs": 0,
@@ -398,6 +404,12 @@
     },
     {
       "key": "perf/embeddings",
+      "count": 24,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 24
+    },
+    {
+      "key": "perf/indexing",
       "count": 24,
       "knownDurationMs": 0,
       "unknownDurationCount": 24
@@ -449,12 +461,6 @@
       "count": 17,
       "knownDurationMs": 0,
       "unknownDurationCount": 17
-    },
-    {
-      "key": "indexing/validate",
-      "count": 16,
-      "knownDurationMs": 0,
-      "unknownDurationCount": 16
     },
     {
       "key": "indexing/stage1",
@@ -515,6 +521,12 @@
       "count": 11,
       "knownDurationMs": 0,
       "unknownDurationCount": 11
+    },
+    {
+      "key": "indexing/fixtures",
+      "count": 10,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 10
     },
     {
       "key": "tooling/index",
@@ -728,12 +740,6 @@
     },
     {
       "key": "embeddings/onnx",
-      "count": 4,
-      "knownDurationMs": 0,
-      "unknownDurationCount": 4
-    },
-    {
-      "key": "indexing/fixtures",
       "count": 4,
       "knownDurationMs": 0,
       "unknownDurationCount": 4
@@ -2656,9 +2662,9 @@
   "hotspots": [
     {
       "key": "index-build-heavy",
-      "count": 703,
+      "count": 730,
       "knownDurationMs": 70250,
-      "unknownDurationCount": 662,
+      "unknownDurationCount": 689,
       "note": "Index construction, replay, and build-heavy setup overlap."
     },
     {

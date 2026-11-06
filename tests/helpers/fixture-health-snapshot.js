@@ -1,12 +1,13 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import { assertNoSymlinkPath, openContainedFile, verifyContainedFileHandle } from '../../src/shared/contained-file.js';
+import { assertNoSymlinkPath, withContainedFile } from '../../src/shared/contained-file.js';
 import { readExactAt } from '../../src/shared/io/read-exact.js';
 import { artifactReadStamp, beginVerifiedArtifactRead, sameArtifactReadStamp, withVerifiedArtifactReadScope } from '../../src/shared/artifact-io/verified-read-scope.js';
 import { loadPiecesManifest, MAX_JSON_BYTES, loadChunkMetaRows, loadMinhashSignatures, loadJsonArrayArtifactRows, readJsonFile } from '../../src/shared/artifact-io.js';
 import { loadFileMetaRows } from '../../src/shared/artifact-io/loaders/core.js';
 import { ARTIFACT_SURFACE_VERSION, isSupportedVersion } from '../../src/contracts/versioning.js';
+import { observeStorageResource } from '../../src/shared/storage/failure-observation.js';
 import { SEMANTIC_OPERATION_INDEX_SCHEMA } from '../../src/contracts/schemas/semantic-operation-index.js';
 
 const MAX_WITNESSES = 65536;
@@ -56,27 +57,22 @@ export const createFixtureHealthReadContext = (root, metrics = {}) => {
       const resolved = path.resolve(target);
       const existing = certificates.get(resolved);
       if (existing) { validate(resolved, existing); return existing; }
-      const handle = await openContainedFile(resolvedRoot, resolved);
-      let primary = null;
-      try {
-        const stat = await handle.stat();
-        if (!Number.isSafeInteger(stat.size) || stat.size < 0 || stat.size > MAX_JSON_BYTES) throw new Error('Health artifact exceeds reader limit');
-        const witness = beginVerifiedArtifactRead(resolvedRoot, resolved, handle.fd);
-        const buffer = Buffer.alloc(Math.min(65536, Math.max(1, stat.size)));
-        for (let position = 0; position < stat.size;) {
-          const length = Math.min(buffer.length, stat.size - position);
-          const { bytesRead } = await readExactAt(handle, buffer, 0, length, position);
+      const publish = await withContainedFile(resolvedRoot, resolved, async descriptor => {
+        const witness = beginVerifiedArtifactRead(resolvedRoot, resolved, descriptor.fd);
+        const size = witness?.byteLength;
+        if (!Number.isSafeInteger(size) || size < 0 || size > MAX_JSON_BYTES) throw new Error('Health artifact exceeds reader limit');
+        const buffer = Buffer.alloc(Math.min(65536, Math.max(1, size)));
+        for (let position = 0; position < size;) {
+          const length = Math.min(buffer.length, size - position);
+          const { bytesRead } = await readExactAt(descriptor, buffer, 0, length, position);
           if (bytesRead !== length) throw changed();
           witness.update(buffer.subarray(0, bytesRead), position); position += bytesRead;
         }
-        witness.finish(() => verifyContainedFileHandle(handle, resolvedRoot, resolved));
-      } catch (error) { primary = error; throw error; }
-      finally {
-        try { await handle.close(); } catch (error) {
-          if (primary && typeof primary === 'object') primary.closeError = error;
-          else throw error;
-        }
-      }
+        return witness.prepare(() => descriptor.verify());
+      });
+      // Exact descriptor verification and its confirmed close must both settle
+      // before a health evaluation can borrow this content authority.
+      publish?.();
       return certificates.get(resolved);
     },
     finish() {
@@ -170,6 +166,7 @@ export const readFixtureHealthSnapshot = async ({ modeDirs, requiredModes, metri
       authorityByMode[mode] = modes[mode].authority;
       keyByMode[mode] = modes[mode].compatibilityKey;
     } catch (error) {
+      observeStorageResource(error, { phase: 'fixture-health-verification' }).requireSettled();
       valid = false; authorityByMode[mode] = null; keyByMode[mode] = null;
       modes[mode] = { error: error?.code || error?.message || String(error), hasChunkUids: false,
         hasRiskTags: false, hasRiskWatchByStep: false, missingSqlDialects: true };

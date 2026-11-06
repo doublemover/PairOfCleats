@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "cases": [
+    "json-sha1",
+    "json-sha256",
+    "json-xxh64",
+    "jsonl-sha1",
+    "jsonl-sha256",
+    "jsonl-xxh64",
+    "gzip-sha1",
+    "gzip-sha256",
+    "gzip-xxh64",
+    "sharded-sha1",
+    "sharded-sha256",
+    "sharded-xxh64",
+    "empty",
+    "checksum-mismatch",
+    "truncated-jsonl",
+    "unsupported-checksum",
+    "missing-piece",
+    "opaque-corruption",
+    "short-reads",
+    "nonstrict-checksum",
+    "backup"
+  ]
+}

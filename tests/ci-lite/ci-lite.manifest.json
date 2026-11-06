@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 2149,
+    "hero": 2200,
     "matrix": 110,
     "meta": 54,
     "soak": 1,
@@ -13897,6 +13897,312 @@
     {
       "id": "indexing/embeddings/artifact-verification-cancellation",
       "order": 2314,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/validate/manifest-fusion-parity/json-sha1",
+      "order": 2315,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/validate/manifest-fusion-parity/json-sha256",
+      "order": 2316,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/validate/manifest-fusion-parity/json-xxh64",
+      "order": 2317,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/validate/manifest-fusion-parity/jsonl-sha1",
+      "order": 2318,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/validate/manifest-fusion-parity/jsonl-sha256",
+      "order": 2319,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/validate/manifest-fusion-parity/jsonl-xxh64",
+      "order": 2320,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/validate/manifest-fusion-parity/gzip-sha1",
+      "order": 2321,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/validate/manifest-fusion-parity/gzip-sha256",
+      "order": 2322,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/validate/manifest-fusion-parity/gzip-xxh64",
+      "order": 2323,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/validate/manifest-fusion-parity/sharded-sha1",
+      "order": 2324,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/validate/manifest-fusion-parity/sharded-sha256",
+      "order": 2325,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/validate/manifest-fusion-parity/sharded-xxh64",
+      "order": 2326,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/validate/manifest-fusion-parity/empty",
+      "order": 2327,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/validate/manifest-fusion-parity/checksum-mismatch",
+      "order": 2328,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/validate/manifest-fusion-parity/truncated-jsonl",
+      "order": 2329,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/validate/manifest-fusion-parity/unsupported-checksum",
+      "order": 2330,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/validate/manifest-fusion-parity/missing-piece",
+      "order": 2331,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/validate/manifest-fusion-parity/opaque-corruption",
+      "order": 2332,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/validate/manifest-fusion-parity/short-reads",
+      "order": 2333,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/validate/manifest-fusion-parity/nonstrict-checksum",
+      "order": 2334,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/validate/manifest-fusion-parity/backup",
+      "order": 2335,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/fixtures/health-verification-close/held-close",
+      "order": 2336,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/fixtures/health-verification-close/false-close",
+      "order": 2337,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/fixtures/health-verification-close/frozen-read-and-close",
+      "order": 2338,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/fixtures/health-verification-close/false-read-and-close",
+      "order": 2339,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/fixtures/health-verification-close/undefined-read-and-close",
+      "order": 2340,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/indexing/validate/manifest-fusion-work/small-fused-1",
+      "order": 2341,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/indexing/validate/manifest-fusion-work/small-fused-2",
+      "order": 2342,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/indexing/validate/manifest-fusion-work/small-fused-3",
+      "order": 2343,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/indexing/validate/manifest-fusion-work/small-eager-1",
+      "order": 2344,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/indexing/validate/manifest-fusion-work/small-eager-2",
+      "order": 2345,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/indexing/validate/manifest-fusion-work/small-eager-3",
+      "order": 2346,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/indexing/validate/manifest-fusion-work/jsonl-fused-1",
+      "order": 2347,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/indexing/validate/manifest-fusion-work/jsonl-fused-2",
+      "order": 2348,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/indexing/validate/manifest-fusion-work/jsonl-fused-3",
+      "order": 2349,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/indexing/validate/manifest-fusion-work/jsonl-eager-1",
+      "order": 2350,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/indexing/validate/manifest-fusion-work/jsonl-eager-2",
+      "order": 2351,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/indexing/validate/manifest-fusion-work/jsonl-eager-3",
+      "order": 2352,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/indexing/validate/manifest-fusion-work/multipart-fused-1",
+      "order": 2353,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/indexing/validate/manifest-fusion-work/multipart-fused-2",
+      "order": 2354,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/indexing/validate/manifest-fusion-work/multipart-fused-3",
+      "order": 2355,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/indexing/validate/manifest-fusion-work/multipart-eager-1",
+      "order": 2356,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/indexing/validate/manifest-fusion-work/multipart-eager-2",
+      "order": 2357,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/indexing/validate/manifest-fusion-work/multipart-eager-3",
+      "order": 2358,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/indexing/validate/manifest-fusion-work/warm-fused-1",
+      "order": 2359,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/indexing/validate/manifest-fusion-work/warm-fused-2",
+      "order": 2360,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/indexing/validate/manifest-fusion-work/warm-fused-3",
+      "order": 2361,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/indexing/validate/manifest-fusion-work/warm-eager-1",
+      "order": 2362,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/indexing/validate/manifest-fusion-work/warm-eager-2",
+      "order": 2363,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/indexing/validate/manifest-fusion-work/warm-eager-3",
+      "order": 2364,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/fixtures/health-verification-close/snapshot-unsettled-close",
+      "order": 2365,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

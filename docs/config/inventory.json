@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-06T00:30:41.619Z",
+  "generatedAt": "2026-11-06T01:23:35.078Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
@@ -4734,6 +4734,7 @@
         "tests/indexing/file-processor/serial-compute-wait-ownership.test.js",
         "tests/indexing/file-processor/tokenizer-resource-fallback-authority.test.js",
         "tests/indexing/fixtures/health-authority.test.js",
+        "tests/indexing/fixtures/health-verification-close.test.js",
         "tests/indexing/forensic-publication-ordering.test.js",
         "tests/indexing/imports/json-collector-admission.test.js",
         "tests/indexing/incremental/source-caller-authority.test.js",
@@ -4770,6 +4771,7 @@
         "tests/indexing/tree-sitter/persistent-cache-admission.test.js",
         "tests/indexing/tree-sitter/runtime-fanout-admission.test.js",
         "tests/indexing/tree-sitter/worker-session-lifecycle.test.js",
+        "tests/indexing/validate/manifest-fusion-parity.test.js",
         "tests/indexing/validate/operation-generation-selection.test.js",
         "tests/indexing/watch/native-backend-source-consumer.test.js",
         "tests/indexing/watch/source-observation-replay.test.js",
@@ -4800,6 +4802,7 @@
         "tests/perf/bench/vfs-producer-accounting.test.js",
         "tests/perf/crash-log-error-latency.test.js",
         "tests/perf/embeddings/artifact-lease-work.test.js",
+        "tests/perf/indexing/validate/manifest-fusion-work.test.js",
         "tests/perf/risk/witness-retention-work.test.js",
         "tests/perf/tooling/bench/sqlite-benchmark-cli.test.js",
         "tests/perf/tooling/bench/sqlite-campaign.test.js",

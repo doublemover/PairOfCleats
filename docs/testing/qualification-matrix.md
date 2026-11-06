@@ -18,7 +18,14 @@ Current hosted qualification is reported on [PR572](https://github.com/doublemov
 [Native workspace follow-up](../archived/native-workspace-budget-followup-2026-11-05.md)
 retains the real stage4 command and all publication/lifetime assertions, moving
 strict keyboard status into an independently bounded case. Four affected native
-Windows cases pass; the family now discovers22, with hosted confirmation pending.
+Windows cases pass; CI2176 at0536 additionally passes workspace/status. The
+family discovers22; search-published has a separate30.2-second timeout.
+
+[Validation read fusion](../archived/validation-integrity-closeout-2026-11-05.md)
+qualifies70 distinct Windows controls and24 serial fresh-process measurements.
+Canonical full reports match the eager control; large JSONL stored-byte work is
+8,599,189→4,300,158 bytes. Timings/heap are mixed. Six original fixture-health
+close failures are repaired; #1242 performance/locking qualification remains open.
 
 [Artifact verification leases](../archived/embedding-artifact-lease-closeout-2026-11-05.md)
 qualify56 focused Windows controls and24 fresh-process raw samples. Concurrent
