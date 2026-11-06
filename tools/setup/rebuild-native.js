@@ -19,6 +19,7 @@ import { isDirectExecution } from '../../src/shared/direct-execution.js';
 import { readErrorDataProperty } from '../../src/shared/error-data.js';
 import { addStorageFailureContext } from '../../src/shared/storage/operation-error.js';
 import { formatBootstrapTaskProgress } from './task-progress.js';
+import { createNativeSetupDiagnostics } from './native-diagnostics.js';
 
 /** Importing the native owner is inert. The checkout transaction can call this
  * same implementation under its original session without spawning a second
@@ -102,6 +103,8 @@ const runNativeRebuildOwned = async ({ verifyOnly, repairOnly }, { root, session
     { scratchRoot: path.join(root, '.tmp', 'bootstrap-prerequisites'), signal: invocationSignal });
   checkInputs();
   const bootstrapBudget = resolveBootstrapBudget();
+  const nativeDiagnostics = createNativeSetupDiagnostics(root, session);
+  let nativeLogLocationReported = false;
 
   const resolveNodeModulesPath = (pkgName) => (
     path.join(root, 'node_modules', ...pkgName.split('/'))
@@ -184,7 +187,11 @@ const runNativeRebuildOwned = async ({ verifyOnly, repairOnly }, { root, session
     const result = await runNativeSetupCommand(command, args, {
       cwd, stdio: capture ? 'pipe' : 'inherit', env, signal, timeoutMs: 600000,
       maxOutputBytes: 8 * 1024 * 1024, rejectOnNonZeroExit: false, windowsHide: true
-    });
+    }, { diagnostics: nativeDiagnostics });
+    if (!nativeLogLocationReported && result.diagnosticsPath) {
+      nativeLogLocationReported = true;
+      console.error('[rebuild:native] retained attempt logs: ' + path.dirname(result.diagnosticsPath));
+    }
     return checkCompletedInputs(result);
   };
   const runNpmCommand = (args, options) => runNativeCommand('npm', args, options);

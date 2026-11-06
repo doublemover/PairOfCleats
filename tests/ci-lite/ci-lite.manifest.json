@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 2543,
+    "hero": 2548,
     "matrix": 110,
     "meta": 54,
     "soak": 1,
@@ -16263,6 +16263,36 @@
       "order": 2708,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/install/native-diagnostic-ownership/exact-bytes-and-tails",
+      "order": 2709,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/native-diagnostic-ownership/attempt-history-and-concurrency",
+      "order": 2710,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/native-diagnostic-ownership/original-log-failures",
+      "order": 2711,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/native-diagnostic-ownership/bounded-admission-and-output",
+      "order": 2712,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/native-diagnostic-ownership/unknown-close-retains-owner",
+      "order": 2713,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     }
   ]
 }

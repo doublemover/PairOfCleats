@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-06T17:13:33.573Z",
+  "generatedAt": "2026-11-06T17:23:22.431Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
@@ -4961,6 +4961,7 @@
         "tests/tooling/install/estimate-destination-identity.test.js",
         "tests/tooling/install/managed-selection-lifetime.test.js",
         "tests/tooling/install/managed-tool-file-lifetime.test.js",
+        "tests/tooling/install/native-diagnostic-ownership.test.js",
         "tests/tooling/install/native-rebuild-import.test.js",
         "tests/tooling/install/native-setup-failure-fence.test.js",
         "tests/tooling/install/no-fallback-scope-consumer.test.js",

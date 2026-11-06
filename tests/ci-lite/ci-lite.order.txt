@@ -2711,3 +2711,8 @@ shared/subprocess/original-failure-causes/stdout-byte-callback
 shared/subprocess/original-failure-causes/stderr-byte-callback
 shared/subprocess/raw-output-observers/exact-bytes-without-capture
 shared/subprocess/raw-output-observers/capture-and-text-isolation
+tooling/install/native-diagnostic-ownership/exact-bytes-and-tails
+tooling/install/native-diagnostic-ownership/attempt-history-and-concurrency
+tooling/install/native-diagnostic-ownership/original-log-failures
+tooling/install/native-diagnostic-ownership/bounded-admission-and-output
+tooling/install/native-diagnostic-ownership/unknown-close-retains-owner

@@ -2,12 +2,14 @@ import { spawnResolvedSubprocess } from '../../src/shared/subprocess/command-inv
 import { describeStorageFailure } from '../../src/shared/storage/failure-observation.js';
 import { readErrorDataProperty } from '../../src/shared/error-data.js';
 import { formatSpawnFailureReason } from './rebuild-native-exit.js';
+import { isNativeDiagnosticFailure } from './native-diagnostics.js';
 
 /** Diagnostic projection only, after the original subprocess owner confirms
  * retirement. Pending/unknown child ownership escapes unchanged in its original
  * observation graph; it cannot authorize a rebuild fallback or another probe.
  */
 export const settledNativeSetupFailure = (error, phase) => {
+  if (isNativeDiagnosticFailure(error)) throw error;
   const description = describeStorageFailure(error, { phase, defaultCode: 'ERR_NATIVE_SETUP_COMMAND',
     defaultMessage: 'Native setup command failed; inspect its original failure.' });
   if (readErrorDataProperty(error, 'name') === 'AbortError' || readErrorDataProperty(error, 'code') === 'ABORT_ERR') throw error;
@@ -17,9 +19,9 @@ export const settledNativeSetupFailure = (error, phase) => {
     ...(typeof stdout === 'string' ? { stdout } : {}), ...(typeof stderr === 'string' ? { stderr } : {}) };
 };
 
-export const runNativeSetupCommand = async (command, args, options, { spawn = spawnResolvedSubprocess } = {}) => {
+export const runNativeSetupCommand = async (command, args, options, { spawn = spawnResolvedSubprocess, diagnostics = null } = {}) => {
   let result;
-  try { result = await spawn(command, args, options); }
+  try { result = diagnostics ? await diagnostics.run(command, args, options, spawn) : await spawn(command, args, options); }
   catch (error) { return settledNativeSetupFailure(error, 'native-setup-command'); }
   const stdoutTruncated = result.outputCapture?.stdout?.truncated === true, stderrTruncated = result.outputCapture?.stderr?.truncated === true;
   if (stdoutTruncated || stderrTruncated) {
@@ -31,5 +33,7 @@ export const runNativeSetupCommand = async (command, args, options, { spawn = sp
     });
   }
   return { ok: result.exitCode === 0, stdout: result.stdout, stderr: result.stderr,
-    message: result.exitCode === 0 ? null : formatSpawnFailureReason({ status: result.exitCode, signal: result.signal }) };
+    ...(result.diagnostics ? { diagnostics: result.diagnostics, diagnosticsPath: result.diagnosticsPath } : {}),
+    message: result.exitCode === 0 ? null : formatSpawnFailureReason({ status: result.exitCode, signal: result.signal })
+      + (result.diagnosticsPath ? '; log: ' + result.diagnosticsPath : '') };
 };
