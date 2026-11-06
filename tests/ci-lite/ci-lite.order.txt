@@ -2802,3 +2802,8 @@ tooling/install/checkout-command-evidence/annotated-diagnostic-failure-stays-ter
 tooling/install/checkout-response-output/large-json-and-help-byte-parity
 tooling/install/checkout-response-output/original-full-text-scope-and-provider
 tooling/install/checkout-response-output/closed-stdout-cli-failure
+tooling/eval/directional-query-adapter/identity-and-byte-export
+tooling/eval/directional-query-adapter/independent-dense-reference
+tooling/eval/directional-query-adapter/directional-contract-rejection
+tooling/eval/directional-query-adapter/factor-integrity-and-numerical-failures
+tooling/eval/directional-query-adapter/private-ownership-and-retirement
