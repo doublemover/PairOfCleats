@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 2337,
+    "hero": 2341,
     "matrix": 110,
     "meta": 54,
     "soak": 1,
@@ -15025,6 +15025,30 @@
     {
       "id": "shared/storage/storage-observation-ledger/transfer-adapter",
       "order": 2502,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/semantic/working-set-directory-ownership/pending-close",
+      "order": 2503,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/semantic/working-set-directory-ownership/pending-read",
+      "order": 2504,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/semantic/working-set-directory-ownership/falsey-stat",
+      "order": 2505,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/semantic/working-set-directory-ownership/pending-stat-diagnostic",
+      "order": 2506,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

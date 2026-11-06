@@ -27,6 +27,10 @@ result contract. Neither ledger settlement nor another adapter's aggregate grant
 authority to close, unlink, retry, admit a generation or release reservations.
 An already failed operation remains failed after its resources settle.
 
+Semantic working-set inventory uses the same original directory read/close
+owner. Missing-file classification follows original resource observation; a
+diagnostic getter cannot erase pending work or return disk credits.
+
 The existing directory, transfer and migration lifecycle fixtures remain intact.
 The independently bounded ledger cases add callback/receiver preservation, late
 secondary observations, falsey getter failures, cycles, identity deduplication,

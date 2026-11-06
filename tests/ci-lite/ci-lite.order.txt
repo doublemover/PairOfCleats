@@ -2505,3 +2505,7 @@ shared/storage/storage-observation-ledger/reentrancy
 shared/storage/storage-observation-ledger/late-context
 shared/storage/storage-observation-ledger/directory-adapter
 shared/storage/storage-observation-ledger/transfer-adapter
+storage/semantic/working-set-directory-ownership/pending-close
+storage/semantic/working-set-directory-ownership/pending-read
+storage/semantic/working-set-directory-ownership/falsey-stat
+storage/semantic/working-set-directory-ownership/pending-stat-diagnostic

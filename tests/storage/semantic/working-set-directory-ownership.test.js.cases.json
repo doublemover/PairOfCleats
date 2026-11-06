@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["pending-close", "pending-read", "falsey-stat", "pending-stat-diagnostic"]
+}

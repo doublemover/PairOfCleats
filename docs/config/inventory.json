@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-06T06:27:01.455Z",
+  "generatedAt": "2026-11-06T06:29:47.816Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
@@ -4886,6 +4886,7 @@
         "tests/storage/semantic/runtime-writer-resource-ownership.test.js",
         "tests/storage/semantic/source-retention-partition-work.test.js",
         "tests/storage/semantic/trace-continuation-state.test.js",
+        "tests/storage/semantic/working-set-directory-ownership.test.js",
         "tests/storage/sqlite/build/original-close-owner.test.js",
         "tests/storage/sqlite/build/output-file-ownership.test.js",
         "tests/storage/sqlite/build/row-correspondence.test.js",
