@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { captureBootstrapVerification, recordBootstrapReadiness } from '../../src/shared/bootstrap-readiness.js';
+import { captureBootstrapInputs, captureBootstrapVerification, recordBootstrapReadiness } from '../../src/shared/bootstrap-readiness.js';
 import { applyPatchesAsync } from './apply-patches.js';
 import { probeNodeRealmLifecycle } from '../../src/shared/native-package-probe.js';
 import fs from 'node:fs';
@@ -17,6 +17,7 @@ import { runNativeSetupCommand, settledNativeSetupFailure } from './native-comma
 import { parseNativeRebuildArguments, NATIVE_REBUILD_USAGE } from './checkout-bootstrap-arguments.js';
 import { isDirectExecution } from '../../src/shared/direct-execution.js';
 import { readErrorDataProperty } from '../../src/shared/error-data.js';
+import { addStorageFailureContext } from '../../src/shared/storage/operation-error.js';
 
 /** Importing the native owner is inert. The checkout transaction can call this
  * same implementation under its original session without spawning a second
@@ -25,17 +26,41 @@ import { readErrorDataProperty } from '../../src/shared/error-data.js';
 export const runNativeRebuild = async (args, options = {}) => {
   const admission = parseNativeRebuildArguments(args);
   if (admission.help) return { exitCode: 0, help: NATIVE_REBUILD_USAGE };
-  const { root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..'), signal = null, session: parentSession = null } = options;
+  const { root: selectedRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..'), signal = null, session: parentSession = null } = options;
   signal?.throwIfAborted();
-  const { withCheckoutMutation } = await import('./checkout-mutation.js');
-  return withCheckoutMutation(root, session => runNativeRebuildOwned(admission, { root, signal, session }),
-    { session: parentSession, signal, kind: 'native-rebuild' });
+  const root = path.resolve(selectedRoot);
+  const [nodeMajor, nodeMinor, nodePatch] = process.versions.node.split('.').map(Number);
+  if (nodeMajor !== 26 || nodeMinor < 12 || (nodeMinor === 12 && nodePatch < 1)) throw Object.assign(
+    new Error('Node.js >=26.12.1 <27 is required for safe VM worker teardown.'), { code: 'ERR_NATIVE_SETUP_RUNTIME' });
+  const originalInputs = JSON.stringify(captureBootstrapInputs(root));
+  const { withCheckoutMutation, requireCheckoutMutationSession } = await import('./checkout-mutation.js');
+  return withCheckoutMutation(root, async session => {
+    const checkInputs = () => {
+      signal?.throwIfAborted(); requireCheckoutMutationSession(root, session);
+      if (JSON.stringify(captureBootstrapInputs(root)) !== originalInputs) throw Object.assign(
+        new Error('Native setup inputs changed after invocation admission; inspect a fresh checkout plan before continuing.'),
+        { code: 'ERR_NATIVE_SETUP_INPUT_CHANGED' });
+    };
+    checkInputs();
+    const result = await runNativeRebuildOwned(admission, { root, signal, session, checkInputs });
+    checkInputs(); return result;
+  },
+  { session: parentSession, signal, kind: 'native-rebuild' });
 };
 
-const runNativeRebuildOwned = async ({ verifyOnly, repairOnly }, { root, session, signal: invocationSignal = null } = {}) => {
+const runNativeRebuildOwned = async ({ verifyOnly, repairOnly }, { root, session, checkInputs, signal: invocationSignal = null } = {}) => {
   invocationSignal?.throwIfAborted(); root = path.resolve(root);
   const { requireCheckoutMutationSession } = await import('./checkout-mutation.js');
   requireCheckoutMutationSession(root, session);
+  const checkCompletedInputs = result => {
+    try { checkInputs(); }
+    catch (error) {
+      const original = Object.getOwnPropertyDescriptor(result, 'error');
+      throw addStorageFailureContext(error, { nativeSetupResult: result }, original?.value,
+        { secondaryPresent: Boolean(original && Object.hasOwn(original, 'value')), nonEnumerable: ['nativeSetupResult'] });
+    }
+    return result;
+  };
 
   const REQUIRED_NATIVE_PACKAGES = [
     'tree-sitter',
@@ -70,12 +95,8 @@ const runNativeRebuildOwned = async ({ verifyOnly, repairOnly }, { root, session
   if (selectedToolchain) console.error(formatSetupPreflight(selectedToolchain));
   if (selectedToolchain?.platform === 'win32') selectedToolchain.capability = await verifyWindowsCompilerCapability(selectedToolchain,
     { scratchRoot: path.join(root, '.tmp', 'bootstrap-prerequisites'), signal: invocationSignal });
+  checkInputs();
   const bootstrapBudget = resolveBootstrapBudget();
-  const [nodeMajor, nodeMinor, nodePatch] = process.versions.node.split('.').map(Number);
-  if (nodeMajor !== 26 || nodeMinor < 12 || (nodeMinor === 12 && nodePatch < 1)) {
-    console.error('[bootstrap] Node.js >=26.12.1 <27 is required for safe VM worker teardown.');
-    throw Object.assign(new Error('Node.js >=26.12.1 <27 is required.'), { code: 'ERR_NATIVE_SETUP_RUNTIME' });
-  }
 
   const resolveNodeModulesPath = (pkgName) => (
     path.join(root, 'node_modules', ...pkgName.split('/'))
@@ -152,12 +173,14 @@ const runNativeRebuildOwned = async ({ verifyOnly, repairOnly }, { root, session
 
   const runNativeCommand = async (command, args, { cwd = root, buildFromSource = false,
     signal = invocationSignal, compilerJobs = bootstrapBudget.cpuCount, env: extraEnv = {}, capture = false } = {}) => {
+    checkInputs();
     const env = { ...buildNpmEnv({ buildFromSource }), ...extraEnv,
       npm_package_config_node_gyp_jobs: String(compilerJobs) };
-    return runNativeSetupCommand(command, args, {
+    const result = await runNativeSetupCommand(command, args, {
       cwd, stdio: capture ? 'pipe' : 'inherit', env, signal, timeoutMs: 600000,
       maxOutputBytes: 8 * 1024 * 1024, rejectOnNonZeroExit: false, windowsHide: true
     });
+    return checkCompletedInputs(result);
   };
   const runNpmCommand = (args, options) => runNativeCommand('npm', args, options);
 
@@ -241,11 +264,13 @@ const runNativeRebuildOwned = async ({ verifyOnly, repairOnly }, { root, session
   };
   const nativeCapabilities = new Map();
   const probePackage = async (pkgName, signal = invocationSignal) => {
+    checkInputs();
     const grammarRoutes = Object.entries(NATIVE_GRAMMAR_MODULES)
       .filter(([, spec]) => spec.moduleName === pkgName)
       .map(([languageId, spec]) => ({ ...spec, languageId, source: LANGUAGE_SAMPLES[languageId] }));
     if (grammarRoutes.some((route) => !route.source)) throw new Error('Missing bounded native language activation sample.');
     const result = await probePackageIsolated(pkgName, grammarRoutes, signal);
+    checkCompletedInputs(result);
     if (result.ok && result.capabilities) nativeCapabilities.set(pkgName, result.capabilities);
     return result;
   };
@@ -324,8 +349,7 @@ const runNativeRebuildOwned = async ({ verifyOnly, repairOnly }, { root, session
   };
 
   const verifyRequiredPackages = async () => {
-    invocationSignal?.throwIfAborted();
-    requireCheckoutMutationSession(root, session);
+    checkInputs();
     const verification = captureBootstrapVerification(root);
     const failures = await getRequiredPackageFailures({ label: 'verify:native' });
     invocationSignal?.throwIfAborted();
@@ -418,8 +442,9 @@ const runNativeRebuildOwned = async ({ verifyOnly, repairOnly }, { root, session
   };
 
   const recordReadiness = async verification => {
+    checkInputs();
     await applyPatchesAsync(root, { verifyOnly: true, signal: invocationSignal, session });
-    requireCheckoutMutationSession(root, session);
+    checkInputs();
     recordBootstrapReadiness(root, REQUIRED_NATIVE_PACKAGES, {
       verification,
       nativeCapabilities: [...nativeCapabilities.values()].flat().sort((a, b) =>

@@ -2702,3 +2702,4 @@ tooling/install/bootstrap-drain-failure/observer-and-drain
 tooling/install/bootstrap-drain-failure/task-and-drain
 tooling/install/bootstrap-drain-failure/original-observer-resources
 shared/concurrency/scheduler-shutdown-terminal-handoff
+tooling/install/native-rebuild-import/original-input-generation

@@ -132,6 +132,11 @@ Invocation cancellation reaches native build/probe schedulers, patch verificatio
 and child commands. Mode and invocation context are captured before asynchronous
 admission; changing caller containers cannot turn verification into a rebuild.
 Three import/admission controls await execution.
+Direct native invocations also snapshot canonical setup/lock/patch input hashes
+before asynchronous admission. Original ownership and those hashes are rechecked
+around commands/probes and immediately before receipt publication. A later
+verification capture cannot silently adopt source changes made during rebuilding.
+The additional original-generation admission control awaits execution.
 
 The canonical checkout coordinator and direct native entry now share one original
 file-lock session spanning their actual work. Nested operations require its
