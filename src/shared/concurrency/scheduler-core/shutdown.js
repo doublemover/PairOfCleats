@@ -17,9 +17,22 @@ export function createSchedulerShutdown({
     if (telemetryTimer) clearInterval(telemetryTimer);
     queueLifecycle.clearAllQueues('scheduler shutdown');
     if (!awaitRunning) return;
-    const pending = Array.from(state.runningTasks);
+    const originalRunning = state.runningTasks, pending = Array.from(originalRunning);
     if (!pending.length) return;
-    const joined = Promise.allSettled(pending);
+    let originalPromisesSettled = false;
+    const originalDrainSettled = () => originalPromisesSettled && pending.every(task => !originalRunning.has(task));
+    const drainFailure = (code, message, details = {}) => {
+      const error = Object.assign(new Error(message), { code, ...details });
+      Object.defineProperties(error, { cacheOwnershipPending: { value: true },
+        cacheOwnershipReleased: { value: originalDrainSettled } });
+      return error;
+    };
+    const joined = Promise.allSettled(pending).then(results => {
+      originalPromisesSettled = true;
+      if (!originalDrainSettled()) throw drainFailure('ERR_SCHEDULER_DRAIN_INCOMPLETE',
+        'Scheduler task promises settled without retiring their original reservations.');
+      return results;
+    });
     const resolvedTimeoutMs = Number.isFinite(Number(timeoutMs))
       ? Math.max(0, Math.floor(Number(timeoutMs)))
       : 0;
@@ -27,8 +40,11 @@ export function createSchedulerShutdown({
     let timeoutHandle = null;
     const timeoutPromise = new Promise((resolve, reject) => {
       timeoutHandle = setTimeout(() => {
-        reject(Object.assign(new Error(`Scheduler drain timed out after ${resolvedTimeoutMs}ms with ${state.runningTasks.size} running task(s).`),
-          { code: 'ERR_SCHEDULER_DRAIN_TIMEOUT', timeoutMs: resolvedTimeoutMs, runningTasks: state.runningTasks.size }));
+        // A bounded waiter has stopped, not the tasks/resources it observed.
+        // Only these original completion promises can retire this prerequisite.
+        reject(drainFailure('ERR_SCHEDULER_DRAIN_TIMEOUT',
+          `Scheduler drain timed out after ${resolvedTimeoutMs}ms with ${originalRunning.size} running task(s).`,
+          { timeoutMs: resolvedTimeoutMs, runningTasks: originalRunning.size }));
       }, resolvedTimeoutMs);
     });
     return Promise.race([joined, timeoutPromise])

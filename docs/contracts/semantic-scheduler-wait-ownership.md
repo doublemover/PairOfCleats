@@ -28,3 +28,12 @@ This source batch has syntax/lint review only; mixed one-token waits, native ope
 shutdown failures, close-only recovery, cancellation/fairness and representative
 resource/output parity are deferred with #1330. It is not full runtime or latency
 qualification.
+
+A scheduler drain deadline retains an immutable observation of its original
+task completion promises. Timeout is not resource retirement, including when a
+native task has already rejected publicly while retaining its physical owner.
+The observation becomes settled only after those exact promises and their
+original scheduler reservations retire; mutable counts, replacement containers
+or rewritten diagnostics cannot grant completion. Settled promises with held
+reservations produce an explicit incomplete-drain error. Existing drain controls
+now cover these distinctions and await execution with the repair batch.
