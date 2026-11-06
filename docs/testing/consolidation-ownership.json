@@ -276,5 +276,79 @@
       "matrixStrategy": "separate-process-boundaries",
       "processIsolationRequired": true
     }
+  ],
+  "consumerWitnesses": [
+    {
+      "contractId": "coverage-physical-source-identity",
+      "consumerId": "coverage-policy-changed-path-join",
+      "caseId": "runner/harness/coverage-physical-source-identity/physical-consumer",
+      "sourcePaths": [
+        "tools/testing/coverage/source-identity.js",
+        "tools/testing/coverage/index.js",
+        "tools/testing/coverage/policy.js"
+      ],
+      "requiredScope": [
+        "Distinct physical source labels remain distinct through collector, merge and changed-path policy.",
+        "Observed ranges cannot qualify an unobserved changed physical source."
+      ],
+      "expectedOracleKind": "physical-identity",
+      "negativeCaseIds": [
+        "runner/harness/coverage-physical-source-identity/identity-adapter",
+        "runner/harness/coverage-physical-source-identity/physical-consumer"
+      ]
+    },
+    {
+      "contractId": "fractional-percentile-semantics",
+      "consumerId": "scheduler-latency-histogram",
+      "caseId": "shared/perf/percentiles-and-histogram",
+      "sourcePaths": [
+        "src/shared/perf/percentiles.js",
+        "src/shared/perf/histogram.js",
+        "src/shared/concurrency/scheduler-core-stats.js"
+      ],
+      "requiredScope": [
+        "Default sample normalization preserves fractional values.",
+        "Nearest-rank, interpolated, empty and explicit-rounding policies have independent expected values.",
+        "Actual scheduler run-latency projection retains fractional samples."
+      ],
+      "expectedOracleKind": "independent-values",
+      "negativeCaseIds": [
+        "shared/perf/percentiles-and-histogram"
+      ]
+    },
+    {
+      "contractId": "falsey-failure-resource-settlement",
+      "consumerId": "semantic-enrichment-drain",
+      "caseId": "indexing/semantic/drain-falsey-failure-ownership/builder-null",
+      "sourcePaths": [
+        "src/integrations/tooling/semantic-enrichment.js",
+        "src/shared/storage/failure-observation.js"
+      ],
+      "requiredScope": [
+        "Falsey rejection remains a failed operation and journal state.",
+        "Original native control handles close; published generation and pointer remain unchanged."
+      ],
+      "expectedOracleKind": "original-resource-settlement",
+      "negativeCaseIds": [
+        "indexing/semantic/drain-falsey-failure-ownership/builder-null"
+      ]
+    },
+    {
+      "contractId": "falsey-failure-resource-settlement",
+      "consumerId": "semantic-enrichment-drain",
+      "caseId": "indexing/semantic/drain-falsey-failure-ownership/release-null",
+      "sourcePaths": [
+        "src/integrations/tooling/semantic-enrichment.js",
+        "src/shared/storage/failure-observation.js"
+      ],
+      "requiredScope": [
+        "Falsey rejection remains a failed operation and journal state.",
+        "Original native control handles close; published generation and pointer remain unchanged."
+      ],
+      "expectedOracleKind": "original-resource-settlement",
+      "negativeCaseIds": [
+        "indexing/semantic/drain-falsey-failure-ownership/release-null"
+      ]
+    }
   ]
 }

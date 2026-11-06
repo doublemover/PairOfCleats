@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-06T06:08:14.339Z",
+  "generatedAt": "2026-11-06T06:18:05.171Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
@@ -4909,6 +4909,7 @@
         "tests/tooling/architecture/caps-verdict-cli-consumers.test.js",
         "tests/tooling/cache/gc-modern-resource-ownership.test.js",
         "tests/tooling/ci/lsp-runtime-qualification.test.js",
+        "tests/tooling/consumer-proof-index.test.js",
         "tests/tooling/eval/coverage-and-default-datasets.test.js",
         "tests/tooling/fixtures/fixture-eval.test.js",
         "tests/tooling/index-stats/additional-family-producers.test.js",

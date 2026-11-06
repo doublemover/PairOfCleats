@@ -135,9 +135,9 @@ const normalizeSurface = (root, surface, index) => {
 export const getShippedSurfacesRegistryPath = (root = resolveToolRoot()) =>
   path.join(root, SHIPPED_SURFACES_REGISTRY_PATH);
 
-export const loadShippedSurfaces = (root = resolveToolRoot()) => {
+/** Shared normalization of packaging declarations, never execution evidence. */
+export const normalizeShippedSurfaces = (root, payload) => {
   const registryPath = getShippedSurfacesRegistryPath(root);
-  const payload = JSON.parse(fs.readFileSync(registryPath, 'utf8'));
   const surfaces = (Array.isArray(payload?.surfaces) ? payload.surfaces : [])
     .map((surface, index) => normalizeSurface(root, surface, index));
   const ids = new Set();
@@ -160,6 +160,9 @@ export const loadShippedSurfaces = (root = resolveToolRoot()) => {
     surfaces
   };
 };
+
+export const loadShippedSurfaces = (root = resolveToolRoot()) => normalizeShippedSurfaces(root,
+  JSON.parse(fs.readFileSync(getShippedSurfacesRegistryPath(root), 'utf8')));
 
 export const getReleaseCheckSurfaceSteps = (
   root = resolveToolRoot(),

@@ -2493,3 +2493,7 @@ storage/semantic/runtime-writer-resource-ownership/metadata-original
 storage/semantic/runtime-writer-resource-ownership/initialization-original
 storage/semantic/runtime-writer-resource-ownership/falsey-errors
 storage/semantic/runtime-writer-resource-ownership/shared-account
+tooling/consumer-proof-index/projection
+tooling/consumer-proof-index/reference-guards
+tooling/consumer-proof-index/source-diff
+tooling/consumer-proof-index/consolidation-controls
