@@ -669,6 +669,7 @@ export const computeInterproceduralRisk = ({
 
   let edgeExpansions = 0;
   let timedOut = false;
+  let witnessParentDepth = 0;
 
   while (queue.length) {
     if (maxMs && Date.now() - start > maxMs) {
@@ -677,6 +678,14 @@ export const computeInterproceduralRisk = ({
       break;
     }
     const state = queue.pop();
+    if (state.depth !== witnessParentDepth) {
+      // The queue orders depth before every tie: all shallower parents are done.
+      // Its destination keys can never be queried again: new edges advance one
+      // depth. Descendants retain their own shared ancestry, without an arena
+      // keeping completed leaf witnesses alive through the rest of traversal.
+      witnessesByState.clear();
+      witnessParentDepth = state.depth;
+    }
     const summary = summaryByUid.get(state.chunkUid);
     let sinkSignals = preparedSinks.get(state.chunkUid);
     if (!sinkSignals) {

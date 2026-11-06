@@ -15,6 +15,12 @@ existing serial30-second owner, with original15-second build CLI limits.
 Current hosted qualification is reported on [PR572](https://github.com/doublemover/PairOfCleats/pull/572).
 
 
+[Risk witness retention](../archived/risk-witness-retention-closeout-2026-11-05.md)
+qualifies76 focused Windows cases with complete path/frontier parity and54 raw
+original/candidate/control samples. Completed-layer index ownership is bounded;
+CPU/wall results are mixed and do not qualify a general latency gain. Risk remains
+disabled by default; real measurements retain the existing serial owner.
+
 [Runtime family reuse](../archived/runtime-family-reuse-closeout-2026-11-05.md)
 qualifies63 focused Windows controls, including fresh-process retained-family reuse,
 original near-cap/work counterexamples and hardlink-safe control accounting.

@@ -9,8 +9,8 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 2037,
-    "matrix": 109,
+    "hero": 2096,
+    "matrix": 110,
     "meta": 54,
     "soak": 1,
     "heavy-runtime": 0
@@ -13219,6 +13219,366 @@
     {
       "id": "storage/semantic/runtime-control-replacement-accounting/hardlinked",
       "order": 2201,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/risk/interprocedural/witness-representation-parity/spine4",
+      "order": 2202,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/risk/interprocedural/witness-representation-parity/spine20",
+      "order": 2203,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/risk/interprocedural/witness-representation-parity/branch4",
+      "order": 2204,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/risk/interprocedural/witness-representation-parity/branch20",
+      "order": 2205,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/risk/interprocedural/witness-representation-parity/diamond",
+      "order": 2206,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/risk/interprocedural/witness-representation-parity/cycle",
+      "order": 2207,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/risk/interprocedural/witness-representation-parity/multiple-roots",
+      "order": 2208,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/risk/interprocedural/witness-representation-parity/tainted",
+      "order": 2209,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/risk/interprocedural/witness-representation-parity/untainted",
+      "order": 2210,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/risk/interprocedural/witness-representation-parity/spread",
+      "order": 2211,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/risk/interprocedural/witness-representation-parity/terminate",
+      "order": 2212,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/risk/interprocedural/witness-representation-parity/weaken",
+      "order": 2213,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/risk/interprocedural/witness-representation-parity/timeout-frontier",
+      "order": 2214,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/risk/interprocedural/witness-representation-parity/cap-matrix",
+      "order": 2215,
+      "suiteCategory": "matrix",
+      "suiteCategoryReason": "matrix-filename"
+    },
+    {
+      "id": "indexing/risk/interprocedural/witness-representation-parity/escaping-order",
+      "order": 2216,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/risk/witness-retention-work/spine4-candidate-1",
+      "order": 2217,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/risk/witness-retention-work/spine4-candidate-2",
+      "order": 2218,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/risk/witness-retention-work/spine4-candidate-3",
+      "order": 2219,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/risk/witness-retention-work/spine4-reference-1",
+      "order": 2220,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/risk/witness-retention-work/spine4-reference-2",
+      "order": 2221,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/risk/witness-retention-work/spine4-reference-3",
+      "order": 2222,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/risk/witness-retention-work/spine12-candidate-1",
+      "order": 2223,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/risk/witness-retention-work/spine12-candidate-2",
+      "order": 2224,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/risk/witness-retention-work/spine12-candidate-3",
+      "order": 2225,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/risk/witness-retention-work/spine12-reference-1",
+      "order": 2226,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/risk/witness-retention-work/spine12-reference-2",
+      "order": 2227,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/risk/witness-retention-work/spine12-reference-3",
+      "order": 2228,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/risk/witness-retention-work/spine20-candidate-1",
+      "order": 2229,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/risk/witness-retention-work/spine20-candidate-2",
+      "order": 2230,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/risk/witness-retention-work/spine20-candidate-3",
+      "order": 2231,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/risk/witness-retention-work/spine20-reference-1",
+      "order": 2232,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/risk/witness-retention-work/spine20-reference-2",
+      "order": 2233,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/risk/witness-retention-work/spine20-reference-3",
+      "order": 2234,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/risk/witness-retention-work/branch4-candidate-1",
+      "order": 2235,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/risk/witness-retention-work/branch4-candidate-2",
+      "order": 2236,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/risk/witness-retention-work/branch4-candidate-3",
+      "order": 2237,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/risk/witness-retention-work/branch4-reference-1",
+      "order": 2238,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/risk/witness-retention-work/branch4-reference-2",
+      "order": 2239,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/risk/witness-retention-work/branch4-reference-3",
+      "order": 2240,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/risk/witness-retention-work/branch20-candidate-1",
+      "order": 2241,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/risk/witness-retention-work/branch20-candidate-2",
+      "order": 2242,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/risk/witness-retention-work/branch20-candidate-3",
+      "order": 2243,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/risk/witness-retention-work/branch20-reference-1",
+      "order": 2244,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/risk/witness-retention-work/branch20-reference-2",
+      "order": 2245,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/risk/witness-retention-work/branch20-reference-3",
+      "order": 2246,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/risk/witness-retention-work/spine20-wide-candidate-1",
+      "order": 2247,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/risk/witness-retention-work/spine20-wide-candidate-2",
+      "order": 2248,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/risk/witness-retention-work/spine20-wide-candidate-3",
+      "order": 2249,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/risk/witness-retention-work/spine20-wide-reference-1",
+      "order": 2250,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/risk/witness-retention-work/spine20-wide-reference-2",
+      "order": 2251,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/risk/witness-retention-work/spine20-wide-reference-3",
+      "order": 2252,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/risk/interprocedural/argument-evidence-frontier",
+      "order": 2253,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/risk/interprocedural/callsite-sampling-run-memo",
+      "order": 2254,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/risk/interprocedural/converging-witnesses",
+      "order": 2255,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/risk/interprocedural/engine-shape-guards",
+      "order": 2256,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/risk/interprocedural/immutable-edge-preparation",
+      "order": 2257,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/risk/interprocedural/parent-linked-witness-parity",
+      "order": 2258,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/risk/interprocedural/partial-flows",
+      "order": 2259,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/risk/interprocedural/summaries-shape-guards",
+      "order": 2260,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/risk/interprocedural/upstream-input-coverage",
+      "order": 2261,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

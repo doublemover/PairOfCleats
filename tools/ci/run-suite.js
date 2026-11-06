@@ -40,6 +40,9 @@ for (const family of ['runtime-import-reuse', 'runtime-claims-reuse', 'runtime-c
   const { cases } = JSON.parse(await fsPromises.readFile(path.join(ROOT, `tests/storage/semantic/${family}.test.js.cases.json`), 'utf8'));
   SERIAL_RUNTIME_BUDGET_IDS.push(...cases.map(id => `storage/semantic/${family}/${id}`));
 }
+const riskWitnessWorkCases = JSON.parse(await fsPromises.readFile(
+  path.join(ROOT, 'tests/perf/risk/witness-retention-work.test.js.cases.json'), 'utf8'));
+SERIAL_RUNTIME_BUDGET_IDS.push(...riskWitnessWorkCases.cases.map(id => `perf/risk/witness-retention-work/${id}`));
 const SERIAL_ANN_GENERATION_IDS = ['retrieval/ann/generation-publication',
   'retrieval/ann/generation-rebuild-failure', 'retrieval/ann/generation-lmdb'];
 const nativePublicationCases = JSON.parse(await fsPromises.readFile(

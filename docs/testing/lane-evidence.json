@@ -1,17 +1,17 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-11-05T23:25:14.904Z",
+  "generatedAt": "2026-11-06T00:00:00.730Z",
   "summary": {
     "lanes": 5,
-    "tests": 2517,
+    "tests": 2577,
     "exactDuplicates": 0,
     "hotspotKinds": 10,
-    "families": 423,
+    "families": 424,
     "topSlowest": 10,
     "timingCoverage": {
       "freshArtifactTests": 0,
       "historicalFallbackTests": 74,
-      "missingTests": 2443
+      "missingTests": 2503
     }
   },
   "lanes": [
@@ -35,7 +35,7 @@
       "targetMaxDurationSeconds": 15,
       "orderFile": "tests/ci-lite/ci-lite.order.txt",
       "timingArtifactPath": ".testLogs/ci-lite-testRunTimes.txt",
-      "totalTests": 2201,
+      "totalTests": 2261,
       "knownDurationTests": 49,
       "knownDurationMs": 27090,
       "p50DurationMs": 190,
@@ -43,7 +43,7 @@
       "resolvedTimingArtifactPaths": [],
       "timingSources": {
         "historical-test-times": 49,
-        "missing": 2152
+        "missing": 2212
       }
     },
     {
@@ -349,10 +349,22 @@
       "unknownDurationCount": 46
     },
     {
+      "key": "indexing/risk",
+      "count": 44,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 44
+    },
+    {
       "key": "shared/artifact-io",
       "count": 39,
       "knownDurationMs": 0,
       "unknownDurationCount": 39
+    },
+    {
+      "key": "perf/risk",
+      "count": 36,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 36
     },
     {
       "key": "integrations/inference-history",
@@ -401,12 +413,6 @@
       "count": 21,
       "knownDurationMs": 0,
       "unknownDurationCount": 21
-    },
-    {
-      "key": "indexing/risk",
-      "count": 20,
-      "knownDurationMs": 0,
-      "unknownDurationCount": 20
     },
     {
       "key": "tooling/ci",
@@ -2638,9 +2644,9 @@
   "hotspots": [
     {
       "key": "index-build-heavy",
-      "count": 679,
+      "count": 703,
       "knownDurationMs": 70250,
-      "unknownDurationCount": 638,
+      "unknownDurationCount": 662,
       "note": "Index construction, replay, and build-heavy setup overlap."
     },
     {

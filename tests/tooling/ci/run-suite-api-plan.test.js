@@ -13,6 +13,9 @@ const publicationIds = JSON.parse(fs.readFileSync(path.join(root, 'tests/storage
 const reuseIds = ['runtime-import-reuse', 'runtime-claims-reuse', 'runtime-control-replacement-accounting'].flatMap(family =>
   JSON.parse(fs.readFileSync(path.join(root, `tests/storage/semantic/${family}.test.js.cases.json`), 'utf8')).cases
     .map(id => `storage/semantic/${family}/${id}`));
+const riskWitnessWorkIds = JSON.parse(fs.readFileSync(path.join(root,
+  'tests/perf/risk/witness-retention-work.test.js.cases.json'), 'utf8')).cases
+  .map(id => `perf/risk/witness-retention-work/${id}`);
 const sourceAuthorityIds = JSON.parse(fs.readFileSync(path.join(root,
   'tests/storage/semantic/runtime-source-reference-authority.test.js.cases.json'), 'utf8')).cases
   .map(id => `storage/semantic/runtime-source-reference-authority/${id}`);
@@ -78,6 +81,7 @@ for (const mode of ['ci', 'nightly']) {
             'retrieval/ann/generation-publication', 'retrieval/ann/generation-rebuild-failure']
             : ['indexing/semantic/compiler-single-cpu-lifecycle',
               ...reuseIds,
+              ...riskWitnessWorkIds,
               'indexing/artifacts/binary-frame-manifest-integrity', 'indexing/semantic/sealed-piece-manifest-work',
               'indexing/artifacts/field-postings-adaptive-shards-and-binary',
               'shared/artifact-io/binary-frame-checksum-receipts/oversized',

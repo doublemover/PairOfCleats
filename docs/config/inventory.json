@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-05T23:19:40.967Z",
+  "generatedAt": "2026-11-06T00:00:04.436Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
@@ -4741,6 +4741,7 @@
         "tests/indexing/language-registry/operation-import-boundary.test.js",
         "tests/indexing/postings/phrase-hash-resource-observations.test.js",
         "tests/indexing/publication/integrity-stream-ownership.test.js",
+        "tests/indexing/risk/interprocedural/witness-representation-parity.test.js",
         "tests/indexing/runtime/build-cli-selected-outcome.test.js",
         "tests/indexing/runtime/receipt-persistence-observation.test.js",
         "tests/indexing/runtime/rejected-preflight-receipt.test.js",
@@ -4797,6 +4798,7 @@
         "tests/perf/bench/selected-cohort-generation-consumer.test.js",
         "tests/perf/bench/vfs-producer-accounting.test.js",
         "tests/perf/crash-log-error-latency.test.js",
+        "tests/perf/risk/witness-retention-work.test.js",
         "tests/perf/tooling/bench/sqlite-benchmark-cli.test.js",
         "tests/perf/tooling/bench/sqlite-campaign.test.js",
         "tests/retrieval/ann/lancedb-outcome-consumers.test.js",
