@@ -3,8 +3,8 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { applyPatches, applyPatchesAsync } from '../../../tools/setup/apply-patches.js';
-import { createPatchFixture, originalText, patchedText } from './patch-fixture.js';
+import { applyPatchesAsync } from '../../../tools/setup/apply-patches.js';
+import { applyPatchFixture, createPatchFixture, originalText, patchedText } from './patch-fixture.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 
 applyTestEnv();
@@ -20,7 +20,7 @@ try {
   assert.equal(await applyPatchesAsync(root), 3);
   for (const fixture of fixtures) assert.equal(await fs.readFile(fixture.target, 'utf8'), patchedText);
   assert.equal(await applyPatchesAsync(root, { verifyOnly: true }), 3);
-  assert.equal(applyPatches(root, { verifyOnly: true }), 3, 'synchronous consumers retain the same state machine');
+  assert.equal(await applyPatchFixture(root, { verifyOnly: true }), 3, 'explicit serial admission retains the same verified result');
   await fs.writeFile(fixtures[1].target, originalText);
   await assert.rejects(applyPatchesAsync(root, { verifyOnly: true }), /has not been applied/);
   assert.equal(await fs.readFile(fixtures[1].target, 'utf8'), originalText);

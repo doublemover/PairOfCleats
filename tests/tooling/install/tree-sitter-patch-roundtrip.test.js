@@ -3,7 +3,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { spawnSubprocess } from '../../../src/shared/subprocess/runner.js';
-import { applyPatches } from '../../../tools/setup/apply-patches.js';
+import { applyPatchFixture } from './patch-fixture.js';
 import { prepareIsolatedTestCacheDir } from '../../helpers/test-cache.js';
 
 const { dir } = await prepareIsolatedTestCacheDir('tree-sitter-patch-roundtrip');
@@ -47,7 +47,7 @@ for (const [file, expected] of Object.entries(blobs)) {
   const actual = createHash('sha1').update(Buffer.from(`blob ${b.length}\0`)).update(b).digest('hex');
   assert.equal(actual, expected, `exact locked npm package blob: ${file}`);
 }
-assert.equal(applyPatches(dir), Object.keys(blobs).length);
-assert.equal(applyPatches(dir, { verifyOnly: true }), Object.keys(blobs).length);
+assert.equal(await applyPatchFixture(dir), Object.keys(blobs).length);
+assert.equal(await applyPatchFixture(dir, { verifyOnly: true }), Object.keys(blobs).length);
 for (const [relative, expected] of snapshots) assert.equal(await fs.readFile(path.join(dir, relative), 'utf8'), expected);
 console.log('The complete Tree-sitter patch restores nine verified locked package blobs and reapplies exactly.');

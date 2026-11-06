@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["exact-success-and-failure", "original-resource-retirement", "cleanup-failure-and-identity", "unknown-cleanup-and-nested-enoent"]
+}

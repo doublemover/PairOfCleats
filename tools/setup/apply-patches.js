@@ -1,13 +1,16 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { spawnSync } from 'node:child_process';
 import { exitLikeChildResult } from './postinstall-exit.js';
 import { spawnResolvedSubprocess } from '../../src/shared/subprocess/command-invocation.js';
 import { resolveBootstrapBudget, runBootstrapTasks } from './bootstrap-tasks.js';
-import { isAbortError } from '../../src/shared/abort.js';
+import { throwIfAborted } from '../../src/shared/abort.js';
+import { readErrorDataProperty } from '../../src/shared/error-data.js';
+import { describeStorageFailure } from '../../src/shared/storage/failure-observation.js';
+import { addStorageFailureContext } from '../../src/shared/storage/operation-error.js';
+import { withCheckoutMutation, requireCheckoutMutationSession } from './checkout-mutation.js';
+import { withPackagePatchStage } from './patch-stage.js';
 
 const MAX_PATCH_BYTES = 1024 * 1024;
 const MAX_FILE_BYTES = 16 * 1024 * 1024;
@@ -130,17 +133,6 @@ const gitOptions = stage => {
   return { cwd: stage, env, shell: false, windowsHide: true };
 };
 const gitArgs = (args, input = '-') => ['-c', 'core.autocrlf=false', 'apply', '--whitespace=nowarn', ...args, input];
-const runGit = (stage, patch, args) => {
-  const result = spawnSync('git', gitArgs(args), { ...gitOptions(stage),
-    input: patch, encoding: 'utf8', maxBuffer: MAX_PATCH_BYTES, timeout: 30000 });
-  if (result.error || result.signal || result.status === null) {
-    const error = new Error('Cannot run required Git patch tool: '
-      + (result.error?.message || result.signal || 'no exit status'));
-    error.childResult = result;
-    throw error;
-  }
-  return result;
-};
 const runGitAsync = async (stage, patch, args, signal) => {
   try {
     fs.writeFileSync(path.join(stage, 'patch.diff'), patch, { mode: 0o600 });
@@ -155,10 +147,14 @@ const runGitAsync = async (stage, patch, args, signal) => {
     // Preserve scheduler cancellation and any original subprocess ownership.
     // Wrapping AbortError as a Git failure lets an earlier cancelled input
     // mask the actual incompatible patch that stopped the preparation wave.
-    if (isAbortError(cause)) throw cause;
-    const error = new Error('Cannot run required Git patch tool: ' + cause.message, { cause });
-    const result = cause.result;
-    if (result) error.childResult = { ...result, status: result.exitCode };
+    const description = describeStorageFailure(cause, { phase: 'package-patch-git', defaultCode: 'ERR_PATCH_GIT',
+      defaultMessage: 'Git patch operation failed.' });
+    if (readErrorDataProperty(cause, 'name') === 'AbortError' || readErrorDataProperty(cause, 'code') === 'ABORT_ERR') throw cause;
+    const error = new Error('Cannot run required Git patch tool: ' + description.message, { cause });
+    try {
+      const result = readErrorDataProperty(cause, 'result');
+      if (result) error.childResult = { ...result, status: result.exitCode };
+    } catch (inspection) { throw addStorageFailureContext(error, {}, inspection, { secondaryPresent: true }); }
     throw error;
   }
 };
@@ -209,7 +205,7 @@ const collectPatchInputs = cwd => {
   return { root, inputs };
 };
 
-// One state machine serves the synchronous compatibility API and async CLI.
+// One state machine serves serial and parallel preparation in the async owner.
 // Every target has its own Git working directory and private configuration.
 function* preparePatch(input, stage, verifyOnly) {
   const { name, before, crlf } = input;
@@ -277,49 +273,43 @@ const publishPatches = (root, prepared, { verifyOnly, verbose, log, started }) =
   return prepared.length;
 };
 
-export const applyPatches = (cwd = process.cwd(), { verifyOnly = false, verbose = false, log = console.log } = {}) => {
-  const started = performance.now();
-  const { root, inputs } = collectPatchInputs(cwd);
-  const prepared = inputs.map(input => {
-    const stage = fs.mkdtempSync(path.join(os.tmpdir(), 'poc-package-patches-'));
-    try {
-      const iterator = preparePatch(input, stage, verifyOnly);
-      let step = iterator.next();
-      while (!step.done) step = iterator.next(runGit(stage, input.patch, step.value));
-      return step.value;
-    } finally { fs.rmSync(stage, { recursive: true, force: true }); }
-  });
-  return publishPatches(root, prepared, { verifyOnly, verbose, log, started });
+export const applyPatchesAsync = async (cwd = process.cwd(), options = {}) => {
+  const { verifyOnly = false, signal = null, verbose = false, log = console.log, session = null, budget } = options;
+  const capturedBudget = budget ? Object.freeze({ ...budget }) : undefined;
+  return withCheckoutMutation(cwd, actual => applyPatchesOwned(cwd, { verifyOnly, signal, verbose, log, session: actual,
+    ...(capturedBudget ? { budget: capturedBudget } : {}) }), { session, signal, kind: 'package-patches' });
 };
 
-export const applyPatchesAsync = async (cwd = process.cwd(), { verifyOnly = false, signal = null,
-  verbose = false, log = console.log,
+const applyPatchesOwned = async (cwd, { verifyOnly = false, signal = null,
+  verbose = false, log = console.log, session,
   budget = resolveBootstrapBudget({ bytesPerJob: 128 * 1024 * 1024 }) } = {}) => {
   const started = performance.now();
   const { root, inputs } = collectPatchInputs(cwd);
   if (!inputs.length) return 0;
   const outcome = await runBootstrapTasks(inputs.map((input, index) => ({
     id: 'patch:' + index, bytes: 128 * 1024 * 1024,
-    run: async ({ signal: taskSignal }) => {
-      const stage = fs.mkdtempSync(path.join(os.tmpdir(), 'poc-package-patches-'));
-      try {
-        const iterator = preparePatch(input, stage, verifyOnly);
-        let step = iterator.next();
-        while (!step.done) step = iterator.next(await runGitAsync(stage, input.patch, step.value, taskSignal));
-        return step.value;
-      } finally { fs.rmSync(stage, { recursive: true, force: true }); }
-    }
+    run: async ({ signal: taskSignal }) => withPackagePatchStage(root, session, async stage => {
+      const iterator = preparePatch(input, stage, verifyOnly);
+      let step = iterator.next();
+      while (!step.done) step = iterator.next(await runGitAsync(stage, input.patch, step.value, taskSignal));
+      return step.value;
+    })
   })), { budget, signal });
   // Input order owns diagnostics and publication even when preparation overlaps.
   const failure = outcome.results.find(row => row.status === 'failed');
   if (failure) throw failure.error;
-  if (!outcome.ok || signal?.aborted) throw signal?.reason || new Error('Package patch preparation cancelled.');
+  const cancelled = outcome.results.find(row => row.status === 'cancelled' && row.error !== null);
+  if (cancelled) throw cancelled.error;
+  throwIfAborted(signal, 'Package patch preparation cancelled.');
+  if (!outcome.ok) throw new Error('Package patch preparation cancelled.');
+  requireCheckoutMutationSession(root, session);
   return publishPatches(root, outcome.results.map(row => row.result), { verifyOnly, verbose, log, started });
 };
 
 export const exitPatchFailure = (error) => {
-  console.error('[patches] ' + error.message);
-  if (error.childResult) exitLikeChildResult(error.childResult);
+  const message = readErrorDataProperty(error, 'message'), result = readErrorDataProperty(error, 'childResult');
+  console.error('[patches] ' + (typeof message === 'string' ? message : 'Package patch operation failed.'));
+  if (result) exitLikeChildResult(result);
   else process.exit(1);
 };
 

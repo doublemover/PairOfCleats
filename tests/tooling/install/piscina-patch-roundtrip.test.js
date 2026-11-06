@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSubprocess } from '../../../src/shared/subprocess/runner.js';
-import { applyPatches } from '../../../tools/setup/apply-patches.js';
+import { applyPatchFixture } from './patch-fixture.js';
 import { prepareIsolatedTestCacheDir } from '../../helpers/test-cache.js';
 
 const { dir } = await prepareIsolatedTestCacheDir('piscina-patch-roundtrip');
@@ -51,8 +51,8 @@ for (const [relative, expectedHash] of originals) {
   const hash = createHash('sha1').update(Buffer.from(`blob ${bytes.length}\0`)).update(bytes).digest('hex');
   assert.equal(hash, expectedHash, `unpatched Piscina tarball identity differs: ${relative}`);
 }
-assert.equal(applyPatches(dir), originals.size);
-assert.equal(applyPatches(dir, { verifyOnly: true }), originals.size);
+assert.equal(await applyPatchFixture(dir), originals.size);
+assert.equal(await applyPatchFixture(dir, { verifyOnly: true }), originals.size);
 for (const [relative, bytes] of installed) {
   assert.deepEqual(await fs.readFile(path.join(dir, relative)), bytes);
 }

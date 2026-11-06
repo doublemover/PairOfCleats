@@ -2,8 +2,8 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { applyPatches } from '../../../tools/setup/apply-patches.js';
-import { createPatchFixture, originalText, patchedText } from './patch-fixture.js';
+
+import { applyPatchFixture, createPatchFixture, originalText, patchedText } from './patch-fixture.js';
 
 const suite = path.join(process.cwd(), '.tmp', 'tasks', 'multifile-patch');
 await fs.mkdir(suite, { recursive: true });
@@ -17,15 +17,15 @@ const addSecond = async value => {
 };
 const clean = await fixture('clean');
 const second = await addSecond(clean);
-assert.equal(applyPatches(path.dirname(path.dirname(clean.patchFile))), 2);
+assert.equal(await applyPatchFixture(path.dirname(path.dirname(clean.patchFile))), 2);
 assert.equal(await fs.readFile(clean.target, 'utf8'), patchedText);
 assert.equal(await fs.readFile(second, 'utf8'), patchedText);
-assert.equal(applyPatches(path.dirname(path.dirname(clean.patchFile))), 2);
+assert.equal(await applyPatchFixture(path.dirname(path.dirname(clean.patchFile))), 2);
 
 const atomic = await fixture('atomic');
 const bad = await addSecond(atomic);
 await fs.writeFile(bad, 'incompatible\n');
-assert.throws(() => applyPatches(path.dirname(path.dirname(atomic.patchFile))), /not fully applied/);
+await assert.rejects(() => applyPatchFixture(path.dirname(path.dirname(atomic.patchFile))), /not fully applied/);
 assert.equal(await fs.readFile(atomic.target, 'utf8'), originalText);
 for (const [name, transform, expected] of [
   ['duplicate', value => value.patch + value.patch, /Multiple patches target/],
@@ -37,11 +37,11 @@ for (const [name, transform, expected] of [
 ]) {
   const value = await fixture(name);
   await fs.writeFile(value.patchFile, transform(value));
-  assert.throws(() => applyPatches(path.dirname(path.dirname(value.patchFile))), expected);
+  await assert.rejects(() => applyPatchFixture(path.dirname(path.dirname(value.patchFile))), expected);
   assert.equal(await fs.readFile(value.target, 'utf8'), originalText);
 }
 const nonregular = await fixture('nonregular');
 await fs.rename(nonregular.target, nonregular.target + '.preserved');
 await fs.mkdir(nonregular.target);
-assert.throws(() => applyPatches(path.dirname(path.dirname(nonregular.patchFile))), /regular unlinked file/);
+await assert.rejects(() => applyPatchFixture(path.dirname(path.dirname(nonregular.patchFile))), /regular unlinked file/);
 console.log('Bounded multi-file package patch safety test passed');

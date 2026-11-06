@@ -5,7 +5,7 @@ import path from 'node:path';
 import { createRequire } from 'node:module';
 import { spawnSync } from 'node:child_process';
 import { extractDocx, loadDocxExtractorRuntime } from '../../../src/index/extractors/docx.js';
-import { applyPatches } from '../../../tools/setup/apply-patches.js';
+import { applyPatchFixture } from '../../tooling/install/patch-fixture.js';
 import { runNode } from '../../helpers/run-node.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 import { makeTempDir, rmDirRecursive } from '../../helpers/temp.js';
@@ -261,22 +261,22 @@ try {
     await fs.writeFile(fixturePatch, patchSource.replace(/\n/g, lineEnding));
     await fs.writeFile(fixtureCli, pristineSource.replace(/\n/g, lineEnding));
     const expectedSource = fixtureSource.replace(/\n/g, lineEnding);
-    assert.equal(applyPatches(patchFixture), 1, 'the actual patch applies to LF and CRLF vendor fixtures');
+    assert.equal(await applyPatchFixture(patchFixture), 1, 'the actual patch applies to LF and CRLF vendor fixtures');
     assert.equal(await fs.readFile(fixtureCli, 'utf8'), expectedSource);
-    assert.equal(applyPatches(patchFixture), 1, 'repeat patch application is accepted');
+    assert.equal(await applyPatchFixture(patchFixture), 1, 'repeat patch application is accepted');
     assert.equal(await fs.readFile(fixtureCli, 'utf8'), expectedSource);
   }
 
   await fs.writeFile(fixtureCli, pristineSource);
   await fs.writeFile(fixtureManifest, JSON.stringify({ name: 'mammoth', version: '1.13.1' }));
-  assert.throws(() => applyPatches(patchFixture), /requires exactly mammoth@1\.13\.0/);
+  await assert.rejects(() => applyPatchFixture(patchFixture), /requires exactly mammoth@1\.13\.0/);
   assert.equal(await fs.readFile(fixtureCli, 'utf8'), pristineSource, 'version mismatch leaves source intact');
 
   await fs.writeFile(fixtureManifest, JSON.stringify({ name: 'mammoth', version: '1.13.0' }));
   const partialSource = pristineSource.replace('addHelp: true', 'add_help: true');
   assert.notEqual(partialSource, pristineSource);
   await fs.writeFile(fixtureCli, partialSource);
-  assert.throws(() => applyPatches(patchFixture), /not fully applied/);
+  await assert.rejects(() => applyPatchFixture(patchFixture), /not fully applied/);
   assert.equal(await fs.readFile(fixtureCli, 'utf8'), partialSource, 'a partial patch fails without changing source');
   assert.equal(await fs.readFile(mammothCli, 'utf8'), installedSource, 'fixture checks never modify installed Mammoth');
 

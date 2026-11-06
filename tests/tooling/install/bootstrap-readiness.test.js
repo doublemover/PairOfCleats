@@ -19,6 +19,7 @@ const required = ['better-sqlite3', 'tree-sitter', 'tree-sitter-javascript'];
 const inputs = ['.nvmrc', 'tools/setup/checkout-diagnose.js', 'tools/setup/preflight.js', 'src/shared/direct-execution.js', 'tools/setup/apply-patches.js', 'tools/setup/rebuild-native.js',
   'tools/setup/checkout-bootstrap.js', 'tools/setup/checkout-bootstrap-arguments.js',
   'tools/setup/checkout-bootstrap-paths.js', 'tools/setup/checkout-mutation.js',
+  'tools/setup/patch-stage.js',
   'src/shared/locks/file-lock-publication.js', 'src/shared/io/file-identity.js',
   'tools/setup/rebuild-native-sqlite.js', 'tools/setup/readiness.js', 'src/shared/native-package-probe.js',
   'src/shared/native-onnx-probe.js',

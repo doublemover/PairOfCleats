@@ -140,9 +140,19 @@ entry readiness is blocked while that mutation or retained original work exists.
 Age and PID death never reclaim the record. Exact original release can be retried
 only through its retained owner after physical prerequisites settle. Setup input
 drift stops successor stages; explicit dependency resolution alone admits its
-intended lockfile change. Five session controls await execution. Direct patch and
-postinstall admission, durable stage journals and cross-process qualification
-remain the next #1555 work.
+intended lockfile change. Direct patch preparation borrows the same session or
+acquires its own when invoked alone. Git uses exact owned staging directories
+under `.tmp/checkout-bootstrap/patches/`; outstanding original child work blocks
+their cleanup. A retained staging artifact has a separate original cleanup owner
+and never proves that a child retired. Replacing its directory or editing a
+diagnostic path cannot authorize deletion. Five session and four staging controls
+await execution. Postinstall admission, durable stage journals and cross-process
+qualification remain the next #1555 work.
+
+The synchronous patch API has been removed after moving its 24 remaining calls
+in nine fixtures to the asynchronous owner. Every existing assertion and ordered
+case remains; formerly synchronous controls now explicitly admit one job, while
+the parallel preparation fixture still checks the same inputs concurrently.
 Unsupported Node or missing Git/Python/build
 tools stop immediately with a prerequisite error. Windows discovers the target
 compiler, MSBuild and SDK, then the direct preflight entry compiles and links a

@@ -3,7 +3,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { spawnSubprocess } from '../../../src/shared/subprocess/runner.js';
-import { applyPatches } from '../../../tools/setup/apply-patches.js';
+import { applyPatchFixture } from './patch-fixture.js';
 import { prepareIsolatedTestCacheDir } from '../../helpers/test-cache.js';
 const { dir } = await prepareIsolatedTestCacheDir('node-pty-patch-roundtrip');
 const patchName = 'node-pty+1.1.0.patch';
@@ -51,7 +51,7 @@ for (const section of sections) {
   const hash = createHash('sha1').update(Buffer.from(`blob ${value.length}\0`)).update(value).digest('hex');
   assert.ok(hash.startsWith(originalHash), `unpatched package identity differs: ${relative}`);
 }
-assert.equal(applyPatches(dir), 8);
-assert.equal(applyPatches(dir, { verifyOnly: true }), 8);
+assert.equal(await applyPatchFixture(dir), 8);
+assert.equal(await applyPatchFixture(dir, { verifyOnly: true }), 8);
 for (const [relative, value] of snapshots) assert.equal(await fs.readFile(path.join(dir, relative), 'utf8'), value);
 console.log('The exact eight-file node-pty patch applies from verified original package blobs and verifies after installation.');

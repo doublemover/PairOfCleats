@@ -1,5 +1,9 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { applyPatchesAsync } from '../../../tools/setup/apply-patches.js';
+
+const patchFixtureBudget = Object.freeze({ jobs: 1, cpuCount: 1, memoryBytes: 128 * 1024 * 1024, compilerJobs: 1 });
+export const applyPatchFixture = (root, options = {}) => applyPatchesAsync(root, { budget: patchFixtureBudget, ...options });
 
 export const originalText = 'start\nold one\nmiddle\nold two\nend\n';
 export const patchedText = 'start\nnew one\nmiddle\nnew two\nend\n';

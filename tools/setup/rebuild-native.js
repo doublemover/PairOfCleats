@@ -418,7 +418,7 @@ const runNativeRebuildOwned = async ({ verifyOnly, repairOnly }, { root, session
   };
 
   const recordReadiness = async verification => {
-    await applyPatchesAsync(root, { verifyOnly: true, signal: invocationSignal });
+    await applyPatchesAsync(root, { verifyOnly: true, signal: invocationSignal, session });
     requireCheckoutMutationSession(root, session);
     recordBootstrapReadiness(root, REQUIRED_NATIVE_PACKAGES, {
       verification,

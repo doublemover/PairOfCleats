@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 2521,
+    "hero": 2525,
     "matrix": 110,
     "meta": 54,
     "soak": 1,
@@ -16131,6 +16131,30 @@
       "order": 2686,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/install/patch-stage-ownership/exact-success-and-failure",
+      "order": 2687,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/patch-stage-ownership/original-resource-retirement",
+      "order": 2688,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/patch-stage-ownership/cleanup-failure-and-identity",
+      "order": 2689,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/patch-stage-ownership/unknown-cleanup-and-nested-enoent",
+      "order": 2690,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     }
   ]
 }

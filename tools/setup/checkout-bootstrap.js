@@ -54,7 +54,7 @@ export const runCheckoutBootstrap = async (args, { root = ROOT, env = process.en
     const execute = async stage => {
       if (command) return command(stage.command, stage.args, { cwd: root, env, signal, stdio: 'inherit', windowsHide: true });
       if (stage.id === 'patches') {
-        await (await import('./apply-patches.js')).applyPatchesAsync(root, { signal });
+        await (await import('./apply-patches.js')).applyPatchesAsync(root, { signal, session });
         return { ok: true, status: 0, signal: null };
       }
       if (['native-preparation', 'native-verification'].includes(stage.id)) {

@@ -2689,3 +2689,7 @@ shared/subprocess/original-failure-causes/stdin-error
 shared/subprocess/original-failure-causes/pre-abort-reasons
 shared/subprocess/original-failure-causes/owned-abort-reasons
 shared/subprocess/original-failure-causes/tree-cleanup-rejections
+tooling/install/patch-stage-ownership/exact-success-and-failure
+tooling/install/patch-stage-ownership/original-resource-retirement
+tooling/install/patch-stage-ownership/cleanup-failure-and-identity
+tooling/install/patch-stage-ownership/unknown-cleanup-and-nested-enoent

@@ -3,7 +3,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { spawnSubprocess } from '../../../src/shared/subprocess/runner.js';
-import { applyPatches } from '../../../tools/setup/apply-patches.js';
+import { applyPatchFixture } from './patch-fixture.js';
 import { prepareIsolatedTestCacheDir } from '../../helpers/test-cache.js';
 
 const { dir } = await prepareIsolatedTestCacheDir('perl-patch-roundtrip');
@@ -33,7 +33,7 @@ const original = await fs.readFile(path.join(dir, relative));
 const blob = createHash('sha1').update(Buffer.from(`blob ${original.length}\0`)).update(original).digest('hex');
 assert.equal(blob, '58b5c4050ac4f5baae6055e5697365cc0f256b63',
   'reverse must restore the exact scanner from the integrity-verified locked npm tarball');
-assert.equal(applyPatches(dir), 1);
-assert.equal(applyPatches(dir, { verifyOnly: true }), 1);
+assert.equal(await applyPatchFixture(dir), 1);
+assert.equal(await applyPatchFixture(dir, { verifyOnly: true }), 1);
 assert.equal(await fs.readFile(path.join(dir, relative), 'utf8'), source);
 console.log('The Perl patch restores the exact locked scanner blob and reapplies completely.');
