@@ -2841,3 +2841,5 @@ shared/storage/quota-decision-boundaries/volume-scoped-free-space-reserve
 shared/storage/lifecycle-operator-review/root-intent-and-unknown-accounting
 shared/storage/lifecycle-operator-review/same-inventory-overlap-and-no-mutation
 shared/storage/lifecycle-operator-review/original-owner-diagnosis-and-review-bound
+shared/storage/probe-policy-semantic-equality/semantic-policy-equality
+shared/storage/probe-policy-semantic-equality/strict-fields-and-stale-plan

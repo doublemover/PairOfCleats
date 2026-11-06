@@ -16,6 +16,12 @@ receipt in `config/storage-policy-selections`. A changed prior locator, changed
 receipt, wrong home, category or plan ID rejects publication. Configuration is
 not a cleanup plan and does not remove or relocate cached bytes.
 
+Policy equality compares the current schema's complete primitive fields, not
+JSON object key order. Reordered equivalent locator fields retain the immutable
+selection. Both policies must still pass strict current-field validation; missing,
+unknown or wrong-type fields remain invalid. The locator's exact byte hash still
+invalidates a stale reviewed apply, and equality never rewrites receipt bytes.
+
 The real command-probe reader, writer and prune owner consume this policy.
 Future writes admit their serialized bytes before publication; cooperative
 writer exclusion protects producer-owned pruning. Entry count and logical byte

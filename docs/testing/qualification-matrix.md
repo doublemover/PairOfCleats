@@ -23,7 +23,7 @@ bootstrap receipts do not qualify these changed owners.
 
 | Current qualification owner | Required evidence | Status |
 | --- | --- | --- |
-| Quota planning and operator review (#1267) | Age/clock validity, alias accounting, same-volume reserve, original inventory/owner projection and no mutation | Eight fixtures authored, locally unrun; quota selection/eviction composition and real Windows allocation/pressure acceptance remain |
+| Quota planning, policy and operator review (#1267) | Age/clock validity, alias accounting, same-volume reserve, original inventory/owner projection, semantic policy equality and strict stale apply | Ten fixtures authored, locally unrun; quota selection/eviction composition and real Windows allocation/pressure acceptance remain |
 | Finite source-policy receipts (#1530) | Frozen original source execution, subgroup/missing/abstention gates, paired diagnostics and exact domain/expiry invalidation | Nine fixtures authored, locally unrun; maximum shadow-only; calibration, cross-run exposure, statistical risk and production activation remain separate |
 | Local retrieval adaptation (#1529) | Source-pinned training-only judgments/masks, named objective gradients, exact pairing, independent dense reference, deterministic CPU training/resume, retraction and retirement | Cohort/optimizer/kernel and 22 fixtures authored, locally unrun; actual encoder execution, serving integration and held-out quality/cost qualification remain |
 | Checkout transaction, recovery and readiness | Strict dependency-free information paths; exact locked install; current package/patch/native verification; concurrent and cancelled owners; generation drift | Focused fixtures authored; new runtime acceptance pending |

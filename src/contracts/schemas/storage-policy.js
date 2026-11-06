@@ -22,3 +22,11 @@ export const assertCommandProbeStoragePolicy = (value, { partial = false } = {})
   }
   return value;
 };
+
+/** Flat authoritative policy fields have primitive values. JSON key order is
+ * not policy meaning; both sides remain strict complete current contracts.
+ */
+export const sameCommandProbeStoragePolicy = (left, right) => {
+  assertCommandProbeStoragePolicy(left); assertCommandProbeStoragePolicy(right);
+  return COMMAND_PROBE_STORAGE_POLICY_SCHEMA.required.every(key => left[key] === right[key]);
+};

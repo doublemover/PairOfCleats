@@ -2,7 +2,7 @@ import path from 'node:path';
 import { readVerifiedContainedFileSync } from '../contained-file.js';
 import { describeStorageFailure } from './failure-observation.js';
 import { STORAGE_POLICY_VERSION, COMMAND_PROBE_POLICY_DEFAULTS,
-  assertCommandProbeStoragePolicy } from '../../contracts/schemas/storage-policy.js';
+  assertCommandProbeStoragePolicy, sameCommandProbeStoragePolicy } from '../../contracts/schemas/storage-policy.js';
 
 export const STORAGE_POLICY_FILE = 'storage-policies.json';
 const hash = value => typeof value === 'string' && /^[a-f0-9]{64}$/u.test(value);
@@ -33,7 +33,7 @@ export const readStorageProbePolicy = home => {
       if (receiptRead.hash !== entry.receiptHash || !exactKeys(receipt, ['schemaVersion', 'kind', 'selectionId', 'home', 'category', 'policy', 'priorSelection'])
         || receipt.schemaVersion !== STORAGE_POLICY_VERSION || receipt.kind !== 'pairofcleats-storage-policy-selection'
         || receipt.home !== home || receipt.category !== 'command-probes' || receipt.selectionId !== entry.selectionId
-        || JSON.stringify(receipt.policy) !== JSON.stringify(entry.policy)) throw new Error('Immutable storage policy receipt is missing, changed or belongs to another owner.');
+        || !sameCommandProbeStoragePolicy(receipt.policy, entry.policy)) throw new Error('Immutable storage policy receipt is missing, changed or belongs to another owner.');
     }
     return { status: 'present', target, value, sha256: read.hash, policy: entry?.policy || { ...COMMAND_PROBE_POLICY_DEFAULTS },
       source: entry ? 'machine-local-reviewed-policy' : 'legacy-defaults', policyId: entry?.selectionId || null, mutationPerformed: false };

@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 2673,
+    "hero": 2675,
     "matrix": 110,
     "meta": 54,
     "soak": 1,
@@ -17041,6 +17041,18 @@
     {
       "id": "shared/storage/lifecycle-operator-review/original-owner-diagnosis-and-review-bound",
       "order": 2838,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/probe-policy-semantic-equality/semantic-policy-equality",
+      "order": 2839,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/probe-policy-semantic-equality/strict-fields-and-stale-plan",
+      "order": 2840,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }
