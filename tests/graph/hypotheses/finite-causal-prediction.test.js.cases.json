@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["common-cause-counterfactual", "collider-conditioning", "weights-and-incomplete-support", "factorized-support-parity", "scope-and-cursor-ownership"]
+}

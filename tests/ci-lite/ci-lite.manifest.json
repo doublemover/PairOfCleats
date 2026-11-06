@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 2447,
+    "hero": 2452,
     "matrix": 110,
     "meta": 54,
     "soak": 1,
@@ -15685,6 +15685,36 @@
     {
       "id": "graph/hypotheses/finite-causal-model/ownership-and-cancellation",
       "order": 2612,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "graph/hypotheses/finite-causal-prediction/common-cause-counterfactual",
+      "order": 2613,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "graph/hypotheses/finite-causal-prediction/collider-conditioning",
+      "order": 2614,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "graph/hypotheses/finite-causal-prediction/weights-and-incomplete-support",
+      "order": 2615,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "graph/hypotheses/finite-causal-prediction/factorized-support-parity",
+      "order": 2616,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "graph/hypotheses/finite-causal-prediction/scope-and-cursor-ownership",
+      "order": 2617,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

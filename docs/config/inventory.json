@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-06T12:46:32.095Z",
+  "generatedAt": "2026-11-06T12:54:27.587Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
@@ -4712,6 +4712,7 @@
         "tests/context-pack/token-counter-invocation.test.js",
         "tests/fixtures/benchmarks/ownership-boundary-caps.js",
         "tests/graph/hypotheses/finite-causal-model.test.js",
+        "tests/graph/hypotheses/finite-causal-prediction.test.js",
         "tests/graph/hypotheses/positive-repair.test.js",
         "tests/graph/impact-indexed-source-cli.test.js",
         "tests/helpers/test-env.js",

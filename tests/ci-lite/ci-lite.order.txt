@@ -2615,3 +2615,8 @@ graph/hypotheses/finite-causal-model/all-valuations-and-interventions
 graph/hypotheses/finite-causal-model/typed-domains-and-support
 graph/hypotheses/finite-causal-model/strict-equations-and-mass
 graph/hypotheses/finite-causal-model/ownership-and-cancellation
+graph/hypotheses/finite-causal-prediction/common-cause-counterfactual
+graph/hypotheses/finite-causal-prediction/collider-conditioning
+graph/hypotheses/finite-causal-prediction/weights-and-incomplete-support
+graph/hypotheses/finite-causal-prediction/factorized-support-parity
+graph/hypotheses/finite-causal-prediction/scope-and-cursor-ownership

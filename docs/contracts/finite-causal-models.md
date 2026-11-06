@@ -48,5 +48,51 @@ Four unexecuted cases cover all 1,152 assignments/interventions over 64 small
 Boolean DAGs against an independent simultaneous-valuation oracle, mixed typed
 variables, descendant recomputation, exact weights, malformed/cyclic models,
 support/domain errors, immutability, source/run identity and cancellation.
-Counterfactual prediction, compatibility and action discrimination are subsequent
-consumers of this evaluator, not implicit consequences of creating a model.
+
+## Factual-conditioned prediction and compatibility
+
+`createFiniteCausalPredictionService` filters original exogenous assignments by
+explicit supplied factual values, then applies the intervention to those same
+assignments. Query model/world/question and every operational definition must
+match. Unavailable evidence cannot carry filtering values. The exact weighted
+conditioning mass is accumulated separately; zero support and zero conditioning
+mass remain distinct unresolved premises, without fabricated probabilities.
+
+Pages admit at most 256 assignments, 32 outcome updates, 250 ms of cooperative
+work and 128 KiB of wire JSON. The owned cumulative outcome set is limited to
+2 MiB; the shared semantic continuation budget charges 16 MiB per retained cursor
+for model, compiled data and snapshot state. Old cursor replay forks the original
+checked prefix. Changed evidence, intervention, definitions, world or task/
+branch/assumptions cannot resume it. Deferred publication, failed serialization,
+cancellation, TTL/count/byte eviction and disposal reuse the existing page and
+retention owners. No native reader or experiment is retained.
+
+Wire pages contain updates to the cumulative outcome set; each outcome retains
+the number of original assignments, its unnormalized mass when weighted and one
+support-index/valuation witness. `projectFiniteCausalOutcomes` pages the immutable
+owned cumulative set, including probabilities available only after complete
+positive-mass conditioning. Partial traversal or unknown additional support never
+establishes an exclusion. Serialized pages cannot forge owned completion receipts.
+
+`compareFiniteCausalEvidence` requires the original prediction and an exactly
+scoped, fully defined outcome tuple. Inclusion establishes compatibility only.
+Exclusion from a complete finite prediction contradicts that declared model under
+the supplied premises. An absence claim additionally requires complete
+instrumentation/window coverage; missing instrumentation is not a missing event.
+Observation receipt IDs remain supplied metadata until an external owner admits
+them. This pure comparison cannot certify causal direction or eliminate a live
+investigation hypothesis automatically.
+
+An internal factorized parity path traverses sums of original support occurrences
+through the existing factor-relation owner. Physical sum paths carry no extra
+assignment count or probability mass. It charges construction and traversal on
+every page and makes no optimization claim. Both paths use the identical model,
+question and evaluation semantics; model preparation and actual equation steps
+remain visible in work receipts.
+
+Five additional unexecuted cases cover common-cause versus direct models,
+factual counterfactuals versus resampling, collider conditioning, exact rational
+mass/zero mass, incomplete support, missing instrumentation, 64-assignment flat/
+factorized parity, assignment counts, stale scopes, bounded private cursors,
+output failure and cancellation. Action discrimination is a subsequent consumer;
+statistical/learned identification remains unqualified and disabled.
