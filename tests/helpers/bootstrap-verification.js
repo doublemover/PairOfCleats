@@ -2,6 +2,18 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { BOOTSTRAP_INPUTS, captureBootstrapVerification, recordBootstrapReadiness } from '../../src/shared/bootstrap-readiness.js';
 import { makeTempDir } from './temp.js';
+import { withCheckoutMutation } from '../../tools/setup/checkout-mutation.js';
+import { withCheckoutStageJournal } from '../../tools/setup/checkout-stage-journal.js';
+
+/** Actual mutation/journal scope for inert metadata fixtures. The fixture does
+ * not claim native activation; placeholder files are never loaded here.
+ */
+export const withBootstrapVerificationFixture = (root, packages, operation = ({ capture, record }) => record(capture())) =>
+  withCheckoutMutation(root, session => withCheckoutStageJournal(root, session,
+    { schemaVersion: 1, kind: 'inert-bootstrap-metadata-fixture', root: session.root, stages: [{ id: 'fixture-verification' }] },
+    journal => journal.runStage('fixture-verification', () => operation({ session, journal,
+      capture: () => captureBootstrapVerification(root, { session }),
+      record: verification => recordBootstrapReadiness(root, packages, { verification }) }))));
 
 /** Inert metadata fixture only. No placeholder native file is ever activated,
  * and these receipts are never used for application workload admission.
@@ -18,6 +30,5 @@ export const makeBootstrapVerificationFixture = async () => {
     await write(`node_modules/${name}/package.json`, JSON.stringify({ name, version: '1.0.0' }));
     await write(`node_modules/${name}/fixture.node`, 'inert-metadata-only-never-load');
   }
-  return { root, packages, write, capture: () => captureBootstrapVerification(root),
-    record: verification => recordBootstrapReadiness(root, packages, { verification }) };
+  return { root, packages, write, verify: operation => withBootstrapVerificationFixture(root, packages, operation) };
 };

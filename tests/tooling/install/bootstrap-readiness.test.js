@@ -6,7 +6,9 @@ import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-import { BOOTSTRAP_RECEIPT, captureBootstrapVerification, inspectBootstrapReadiness, recordBootstrapReadiness } from '../../../src/shared/bootstrap-readiness.js';
+import { BOOTSTRAP_RECEIPT, BOOTSTRAP_INPUTS, inspectBootstrapReadiness } from '../../../src/shared/bootstrap-readiness.js';
+import { withBootstrapVerificationFixture } from '../../helpers/bootstrap-verification.js';
+import { copyBootstrapMetadataSources } from '../../helpers/bootstrap-metadata-sources.js';
 
 // Intentionally dependency-free: this diagnostic must run in an unbootstrapped
 // checkout and tests executable gates without starting a real benchmark/index.
@@ -16,28 +18,8 @@ const write = (relative, text) => {
   fs.writeFileSync(file, text);
 };
 const required = ['better-sqlite3', 'tree-sitter', 'tree-sitter-javascript'];
-const inputs = ['.nvmrc', 'tools/setup/checkout-diagnose.js', 'tools/setup/preflight.js', 'src/shared/direct-execution.js', 'tools/setup/apply-patches.js', 'tools/setup/rebuild-native.js',
-  'tools/setup/checkout-bootstrap.js', 'tools/setup/checkout-bootstrap-arguments.js',
-  'tools/setup/checkout-bootstrap-paths.js', 'tools/setup/checkout-mutation.js',
-  'tools/setup/patch-stage.js',
-  'tools/setup/task-progress.js',
-  'tools/setup/postinstall.js',
-  'src/shared/locks/file-lock-publication.js', 'src/shared/io/file-identity.js',
-  'src/shared/locks/file-lock-producer-observations.js',
-  'src/shared/io/atomic-write.js', 'src/shared/metrics/atomic-persistence.js',
-  'tools/setup/rebuild-native-sqlite.js', 'tools/setup/readiness.js', 'src/shared/native-package-probe.js',
-  'src/shared/native-onnx-probe.js',
-  'tools/setup/bootstrap-tasks.js', 'tools/setup/native-build-plan.js',
-  'src/shared/concurrency/scheduler-core/dispatch.js', 'src/shared/concurrency/scheduler-core/shutdown.js',
-  'src/shared/concurrency/scheduler-core/index.js',
-  'tools/setup/native-command-result.js',
-  'tools/setup/native-failure-summary.js',
-  'tools/setup/native-diagnostics.js',
-  'src/shared/abort.js', 'src/shared/subprocess/errors.js', 'src/shared/subprocess/runner-async.js',
-  'tools/setup/windows-capability.js',
-  'src/shared/bootstrap-readiness.js', 'src/lang/tree-sitter/native-runtime.js',
-  'src/lang/tree-sitter/native-grammar-binding.js',
-  'tools/setup/rebuild-native-exit.js'];
+const inputs = [...BOOTSTRAP_INPUTS.filter(relative => !['package.json', 'package-lock.json'].includes(relative)),
+  'tools/setup/checkout-diagnose.js', 'tools/setup/rebuild-native-exit.js'];
 const entries = ['bin/pairofcleats.js', 'tests/run.js', 'tools/bench/bench-runner.js', 'tools/bench/micro/hash.js'];
 entries.push('tools/analysis/graph-evidence.js');
 // Every guarded cache-path consumer must reject an incomplete checkout before
@@ -61,6 +43,7 @@ try {
   write('package.json', JSON.stringify({ type: 'module', version: '1.2.3', dependencies: Object.fromEntries(required.map(name => [name, '1.0.0'])) }));
   write('package-lock.json', '{}');
   for (const relative of inputs) write(relative, fs.readFileSync(path.join(sourceRoot, relative), 'utf8'));
+  copyBootstrapMetadataSources(sourceRoot, root, ['src/shared/bootstrap-readiness.js']);
   for (const entry of entries) write(entry, fs.readFileSync(path.join(sourceRoot, entry), 'utf8'));
   const information = execute('bin/pairofcleats.js', ['--version']);
   assert.equal(information.status, 0);
@@ -105,8 +88,8 @@ try {
   write('node_modules/tree-sitter/index.cjs', parser);
   write('node_modules/tree-sitter-javascript/index.cjs', 'module.exports = {};');
   write('node_modules/tree-sitter/fixture.node', 'binary evidence');
-  const record = () => recordBootstrapReadiness(root, required, { verification: captureBootstrapVerification(root) });
-  record();
+  const record = () => withBootstrapVerificationFixture(root, required);
+  await record();
   assert.equal((await inspectBootstrapReadiness({ root })).ready, true);
   for (const entry of entries) {
     const text = fs.readFileSync(path.join(root, entry), 'utf8');
@@ -125,36 +108,36 @@ try {
   write('node_modules/tree-sitter/index.cjs', parser);
   write('node_modules/tree-sitter/fixture.node', 'changed binary evidence');
   assert.match((await inspectBootstrapReadiness({ root })).reason, /artifact changed/);
-  record();
+  await record();
   const preflight = fs.readFileSync(path.join(root, 'tools/setup/preflight.js'), 'utf8');
   write('tools/setup/preflight.js', `${preflight}\n// changed prerequisite policy\n`);
   assert.equal((await inspectBootstrapReadiness({ root })).ready, false, 'changed prerequisite policy invalidates setup evidence');
   write('tools/setup/preflight.js', preflight);
-  record();
+  await record();
   const capability = fs.readFileSync(path.join(root, 'tools/setup/windows-capability.js'), 'utf8');
   write('tools/setup/windows-capability.js', `${capability}\n// changed selected compiler capability policy\n`);
   assert.equal((await inspectBootstrapReadiness({ root })).ready, false,
     'changing the actual Windows capability owner invalidates prior bootstrap evidence');
   write('tools/setup/windows-capability.js', capability);
-  record();
+  await record();
   const directExecution = fs.readFileSync(path.join(root, 'src/shared/direct-execution.js'), 'utf8');
   write('src/shared/direct-execution.js', `${directExecution}\n// changed entry detection policy\n`);
   assert.equal((await inspectBootstrapReadiness({ root })).ready, false, 'changed entry detection invalidates setup evidence');
   write('src/shared/direct-execution.js', directExecution);
-  record();
+  await record();
   const onnxProbe = fs.readFileSync(path.join(root, 'src/shared/native-onnx-probe.js'), 'utf8');
   write('src/shared/native-onnx-probe.js', `${onnxProbe}\n// changed native lifecycle admission\n`);
   assert.equal((await inspectBootstrapReadiness({ root })).ready, false,
     'changed mixed-consumer ONNX lifecycle admission invalidates prior setup evidence');
   write('src/shared/native-onnx-probe.js', onnxProbe);
-  record();
+  await record();
   fs.unlinkSync(path.join(root, 'node_modules/tree-sitter/fixture.node'));
   assert.equal((await inspectBootstrapReadiness({ root })).ready, false, 'missing native artifacts reject the receipt');
-  record();
+  await record();
   write('patches/fixture+1.0.0.patch', 'changed required patch');
   assert.match((await inspectBootstrapReadiness({ root })).reason, /patches have changed/);
   fs.unlinkSync(path.join(root, 'patches/fixture+1.0.0.patch'));
-  record();
+  await record();
   const receipt = JSON.parse(fs.readFileSync(path.join(root, BOOTSTRAP_RECEIPT), 'utf8'));
   receipt.runtime.abi = 'stale'; write(BOOTSTRAP_RECEIPT, JSON.stringify(receipt));
   const staleAbi = await inspectBootstrapReadiness({ root });

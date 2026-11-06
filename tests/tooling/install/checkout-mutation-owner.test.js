@@ -118,7 +118,7 @@ try {
     retired = true; await retireCheckoutMutationSession(failure.checkoutMutationSession);
     assert.equal(await exists(), false); assert.equal(operations, 1, 'retirement never replays the mutation');
   } else {
-    fixture.record(fixture.capture());
+    await fixture.verify();
     assert.equal((await inspectBootstrapReadiness({ root, probeNatives: false })).ready, true);
     await withCheckoutMutation(root, async () => {
       const blocked = await inspectBootstrapReadiness({ root, probeNatives: false });

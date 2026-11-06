@@ -1,4 +1,5 @@
 {
   "schemaVersion": 1,
-  "cases": ["setup-input-drift", "dependency-artifact-drift", "original-single-use-capture", "receipt-evidence-and-cutover"]
+  "cases": ["setup-input-drift", "dependency-artifact-drift", "original-single-use-capture", "receipt-evidence-and-cutover",
+    "original-session-and-active-publication", "journal-identity-and-completion", "journal-frame-integrity"]
 }

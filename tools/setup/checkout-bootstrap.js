@@ -44,7 +44,9 @@ export const runCheckoutBootstrap = async (args, { root = ROOT, env = process.en
     qualification: 'declared-stage-plan-not-executed' });
   if (['plan', 'status'].includes(options.mode)) return { ...plan, exitCode: options.mode === 'status' && !diagnosis.ready ? 1 : 0 };
   const { withCheckoutMutation, requireCheckoutMutationSession } = await import('./checkout-mutation.js');
-  return withCheckoutMutation(root, async session => {
+  const { withCheckoutStageJournal } = await import('./checkout-stage-journal.js');
+  const { addStorageFailureContext } = await import('../../src/shared/storage/operation-error.js');
+  return withCheckoutMutation(root, session => withCheckoutStageJournal(root, session, plan, async journal => {
     const checkInputs = () => {
       requireCheckoutMutationSession(root, session);
       const selected = rows => options.policy === 'resolve' ? rows.filter(([file]) => file !== 'package-lock.json') : rows;
@@ -68,7 +70,12 @@ export const runCheckoutBootstrap = async (args, { root = ROOT, env = process.en
     for (const stage of stages) {
       signal?.throwIfAborted(); checkInputs();
       progress('[bootstrap] started: ' + stage.id);
-      const result = await execute(stage);
+      const result = await journal.runStage(stage.id, async () => {
+        const actual = await execute(stage);
+        try { checkInputs(); }
+        catch (error) { throw addStorageFailureContext(error, { checkoutStageResult: actual }, null, { nonEnumerable: ['checkoutStageResult'] }); }
+        return actual;
+      });
       results.push({ id: stage.id, ok: result.ok, status: result.status, signal: result.signal });
       if (!result.ok) throw Object.assign(new Error('Checkout bootstrap failed at ' + stage.id + '.'), {
         code: 'ERR_CHECKOUT_BOOTSTRAP_STAGE', stage: stage.id, result, plan, results
@@ -78,7 +85,7 @@ export const runCheckoutBootstrap = async (args, { root = ROOT, env = process.en
     return { schemaVersion: 1, kind: 'checkout-bootstrap-result', plan, results, exitCode: 0,
       transaction: { runId: session.runId, scope: 'application-checkout-dependency-tree' },
       qualification: 'existing-native-and-patch-verifier-owned; ordinary-entry-rechecks-readiness' };
-  }, { signal });
+  }), { signal });
 };
 
 if (isDirectExecution(import.meta.url)) {

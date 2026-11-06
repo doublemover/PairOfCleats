@@ -8,6 +8,7 @@ import { BOOTSTRAP_INPUTS } from '../../../src/shared/bootstrap-readiness.js';
 import { makeTempDir } from '../../helpers/temp.js';
 import { runNode } from '../../helpers/run-node.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
+import { copyBootstrapMetadataSources } from '../../helpers/bootstrap-metadata-sources.js';
 
 applyTestEnv();
 const mode = process.env.PAIROFCLEATS_TEST_ID?.split('tooling/install/checkout-bootstrap-entry/')[1];
@@ -40,6 +41,7 @@ try {
         const target = path.join(root, relative); await fs.mkdir(path.dirname(target), { recursive: true });
         await fs.copyFile(path.resolve(relative), target);
       }
+      copyBootstrapMetadataSources(process.cwd(), root, ['src/shared/bootstrap-readiness.js']);
       const inventory = async () => {
         const result = [];
         const visit = async relative => {

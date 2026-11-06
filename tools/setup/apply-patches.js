@@ -277,8 +277,16 @@ const publishPatches = (root, prepared, { verifyOnly, verbose, log, started }) =
 export const applyPatchesAsync = async (cwd = process.cwd(), options = {}) => {
   const { verifyOnly = false, signal = null, verbose = false, log = console.log, session = null, budget } = options;
   const capturedBudget = budget ? Object.freeze({ ...budget }) : undefined;
-  return withCheckoutMutation(cwd, actual => applyPatchesOwned(cwd, { verifyOnly, signal, verbose, log, session: actual,
-    ...(capturedBudget ? { budget: capturedBudget } : {}) }), { session, signal, kind: 'package-patches' });
+  return withCheckoutMutation(cwd, async actual => {
+    const execute = () => applyPatchesOwned(cwd, { verifyOnly, signal, verbose, log, session: actual,
+      ...(capturedBudget ? { budget: capturedBudget } : {}) });
+    // A read-only direct check must not replace the journal qualifying existing
+    // readiness. Nested checks remain tracked by their original parent journal.
+    const { withCheckoutStageJournal, getCheckoutStageJournal } = await import('./checkout-stage-journal.js');
+    if (verifyOnly && !getCheckoutStageJournal(actual)) return execute();
+    return withCheckoutStageJournal(cwd, actual, { schemaVersion: 1, kind: 'direct-package-patch-plan',
+      root: actual.root, stages: [{ id: 'patches' }] }, (journal, owned) => owned ? journal.runStage('patches', execute) : execute());
+  }, { session, signal, kind: 'package-patches' });
 };
 
 const applyPatchesOwned = async (cwd, { verifyOnly = false, signal = null,

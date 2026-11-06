@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 2570,
+    "hero": 2573,
     "matrix": 110,
     "meta": 54,
     "soak": 1,
@@ -16423,6 +16423,24 @@
     {
       "id": "tooling/install/native-diagnostic-ownership/unknown-write-retains-owner",
       "order": 2735,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/bootstrap-verification-generation/original-session-and-active-publication",
+      "order": 2736,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/bootstrap-verification-generation/journal-identity-and-completion",
+      "order": 2737,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/bootstrap-verification-generation/journal-frame-integrity",
+      "order": 2738,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     }

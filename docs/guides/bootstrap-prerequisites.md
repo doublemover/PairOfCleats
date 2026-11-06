@@ -84,7 +84,7 @@ Activation JSON uses a separate at-most-1-MiB read of its original completed log
 with exact post-close file identity and raw-byte hash checks. A truncated display
 tail cannot supply that structured result, and copied records authorize no read.
 Cross-run log retention, nested VM-probe logs,
-terminal transport qualification and durable root-stage journals remain
+terminal transport qualification remain
 pending. The limits above bound one invocation; they are not a machine-wide quota
 or a measured memory/throughput result.
 Activation/build/repair summaries retain original producer packets, fixed task
@@ -170,12 +170,19 @@ Normal `npm run bootstrap:ci` (locked install) and `npm run bootstrap`
 dependencies. Stages stop at the original failure or cancellation, with actual
 child settlement managed by the existing command owner. Checkout preparation
 always targets the application checkout, separately from target provisioning.
-The six added entry regressions await execution. Readiness format 2 requires an
+The six added entry regressions await execution. Readiness format 3 requires an
 original single-use generation capture taken immediately before the complete
 native probes. Publication rechecks setup hashes, declared dependencies and the
 entire admitted artifact metadata inventory; changed inputs or native artifacts
 preserve the prior receipt and require fresh verification. Obsolete receipt
-formats are rejected. Artifact metadata remains distinct from content hashing.
+formats are rejected. The original active checkout session and its journal are
+captured with that generation. Durable atomic publication rechecks the generation
+before commit, reads back the exact receipt, and binds its run/plan IDs to that
+same journal. Normal entries require the completed status, retired resources,
+original JSONL extent/hash and exact ordered stage frames, then recheck mutation,
+receipt and journal state after native inspection. Missing or edited journals
+require fresh verification; copied records grant no mutation or resume authority.
+Artifact metadata remains distinct from content hashing.
 Four added generation regressions await execution.
 The native entry now exposes its same implementation as an inert imported
 operation, without exiting its caller. The checkout transaction can reuse that
@@ -214,17 +221,20 @@ across patching and in-process native preparation, with no second coordinator or
 lock gap. Imports are inert; its direct entry preserves terminal status/signals
 after actual retirement. Existing child-status controls explicitly select a
 fixture native adapter, retaining their real child execution boundary. Five
-new session controls await execution. Durable stage journals and cross-process
-qualification remain the next #1555 work.
+new session controls await execution. Cross-process qualification remains pending.
 
-The stage-journal owner is authored for that integration: one original session
+The stage-journal owner spans canonical bootstrap, direct native setup, patches
+and postinstall: one original session
 captures a bounded ordered plan, writes exact JSONL observations through its
 original descriptor, and publishes read-back-checked status after confirmed
 synchronization/close. Source order, failed predecessors and outstanding borrowed
 stages remain enforced. Its 16-stage, 128-event, 256-KiB journal and 64-KiB plan
-bounds are internal. Seven filesystem/lifetime controls await execution. Canonical
-entry and readiness integration is still pending; a serialized stage record is
-not native qualification or permission to resume a prior operation.
+bounds are internal. Seven filesystem/lifetime controls and three additional
+readiness journal controls await execution. Nested mutators borrow the same
+journal. Standalone verify-only patch inspection preserves the current readiness
+journal. A serialized stage record is not native qualification or permission to
+resume a prior operation. Historical receipt preservation and bounded cross-run
+retention remain implementation work.
 Atomic persistence now records its two bounded fallback counters without loading
 the Prometheus package. The existing registry projects earlier events once when
 it loads and preserves active reset/increment behavior. This keeps actual durable

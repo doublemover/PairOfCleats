@@ -26,6 +26,64 @@ const projectedFailure = error => Object.freeze({ type: error === null ? 'null' 
 /** An in-process original owner, not a serialized resume/deletion capability. */
 export const getCheckoutStageJournal = session => session && journals.get(session)?.journal || null;
 
+/** Read-only evidence inspection. These records never authorize stage replay,
+ * native retirement, lock stealing or deletion of a prior run's artifacts.
+ */
+export const readCheckoutJournalStatus = root => {
+  const statusFile = path.join(root, CHECKOUT_JOURNAL_STATUS);
+  let stat;
+  try { stat = fs.lstatSync(statusFile, { bigint: true }); }
+  catch (error) { if (readErrorDataProperty(error, 'code') === 'ENOENT') return null; throw error; }
+  const identity = persistenceFileIdentity(stat);
+  const text = readJsonResourceTextSync(statusFile, actual => {
+    if (actual.size > CHECKOUT_JOURNAL_LIMITS.bytes) throw failure('Checkout status exceeds its read bound.');
+  }, actual => assertPersistenceFileIdentity(actual, identity));
+  assertPersistenceFileIdentity(fs.lstatSync(statusFile, { bigint: true }), identity);
+  const record = JSON.parse(text);
+  if (record?.schemaVersion !== CHECKOUT_JOURNAL_VERSION || record.kind !== 'checkout-bootstrap-stage-journal'
+    || record.root !== fs.realpathSync(root) || typeof record.runId !== 'string' || !/^[a-zA-Z0-9._:-]{1,128}$/.test(record.runId)
+    || typeof record.planId !== 'string' || !/^[a-f0-9]{64}$/.test(record.planId)
+    || !['running', 'failed', 'completed'].includes(record.state) || !Array.isArray(record.stages)
+    || record.stages.length > CHECKOUT_JOURNAL_LIMITS.stages) throw failure('Checkout status has an unsupported or invalid identity.');
+  if (record.state === 'completed') {
+    const selected = record.selectedPlan?.stages, file = record.file;
+    if (!Array.isArray(selected) || !selected.length || selected.length > CHECKOUT_JOURNAL_LIMITS.stages
+      || selected.some(stage => typeof stage?.id !== 'string' || !/^[a-zA-Z0-9:_-]{1,96}$/.test(stage.id))
+      || new Set(selected.map(stage => stage.id)).size !== selected.length
+      || createHash('sha256').update(JSON.stringify(record.selectedPlan)).digest('hex') !== record.planId
+      || selected.length !== record.stages.length
+      || record.stages.some((row, index) => row.id !== selected[index]?.id || row.state !== 'succeeded')
+      || record.originalResources !== 'retired' || file?.complete !== true
+      || typeof file.path !== 'string' || !/^\.tmp\/checkout-bootstrap\/j-[a-zA-Z0-9_-]{6,32}\/stages\.jsonl$/.test(file.path)
+      || !Number.isSafeInteger(file.bytes) || file.bytes < 1 || file.bytes > CHECKOUT_JOURNAL_LIMITS.bytes
+      || !Number.isSafeInteger(file.events) || file.events < 1 || file.events > CHECKOUT_JOURNAL_LIMITS.events
+      || typeof file.sha256 !== 'string' || !/^[a-f0-9]{64}$/.test(file.sha256)) throw failure('Completed checkout status lacks its original complete stage evidence.');
+    let parent = root;
+    for (const part of file.path.split('/').slice(0, -1)) {
+      parent = path.join(parent, part); const actual = fs.lstatSync(parent);
+      if (!actual.isDirectory() || actual.isSymbolicLink()) throw failure('Checkout journal reads require regular owned directories.');
+    }
+    const target = path.join(root, ...file.path.split('/')), sealed = persistenceFileIdentity(fs.lstatSync(target, { bigint: true }));
+    const contents = readJsonResourceTextSync(target, actual => {
+      if (actual.size !== file.bytes) throw failure('Checkout journal extent differs from its completed status.');
+    }, actual => assertPersistenceFileIdentity(actual, sealed));
+    assertPersistenceFileIdentity(fs.lstatSync(target, { bigint: true }), sealed);
+    if (createHash('sha256').update(contents).digest('hex') !== file.sha256) throw failure('Checkout journal bytes differ from its completed status.');
+    if (!contents.endsWith('\n')) throw failure('Completed checkout journal has an incomplete final frame.');
+    const events = contents.slice(0, -1).split('\n').map(line => JSON.parse(line));
+    if (events.length !== file.events || events.length !== 2 + selected.length * 2
+      || events.some((event, index) => event.schemaVersion !== CHECKOUT_JOURNAL_VERSION || event.sequence !== index + 1
+        || event.runId !== record.runId || event.planId !== record.planId)
+      || events[0].state !== 'run-started' || events.at(-1).state !== 'run-completed'
+      || createHash('sha256').update(JSON.stringify(events[0].plan)).digest('hex') !== record.planId
+      || selected.some((stage, index) => events[1 + index * 2].state !== 'stage-started'
+        || events[1 + index * 2].stageId !== stage.id || events[2 + index * 2].state !== 'stage-finished'
+        || events[2 + index * 2].stageId !== stage.id || events[2 + index * 2].outcome?.state !== 'succeeded')) throw failure(
+      'Completed checkout journal does not contain its exact ordered original stage frames.');
+  }
+  return record;
+};
+
 const createJournal = (root, session, plan, { io = fs, publish = atomicWriteJson } = {}) => {
   requireCheckoutMutationSession(root, session); root = session.root;
   const serializedPlan = JSON.stringify(plan);
@@ -124,8 +182,9 @@ const createJournal = (root, session, plan, { io = fs, publish = atomicWriteJson
       catch (error) { primary = error; failed = true; observations.remember(error); }
       const logicalFailure = !failed && readErrorDataProperty(result, 'ok') === false;
       if (failed || logicalFailure) stageFailed = true;
-      const resultOk = readErrorDataProperty(result, 'ok'), resultStatus = readErrorDataProperty(result, 'status') ?? readErrorDataProperty(result, 'exitCode'),
-        resultSignal = readErrorDataProperty(result, 'signal');
+      const terminal = failed ? readErrorDataProperty(primary, 'childResult') : result;
+      const resultOk = readErrorDataProperty(result, 'ok'), resultStatus = readErrorDataProperty(terminal, 'status') ?? readErrorDataProperty(terminal, 'exitCode'),
+        resultSignal = readErrorDataProperty(terminal, 'signal');
       const row = Object.freeze({ id, state: failed || logicalFailure ? 'failed' : 'succeeded', startedAt: began.timestamp,
         finishedAt: Date.now(), result: Object.freeze({ ok: typeof resultOk === 'boolean' ? resultOk : null,
           status: Number.isInteger(resultStatus) ? resultStatus : null, signal: typeof resultSignal === 'string' ? resultSignal.slice(0, 64) : null,

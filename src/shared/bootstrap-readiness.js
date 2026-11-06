@@ -1,20 +1,26 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { createHash, randomUUID } from 'node:crypto';
+import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { probeNativePackage } from './native-package-probe.js';
 import { buildReadinessReceipt } from '../../tools/setup/readiness.js';
 import { CHECKOUT_MUTATION_LOCK } from '../../tools/setup/checkout-bootstrap-paths.js';
+import { requireCheckoutMutationSession, withCheckoutMutation } from '../../tools/setup/checkout-mutation.js';
+import { getCheckoutStageJournal, withCheckoutStageJournal, readCheckoutJournalStatus } from '../../tools/setup/checkout-stage-journal.js';
+import { atomicWriteJson } from './io/atomic-write.js';
+import { readJsonResourceTextSync } from './file-read-resource.js';
+import { persistenceFileIdentity, assertPersistenceFileIdentity } from './io/file-identity.js';
 
 export const BOOTSTRAP_RECEIPT = 'node_modules/.pairofcleats-bootstrap.json';
-export const BOOTSTRAP_RECEIPT_VERSION = 2;
-const VERIFICATION_POLICY = 'same-setup-inputs-and-artifact-metadata-around-complete-native-probes.v1';
+export const BOOTSTRAP_RECEIPT_VERSION = 3;
+const VERIFICATION_POLICY = 'original-checkout-session-journal-and-generation-around-complete-native-probes.v2';
 const verifications = new WeakMap();
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const MAX_RECEIPT_BYTES = 8 * 1024 * 1024;
 export const BOOTSTRAP_INPUTS = Object.freeze(['package.json', 'package-lock.json', '.nvmrc',
   'tools/setup/checkout-bootstrap.js', 'tools/setup/checkout-bootstrap-arguments.js',
   'tools/setup/checkout-bootstrap-paths.js', 'tools/setup/checkout-mutation.js',
+  'tools/setup/checkout-stage-journal.js',
   'tools/setup/patch-stage.js',
   'tools/setup/task-progress.js',
   'tools/setup/postinstall.js',
@@ -128,32 +134,52 @@ const verificationFailure = message => Object.assign(new Error(message), { code:
  * handle binds that verifier's generation, never a serialized success claim.
  * Artifact evidence retains the existing metadata contract, not content hashing.
  */
-export const captureBootstrapVerification = root => {
+export const captureBootstrapVerification = (root, { session } = {}) => {
   if (!supportedNodeRuntime()) throw new Error('This checkout requires Node.js >=26.12.1 <27.');
+  requireCheckoutMutationSession(root, session);
+  const journal = getCheckoutStageJournal(session);
+  if (!journal) throw verificationFailure('Bootstrap verification requires its original active checkout journal.');
   const snapshot = captureGeneration(root), id = generationId(snapshot);
   const handle = Object.freeze({ kind: 'bootstrap-verification-generation', generationId: id });
-  verifications.set(handle, { root: snapshot.root, id }); return handle;
+  verifications.set(handle, { root: snapshot.root, id, session, journal }); return handle;
 };
 
 /** Called only after complete native and patch verification. The publication
  * consumes its original pre-probe capture and rejects any changed generation.
  */
-export const recordBootstrapReadiness = (root, verifiedPackages, { nativeCapabilities = [], verification } = {}) => {
+export const recordBootstrapReadiness = async (root, verifiedPackages, { nativeCapabilities = [], verification } = {}) => {
   const expected = verification && verifications.get(verification);
   if (!expected) throw verificationFailure('An original unconsumed pre-probe bootstrap generation is required.');
   verifications.delete(verification);
-  const current = captureGeneration(root);
-  if (expected.root !== current.root || expected.id !== generationId(current)) throw verificationFailure('Bootstrap setup inputs or dependency artifacts changed during verification; re-verify the current generation.');
-  const receipt = { schemaVersion: BOOTSTRAP_RECEIPT_VERSION, ...current,
-    verification: { generationId: expected.id, policy: VERIFICATION_POLICY },
-    verifiedPackages: [...verifiedPackages].sort(), nativeCapabilities
-  };
-  const text = JSON.stringify(receipt);
-  if (Buffer.byteLength(text) > MAX_RECEIPT_BYTES) throw new Error('Bootstrap receipt exceeds its byte bound.');
-  const target = path.join(current.root, BOOTSTRAP_RECEIPT), temporary = `${target}.${randomUUID()}.tmp`;
-  try { fs.writeFileSync(temporary, text, { flag: 'wx' }); fs.renameSync(temporary, target); }
-  finally { fs.rmSync(temporary, { force: true }); }
-  return receipt;
+  const capturedPackages = [...verifiedPackages].sort(), capturedCapabilities = structuredClone(nativeCapabilities);
+  requireCheckoutMutationSession(root, expected.session);
+  if (getCheckoutStageJournal(expected.session) !== expected.journal) throw verificationFailure('Bootstrap publication lost its original journal.');
+  return withCheckoutMutation(root, () => withCheckoutStageJournal(root, expected.session, null, async journal => {
+    const checkGeneration = () => {
+      requireCheckoutMutationSession(root, expected.session);
+      if (getCheckoutStageJournal(expected.session) !== expected.journal || journal !== expected.journal) throw verificationFailure('Bootstrap publication lost its original journal.');
+      const snapshot = captureGeneration(root);
+      if (expected.root !== snapshot.root || expected.id !== generationId(snapshot)) throw verificationFailure('Bootstrap setup inputs or dependency artifacts changed during verification; re-verify the current generation.');
+      return snapshot;
+    };
+    const current = checkGeneration();
+    const receipt = { schemaVersion: BOOTSTRAP_RECEIPT_VERSION, ...current,
+      verification: { generationId: expected.id, policy: VERIFICATION_POLICY, checkoutRunId: expected.session.runId, journalPlanId: journal.planId },
+      verifiedPackages: capturedPackages, nativeCapabilities: capturedCapabilities };
+    if (Buffer.byteLength(JSON.stringify(receipt)) > MAX_RECEIPT_BYTES) throw new Error('Bootstrap receipt exceeds its byte bound.');
+    const target = path.join(current.root, BOOTSTRAP_RECEIPT);
+    const published = await atomicWriteJson(target, receipt, { mkdir: false, durable: true, spaces: 0, newline: false, beforeCommit: checkGeneration });
+    if (published !== target) throw verificationFailure('Bootstrap readiness publication did not confirm its original destination.');
+    const identity = persistenceFileIdentity(fs.lstatSync(target, { bigint: true }));
+    const actual = readJsonResourceTextSync(target, stat => {
+      if (stat.size > MAX_RECEIPT_BYTES) throw verificationFailure('Published bootstrap receipt exceeds its read bound.');
+    }, stat => assertPersistenceFileIdentity(stat, identity));
+    assertPersistenceFileIdentity(fs.lstatSync(target, { bigint: true }), identity);
+    if (actual !== JSON.stringify(receipt)) throw verificationFailure('Published bootstrap receipt differs from its original verified record.');
+    requireCheckoutMutationSession(root, expected.session);
+    journal.bindVerifiedGeneration(expected.id);
+    return receipt;
+  }), { session: expected.session });
 };
 
 /** Report identity differences independently; executable location is context, not receipt identity. */
@@ -189,6 +215,11 @@ export const inspectBootstrapReadiness = async ({ root = ROOT, probeNatives = tr
     if (receipt.verification?.policy !== VERIFICATION_POLICY || receipt.verification?.generationId !== generationId({
       root: receipt.root, runtime: receipt.runtime, inputs: receipt.inputs, declared: receipt.declared, artifacts: receipt.artifacts
     })) throw new Error('Bootstrap receipt lacks its matching verification-generation evidence; run the native/patch verifier.');
+    code = 'ERR_BOOTSTRAP_JOURNAL_INCOMPLETE';
+    const journal = readCheckoutJournalStatus(root);
+    if (!journal || journal.state !== 'completed' || journal.runId !== receipt.verification.checkoutRunId
+      || journal.planId !== receipt.verification.journalPlanId || journal.generationId !== receipt.verification.generationId) throw new Error(
+      'Bootstrap readiness is not bound to its completed original checkout journal; run fresh native/patch verification.');
     code = 'ERR_BOOTSTRAP_INPUT_DRIFT';
     if (JSON.stringify(receipt.inputs) !== JSON.stringify(inputHashes(root))) throw new Error('Bootstrap setup inputs, package lock or required patches have changed.');
     code = 'ERR_BOOTSTRAP_EVIDENCE_INCOMPLETE';
@@ -210,6 +241,13 @@ export const inspectBootstrapReadiness = async ({ root = ROOT, probeNatives = tr
     }
     code = 'ERR_BOOTSTRAP_RECEIPT_REPLACED';
     if (JSON.stringify(signature(file)) !== receiptSignature) throw new Error('Bootstrap receipt changed during inspection; retry after the active verifier finishes.');
+    code = 'ERR_BOOTSTRAP_MUTATION_ACTIVE'; requireNoCheckoutMutation(root);
+    code = 'ERR_BOOTSTRAP_JOURNAL_REPLACED';
+    const finalJournal = readCheckoutJournalStatus(root);
+    if (!finalJournal || finalJournal.runId !== journal.runId || finalJournal.planId !== journal.planId
+      || finalJournal.generationId !== journal.generationId || finalJournal.state !== 'completed') throw new Error('Checkout journal changed during readiness inspection.');
+    code = 'ERR_BOOTSTRAP_RECEIPT_REPLACED';
+    if (JSON.stringify(signature(file)) !== receiptSignature) throw new Error('Bootstrap receipt changed during journal inspection.');
     code = 'ERR_BOOTSTRAP_MUTATION_ACTIVE'; requireNoCheckoutMutation(root);
     return { ...readiness(true), code: null, mismatches: [], nativeProbes: probeNatives ? 'passed' : 'not-run' };
   } catch (error) {

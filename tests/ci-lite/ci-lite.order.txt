@@ -2738,3 +2738,6 @@ shared/io/atomic-write-prebootstrap/late-metric-owner
 shared/io/atomic-write-prebootstrap/active-metric-reset
 tooling/install/checkout-stage-journal/unknown-write-retains-owner
 tooling/install/native-diagnostic-ownership/unknown-write-retains-owner
+tooling/install/bootstrap-verification-generation/original-session-and-active-publication
+tooling/install/bootstrap-verification-generation/journal-identity-and-completion
+tooling/install/bootstrap-verification-generation/journal-frame-integrity

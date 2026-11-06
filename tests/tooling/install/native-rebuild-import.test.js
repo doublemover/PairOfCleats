@@ -16,6 +16,9 @@ const guarded = new Map([
 ]);
 const hooks = registerHooks({
   resolve(specifier, context, next) {
+    if (['captured-mode-and-context', 'original-input-generation'].includes(mode) && context.parentURL?.split('?')[0] === owner && specifier === './checkout-stage-journal.js') return {
+      url: 'native-original-session-fixture:journal', shortCircuit: true
+    };
     if (['captured-mode-and-context', 'original-input-generation'].includes(mode) && context.parentURL?.split('?')[0] === owner && specifier === './checkout-mutation.js') return {
       url: 'native-original-session-fixture:owner', shortCircuit: true
     };
@@ -23,6 +26,11 @@ const hooks = registerHooks({
     return next(specifier, context);
   },
   load(url, context, next) {
+    if (url === 'native-original-session-fixture:journal') return { format: 'module', source: `
+      export const withCheckoutStageJournal = async (root, session, plan, operation) => {
+        if(session!==globalThis.nativeAdmissionFixture.session) throw new Error('Lost original journal session');
+        return operation({runStage: (id, action) => action()}, true);
+      };`, shortCircuit: true };
     if (url === 'native-original-session-fixture:owner') return { format: 'module', source: `
       export const withCheckoutMutation = async (root, operation, options) => {
         const fixture=globalThis.nativeAdmissionFixture; fixture.options=options; fixture.root=root;

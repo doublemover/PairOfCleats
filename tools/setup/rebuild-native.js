@@ -21,6 +21,8 @@ import { readErrorDataProperty } from '../../src/shared/error-data.js';
 import { addStorageFailureContext } from '../../src/shared/storage/operation-error.js';
 import { formatBootstrapTaskProgress } from './task-progress.js';
 import { createNativeSetupDiagnostics } from './native-diagnostics.js';
+import { createHash } from 'node:crypto';
+import { withCheckoutStageJournal } from './checkout-stage-journal.js';
 
 /** Importing the native owner is inert. The checkout transaction can call this
  * same implementation under its original session without spawning a second
@@ -45,8 +47,17 @@ export const runNativeRebuild = async (args, options = {}) => {
         { code: 'ERR_NATIVE_SETUP_INPUT_CHANGED' });
     };
     checkInputs();
-    const result = await runNativeRebuildOwned(admission, { root, signal, session, checkInputs });
-    checkInputs(); return result;
+    const stage = admission.verifyOnly ? 'native-verification' : 'native-preparation';
+    const plan = { schemaVersion: 1, kind: 'direct-native-setup-plan', root: session.root,
+      mode: admission.verifyOnly ? 'verify' : admission.repairOnly ? 'repair' : 'prepare',
+      inputId: createHash('sha256').update(originalInputs).digest('hex'), inputs: JSON.parse(originalInputs), stages: [{ id: stage }] };
+    return withCheckoutStageJournal(root, session, plan, async (journal, owned) => {
+      const execute = async () => {
+        const result = await runNativeRebuildOwned(admission, { root, signal, session, checkInputs });
+        checkInputs(); return result;
+      };
+      return owned ? journal.runStage(stage, execute) : execute();
+    });
   },
   { session: parentSession, signal, kind: 'native-rebuild' });
 };
@@ -354,7 +365,7 @@ const runNativeRebuildOwned = async ({ verifyOnly, repairOnly }, { root, session
 
   const verifyRequiredPackages = async () => {
     checkInputs();
-    const verification = captureBootstrapVerification(root);
+    const verification = captureBootstrapVerification(root, { session });
     const failures = await getRequiredPackageFailures({ label: 'verify:native' });
     invocationSignal?.throwIfAborted();
 
@@ -463,7 +474,7 @@ const runNativeRebuildOwned = async ({ verifyOnly, repairOnly }, { root, session
     checkInputs();
     await applyPatchesAsync(root, { verifyOnly: true, signal: invocationSignal, session });
     checkInputs();
-    recordBootstrapReadiness(root, REQUIRED_NATIVE_PACKAGES, {
+    await recordBootstrapReadiness(root, REQUIRED_NATIVE_PACKAGES, {
       verification,
       nativeCapabilities: [...nativeCapabilities.values()].flat().sort((a, b) =>
         (a.languageId ?? a.id).localeCompare(b.languageId ?? b.id))
