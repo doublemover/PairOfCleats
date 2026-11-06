@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 2550,
+    "hero": 2555,
     "matrix": 110,
     "meta": 54,
     "soak": 1,
@@ -16303,6 +16303,36 @@
     {
       "id": "tooling/install/native-diagnostic-ownership/structured-output-fences",
       "order": 2715,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/bootstrap-task-events/output-observer-settlement",
+      "order": 2716,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/bootstrap-task-events/output-observer-errors",
+      "order": 2717,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/bootstrap-task-events/output-observer-limits",
+      "order": 2718,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/native-diagnostic-ownership/first-byte-observation",
+      "order": 2719,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/bootstrap-task-events/output-original-resource-retirement",
+      "order": 2720,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     }

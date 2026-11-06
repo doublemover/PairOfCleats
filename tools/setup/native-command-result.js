@@ -19,9 +19,9 @@ export const settledNativeSetupFailure = (error, phase) => {
     ...(typeof stdout === 'string' ? { stdout } : {}), ...(typeof stderr === 'string' ? { stderr } : {}) };
 };
 
-export const runNativeSetupCommand = async (command, args, options, { spawn = spawnResolvedSubprocess, diagnostics = null } = {}) => {
+export const runNativeSetupCommand = async (command, args, options, { spawn = spawnResolvedSubprocess, diagnostics = null, observeOutput = null } = {}) => {
   let result;
-  try { result = diagnostics ? await diagnostics.run(command, args, options, spawn) : await spawn(command, args, options); }
+  try { result = diagnostics ? await diagnostics.run(command, args, options, spawn, { onOutput: observeOutput }) : await spawn(command, args, options); }
   catch (error) { return settledNativeSetupFailure(error, 'native-setup-command'); }
   const stdoutTruncated = result.outputCapture?.stdout?.truncated === true, stderrTruncated = result.outputCapture?.stderr?.truncated === true;
   if (stdoutTruncated || stderrTruncated) {

@@ -6,7 +6,8 @@ import { applyTestEnv } from '../../helpers/test-env.js';
 
 applyTestEnv();
 const mode = process.env.PAIROFCLEATS_TEST_ID?.split('tooling/install/bootstrap-task-events/')[1];
-assert.ok(['ordered-admission-and-timing', 'immediate-failure-and-drain', 'original-observer-failures', 'bounded-diagnostics'].includes(mode));
+assert.ok(['ordered-admission-and-timing', 'immediate-failure-and-drain', 'original-observer-failures', 'bounded-diagnostics',
+  'output-observer-settlement', 'output-observer-errors', 'output-observer-limits', 'output-original-resource-retirement'].includes(mode));
 const budget = { jobs: 2, cpuCount: 2, memoryBytes: 1024 }, events = [];
 const context = { runId: 'original-root-run', planId: 'original-plan' };
 if (mode === 'ordered-admission-and-timing') {
@@ -83,6 +84,61 @@ if (mode === 'ordered-admission-and-timing') {
   const pending = runBootstrapTasks([{ id: 'compiler', run: async () => { ran = true; } }], { budget,
     onEvent: async event => { if (event.state === 'queued') { entered.resolve(); await release.promise; } } });
   await entered.promise; assert.equal(ran, false); release.resolve(); assert.equal((await pending).ok, true);
+} else if (mode === 'output-observer-settlement') {
+  const entered = Promise.withResolvers(), release = Promise.withResolvers(); let returned = false, observed = false, reporter;
+  const pending = runBootstrapTasks([{ id: 'compiler', run: async ({ observeOutput }) => {
+    reporter = observeOutput;
+    observeOutput({ channel: 'stdout', attempt: 3, path: 'owned-log.stdout', observedBytes: 8 });
+    return 'actual compiler result';
+  } }], { budget, onEvent: async event => {
+    events.push(event);
+    if (event.state === 'output-observed') {
+      assert.deepEqual(event.output, { channel: 'stdout', attempt: 3, path: 'owned-log.stdout', observedBytes: 8 });
+      assert.equal(Object.isFrozen(event.output), true); entered.resolve(); await release.promise; observed = true;
+    }
+  }, onResult: () => { assert.equal(observed, true); } });
+  pending.then(() => { returned = true; });
+  await entered.promise; assert.equal(returned, false); release.resolve();
+  const result = await pending; assert.equal(result.ok, true); assert.equal(result.results[0].result, 'actual compiler result');
+  assert.throws(() => reporter({ channel: 'stdout', attempt: 3, path: 'owned-log.stdout', observedBytes: 9 }), /outlived/);
+} else if (mode === 'output-observer-errors') {
+  for (const original of [false, 0, '', null, undefined, Object.freeze(new Error('actual output observer failed'))]) {
+    const compiler = Object.freeze(new Error('independent compiler failure'));
+    const failure = await runBootstrapTasks([{ id: 'compiler', run: async ({ observeOutput }) => {
+      observeOutput({ channel: 'stderr', attempt: 1, path: 'owned-log.stderr', observedBytes: 4 }); throw compiler;
+    } }], { budget, onEvent: async event => { if (event.state === 'output-observed') throw original; } }).catch(error => error);
+    assert.equal(errorGraphIncludes(failure, original), true); assert.equal(errorGraphIncludes(failure, compiler), true);
+  }
+} else if (mode === 'output-original-resource-retirement') {
+  let retired = false, returned = false, row;
+  const observed = Promise.withResolvers();
+  const original = Object.assign(new Error('output observer rejected with original physical work outstanding'), {
+    cacheOwnershipPending: true, cacheOwnershipReleased: () => retired
+  });
+  const pending = runBootstrapTasks([{ id: 'compiler', run: async ({ observeOutput }) => {
+    observeOutput({ channel: 'stdout', attempt: 1, path: 'owned-log.stdout', observedBytes: 3 }); return 'compiled';
+  } }], { budget, onEvent: event => { if (event.state === 'output-observed') throw original; },
+    onResult: actual => { row = actual; observed.resolve(); } });
+  const outcome = pending.then(() => { returned = true; assert.fail('Pending output observation cannot publish success'); }, error => { returned = true; return error; });
+  await observed.promise;
+  try {
+    original.cacheOwnershipReleased = () => true;
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(returned, false, 'the original task reservation still participates in scheduler drain');
+    assert.equal(row.status, 'failed'); assert.equal(row.error.cacheOwnershipReleased(), false);
+  } finally { retired = true; }
+  const failure = await outcome; assert.equal(errorGraphIncludes(failure, original), true);
+} else if (mode === 'output-observer-limits') {
+  let observations = 0;
+  const failure = await runBootstrapTasks([{ id: 'compiler', run: async ({ observeOutput }) => {
+    for (let index = 0; index < 65; index++) observeOutput({ channel: 'stdout', attempt: index + 1, path: 'owned-log.stdout', observedBytes: 1 });
+  } }], { budget, onEvent: event => { if (event.state === 'output-observed') observations++; } }).catch(error => error);
+  assert.ok(failure instanceof Error); assert.equal(observations, 64);
+  let getterReads = 0;
+  const invalid = Object.defineProperty({}, 'channel', { get() { getterReads++; return 'stdout'; } });
+  await assert.rejects(runBootstrapTasks([{ id: 'compiler', run: async ({ observeOutput }) => observeOutput(invalid) }],
+    { budget, onEvent: () => {} }));
+  assert.equal(getterReads, 0, 'producer metadata accessors cannot become output evidence');
 } else {
   let reads = 0;
   const original = Object.freeze(Object.defineProperties({}, {

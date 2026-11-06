@@ -2718,3 +2718,8 @@ tooling/install/native-diagnostic-ownership/bounded-admission-and-output
 tooling/install/native-diagnostic-ownership/unknown-close-retains-owner
 tooling/install/native-diagnostic-ownership/original-structured-output
 tooling/install/native-diagnostic-ownership/structured-output-fences
+tooling/install/bootstrap-task-events/output-observer-settlement
+tooling/install/bootstrap-task-events/output-observer-errors
+tooling/install/bootstrap-task-events/output-observer-limits
+tooling/install/native-diagnostic-ownership/first-byte-observation
+tooling/install/bootstrap-task-events/output-original-resource-retirement

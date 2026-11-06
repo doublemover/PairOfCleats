@@ -97,13 +97,15 @@ export const runBootstrapTasks = async (tasks, { budget = resolveBootstrapBudget
   const observeFailure = error => {
     observerErrors.push(error); observations.remember(error); controller.abort(error);
   };
-  const emit = async (row, state, fields = {}) => {
+  const emit = async (row, state, fields = {}, onFailure = null) => {
     if (eventObserverFailed) return;
     const timestamp = Date.now();
     const event = Object.freeze({ schemaVersion: BOOTSTRAP_TASK_EVENT_VERSION, kind: 'bootstrap-task-event', ...identity, sequence: ++sequence,
       taskId: row.id, attempt: 1, required: row.required, state, timestamp,
       elapsedMs: Math.max(0, timestamp - runStartedAt), ...fields });
-    try { await onEvent(event); } catch (error) { eventObserverFailed = true; observeFailure(error); }
+    try { await onEvent(event); } catch (error) {
+      eventObserverFailed = true; observeFailure(error); onFailure?.(error);
+    }
   };
   const execute = task => {
     if (promises.has(task.id)) return promises.get(task.id);
@@ -134,8 +136,39 @@ export const runBootstrapTasks = async (tasks, { budget = resolveBootstrapBudget
             if (onEvent) await emit(row, 'started');
             controller.signal.throwIfAborted();
             operationStarted = true;
-            const result = await task.run({ signal: controller.signal,
-              compilerJobs: task.exclusive ? budget.cpuCount : (task.cpu ?? 1) });
+            const outputObservers = new Set(), outputResources = createStorageObservationLedger();
+            let reporting = true, outputCount = 0;
+            const observeOutput = value => {
+              if (!reporting) throw new Error('Bootstrap task output observation outlived its original operation.');
+              if (!onEvent || eventObserverFailed) return;
+              const channel = readErrorDataProperty(value, 'channel'), attempt = readErrorDataProperty(value, 'attempt'),
+                logPath = readErrorDataProperty(value, 'path'), observedBytes = readErrorDataProperty(value, 'observedBytes');
+              if (++outputCount > 64 || !['stdout', 'stderr'].includes(channel) || !Number.isSafeInteger(attempt) || attempt < 1
+                || typeof logPath !== 'string' || !logPath || logPath.length > 4096 || !Number.isSafeInteger(observedBytes) || observedBytes < 1) {
+                const error = new TypeError('Bootstrap output observations require bounded original stream/attempt evidence.');
+                observeFailure(error); throw error;
+              }
+              const pending = emit(row, 'output-observed', { output: Object.freeze({ channel, attempt, path: logPath, observedBytes }) }, outputResources.remember);
+              outputObservers.add(pending);
+              pending.then(() => outputObservers.delete(pending), error => {
+                outputObservers.delete(pending); outputResources.remember(error); observeFailure(error);
+              });
+            };
+            let result, operationError, operationFailed = false;
+            try { result = await task.run({ signal: controller.signal, observeOutput,
+              compilerJobs: task.exclusive ? budget.cpuCount : (task.cpu ?? 1) }); }
+            catch (error) { operationError = error; operationFailed = true; }
+            finally {
+              reporting = false;
+              // Byte callbacks remain synchronous; the task still owns every
+              // original asynchronous diagnostic observer they admitted.
+              if (outputObservers.size) await Promise.allSettled([...outputObservers]);
+            }
+            try { outputResources.requireSettled(); }
+            catch (pending) {
+              throw operationFailed ? addStorageFailureContext(operationError, {}, pending, { secondaryPresent: true }) : pending;
+            }
+            if (operationFailed) throw operationError;
             if (result?.ok === false) {
               const original = Object.getOwnPropertyDescriptor(result, 'error');
               throw Object.assign(new Error(result.message || `${task.id} failed`,

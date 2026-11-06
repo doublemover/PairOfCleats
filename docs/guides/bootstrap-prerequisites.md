@@ -45,7 +45,15 @@ behavior.
 The same task owner exposes opt-in in-process `bootstrap-task-event` version 1
 observations: queued, dependency-wait, resource-wait, started and actual terminal
 states. Run/plan identity is captured once; each graph execution has its own batch
-identity and one task attempt. Resource-wait enters the admission phase; the
+identity and one task attempt. `output-observed` identifies the first actual
+bytes from each native command attempt/stream, its original log path and observed
+byte count; it does not claim those bytes were persisted. Original asynchronous
+event callbacks admitted by synchronous byte hooks drain before task completion.
+If a callback rejects before its physical work retires, that same original task
+reservation remains held; a logical callback rejection cannot release it.
+Each task admits at most 64 such observations, and a retired task cannot emit more.
+Five added output/settlement controls await execution.
+Resource-wait enters the admission phase; the
 actual scheduler request follows its awaited observer. It is not evidence of
 resource contention. Timing separates dependency wait, actual admission wait and
 execution; concurrent durations are never summed as wall time. Logical failure
@@ -75,7 +83,7 @@ forwards its original bytes. Five diagnostic ownership controls await execution.
 Activation JSON uses a separate at-most-1-MiB read of its original completed log,
 with exact post-close file identity and raw-byte hash checks. A truncated display
 tail cannot supply that structured result, and copied records authorize no read.
-Cross-run log retention, nested VM-probe logs, output-observed events,
+Cross-run log retention, nested VM-probe logs,
 terminal transport qualification and durable root-stage journals remain
 pending. The limits above bound one invocation; they are not a machine-wide quota
 or a measured memory/throughput result.

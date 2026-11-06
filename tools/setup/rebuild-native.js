@@ -180,14 +180,14 @@ const runNativeRebuildOwned = async ({ verifyOnly, repairOnly }, { root, session
   };
 
   const runNativeCommand = async (command, args, { cwd = root, buildFromSource = false,
-    signal = invocationSignal, compilerJobs = bootstrapBudget.cpuCount, env: extraEnv = {}, capture = false } = {}) => {
+    signal = invocationSignal, compilerJobs = bootstrapBudget.cpuCount, env: extraEnv = {}, capture = false, observeOutput = null } = {}) => {
     checkInputs();
     const env = { ...buildNpmEnv({ buildFromSource }), ...extraEnv,
       npm_package_config_node_gyp_jobs: String(compilerJobs) };
     const result = await runNativeSetupCommand(command, args, {
       cwd, stdio: capture ? 'pipe' : 'inherit', env, signal, timeoutMs: 600000,
       maxOutputBytes: 8 * 1024 * 1024, rejectOnNonZeroExit: false, windowsHide: true
-    }, { diagnostics: nativeDiagnostics });
+    }, { diagnostics: nativeDiagnostics, observeOutput });
     if (!nativeLogLocationReported && result.diagnosticsPath) {
       nativeLogLocationReported = true;
       console.error('[rebuild:native] retained attempt logs: ' + path.dirname(result.diagnosticsPath));
@@ -275,19 +275,19 @@ const runNativeRebuildOwned = async ({ verifyOnly, repairOnly }, { root, session
     html: '<p>ok</p>', lua: 'return 1', swift: 'let value = 1'
   };
   const nativeCapabilities = new Map();
-  const probePackage = async (pkgName, signal = invocationSignal) => {
+  const probePackage = async (pkgName, signal = invocationSignal, observeOutput = null) => {
     checkInputs();
     const grammarRoutes = Object.entries(NATIVE_GRAMMAR_MODULES)
       .filter(([, spec]) => spec.moduleName === pkgName)
       .map(([languageId, spec]) => ({ ...spec, languageId, source: LANGUAGE_SAMPLES[languageId] }));
     if (grammarRoutes.some((route) => !route.source)) throw new Error('Missing bounded native language activation sample.');
-    const result = await probePackageIsolated(pkgName, grammarRoutes, signal);
+    const result = await probePackageIsolated(pkgName, grammarRoutes, signal, observeOutput);
     checkCompletedInputs(result);
     if (result.ok && result.capabilities) nativeCapabilities.set(pkgName, result.capabilities);
     return result;
   };
 
-  const probePackageIsolated = async (pkgName, grammarRoutes, signal) => {
+  const probePackageIsolated = async (pkgName, grammarRoutes, signal, observeOutput) => {
   // The compatibility probe owner uses synchronous child operations. Put that
   // owner in an isolated process so scheduling actually overlaps bounded probes
   // without changing its public sync APIs or loading natives in this coordinator.
@@ -301,7 +301,7 @@ const runNativeRebuildOwned = async ({ verifyOnly, repairOnly }, { root, session
         JSON.stringify({ root, pkgName, grammarRoutes })], {
         cwd: root, stdio: 'pipe',
         signal, timeoutMs: 30000, maxOutputBytes: 1024 * 1024, windowsHide: true
-      }, spawnResolvedSubprocess);
+      }, spawnResolvedSubprocess, { onOutput: observeOutput });
       const stderr = nativeDiagnostics.readOutput(child.diagnostics, 'stderr');
       if (stderr.trim()) return { ok: false, message: stderr.trim() };
       return JSON.parse(nativeDiagnostics.readOutput(child.diagnostics, 'stdout'));
@@ -315,9 +315,9 @@ const runNativeRebuildOwned = async ({ verifyOnly, repairOnly }, { root, session
     const failures = [];
     const outcome = await runBootstrapTasks(REQUIRED_NATIVE_PACKAGES.map(pkgName => ({
       id: 'probe:' + pkgName, bytes: 256 * 1024 * 1024,
-      run: async ({ signal }) => {
+      run: async ({ signal, observeOutput }) => {
         if (!isInstalled(pkgName)) return { ok: false, missing: true, message: 'required package is missing' };
-        const result = await probePackage(pkgName, signal);
+        const result = await probePackage(pkgName, signal, observeOutput);
         if (result.ok && pkgName === TREE_SITTER_PERL_PACKAGE) return verifyPerlScannerPatch();
         return result;
       }

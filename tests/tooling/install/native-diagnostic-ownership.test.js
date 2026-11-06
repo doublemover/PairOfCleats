@@ -13,7 +13,7 @@ import { applyTestEnv } from '../../helpers/test-env.js';
 applyTestEnv();
 const mode = process.env.PAIROFCLEATS_TEST_ID?.split('tooling/install/native-diagnostic-ownership/')[1];
 assert.ok(['exact-bytes-and-tails', 'attempt-history-and-concurrency', 'original-log-failures', 'bounded-admission-and-output',
-  'unknown-close-retains-owner', 'original-structured-output', 'structured-output-fences'].includes(mode));
+  'unknown-close-retains-owner', 'original-structured-output', 'structured-output-fences', 'first-byte-observation'].includes(mode));
 const root = await makeTempDir('native-diagnostics-');
 const commandOptions = { cwd: root, stdio: 'pipe', timeoutMs: 5000, maxOutputBytes: 16,
   rejectOnNonZeroExit: false, killTree: false, windowsHide: true };
@@ -111,6 +111,17 @@ try {
       const bounded = createNativeSetupDiagnostics(root, session, { limits: compact });
       const result = await runNativeSetupCommand(process.execPath, ['--eval', 'process.stdout.write("x".repeat(4096));'], commandOptions, { diagnostics: bounded });
       assert.throws(() => bounded.readOutput(result.diagnostics, 'stdout', { maxBytes: 128 }), error => isNativeDiagnosticFailure(error));
+    } else if (mode === 'first-byte-observation') {
+      const diagnostics = createNativeSetupDiagnostics(root, session, { limits: compact }), events = [];
+      const result = await runNativeSetupCommand(process.execPath,
+        ['--eval', 'process.stdout.write("one");setTimeout(()=>{process.stdout.write("two");process.stderr.write("error");},5);'],
+        commandOptions, { diagnostics, observeOutput: event => { events.push(event); assert.equal(Object.isFrozen(event), true); } });
+      assert.equal(result.ok, true); assert.equal(events.length, 2, 'first bytes are observed once per actual attempt stream');
+      for (const channel of ['stdout', 'stderr']) {
+        const event = events.find(event => event.channel === channel), log = result.diagnostics.logs.find(log => log.channel === channel);
+        assert.equal(event.attempt, result.diagnostics.attempt); assert.equal(event.path, log.path);
+        assert.ok(event.observedBytes > 0 && event.observedBytes <= log.observedBytes);
+      }
     } else {
       const diagnostics = createNativeSetupDiagnostics(root, session, { limits: { ...compact, diskBytes: 65536 } });
       assert.equal((await runNativeSetupCommand(process.execPath, ['--eval', 'process.stdout.write("one");'], commandOptions, { diagnostics })).ok, true);

@@ -79,7 +79,7 @@ export const createNativeSetupDiagnostics = (root, session, { limits = NATIVE_DI
     },
     snapshot: () => Object.freeze({ runId: session.runId, directory, attempts, reservedBytes, writtenBytes,
       limits, records: Object.freeze([...rows]) }),
-    run: async (command, args, options, spawn) => {
+    run: async (command, args, options, spawn, { onOutput = null } = {}) => {
       if (terminalFailure) throw terminalFailure;
       const selected = Object.freeze({ command, args: Object.freeze([...args]) });
       let recordPath = null, primary, failed = false, result = null, attempt = null, childAdmitted = false;
@@ -90,6 +90,7 @@ export const createNativeSetupDiagnostics = (root, session, { limits = NATIVE_DI
       try {
         if (typeof command !== 'string' || !args.every(arg => typeof arg === 'string')
           || Buffer.byteLength(JSON.stringify(selected)) > limits.commandBytes) throw problem('Native command identity exceeds its diagnostic bound.');
+        if (onOutput !== null && typeof onOutput !== 'function') throw problem('Native output observation requires an explicit synchronous owner.');
         if (attempts >= limits.attempts || reservedBytes + writtenBytes + METADATA_RESERVE > limits.diskBytes) throw problem('Native run diagnostic budget exhausted before child admission.');
         prepare(); reservedBytes += METADATA_RESERVE;
         attempt = ++attempts;
@@ -107,7 +108,10 @@ export const createNativeSetupDiagnostics = (root, session, { limits = NATIVE_DI
         const receive = stream => chunk => {
           try {
             if (!active) throw problem('Native diagnostic callback outlived its original command.');
+            const first = stream.observedBytes === 0;
             stream.observedBytes += chunk.length;
+            if (first && chunk.length && onOutput) onOutput(Object.freeze({ channel: stream.channel, attempt,
+              path: stream.file, observedBytes: stream.observedBytes }));
             if (attemptBytes + chunk.length > limits.attemptBytes || reservedBytes + writtenBytes + chunk.length > limits.diskBytes) throw problem('Native output exceeded its aggregate or per-attempt diagnostic budget.');
             let offset = 0;
             while (offset < chunk.length) {
