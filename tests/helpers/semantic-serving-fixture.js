@@ -12,8 +12,9 @@ import { ARTIFACT_SURFACE_VERSION } from '../../src/contracts/versioning.js';
 
 /** Real partition/index writers and registrations, without a repository index. */
 export const createSemanticServingFixture = async ({ withOperands = false, withTraceEdge = false,
-  sourceText = 'first(); second();', buildRows = null } = {}) => {
+  sourceText = 'first(); second();', buildRows = null, manifestPaddingBytes = 65536 } = {}) => {
   if (buildRows !== null && typeof buildRows !== 'function') throw new TypeError('Fixture rows must have an explicit producer.');
+  if (!Number.isSafeInteger(manifestPaddingBytes) || manifestPaddingBytes < 0 || manifestPaddingBytes > 65536) throw new TypeError('Invalid fixture manifest padding.');
   const fixture = await createRecoveryFixture(sourceText);
   const repoRoot = getRepoRoot(fixture.root);
   try {
@@ -50,7 +51,7 @@ export const createSemanticServingFixture = async ({ withOperands = false, withT
     }
     for (const [name, value] of Object.entries({ semantic_manifest: manifest,
       semantic_query_index: queryIndex, semantic_operation_index: operationIndex })) {
-      const bytes = Buffer.from(JSON.stringify(value) + ' '.repeat(65536));
+      const bytes = Buffer.from(JSON.stringify(value) + ' '.repeat(manifestPaddingBytes));
       await fs.writeFile(path.join(indexDir, name + '.json'), bytes);
       register(name, name + '.json', 'sha256:' + createHash('sha256').update(bytes).digest('hex'));
     }

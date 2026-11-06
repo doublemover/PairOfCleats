@@ -131,7 +131,9 @@ ownership are specified in [legacy output lifetime](mcp-output-lifetime.md).
 
 ### Tool schema versioning
 
-The current source catalog is 1.13.0. `repository_query` describes pinned source
+The current source catalog is 1.14.0. `repository_answer` compiles live qualified
+answers or inspects historical content; see [answer evidence](answer-evidence.md).
+`repository_query` describes pinned source
 domains and executes typed retained-fact questions; see [repository questions](repository-questions.md).
 `context_pack` declares the optional bounded
 `evidenceSelection` policy; see [selection semantics](../guides/context-evidence-selection.md).

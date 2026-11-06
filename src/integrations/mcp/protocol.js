@@ -3,6 +3,7 @@ import { buildErrorPayload, ERROR_CODES, isErrorCode, resolveErrorHint } from '.
 import { closeJsonRpcWriter, writeFramedJsonRpc } from '../../shared/jsonrpc.js';
 import { projectMcpDomainError } from './domain-error.js';
 import { isMcpOutput } from './output.js';
+import { observeStorageResource } from '../../shared/storage/failure-observation.js';
 
 export const MCP_PROTOCOL_VERSION = '2024-11-05';
 
@@ -70,38 +71,43 @@ const resolveToolErrorCode = (error) => {
 };
 
 export function formatToolError(error) {
-  const domain = projectMcpDomainError(error);
-  const code = isErrorCode(error?.code) ? error.code : domain.code || resolveToolErrorCode(error);
-  const payload = buildErrorPayload({
-    code,
-    message: error?.message || String(error),
-    details: domain
-  });
-  if (!isErrorCode(error?.code) && error?.code != null) {
-    const numericCode = Number(error.code);
-    if (Number.isFinite(numericCode)) {
-      payload.exitCode = numericCode;
-    } else {
-      payload.nativeCode = String(error.code);
-    }
-  }
   const format = projectIndexFormatError(error);
-  if (format) {
-    Object.assign(payload, format);
-    payload.details = { ...format };
-    payload.hint = format.rebuildCommand;
-  }
-  if (error?.stderr) payload.stderr = String(error.stderr).trim();
-  if (error?.stdout) payload.stdout = String(error.stdout).trim();
-  if (error?.timeoutMs) payload.timeoutMs = error.timeoutMs;
-  payload.hint = resolveErrorHint({
-    code,
-    message: payload.message,
-    stderr: payload.stderr,
-    stdout: payload.stdout,
-    hint: payload.hint || error?.hint
-  });
-  return payload;
+  const observation = observeStorageResource(error, { phase: 'mcp-error-projection' });
+  observation.requireSettled();
+  try {
+    const domain = projectMcpDomainError(error);
+    const code = isErrorCode(error?.code) ? error.code : domain.code || resolveToolErrorCode(error);
+    const payload = buildErrorPayload({
+      code,
+      message: error?.message || String(error),
+      details: domain
+    });
+    if (!isErrorCode(error?.code) && error?.code != null) {
+      const numericCode = Number(error.code);
+      if (Number.isFinite(numericCode)) {
+        payload.exitCode = numericCode;
+      } else {
+        payload.nativeCode = String(error.code);
+      }
+    }
+    if (format) {
+      Object.assign(payload, format);
+      payload.details = { ...format };
+      payload.hint = format.rebuildCommand;
+    }
+    if (error?.stderr) payload.stderr = String(error.stderr).trim();
+    if (error?.stdout) payload.stdout = String(error.stdout).trim();
+    if (error?.timeoutMs) payload.timeoutMs = error.timeoutMs;
+    payload.hint = resolveErrorHint({
+      code,
+      message: payload.message,
+      stderr: payload.stderr,
+      stdout: payload.stdout,
+      hint: payload.hint || error?.hint
+    });
+    observation.requireSettled();
+    return payload;
+  } catch (inspection) { throw observation.retain(inspection, { inspectionPresent: true }); }
 }
 
 export function buildInitializeResult({

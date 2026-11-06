@@ -2566,3 +2566,7 @@ semantic/questions/answer-revisions/qualified-counts
 semantic/questions/answer-revisions/retraction-and-patches
 semantic/questions/answer-revisions/integrity-and-cycles
 semantic/questions/answer-revisions/bounds-and-identity
+semantic/questions/answer-admission/live-query-and-quotes
+semantic/questions/answer-admission/publication-and-failures
+semantic/questions/answer-admission/request-and-history
+semantic/questions/answer-admission/transport-parity

@@ -34,7 +34,7 @@ export const describeQuestionWorld = (store, inputScan) => {
 /** A deliberately explicit live profile. The compiler's broader finite grammar
  * does not authorize an unimplemented physical join or projection ordering.
  */
-export const admitCurrentReaderQuestion = (plan, store) => {
+export const checkCurrentReaderQuestionShape = plan => {
   const compiled = readCompiledRepositoryQuestion(plan), diagnostics = [];
   const diagnose = (path, message) => diagnostics.push({ code: 'unsupported-current-reader-profile', path, message });
   const scan = compiled.scanIndex, declarations = [], literals = [];
@@ -64,10 +64,13 @@ export const admitCurrentReaderQuestion = (plan, store) => {
   });
   if (target.length !== 1 || operand.length !== 1) diagnose(['where', 'all'], 'Live execution requires exactly one target-candidate and one syntactic-argument producer.');
   if (diagnostics.length) throw fail('Question requires a physical profile not supported by the current reader.', diagnostics);
-  const expected = describeQuestionWorld(store, compiled.scan);
-  if (canonicalSemanticJson(expected) !== canonicalSemanticJson(compiled.request.world)) {
+  return Object.freeze({ compiled, logicalPlanId: plan.logicalPlanId, scan, declaration: declarations[0], literal: literals[0],
+    target: Object.freeze(target[0]), operand: Object.freeze(operand[0]), filters: Object.freeze(filters) });
+};
+export const admitCurrentReaderQuestion = (plan, store) => {
+  const profile = checkCurrentReaderQuestionShape(plan), expected = describeQuestionWorld(store, profile.compiled.scan);
+  if (canonicalSemanticJson(expected) !== canonicalSemanticJson(profile.compiled.request.world)) {
     throw Object.assign(new Error('Question world differs from the admitted repository, generation, domain or reader profile. Describe the current world and compile again.'), { code: 'ERR_SEMANTIC_SCOPE_MISMATCH' });
   }
-  return Object.freeze({ compiled, logicalPlanId: plan.logicalPlanId, scan, declaration: declarations[0], literal: literals[0],
-    target: Object.freeze(target[0]), operand: Object.freeze(operand[0]), filters: Object.freeze(filters), world: Object.freeze(expected) });
+  return Object.freeze({ ...profile, world: Object.freeze(expected) });
 };

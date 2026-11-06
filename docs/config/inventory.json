@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-06T09:39:11.179Z",
+  "generatedAt": "2026-11-06T10:10:00.213Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
@@ -4834,6 +4834,7 @@
         "tests/runner/publication-diagnostic-ownership.test.js",
         "tests/runner/run-execution.js",
         "tests/security/download-redirect-deadline.test.js",
+        "tests/semantic/questions/answer-admission.test.js",
         "tests/semantic/questions/answer-revisions.test.js",
         "tests/semantic/questions/clause-explanation.test.js",
         "tests/semantic/questions/compiler-reference.test.js",
@@ -10731,6 +10732,7 @@
       "tools/analysis/delta-risk.js",
       "tools/analysis/explain-risk.js",
       "tools/analysis/graph-evidence.js",
+      "tools/analysis/repository-answer.js",
       "tools/analysis/repository-query.js",
       "tools/analysis/runtime-evidence.js",
       "tools/analysis/semantic-detail.js",

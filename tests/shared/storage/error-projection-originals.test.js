@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { projectIndexFormatError } from '../../../src/shared/index-format-error.js';
 import { classifySemanticDetailError } from '../../../src/integrations/tooling/semantic-errors.js';
+import { formatToolError } from '../../../src/integrations/mcp/protocol.js';
 
 const mode = process.env.PAIROFCLEATS_TEST_ID?.split('shared/storage/error-projection-originals/')[1];
 assert.ok(['pending-originals', 'metadata-observers', 'inspection-and-falsey', 'bounded-and-reentrant'].includes(mode));
@@ -25,7 +26,7 @@ const contains = (root, target) => {
   return false;
 };
 if (mode === 'pending-originals') {
-  for (const project of [projectIndexFormatError, classifySemanticDetailError]) for (const nested of [false, true]) {
+  for (const project of [projectIndexFormatError, classifySemanticDetailError, formatToolError]) for (const nested of [false, true]) {
     let settled = false, reads = 0;
     const original = formatError();
     Object.defineProperties(original, { cacheOwnershipPending: { value: true },
@@ -38,7 +39,7 @@ if (mode === 'pending-originals') {
     assert.equal(failure.cacheOwnershipReleased(), false);
     settled = true; assert.equal(failure.cacheOwnershipReleased(), true, 'late actual settlement is observable without retrying an operation');
     const result = project(input);
-    assert.equal(project === projectIndexFormatError ? result.nativeCode : result.semanticCode, 'ERR_INDEX_FORMAT_UNSUPPORTED');
+    assert.equal(result.nativeCode || result.semanticCode, 'ERR_INDEX_FORMAT_UNSUPPORTED');
     assert.equal(project === classifySemanticDetailError ? result.status : 409, 409);
   }
 } else if (mode === 'metadata-observers') {
@@ -76,6 +77,10 @@ if (mode === 'pending-originals') {
     Object.defineProperty(original, 'code', { get() { throw value; } });
     const failure = thrown(() => classifySemanticDetailError(original));
     assert.ok(contains(failure, original)); assert.ok(contains(failure, value), 'falsey inspection failures retain their exact cause');
+    const mcp = new Error('MCP metadata inspection failed');
+    Object.defineProperty(mcp, 'reason', { get() { throw value; } });
+    const wireFailure = thrown(() => formatToolError(mcp));
+    assert.ok(contains(wireFailure, mcp)); assert.ok(contains(wireFailure, value));
   }
   let settled = false;
   const secondary = Object.assign(new Error('original inspection work'), { cacheOwnershipPending: true, cacheOwnershipReleased: () => settled });

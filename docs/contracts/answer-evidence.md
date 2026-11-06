@@ -3,8 +3,9 @@
 The answer core compiles admitted indexed-query receipts and exact source
 quotations into deterministic text, typed claims and UTF-16 fragment/source maps.
 It also validates historical content and constructs exact-base answer patches.
-Live query/source admission, transport integration and optional durable
-publication remain implementation work under #1532. All authored runtime cases
+Live query/source admission is available through `repository-answer`, MCP
+`repository_answer` and HTTP `POST /analysis/repository-answer`. Optional durable
+publication remains implementation work under #1532. All authored runtime cases
 are unexecuted; this contract is not a qualification receipt.
 
 `compileAdmittedQueryAnswer` is an internal consumer of already-admitted results.
@@ -81,5 +82,52 @@ Five authored, unexecuted cases cover visible text and quote maps, Unicode
 boundaries, typed values and unknown scalar metadata, qualified/empty counts,
 open requirements, exact-base retractions, stale patches, cyclic support edits,
 quotation-content disagreement, duplicate citations, bounded mandatory overflow,
-cancellation and owner-proven invocation metadata separation. The live admission,
-retained-artifact and serial cost controls remain to be implemented and run.
+cancellation and owner-proven invocation metadata separation. The live controls below are authored; retained-artifact work and all runtime/cost
+qualification remain.
+
+Public requests use `mode: "compile"`, a `questionRef` and the existing typed
+execution `query`; optional `quoteRefs` name at most sixteen record refs and
+`openRequirements` preserve unmet caller requirements. The server executes the
+actual pinned query. It rejects raw checked receipts, narrative additions and
+unsupported physical query shapes before generation/artifact admission. Only
+private deeply frozen request snapshots can reuse grammar preflight; source,
+world, config and permission admission are always fresh.
+
+Requested quotations use the existing canonical retained-source owner for every
+query backend. It verifies the same generation/inventory, record/source identity,
+whole retained bytes and exact UTF-16 spans. The query backend itself remains
+unchanged. Worktree text cannot replace the pinned source; corrupt retained bytes
+fail instead of falling back. Header-only row anchors remain separate from these
+quotations. The source phase admits at most 32 KiB of excerpts with the existing
+1 MiB aggregate decoded-source bound and its own 250 ms interval. Query work keeps
+its existing limits; response timings report the two phases and total separately.
+
+The coordinator asks the query runner to defer cursor publication. Query readers
+settle first, then quotation readers, then final rendering/comparison and complete
+JSON byte admission. Only success publishes the original query capability. A
+failed close (including a falsey failure), pending native work, source mismatch,
+failed projection or cancellation cannot install the prepared cursor. The
+upstream opaque cursor is returned unchanged as `continuation`; `--all` forwards
+it verbatim while honoring stream backpressure.
+
+`mode: "compare"` additionally accepts the exact `previous` answer. Its question
+and repository scope and deterministic integrity are checked before fresh query
+hydration. The server then produces a self-contained, fully recomputed current
+answer patch and the original continuation. Final complete envelopes still fit
+the 128 KiB ceiling; oversized required comparisons fail with narrowing guidance.
+
+`mode: "inspect"` accepts only a historical `revision` and executes no query or
+source read. It returns the inspected digest, content-integrity and count metadata,
+with `currentSourceAdmission: "not-established-by-content-inspection"`. It never
+returns a current applicability or read-authorization receipt. All three modes
+have the same closed CLI/MCP/HTTP contract.
+
+Four additional integration cases are authored and unexecuted: real query/quote
+admission with edited worktree and corrupt retained-byte controls; original
+cleanup/publication, cancellation and late-settlement controls; forged receipt,
+grammar, historical integrity and exact-base negatives; and CLI/MCP/HTTP parity,
+inspection scope and backpressure. Small query fixtures explicitly omit synthetic
+manifest padding; existing oversized-manifest controls retain their original
+65,536-byte padding and every assertion. MCP error projection now checks original
+resource observations before reading public fields, matching the semantic error
+owner's fence and preserving falsey inspection failures.

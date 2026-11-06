@@ -12,6 +12,24 @@ import { REPOSITORY_QUERY_REQUEST_SCHEMA } from '../../contracts/schemas/reposit
 import { assertRepositoryQuery } from '../../contracts/validators/repository-question-live.js';
 import { withSemanticReaderCleanup } from '../../semantic/reader-lifetime.js';
 import { publishSemanticPage } from '../../semantic/page-publication.js';
+import { compileRepositoryQuestion } from '../../semantic/questions/compile.js';
+import { checkCurrentReaderQuestionShape } from '../../semantic/questions/current-reader-profile.js';
+
+const preparedRequests = new WeakSet();
+/** Grammar/cost preflight only; world, config and permission admission remain
+ * fresh at the opened reader. Only this owner's deep snapshots are reusable. */
+export const captureRepositoryQueryRequest = input => {
+  if (preparedRequests.has(input)) return input;
+  const request = captureSemanticRequest(input, REPOSITORY_QUERY_REQUEST_SCHEMA);
+  if (preparedRequests.has(request)) return request;
+  assertRepositoryQuery('request', request); canonicalSemanticJson(request, { maxBytes: 512 * 1024 });
+  if (request.mode !== 'describe') {
+    const plan = compileRepositoryQuestion(request.question);
+    if (plan.status !== 'compiled') throw Object.assign(new Error('Repository question compilation rejected the requested clauses.'), { code: 'ERR_SEMANTIC_QUERY_CONTRACT', diagnostics: plan.diagnostics });
+    checkCurrentReaderQuestionShape(plan);
+  }
+  preparedRequests.add(request); return request;
+};
 
 /** Each page reopens the requested immutable generation and settles its actual
  * original readers before publishing any new continuation. Aggregate retention
@@ -21,11 +39,11 @@ export const createRepositoryQueryRunner = ({ openStore = openSemanticQueryStore
   resolveIndexDir = resolveSemanticGenerationIndexDir, maxServices = 32 } = {}) => {
   if (!Number.isSafeInteger(maxServices) || maxServices < 1 || maxServices > 64) throw new TypeError('Invalid repository query service cache bound.');
   const services = new Map(), retentionBudget = createSemanticContinuationBudget();
-  return async (input, { signal = null, userConfig = null } = {}) => {
-    let request = captureSemanticRequest(input, REPOSITORY_QUERY_REQUEST_SCHEMA);
-    assertRepositoryQuery('request', request); throwIfAborted(signal);
+  return async (input, { signal = null, userConfig = null, deferPublication = false } = {}) => {
+    let request = captureRepositoryQueryRequest(input);
+    throwIfAborted(signal);
     const repoRoot = getRepoRoot(request.repoRoot);
-    if (repoRoot !== request.repoRoot) request = captureSemanticRequest({ ...request, repoRoot }, REPOSITORY_QUERY_REQUEST_SCHEMA);
+    if (repoRoot !== request.repoRoot) request = captureRepositoryQueryRequest({ ...request, repoRoot });
     const config = userConfig || loadUserConfig(repoRoot), query = normalizeSemanticConfig(config.indexing?.semantic).query;
     const options = { maxRecords: query.maxRecords, maxBytes: query.maxBytes, maxWorkMs: query.maxWorkMs,
       maxContinuations: query.maxContinuations, ttlMs: query.cursorTtlMs };
@@ -50,7 +68,9 @@ export const createRepositoryQueryRunner = ({ openStore = openSemanticQueryStore
       return value;
     }, () => close?.());
     throwIfAborted(signal);
-    return publishSemanticPage(result);
+    // Trusted composed consumers finish their own projection before publishing
+    // this capability. This internal option is absent from every request schema.
+    return deferPublication ? result : publishSemanticPage(result);
   };
 };
 export const runRepositoryQuery = createRepositoryQueryRunner();

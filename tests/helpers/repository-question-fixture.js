@@ -25,7 +25,7 @@ export const createRepositoryQuestionFixture = async ({ scalar = { type: 'number
     literal: [firstPrefix.length, firstPrefix.length + display(scalar).length],
     secondLiteral: [firstText.length + 1 + secondPrefix.length, firstText.length + 1 + secondPrefix.length + display(secondScalar).length] };
   let canonicalRows, ref;
-  const fixture = await createSemanticServingFixture({ sourceText, buildRows: input => {
+  const fixture = await createSemanticServingFixture({ sourceText, manifestPaddingBytes: 0, buildRows: input => {
     ref = localId => ({ partitionId: input.partitionId, localId });
     const node = (id, kind, span, data) => ({ family: 'node', row: { id, kind, span, scope: null, data } });
     const invocation = { astKind: 'CallExpression', operation: null, invocationKind: 'call', syntacticArgumentCount: 2, flags: [] };

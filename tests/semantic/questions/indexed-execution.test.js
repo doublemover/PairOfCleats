@@ -151,6 +151,11 @@ try {
     const accessor = { ...fixture.request, get question() { getters++; return fixture.request.question; } };
     await assert.rejects(service({ store, request: accessor }), { code: 'ERR_SEMANTIC_QUERY_CONTRACT' });
     assert.equal(getters, 0); assert.equal(reads, 0, 'invalid physical plans and request accessors fail before indexed reads');
+    let opened = 0, resolved = 0;
+    const runner = createRepositoryQueryRunner({ resolveIndexDir: () => { resolved++; assert.fail('invalid physical shape reached generation resolution'); },
+      openStore: () => { opened++; assert.fail('invalid physical shape opened artifacts'); } });
+    await assert.rejects(runner(unsupported, { userConfig: {} }), { code: 'ERR_SEMANTIC_QUERY_CONTRACT' });
+    assert.equal(opened, 0); assert.equal(resolved, 0, 'the transport runner also preflights before large artifact admission');
     await assert.rejects(service({ store, request: { ...fixture.request, limits: { bytes: 1024 } } }), { code: 'ERR_SEMANTIC_OUTPUT_LIMIT' });
     assert.equal(reads, 0, 'mandatory metadata is admitted before operation hydration');
     const wrongCall = { ...fixture.artifact, getRelatedPage: async (owner, member, options) => {

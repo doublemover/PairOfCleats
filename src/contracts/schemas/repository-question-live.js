@@ -1,6 +1,5 @@
 import { semanticObject as object, semanticInteger as uint } from './semantic-envelopes.js';
 import { SEMANTIC_RECORD_REF_SCHEMA as ref } from './semantic.js';
-import { SEMANTIC_DETAIL_REQUEST_SCHEMA } from './semantic-query.js';
 import { REPOSITORY_QUESTION_SCHEMA, QUESTION_WORLD_SCHEMA as world, QUESTION_SCAN_SCHEMA as scan,
   QUESTION_BINDING_SCHEMA as binding, QUESTION_GENERATION_SCHEMA as generation, REPOSITORY_QUESTION_VERSION } from './repository-question.js';
 import { QUESTION_SCALAR_SCHEMA } from './repository-question.js';
@@ -13,10 +12,11 @@ const backend = { enum: ['artifact', 'sqlite'] };
 const envelope = { schemaVersion: { const: REPOSITORY_QUESTION_VERSION }, repoRoot: text(4096), generation };
 const limits = object({}, { records: bounded(128), bytes: { type: 'integer', minimum: 1024, maximum: 65536 }, workMs: bounded(250) });
 const bindingRefs = object({ invocation: ref, declaration: ref, literal: ref });
+export const REPOSITORY_QUERY_EXECUTION_REQUEST_SCHEMA = object({ ...envelope, mode: { const: 'execute' }, question: REPOSITORY_QUESTION_SCHEMA }, { backend,
+  cursor: { anyOf: [text(128), { type: 'null' }] }, limits });
 export const REPOSITORY_QUERY_REQUEST_SCHEMA = { type: 'object', oneOf: [
   object({ ...envelope, mode: { const: 'describe' }, scan }, { backend }),
-  object({ ...envelope, mode: { const: 'execute' }, question: REPOSITORY_QUESTION_SCHEMA }, { backend,
-    cursor: { anyOf: [text(128), { type: 'null' }] }, limits }),
+  REPOSITORY_QUERY_EXECUTION_REQUEST_SCHEMA,
   object({ ...envelope, mode: { const: 'explain' }, question: REPOSITORY_QUESTION_SCHEMA, bindingRefs }, { backend,
     cursor: { anyOf: [text(128), { type: 'null' }] }, limits })
 ] };
@@ -29,8 +29,8 @@ const witness = { oneOf: [object({ operatorId, ref }),
 const diagnostic = object({ operatorId: { anyOf: [operatorId, { type: 'null' }] }, reason: text(128) }, { ref });
 const originMap = list(object({ operatorId, authored: list(object({ clauseId: text(64),
   path: list({ anyOf: [text(64), uint] }, 8) }), 64) }), 64);
-const tupleDetail = { ...SEMANTIC_DETAIL_REQUEST_SCHEMA, properties: { ...SEMANTIC_DETAIL_REQUEST_SCHEMA.properties,
-  refs: { type: 'array', minItems: 3, maxItems: 3, items: ref } } };
+const tupleDetail = object({ repoRoot: text(4096), generation, refs: { type: 'array', minItems: 3, maxItems: 3, items: ref } },
+  { include: { type: 'array', maxItems: 2, uniqueItems: true, items: { enum: ['names', 'operands'] } } });
 export const REPOSITORY_QUERY_PAGE_SCHEMA = object({ schemaVersion: { const: REPOSITORY_QUESTION_VERSION },
   kind: { const: 'repository-question-indexed-page' }, profile: text(128), world, requestDigest: hash, logicalPlanId: hash, physicalPlanId: hash,
   status: { enum: ['partial', 'complete-in-retained-input'] }, rows: list(object({ rowId: hash, bindings: { ...list(binding, 3), minItems: 3 },

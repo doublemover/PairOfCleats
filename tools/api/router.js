@@ -4,6 +4,7 @@ const handleMapWorkspaceRoute = async (...args) => (await import('./router/map-w
 const handleSemanticTraceRoute = async (...args) => (await import('./router/semantic-trace.js')).handleSemanticTraceRoute(...args);
 const handleSemanticFindRoute = async (...args) => (await import('./router/semantic-find.js')).handleSemanticFindRoute(...args);
 const handleRepositoryQueryRoute = async (...args) => (await import('./router/repository-query.js')).handleRepositoryQueryRoute(...args);
+const handleRepositoryAnswerRoute = async (...args) => (await import('./router/repository-answer.js')).handleRepositoryAnswerRoute(...args);
 const handleSemanticExplainRoute = async (...args) => (await import('./router/semantic-explain.js')).handleSemanticExplainRoute(...args);
 const handleSemanticEnrichmentRoute = async (...args) => (await import('./router/semantic-enrichment.js')).handleSemanticEnrichmentRoute(...args);
 const handleRuntimeEvidenceRoute = async (...args) => (await import('./router/runtime-evidence.js')).handleRuntimeEvidenceRoute(...args);
@@ -412,6 +413,10 @@ export const createApiRouter = ({
       }
       if (requestUrl.pathname === '/analysis/repository-query' && req.method === 'POST') {
         await handleRepositoryQueryRoute({ req, res, corsHeaders, parseJsonBody, resolveRepo });
+        return;
+      }
+      if (requestUrl.pathname === '/analysis/repository-answer' && req.method === 'POST') {
+        await handleRepositoryAnswerRoute({ req, res, corsHeaders, parseJsonBody, resolveRepo });
         return;
       }
       if (req.method === 'POST' && ['/analysis/semantic-find','/analysis/semantic-explain','/analysis/semantic-enrichment'].includes(requestUrl.pathname)) {

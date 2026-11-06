@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-06T08:44:22.216Z",
+  "generatedAt": "2026-11-06T10:09:56.192Z",
   "scripts": [
     {
       "name": "audit:duplicates",
@@ -348,6 +348,11 @@
       "command": "pairofcleats report throughput",
       "summary": "Render benchmark throughput overviews.",
       "supportTier": "operator"
+    },
+    {
+      "command": "pairofcleats repository-answer",
+      "summary": "Render qualified retained-query answers, compare exact revisions or inspect historical content.",
+      "supportTier": "experimental"
     },
     {
       "command": "pairofcleats repository-query",

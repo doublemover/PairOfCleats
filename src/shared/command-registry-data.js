@@ -383,6 +383,10 @@ export const COMMAND_REGISTRY = Object.freeze([
     helpGroup: 'Graph', supportTier: 'experimental', metadata: { qualification: 'pending' },
     helpExamples: ['pairofcleats repository-query --request question.json --all']
   }),
+  entry('repository-answer', ['repository-answer'], 'tools/analysis/repository-answer.js', 'Render qualified retained-query answers, compare exact revisions or inspect historical content.', {
+    helpGroup: 'Graph', supportTier: 'experimental', metadata: { qualification: 'pending' },
+    helpExamples: ['pairofcleats repository-answer --request answer.json --all']
+  }),
   entry('semantic.explain',['semantic','explain'],'tools/analysis/semantic-explain.js','Explain pinned static witnesses and explicit task suggestions; qualification pending.',{helpGroup:'Graph',supportTier:'experimental',metadata:{qualification:'pending'},helpExamples:['pairofcleats semantic explain --request request.json --all']}),
   entry('semantic.enrichment',['semantic','enrichment'],'tools/analysis/semantic-enrichment.js','Plan source-pinned tasks by default; explicit enqueue/drain only; qualification pending.',{helpGroup:'Graph',supportTier:'experimental',metadata:{qualification:'pending'},helpExamples:['pairofcleats semantic enrichment --request request.json']}),
   entry('semantic.trace', ['semantic', 'trace'], 'tools/analysis/semantic-trace.js', 'Trace source-pinned value relationships and explicit evidence frontiers.', {
