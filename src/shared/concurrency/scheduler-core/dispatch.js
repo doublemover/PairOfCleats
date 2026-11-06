@@ -167,7 +167,15 @@ export function createSchedulerDispatch({
     const start = previous?.identity === identity && previous.index <= queue.pending.length
       && (previous.index === 0 || queue.pending[previous.index-1] === previous.tail) ? previous.index : 0;
     for (let i = start; i < queue.pending.length; i += 1) {
-      if (canStart(queue, queue.pending[i].tokens, pressure)) {
+      const entry = queue.pending[i], reason = admissionBlockReason(queue, entry.tokens, pressure);
+      if (reason) {
+        const at = config.nowMs(), stage = state.telemetryStage, stageEpoch = state.telemetryStageEpoch;
+        entry.lastAdmissionBlock = { reason, stage, stageEpoch, at,
+          since: entry.lastAdmissionBlock?.reason === reason && entry.lastAdmissionBlock.stage === stage && entry.lastAdmissionBlock.stageEpoch === stageEpoch
+            && entry.lastAdmissionBlock.until === undefined
+            ? entry.lastAdmissionBlock.since : at };
+      } else {
+        if (entry.lastAdmissionBlock && entry.lastAdmissionBlock.until === undefined) entry.lastAdmissionBlock.until = config.nowMs();
         blockedScans.delete(queue);
         return i;
       }
@@ -326,9 +334,19 @@ export function createSchedulerDispatch({
       queue.stats.starvation += 1;
       config.counters.starvation += 1;
     }
-    queueLifecycle.recordQueueWaitTime(queue, config.nowMs() - next.enqueuedAt);
+    const admittedAt = config.nowMs();
+    queueLifecycle.recordQueueWaitTime(queue, admittedAt - next.enqueuedAt);
+    const blocked = next.lastAdmissionBlock;
+    if (next.tokens.io > 0 && blocked && ['io-tokens', 'write-backpressure'].includes(blocked.reason)) {
+      const samples = queue.stats.ioAdmissionSamples ||= [];
+      const observedAt = blocked.until ?? admittedAt;
+      samples.push({ observedAt, stage: blocked.stage, stageEpoch: blocked.stageEpoch, reason: blocked.reason,
+        waitMs: Math.max(0, observedAt - blocked.since) });
+      if (samples.length > config.WAIT_TIME_SAMPLE_LIMIT) samples.shift();
+    }
     const used = reserve(queue, next.tokens);
     const lease = createTaskLease(queue, used, next.signal);
+    next.taskLease = lease;
     lease.replayIdentity = next.replayIdentity || null;
     const startedAt = config.nowMs();
     dispatchReplay?.observeStart(next);
@@ -567,6 +585,7 @@ export function createSchedulerDispatch({
       && config.queueOrder.every(queue => typeof queue.name === 'string' && queue.name.length <= 128)
       ? schedulerReplayLimitIdentity(replayEnvelope()) : null,
     canStart,
+    admissionBlockReason,
     snapshotQueueAdmission,
     reserve,
     release,

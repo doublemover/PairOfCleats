@@ -21,6 +21,7 @@ export function createBuildScheduler(input = {}) {
     runningTasks: new Set(),
     globalInFlightBytes: 0,
     telemetryStage: config.telemetryStage,
+    telemetryStageEpoch: 0,
     traceIntervalMs: config.traceIntervalMs,
     queueDepthSnapshotIntervalMs: config.queueDepthSnapshotIntervalMs,
     queueDepthSnapshotsEnabled: config.queueDepthSnapshotsEnabled,
@@ -69,7 +70,8 @@ export function createBuildScheduler(input = {}) {
   const adaptiveController = createAdaptiveSchedulerController({
     config,
     state,
-    queueLifecycle
+    queueLifecycle,
+    admissionReason: (queue, request, pressure) => dispatch.admissionBlockReason(queue, request, pressure)
   });
   const telemetryTimer = config.enabled && !config.lowResourceMode
     ? setInterval(() => {

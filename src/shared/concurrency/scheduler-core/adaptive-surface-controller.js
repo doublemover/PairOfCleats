@@ -21,11 +21,13 @@ export function createAdaptiveSurfaceController({
         queueLifecycle.countSurfaceRunning(surfaceName)
       );
       const backlogPerSlot = Math.max(0, Number(snapshot.backlogPerSlot) || 0);
-      const oldestWaitMs = Math.max(0, Number(snapshot.oldestWaitMs) || 0);
+      const oldestWaitMs = Math.max(0, Number(snapshot.oldestDemandWaitMs) || 0);
       const fdPressureScore = Math.max(0, Number(signals?.fd?.pressureScore) || 0);
+      const ioAdmissionPressureScore = snapshot.ioPressureScore !== null && Number.isFinite(snapshot.ioPressureScore)
+        ? Math.max(0, snapshot.ioPressureScore) : null;
       const ioPressureScore = Math.max(
         0,
-        Number(snapshot.ioPressureScore) || 0,
+        ioAdmissionPressureScore ?? 0,
         fdPressureScore
       );
       const cpuUtilization = Math.max(
@@ -35,16 +37,14 @@ export function createAdaptiveSurfaceController({
       );
       const memoryPressure = Math.max(0, Number(signals?.memory?.pressureScore) || 0);
       const gcPressure = Math.max(0, Number(signals?.memory?.gcPressureScore) || 0);
-      const ioPressureThreshold = Math.min(
-        surfaceState.ioPressureThreshold,
-        surfaceState.fdPressureThreshold ?? surfaceState.ioPressureThreshold
-      );
+      const ioAdmissionHigh = ioAdmissionPressureScore !== null && ioAdmissionPressureScore >= surfaceState.ioPressureThreshold;
+      const fdHigh = fdPressureScore >= (surfaceState.fdPressureThreshold ?? surfaceState.ioPressureThreshold);
       let action = 'hold';
       let reason = 'steady';
       if (
         memoryPressure >= surfaceState.memoryPressureThreshold
         || gcPressure >= surfaceState.gcPressureThreshold
-        || ioPressureScore >= ioPressureThreshold
+        || ioAdmissionHigh || fdHigh
       ) {
         action = 'down';
         reason = memoryPressure >= surfaceState.memoryPressureThreshold
@@ -53,7 +53,7 @@ export function createAdaptiveSurfaceController({
             gcPressure >= surfaceState.gcPressureThreshold
               ? 'gc-pressure'
               : (
-                ioPressureScore >= (surfaceState.fdPressureThreshold ?? Number.POSITIVE_INFINITY)
+                fdHigh
                   ? 'fd-pressure'
                   : 'io-pressure'
               )
@@ -126,6 +126,8 @@ export function createAdaptiveSurfaceController({
         backlogPerSlot,
         oldestWaitMs,
         ioPressureScore,
+        ioAdmissionPressureScore,
+        ioAdmissionEvidence: snapshot.ioWaitEvidence,
         cpuUtilization,
         memoryPressure,
         gcPressure
@@ -143,7 +145,16 @@ export function createAdaptiveSurfaceController({
           running,
           backlogPerSlot,
           oldestWaitMs,
-          ioPressureScore
+          ioPressureScore,
+          ioAdmissionPressureScore,
+          ioAdmissionEvidence: snapshot.ioWaitEvidence,
+          ioBlockedPending: snapshot.ioBlockedPending,
+          writeBackpressureBlocked: snapshot.writeBackpressureBlocked,
+          blockedBy: { ...snapshot.blockedBy },
+          retainedRunning: snapshot.retainedRunning,
+          suspendedCpu: snapshot.suspendedCpu,
+          cpuReservedTokens: snapshot.cpuReservedTokens,
+          ioReservedTokens: snapshot.ioReservedTokens
         },
         signals: {
           cpu: signals?.cpu && typeof signals.cpu === 'object' ? { ...signals.cpu } : null,

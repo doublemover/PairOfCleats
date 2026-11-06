@@ -3,7 +3,7 @@ import { createAdaptiveSurfaceController } from './adaptive-surface-controller.j
 import { createAdaptiveSurfaceSnapshotHelpers } from './adaptive-surface-snapshots.js';
 import { createAdaptiveTokenController } from './adaptive-token-controller.js';
 
-export function createAdaptiveSchedulerController({ config, state, queueLifecycle }) {
+export function createAdaptiveSchedulerController({ config, state, queueLifecycle, admissionReason }) {
   const appendAdaptiveDecision = (entry) => {
     if (!entry || typeof entry !== 'object') return;
     config.adaptiveDecisionTrace.push(entry);
@@ -15,7 +15,8 @@ export function createAdaptiveSchedulerController({ config, state, queueLifecycl
   const {
     buildAdaptiveSurfaceSnapshotByName,
     buildAdaptiveSurfaceSnapshots
-  } = createAdaptiveSurfaceSnapshotHelpers({ config });
+  } = createAdaptiveSurfaceSnapshotHelpers({ config, admissionReason, getStage: () => state.telemetryStage,
+    getStageEpoch: () => state.telemetryStageEpoch });
   const { readSystemSignals } = createAdaptiveSignalReader({ config, state });
   const { maybeAdaptSurfaceControllers } = createAdaptiveSurfaceController({
     config,

@@ -83,7 +83,9 @@ export function createSchedulerShutdown({
 
   const setTelemetryOptions = (options = {}) => {
     if (typeof options?.stage === 'string') {
-      state.telemetryStage = normalizeTelemetryStage(options.stage, state.telemetryStage);
+      const nextStage = normalizeTelemetryStage(options.stage, state.telemetryStage);
+      if (nextStage !== state.telemetryStage) state.telemetryStageEpoch = (state.telemetryStageEpoch || 0) + 1;
+      state.telemetryStage = nextStage;
     }
     if (Object.prototype.hasOwnProperty.call(options, 'queueDepthSnapshotsEnabled')) {
       state.queueDepthSnapshotsEnabled = options.queueDepthSnapshotsEnabled === true;
