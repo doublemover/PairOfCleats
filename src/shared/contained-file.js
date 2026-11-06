@@ -1,5 +1,4 @@
 import { recordVerifiedArtifactRead } from './artifact-io/verified-read-scope.js';
-import { withSchedulerCpuSuspended } from './concurrency/scheduler-task-scope.js';
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
@@ -7,7 +6,7 @@ import { createHash } from 'node:crypto';
 import { constants as bufferConstants } from 'node:buffer';
 import { isPathWithinRoot } from './file-paths.js';
 import { throwIfAborted } from './abort.js';
-import { createContainedFileResource, iterateContainedFileResource, iterateContainedFileResourceSync } from './contained-file-resource.js';
+import { acquireContainedFileResource, createContainedFileResource, iterateContainedFileResource, iterateContainedFileResourceSync } from './contained-file-resource.js';
 import { addStorageFailureContext } from './storage/operation-error.js';
 export { isContainedFileSession, getContainedFileSession } from './contained-file-resource.js';
 
@@ -84,29 +83,7 @@ const acquireContainedFile = async (root, target, { expectedFileIdentity = null 
   const verification = { fstat: fs.fstatSync, stat: fs.statSync };
   assertNoSymlinkPath(root, target);
   const openMethod = fsPromises.open;
-  let opening = null, handle = null, failure, secondary, failed = false, secondaryPresent = false;
-  try {
-    await withSchedulerCpuSuspended(() => {
-      opening = Promise.resolve().then(() => openMethod.call(fsPromises, target, READ_FLAGS));
-      return opening;
-    });
-  } catch (value) { failed = true; failure = value; }
-  if (opening) {
-    try { handle = await opening; }
-    catch (value) {
-      if (!failed) { failed = true; failure = value; }
-      else if (value !== failure) { secondaryPresent = true; secondary = value; }
-    }
-  }
-  if (!handle) {
-    if (!failed) throw new Error('Scheduler wait did not return the actual opened contained descriptor.');
-    if (secondaryPresent) throw addStorageFailureContext(failure, {}, secondary, { secondaryPresent: true });
-    throw failure;
-  }
-  const owner = createContainedFileResource({ handle, sync: false });
-  if (failed) owner.remember(failure);
-  if (secondaryPresent) owner.remember(secondary);
-  if (owner.hasFailure()) return owner.run(() => {});
+  const owner = await acquireContainedFileResource(() => openMethod.call(fsPromises, target, READ_FLAGS));
   try {
     verifyHandle(owner.operations.fd, root, target, identity, verification);
   } catch (error) { owner.remember(error); return owner.run(() => {}); }

@@ -1,3 +1,4 @@
+import { withSchedulerCpuSuspended } from '../../../../../shared/concurrency/scheduler-task-scope.js';
 import { readPreparedSemanticBatchEntry } from '../../../../semantic/prepared-batch.js';
 import { syncParentDirectory } from '../../../../../shared/io/persistence-helpers.js';
 import { retainSemanticSource } from '../../../../semantic/source-storage.js';
@@ -153,7 +154,7 @@ export const createSemanticPartitionSink = async ({
     busy = true;
     let release = null;
     try {
-      release = await byteAdmission?.acquire(measured, { signal });
+      await withSchedulerCpuSuspended(async () => { release = await byteAdmission?.acquire(measured, { signal }); });
       for (const [member, rows] of Object.entries(groups)) await builders.append(member, rows);
       edgeId = nextEdge;
       sequence += 1; metrics.batchesAcknowledged = sequence;

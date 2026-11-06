@@ -16,6 +16,40 @@ export const getContainedFileSession = error => {
   } catch { return null; }
 };
 
+/** Suspend only the original native open. Even when compute reacquisition
+ * rejects, join that actual open and dispose its exact descriptor through the
+ * existing resource owner. This supplies lifetime ownership, not path authority.
+ */
+export const acquireContainedFileResource = async (open, { additionalMethods = [] } = {}) => {
+  if (typeof open !== 'function') throw new TypeError('An original native open operation is required.');
+  let opening = null, owner = null, primary, secondary, failed = false, hasSecondary = false;
+  try {
+    await withSchedulerCpuSuspended(() => {
+      opening = Promise.resolve().then(open).then(handle => {
+        owner = createContainedFileResource({ handle, sync: false, additionalMethods });
+        return owner;
+      });
+      return opening;
+    });
+  } catch (error) { failed = true; primary = error; }
+  if (opening) {
+    try { await opening; }
+    catch (error) {
+      if (!failed) { failed = true; primary = error; }
+      else if (error !== primary) { secondary = error; hasSecondary = true; }
+    }
+  }
+  if (!owner) {
+    if (!failed) throw new Error('Scheduler wait did not invoke the original descriptor open.');
+    if (hasSecondary) throw addStorageFailureContext(primary, {}, secondary, { secondaryPresent: true });
+    throw primary;
+  }
+  if (failed) owner.remember(primary);
+  if (hasSecondary) owner.remember(secondary);
+  if (owner.hasFailure()) await owner.run(() => {});
+  return owner;
+};
+
 /** Acquire lazily on first next(), and retain the exact session on this actual
  * iterator as well as its failures. A return/throw before first next opens nothing.
  */

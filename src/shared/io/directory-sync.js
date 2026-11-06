@@ -1,7 +1,8 @@
 import fsSync from 'node:fs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { createContainedFileResource } from '../contained-file-resource.js';
+import { acquireContainedFileResource, createContainedFileResource } from '../contained-file-resource.js';
+import { withSchedulerCpuSuspended } from '../concurrency/scheduler-task-scope.js';
 import { observeStorageResource } from '../storage/failure-observation.js';
 
 const UNSUPPORTED = new Set(['EINVAL', 'ENOTSUP', 'EPERM']);
@@ -18,16 +19,16 @@ const failureCode = error => {
 };
 export const syncParentDirectory = async (targetPath, { expectedParent = null, unsupportedCodes = UNSUPPORTED } = {}) => {
   const parent = path.dirname(targetPath);
-  expectedParent ||= await fs.stat(parent, { bigint: true }); assertDirectoryIdentity(expectedParent);
+  expectedParent ||= await withSchedulerCpuSuspended(() => fs.stat(parent, { bigint: true })); assertDirectoryIdentity(expectedParent);
   let phase = 'open';
   try {
-    const handle = await fs.open(parent, 'r');
-    const owner = createContainedFileResource({ handle, sync: false, additionalMethods: ['sync'] });
+    const open = fs.open;
+    const owner = await acquireContainedFileResource(() => open.call(fs, parent, 'r'), { additionalMethods: ['sync'] });
     await owner.run(async descriptor => {
       phase = 'verify'; assertDirectoryIdentity(await descriptor.stat({ bigint: true }), expectedParent);
       phase = 'sync'; await descriptor.sync(); phase = 'verify';
       assertDirectoryIdentity(await descriptor.stat({ bigint: true }), expectedParent);
-      assertDirectoryIdentity(await fs.stat(parent, { bigint: true }), expectedParent);
+      assertDirectoryIdentity(await withSchedulerCpuSuspended(() => fs.stat(parent, { bigint: true })), expectedParent);
     });
   } catch (error) {
     if (!['open', 'sync'].includes(phase) || !unsupportedCodes.has(failureCode(error))) throw error;

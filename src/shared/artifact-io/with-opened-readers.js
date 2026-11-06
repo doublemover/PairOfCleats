@@ -1,6 +1,6 @@
 import fs from 'node:fs/promises';
 import { withContainedFile } from '../contained-file.js';
-import { createContainedFileResource, getContainedFileSession } from '../contained-file-resource.js';
+import { acquireContainedFileResource, getContainedFileSession } from '../contained-file-resource.js';
 import { addStorageFailureContext } from '../storage/operation-error.js';
 import { observeStorageResource } from '../storage/failure-observation.js';
 
@@ -58,8 +58,8 @@ export const openFileReaderScope = async (paths, { containedRoot = null } = {}) 
       ready.resolve(descriptor); return finish.promise;
     };
     const lifetime = containedRoot ? withContainedFile(containedRoot, target, borrow) : (async () => {
-      const handle = await fs.open(target, 'r');
-      const owner = createContainedFileResource({ handle, sync: false });
+      const open = fs.open;
+      const owner = await acquireContainedFileResource(() => open.call(fs, target, 'r'));
       return owner.run(descriptor => borrow(descriptor, owner));
     })();
     const outcome = lifetime.then(() => ({ status: 'fulfilled' }), reason => {

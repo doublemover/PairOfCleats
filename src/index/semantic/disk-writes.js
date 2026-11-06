@@ -5,7 +5,8 @@ import { atomicWriteText } from '../../shared/io/atomic-write.js';
 import { readPersistenceFailureCode, syncParentDirectory } from '../../shared/io/persistence-helpers.js';
 import { throwIfAborted } from '../../shared/abort.js';
 import { assertNoSymlinkPath, verifyContainedFileHandle, withContainedFile } from '../../shared/contained-file.js';
-import { createContainedFileResource } from '../../shared/contained-file-resource.js';
+import { acquireContainedFileResource } from '../../shared/contained-file-resource.js';
+import { withSchedulerCpuSuspended } from '../../shared/concurrency/scheduler-task-scope.js';
 import { observeStorageResource } from '../../shared/storage/failure-observation.js';
 import { addStorageFailureContext } from '../../shared/storage/operation-error.js';
 import { readSemanticSourceCapability } from './source-capability.js';
@@ -37,10 +38,15 @@ const writers = new WeakMap(), retentionWriters = new WeakMap();
 const withDiskWriter = async (owners, account, filename, write) => {
   let pending = owners.get(account);
   if (!pending) { pending = new Map(); owners.set(account, pending); }
-  const key = path.resolve(filename), prior = pending.get(key) || Promise.resolve();
-  const operation = prior.catch(error => {
-    observeStorageResource(error, { phase: 'semantic-disk-writer-prerequisite' }).requireSettled();
-  }).then(write);
+  const key = path.resolve(filename), prior = pending.get(key);
+  const operation = Promise.resolve().then(async () => {
+    if (prior) await withSchedulerCpuSuspended(() => prior.catch(error => {
+      observeStorageResource(error, { phase: 'semantic-disk-writer-prerequisite' }).requireSettled();
+    }));
+    // Only the prerequisite wait suspended compute; this writer may encode,
+    // hash or verify between its own individually suspended native operations.
+    return write();
+  });
   pending.set(key, operation);
   let settled = false;
   try { const result = await operation; settled = true; return result; }
@@ -61,7 +67,7 @@ export const writeSemanticJson = async ({ filename, value, diskAccount, signal =
     throwIfAborted(signal);
     let oldBytes = 0;
     try {
-      const stat = await fs.lstat(filename);
+      const stat = await withSchedulerCpuSuspended(() => fs.lstat(filename));
       if (!stat.isFile() || stat.isSymbolicLink()) throw new Error('Semantic metadata must be a regular file.');
       oldBytes = stat.nlink === 1 ? stat.size : 0;
     }
@@ -103,7 +109,7 @@ export const retainSemanticBytes = async ({ filename, bytes, diskAccount, signal
           if (!buffer.subarray(0, bytesRead).equals(payload.subarray(offset, offset + bytesRead))) throw conflict();
           offset += bytesRead;
         }
-        const after = await descriptor.stat({ bigint: true }), current = await fs.lstat(filename, { bigint: true });
+        const after = await descriptor.stat({ bigint: true }), current = await withSchedulerCpuSuspended(() => fs.lstat(filename, { bigint: true }));
         throwIfAborted(signal);
         const stable = stat => stat.isFile() && !stat.isSymbolicLink() && stat.dev === before.dev && stat.ino === before.ino
         && stat.size === before.size && stat.mtimeNs === before.mtimeNs && stat.ctimeNs === before.ctimeNs;
@@ -124,8 +130,8 @@ export const retainSemanticBytes = async ({ filename, bytes, diskAccount, signal
     const temporary = path.join(path.dirname(filename), '.pending-' + randomUUID());
     let retained = false, primaryError, primaryCaught = false;
     try {
-      const handle = await fs.open(temporary, 'wx');
-      const owner = createContainedFileResource({ handle, sync: false, additionalMethods: ['writeFile', 'sync'] });
+      const open = fs.open;
+      const owner = await acquireContainedFileResource(() => open.call(fs, temporary, 'wx'), { additionalMethods: ['writeFile', 'sync'] });
       await owner.run(async descriptor => {
         owner.inspect(fd => verifyContainedFileHandle(fd, root, temporary));
         throwIfAborted(signal); requireVoid(await descriptor.writeFile(payload), 'temporary write');
@@ -134,7 +140,11 @@ export const retainSemanticBytes = async ({ filename, bytes, diskAccount, signal
       });
       throwIfAborted(signal);
       assertNoSymlinkPath(root, filename, { allowMissing: true });
-      try { requireVoid(await fs.link(temporary, filename), 'immutable publication'); retained = true; }
+      try {
+        await withSchedulerCpuSuspended(async () => {
+          requireVoid(await fs.link(temporary, filename), 'immutable publication'); retained = true;
+        });
+      }
       catch (error) { if (readPersistenceFailureCode(error) !== 'EEXIST') throw error; await verify(); }
       await syncParentDirectory(filename);
       await syncParentDirectory(path.dirname(filename));

@@ -1,3 +1,4 @@
+import { withSchedulerCpuSuspended } from '../../shared/concurrency/scheduler-task-scope.js';
 import path from 'node:path';
 import fs from 'node:fs/promises';
 import { captureSemanticRetainedBytes, retainSemanticBytes, withSemanticDiskWriter } from './disk-writes.js';
@@ -38,14 +39,14 @@ export const retainSemanticSource = async ({ root, source, bytes, sourceCapabili
     let rootAuthority = null;
     try {
       assertNoSymlinkPath(root, filename, { allowMissing: true });
-      rootAuthority = rootAuthorityKey(await fs.lstat(root, { bigint: true }));
+      rootAuthority = rootAuthorityKey(await withSchedulerCpuSuspended(() => fs.lstat(root, { bigint: true })));
     } catch (error) { if (readPersistenceFailureCode(error) !== 'ENOENT') throw error; }
     throwIfAborted(signal);
     const previous = receipts.get(receiptKey);
     if (previous) {
       try {
-        const current = authorityKey(await fs.lstat(filename, { bigint: true }));
-        const currentRoot = rootAuthorityKey(await fs.lstat(root, { bigint: true }));
+        const current = authorityKey(await withSchedulerCpuSuspended(() => fs.lstat(filename, { bigint: true })));
+        const currentRoot = rootAuthorityKey(await withSchedulerCpuSuspended(() => fs.lstat(root, { bigint: true })));
         throwIfAborted(signal);
         assertNoSymlinkPath(root, filename);
         if (current && current === previous.file && rootAuthority && rootAuthority === previous.root && currentRoot === rootAuthority) {
@@ -57,7 +58,7 @@ export const retainSemanticSource = async ({ root, source, bytes, sourceCapabili
       receipts.delete(receiptKey);
     }
     const verified = await retainSemanticBytes({ root, filename, bytes: owned || sourceCapability, diskAccount, signal, metrics });
-    const currentRoot = rootAuthorityKey(await fs.lstat(root, { bigint: true }));
+    const currentRoot = rootAuthorityKey(await withSchedulerCpuSuspended(() => fs.lstat(root, { bigint: true })));
     throwIfAborted(signal);
     assertNoSymlinkPath(root, filename);
     const authority = authorityKey(verified);

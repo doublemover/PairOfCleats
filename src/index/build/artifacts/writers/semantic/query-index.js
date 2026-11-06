@@ -9,13 +9,13 @@ import { createJsonlBatchWriter } from '../../../../../shared/json-stream/jsonl-
 import { canonicalSemanticJson } from '../../../../semantic/identity.js';
 import { throwIfAborted } from '../../../../../shared/abort.js';
 import { compareQueryIndexRows, queryIndexKey, QUERY_INDEX_MEMBERS, queryIndexEntriesForRow } from '../../../../../semantic/query-index.js';
-import { createContainedFileResource } from '../../../../../shared/contained-file-resource.js';
+import { acquireContainedFileResource } from '../../../../../shared/contained-file-resource.js';
 import { observeStorageResource } from '../../../../../shared/storage/failure-observation.js';
 import { addStorageFailureContext } from '../../../../../shared/storage/operation-error.js';
 
 const withOwnedHandle = async (file, flags, run) => {
-  const handle = await fs.open(file, flags);
-  const owner = createContainedFileResource({ handle, sync: false, additionalMethods: ['writeFile', 'sync'] });
+  const open = fs.open;
+  const owner = await acquireContainedFileResource(() => open.call(fs, file, flags), { additionalMethods: ['writeFile', 'sync'] });
   return owner.run(run);
 };
 const failWriter = async (writer, primary) => {
