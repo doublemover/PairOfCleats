@@ -40,6 +40,15 @@ automatically; the surrounding build retains that cleanup authority. Descriptor
 and replay diagnostics cannot turn pending original I/O into an ordinary cache
 miss or hide it behind cancellation.
 
+Index-format projection and semantic transport classification check original
+resource observations before reading diagnostic fields. Cause and format-metadata
+objects retain their own original callbacks and receivers; each field is read
+once per projection, followed by settlement checks. Changing a public callback
+cannot clear the captured prerequisite. Falsey or pending inspection failures
+remain attached to the original failure. Cause/metadata walks stop at 128 distinct
+objects and reject oversized or reentrant projections without a partial format
+claim. Classification grants no cleanup or retry authority.
+
 The existing directory, transfer and migration lifecycle fixtures remain intact.
 The independently bounded ledger cases add callback/receiver preservation, late
 secondary observations, falsey getter failures, cycles, identity deduplication,

@@ -2554,3 +2554,7 @@ semantic/questions/indexed-execution/reader-publication
 semantic/questions/indexed-execution/retention-and-cancellation
 semantic/questions/indexed-execution/profile-admission
 semantic/questions/indexed-execution/transport-parity
+shared/storage/error-projection-originals/pending-originals
+shared/storage/error-projection-originals/metadata-observers
+shared/storage/error-projection-originals/inspection-and-falsey
+shared/storage/error-projection-originals/bounded-and-reentrant

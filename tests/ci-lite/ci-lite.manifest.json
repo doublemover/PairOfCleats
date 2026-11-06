@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 2386,
+    "hero": 2390,
     "matrix": 110,
     "meta": 54,
     "soak": 1,
@@ -15319,6 +15319,30 @@
     {
       "id": "semantic/questions/indexed-execution/transport-parity",
       "order": 2551,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/error-projection-originals/pending-originals",
+      "order": 2552,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/error-projection-originals/metadata-observers",
+      "order": 2553,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/error-projection-originals/inspection-and-falsey",
+      "order": 2554,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/error-projection-originals/bounded-and-reentrant",
+      "order": 2555,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }
