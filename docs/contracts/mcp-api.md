@@ -131,9 +131,10 @@ ownership are specified in [legacy output lifetime](mcp-output-lifetime.md).
 
 ### Tool schema versioning
 
-The current source catalog is 1.15.0. `repository_answer` compiles live qualified
+The current source catalog is 1.16.0. `repository_answer` compiles live qualified
 answers, inspects historical content and optionally retains bounded immutable
-answers with revision-intent publication; see [answer evidence](answer-evidence.md).
+answers with revision-intent publication. Deliver mode returns complete evidence
+packs without accepting client visibility claims; see [answer evidence](answer-evidence.md).
 `repository_query` describes pinned source
 domains and executes typed retained-fact questions; see [repository questions](repository-questions.md).
 `context_pack` declares the optional bounded

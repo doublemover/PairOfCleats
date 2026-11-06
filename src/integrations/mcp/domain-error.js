@@ -58,7 +58,7 @@ export const projectMcpDomainError = error => {
   const classify = enrichment ? classifySemanticEnrichmentError
     : nativeCode.startsWith('ERR_GRAPH_EVIDENCE_') || nativeCode === 'ERR_UNSAFE_FILE_PATH' ? classifyGraphEvidenceError
       : nativeCode.startsWith('ERR_RUNTIME_') ? classifyRuntimeEvidenceError
-        : nativeCode.startsWith('ERR_SEMANTIC_') || nativeCode.startsWith('ERR_ANSWER_') ? classifySemanticDetailError : null;
+        : nativeCode.startsWith('ERR_SEMANTIC_') || nativeCode.startsWith('ERR_ANSWER_') || nativeCode.startsWith('ERR_CONTEXT_DELIVERY_') ? classifySemanticDetailError : null;
   if (classify) {
     const domain = classify(error);
     result.code = ({ 400: ERROR_CODES.INVALID_REQUEST, 403: ERROR_CODES.FORBIDDEN, 404: ERROR_CODES.NO_INDEX,

@@ -12,13 +12,17 @@ export const classifySemanticDetailError = error => {
   } catch (inspection) { throw observation.retain(inspection, { inspectionPresent: true }); }
   observation.requireSettled();
   const semanticCode = format?.nativeCode || (typeof code === 'string' && code ? code : 'ERR_SEMANTIC_DETAIL');
-  const status = ['ERR_SEMANTIC_QUERY_CONTRACT', 'ERR_SEMANTIC_QUERY_LIMIT', 'ERR_SEMANTIC_OUTPUT_LIMIT', 'ERR_ANSWER_EVIDENCE_CONTRACT', 'ERR_ANSWER_RESPONSE_BUDGET'].includes(semanticCode) ? 400
+  const status = ['ERR_SEMANTIC_QUERY_CONTRACT', 'ERR_SEMANTIC_QUERY_LIMIT', 'ERR_SEMANTIC_OUTPUT_LIMIT', 'ERR_ANSWER_EVIDENCE_CONTRACT', 'ERR_ANSWER_RESPONSE_BUDGET',
+    'ERR_CONTEXT_DELIVERY_CONTRACT', 'ERR_CONTEXT_DELIVERY_REPRESENTATION_MISMATCH', 'ERR_CONTEXT_DELIVERY_MANDATORY_OVERFLOW',
+    'ERR_CONTEXT_DELIVERY_INCOMPLETE_MANIFEST', 'ERR_CONTEXT_DELIVERY_TARGET_DIGEST_MISMATCH'].includes(semanticCode) ? 400
     : semanticCode === 'ERR_SEMANTIC_CURSOR_EXPIRED' ? 410
-      : semanticCode === 'ERR_SEMANTIC_SCOPE_MISMATCH' ? 403
-        : ['ERR_INDEX_FORMAT_UNSUPPORTED', 'ERR_SEMANTIC_GENERATION_MISMATCH', 'ERR_ANSWER_BASE_MISMATCH', 'ERR_ANSWER_RETENTION_CONFLICT', 'ERR_ANSWER_RETENTION_BUSY'].includes(semanticCode) ? 409
-          : semanticCode === 'ERR_ANSWER_RETENTION_QUOTA' ? 507
-            : ['ERR_SEMANTIC_UNAVAILABLE', 'ERR_SEMANTIC_QUERY_INDEX_UNAVAILABLE', 'ERR_ANSWER_RETENTION_UNAVAILABLE', 'ENOENT', 'NO_INDEX'].includes(semanticCode) ? 404
-              : name === 'AbortError' || semanticCode === 'ERR_ABORTED' ? 499 : 500;
+      : ['ERR_SEMANTIC_SCOPE_MISMATCH', 'ERR_CONTEXT_DELIVERY_SCOPE_DENIED'].includes(semanticCode) ? 403
+        : ['ERR_INDEX_FORMAT_UNSUPPORTED', 'ERR_SEMANTIC_GENERATION_MISMATCH', 'ERR_ANSWER_BASE_MISMATCH', 'ERR_ANSWER_RETENTION_CONFLICT', 'ERR_ANSWER_RETENTION_BUSY',
+          'ERR_CONTEXT_DELIVERY_EPOCH_MISMATCH', 'ERR_CONTEXT_DELIVERY_UNKNOWN_BASE', 'ERR_CONTEXT_DELIVERY_SOURCE_STALE'].includes(semanticCode) ? 409
+          : semanticCode === 'ERR_CONTEXT_DELIVERY_UNSUPPORTED_ADAPTER' ? 422
+            : semanticCode === 'ERR_ANSWER_RETENTION_QUOTA' ? 507
+              : ['ERR_SEMANTIC_UNAVAILABLE', 'ERR_SEMANTIC_QUERY_INDEX_UNAVAILABLE', 'ERR_ANSWER_RETENTION_UNAVAILABLE', 'ERR_CONTEXT_DELIVERY_HYDRATION_UNAVAILABLE', 'ENOENT', 'NO_INDEX'].includes(semanticCode) ? 404
+                : name === 'AbortError' || semanticCode === 'ERR_ABORTED' ? 499 : 500;
   return { status, semanticCode, message: typeof message === 'string' && message ? message : 'Semantic detail failed.',
     ...(format ? { details: format } : details ? { details } : {}) };
 };

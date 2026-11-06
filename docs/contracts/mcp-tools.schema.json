@@ -1,5 +1,5 @@
 {
-  "schemaVersion": "1.15.0",
+  "schemaVersion": "1.16.0",
   "tools": [
     {
       "name": "bootstrap",
@@ -1116,7 +1116,7 @@
     },
     {
       "name": "repository_answer",
-      "description": "Experimental: run a pinned typed query and render qualified facts and exact source quotations; compare or inspect historical answers. Explicit retention writes bounded immutable derived answers with expected-base and revision-intent checks; retained mode reads historical storage without current source authority. No narrative synthesis or program-wide completeness claim.",
+      "description": "Experimental: run a pinned typed query and render qualified facts and exact source quotations; compare or inspect historical answers. Deliver mode returns a complete source-preserving evidence pack; ordinary transports cannot attest visibility or suppress bodies. Explicit retention writes bounded immutable derived answers with expected-base and revision-intent checks; retained mode reads historical storage without current source authority. No narrative synthesis or program-wide completeness claim.",
       "inputSchema": {
         "type": "object",
         "oneOf": [
@@ -1516,6 +1516,324 @@
               "mode",
               "repoRoot",
               "questionRef"
+            ]
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "schemaVersion": {
+                "const": 1
+              },
+              "query": {
+                "$ref": "#/$defs/query"
+              },
+              "questionRef": {
+                "$ref": "#/$defs/questionRef"
+              },
+              "mode": {
+                "const": "deliver"
+              },
+              "delivery": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "schemaVersion": {
+                    "const": 1
+                  },
+                  "contextRef": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "consumerId": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 256
+                      },
+                      "sessionId": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 256
+                      },
+                      "contextEpoch": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "windowRevision": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "taskRef": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 256
+                          },
+                          "revision": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 256
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "revision"
+                        ]
+                      },
+                      "branchId": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 256
+                      },
+                      "scopeDigest": {
+                        "type": "string",
+                        "pattern": "^[a-f0-9]{64}$"
+                      },
+                      "policyDigest": {
+                        "type": "string",
+                        "pattern": "^[a-f0-9]{64}$"
+                      },
+                      "worldRef": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "properties": {
+                          "repositoryNamespace": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 4096
+                          },
+                          "generation": {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "properties": {
+                              "baseBuildId": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 4096
+                              },
+                              "semanticRevision": {
+                                "const": 0
+                              }
+                            },
+                            "required": [
+                              "baseBuildId",
+                              "semanticRevision"
+                            ]
+                          },
+                          "sourceSnapshotId": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 4096
+                          },
+                          "contextKey": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 4096
+                          },
+                          "domainId": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 4096
+                          },
+                          "producerId": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 4096
+                          }
+                        },
+                        "required": [
+                          "repositoryNamespace",
+                          "generation",
+                          "sourceSnapshotId",
+                          "contextKey",
+                          "domainId",
+                          "producerId"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "consumerId",
+                      "sessionId",
+                      "contextEpoch",
+                      "windowRevision",
+                      "taskRef",
+                      "branchId",
+                      "scopeDigest",
+                      "policyDigest",
+                      "worldRef"
+                    ]
+                  },
+                  "expectedBaseDigest": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "pattern": "^[a-f0-9]{64}$"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "requiredExactSourceRoles": {
+                    "type": "array",
+                    "minItems": 0,
+                    "maxItems": 64,
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 256
+                    },
+                    "uniqueItems": true
+                  },
+                  "unresolvedRoles": {
+                    "type": "array",
+                    "minItems": 0,
+                    "maxItems": 64,
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 256
+                    },
+                    "uniqueItems": true
+                  },
+                  "continuation": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "properties": {
+                          "producerId": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 256
+                          },
+                          "requestDigest": {
+                            "type": "string",
+                            "pattern": "^[a-f0-9]{64}$"
+                          },
+                          "cursor": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 4096
+                          }
+                        },
+                        "required": [
+                          "producerId",
+                          "requestDigest",
+                          "cursor"
+                        ]
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "limits": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "packetBytes": {
+                        "type": "integer",
+                        "minimum": 1024,
+                        "maximum": 131072
+                      },
+                      "reconstructedBytes": {
+                        "type": "integer",
+                        "minimum": 1024,
+                        "maximum": 131072
+                      }
+                    },
+                    "required": [
+                      "packetBytes",
+                      "reconstructedBytes"
+                    ]
+                  }
+                },
+                "required": [
+                  "schemaVersion",
+                  "contextRef",
+                  "expectedBaseDigest",
+                  "requiredExactSourceRoles",
+                  "unresolvedRoles",
+                  "continuation",
+                  "limits"
+                ]
+              },
+              "quoteRefs": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "partitionId": {
+                      "type": "string",
+                      "pattern": "^(sy1|sa1):[a-f0-9]{64}$"
+                    },
+                    "localId": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": [
+                    "partitionId",
+                    "localId"
+                  ]
+                },
+                "maxItems": 16,
+                "uniqueItems": true
+              },
+              "openRequirements": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 256
+                    },
+                    "text": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 2048
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "text"
+                  ]
+                },
+                "maxItems": 64
+              },
+              "quoteRoles": {
+                "type": "array",
+                "maxItems": 16,
+                "items": {
+                  "type": "array",
+                  "minItems": 0,
+                  "maxItems": 64,
+                  "items": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "uniqueItems": true
+                }
+              }
+            },
+            "required": [
+              "schemaVersion",
+              "query",
+              "questionRef",
+              "mode",
+              "delivery"
             ]
           }
         ],

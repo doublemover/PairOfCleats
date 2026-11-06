@@ -28,6 +28,11 @@ export const captureRepositoryAnswerRequest = input => {
   assertRepositoryAnswer('request', request); canonicalSemanticJson(request, { maxBytes: 512 * 1024 });
   const prepared = ['inspect', 'retained'].includes(request.mode) ? request
     : Object.freeze({ ...request, query: captureRepositoryQueryRequest(request.query) });
+  if (prepared.mode === 'deliver' && (!same(prepared.delivery.contextRef.worldRef, prepared.query.question.world)
+    || !same(prepared.delivery.contextRef.taskRef, prepared.questionRef)
+    || prepared.quoteRoles && prepared.quoteRoles.length !== (prepared.quoteRefs?.length || 0))) {
+    throw fail('ERR_SEMANTIC_QUERY_CONTRACT', 'Delivery context must match the original answer question/world, and quote-role mappings must match requested refs.');
+  }
   preparedRequests.add(prepared); return prepared;
 };
 const finalize = result => {
@@ -160,7 +165,18 @@ export const createRepositoryAnswerRunner = ({ queryRunner = runRepositoryQuery,
     const answer = compileAdmittedQueryAnswer({ schemaVersion: ANSWER_EVIDENCE_VERSION, questionRef: request.questionRef,
       queryReceipt, quotations, openRequirements: request.openRequirements || [] }, { maxBytes: ANSWER_MAX_BYTES - (retained ? 8192 : 1024), signal });
     const preparedRetention = retained?.prepare(intent, answer, { signal });
-    const body = request.mode === 'compare' ? { kind: 'repository-answer-comparison', patch: reconcileAnswerRevisions(request.previous, answer, { signal }) }
+    let body;
+    if (request.mode === 'deliver') {
+      const [{ planEvidenceDelivery }, { projectAnswerDeliveryEvidence, answerDeliveryContinuation }] = await Promise.all([
+        import('../../context-pack/delivery/plan.js'), import('../../context-pack/delivery/answer-projection.js')
+      ]);
+      // Ordinary transports have no authenticated exact-window witness. Always
+      // send every selected body, regardless of client-reported base/visibility.
+      const deliveryRequest = { ...request.delivery, continuation: answerDeliveryContinuation(answer, queryPage.cursor),
+        limits: { ...request.delivery.limits, packetBytes: Math.min(request.delivery.limits.packetBytes, ANSWER_MAX_BYTES - 2048) } };
+      body = { kind: 'repository-answer-delivery', plan: planEvidenceDelivery(deliveryRequest, projectAnswerDeliveryEvidence(answer, request.quoteRoles), null, { signal }),
+        availability: 'self-contained-full-pack', contextAuthority: 'client-reported-no-visibility-attestation' };
+    } else body = request.mode === 'compare' ? { kind: 'repository-answer-comparison', patch: reconcileAnswerRevisions(request.previous, answer, { signal }) }
       : { kind: 'repository-answer-page', answer };
     const result = finalize({ schemaVersion: ANSWER_EVIDENCE_VERSION, ...body, continuation: queryPage.cursor, serializedBytes: 0,
       ...(preparedRetention ? { retained: preparedRetention.receipt } : {}),

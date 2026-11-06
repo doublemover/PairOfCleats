@@ -123,6 +123,16 @@ with `currentSourceAdmission: "not-established-by-content-inspection"`. It never
 returns a current applicability or read-authorization receipt. All three modes
 have the same closed CLI/MCP/HTTP contract.
 
+`mode: "deliver"` uses the same live query/quotation admission and takes a
+`delivery` request envelope plus optional `quoteRoles` aligned with `quoteRefs`.
+It returns a self-contained [evidence delivery plan](context-evidence-delivery.md),
+with all selected bodies and the unchanged query continuation. Client-reported
+context identity and base digests cannot attest visibility or suppress source.
+World/question mismatch, unknown visibility flags and implicit retention are
+rejected before reads. Required pack overflow or source-close failure installs no
+prepared query cursor. Three additional unexecuted cases cover these contracts,
+full source maps and actual CLI/MCP/HTTP paging/backpressure parity.
+
 Optional `retention: {expectedBaseDigest: null | digest}` on compile/compare
 records the intended question/world revision before query work. Interrupted work
 can explicitly supply the exact `resumeIntent` returned by retained inspection.

@@ -54,8 +54,7 @@ token savings, latency improvement or host prompt guarantee is claimed.
 Six unexecuted pure cases cover full source/role manifests, 256 independent full/delta
 subset reconstructions, consumer/reset/scope isolation, loss/order/eviction,
 corrupt maps and packet bodies, Unicode, full-cost bounds and cancellation. A
-public full-pack transport, shared hydration and workload qualification remain
-before issue #1533 closes.
+shared hydration and workload qualification remain before issue #1533 closes.
 
 `createEvidenceDeliveryHost` takes installed boundary, provider and exact-window
 adapter functions. The boundary binds consumer identity out of band and rechecks
@@ -96,3 +95,26 @@ original work, atomic replacement/readback, the actual query/source provider and
 falsey verifier-close failure. Corrupt retained quotation bytes fail before a host
 window can be acknowledged. Source roles are selected labels, not proofs of their
 semantic sufficiency.
+
+The existing `repository-answer`, MCP `repository_answer` and HTTP answer route
+expose `mode: "deliver"` with live query/source input. Their `delivery` envelope
+binds the original answer's world/question, required/unresolved roles and bounded
+packet/reconstruction limits; optional `quoteRoles` correspond to requested quote
+refs. The server supplies the real opaque continuation and actual admitted bytes.
+Every ordinary transport response is full mode, with
+`contextAuthority: "client-reported-no-visibility-attestation"`. Even a previously
+returned manifest digest cannot suppress a body without a private host witness.
+
+The complete answer remains a qualified-answer representation alongside explicitly
+requested exact-source entries. Source-only requirements therefore need actual
+quotations; the answer report alone cannot satisfy them. Packet bytes reserve
+2 KiB within the existing 128 KiB service ceiling for the delivery envelope and
+normal work/continuation fields. Full mandatory overflow fails with narrower-page
+guidance; no qualifier or source body is dropped. Existing CLI `--all` carries the
+original query cursor and honors output backpressure. It emits independent full
+packs and makes no visibility claim about the reader.
+
+Three unexecuted transport cases cover untrusted-base/full-source behavior,
+strict world/question/field admission, source-close and overflow publication
+negatives, and real CLI/MCP/HTTP parity. External host qualification and shared
+hydration promotion remain separate from this full-pack route.

@@ -1,8 +1,9 @@
-import { captureDelivery, deliveryDigest, deliveryJson, deliveryError } from './manifest.js';
+import { captureDelivery, deliveryJson, deliveryError } from './manifest.js';
 import { captureRepositoryAnswerRequest, runRepositoryAnswer } from '../../integrations/tooling/repository-answer.js';
 import { publishSemanticPage } from '../../semantic/page-publication.js';
 import { throwIfAborted } from '../../shared/abort.js';
 import { verifyRepositoryAnswerEvidence } from '../../integrations/tooling/repository-answer-evidence.js';
+import { projectAnswerDeliveryEvidence, answerDeliveryContinuation } from './answer-projection.js';
 
 /** Actual pinned query/source admission. Raw checked claims or quoted source
  * bodies are never public selection input. Every host release re-executes this
@@ -24,16 +25,8 @@ export const createRepositoryAnswerDeliveryProvider = ({ runner = runRepositoryA
     }
     const page = await runner(request, { signal, deferPublication: true }); throwIfAborted(signal);
     const answer = page.answer;
-    const evidence = [{ observationIds: [answer.digest], representation: 'qualified-answer', source: null,
-      roles: ['qualified-answer'], qualifiers: ['retained-query-facts-and-exact-source-quotations', 'program-semantics-not-established'],
-      dependencyIds: [answer.inputs.queryReceipt.requestDigest, answer.world.sourceSnapshotId], text: deliveryJson(answer) }];
-    for (const [index, quote] of answer.inputs.quotations.entries()) evidence.push({
-      observationIds: [deliveryDigest('admitted-source-quotation', quote)], representation: 'exact-source', source: quote.source,
-      roles: selection.quoteRoles?.[index] || ['quoted-source'], qualifiers: ['verified-retained-source-bytes', 'role-is-selected-not-a-proof-of-semantic-sufficiency'],
-      dependencyIds: [quote.source.sourceHash, answer.world.sourceSnapshotId], text: quote.text
-    });
-    return { worldRef: answer.world, evidence,
-      continuation: page.continuation ? { producerId: answer.inputs.queryReceipt.profile, requestDigest: answer.inputs.queryReceipt.requestDigest, cursor: page.continuation } : null,
+    return { worldRef: answer.world, evidence: projectAnswerDeliveryEvidence(answer, selection.quoteRoles),
+      continuation: answerDeliveryContinuation(answer, page.continuation),
       publish: () => { publishSemanticPage(page); } };
   },
   revalidate: async (selection, { contextRef, window, signal = null } = {}) => {

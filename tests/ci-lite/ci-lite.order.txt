@@ -2593,3 +2593,6 @@ context-pack/delivery/host/cancel-and-original-failure
 context-pack/delivery/host/atomic-host-and-readback
 context-pack/delivery/host/live-answer-provider
 context-pack/delivery/host/original-verifier-close
+semantic/questions/answer-delivery/source-and-untrusted-base
+semantic/questions/answer-delivery/publication-and-overflow
+semantic/questions/answer-delivery/transport-parity
