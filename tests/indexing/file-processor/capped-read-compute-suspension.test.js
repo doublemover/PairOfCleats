@@ -22,6 +22,8 @@ fs.readFile = async target => {
 fs.open = async target => {
   assert.equal(target, 'owned-capped-fixture');
   return {
+    fd: 42, // Inert descriptor model; no native operation consumes this number.
+    stat: async () => ({ size: source.length }),
     read: async (buffer, offset, length, position) => {
       reading = true; assert.equal(currentSchedulerTaskLease().used.cpu, 0);
       await readGate.promise; if (selected === 'failure') throw failure;

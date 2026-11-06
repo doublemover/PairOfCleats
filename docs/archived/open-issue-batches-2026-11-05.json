@@ -3660,7 +3660,7 @@
       "title": "[Perf] Release CPU admission while file tasks await nested I/O and reacquire only for compute",
       "batch": "storage-publication-lifetimes",
       "scope": "active",
-      "review": "source-review-pending",
+      "review": "implementation-partial",
       "recordedDisposition": "Partial implementation or follow-up acceptance remains.",
       "owners": [
         "src/index/build/runtime/workers.js",
@@ -3668,7 +3668,9 @@
         "src/index/build/file-processor/cpu.js",
         "docs/archived/github-issue-closeout-2026-10-26.json",
         "docs/archived/github-issue-closeout-2026-10-26.md"
-      ]
+      ],
+      "receipt": "docs/archived/capped-reader-lifecycle-repairs-2026-11-05.json",
+      "remaining": "Qualify remaining semantic/provider wait boundaries and representative mixed-latency work/output parity; capped-reader original open/read/close failures are repaired separately."
     },
     {
       "number": 1334,

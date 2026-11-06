@@ -228,7 +228,13 @@ try {
       };
       const operation = async (method, input) => {
         await awaitSeed();
-        const after = await last('native-workflow-'); terminal.write(input); return settled('native-workflow-', method, after);
+        const after = await last('native-workflow-'); terminal.write(input);
+        const result = await settled('native-workflow-', method, after);
+        // The supervisor's recorded result can precede the native event/frame.
+        // Another Escape while native pending remains set requests cancellation
+        // instead of returning to the catalog. Observe the actual acknowledgement.
+        if (method === 'discard') await rendered('Launch preview discarded; no job started');
+        return result;
       };
       const currentStatus = async () => {
         const result = await operation('status', 't');

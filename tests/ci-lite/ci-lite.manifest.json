@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 2236,
+    "hero": 2244,
     "matrix": 110,
     "meta": 54,
     "soak": 1,
@@ -14421,6 +14421,54 @@
       "order": 2401,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "indexing/file-processor/capped-read-failure-ownership/shutdown-open",
+      "order": 2402,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/file-processor/capped-read-failure-ownership/shutdown-open-close-failure",
+      "order": 2403,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/file-processor/capped-read-failure-ownership/frozen",
+      "order": 2404,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/file-processor/capped-read-failure-ownership/null",
+      "order": 2405,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/file-processor/capped-read-failure-ownership/undefined",
+      "order": 2406,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/file-processor/capped-read-failure-ownership/false",
+      "order": 2407,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/file-processor/capped-read-failure-ownership/close-false",
+      "order": 2408,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/file-processor/capped-read-failure-ownership/close-throw",
+      "order": 2409,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
     }
   ]
 }

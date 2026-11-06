@@ -27,6 +27,12 @@ Canonical full reports match the eager control; large JSONL stored-byte work is
 8,599,189→4,300,158 bytes. Timings/heap are mixed. Six original fixture-health
 close failures are repaired; broader health qualification is recorded below.
 
+[Capped-reader ownership](../archived/capped-reader-lifecycle-repairs-2026-11-05.md)
+repairs eight original open/read/close failures and retains the existing cleanup
+deadline. Seventeen focused Windows controls pass; #1330 retains its broader
+semantic-wait and representative-workload qualification. CI2181 also exposes a
+native discard-frame race and a separate unexplained settings-child timeout.
+
 [Managed destination allocation](../archived/managed-install-destination-repairs-2026-11-05.md)
 repairs seven demonstrated alias/shape/order failures and passes15 affected cases,
 including actual managed-child admission and close under two bounded roots.

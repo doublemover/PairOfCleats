@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-06T02:26:22.226Z",
+  "generatedAt": "2026-11-06T02:50:30.278Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
@@ -4729,6 +4729,7 @@
         "tests/indexing/embeddings/text-cache-turnover-measurements.test.js",
         "tests/indexing/embeddings/vector-spool-original-lifetime.test.js",
         "tests/indexing/file-processor/capped-read-compute-suspension.test.js",
+        "tests/indexing/file-processor/capped-read-failure-ownership.test.js",
         "tests/indexing/file-processor/coarse-worker-file-analysis.test.js",
         "tests/indexing/file-processor/demanded-line-token-cache.test.js",
         "tests/indexing/file-processor/mixed-scm-token-waits-admission.test.js",

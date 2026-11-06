@@ -2404,3 +2404,11 @@ tooling/install/estimate-destination-identity/invalid-budget
 tooling/install/estimate-destination-identity/uncovered
 tooling/install/estimate-destination-identity/managed-child
 tooling/install/estimate-destination-identity/field-order
+indexing/file-processor/capped-read-failure-ownership/shutdown-open
+indexing/file-processor/capped-read-failure-ownership/shutdown-open-close-failure
+indexing/file-processor/capped-read-failure-ownership/frozen
+indexing/file-processor/capped-read-failure-ownership/null
+indexing/file-processor/capped-read-failure-ownership/undefined
+indexing/file-processor/capped-read-failure-ownership/false
+indexing/file-processor/capped-read-failure-ownership/close-false
+indexing/file-processor/capped-read-failure-ownership/close-throw

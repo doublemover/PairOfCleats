@@ -1,4 +1,5 @@
 import fs from 'node:fs/promises';
+import { createContainedFileResource } from '../../../shared/contained-file-resource.js';
 import path from 'node:path';
 import { resolveSpecialCodeExt } from '../../constants.js';
 import { fileExt } from '../../../shared/file-paths.js';
@@ -113,7 +114,22 @@ export const readTextFileWithStreamingCap = async ({
   const chunkSize = Number.isFinite(Number(chunkSizeBytes))
     ? Math.max(1024, Math.floor(Number(chunkSizeBytes)))
     : 64 * 1024;
-  const handle = await withSchedulerCpuSuspended(() => fs.open(absPath, 'r'));
+  let handle = null;
+  try {
+    // Adopt the actual descriptor before compute reacquisition can reject.
+    await withSchedulerCpuSuspended(async () => { handle = await fs.open(absPath, 'r'); });
+  } catch (error) {
+    if (!handle) throw error;
+    const owner = createContainedFileResource({ handle, sync: false });
+    owner.remember(error);
+    return owner.run(() => {});
+  }
+  const owner = createContainedFileResource({ handle, sync: false });
+  if (owner.hasFailure()) return owner.run(() => {});
+  const finish = Promise.withResolvers();
+  const lifetime = owner.run(() => finish.promise);
+  lifetime.catch(() => {});
+  const descriptor = owner.operations;
   try {
     let remaining = cap;
     let total = 0;
@@ -121,7 +137,7 @@ export const readTextFileWithStreamingCap = async ({
     while (remaining > 0) {
       const nextSize = Math.min(chunkSize, remaining);
       const chunk = Buffer.allocUnsafe(nextSize);
-      const { bytesRead } = await withSchedulerCpuSuspended(() => handle.read(chunk, 0, nextSize, total));
+      const { bytesRead } = await descriptor.read(chunk, 0, nextSize, total);
       if (!bytesRead) break;
       total += bytesRead;
       remaining -= bytesRead;
@@ -135,7 +151,7 @@ export const readTextFileWithStreamingCap = async ({
         truncated = stat.size > total;
       } else {
         const probe = Buffer.allocUnsafe(1);
-        const { bytesRead: probeRead } = await withSchedulerCpuSuspended(() => handle.read(probe, 0, 1, total));
+        const { bytesRead: probeRead } = await descriptor.read(probe, 0, 1, total);
         truncated = probeRead > 0;
       }
     }
@@ -145,10 +161,15 @@ export const readTextFileWithStreamingCap = async ({
       truncated,
       bytes: total
     };
+  } catch (error) {
+    finish.reject(error);
   } finally {
+    // The existing deadline bounds observation, while the original descriptor
+    // owner retains failed or outstanding close and all primary failures.
+    finish.resolve();
     await runBuildCleanupWithTimeout({
       label: 'file-processor.read.close',
-      cleanup: () => withSchedulerCpuSuspended(() => handle.close()),
+      cleanup: () => lifetime,
       swallowTimeout: false
     });
   }

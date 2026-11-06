@@ -1,0 +1,2521 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-11-05",
+  "issue": 1330,
+  "status": "Partial:capped-reader ownership repaired;broader semantic-wait/workload qualification remains",
+  "parentCommit": "e54ed4bb961556b078b197fdcdc431c35f08fcba",
+  "branch": "codex/pr557-audit-repairs-20261012",
+  "candidateIdentity": {
+    "kind": "exact-source-sha256",
+    "files": {
+      "src/index/build/file-processor/read.js": {
+        "bytes": 7383,
+        "sha256": "dc9a5112b29f555c8244bca20024d2a5028b742cd1e62be74d8dfef043590c05"
+      },
+      "src/shared/contained-file-resource.js": {
+        "bytes": 13650,
+        "sha256": "52cfef5e0941cfc0c480fcf9274c4c9bc1e478ca02850f0c786fa336e03949b8"
+      },
+      "src/shared/concurrency/scheduler-core/dispatch.js": {
+        "bytes": 28178,
+        "sha256": "e47260e254e8558190e057ccde844fbd310a0be786c8c37c05757eebd5c84cfe"
+      },
+      "tests/indexing/file-processor/capped-read-failure-ownership.test.js": {
+        "bytes": 5702,
+        "sha256": "3f23db98e8a8feabbbf798a089f86deaf227b058f7056a58aea43ef5f72b5f6f"
+      },
+      "tests/indexing/file-processor/capped-read-failure-ownership.test.js.cases.json": {
+        "bytes": 156,
+        "sha256": "e068cb6043406af398a80f160bf65086e689a42b3c3dddf4c650d8fbd8557616"
+      },
+      "tests/indexing/file-processor/capped-read-compute-suspension.test.js": {
+        "bytes": 3700,
+        "sha256": "89047725debe750226af5f5197e4d266a587d84f888ab05d7c8d1f6de7d8fdef"
+      },
+      "tests/tui/native-index-workflows.test.js": {
+        "bytes": 35813,
+        "sha256": "e485b4e9198da6cad1568bc444c6b24a276075b0d03e0c72b78310fa1709fb73"
+      }
+    }
+  },
+  "runtime": {
+    "node": "v26.13.0",
+    "platform": "win32",
+    "arch": "x64",
+    "abi": "147"
+  },
+  "setup": {
+    "state": "unchanged previously verified required dependencies",
+    "packages": 37,
+    "languageRoutes": 33,
+    "patches": 8,
+    "files": 30,
+    "hunks": 81
+  },
+  "reports": {
+    "capped-read-original": {
+      "junit": null,
+      "logDir": "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793932957603-62w56m",
+      "summary": {
+        "durationMs": 1103,
+        "failed": 6,
+        "passed": 0,
+        "skipped": 0,
+        "total": 6
+      },
+      "tests": [
+        {
+          "attempts": 1,
+          "durationMs": 182,
+          "exitCode": 1,
+          "id": "indexing/file-processor/capped-read-failure-ownership/false",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793932957603-62w56m\\indexing_file-processor_capped-read-failure-ownership_false.attempt-1.log",
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793932957603-62w56m\\indexing_file-processor_capped-read-failure-ownership_false.attempt-1.failure.json"
+          ],
+          "path": "indexing/file-processor/capped-read-failure-ownership.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "failed",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 157,
+          "exitCode": 1,
+          "id": "indexing/file-processor/capped-read-failure-ownership/frozen",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793932957603-62w56m\\indexing_file-processor_capped-read-failure-ownership_frozen.attempt-1.log",
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793932957603-62w56m\\indexing_file-processor_capped-read-failure-ownership_frozen.attempt-1.failure.json"
+          ],
+          "path": "indexing/file-processor/capped-read-failure-ownership.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "failed",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 184,
+          "exitCode": 1,
+          "id": "indexing/file-processor/capped-read-failure-ownership/null",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793932957603-62w56m\\indexing_file-processor_capped-read-failure-ownership_null.attempt-1.log",
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793932957603-62w56m\\indexing_file-processor_capped-read-failure-ownership_null.attempt-1.failure.json"
+          ],
+          "path": "indexing/file-processor/capped-read-failure-ownership.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "failed",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 179,
+          "exitCode": 13,
+          "id": "indexing/file-processor/capped-read-failure-ownership/shutdown-open",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793932957603-62w56m\\indexing_file-processor_capped-read-failure-ownership_shutdown-open.attempt-1.log",
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793932957603-62w56m\\indexing_file-processor_capped-read-failure-ownership_shutdown-open.attempt-1.failure.json"
+          ],
+          "path": "indexing/file-processor/capped-read-failure-ownership.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "failed",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 198,
+          "exitCode": 13,
+          "id": "indexing/file-processor/capped-read-failure-ownership/shutdown-open-close-failure",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793932957603-62w56m\\indexing_file-processor_capped-read-failure-ownership_shutdown-open-close-failure.attempt-1.log",
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793932957603-62w56m\\indexing_file-processor_capped-read-failure-ownership_shutdown-open-close-failure.attempt-1.failure.json"
+          ],
+          "path": "indexing/file-processor/capped-read-failure-ownership.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "failed",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 177,
+          "exitCode": 1,
+          "id": "indexing/file-processor/capped-read-failure-ownership/undefined",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793932957603-62w56m\\indexing_file-processor_capped-read-failure-ownership_undefined.attempt-1.log",
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793932957603-62w56m\\indexing_file-processor_capped-read-failure-ownership_undefined.attempt-1.failure.json"
+          ],
+          "path": "indexing/file-processor/capped-read-failure-ownership.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "failed",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        }
+      ]
+    },
+    "capped-read-original-bounded": {
+      "junit": null,
+      "logDir": "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793932970044-zbg2tl",
+      "summary": {
+        "durationMs": 3358,
+        "failed": 2,
+        "passed": 0,
+        "skipped": 0,
+        "total": 2
+      },
+      "tests": [
+        {
+          "attempts": 1,
+          "durationMs": 1665,
+          "exitCode": 1,
+          "id": "indexing/file-processor/capped-read-failure-ownership/shutdown-open",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793932970044-zbg2tl\\indexing_file-processor_capped-read-failure-ownership_shutdown-open.attempt-1.log",
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793932970044-zbg2tl\\indexing_file-processor_capped-read-failure-ownership_shutdown-open.attempt-1.failure.json"
+          ],
+          "path": "indexing/file-processor/capped-read-failure-ownership.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "failed",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 1678,
+          "exitCode": 1,
+          "id": "indexing/file-processor/capped-read-failure-ownership/shutdown-open-close-failure",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793932970044-zbg2tl\\indexing_file-processor_capped-read-failure-ownership_shutdown-open-close-failure.attempt-1.log",
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793932970044-zbg2tl\\indexing_file-processor_capped-read-failure-ownership_shutdown-open-close-failure.attempt-1.failure.json"
+          ],
+          "path": "indexing/file-processor/capped-read-failure-ownership.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "failed",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        }
+      ]
+    },
+    "capped-read-candidate": {
+      "junit": null,
+      "logDir": "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793932983479-w6w2aa",
+      "summary": {
+        "durationMs": 1740,
+        "failed": 0,
+        "passed": 10,
+        "skipped": 0,
+        "total": 10
+      },
+      "tests": [
+        {
+          "attempts": 1,
+          "durationMs": 183,
+          "exitCode": 0,
+          "id": "indexing/file-processor/capped-read-compute-suspension/capped",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793932983479-w6w2aa\\indexing_file-processor_capped-read-compute-suspension_capped.attempt-1.log"
+          ],
+          "path": "indexing/file-processor/capped-read-compute-suspension.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 186,
+          "exitCode": 0,
+          "id": "indexing/file-processor/capped-read-compute-suspension/failure",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793932983479-w6w2aa\\indexing_file-processor_capped-read-compute-suspension_failure.attempt-1.log"
+          ],
+          "path": "indexing/file-processor/capped-read-compute-suspension.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 171,
+          "exitCode": 0,
+          "id": "indexing/file-processor/capped-read-compute-suspension/probe",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793932983479-w6w2aa\\indexing_file-processor_capped-read-compute-suspension_probe.attempt-1.log"
+          ],
+          "path": "indexing/file-processor/capped-read-compute-suspension.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 171,
+          "exitCode": 0,
+          "id": "indexing/file-processor/capped-read-compute-suspension/uncapped",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793932983479-w6w2aa\\indexing_file-processor_capped-read-compute-suspension_uncapped.attempt-1.log"
+          ],
+          "path": "indexing/file-processor/capped-read-compute-suspension.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 164,
+          "exitCode": 0,
+          "id": "indexing/file-processor/capped-read-failure-ownership/false",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793932983479-w6w2aa\\indexing_file-processor_capped-read-failure-ownership_false.attempt-1.log"
+          ],
+          "path": "indexing/file-processor/capped-read-failure-ownership.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 157,
+          "exitCode": 0,
+          "id": "indexing/file-processor/capped-read-failure-ownership/frozen",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793932983479-w6w2aa\\indexing_file-processor_capped-read-failure-ownership_frozen.attempt-1.log"
+          ],
+          "path": "indexing/file-processor/capped-read-failure-ownership.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 151,
+          "exitCode": 0,
+          "id": "indexing/file-processor/capped-read-failure-ownership/null",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793932983479-w6w2aa\\indexing_file-processor_capped-read-failure-ownership_null.attempt-1.log"
+          ],
+          "path": "indexing/file-processor/capped-read-failure-ownership.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 156,
+          "exitCode": 0,
+          "id": "indexing/file-processor/capped-read-failure-ownership/shutdown-open",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793932983479-w6w2aa\\indexing_file-processor_capped-read-failure-ownership_shutdown-open.attempt-1.log"
+          ],
+          "path": "indexing/file-processor/capped-read-failure-ownership.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 226,
+          "exitCode": 0,
+          "id": "indexing/file-processor/capped-read-failure-ownership/shutdown-open-close-failure",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793932983479-w6w2aa\\indexing_file-processor_capped-read-failure-ownership_shutdown-open-close-failure.attempt-1.log"
+          ],
+          "path": "indexing/file-processor/capped-read-failure-ownership.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 160,
+          "exitCode": 0,
+          "id": "indexing/file-processor/capped-read-failure-ownership/undefined",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793932983479-w6w2aa\\indexing_file-processor_capped-read-failure-ownership_undefined.attempt-1.log"
+          ],
+          "path": "indexing/file-processor/capped-read-failure-ownership.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        }
+      ]
+    },
+    "capped-read-owner-final": {
+      "junit": null,
+      "logDir": "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793933094520-iahc1b",
+      "summary": {
+        "durationMs": 2050,
+        "failed": 0,
+        "passed": 10,
+        "skipped": 0,
+        "total": 10
+      },
+      "tests": [
+        {
+          "attempts": 1,
+          "durationMs": 186,
+          "exitCode": 0,
+          "id": "indexing/file-processor/capped-read-compute-suspension/capped",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793933094520-iahc1b\\indexing_file-processor_capped-read-compute-suspension_capped.attempt-1.log"
+          ],
+          "path": "indexing/file-processor/capped-read-compute-suspension.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 190,
+          "exitCode": 0,
+          "id": "indexing/file-processor/capped-read-compute-suspension/failure",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793933094520-iahc1b\\indexing_file-processor_capped-read-compute-suspension_failure.attempt-1.log"
+          ],
+          "path": "indexing/file-processor/capped-read-compute-suspension.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 185,
+          "exitCode": 0,
+          "id": "indexing/file-processor/capped-read-compute-suspension/probe",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793933094520-iahc1b\\indexing_file-processor_capped-read-compute-suspension_probe.attempt-1.log"
+          ],
+          "path": "indexing/file-processor/capped-read-compute-suspension.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 187,
+          "exitCode": 0,
+          "id": "indexing/file-processor/capped-read-compute-suspension/uncapped",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793933094520-iahc1b\\indexing_file-processor_capped-read-compute-suspension_uncapped.attempt-1.log"
+          ],
+          "path": "indexing/file-processor/capped-read-compute-suspension.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 219,
+          "exitCode": 0,
+          "id": "indexing/file-processor/capped-read-failure-ownership/false",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793933094520-iahc1b\\indexing_file-processor_capped-read-failure-ownership_false.attempt-1.log"
+          ],
+          "path": "indexing/file-processor/capped-read-failure-ownership.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 225,
+          "exitCode": 0,
+          "id": "indexing/file-processor/capped-read-failure-ownership/frozen",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793933094520-iahc1b\\indexing_file-processor_capped-read-failure-ownership_frozen.attempt-1.log"
+          ],
+          "path": "indexing/file-processor/capped-read-failure-ownership.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 237,
+          "exitCode": 0,
+          "id": "indexing/file-processor/capped-read-failure-ownership/null",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793933094520-iahc1b\\indexing_file-processor_capped-read-failure-ownership_null.attempt-1.log"
+          ],
+          "path": "indexing/file-processor/capped-read-failure-ownership.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 199,
+          "exitCode": 0,
+          "id": "indexing/file-processor/capped-read-failure-ownership/shutdown-open",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793933094520-iahc1b\\indexing_file-processor_capped-read-failure-ownership_shutdown-open.attempt-1.log"
+          ],
+          "path": "indexing/file-processor/capped-read-failure-ownership.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 202,
+          "exitCode": 0,
+          "id": "indexing/file-processor/capped-read-failure-ownership/shutdown-open-close-failure",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793933094520-iahc1b\\indexing_file-processor_capped-read-failure-ownership_shutdown-open-close-failure.attempt-1.log"
+          ],
+          "path": "indexing/file-processor/capped-read-failure-ownership.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 205,
+          "exitCode": 0,
+          "id": "indexing/file-processor/capped-read-failure-ownership/undefined",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793933094520-iahc1b\\indexing_file-processor_capped-read-failure-ownership_undefined.attempt-1.log"
+          ],
+          "path": "indexing/file-processor/capped-read-failure-ownership.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        }
+      ]
+    },
+    "capped-read-related": {
+      "junit": null,
+      "logDir": "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793933136944-glh9ag",
+      "summary": {
+        "durationMs": 1068,
+        "failed": 0,
+        "passed": 7,
+        "skipped": 0,
+        "total": 7
+      },
+      "tests": [
+        {
+          "attempts": 1,
+          "durationMs": 201,
+          "exitCode": 0,
+          "id": "indexing/file-processor/capped-read-failure-ownership/close-false",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793933136944-glh9ag\\indexing_file-processor_capped-read-failure-ownership_close-false.attempt-1.log"
+          ],
+          "path": "indexing/file-processor/capped-read-failure-ownership.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 200,
+          "exitCode": 0,
+          "id": "indexing/file-processor/capped-read-failure-ownership/close-throw",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793933136944-glh9ag\\indexing_file-processor_capped-read-failure-ownership_close-throw.attempt-1.log"
+          ],
+          "path": "indexing/file-processor/capped-read-failure-ownership.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 119,
+          "exitCode": 0,
+          "id": "indexing/read/streaming-truncation-byte-cap",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793933136944-glh9ag\\indexing_read_streaming-truncation-byte-cap.attempt-1.log"
+          ],
+          "path": "indexing/read/streaming-truncation-byte-cap.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 134,
+          "exitCode": 0,
+          "id": "shared/concurrency/scheduler-compute-suspension",
+          "lane": "unit",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793933136944-glh9ag\\shared_concurrency_scheduler-compute-suspension.attempt-1.log"
+          ],
+          "path": "shared/concurrency/scheduler-compute-suspension.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "unit"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 145,
+          "exitCode": 0,
+          "id": "shared/concurrency/scheduler-detached-wait-ownership",
+          "lane": "unit",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793933136944-glh9ag\\shared_concurrency_scheduler-detached-wait-ownership.attempt-1.log"
+          ],
+          "path": "shared/concurrency/scheduler-detached-wait-ownership.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "unit"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 129,
+          "exitCode": 0,
+          "id": "shared/concurrency/scheduler-retained-worker-compute",
+          "lane": "unit",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793933136944-glh9ag\\shared_concurrency_scheduler-retained-worker-compute.attempt-1.log"
+          ],
+          "path": "shared/concurrency/scheduler-retained-worker-compute.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "unit"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 127,
+          "exitCode": 0,
+          "id": "shared/files/positive-short-read-completion",
+          "lane": "unit",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793933136944-glh9ag\\shared_files_positive-short-read-completion.attempt-1.log"
+          ],
+          "path": "shared/files/positive-short-read-completion.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "unit"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        }
+      ]
+    },
+    "capped-read-final-original": {
+      "junit": null,
+      "logDir": "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793933149010-qtfl7x",
+      "summary": {
+        "durationMs": 4495,
+        "failed": 8,
+        "passed": 0,
+        "skipped": 0,
+        "total": 8
+      },
+      "tests": [
+        {
+          "attempts": 1,
+          "durationMs": 173,
+          "exitCode": 1,
+          "id": "indexing/file-processor/capped-read-failure-ownership/close-false",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793933149010-qtfl7x\\indexing_file-processor_capped-read-failure-ownership_close-false.attempt-1.log",
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793933149010-qtfl7x\\indexing_file-processor_capped-read-failure-ownership_close-false.attempt-1.failure.json"
+          ],
+          "path": "indexing/file-processor/capped-read-failure-ownership.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "failed",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 198,
+          "exitCode": 1,
+          "id": "indexing/file-processor/capped-read-failure-ownership/close-throw",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793933149010-qtfl7x\\indexing_file-processor_capped-read-failure-ownership_close-throw.attempt-1.log",
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793933149010-qtfl7x\\indexing_file-processor_capped-read-failure-ownership_close-throw.attempt-1.failure.json"
+          ],
+          "path": "indexing/file-processor/capped-read-failure-ownership.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "failed",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 182,
+          "exitCode": 1,
+          "id": "indexing/file-processor/capped-read-failure-ownership/false",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793933149010-qtfl7x\\indexing_file-processor_capped-read-failure-ownership_false.attempt-1.log",
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793933149010-qtfl7x\\indexing_file-processor_capped-read-failure-ownership_false.attempt-1.failure.json"
+          ],
+          "path": "indexing/file-processor/capped-read-failure-ownership.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "failed",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 157,
+          "exitCode": 1,
+          "id": "indexing/file-processor/capped-read-failure-ownership/frozen",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793933149010-qtfl7x\\indexing_file-processor_capped-read-failure-ownership_frozen.attempt-1.log",
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793933149010-qtfl7x\\indexing_file-processor_capped-read-failure-ownership_frozen.attempt-1.failure.json"
+          ],
+          "path": "indexing/file-processor/capped-read-failure-ownership.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "failed",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 174,
+          "exitCode": 1,
+          "id": "indexing/file-processor/capped-read-failure-ownership/null",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793933149010-qtfl7x\\indexing_file-processor_capped-read-failure-ownership_null.attempt-1.log",
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793933149010-qtfl7x\\indexing_file-processor_capped-read-failure-ownership_null.attempt-1.failure.json"
+          ],
+          "path": "indexing/file-processor/capped-read-failure-ownership.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "failed",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 1698,
+          "exitCode": 1,
+          "id": "indexing/file-processor/capped-read-failure-ownership/shutdown-open",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793933149010-qtfl7x\\indexing_file-processor_capped-read-failure-ownership_shutdown-open.attempt-1.log",
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793933149010-qtfl7x\\indexing_file-processor_capped-read-failure-ownership_shutdown-open.attempt-1.failure.json"
+          ],
+          "path": "indexing/file-processor/capped-read-failure-ownership.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "failed",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 1717,
+          "exitCode": 1,
+          "id": "indexing/file-processor/capped-read-failure-ownership/shutdown-open-close-failure",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793933149010-qtfl7x\\indexing_file-processor_capped-read-failure-ownership_shutdown-open-close-failure.attempt-1.log",
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793933149010-qtfl7x\\indexing_file-processor_capped-read-failure-ownership_shutdown-open-close-failure.attempt-1.failure.json"
+          ],
+          "path": "indexing/file-processor/capped-read-failure-ownership.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "failed",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 162,
+          "exitCode": 1,
+          "id": "indexing/file-processor/capped-read-failure-ownership/undefined",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793933149010-qtfl7x\\indexing_file-processor_capped-read-failure-ownership_undefined.attempt-1.log",
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793933149010-qtfl7x\\indexing_file-processor_capped-read-failure-ownership_undefined.attempt-1.failure.json"
+          ],
+          "path": "indexing/file-processor/capped-read-failure-ownership.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "failed",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        }
+      ]
+    },
+    "capped-read-final": {
+      "junit": null,
+      "logDir": "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793933175254-3y79zn",
+      "summary": {
+        "durationMs": 1836,
+        "failed": 0,
+        "passed": 8,
+        "skipped": 0,
+        "total": 8
+      },
+      "tests": [
+        {
+          "attempts": 1,
+          "durationMs": 254,
+          "exitCode": 0,
+          "id": "indexing/file-processor/capped-read-failure-ownership/close-false",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793933175254-3y79zn\\indexing_file-processor_capped-read-failure-ownership_close-false.attempt-1.log"
+          ],
+          "path": "indexing/file-processor/capped-read-failure-ownership.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 257,
+          "exitCode": 0,
+          "id": "indexing/file-processor/capped-read-failure-ownership/close-throw",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793933175254-3y79zn\\indexing_file-processor_capped-read-failure-ownership_close-throw.attempt-1.log"
+          ],
+          "path": "indexing/file-processor/capped-read-failure-ownership.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 222,
+          "exitCode": 0,
+          "id": "indexing/file-processor/capped-read-failure-ownership/false",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793933175254-3y79zn\\indexing_file-processor_capped-read-failure-ownership_false.attempt-1.log"
+          ],
+          "path": "indexing/file-processor/capped-read-failure-ownership.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 237,
+          "exitCode": 0,
+          "id": "indexing/file-processor/capped-read-failure-ownership/frozen",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793933175254-3y79zn\\indexing_file-processor_capped-read-failure-ownership_frozen.attempt-1.log"
+          ],
+          "path": "indexing/file-processor/capped-read-failure-ownership.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 215,
+          "exitCode": 0,
+          "id": "indexing/file-processor/capped-read-failure-ownership/null",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793933175254-3y79zn\\indexing_file-processor_capped-read-failure-ownership_null.attempt-1.log"
+          ],
+          "path": "indexing/file-processor/capped-read-failure-ownership.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 186,
+          "exitCode": 0,
+          "id": "indexing/file-processor/capped-read-failure-ownership/shutdown-open",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793933175254-3y79zn\\indexing_file-processor_capped-read-failure-ownership_shutdown-open.attempt-1.log"
+          ],
+          "path": "indexing/file-processor/capped-read-failure-ownership.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 228,
+          "exitCode": 0,
+          "id": "indexing/file-processor/capped-read-failure-ownership/shutdown-open-close-failure",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793933175254-3y79zn\\indexing_file-processor_capped-read-failure-ownership_shutdown-open-close-failure.attempt-1.log"
+          ],
+          "path": "indexing/file-processor/capped-read-failure-ownership.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 219,
+          "exitCode": 0,
+          "id": "indexing/file-processor/capped-read-failure-ownership/undefined",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793933175254-3y79zn\\indexing_file-processor_capped-read-failure-ownership_undefined.attempt-1.log"
+          ],
+          "path": "indexing/file-processor/capped-read-failure-ownership.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        }
+      ]
+    },
+    "native-discard-ack": {
+      "junit": null,
+      "logDir": "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793933361463-qgdpga",
+      "summary": {
+        "durationMs": 23759,
+        "failed": 0,
+        "passed": 2,
+        "skipped": 0,
+        "total": 2
+      },
+      "tests": [
+        {
+          "attempts": 1,
+          "durationMs": 6521,
+          "exitCode": 0,
+          "id": "tui/native-index-workflows/preview-cancel",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793933361463-qgdpga\\tui_native-index-workflows_preview-cancel.attempt-1.log"
+          ],
+          "path": "tui/native-index-workflows.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        },
+        {
+          "attempts": 1,
+          "durationMs": 17228,
+          "exitCode": 0,
+          "id": "tui/native-index-workflows/workspace-status",
+          "lane": "integration",
+          "logs": [
+            "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793933361463-qgdpga\\tui_native-index-workflows_workspace-status.attempt-1.log"
+          ],
+          "path": "tui/native-index-workflows.test.js",
+          "signal": null,
+          "skipReason": null,
+          "status": "passed",
+          "tags": [
+            "integration"
+          ],
+          "termination": null,
+          "timedOut": false,
+          "timeoutClass": null
+        }
+      ]
+    }
+  },
+  "originalSourceSha256": "8ae0c79ea3ff8a0ba9e0c52c5cbe7409c8115918379b9c889781eefe9cd9dbd5",
+  "originalRegressionFailures": 8,
+  "qualifiedReaderControls": 17,
+  "qualifiedNativeControls": 2,
+  "execution": {
+    "jobs": 1,
+    "timeoutMs": 30000,
+    "retries": 0,
+    "nativeStatusRedo": false
+  },
+  "publicationChecks": [
+    {
+      "command": "npm run format -- --cache --cache-strategy content --cache-location .tmp/tasks/ci-lite-1104/eslint-cache",
+      "exitCode": 0
+    },
+    {
+      "command": "npm run config:budget",
+      "exitCode": 0,
+      "output": "\n> pairofcleats@0.3.0 config:budget\n> node tools/config/inventory.js --check\n\n"
+    },
+    {
+      "command": "npm run env:check",
+      "exitCode": 0,
+      "output": "\n> pairofcleats@0.3.0 env:check\n> node tools/ci/check-env-usage.js\n\n"
+    },
+    {
+      "command": "node tools/docs/generated-surfaces.js --check-freshness",
+      "exitCode": 0,
+      "output": "",
+      "completion": "generated surfaces freshness check passed; exit0"
+    },
+    {
+      "command": "node tools/ci/check-command-surface.js",
+      "exitCode": 0,
+      "output": "command surface audit passed (scripts=21, replacements=0, cli=93, capability=45)\n"
+    },
+    {
+      "command": "node tests/ci/workflow-contract.test.js",
+      "exitCode": 0,
+      "output": "workflow contract test passed (ci, ci-long, nightly, release)\n"
+    },
+    {
+      "command": "node tests/run.js --lane gate --jobs 1 --timeout-ms 30000 --retries 0 --native-status-redo=false",
+      "exitCode": 0
+    },
+    {
+      "command": "git diff --check",
+      "exitCode": 0
+    }
+  ],
+  "hosted": {
+    "runId": 42151149726,
+    "runNumber": 2181,
+    "source": "e54ed4bb961556b078b197fdcdc431c35f08fcba",
+    "gate": "success",
+    "rust": "success",
+    "windowsNativeInspection": "success",
+    "windowsAuthority": "40 pass/1 guarded config child timeout",
+    "windowsNativeWorkflows": "21 pass/1 discard acknowledgement navigation race",
+    "broadSuites": "in-progress at capture",
+    "scope": "Parent-source observations,not final-tree acceptance."
+  },
+  "hostedOriginalFailures": {
+    "authority": {
+      "artifact": 13472736587,
+      "sha256": "1c9e2ab0056d9974c73828f4fa8fbc7f382b00fd6234609b56d52239068badc5",
+      "failure": {
+        "schemaVersion": 1,
+        "testId": "tui/operator-settings-authority",
+        "attempt": 1,
+        "recordedBy": "test-runner-parent",
+        "invocation": {
+          "executable": "C:\\hostedtoolcache\\windows\\node\\26.13.0\\x64\\node.exe",
+          "resolvedExecutable": "C:\\hostedtoolcache\\windows\\node\\26.13.0\\x64\\node.exe",
+          "arguments": [
+            "D:\\a\\PairOfCleats\\PairOfCleats\\tests\\tui\\operator-settings-authority.test.js"
+          ],
+          "argumentsRedacted": false,
+          "cwd": "D:\\a\\PairOfCleats\\PairOfCleats",
+          "runtime": {
+            "node": "v26.13.0",
+            "v8": "14.6.202.34-node.40",
+            "modules": "147",
+            "platform": "win32",
+            "arch": "x64",
+            "basis": "same executable as parent"
+          }
+        },
+        "process": {
+          "parentPid": 7084,
+          "childPid": 2544,
+          "startedAt": "2026-11-06T02:39:47.003Z",
+          "endedAt": "2026-11-06T02:39:57.648Z"
+        },
+        "outcome": {
+          "status": "failed",
+          "rawExitStatus": 1,
+          "unsignedDecimal": 1,
+          "signedDecimal": 1,
+          "hex": "0x00000001",
+          "interpretation": null,
+          "signal": null,
+          "spawnError": null,
+          "timedOut": false,
+          "termination": null,
+          "interruption": null,
+          "statusSource": "test-process-close-event",
+          "propagation": "Parent recorded the directly spawned test process status; descendant status propagation is not inferred."
+        },
+        "phase": {
+          "crashPhase": "unknown",
+          "lastObservedMarker": null,
+          "basis": "Last captured child log marker; not a native stack or proof of crash location."
+        },
+        "output": {
+          "logPath": "D:\\a\\PairOfCleats\\PairOfCleats\\.testLogs\\windows-authority\\run-1793932739679-rdlcfr\\tui_operator-settings-authority.attempt-1.log",
+          "captured": true,
+          "stdout": {
+            "observedStringUnits": 0,
+            "retainedStringUnits": 0,
+            "truncated": false,
+            "configuredLimit": 5242880,
+            "limitUnit": "javascript-string-units"
+          },
+          "stderr": {
+            "observedStringUnits": 1589,
+            "retainedStringUnits": 1589,
+            "truncated": false,
+            "configuredLimit": 5242880,
+            "limitUnit": "javascript-string-units"
+          },
+          "streamOrdering": "stdout and stderr are captured separately; no total ordering guaranteed"
+        }
+      },
+      "log": "id: tui/operator-settings-authority\npath: tui/operator-settings-authority.test.js\nattempt: 1\nstatus: failed\nexit: 1\nsignal: null\ntimedOut: false\ntimeoutClass: \nskipReason: \ntermination: \n\n--- stderr ---\nfile:///D:/a/PairOfCleats/PairOfCleats/src/shared/subprocess/runner-async.js:333\r\n        void terminateAndReject((result) => new SubprocessTimeoutError('Subprocess timeout', result));\r\n                                            ^\r\n\r\nSubprocessTimeoutError: Subprocess timeout\r\n    at file:///D:/a/PairOfCleats/PairOfCleats/src/shared/subprocess/runner-async.js:333:45\r\n    at file:///D:/a/PairOfCleats/PairOfCleats/src/shared/subprocess/runner-async.js:110:17\r\n    at process.processTicksAndRejections (node:internal/process/task_queues:104:5) {\r\n  code: 'SUBPROCESS_TIMEOUT',\r\n  result: {\r\n    pid: 8256,\r\n    exitCode: null,\r\n    signal: null,\r\n    durationMs: 10125,\r\n    stdout: '',\r\n    stderr: '',\r\n    outputCapture: {\r\n      stdout: {\r\n        enabled: true,\r\n        maxBytes: 1048576,\r\n        observedBytes: 0,\r\n        retainedBytes: 0,\r\n        droppedBytes: 0,\r\n        retainedBufferBytes: 0,\r\n        outputBytes: 0,\r\n        encodingLoss: false,\r\n        truncated: false\r\n      },\r\n      stderr: {\r\n        enabled: true,\r\n        maxBytes: 1048576,\r\n        observedBytes: 0,\r\n        retainedBytes: 0,\r\n        droppedBytes: 0,\r\n        retainedBufferBytes: 0,\r\n        outputBytes: 0,\r\n        encodingLoss: false,\r\n        truncated: false\r\n      }\r\n    },\r\n    termination: {\r\n      scope: 'spawned-child-close-only',\r\n      method: 'child-close-event',\r\n      closeObserved: true,\r\n      closeTimedOut: false,\r\n      waitMs: 500,\r\n      treeCleanupSettled: true,\r\n      treeCleanupFailed: false,\r\n      treeCleanupForced: true\r\n    }\r\n  }\r\n}\r\n\r\nNode.js v26.13.0\r\n"
+    },
+    "native": {
+      "artifact": 13473685277,
+      "sha256": "df74d7c55817a6bd726fa24fac479c16033bc48b8b0d87d0e0c18683dda09892",
+      "failure": {
+        "schemaVersion": 1,
+        "testId": "tui/native-index-workflows/workspace-status",
+        "attempt": 1,
+        "recordedBy": "test-runner-parent",
+        "invocation": {
+          "executable": "C:\\hostedtoolcache\\windows\\node\\26.13.0\\x64\\node.exe",
+          "resolvedExecutable": "C:\\hostedtoolcache\\windows\\node\\26.13.0\\x64\\node.exe",
+          "arguments": [
+            "D:\\a\\PairOfCleats\\PairOfCleats\\tests\\tui\\native-index-workflows.test.js"
+          ],
+          "argumentsRedacted": false,
+          "cwd": "D:\\a\\PairOfCleats\\PairOfCleats",
+          "runtime": {
+            "node": "v26.13.0",
+            "v8": "14.6.202.34-node.40",
+            "modules": "147",
+            "platform": "win32",
+            "arch": "x64",
+            "basis": "same executable as parent"
+          }
+        },
+        "process": {
+          "parentPid": 2940,
+          "childPid": 2044,
+          "startedAt": "2026-11-06T02:45:03.993Z",
+          "endedAt": "2026-11-06T02:45:31.834Z"
+        },
+        "outcome": {
+          "status": "failed",
+          "rawExitStatus": 1,
+          "unsignedDecimal": 1,
+          "signedDecimal": 1,
+          "hex": "0x00000001",
+          "interpretation": null,
+          "signal": null,
+          "spawnError": null,
+          "timedOut": false,
+          "termination": null,
+          "interruption": null,
+          "statusSource": "test-process-close-event",
+          "propagation": "Parent recorded the directly spawned test process status; descendant status propagation is not inferred."
+        },
+        "phase": {
+          "crashPhase": "unknown",
+          "lastObservedMarker": {
+            "stream": "stdout",
+            "line": "[cleanup] runtime.logger.close done (0ms)",
+            "observedAt": "2026-11-06T02:45:13.857Z"
+          },
+          "basis": "Last captured child log marker; not a native stack or proof of crash location."
+        },
+        "output": {
+          "logPath": "D:\\a\\PairOfCleats\\PairOfCleats\\.testLogs\\run-1793932781998-tb6v4n\\tui_native-index-workflows_workspace-status.attempt-1.log",
+          "captured": true,
+          "stdout": {
+            "observedStringUnits": 5414,
+            "retainedStringUnits": 5414,
+            "truncated": false,
+            "configuredLimit": 5242880,
+            "limitUnit": "javascript-string-units"
+          },
+          "stderr": {
+            "observedStringUnits": 2401,
+            "retainedStringUnits": 2401,
+            "truncated": false,
+            "configuredLimit": 5242880,
+            "limitUnit": "javascript-string-units"
+          },
+          "streamOrdering": "stdout and stderr are captured separately; no total ordering guaranteed"
+        }
+      },
+      "log": "id: tui/native-index-workflows/workspace-status\npath: tui/native-index-workflows.test.js\nattempt: 1\nstatus: failed\nexit: 1\nsignal: null\ntimedOut: false\ntimeoutClass: \nskipReason: \ntermination: \n\n--- stdout ---\n{\"nativeWorkflowPhase\":{\"mode\":\"workspace-status\",\"phase\":\"seed-partial-build:start\",\"elapsedMs\":145}}\n[init] load config (1ms)\n[init] auto policy (provided)\n[init] learned auto profile (0ms)\n[init] cache root (env): D:\\a\\PairOfCleats\\PairOfCleats\\.tmp\\dev\\tests\\cache\\ni-ns1sdE\\cache\n[init] repo cache root: D:\\a\\PairOfCleats\\PairOfCleats\\.tmp\\dev\\tests\\cache\\ni-ns1sdE\\cache\\repos\\selected-repository-31e4231f51e9\n[init] platform preset: win32:ntfs (fs=ntfs, subprocessFanout=4, reason=win32-ntfs-startup-cost).\n[init] startup calibration (1ms)\n[init] startup calibration: io=0ms (bytes=8192).\n[init] runtime envelope (0ms)\n[scm] provider=none; SCM provenance unavailable.\n[init] repo provenance (1ms)\n[runtime] attempt a326def7-607c-4fba-93e1-ad32cc23d478; receipt: D:\\a\\PairOfCleats\\PairOfCleats\\.tmp\\dev\\tests\\cache\\ni-ns1sdE\\cache\\repos\\selected-repository-31e4231f51e9\\builds\\20261106T024506Z_f7fd2b8f_noscm_263b974e\\build_state.json (durable).\n[init] build root: D:\\a\\PairOfCleats\\PairOfCleats\\.tmp\\dev\\tests\\cache\\ni-ns1sdE\\cache\\repos\\selected-repository-31e4231f51e9\\builds\\20261106T024506Z_f7fd2b8f_noscm_263b974e\n[init] current index root: D:\\a\\PairOfCleats\\PairOfCleats\\.tmp\\dev\\tests\\cache\\ni-ns1sdE\\cache\\repos\\selected-repository-31e4231f51e9\n[scm] annotate disabled: provider=none.\n[scm] policy provider=none annotate=off timeoutCaps=guardrail-only benchRun=0 metaTimeoutMs=default annotateTimeoutMs=default annotateLadder=default\n[init] tree-sitter config (1ms)\nJS file caps default to tree-sitter maxBytes (786432).\n[init] embedding runtime (3ms)\n[init] ignore rules (2ms)\n[init] dictionaries (21ms)\n[init] dictionaries (21ms)\nWordlists disabled: no dictionary files found; identifier splitting will be limited.\nCode dictionaries enabled: 2 file(s), 16 words (typescript) [bundle=bench-2026.02].\nTwo-stage indexing: stage2 (enrichment) running.\nIndex profile: default.\nEmbeddings: deferred to stage3 (stage2).\nQueue concurrency: io=16, cpu=1.\nMemory policy: workerHeap=1024MB (effective=1024MB, min=1024MB, max=2048MB), workerCache=512MB, writeBuffer=358MB.\nSCM annotate metadata disabled via indexing.scm.annotate.enabled.\nRisk analysis disabled via indexing.riskAnalysis.\nWorker pool enabled (auto, maxThreads=4).\nWorker heap policy: target=1024MB (min=1024MB, max=2048MB).\nWorker pool auto threshold: maxFileBytes=2097152.\n[init] worker pools (8ms)\nBuild environment snapshot.\n[init] runtime receipt (11ms)\n[init] runtime ready (195ms)\n[init] code index dir: D:\\a\\PairOfCleats\\PairOfCleats\\.tmp\\dev\\tests\\cache\\ni-ns1sdE\\cache\\repos\\selected-repository-31e4231f51e9\\builds\\20261106T024506Z_f7fd2b8f_noscm_263b974e\\index-code\n\n📄  Scanning code ...\n→ Reusing shared discovery results.\n→ Found 1 files.\nScanning for imports...\n→ Imports: modules=0, edges=0, files=0\nAuto-selected context window: 3 lines\nProcessing and indexing files...\nIndexing Concurrency: Files: 2, Imports: 2, IO: 16, CPU: 1\n[stage1] admission parse=r0/p0/cap1/min1/max4 stage1.cpu=r0/p0/ready0/blocked0/wait0s stage1.io=r0/p0/ready0/blocked0/wait0s stage1.proc=r0/p0/ready0/blocked0/wait0s stage1.postings=r0/p0/ready0/blocked0/wait0s\n[tree-sitter:schedule] planning global batches...\n[tree-sitter:schedule] batch 1/1: native:javascript#pool1 (waves=1, lane=1/1, plannedCost=3, balance=count, timeout=45120ms)\n[tree-sitter:schedule] plan ready: grammars=1 entries=1 cache=0\n→ Imports: resolved=0, external=0, unresolved=0\n[imports] resolver budgets: fsProbe<=48, fallbackCandidates<=72, fallbackDepth<=20, adaptive=on (profile=normal, scale=1.500).\n[imports] fs-exists-index: enabled=yes, complete=yes, indexed=2, exactHits=0, negativeSkips=0, unknownFallbacks=0\n[imports] resolver pipeline: none\n[imports] resolver pipeline highlights: elapsed=none, budget=none, degraded=none\nEmbeddings disabled (stage2); skipping dense vector build.\n   → Indexed 1 chunks, total tokens: 11\n[chunk_meta] writing JSON\n{\"nativeWorkflowPhase\":{\"mode\":\"workspace-status\",\"phase\":\"seed-native-admission\",\"elapsedMs\":5538}}\n{\"nativeWorkflowPhase\":{\"mode\":\"workspace-status\",\"phase\":\"terminal-capture:start\",\"elapsedMs\":5539}}\n📦  code : 1 chunks, 11 tokens, dims=0\n→ Wrote .filelists.json (samples only).\n→ Wrote pieces manifest (57 entries).\n{\"nativeWorkflowPhase\":{\"mode\":\"workspace-status\",\"phase\":\"native-ui:ready\",\"elapsedMs\":6418}}\n[build] updated current.json\n[cleanup] runtime.resources.stop-admission start\n[cleanup] runtime.resources.stop-admission done (0ms)\n[cleanup] runtime.scheduler.shutdown start\n[cleanup] runtime.scheduler.shutdown done (0ms)\n[cleanup] runtime.worker-pools.destroy start\n[cleanup] runtime.worker-pools.destroy done (24ms)\n[cleanup] runtime.stage1-subprocesses.terminate start\n[cleanup] runtime.stage1-subprocesses.terminate done (1ms)\n[cleanup] runtime.embeddings.close start\n[cleanup] runtime.embeddings.close done (0ms)\n[cleanup] runtime.preflight-subprocesses.terminate start\n[cleanup] runtime.preflight-subprocesses.terminate done (0ms)\n[cleanup] runtime.resources.release start\n[cleanup] runtime.resources.release done (0ms)\n[cleanup] runtime.cache-writers.drain start\n[cleanup] runtime.cache-writers.drain done (1ms)\n[cleanup] runtime.semantic-replay.clear start\n[cleanup] runtime.semantic-replay.clear done (0ms)\n[cleanup] runtime.logger.close start\n[cleanup] runtime.logger.close done (0ms)\n{\"nativeWorkflowPhase\":{\"mode\":\"workspace-status\",\"phase\":\"seed-partial-build:complete\",\"elapsedMs\":9588}}\n\n--- stderr ---\nStage 1/6 (16.7%)\n[           Code | Stage 1]\nStage 2/6 (33.3%)\nImports 1/1 (100.0%)\nImports 1/1 (100.0%)\nStage 3/6 (50.0%)\n[watchdog] stage1 hang policy heartbeat=30000ms snapshot=30000ms softKick=360000ms abort=720000ms softKickMaxAttempts=2 orderedFlushTimeout=90000ms\nFiles 1/1 (100.0%)\nFiles 1/1 (100.0%)\nStage 4/6 (66.7%)\nStage 5/6 (83.3%)\nStage 6/6 (100.0%)\nWriting index files (26 artifacts)...\n[perf] adaptive artifact write concurrency 3 -> 4 (backlog, pending=26, mem=0.43, gc=0.41, rss=0.02, writeQ={pending=0, oldest=0ms, p95=0ms})\nArtifacts 1/26 (3.8%)\nWriting index files 1/26 (3.8%) | file_meta.json\nArtifacts 2/26 (7.7%)\nArtifacts 3/26 (11.5%)\nArtifacts 4/26 (15.4%)\nArtifacts 5/26 (19.2%)\nArtifacts 6/26 (23.1%)\nArtifacts 7/26 (26.9%)\nArtifacts 8/26 (30.8%)\nArtifacts 9/26 (34.6%)\nArtifacts 10/26 (38.5%)\nArtifacts 11/26 (42.3%)\nArtifacts 12/26 (46.2%)\nArtifacts 13/26 (50.0%)\nArtifacts 14/26 (53.8%)\nArtifacts 15/26 (57.7%)\nArtifacts 16/26 (61.5%)\nArtifacts 17/26 (65.4%)\nArtifacts 18/26 (69.2%)\nArtifacts 19/26 (73.1%)\nArtifacts 20/26 (76.9%)\nArtifacts 21/26 (80.8%)\nArtifacts 22/26 (84.6%)\nArtifacts 23/26 (88.5%)\nArtifacts 24/26 (92.3%)\nArtifacts 25/26 (96.2%)\nArtifacts 26/26 (100.0%)\nWriting index files 26/26 (100.0%) | semantic-family\n\nWriting index files (28 artifacts)...\nArtifacts 27/28 (96.4%)\nArtifacts 28/28 (100.0%)\nWriting index files 28/28 (100.0%) | index_state.json\n\nnode:internal/modules/run_main:111\r\n    triggerUncaughtException(\r\n    ^\r\n\r\nAssertionError [ERR_ASSERTION]: Native index witness timed out: Arrows select | Enter form/reason\r\n    at wait (file:///D:/a/PairOfCleats/PairOfCleats/tests/tui/native-index-workflows.test.js:208:45)\r\n    at async rendered (file:///D:/a/PairOfCleats/PairOfCleats/tests/tui/native-index-workflows.test.js:215:41)\r\n    at async backToCatalog (file:///D:/a/PairOfCleats/PairOfCleats/tests/tui/native-index-workflows.test.js:279:67)\r\n    at async onSpawn (file:///D:/a/PairOfCleats/PairOfCleats/tests/tui/native-index-workflows.test.js:410:11)\r\n    at async captureCommandTerminalRun (file:///D:/a/PairOfCleats/PairOfCleats/tools/testing/search-debug-capture.js:502:40)\r\n    at async file:///D:/a/PairOfCleats/PairOfCleats/tests/tui/native-index-workflows.test.js:190:19 {\r\n  generatedMessage: false,\r\n  code: 'ERR_ASSERTION',\r\n  actual: false,\r\n  expected: true,\r\n  operator: '==',\r\n  diff: 'simple'\r\n}\r\n\r\nNode.js v26.13.0\r\n",
+      "fixturePhases": "{\"mode\":\"workspace-status\",\"phase\":\"seed-partial-build:start\",\"elapsedMs\":145}\n{\"mode\":\"workspace-status\",\"phase\":\"seed-native-admission\",\"elapsedMs\":5538}\n{\"mode\":\"workspace-status\",\"phase\":\"terminal-capture:start\",\"elapsedMs\":5539}\n{\"mode\":\"workspace-status\",\"phase\":\"native-ui:ready\",\"elapsedMs\":6418}\n{\"mode\":\"workspace-status\",\"phase\":\"seed-partial-build:complete\",\"elapsedMs\":9588}\n",
+      "finalRenderedFrame": "┌Ope│Launch preview discarded; no job started                                                                                                                                                                          │───┐\n│foc│Typed form: workspace.build | Enter literal | Space choice | e JSON | a item | Delete unset | p preview | Esc catalog                                                                                             │   │\n└───│  mode (string) = \"code\"                                                                                                                                                                                          │───┘\n┌Run│  quality (string) = unset; default null                                                                                                                                                                          │───┐\n│job│  stage (string) = \"stage4\"                                                                                                                                                                                       │   │\n└───│  dims (number) = unset; default 384                                                                                                                                                                              │───┘\n┌Wor│  threads (number) = 1                                                                                                                                                                                            │───┐\n│no │  scheduler (boolean) = unset; default null                                                                                                                                                                       │   │\n└───│  scheduler-cpu (number) = unset; default null                                                                                                                                                                    │───┘\n┌Hin│  scheduler-io (number) = unset; default null                                                                                                                                                                     │───┐\n│Com│  scheduler-mem (number) = unset; default null                                                                                                                                                                    │   │\n└───│  scheduler-starvation (number) = unset; default null                                                                                                                                                             │───┘\njobs│  scheduler-low-resource (boolean) = unset; default null                                                                                                                                                          │\n┌Job│  incremental (boolean) = unset; default false                                                                                                                                                                    │───┐\n│(no│  cache-rebuild (boolean) = unset; default false                                                                                                                                                                  │   │\n│   │  stub-embeddings (boolean) = true                                                                                                                                                                                │   │\n│   │  watch-poll (number) = unset; default 2000                                                                                                                                                                       │   │\n│   │  watch-debounce (number) = unset; default 500                                                                                                                                                                    │   │\n│   │  sqlite (boolean) = unset; default null                                                                                                                                                                          │   │\n│   │  sqlite-batch-size (number) = unset; default null                                                                                                                                                                │   │\n│   │  model (string) = unset; default null                                                                                                                                                                            │   │\n│   │  scm-provider (string) = unset; default null                                                                                                                                                                     │   │\n│   │  scm-annotate (boolean) = unset; default false                                                                                                                                                                   │   │\n│   │  log-file (string) = unset; default null                                                                                                                                                                         │   │\n│   │  log-format (string) = unset; default null                                                                                                                                                                       │   │\n│   │  validate-ordering (boolean) = unset; default false                                                                                                                                                              │   │\n│   │  verbose (boolean) = unset; default false                                                                                                                                                                        │   │\n│   │  quiet (boolean) = unset; default false                                                                                                                                                                          │   │\n│   │> concurrency (number) = 1                                                                                                                                                                                        │   │\n│   │  strict (boolean) = unset; default false                                                                                                                                                                         │   │\n│   │  include-disabled (boolean) = unset; default false                                                                                                                                                               │   │\n│   │Max concurrent repo builds | required: false                                                                                                                                                                      │   │\n│   │Canonical schema validates this value                                                                                                                                                                             │   │\n│   │Provider/mode and model assets use Settings and canonical build contracts; no separate embeddings command.                                                                                                        │   │\n│   │                                                                                                                                                                                                                  │   │\n│   │                                                                                                                                                                                                                  │   │\n│   │                                                                                                                                                                                                                  │   │\n│   │                                                                                                                                                                                                                  │   │\n│   │                                                                                                                                                                                                                  │   │\n│   │                                                                                                                                                                                                                  │   │\n│   │                                                                                                                                                                                                                  │   │\n│   │                                                                                                                                                                                                                  │   │\n│   │                        Exception: D:\\a\\PairOfCleats\\PairOfCleats\\tests\\fixtures\\tui\\native-lifetime-conpty.ps1:75                                                                                                │   │\nLine |─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘   │\n  75 |  … ForExit(18000)) { throw 'Native process exceeded lifetime deadline' }───────────────────────────────────────────┘└───────────────────────────────────────────────────────────────────────────────────────────────┘\n     |                      ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n     | Native process exceeded lifetime deadline\n",
+      "discardResults": [
+        {
+          "proto": "poc.progress@2",
+          "event": "job:end",
+          "ts": "2026-11-06T02:45:18.271Z",
+          "runId": "index-workflow-native-all",
+          "jobId": "native-workflow-5",
+          "seq": 2,
+          "internal": true,
+          "durationMs": 39,
+          "signal": null,
+          "status": "done",
+          "exitCode": 0,
+          "resultState": "complete",
+          "result": {
+            "method": "discard",
+            "data": {
+              "discarded": true
+            }
+          }
+        }
+      ]
+    }
+  },
+  "scopeLimits": [
+    "Early unsettled-top-level-await original probe is superseded by bounded final eight-case original demonstration;all raw observations retained.",
+    "No performance speedup or broader #1330 completion claimed.",
+    "Settings child timeout remains unproved;no authority assertion skipped or timeout increased.",
+    "Older search-published full-seed budget failure remains open.",
+    "Author-workspace .tmp/.testLogs paths are historical provenance,not promised clean-checkout paths."
+  ],
+  "originalFailureLogs": [
+    {
+      "id": "indexing/file-processor/capped-read-failure-ownership/close-false",
+      "path": "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793933149010-qtfl7x\\indexing_file-processor_capped-read-failure-ownership_close-false.attempt-1.log",
+      "content": "id: indexing/file-processor/capped-read-failure-ownership/close-false\npath: indexing/file-processor/capped-read-failure-ownership.test.js\nattempt: 1\nstatus: failed\nexit: 1\nsignal: null\ntimedOut: false\ntimeoutClass: \nskipReason: \ntermination: \n\n--- stderr ---\nnode:internal/modules/run_main:111\r\n    triggerUncaughtException(\r\n    ^\r\n\r\nAssertionError [ERR_ASSERTION]: failure cannot become a successful read\r\n    at work.then.publicSettled (file:///C:/Users/sneak/Development/PairOfCleats/tests/indexing/file-processor/capped-read-failure-ownership.test.js:66:60)\r\n    at async file:///C:/Users/sneak/Development/PairOfCleats/tests/indexing/file-processor/capped-read-failure-ownership.test.js:79:3 {\r\n  generatedMessage: false,\r\n  code: 'ERR_ASSERTION',\r\n  actual: undefined,\r\n  expected: undefined,\r\n  operator: 'fail',\r\n  diff: 'simple'\r\n}\r\n\r\nNode.js v26.13.0\r\n"
+    },
+    {
+      "id": "indexing/file-processor/capped-read-failure-ownership/close-false",
+      "path": "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793933149010-qtfl7x\\indexing_file-processor_capped-read-failure-ownership_close-false.attempt-1.failure.json",
+      "content": "{\n  \"schemaVersion\": 1,\n  \"testId\": \"indexing/file-processor/capped-read-failure-ownership/close-false\",\n  \"attempt\": 1,\n  \"recordedBy\": \"test-runner-parent\",\n  \"invocation\": {\n    \"executable\": \"C:\\\\Users\\\\sneak\\\\Development\\\\PairOfCleats\\\\.tmp\\\\tasks\\\\ci-and-p1-20261028\\\\node-v26.13.0-win-x64\\\\node.exe\",\n    \"resolvedExecutable\": \"C:\\\\Users\\\\sneak\\\\Development\\\\PairOfCleats\\\\.tmp\\\\tasks\\\\ci-and-p1-20261028\\\\node-v26.13.0-win-x64\\\\node.exe\",\n    \"arguments\": [\n      \"C:\\\\Users\\\\sneak\\\\Development\\\\PairOfCleats\\\\tests\\\\indexing\\\\file-processor\\\\capped-read-failure-ownership.test.js\"\n    ],\n    \"argumentsRedacted\": false,\n    \"cwd\": \"C:\\\\Users\\\\sneak\\\\Development\\\\PairOfCleats\",\n    \"runtime\": {\n      \"node\": \"v26.13.0\",\n      \"v8\": \"14.6.202.34-node.40\",\n      \"modules\": \"147\",\n      \"platform\": \"win32\",\n      \"arch\": \"x64\",\n      \"basis\": \"same executable as parent\"\n    }\n  },\n  \"process\": {\n    \"parentPid\": 23044,\n    \"childPid\": 31568,\n    \"startedAt\": \"2026-11-06T02:45:49.018Z\",\n    \"endedAt\": \"2026-11-06T02:45:49.191Z\"\n  },\n  \"outcome\": {\n    \"status\": \"failed\",\n    \"rawExitStatus\": 1,\n    \"unsignedDecimal\": 1,\n    \"signedDecimal\": 1,\n    \"hex\": \"0x00000001\",\n    \"interpretation\": null,\n    \"signal\": null,\n    \"spawnError\": null,\n    \"timedOut\": false,\n    \"termination\": null,\n    \"interruption\": null,\n    \"statusSource\": \"test-process-close-event\",\n    \"propagation\": \"Parent recorded the directly spawned test process status; descendant status propagation is not inferred.\"\n  },\n  \"phase\": {\n    \"crashPhase\": \"unknown\",\n    \"lastObservedMarker\": null,\n    \"basis\": \"Last captured child log marker; not a native stack or proof of crash location.\"\n  },\n  \"output\": {\n    \"logPath\": \"C:\\\\Users\\\\sneak\\\\Development\\\\PairOfCleats\\\\.testLogs\\\\run-1793933149010-qtfl7x\\\\indexing_file-processor_capped-read-failure-ownership_close-false.attempt-1.log\",\n    \"captured\": true,\n    \"stdout\": {\n      \"observedStringUnits\": 0,\n      \"retainedStringUnits\": 0,\n      \"truncated\": false,\n      \"configuredLimit\": 5242880,\n      \"limitUnit\": \"javascript-string-units\"\n    },\n    \"stderr\": {\n      \"observedStringUnits\": 604,\n      \"retainedStringUnits\": 604,\n      \"truncated\": false,\n      \"configuredLimit\": 5242880,\n      \"limitUnit\": \"javascript-string-units\"\n    },\n    \"streamOrdering\": \"stdout and stderr are captured separately; no total ordering guaranteed\"\n  }\n}\n"
+    },
+    {
+      "id": "indexing/file-processor/capped-read-failure-ownership/close-throw",
+      "path": "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793933149010-qtfl7x\\indexing_file-processor_capped-read-failure-ownership_close-throw.attempt-1.log",
+      "content": "id: indexing/file-processor/capped-read-failure-ownership/close-throw\npath: indexing/file-processor/capped-read-failure-ownership.test.js\nattempt: 1\nstatus: failed\nexit: 1\nsignal: null\ntimedOut: false\ntimeoutClass: \nskipReason: \ntermination: \n\n--- stderr ---\nnode:internal/modules/run_main:111\r\n    triggerUncaughtException(\r\n    ^\r\n\r\nAssertionError [ERR_ASSERTION]: failed original close keeps its reservation\r\n\r\n0 !== 200\r\n\r\n    at file:///C:/Users/sneak/Development/PairOfCleats/tests/indexing/file-processor/capped-read-failure-ownership.test.js:92:12 {\r\n  generatedMessage: false,\r\n  code: 'ERR_ASSERTION',\r\n  actual: 0,\r\n  expected: 200,\r\n  operator: 'strictEqual',\r\n  diff: 'simple'\r\n}\r\n\r\nNode.js v26.13.0\r\n"
+    },
+    {
+      "id": "indexing/file-processor/capped-read-failure-ownership/close-throw",
+      "path": "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793933149010-qtfl7x\\indexing_file-processor_capped-read-failure-ownership_close-throw.attempt-1.failure.json",
+      "content": "{\n  \"schemaVersion\": 1,\n  \"testId\": \"indexing/file-processor/capped-read-failure-ownership/close-throw\",\n  \"attempt\": 1,\n  \"recordedBy\": \"test-runner-parent\",\n  \"invocation\": {\n    \"executable\": \"C:\\\\Users\\\\sneak\\\\Development\\\\PairOfCleats\\\\.tmp\\\\tasks\\\\ci-and-p1-20261028\\\\node-v26.13.0-win-x64\\\\node.exe\",\n    \"resolvedExecutable\": \"C:\\\\Users\\\\sneak\\\\Development\\\\PairOfCleats\\\\.tmp\\\\tasks\\\\ci-and-p1-20261028\\\\node-v26.13.0-win-x64\\\\node.exe\",\n    \"arguments\": [\n      \"C:\\\\Users\\\\sneak\\\\Development\\\\PairOfCleats\\\\tests\\\\indexing\\\\file-processor\\\\capped-read-failure-ownership.test.js\"\n    ],\n    \"argumentsRedacted\": false,\n    \"cwd\": \"C:\\\\Users\\\\sneak\\\\Development\\\\PairOfCleats\",\n    \"runtime\": {\n      \"node\": \"v26.13.0\",\n      \"v8\": \"14.6.202.34-node.40\",\n      \"modules\": \"147\",\n      \"platform\": \"win32\",\n      \"arch\": \"x64\",\n      \"basis\": \"same executable as parent\"\n    }\n  },\n  \"process\": {\n    \"parentPid\": 23044,\n    \"childPid\": 32800,\n    \"startedAt\": \"2026-11-06T02:45:49.197Z\",\n    \"endedAt\": \"2026-11-06T02:45:49.395Z\"\n  },\n  \"outcome\": {\n    \"status\": \"failed\",\n    \"rawExitStatus\": 1,\n    \"unsignedDecimal\": 1,\n    \"signedDecimal\": 1,\n    \"hex\": \"0x00000001\",\n    \"interpretation\": null,\n    \"signal\": null,\n    \"spawnError\": null,\n    \"timedOut\": false,\n    \"termination\": null,\n    \"interruption\": null,\n    \"statusSource\": \"test-process-close-event\",\n    \"propagation\": \"Parent recorded the directly spawned test process status; descendant status propagation is not inferred.\"\n  },\n  \"phase\": {\n    \"crashPhase\": \"unknown\",\n    \"lastObservedMarker\": null,\n    \"basis\": \"Last captured child log marker; not a native stack or proof of crash location.\"\n  },\n  \"output\": {\n    \"logPath\": \"C:\\\\Users\\\\sneak\\\\Development\\\\PairOfCleats\\\\.testLogs\\\\run-1793933149010-qtfl7x\\\\indexing_file-processor_capped-read-failure-ownership_close-throw.attempt-1.log\",\n    \"captured\": true,\n    \"stdout\": {\n      \"observedStringUnits\": 0,\n      \"retainedStringUnits\": 0,\n      \"truncated\": false,\n      \"configuredLimit\": 5242880,\n      \"limitUnit\": \"javascript-string-units\"\n    },\n    \"stderr\": {\n      \"observedStringUnits\": 455,\n      \"retainedStringUnits\": 455,\n      \"truncated\": false,\n      \"configuredLimit\": 5242880,\n      \"limitUnit\": \"javascript-string-units\"\n    },\n    \"streamOrdering\": \"stdout and stderr are captured separately; no total ordering guaranteed\"\n  }\n}\n"
+    },
+    {
+      "id": "indexing/file-processor/capped-read-failure-ownership/false",
+      "path": "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793933149010-qtfl7x\\indexing_file-processor_capped-read-failure-ownership_false.attempt-1.log",
+      "content": "id: indexing/file-processor/capped-read-failure-ownership/false\npath: indexing/file-processor/capped-read-failure-ownership.test.js\nattempt: 1\nstatus: failed\nexit: 1\nsignal: null\ntimedOut: false\ntimeoutClass: \nskipReason: \ntermination: \n\n--- stderr ---\nnode:internal/modules/run_main:111\r\n    triggerUncaughtException(\r\n    ^\r\n\r\nAssertionError [ERR_ASSERTION]: retain the exact original failure, including falsey values\r\n    at file:///C:/Users/sneak/Development/PairOfCleats/tests/indexing/file-processor/capped-read-failure-ownership.test.js:84:33 {\r\n  generatedMessage: false,\r\n  code: 'ERR_ASSERTION',\r\n  actual: false,\r\n  expected: true,\r\n  operator: '==',\r\n  diff: 'simple'\r\n}\r\n\r\nNode.js v26.13.0\r\n"
+    },
+    {
+      "id": "indexing/file-processor/capped-read-failure-ownership/false",
+      "path": "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793933149010-qtfl7x\\indexing_file-processor_capped-read-failure-ownership_false.attempt-1.failure.json",
+      "content": "{\n  \"schemaVersion\": 1,\n  \"testId\": \"indexing/file-processor/capped-read-failure-ownership/false\",\n  \"attempt\": 1,\n  \"recordedBy\": \"test-runner-parent\",\n  \"invocation\": {\n    \"executable\": \"C:\\\\Users\\\\sneak\\\\Development\\\\PairOfCleats\\\\.tmp\\\\tasks\\\\ci-and-p1-20261028\\\\node-v26.13.0-win-x64\\\\node.exe\",\n    \"resolvedExecutable\": \"C:\\\\Users\\\\sneak\\\\Development\\\\PairOfCleats\\\\.tmp\\\\tasks\\\\ci-and-p1-20261028\\\\node-v26.13.0-win-x64\\\\node.exe\",\n    \"arguments\": [\n      \"C:\\\\Users\\\\sneak\\\\Development\\\\PairOfCleats\\\\tests\\\\indexing\\\\file-processor\\\\capped-read-failure-ownership.test.js\"\n    ],\n    \"argumentsRedacted\": false,\n    \"cwd\": \"C:\\\\Users\\\\sneak\\\\Development\\\\PairOfCleats\",\n    \"runtime\": {\n      \"node\": \"v26.13.0\",\n      \"v8\": \"14.6.202.34-node.40\",\n      \"modules\": \"147\",\n      \"platform\": \"win32\",\n      \"arch\": \"x64\",\n      \"basis\": \"same executable as parent\"\n    }\n  },\n  \"process\": {\n    \"parentPid\": 23044,\n    \"childPid\": 7004,\n    \"startedAt\": \"2026-11-06T02:45:49.398Z\",\n    \"endedAt\": \"2026-11-06T02:45:49.580Z\"\n  },\n  \"outcome\": {\n    \"status\": \"failed\",\n    \"rawExitStatus\": 1,\n    \"unsignedDecimal\": 1,\n    \"signedDecimal\": 1,\n    \"hex\": \"0x00000001\",\n    \"interpretation\": null,\n    \"signal\": null,\n    \"spawnError\": null,\n    \"timedOut\": false,\n    \"termination\": null,\n    \"interruption\": null,\n    \"statusSource\": \"test-process-close-event\",\n    \"propagation\": \"Parent recorded the directly spawned test process status; descendant status propagation is not inferred.\"\n  },\n  \"phase\": {\n    \"crashPhase\": \"unknown\",\n    \"lastObservedMarker\": null,\n    \"basis\": \"Last captured child log marker; not a native stack or proof of crash location.\"\n  },\n  \"output\": {\n    \"logPath\": \"C:\\\\Users\\\\sneak\\\\Development\\\\PairOfCleats\\\\.testLogs\\\\run-1793933149010-qtfl7x\\\\indexing_file-processor_capped-read-failure-ownership_false.attempt-1.log\",\n    \"captured\": true,\n    \"stdout\": {\n      \"observedStringUnits\": 0,\n      \"retainedStringUnits\": 0,\n      \"truncated\": false,\n      \"configuredLimit\": 5242880,\n      \"limitUnit\": \"javascript-string-units\"\n    },\n    \"stderr\": {\n      \"observedStringUnits\": 451,\n      \"retainedStringUnits\": 451,\n      \"truncated\": false,\n      \"configuredLimit\": 5242880,\n      \"limitUnit\": \"javascript-string-units\"\n    },\n    \"streamOrdering\": \"stdout and stderr are captured separately; no total ordering guaranteed\"\n  }\n}\n"
+    },
+    {
+      "id": "indexing/file-processor/capped-read-failure-ownership/frozen",
+      "path": "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793933149010-qtfl7x\\indexing_file-processor_capped-read-failure-ownership_frozen.attempt-1.log",
+      "content": "id: indexing/file-processor/capped-read-failure-ownership/frozen\npath: indexing/file-processor/capped-read-failure-ownership.test.js\nattempt: 1\nstatus: failed\nexit: 1\nsignal: null\ntimedOut: false\ntimeoutClass: \nskipReason: \ntermination: \n\n--- stderr ---\nnode:internal/modules/run_main:111\r\n    triggerUncaughtException(\r\n    ^\r\n\r\nAssertionError [ERR_ASSERTION]: retain the exact original failure, including falsey values\r\n    at file:///C:/Users/sneak/Development/PairOfCleats/tests/indexing/file-processor/capped-read-failure-ownership.test.js:84:33 {\r\n  generatedMessage: false,\r\n  code: 'ERR_ASSERTION',\r\n  actual: false,\r\n  expected: true,\r\n  operator: '==',\r\n  diff: 'simple'\r\n}\r\n\r\nNode.js v26.13.0\r\n"
+    },
+    {
+      "id": "indexing/file-processor/capped-read-failure-ownership/frozen",
+      "path": "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793933149010-qtfl7x\\indexing_file-processor_capped-read-failure-ownership_frozen.attempt-1.failure.json",
+      "content": "{\n  \"schemaVersion\": 1,\n  \"testId\": \"indexing/file-processor/capped-read-failure-ownership/frozen\",\n  \"attempt\": 1,\n  \"recordedBy\": \"test-runner-parent\",\n  \"invocation\": {\n    \"executable\": \"C:\\\\Users\\\\sneak\\\\Development\\\\PairOfCleats\\\\.tmp\\\\tasks\\\\ci-and-p1-20261028\\\\node-v26.13.0-win-x64\\\\node.exe\",\n    \"resolvedExecutable\": \"C:\\\\Users\\\\sneak\\\\Development\\\\PairOfCleats\\\\.tmp\\\\tasks\\\\ci-and-p1-20261028\\\\node-v26.13.0-win-x64\\\\node.exe\",\n    \"arguments\": [\n      \"C:\\\\Users\\\\sneak\\\\Development\\\\PairOfCleats\\\\tests\\\\indexing\\\\file-processor\\\\capped-read-failure-ownership.test.js\"\n    ],\n    \"argumentsRedacted\": false,\n    \"cwd\": \"C:\\\\Users\\\\sneak\\\\Development\\\\PairOfCleats\",\n    \"runtime\": {\n      \"node\": \"v26.13.0\",\n      \"v8\": \"14.6.202.34-node.40\",\n      \"modules\": \"147\",\n      \"platform\": \"win32\",\n      \"arch\": \"x64\",\n      \"basis\": \"same executable as parent\"\n    }\n  },\n  \"process\": {\n    \"parentPid\": 23044,\n    \"childPid\": 30536,\n    \"startedAt\": \"2026-11-06T02:45:49.583Z\",\n    \"endedAt\": \"2026-11-06T02:45:49.740Z\"\n  },\n  \"outcome\": {\n    \"status\": \"failed\",\n    \"rawExitStatus\": 1,\n    \"unsignedDecimal\": 1,\n    \"signedDecimal\": 1,\n    \"hex\": \"0x00000001\",\n    \"interpretation\": null,\n    \"signal\": null,\n    \"spawnError\": null,\n    \"timedOut\": false,\n    \"termination\": null,\n    \"interruption\": null,\n    \"statusSource\": \"test-process-close-event\",\n    \"propagation\": \"Parent recorded the directly spawned test process status; descendant status propagation is not inferred.\"\n  },\n  \"phase\": {\n    \"crashPhase\": \"unknown\",\n    \"lastObservedMarker\": null,\n    \"basis\": \"Last captured child log marker; not a native stack or proof of crash location.\"\n  },\n  \"output\": {\n    \"logPath\": \"C:\\\\Users\\\\sneak\\\\Development\\\\PairOfCleats\\\\.testLogs\\\\run-1793933149010-qtfl7x\\\\indexing_file-processor_capped-read-failure-ownership_frozen.attempt-1.log\",\n    \"captured\": true,\n    \"stdout\": {\n      \"observedStringUnits\": 0,\n      \"retainedStringUnits\": 0,\n      \"truncated\": false,\n      \"configuredLimit\": 5242880,\n      \"limitUnit\": \"javascript-string-units\"\n    },\n    \"stderr\": {\n      \"observedStringUnits\": 451,\n      \"retainedStringUnits\": 451,\n      \"truncated\": false,\n      \"configuredLimit\": 5242880,\n      \"limitUnit\": \"javascript-string-units\"\n    },\n    \"streamOrdering\": \"stdout and stderr are captured separately; no total ordering guaranteed\"\n  }\n}\n"
+    },
+    {
+      "id": "indexing/file-processor/capped-read-failure-ownership/null",
+      "path": "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793933149010-qtfl7x\\indexing_file-processor_capped-read-failure-ownership_null.attempt-1.log",
+      "content": "id: indexing/file-processor/capped-read-failure-ownership/null\npath: indexing/file-processor/capped-read-failure-ownership.test.js\nattempt: 1\nstatus: failed\nexit: 1\nsignal: null\ntimedOut: false\ntimeoutClass: \nskipReason: \ntermination: \n\n--- stderr ---\nnode:internal/modules/run_main:111\r\n    triggerUncaughtException(\r\n    ^\r\n\r\nAssertionError [ERR_ASSERTION]: retain the exact original failure, including falsey values\r\n    at file:///C:/Users/sneak/Development/PairOfCleats/tests/indexing/file-processor/capped-read-failure-ownership.test.js:84:33 {\r\n  generatedMessage: false,\r\n  code: 'ERR_ASSERTION',\r\n  actual: false,\r\n  expected: true,\r\n  operator: '==',\r\n  diff: 'simple'\r\n}\r\n\r\nNode.js v26.13.0\r\n"
+    },
+    {
+      "id": "indexing/file-processor/capped-read-failure-ownership/null",
+      "path": "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793933149010-qtfl7x\\indexing_file-processor_capped-read-failure-ownership_null.attempt-1.failure.json",
+      "content": "{\n  \"schemaVersion\": 1,\n  \"testId\": \"indexing/file-processor/capped-read-failure-ownership/null\",\n  \"attempt\": 1,\n  \"recordedBy\": \"test-runner-parent\",\n  \"invocation\": {\n    \"executable\": \"C:\\\\Users\\\\sneak\\\\Development\\\\PairOfCleats\\\\.tmp\\\\tasks\\\\ci-and-p1-20261028\\\\node-v26.13.0-win-x64\\\\node.exe\",\n    \"resolvedExecutable\": \"C:\\\\Users\\\\sneak\\\\Development\\\\PairOfCleats\\\\.tmp\\\\tasks\\\\ci-and-p1-20261028\\\\node-v26.13.0-win-x64\\\\node.exe\",\n    \"arguments\": [\n      \"C:\\\\Users\\\\sneak\\\\Development\\\\PairOfCleats\\\\tests\\\\indexing\\\\file-processor\\\\capped-read-failure-ownership.test.js\"\n    ],\n    \"argumentsRedacted\": false,\n    \"cwd\": \"C:\\\\Users\\\\sneak\\\\Development\\\\PairOfCleats\",\n    \"runtime\": {\n      \"node\": \"v26.13.0\",\n      \"v8\": \"14.6.202.34-node.40\",\n      \"modules\": \"147\",\n      \"platform\": \"win32\",\n      \"arch\": \"x64\",\n      \"basis\": \"same executable as parent\"\n    }\n  },\n  \"process\": {\n    \"parentPid\": 23044,\n    \"childPid\": 9256,\n    \"startedAt\": \"2026-11-06T02:45:49.743Z\",\n    \"endedAt\": \"2026-11-06T02:45:49.917Z\"\n  },\n  \"outcome\": {\n    \"status\": \"failed\",\n    \"rawExitStatus\": 1,\n    \"unsignedDecimal\": 1,\n    \"signedDecimal\": 1,\n    \"hex\": \"0x00000001\",\n    \"interpretation\": null,\n    \"signal\": null,\n    \"spawnError\": null,\n    \"timedOut\": false,\n    \"termination\": null,\n    \"interruption\": null,\n    \"statusSource\": \"test-process-close-event\",\n    \"propagation\": \"Parent recorded the directly spawned test process status; descendant status propagation is not inferred.\"\n  },\n  \"phase\": {\n    \"crashPhase\": \"unknown\",\n    \"lastObservedMarker\": null,\n    \"basis\": \"Last captured child log marker; not a native stack or proof of crash location.\"\n  },\n  \"output\": {\n    \"logPath\": \"C:\\\\Users\\\\sneak\\\\Development\\\\PairOfCleats\\\\.testLogs\\\\run-1793933149010-qtfl7x\\\\indexing_file-processor_capped-read-failure-ownership_null.attempt-1.log\",\n    \"captured\": true,\n    \"stdout\": {\n      \"observedStringUnits\": 0,\n      \"retainedStringUnits\": 0,\n      \"truncated\": false,\n      \"configuredLimit\": 5242880,\n      \"limitUnit\": \"javascript-string-units\"\n    },\n    \"stderr\": {\n      \"observedStringUnits\": 451,\n      \"retainedStringUnits\": 451,\n      \"truncated\": false,\n      \"configuredLimit\": 5242880,\n      \"limitUnit\": \"javascript-string-units\"\n    },\n    \"streamOrdering\": \"stdout and stderr are captured separately; no total ordering guaranteed\"\n  }\n}\n"
+    },
+    {
+      "id": "indexing/file-processor/capped-read-failure-ownership/shutdown-open",
+      "path": "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793933149010-qtfl7x\\indexing_file-processor_capped-read-failure-ownership_shutdown-open.attempt-1.log",
+      "content": "id: indexing/file-processor/capped-read-failure-ownership/shutdown-open\npath: indexing/file-processor/capped-read-failure-ownership.test.js\nattempt: 1\nstatus: failed\nexit: 1\nsignal: null\ntimedOut: false\ntimeoutClass: \nskipReason: \ntermination: \n\n--- stderr ---\nnode:internal/modules/run_main:111\r\n    triggerUncaughtException(\r\n    ^\r\n\r\nAssertionError [ERR_ASSERTION]: bounded owner transition\r\n    at until (file:///C:/Users/sneak/Development/PairOfCleats/tests/indexing/file-processor/capped-read-failure-ownership.test.js:36:10)\r\n    at async file:///C:/Users/sneak/Development/PairOfCleats/tests/indexing/file-processor/capped-read-failure-ownership.test.js:73:5 {\r\n  generatedMessage: false,\r\n  code: 'ERR_ASSERTION',\r\n  actual: false,\r\n  expected: true,\r\n  operator: '==',\r\n  diff: 'simple'\r\n}\r\n\r\nNode.js v26.13.0\r\n"
+    },
+    {
+      "id": "indexing/file-processor/capped-read-failure-ownership/shutdown-open",
+      "path": "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793933149010-qtfl7x\\indexing_file-processor_capped-read-failure-ownership_shutdown-open.attempt-1.failure.json",
+      "content": "{\n  \"schemaVersion\": 1,\n  \"testId\": \"indexing/file-processor/capped-read-failure-ownership/shutdown-open\",\n  \"attempt\": 1,\n  \"recordedBy\": \"test-runner-parent\",\n  \"invocation\": {\n    \"executable\": \"C:\\\\Users\\\\sneak\\\\Development\\\\PairOfCleats\\\\.tmp\\\\tasks\\\\ci-and-p1-20261028\\\\node-v26.13.0-win-x64\\\\node.exe\",\n    \"resolvedExecutable\": \"C:\\\\Users\\\\sneak\\\\Development\\\\PairOfCleats\\\\.tmp\\\\tasks\\\\ci-and-p1-20261028\\\\node-v26.13.0-win-x64\\\\node.exe\",\n    \"arguments\": [\n      \"C:\\\\Users\\\\sneak\\\\Development\\\\PairOfCleats\\\\tests\\\\indexing\\\\file-processor\\\\capped-read-failure-ownership.test.js\"\n    ],\n    \"argumentsRedacted\": false,\n    \"cwd\": \"C:\\\\Users\\\\sneak\\\\Development\\\\PairOfCleats\",\n    \"runtime\": {\n      \"node\": \"v26.13.0\",\n      \"v8\": \"14.6.202.34-node.40\",\n      \"modules\": \"147\",\n      \"platform\": \"win32\",\n      \"arch\": \"x64\",\n      \"basis\": \"same executable as parent\"\n    }\n  },\n  \"process\": {\n    \"parentPid\": 23044,\n    \"childPid\": 25520,\n    \"startedAt\": \"2026-11-06T02:45:49.920Z\",\n    \"endedAt\": \"2026-11-06T02:45:51.618Z\"\n  },\n  \"outcome\": {\n    \"status\": \"failed\",\n    \"rawExitStatus\": 1,\n    \"unsignedDecimal\": 1,\n    \"signedDecimal\": 1,\n    \"hex\": \"0x00000001\",\n    \"interpretation\": null,\n    \"signal\": null,\n    \"spawnError\": null,\n    \"timedOut\": false,\n    \"termination\": null,\n    \"interruption\": null,\n    \"statusSource\": \"test-process-close-event\",\n    \"propagation\": \"Parent recorded the directly spawned test process status; descendant status propagation is not inferred.\"\n  },\n  \"phase\": {\n    \"crashPhase\": \"unknown\",\n    \"lastObservedMarker\": null,\n    \"basis\": \"Last captured child log marker; not a native stack or proof of crash location.\"\n  },\n  \"output\": {\n    \"logPath\": \"C:\\\\Users\\\\sneak\\\\Development\\\\PairOfCleats\\\\.testLogs\\\\run-1793933149010-qtfl7x\\\\indexing_file-processor_capped-read-failure-ownership_shutdown-open.attempt-1.log\",\n    \"captured\": true,\n    \"stdout\": {\n      \"observedStringUnits\": 0,\n      \"retainedStringUnits\": 0,\n      \"truncated\": false,\n      \"configuredLimit\": 5242880,\n      \"limitUnit\": \"javascript-string-units\"\n    },\n    \"stderr\": {\n      \"observedStringUnits\": 560,\n      \"retainedStringUnits\": 560,\n      \"truncated\": false,\n      \"configuredLimit\": 5242880,\n      \"limitUnit\": \"javascript-string-units\"\n    },\n    \"streamOrdering\": \"stdout and stderr are captured separately; no total ordering guaranteed\"\n  }\n}\n"
+    },
+    {
+      "id": "indexing/file-processor/capped-read-failure-ownership/shutdown-open-close-failure",
+      "path": "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793933149010-qtfl7x\\indexing_file-processor_capped-read-failure-ownership_shutdown-open-close-failure.attempt-1.log",
+      "content": "id: indexing/file-processor/capped-read-failure-ownership/shutdown-open-close-failure\npath: indexing/file-processor/capped-read-failure-ownership.test.js\nattempt: 1\nstatus: failed\nexit: 1\nsignal: null\ntimedOut: false\ntimeoutClass: \nskipReason: \ntermination: \n\n--- stderr ---\nnode:internal/modules/run_main:111\r\n    triggerUncaughtException(\r\n    ^\r\n\r\nAssertionError [ERR_ASSERTION]: bounded owner transition\r\n    at until (file:///C:/Users/sneak/Development/PairOfCleats/tests/indexing/file-processor/capped-read-failure-ownership.test.js:36:10)\r\n    at async file:///C:/Users/sneak/Development/PairOfCleats/tests/indexing/file-processor/capped-read-failure-ownership.test.js:73:5 {\r\n  generatedMessage: false,\r\n  code: 'ERR_ASSERTION',\r\n  actual: false,\r\n  expected: true,\r\n  operator: '==',\r\n  diff: 'simple'\r\n}\r\n\r\nNode.js v26.13.0\r\n"
+    },
+    {
+      "id": "indexing/file-processor/capped-read-failure-ownership/shutdown-open-close-failure",
+      "path": "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793933149010-qtfl7x\\indexing_file-processor_capped-read-failure-ownership_shutdown-open-close-failure.attempt-1.failure.json",
+      "content": "{\n  \"schemaVersion\": 1,\n  \"testId\": \"indexing/file-processor/capped-read-failure-ownership/shutdown-open-close-failure\",\n  \"attempt\": 1,\n  \"recordedBy\": \"test-runner-parent\",\n  \"invocation\": {\n    \"executable\": \"C:\\\\Users\\\\sneak\\\\Development\\\\PairOfCleats\\\\.tmp\\\\tasks\\\\ci-and-p1-20261028\\\\node-v26.13.0-win-x64\\\\node.exe\",\n    \"resolvedExecutable\": \"C:\\\\Users\\\\sneak\\\\Development\\\\PairOfCleats\\\\.tmp\\\\tasks\\\\ci-and-p1-20261028\\\\node-v26.13.0-win-x64\\\\node.exe\",\n    \"arguments\": [\n      \"C:\\\\Users\\\\sneak\\\\Development\\\\PairOfCleats\\\\tests\\\\indexing\\\\file-processor\\\\capped-read-failure-ownership.test.js\"\n    ],\n    \"argumentsRedacted\": false,\n    \"cwd\": \"C:\\\\Users\\\\sneak\\\\Development\\\\PairOfCleats\",\n    \"runtime\": {\n      \"node\": \"v26.13.0\",\n      \"v8\": \"14.6.202.34-node.40\",\n      \"modules\": \"147\",\n      \"platform\": \"win32\",\n      \"arch\": \"x64\",\n      \"basis\": \"same executable as parent\"\n    }\n  },\n  \"process\": {\n    \"parentPid\": 23044,\n    \"childPid\": 27668,\n    \"startedAt\": \"2026-11-06T02:45:51.622Z\",\n    \"endedAt\": \"2026-11-06T02:45:53.339Z\"\n  },\n  \"outcome\": {\n    \"status\": \"failed\",\n    \"rawExitStatus\": 1,\n    \"unsignedDecimal\": 1,\n    \"signedDecimal\": 1,\n    \"hex\": \"0x00000001\",\n    \"interpretation\": null,\n    \"signal\": null,\n    \"spawnError\": null,\n    \"timedOut\": false,\n    \"termination\": null,\n    \"interruption\": null,\n    \"statusSource\": \"test-process-close-event\",\n    \"propagation\": \"Parent recorded the directly spawned test process status; descendant status propagation is not inferred.\"\n  },\n  \"phase\": {\n    \"crashPhase\": \"unknown\",\n    \"lastObservedMarker\": null,\n    \"basis\": \"Last captured child log marker; not a native stack or proof of crash location.\"\n  },\n  \"output\": {\n    \"logPath\": \"C:\\\\Users\\\\sneak\\\\Development\\\\PairOfCleats\\\\.testLogs\\\\run-1793933149010-qtfl7x\\\\indexing_file-processor_capped-read-failure-ownership_shutdown-open-close-failure.attempt-1.log\",\n    \"captured\": true,\n    \"stdout\": {\n      \"observedStringUnits\": 0,\n      \"retainedStringUnits\": 0,\n      \"truncated\": false,\n      \"configuredLimit\": 5242880,\n      \"limitUnit\": \"javascript-string-units\"\n    },\n    \"stderr\": {\n      \"observedStringUnits\": 560,\n      \"retainedStringUnits\": 560,\n      \"truncated\": false,\n      \"configuredLimit\": 5242880,\n      \"limitUnit\": \"javascript-string-units\"\n    },\n    \"streamOrdering\": \"stdout and stderr are captured separately; no total ordering guaranteed\"\n  }\n}\n"
+    },
+    {
+      "id": "indexing/file-processor/capped-read-failure-ownership/undefined",
+      "path": "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793933149010-qtfl7x\\indexing_file-processor_capped-read-failure-ownership_undefined.attempt-1.log",
+      "content": "id: indexing/file-processor/capped-read-failure-ownership/undefined\npath: indexing/file-processor/capped-read-failure-ownership.test.js\nattempt: 1\nstatus: failed\nexit: 1\nsignal: null\ntimedOut: false\ntimeoutClass: \nskipReason: \ntermination: \n\n--- stderr ---\nnode:internal/modules/run_main:111\r\n    triggerUncaughtException(\r\n    ^\r\n\r\nAssertionError [ERR_ASSERTION]: retain the exact original failure, including falsey values\r\n    at file:///C:/Users/sneak/Development/PairOfCleats/tests/indexing/file-processor/capped-read-failure-ownership.test.js:84:33 {\r\n  generatedMessage: false,\r\n  code: 'ERR_ASSERTION',\r\n  actual: false,\r\n  expected: true,\r\n  operator: '==',\r\n  diff: 'simple'\r\n}\r\n\r\nNode.js v26.13.0\r\n"
+    },
+    {
+      "id": "indexing/file-processor/capped-read-failure-ownership/undefined",
+      "path": "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793933149010-qtfl7x\\indexing_file-processor_capped-read-failure-ownership_undefined.attempt-1.failure.json",
+      "content": "{\n  \"schemaVersion\": 1,\n  \"testId\": \"indexing/file-processor/capped-read-failure-ownership/undefined\",\n  \"attempt\": 1,\n  \"recordedBy\": \"test-runner-parent\",\n  \"invocation\": {\n    \"executable\": \"C:\\\\Users\\\\sneak\\\\Development\\\\PairOfCleats\\\\.tmp\\\\tasks\\\\ci-and-p1-20261028\\\\node-v26.13.0-win-x64\\\\node.exe\",\n    \"resolvedExecutable\": \"C:\\\\Users\\\\sneak\\\\Development\\\\PairOfCleats\\\\.tmp\\\\tasks\\\\ci-and-p1-20261028\\\\node-v26.13.0-win-x64\\\\node.exe\",\n    \"arguments\": [\n      \"C:\\\\Users\\\\sneak\\\\Development\\\\PairOfCleats\\\\tests\\\\indexing\\\\file-processor\\\\capped-read-failure-ownership.test.js\"\n    ],\n    \"argumentsRedacted\": false,\n    \"cwd\": \"C:\\\\Users\\\\sneak\\\\Development\\\\PairOfCleats\",\n    \"runtime\": {\n      \"node\": \"v26.13.0\",\n      \"v8\": \"14.6.202.34-node.40\",\n      \"modules\": \"147\",\n      \"platform\": \"win32\",\n      \"arch\": \"x64\",\n      \"basis\": \"same executable as parent\"\n    }\n  },\n  \"process\": {\n    \"parentPid\": 23044,\n    \"childPid\": 31000,\n    \"startedAt\": \"2026-11-06T02:45:53.342Z\",\n    \"endedAt\": \"2026-11-06T02:45:53.504Z\"\n  },\n  \"outcome\": {\n    \"status\": \"failed\",\n    \"rawExitStatus\": 1,\n    \"unsignedDecimal\": 1,\n    \"signedDecimal\": 1,\n    \"hex\": \"0x00000001\",\n    \"interpretation\": null,\n    \"signal\": null,\n    \"spawnError\": null,\n    \"timedOut\": false,\n    \"termination\": null,\n    \"interruption\": null,\n    \"statusSource\": \"test-process-close-event\",\n    \"propagation\": \"Parent recorded the directly spawned test process status; descendant status propagation is not inferred.\"\n  },\n  \"phase\": {\n    \"crashPhase\": \"unknown\",\n    \"lastObservedMarker\": null,\n    \"basis\": \"Last captured child log marker; not a native stack or proof of crash location.\"\n  },\n  \"output\": {\n    \"logPath\": \"C:\\\\Users\\\\sneak\\\\Development\\\\PairOfCleats\\\\.testLogs\\\\run-1793933149010-qtfl7x\\\\indexing_file-processor_capped-read-failure-ownership_undefined.attempt-1.log\",\n    \"captured\": true,\n    \"stdout\": {\n      \"observedStringUnits\": 0,\n      \"retainedStringUnits\": 0,\n      \"truncated\": false,\n      \"configuredLimit\": 5242880,\n      \"limitUnit\": \"javascript-string-units\"\n    },\n    \"stderr\": {\n      \"observedStringUnits\": 451,\n      \"retainedStringUnits\": 451,\n      \"truncated\": false,\n      \"configuredLimit\": 5242880,\n      \"limitUnit\": \"javascript-string-units\"\n    },\n    \"streamOrdering\": \"stdout and stderr are captured separately; no total ordering guaranteed\"\n  }\n}\n"
+    }
+  ],
+  "gate": {
+    "junit": null,
+    "logDir": "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793933505734-du1g47",
+    "summary": {
+      "durationMs": 47660,
+      "failed": 0,
+      "passed": 43,
+      "skipped": 0,
+      "total": 43
+    },
+    "tests": [
+      {
+        "attempts": 1,
+        "durationMs": 105,
+        "exitCode": 0,
+        "id": "indexing/policy/hotpath-membership-guard",
+        "lane": "gate",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793933505734-du1g47\\indexing_policy_hotpath-membership-guard.attempt-1.log"
+        ],
+        "path": "indexing/policy/hotpath-membership-guard.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "gate",
+          "indexing"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 98,
+        "exitCode": 0,
+        "id": "indexing/policy/module-cache-boundedness-contract",
+        "lane": "gate",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793933505734-du1g47\\indexing_policy_module-cache-boundedness-contract.attempt-1.log"
+        ],
+        "path": "indexing/policy/module-cache-boundedness-contract.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "gate",
+          "indexing"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 118,
+        "exitCode": 0,
+        "id": "indexing/policy/generated-matrix",
+        "lane": "gate",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793933505734-du1g47\\indexing_policy_generated-matrix.attempt-1.log"
+        ],
+        "path": "indexing/policy/generated-matrix.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "gate",
+          "indexing"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 102,
+        "exitCode": 0,
+        "id": "indexing/contracts/artifact-surface-version",
+        "lane": "gate",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793933505734-du1g47\\indexing_contracts_artifact-surface-version.attempt-1.log"
+        ],
+        "path": "indexing/contracts/artifact-surface-version.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "gate",
+          "indexing"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 104,
+        "exitCode": 0,
+        "id": "indexing/contracts/n-minus-one-adapter",
+        "lane": "gate",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793933505734-du1g47\\indexing_contracts_n-minus-one-adapter.attempt-1.log"
+        ],
+        "path": "indexing/contracts/n-minus-one-adapter.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "gate",
+          "indexing"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 94,
+        "exitCode": 0,
+        "id": "indexing/contracts/public-artifact-surface-doc",
+        "lane": "gate",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793933505734-du1g47\\indexing_contracts_public-artifact-surface-doc.attempt-1.log"
+        ],
+        "path": "indexing/contracts/public-artifact-surface-doc.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "gate",
+          "indexing"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 225,
+        "exitCode": 0,
+        "id": "indexing/contracts/index-compatibility-key-generation",
+        "lane": "gate",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793933505734-du1g47\\indexing_contracts_index-compatibility-key-generation.attempt-1.log"
+        ],
+        "path": "indexing/contracts/index-compatibility-key-generation.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "gate",
+          "indexing"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 107,
+        "exitCode": 0,
+        "id": "indexing/contracts/semver-policy-enforced",
+        "lane": "gate",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793933505734-du1g47\\indexing_contracts_semver-policy-enforced.attempt-1.log"
+        ],
+        "path": "indexing/contracts/semver-policy-enforced.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "gate",
+          "indexing"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 109,
+        "exitCode": 0,
+        "id": "indexing/contracts/index-state-dense-sidecars-present",
+        "lane": "gate",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793933505734-du1g47\\indexing_contracts_index-state-dense-sidecars-present.attempt-1.log"
+        ],
+        "path": "indexing/contracts/index-state-dense-sidecars-present.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "gate",
+          "indexing"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 210,
+        "exitCode": 0,
+        "id": "contracts/manifest-max-bytes-validation",
+        "lane": "gate",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793933505734-du1g47\\contracts_manifest-max-bytes-validation.attempt-1.log"
+        ],
+        "path": "contracts/manifest-max-bytes-validation.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "gate"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 2971,
+        "exitCode": 0,
+        "id": "indexing/policy/repo-inventory",
+        "lane": "gate",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793933505734-du1g47\\indexing_policy_repo-inventory.attempt-1.log"
+        ],
+        "path": "indexing/policy/repo-inventory.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "gate",
+          "indexing"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 333,
+        "exitCode": 0,
+        "id": "indexing/policy/shared-module-cycle-guard",
+        "lane": "gate",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793933505734-du1g47\\indexing_policy_shared-module-cycle-guard.attempt-1.log"
+        ],
+        "path": "indexing/policy/shared-module-cycle-guard.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "gate",
+          "indexing"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 296,
+        "exitCode": 0,
+        "id": "indexing/contracts/loader-matrix-parity",
+        "lane": "gate",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793933505734-du1g47\\indexing_contracts_loader-matrix-parity.attempt-1.log"
+        ],
+        "path": "indexing/contracts/loader-matrix-parity.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "gate",
+          "indexing"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 417,
+        "exitCode": 0,
+        "id": "indexing/policy/analysis-schema",
+        "lane": "gate",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793933505734-du1g47\\indexing_policy_analysis-schema.attempt-1.log"
+        ],
+        "path": "indexing/policy/analysis-schema.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "gate",
+          "indexing"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 367,
+        "exitCode": 0,
+        "id": "indexing/contracts/snapshots",
+        "lane": "gate",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793933505734-du1g47\\indexing_contracts_snapshots.attempt-1.log"
+        ],
+        "path": "indexing/contracts/snapshots.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "gate",
+          "indexing"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 391,
+        "exitCode": 0,
+        "id": "indexing/contracts/builds-current-repo-head-schema",
+        "lane": "gate",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793933505734-du1g47\\indexing_contracts_builds-current-repo-head-schema.attempt-1.log"
+        ],
+        "path": "indexing/contracts/builds-current-repo-head-schema.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "gate",
+          "indexing"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 395,
+        "exitCode": 0,
+        "id": "indexing/contracts/call-sites-schema",
+        "lane": "gate",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793933505734-du1g47\\indexing_contracts_call-sites-schema.attempt-1.log"
+        ],
+        "path": "indexing/contracts/call-sites-schema.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "gate",
+          "indexing"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 394,
+        "exitCode": 0,
+        "id": "indexing/contracts/diffs",
+        "lane": "gate",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793933505734-du1g47\\indexing_contracts_diffs.attempt-1.log"
+        ],
+        "path": "indexing/contracts/diffs.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "gate",
+          "indexing"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 419,
+        "exitCode": 0,
+        "id": "indexing/contracts/additional-properties-policy",
+        "lane": "gate",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793933505734-du1g47\\indexing_contracts_additional-properties-policy.attempt-1.log"
+        ],
+        "path": "indexing/contracts/additional-properties-policy.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "gate",
+          "indexing"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 655,
+        "exitCode": 0,
+        "id": "indexing/contracts/index-compatibility-key-enforced-on-load",
+        "lane": "gate",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793933505734-du1g47\\indexing_contracts_index-compatibility-key-enforced-on-load.attempt-1.log"
+        ],
+        "path": "indexing/contracts/index-compatibility-key-enforced-on-load.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "gate",
+          "indexing"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 340,
+        "exitCode": 0,
+        "id": "indexing/contracts/schema-registry-single-source",
+        "lane": "gate",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793933505734-du1g47\\indexing_contracts_schema-registry-single-source.attempt-1.log"
+        ],
+        "path": "indexing/contracts/schema-registry-single-source.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "gate",
+          "indexing"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 904,
+        "exitCode": 0,
+        "id": "tooling/api-contracts/caps",
+        "lane": "gate",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793933505734-du1g47\\tooling_api-contracts_caps.attempt-1.log"
+        ],
+        "path": "tooling/api-contracts/caps.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "gate",
+          "tooling"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 1159,
+        "exitCode": 0,
+        "id": "tooling/api-contracts/schema-validate",
+        "lane": "gate",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793933505734-du1g47\\tooling_api-contracts_schema-validate.attempt-1.log"
+        ],
+        "path": "tooling/api-contracts/schema-validate.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "gate",
+          "tooling"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 968,
+        "exitCode": 0,
+        "id": "tooling/api-contracts/fail-on-warn",
+        "lane": "gate",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793933505734-du1g47\\tooling_api-contracts_fail-on-warn.attempt-1.log"
+        ],
+        "path": "tooling/api-contracts/fail-on-warn.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "gate",
+          "tooling"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 1004,
+        "exitCode": 0,
+        "id": "tooling/api-contracts/optional-params",
+        "lane": "gate",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793933505734-du1g47\\tooling_api-contracts_optional-params.attempt-1.log"
+        ],
+        "path": "tooling/api-contracts/optional-params.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "gate",
+          "tooling"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 901,
+        "exitCode": 0,
+        "id": "tooling/api-contracts/large-call-sites",
+        "lane": "gate",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793933505734-du1g47\\tooling_api-contracts_large-call-sites.attempt-1.log"
+        ],
+        "path": "tooling/api-contracts/large-call-sites.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "gate",
+          "tooling"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 748,
+        "exitCode": 0,
+        "id": "indexing/contracts/embedding-identity-gating-on-load",
+        "lane": "gate",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793933505734-du1g47\\indexing_contracts_embedding-identity-gating-on-load.attempt-1.log"
+        ],
+        "path": "indexing/contracts/embedding-identity-gating-on-load.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "gate",
+          "indexing"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 1405,
+        "exitCode": 0,
+        "id": "ci/capability-gate.smoke",
+        "lane": "gate",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793933505734-du1g47\\ci_capability-gate_smoke.attempt-1.log"
+        ],
+        "path": "ci/capability-gate.smoke.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "gate"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 1572,
+        "exitCode": 0,
+        "id": "indexing/contracts/index-compatibility-key-federation-block",
+        "lane": "gate",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793933505734-du1g47\\indexing_contracts_index-compatibility-key-federation-block.attempt-1.log"
+        ],
+        "path": "indexing/contracts/index-compatibility-key-federation-block.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "gate",
+          "indexing"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 99,
+        "exitCode": 0,
+        "id": "indexing/policy/stable-entrypoints",
+        "lane": "gate",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793933505734-du1g47\\indexing_policy_stable-entrypoints.attempt-1.log"
+        ],
+        "path": "indexing/policy/stable-entrypoints.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "gate",
+          "indexing"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 1700,
+        "exitCode": 0,
+        "id": "indexing/policy/optional-deps",
+        "lane": "gate",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793933505734-du1g47\\indexing_policy_optional-deps.attempt-1.log"
+        ],
+        "path": "indexing/policy/optional-deps.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "gate",
+          "indexing"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 1240,
+        "exitCode": 0,
+        "id": "indexing/policy/analysis-gating",
+        "lane": "gate",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793933505734-du1g47\\indexing_policy_analysis-gating.attempt-1.log"
+        ],
+        "path": "indexing/policy/analysis-gating.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "gate",
+          "indexing"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 1460,
+        "exitCode": 0,
+        "id": "ci/tooling-doctor-gate.smoke",
+        "lane": "gate",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793933505734-du1g47\\ci_tooling-doctor-gate_smoke.attempt-1.log"
+        ],
+        "path": "ci/tooling-doctor-gate.smoke.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "gate",
+          "tooling"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 913,
+        "exitCode": 0,
+        "id": "tooling/api-contracts/basic",
+        "lane": "gate",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793933505734-du1g47\\tooling_api-contracts_basic.attempt-1.log"
+        ],
+        "path": "tooling/api-contracts/basic.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "gate",
+          "tooling"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 3239,
+        "exitCode": 0,
+        "id": "contracts/module-export-surface-compat",
+        "lane": "gate",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793933505734-du1g47\\contracts_module-export-surface-compat.attempt-1.log"
+        ],
+        "path": "contracts/module-export-surface-compat.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "gate"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 1618,
+        "exitCode": 0,
+        "id": "indexing/contracts/semantic-foundations",
+        "lane": "gate",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793933505734-du1g47\\indexing_contracts_semantic-foundations.attempt-1.log"
+        ],
+        "path": "indexing/contracts/semantic-foundations.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "gate",
+          "indexing"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 450,
+        "exitCode": 0,
+        "id": "indexing/contracts/semantic-handoff-contracts",
+        "lane": "gate",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793933505734-du1g47\\indexing_contracts_semantic-handoff-contracts.attempt-1.log"
+        ],
+        "path": "indexing/contracts/semantic-handoff-contracts.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "gate",
+          "indexing"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 787,
+        "exitCode": 0,
+        "id": "indexing/contracts/runtime-evidence",
+        "lane": "gate",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793933505734-du1g47\\indexing_contracts_runtime-evidence.attempt-1.log"
+        ],
+        "path": "indexing/contracts/runtime-evidence.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "gate",
+          "indexing"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 2102,
+        "exitCode": 0,
+        "id": "indexing/contracts/index-format-cutover",
+        "lane": "gate",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793933505734-du1g47\\indexing_contracts_index-format-cutover.attempt-1.log"
+        ],
+        "path": "indexing/contracts/index-format-cutover.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "gate",
+          "indexing"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 2157,
+        "exitCode": 0,
+        "id": "ci/windows-authority-cohort",
+        "lane": "gate",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793933505734-du1g47\\ci_windows-authority-cohort.attempt-1.log"
+        ],
+        "path": "ci/windows-authority-cohort.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "gate"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 339,
+        "exitCode": 0,
+        "id": "ci/ordered-lane-discovery",
+        "lane": "integration",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793933505734-du1g47\\ci_ordered-lane-discovery.attempt-1.log"
+        ],
+        "path": "ci/ordered-lane-discovery.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "integration"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 202,
+        "exitCode": 0,
+        "id": "ci/gate-policy",
+        "lane": "integration",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793933505734-du1g47\\ci_gate-policy.attempt-1.log"
+        ],
+        "path": "ci/gate-policy.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "integration"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      },
+      {
+        "attempts": 1,
+        "durationMs": 14392,
+        "exitCode": 0,
+        "id": "tooling/ci/run-suite-api-plan",
+        "lane": "unit",
+        "logs": [
+          "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793933505734-du1g47\\tooling_ci_run-suite-api-plan.attempt-1.log"
+        ],
+        "path": "tooling/ci/run-suite-api-plan.test.js",
+        "signal": null,
+        "skipReason": null,
+        "status": "passed",
+        "tags": [
+          "tooling",
+          "unit"
+        ],
+        "termination": null,
+        "timedOut": false,
+        "timeoutClass": null
+      }
+    ]
+  }
+}

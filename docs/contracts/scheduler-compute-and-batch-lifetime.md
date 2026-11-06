@@ -31,9 +31,13 @@ and cleanup owners.
 The file-local native parser serialization chain also suspends only while a
 predecessor owns runtime access. Its FIFO head reacquires CPU before executing
 and retires its chain slot on success, parser failure or canceled reacquisition.
-Capped source readers suspend around open/read/probe/close promises, then resume
-before concatenation and decoding. A timed close remains registered with the
-original task until its actual promise settles.
+Capped source readers adopt the actual opened descriptor before CPU
+reacquisition, suspend around open/read/probe/close promises, and resume before
+concatenation and decoding. Their existing contained-file resource owner retains
+failed and nonvoid close, original read failures and close-only recovery. A timed
+close remains registered with the original task until its actual promise settles.
+[Focused reader qualification](../archived/capped-reader-lifecycle-repairs-2026-11-05.md)
+records eight original failures; broader #1330 qualification remains open.
 
 Failed CPU reacquisition is typed as `ERR_SCHEDULER_CPU_REACQUIRE`. An existing
 operation failure remains primary with that evidence attached; frozen/primitive
