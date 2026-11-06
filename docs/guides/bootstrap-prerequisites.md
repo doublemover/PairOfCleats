@@ -247,3 +247,10 @@ inventories do not establish runtime qualification. Windows terminal transport,
 cross-process lifecycle cases and measured serial/bounded bootstrap work still
 need their affected checks. No measured speedup follows from removing a wrapper
 or adding progress output.
+
+The authored bootstrap-terminal-status cases use the existing native terminal
+capture path at 80x24 and 120x30 with color disabled, plus an exact one-JSON stdout
+pipe case. They assert actual TTY size, visible transitions, expected optional
+failure, original checkout retirement and terminal child exit. Receipts name the
+actual platform/backend; POSIX PTY output cannot qualify Windows ConPTY. These
+cases do not claim the separate native TUI supervisor/restoration qualification.

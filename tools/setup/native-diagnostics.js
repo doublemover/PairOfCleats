@@ -59,6 +59,11 @@ export const createNativeSetupDiagnostics = (root, session, { limits = NATIVE_DI
     diagnosticFailures.add(error); return error;
   };
   return Object.freeze({
+    annotateFailure: (error, fields, options) => {
+      const annotated = addStorageFailureContext(error, fields, null, options);
+      if (isNativeDiagnosticFailure(error)) diagnosticFailures.add(annotated);
+      return annotated;
+    },
     readOutput: (record, channel, { maxBytes = MIB } = {}) => {
       if (terminalFailure) throw terminalFailure;
       const streams = record && originalRecords.get(record), source = streams?.find(stream => stream.channel === channel);

@@ -2798,3 +2798,4 @@ tooling/install/checkout-command-evidence/real-command-bytes-and-terminal-status
 tooling/install/checkout-command-evidence/late-cancellation-keeps-original-result
 tooling/install/checkout-command-evidence/spawn-error-keeps-original-packet
 tooling/install/checkout-command-evidence/canonical-command-stage-owned-evidence
+tooling/install/checkout-command-evidence/annotated-diagnostic-failure-stays-terminal

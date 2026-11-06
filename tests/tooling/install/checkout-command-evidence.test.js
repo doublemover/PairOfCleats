@@ -4,7 +4,8 @@ import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { runSetupCommand } from '../../../tools/setup/owned-command.js';
 import { runCheckoutBootstrap } from '../../../tools/setup/checkout-bootstrap.js';
-import { createNativeSetupDiagnostics } from '../../../tools/setup/native-diagnostics.js';
+import { createNativeSetupDiagnostics, isNativeDiagnosticFailure } from '../../../tools/setup/native-diagnostics.js';
+import { settledNativeSetupFailure } from '../../../tools/setup/native-command-result.js';
 import { withCheckoutMutation } from '../../../tools/setup/checkout-mutation.js';
 import { CHECKOUT_JOURNAL_STATUS } from '../../../tools/setup/checkout-stage-journal.js';
 import { CHECKOUT_MUTATION_LOCK } from '../../../tools/setup/checkout-bootstrap-paths.js';
@@ -15,10 +16,20 @@ import { applyTestEnv } from '../../helpers/test-env.js';
 applyTestEnv();
 const mode = process.env.PAIROFCLEATS_TEST_ID?.split('tooling/install/checkout-command-evidence/')[1];
 assert.ok(['real-command-bytes-and-terminal-status', 'late-cancellation-keeps-original-result',
-  'spawn-error-keeps-original-packet', 'canonical-command-stage-owned-evidence'].includes(mode));
+  'spawn-error-keeps-original-packet', 'canonical-command-stage-owned-evidence', 'annotated-diagnostic-failure-stays-terminal'].includes(mode));
 const root = await makeTempDir('checkout-command-evidence-');
 try {
-  if (mode === 'real-command-bytes-and-terminal-status') {
+  if (mode === 'annotated-diagnostic-failure-stays-terminal') {
+    const original = Object.freeze(new Error('actual attempt metadata publication failed'));
+    const actual = await withCheckoutMutation(root, session => runSetupCommand('explicit-fixture-completed-command', [],
+      { cwd: root, stdio: 'pipe' }, { diagnostics: createNativeSetupDiagnostics(root, session, { publish: async () => { throw original; } }),
+        spawn: async () => ({ exitCode: 0, signal: null })
+      })).catch(error => error);
+    assert.equal(actual.childResult.exitCode, 0); assert.equal(errorGraphIncludes(actual, original), true);
+    assert.equal(isNativeDiagnosticFailure(actual), true, 'adding original child context retains the actual diagnostic producer classification');
+    assert.throws(() => settledNativeSetupFailure(actual, 'fixture'), error => error === actual,
+      'incomplete command evidence cannot become an ordinary failure that permits fallback');
+  } else if (mode === 'real-command-bytes-and-terminal-status') {
     await withCheckoutMutation(root, async session => {
       const diagnostics = createNativeSetupDiagnostics(root, session);
       const result = await runSetupCommand(process.execPath, ['--eval',

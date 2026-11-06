@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 209,
+    "hero": 212,
     "matrix": 27,
     "meta": 4,
     "soak": 0,
@@ -1455,6 +1455,24 @@
       "order": 240,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/install/bootstrap-terminal-status/terminal-80x24-no-color",
+      "order": 241,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/bootstrap-terminal-status/terminal-120x30-no-color",
+      "order": 242,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/bootstrap-terminal-status/pipe-json-stdout",
+      "order": 243,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     }
   ]
 }

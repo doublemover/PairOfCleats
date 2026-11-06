@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 2630,
+    "hero": 2631,
     "matrix": 110,
     "meta": 54,
     "soak": 1,
@@ -16783,6 +16783,12 @@
     {
       "id": "tooling/install/checkout-command-evidence/canonical-command-stage-owned-evidence",
       "order": 2795,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/checkout-command-evidence/annotated-diagnostic-failure-stays-terminal",
+      "order": 2796,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     }

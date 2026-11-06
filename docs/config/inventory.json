@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-06T21:33:46.181Z",
+  "generatedAt": "2026-11-06T21:43:02.946Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
@@ -4957,6 +4957,7 @@
         "tests/tooling/install/bootstrap-status-output.test.js",
         "tests/tooling/install/bootstrap-summary-output.test.js",
         "tests/tooling/install/bootstrap-task-events.test.js",
+        "tests/tooling/install/bootstrap-terminal-status.test.js",
         "tests/tooling/install/bootstrap-verification-generation.test.js",
         "tests/tooling/install/checkout-bootstrap-entry.test.js",
         "tests/tooling/install/checkout-command-evidence.test.js",
