@@ -2561,3 +2561,8 @@ shared/storage/error-projection-originals/bounded-and-reentrant
 semantic/questions/clause-explanation/same-binding-truth
 semantic/questions/clause-explanation/unknown-and-authority
 semantic/questions/clause-explanation/paging-and-transports
+semantic/questions/answer-revisions/facts-and-source-maps
+semantic/questions/answer-revisions/qualified-counts
+semantic/questions/answer-revisions/retraction-and-patches
+semantic/questions/answer-revisions/integrity-and-cycles
+semantic/questions/answer-revisions/bounds-and-identity

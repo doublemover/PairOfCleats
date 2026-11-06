@@ -2,6 +2,7 @@ import { canonicalSemanticJson, semanticHash } from '../../index/semantic/identi
 import { throwIfAborted } from '../../shared/abort.js';
 import { sourceOrderEntry } from '../source-order.js';
 import { qualifySemanticCoverage } from '../coverage-qualification.js';
+import { repositoryQuestionRowId } from './current-reader-profile.js';
 
 export const questionRefKey = ref => ref.partitionId + ':' + ref.localId;
 const same = (left, right) => left && right && questionRefKey(left) === questionRefKey(right);
@@ -180,9 +181,8 @@ export const createCurrentQuestionFacts = ({ store, profile, state, signal, diag
     const witnesses = [target.witness, literal.witness, ...profile.filters.map(filter => ({ operatorId: filter.operatorId, ref: values[filter.args[0]].ref }))]
       .sort((a, b) => a.operatorId - b.operatorId);
     const bindings = profile.compiled.select.map((index, ordinal) => ({ variable: profile.compiled.request.select[ordinal], ...values[index] }));
-    return { rowId: semanticHash('repository-question.row.v1', { logicalPlanId: profile.logicalPlanId,
-      refs: bindings.map(binding => binding.ref) }), bindings, witnesses,
-    detailRequest: { repoRoot: store.repoRoot, generation: store.generation, refs: bindings.map(binding => binding.ref), include: ['names', 'operands'] } };
+    return { rowId: repositoryQuestionRowId(profile.logicalPlanId, bindings.map(binding => binding.ref)), bindings, witnesses,
+      detailRequest: { repoRoot: store.repoRoot, generation: store.generation, refs: bindings.map(binding => binding.ref), include: ['names', 'operands'] } };
   };
   const consumeRow = () => {
     const seed = state.seed, inner = profile.compiled.select[1] === profile.declaration ? seed.literals : seed.targets;

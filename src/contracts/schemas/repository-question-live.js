@@ -29,10 +29,12 @@ const witness = { oneOf: [object({ operatorId, ref }),
 const diagnostic = object({ operatorId: { anyOf: [operatorId, { type: 'null' }] }, reason: text(128) }, { ref });
 const originMap = list(object({ operatorId, authored: list(object({ clauseId: text(64),
   path: list({ anyOf: [text(64), uint] }, 8) }), 64) }), 64);
+const tupleDetail = { ...SEMANTIC_DETAIL_REQUEST_SCHEMA, properties: { ...SEMANTIC_DETAIL_REQUEST_SCHEMA.properties,
+  refs: { type: 'array', minItems: 3, maxItems: 3, items: ref } } };
 export const REPOSITORY_QUERY_PAGE_SCHEMA = object({ schemaVersion: { const: REPOSITORY_QUESTION_VERSION },
   kind: { const: 'repository-question-indexed-page' }, profile: text(128), world, requestDigest: hash, logicalPlanId: hash, physicalPlanId: hash,
-  status: { enum: ['partial', 'complete-in-retained-input'] }, rows: list(object({ rowId: hash, bindings: list(binding, 3),
-    witnesses: list(witness, 64), detailRequest: SEMANTIC_DETAIL_REQUEST_SCHEMA }), 128),
+  status: { enum: ['partial', 'complete-in-retained-input'] }, rows: list(object({ rowId: hash, bindings: { ...list(binding, 3), minItems: 3 },
+    witnesses: list(witness, 64), detailRequest: tupleDetail }), 128),
   originMap,
   frontier: list(diagnostic, 64), refutations: list(diagnostic, 64), frontierOmitted: uint, refutationsOmitted: uint,
   completion: object({ enumeration: { enum: ['partial', 'complete-in-retained-input'] },
@@ -42,6 +44,10 @@ export const REPOSITORY_QUERY_PAGE_SCHEMA = object({ schemaVersion: { const: REP
   verification: { const: 'retained-records-and-source-headers' }, supportSelection: { const: 'one-deterministic-witness-per-row' },
   diagnosticSelection: { const: 'bounded-observed-clause-failures' }, cursor: { anyOf: [text(128), { type: 'null' }] },
   work: object({ steps: uint, elapsedMs: { type: 'number', minimum: 0 }, retainedStateBytes: uint }) });
+/** Semantic receipt excludes random delivery cursors and invocation timing.
+ * They remain on the original public page and are never reconstructed here. */
+export const REPOSITORY_QUERY_RECEIPT_SCHEMA = object(Object.fromEntries(Object.entries(REPOSITORY_QUERY_PAGE_SCHEMA.properties)
+  .filter(([key]) => !['cursor', 'work'].includes(key))));
 export const REPOSITORY_QUERY_DESCRIPTION_SCHEMA = object({ schemaVersion: { const: REPOSITORY_QUESTION_VERSION },
   kind: { const: 'repository-question-capabilities' }, profile: text(128), world,
   predicates: list(object({ id: text(128), version: bounded(65536), meaning: text(128) }), 4),

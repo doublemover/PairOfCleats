@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["facts-and-source-maps", "qualified-counts", "retraction-and-patches", "integrity-and-cycles", "bounds-and-identity"]
+}

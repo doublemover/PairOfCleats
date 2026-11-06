@@ -6,6 +6,7 @@ import { readCompiledRepositoryQuestion } from './compile.js';
 import { assertRepositoryQuestion } from '../../contracts/validators/repository-question.js';
 
 export const CURRENT_READER_QUESTION_PROFILE = 'retained-invocation-target-literal-v1';
+export const repositoryQuestionRowId = (logicalPlanId, refs) => semanticHash('repository-question.row.v1', { logicalPlanId, refs });
 const fail = (message, diagnostics = []) => Object.assign(new TypeError(message), { code: 'ERR_SEMANTIC_QUERY_CONTRACT', diagnostics });
 export const normalizeQuestionScan = input => {
   const scan = captureSemanticRequest(input, QUESTION_SCAN_SCHEMA);
