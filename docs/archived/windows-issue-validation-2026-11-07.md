@@ -7,8 +7,8 @@ code blobs, original failures, per-case outcomes, report hashes and remaining
 scope. Earlier observations retain their source state; this is not a final-tree
 full-suite result.
 
-Through the next indexing and tooling cohorts, the latest1380
-observations are1374 passes, five failed published-index cases and one Linux-only exclusion.
+Through the next indexing and tooling cohorts, the latest1886
+observations are1880 passes, five failed published-index cases and one Linux-only exclusion.
 No runner timeout or native crash is observed. The failed cases include actual
 25-second operation-deadline exhaustion; they are not accepted or omitted.
 The publication commands pass. The gate initially passes43/44; its failed
@@ -25,7 +25,7 @@ log contains zero warning/error lines. Runtime lifecycle and vendor qualificatio
 are separate checks.
 
 The initial refreshed census contains353 open issues. Changed fixtures and the existing
-checks named by those issues produce an explicit2,165-case candidate inventory after the readiness partition.
+checks named by those issues produce an explicit2,166-case candidate inventory after both bounded partitions.
 Test selection is not full issue acceptance: original requirements, performance
 evidence and external/editor remainders are reviewed individually.
 
@@ -132,7 +132,7 @@ qualification are incomplete. Editor work and Tantivy native qualification retai
 their user exclusions. Nine partial issues (#1187/#1267/#1559/#1155/#1516/#1528/
 #1739/#1697/#1765) have current implementation/evidence/gap summaries with
 verified GitHub readback.
-A fresh post-closure census confirms350 open IDs and excludes #131/#1597/#1701.
+A fresh post-closure census confirms349 open IDs and excludes #131/#1597/#1701/#1682.
 
 Raw `.tmp/tasks/validation-20261107/` logs are author-workspace receipts. Their
 hashes and results are preserved here; clean checkouts are not expected to contain
@@ -183,7 +183,7 @@ construction high water stays33,368 bytes while produced rows grow; unavoidable
 parser/anchor state is separate. An actual paused three-row writer batch encodes748
 bytes and stops further construction. Batch sizes3/7 preserve every ordered row,
 ID, source/evidence reference, coverage and canonical hash. All four native-flow
-ownership/abort/partial/append/finalize cases pass; #1682 awaits publication.
+ownership/abort/partial/append/finalize cases pass; #1682 is qualified and closed at `cb93ab655cf6532428e90676069506bfc4abb88a`; exact GitHub body/state readback is verified.
 
 Hosted run42393104073 at5be405ff passes gate, Rust, Windows authority, all three
 native-inspection jobs, and Windows native indexing22/22 plus API7 vendor7/7.
@@ -197,3 +197,55 @@ implementation/proof gaps. The ordinary bootstrap banner still loses typed recov
 actions (#1272); compressed word handles remain unimplemented (#1139); JSONL
 reference-process lifecycle/type-consumer qualification remains (#1148). They stay
 open even where adjacent starting checks pass.
+
+The context-delivery/language/map cohort passes100/100 at `cb93ab655cf6532428e90676069506bfc4abb88a`,
+with no failures, timeouts or skips. Candidate coverage now includes1727
+of2,166 selected IDs;439 remain unexecuted, separately from the
+additional surrounding/gate controls.
+
+The graph/retrieval cohort passes98/100 initially; actual-source span repair and
+isolated cold parity setup then pass. The latter keeps the original query and
+real memory/SQLite results, while requiring positive code/prose witnesses. Its
+rank/score differences remain recorded diagnostics, not a rank-equivalence claim.
+The surrounding34 controls reveal a stale report-only corpus injection point;
+all19 response cases then pass at the current explicit seam. All7 separate
+real-artifact corpus cases pass without production admission changes.
+
+The next embedding/semantic cohort passes100/100. A160-case indexing cohort
+passes159 and times out the three-command cache wrapper. Phase receipts show
+successful full indexing followed by both standalone widths; no native exception
+is observed. Two independent cold cases retain the full inline build and the
+standalone8-to12 sequence on all12 sources, with every cache/ONNX assertion.
+They pass in23.6/20.4 seconds; CI ordering expands in-place, and the five-lane
+audit reports zero missing/duplicate/mismatch/overrun entries. Required CI count
+changes249→250; other lane counts stay3214/44/23/11. Original timeout reports
+remain historical; only the fully passing documented replacement is retired.
+
+The API report imports620→558 modules after moving unchanged directory selection
+to its pure owner and using direct artifact/presence owners. One sample per arm
+is756.9/757.2ms and supports no startup-speed claim. Five actual Windows CLI
+cases and selected/published-root authority pass. An index-loader check initially
+hits the inherited missing trusted-config path; the explicit task environment
+recheck passes with its contracts unchanged. The actual shared-module performance
+budget check passes with existing thresholds. macOS child qualification remains.
+
+A read-only diagnostic classifies the six tiny-index warnings as optional risk
+flows/partial flows, three disabled dense-vector channels, and absent LMDB. The
+real-index profile still needs an executable exact warning assertion. A failed
+cohort generator briefly selected an unfiltered run; its owned tree was stopped
+immediately, no acceptance was claimed, and launchers now fail on errors/empty
+selectors. Subsequent cohorts retain exact selection receipts.
+
+The ready batch passes format, config/environment, generated freshness, command
+and workflow contracts,44/44 gate cases and diff checks. The legacy default
+LSP/embedding gate also had a path to a previously deleted dimensions wrapper;
+its inspected source duplicates the stub width-transition/cache assertion now
+owned by the bounded pair. The gate selects both actual case IDs at30 seconds
+and the current wrong-width/cached-vector validator. Real default routing under
+an explicit inert spawn adapter, test environment and timeout/JUnit controls pass.
+
+Hosted CI2353 atcb93ab655 passes all native, authority, Rust and gate jobs. Windows
+and Ubuntu serial runtime budgets each pass189 and fail four revision deadlines;
+both original-world reader ownership cases now pass. Earlier Ubuntu encoding-child
+failures do not recur. macOS passes32 compiler cases and times out one API CLI
+child; its source qualification remains open after the measured coupling repair.

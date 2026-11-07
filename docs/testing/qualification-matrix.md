@@ -4,70 +4,25 @@ Audited: 2026-11-07. Contracts and configured workflows describe requirements;
 execution receipts below bind actual results to their source. The
 [roadmap](../roadmap.md) owns current scope and remaining work.
 
-[CI2157](../archived/ci-lite-download-worker-followup-2026-11-05.md) qualifies
-the complete Windows pipeline,70 native cases per OS,41 Windows authority cases
-and43 gate cases at07a1. [Resource retirement repairs](../archived/ci-lite-resource-retirement-repairs-2026-11-05.md)
-close redundant ConPTY timers and prevent false scheduler close success.
-Download reporting is repaired; parallel POSIX worker hangs remain under diagnosis.
-[macOS contract qualification](../archived/ci-lite-macos-contract-qualification-2026-11-05.md)
-retains YAML deadline negatives and places23 compiler/build cases under the
-existing serial30-second owner, with original15-second build CLI limits.
-Current hosted qualification is reported on [PR572](https://github.com/doublemover/PairOfCleats/pull/572).
+The [current Windows campaign](../archived/windows-issue-validation-2026-11-07.md)
+records individual outcomes, exact source blobs, original failures and focused
+repair checks. Node26.13.0/ABI147 verifies37 required native probes and all pinned
+patches without warnings/errors. Activation is distinct from runtime qualification.
 
-[CI2319](https://github.com/doublemover/PairOfCleats/actions/runs/42334121060)
-at `bb954f86173938e65aec7df2c965a108a7030009` passes the 44-case gate,
-Windows authority, Rust TUI, all three native-inspection jobs and the Windows
-native-index workflow job. Each OS's serial-runtime cohort reports186 passes
-and one failure: interrupted runtime import counts a catalog selector write as
-a current-pointer rewrite. `e29940c47` changes the independent filesystem witness
-to record actual successful rename destinations, asserting the catalog and current
-selectors separately. Immutable-family, native-image, exact byte/read, pinned-reader
-and pointer no-rewrite checks remain. That repair and later source changes await
-their affected runtime checks; these hosted results do not qualify the current head.
+Native CFG construction/backpressure qualifies #1682 with actual paused-sink,
+batch-invariant records, logical-work samples and cancellation/failure ownership.
+Readiness uses eleven bounded cases retaining every original entry assertion.
+The stub-cache wrapper uses two independent cold profiles: complete inline
+publication and a standalone8-to12 width transition on all original source files.
+Ordered lane membership and required assertions are preserved.
 
-[CI2327's Windows snapshot timeout](../archived/windows-native-snapshot-budget-2026-11-07.md)
-retains the complete original seed, successful removal event and restored terminal,
-while the enclosing fixture exceeds30 seconds. Earlier independent console setup
-is implemented with original native admission and all deadlines unchanged.
-[CI2340](https://github.com/doublemover/PairOfCleats/actions/runs/42354776241)
-at `c5f4ac1e7896e7ac76140238261e5f79c8363044` passes all22 Windows native-index
-cases with zero failures, timeouts or skips; published search is22.3 seconds and
-the slowest case25.6 seconds under the original30-second limit. Gate, Windows
-authority, Rust TUI and all three native-inspection jobs also pass. The
-[completed broad-job receipt](../archived/ci2340-repair-checkpoint-2026-11-07.md)
-records its eight Windows failures and their repairs. CI2341 at
-`41c487ba00854967f155d27c02b3e3f82c974ee6` again passes all22 native-index cases,
-with published search20.7 seconds and slowest build-search21.3 seconds. Its gate,
-Windows authority, Rust and native-inspection jobs pass; its completed POSIX
-broad jobs expose one new transport-wrapping defect. Windows records2,791 passing,
-one failing, zero timed-out and three skipped ci-lite cases: all eight former
-failures pass. The wrapping repair retains original descriptors, and the original
-teardown-graph assertion remains alongside an exact transport-field check.
-CI2342 at `f293b749e92b0b89229d8ca9db504303243aa454` passes those required jobs
-and22 native-index cases again. Windows ci-lite records2,836/8/0/3 and macOS
-2,837/8/0/2; Ubuntu was cancelled. All24 newer input/receipt/action controls and
-the original teardown assertion pass. The eight new failures map to six fixture
-authority errors, a lost original-result error edge and an unsupported fixture
-DTO-field assertion in the linked receipt. Those repairs remain unrun. The
-nightly-plan fixture is within30 seconds at16.2/24.1 seconds on Windows/macOS.
-These observations qualify their exact sources, not later edits.
-
-[CI2347](https://github.com/doublemover/PairOfCleats/actions/runs/42379297036)
-at `3f30653ae992366ec4e74d66e2ab84291b9506ea` passes bootstrap/runtime
-contracts, lint, config budget, environment, generated surfaces and command
-surface checks. Gate records43 passes, one failure, zero timeouts/skips. Its
-independent suite-plan expectation omitted six published-index revision oracle
-cases already assigned to the serial runtime cohort. The expectation now lists
-those exact cases, retaining the full cohort equality and exactly-one-replacement
-assertions. Downstream jobs were skipped. This repair and the27 new managed
-probe/verifier retention cases are locally unrun; no current-head pass is claimed.
-
-The current [checkout bootstrap](../guides/bootstrap-prerequisites.md) repairs are
-implemented and **locally unrun**. Readiness v3 binds the original journal and
-probed generation. Prerequisite/install/native commands retain exact bounded
-evidence; status and response writes observe actual callbacks. Closed-file
-retention protects current readiness and incomplete/changed evidence. Earlier
-bootstrap receipts do not qualify these changed owners.
+Hosted qualification is reported on [PR572](https://github.com/doublemover/PairOfCleats/pull/572).
+At the publishedcb93ab655 checkpoint, required native, authority, Rust and gate
+jobs pass. General jobs remain incomplete/failed on bounded revision execution
+and a macOS API-report child deadline. Narrow report imports reduce coupling;
+Windows CLI and current import-budget controls pass, without a measured startup
+speedup or a macOS acceptance claim. Linux/macOS execution comes from hosted CI;
+no local WSL campaign is used. Earlier historical receipts do not qualify later code.
 
 | Current qualification owner | Required evidence | Status |
 | --- | --- | --- |

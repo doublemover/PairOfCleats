@@ -21,7 +21,8 @@
     1212,
     131,
     1597,
-    1701
+    1701,
+    1682
   ],
   "scope": "All open issues except user-excluded editor work and native Tantivy; mixed issues retain their non-editor scope",
   "routing": "Initial grouping by issue scope and recorded source owners; source-review-pending is not an implementation or acceptance claim",
@@ -5195,8 +5196,8 @@
       "title": "[Perf] Backpressure native control-flow row construction before bounded analysis writes",
       "batch": "retrieval-performance-and-evaluation",
       "scope": "active",
-      "review": "source-review-pending",
-      "recordedDisposition": "Implementation recorded; qualification pending.",
+      "review": "qualified-and-closed",
+      "recordedDisposition": "Original/follow-up scope, four focused fixtures, raw logical-work samples and publication checks qualified at cb93ab655cf6532428e90676069506bfc4abb88a; GitHub CLOSED/COMPLETED and exact body readback verified.",
       "owners": [
         "src/index/semantic/native-control-flow.js",
         "src/index/semantic/analysis-write.js",
@@ -5446,8 +5447,27 @@
   ],
   "liveReconciliation": {
     "date": "2026-11-07",
-    "openCount": 350,
-    "closedAfterCapture": 17,
+    "openCount": 349,
+    "closedAfterCapture": [
+      1767,
+      672,
+      681,
+      668,
+      1574,
+      821,
+      1240,
+      1234,
+      1634,
+      1255,
+      1204,
+      1252,
+      1242,
+      1212,
+      131,
+      1597,
+      1701,
+      1682
+    ],
     "method": "Fresh complete350-ID census after source-qualified#131/#1597/#1701 closures; GitHub state and body readback verified."
   }
 }

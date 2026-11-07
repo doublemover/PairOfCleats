@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-07T16:55:56.269Z",
+  "generatedAt": "2026-11-07T18:32:29.143Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
@@ -4753,6 +4753,7 @@
         "tests/indexing/embeddings/artifact-inventory-authority.test.js",
         "tests/indexing/embeddings/build/cache-only-provider-admission.test.js",
         "tests/indexing/embeddings/build/chunk-channel-cache-routes.test.js",
+        "tests/indexing/embeddings/cache-identity.test.js",
         "tests/indexing/embeddings/cache-only-enumeration-bound.test.js",
         "tests/indexing/embeddings/formatted-token-estimator-observation.test.js",
         "tests/indexing/embeddings/inline-token-preparation-settlement.test.js",
@@ -4874,6 +4875,7 @@
         "tests/retrieval/filters/branch-checkout-index-metrics.test.js",
         "tests/retrieval/filters/filter-cache-original-resource-consumers.test.js",
         "tests/retrieval/output/summary-source-admission.test.js",
+        "tests/retrieval/parity/equivalence.test.js",
         "tests/retrieval/providers/tantivy-reader-lifetime.test.js",
         "tests/runner/harness/coverage-physical-source-identity.test.js",
         "tests/runner/publication-diagnostic-ownership.test.js",
@@ -4987,6 +4989,7 @@
         "tests/tooling/api-mcp/repository-probe-settled-controls.test.js",
         "tests/tooling/architecture/caps-verdict-cli-consumers.test.js",
         "tests/tooling/cache/gc-modern-resource-ownership.test.js",
+        "tests/tooling/ci/lsp-embeddings-gates-testing-env.test.js",
         "tests/tooling/ci/lsp-runtime-qualification.test.js",
         "tests/tooling/consumer-proof-index.test.js",
         "tests/tooling/eval/answer-integrity-attacks.test.js",
@@ -5112,6 +5115,7 @@
         "tests/tui/operator-search-lifecycle.test.js",
         "tests/tui/supervisor-operator-search.test.js",
         "tests/tui/supervisor-search-failure-contract.test.js",
+        "tools/ci/run-lsp-embeddings-gates.js",
         "tools/config/inventory.js"
       ]
     },
