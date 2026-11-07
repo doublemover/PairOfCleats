@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
+import fsSync from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { CACHE_OWNER_FILE } from '../../../src/shared/cache-deletion.js';
@@ -16,7 +17,7 @@ import { rmDirRecursive } from '../../helpers/temp.js';
 const mode = process.env.PAIROFCLEATS_TEST_ID?.split('shared/storage/lifecycle-quota-cleanup/')[1];
 assert.ok(['physical-overlap-and-minimal-cleanup', 'stable-noop-convergence', 'active-original-lease-refusal',
   'policy-and-root-change-refusal', 'pins-and-saved-evidence', 'unknown-and-bounded-inventory',
-  'real-volume-reserve', 'cli-lifecycle-composition'].includes(mode));
+  'real-volume-reserve', 'cli-lifecycle-composition', 'policy-change-between-unlinks'].includes(mode));
 const repositoryRoot = fileURLToPath(new URL('../../../', import.meta.url));
 const scope = path.join(repositoryRoot, '.tmp', 'tests', 'lifecycle-quota-cleanup');
 assertNoSymlinkPath(repositoryRoot, scope, { allowMissing: true }); await fs.mkdir(scope, { recursive: true });
@@ -101,6 +102,23 @@ try {
       await fs.mkdir(path.dirname(repositoryFile), { recursive: true }); await fs.writeFile(repositoryFile, 'retained repository evidence');
       const unknown = await preview(); assert.equal(unknown.applyReady, false); assert.equal(unknown.observation.quota.admission, 'defer-accounting-required');
       assert.equal(await fs.readFile(repositoryFile, 'utf8'), 'retained repository evidence');
+    } else if (mode === 'policy-change-between-unlinks') {
+      const selected = await configure({ enabled: true, global: {}, scopes: [{ scope: 'category', id: 'cache', hardBytes: await allocated(marker) }] });
+      const plan = await preview(); assert.equal(plan.observation.probePlan.operations.length, 2); assert.equal(plan.applyReady, true);
+      const unlink = fsSync.unlinkSync; let actualUnlinks = 0;
+      try {
+        fsSync.unlinkSync = (filename, ...args) => {
+          const result = unlink(filename, ...args);
+          if (typeof filename === 'string' && files.some(file => path.resolve(file).toLowerCase() === path.resolve(filename).toLowerCase())) {
+            actualUnlinks++;
+            if (actualUnlinks === 1) fsSync.writeFileSync(selected.file, '{externally changed policy');
+          }
+          return result;
+        };
+        const result = await apply(plan); assert.equal(result.complete, false); assert.equal(result.mutationPerformed, true);
+        assert.equal(result.stopReason, 'policy-changed'); assert.equal(result.cleanup.results.filter(row => row.status === 'deleted').length, 1);
+      } finally { fsSync.unlinkSync = unlink; }
+      assert.equal(actualUnlinks, 1); assert.equal((await fs.readdir(probes)).filter(name => name.endsWith('.json')).length, 1);
     } else if (mode === 'real-volume-reserve') {
       await configure({ enabled: true, global: { minimumFreeBytes: Number.MAX_SAFE_INTEGER }, scopes: [] });
       const plan = await preview(), observation = plan.observation;

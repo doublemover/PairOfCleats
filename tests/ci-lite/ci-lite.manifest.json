@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 2888,
+    "hero": 2889,
     "matrix": 110,
     "meta": 54,
     "soak": 1,
@@ -18331,6 +18331,12 @@
     {
       "id": "shared/storage/lifecycle-quota-cleanup/cli-lifecycle-composition",
       "order": 3053,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/lifecycle-quota-cleanup/policy-change-between-unlinks",
+      "order": 3054,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

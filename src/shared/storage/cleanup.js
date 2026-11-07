@@ -107,7 +107,7 @@ const planProbeCleanup = async ({ cacheRoot, authorityRoots = [], maxEntries = 1
 export const planCacheRootCleanup = options => planProbeCleanup(options);
 
 /** Launch-owned roots are supplied again; serialized plans cannot grant authority. */
-const applyProbeCleanup = async (plan, { authorityRoots = [], approvedPlanId, signal = null } = {}, originalControl = null) => {
+const applyProbeCleanup = async (plan, { authorityRoots = [], approvedPlanId, signal = null } = {}, originalControl = null, beforeMutation = null) => {
   const { planId, dryRun, ...body } = plan || {};
   void dryRun;
   if (plan?.kind !== 'pairofcleats-storage-cleanup-plan' || plan.schemaVersion !== STORAGE_CLEANUP_PLAN_VERSION
@@ -135,6 +135,8 @@ const applyProbeCleanup = async (plan, { authorityRoots = [], approvedPlanId, si
         assertSafeCacheDeletion(target, authorityRoots);
         const qualified = await qualifyProbe(operation.root, operation.relativePath, operation.identity, checks);
         if (qualified.hash !== operation.sha256) throw new Error('Cleanup preview content changed.');
+        control.check();
+        beforeMutation?.();
         control.check();
         const deleted = removeToolingCacheEntry(qualified.target, qualified.stat);
         return { deleted, logicalBytes: qualified.identity.size,
@@ -295,8 +297,16 @@ export const applyLifecycleCleanup = async (plan, { layout, extraRoots = [], app
     schemaVersion: LIFECYCLE_CLEANUP_PLAN_VERSION, planId, complete: true, mutationPerformed: false,
     stopReason: null, cleanup: null, after: fresh, actualReclaimedBytes: null, nextAction: null };
   if (fresh.probePlan?.applyReady !== true) throw new Error('Original probe cleanup owner is no longer ready; review a fresh plan.');
+  const recheckPolicy = () => {
+    control.check();
+    const current = readStoragePolicy(scope.home, { category: 'lifecycle', check: control.check });
+    if (current.status === 'invalid' || current.sha256 !== original.policy.sha256 || current.policyId !== original.policy.policyId) {
+      control.stopFor('policy-changed');
+    }
+    control.check();
+  };
   const applied = await applyProbeCleanup(original.probePlan, { authorityRoots: [scope.cacheRoot],
-    approvedPlanId: original.probePlan.planId, signal }, control);
+    approvedPlanId: original.probePlan.planId, signal }, control, recheckPolicy);
   let after = null;
   try { after = await observeLifecycleQuota(scope, limits, control, signal); }
   catch (error) { if (!control.isStop(error)) throw error; }

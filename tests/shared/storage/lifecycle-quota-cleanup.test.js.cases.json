@@ -1,4 +1,4 @@
 {
   "schemaVersion": 1,
-  "cases": ["physical-overlap-and-minimal-cleanup", "stable-noop-convergence", "active-original-lease-refusal", "policy-and-root-change-refusal", "pins-and-saved-evidence", "unknown-and-bounded-inventory", "real-volume-reserve", "cli-lifecycle-composition"]
+  "cases": ["physical-overlap-and-minimal-cleanup", "stable-noop-convergence", "active-original-lease-refusal", "policy-and-root-change-refusal", "pins-and-saved-evidence", "unknown-and-bounded-inventory", "real-volume-reserve", "cli-lifecycle-composition", "policy-change-between-unlinks"]
 }

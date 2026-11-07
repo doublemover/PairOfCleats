@@ -160,17 +160,20 @@ the matching native device identity, separate from logical size and quota debt.
 The returned plan contains only the quota-selected original probe operations.
 Apply requires the same launch roots and selected policy, a fresh physical/quota
 observation and the same exact operations. The existing cleanup owner revalidates
-authority and resources at unlink. A final observation reports remaining debt;
+authority, resources and the same selected policy immediately before each unlink.
+A policy change stops further admission while retaining actual completed deletes.
+A final observation reports remaining debt;
 additional eviction requires another reviewed plan. A satisfied zero-operation
 plan converges without metadata writes. One invocation's time allowance bounds
 inventory, qualification, policy, free space, apply and the final observation.
 Actual reclaimed filesystem bytes remain unknown; unlink allocation estimates
 and native free-space observations are reported separately.
 
-Eight authored, locally unrun cases exercise real producer-created probe files,
+Nine authored, locally unrun cases exercise real producer-created probe files,
 overlap accounting, minimal cleanup and no-op convergence, original live readers,
 changed policy/roots, pinned and saved data, unknown repo attribution, bounded and
-cancelled scans, a native volume reserve and the existing CLI review/apply path.
+cancelled scans, a policy change after the first real unlink, a native volume
+reserve and the existing CLI review/apply path.
 Broader category mutation and native pressure/performance qualification remain.
 
 Selection pays same-volume reserve debt first, then category/repository debts,
