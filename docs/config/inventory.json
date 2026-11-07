@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-07T00:13:03.658Z",
+  "generatedAt": "2026-11-07T00:17:51.496Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
@@ -4730,6 +4730,7 @@
         "tests/indexing/embeddings/artifact-inventory-authority.test.js",
         "tests/indexing/embeddings/build/cache-only-provider-admission.test.js",
         "tests/indexing/embeddings/build/chunk-channel-cache-routes.test.js",
+        "tests/indexing/embeddings/cache-only-enumeration-bound.test.js",
         "tests/indexing/embeddings/manifest-publication-ownership.test.js",
         "tests/indexing/embeddings/sqlite-dense-boundary-diagnostics.test.js",
         "tests/indexing/embeddings/sqlite-dense-schema-lifetime.test.js",

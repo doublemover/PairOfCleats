@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 2700,
+    "hero": 2703,
     "matrix": 110,
     "meta": 54,
     "soak": 1,
@@ -17203,6 +17203,24 @@
     {
       "id": "tooling/eval/finite-feasibility-claims/offline-adapter-and-versioned-state",
       "order": 2865,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/embeddings/cache-only-enumeration-bound/unselected-chunk-rows",
+      "order": 2866,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/embeddings/cache-only-enumeration-bound/duplicate-file-metadata-rows",
+      "order": 2867,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/embeddings/cache-only-enumeration-bound/original-iterator-return-pending",
+      "order": 2868,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

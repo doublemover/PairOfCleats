@@ -57,6 +57,18 @@ Native ONNX cache-only reuse already requires reusable model-artifact identity;
 without its local graph that lane cannot qualify a cache-only hit. Graph presence
 does not require a second native initialization, and missing native runtime is
 not rejected here because a qualified cache-only hit may avoid runtime loading.
+
+Cache-only preflight charges visited chunk/file-metadata rows before sampling,
+deduplication or compaction. Its existing 131,072-chunk and 2,048-file ceilings
+also bound those examination loops, with one delivered boundary row before
+refusal. Filtered chunks and duplicate/invalid file rows cannot evade admission.
+`chunkRowsVisited`/`fileMetaRowsVisited` remain separate from checked vector
+coverage and quantized vector bytes. Budget refusal still awaits the original
+async iterator return; unconfirmed retirement propagates through the existing
+resource observer instead of becoming an ordinary cache miss. Three authored
+boundary/retirement cases remain unrun; actual cache-only provider/channel
+positives and original thresholds remain unchanged.
+
 The small private preflight receipt adds no serialized plan fields. Broader
 availability/fetch states and other build routes remain outstanding. Nine
 graph-admission/evidence cases are authored, unexecuted.

@@ -1,6 +1,6 @@
 # Lane Evidence
 
-Generated: 2026-11-07T00:13:01.294Z
+Generated: 2026-11-07T00:17:48.915Z
 
 ## How To Use
 
@@ -13,7 +13,7 @@ Generated: 2026-11-07T00:13:01.294Z
 ## Lane Summary
 
 - `gate`: 43 tests, 0 with timings, 0 ms known duration, p50=n/a ms, p95=n/a ms, target 15s
-- `ci-lite`: 2865 tests, 49 with timings, 27090 ms known duration, p50=190 ms, p95=2140 ms, target 15s
+- `ci-lite`: 2868 tests, 49 with timings, 27090 ms known duration, p50=190 ms, p95=2140 ms, target 15s
 - `ci`: 243 tests, 22 with timings, 101770 ms known duration, p50=5020 ms, p95=5030 ms, target 60s
 - `ci-long`: 23 tests, 3 with timings, 15060 ms known duration, p50=5020 ms, p95=5030 ms, target 180s
 - `usr-full-conformance`: 11 tests, 0 with timings, 0 ms known duration, p50=n/a ms, p95=n/a ms, target 60s
@@ -50,7 +50,7 @@ Generated: 2026-11-07T00:13:01.294Z
   CLI process startup and argument-routing overlap.
 - `api-server-boot`: 9 tests, 3400 ms known duration
   HTTP server startup, routing, and streaming harness reuse.
-- `embeddings-cache`: 80 tests, 60 ms known duration
+- `embeddings-cache`: 83 tests, 60 ms known duration
   Embedding cache and stub fast-path families frequently overlap on the same fixture/setup.
 - `lsp-bootstrap`: 124 tests, 0 ms known duration
   Dedicated/configured provider bootstrap and session reuse.

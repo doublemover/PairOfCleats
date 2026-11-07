@@ -2868,3 +2868,6 @@ storage/semantic/finite-feasibility/strict-ssa-and-source-admission
 storage/semantic/finite-feasibility/boolean-operation-concrete-oracle
 tooling/eval/finite-feasibility-claims/exact-scope-and-original-receipts
 tooling/eval/finite-feasibility-claims/offline-adapter-and-versioned-state
+indexing/embeddings/cache-only-enumeration-bound/unselected-chunk-rows
+indexing/embeddings/cache-only-enumeration-bound/duplicate-file-metadata-rows
+indexing/embeddings/cache-only-enumeration-bound/original-iterator-return-pending

@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["unselected-chunk-rows", "duplicate-file-metadata-rows", "original-iterator-return-pending"]
+}

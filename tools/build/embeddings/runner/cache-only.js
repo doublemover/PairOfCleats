@@ -66,7 +66,8 @@ export const createCacheOnlyEmbedder = ({ identity, signal }) => {
  */
 export const planStage3CacheOnly = async ({ roots, identity, identityKey, cacheRoot, keyFlags,
   readManifest, readState, compactChunk, maxMetaBytes, sampling = {}, signal }) => {
-  const work = { modesChecked: 0, filesChecked: 0, chunksChecked: 0, vectorBytesChecked: 0 };
+  const work = { modesChecked: 0, filesChecked: 0, chunksChecked: 0, vectorBytesChecked: 0,
+    chunkRowsVisited: 0, fileMetaRowsVisited: 0 };
   const refuse = reason => ({ eligible: false, reason, work });
   if (identity?.stub || !embeddingArtifactReusable(identity?.modelArtifact)
     || !Number.isSafeInteger(identity?.dims) || identity.dims <= 0
@@ -87,6 +88,10 @@ export const planStage3CacheOnly = async ({ roots, identity, identityKey, cacheR
         maxFiles: sampling.maxFiles, seed: sampling.seed }) : null;
       for await (const row of loadChunkMetaRows(indexDir, { maxBytes: maxMetaBytes, strict: false, includeCold: false })) {
         throwIfAborted(signal);
+        // Sampling/compaction cannot hide enumeration work. One boundary row
+        // may be delivered before refusal; for-await still awaits its original
+        // iterator return, and pending closure must survive the outer catch.
+        if (++work.chunkRowsVisited > MAX_CHUNKS) return refuse('preflight-coverage-budget');
         const index = nextIndex++;
         if (!row || typeof row !== 'object') return refuse('unmapped-chunk');
         let file = typeof row.file === 'string' && row.file ? row.file : null;
@@ -94,6 +99,7 @@ export const planStage3CacheOnly = async ({ roots, identity, identityKey, cacheR
           if (!fileMetaLoaded) {
             for await (const value of loadFileMetaRows(indexDir, { maxBytes: maxMetaBytes, strict: false })) {
               throwIfAborted(signal);
+              if (++work.fileMetaRowsVisited > MAX_FILES) return refuse('preflight-file-budget');
               if (fileMeta.size >= MAX_FILES) return refuse('preflight-file-budget');
               if (value && Number.isFinite(Number(value.id)) && typeof value.file === 'string') fileMeta.set(Number(value.id), value.file);
             }
