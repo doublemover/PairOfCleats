@@ -33,7 +33,7 @@ if (mode === 'shared-corpus-and-fixed-controls') {
   const anotherInvocation = structuredClone(input); anotherInvocation.candidates.forEach((row, index) => { row.runId = hash('another-run-' + index); });
   assert.equal((await evaluateEvidenceTaskCohort(anotherInvocation)).inputId, result.inputId, 'invocation-only labels cannot change semantic corpus identity');
 } else if (mode === 'failed-and-unknown-denominators') {
-  const input = make();
+  const input = structuredClone(make());
   input.compilations[0].sourceSnapshot[0].availableAt = 1000;
   input.compilations[1].privateOracle.units[0].source.span = [0, 0];
   input.compilations[2].privateOracle.validation.status = 'unverified';
@@ -42,7 +42,7 @@ if (mode === 'shared-corpus-and-fixed-controls') {
   assert.equal(result.funnel.executionStatuses['invalid-fixture'], 4); assert.equal(result.funnel.executionStatuses.completed, 2);
   assert.equal(result.funnel.unknown, 6); assert.equal(result.funnel.pass, 0);
   assert.ok(result.outcomes.filter(row => row.executionStatus === 'invalid-fixture').every(row => row.outcome.evidence.analysisState === 'not-evaluated-incomplete-run-or-fixture'));
-  const invalid = make(); invalid.compilations[0].privateOracle.alternatives[0].groups[0].require = 2;
+  const invalid = structuredClone(make()); invalid.compilations[0].privateOracle.alternatives[0].groups[0].require = 2;
   const refused = await evaluateEvidenceTaskCohort(invalid);
   assert.equal(refused.funnel.invalidFixtures, 1); assert.equal(refused.funnel.executionStatuses['invalid-fixture'], 2);
   assert.equal(refused.retirement.taskOwners.length, 2, 'only successfully compiled original owners exist to retire');

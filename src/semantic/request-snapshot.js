@@ -1,5 +1,10 @@
 const snapshots = new WeakMap();
-const fail = message => Object.assign(new TypeError(message), { code: 'ERR_SEMANTIC_QUERY_CONTRACT' });
+const contractFailures = new WeakSet();
+const fail = message => {
+  const error = Object.assign(new TypeError(message), { code: 'ERR_SEMANTIC_QUERY_CONTRACT' });
+  contractFailures.add(error); return error;
+};
+export const isSemanticRequestContractFailure = error => error !== null && ['object', 'function'].includes(typeof error) && contractFailures.has(error);
 const variants = schema => schema.oneOf || schema.anyOf || [schema];
 const shapesFor = (schema, type) => {
   const pending = [schema], shapes = [];

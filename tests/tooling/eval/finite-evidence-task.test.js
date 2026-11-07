@@ -120,7 +120,7 @@ if (mode === 'private-oracle-visible-packets') {
   const noRead = authoredEvidenceTask(); noRead.spec.allowedActions = ['search-visible-source']; const unavailable = prepare(noRead);
   assert.throws(() => readCandidateEvidenceSource(unavailable.task, noRead.privateOracle.units[0].source), { code: 'ERR_EVIDENCE_TASK_ACTION_UNAVAILABLE' });
   assert.throws(() => scoreEvidenceTask({ ...task, submission: submission(task.task, [], { publicTaskId: '0'.repeat(64) }) }), { code: 'ERR_EVIDENCE_TASK_SCOPE' });
-  const nextWorld = authoredEvidenceTask(); nextWorld.spec.worldRef.generation.semanticRevision++;
+  const nextWorld = authoredEvidenceTask(); nextWorld.spec.worldRef.generation.baseBuildId += '-next-world';
   const nextTask = prepare(nextWorld);
   assert.equal(nextWorld.privateOracle.units[1].source.sourceUnitId, ref.sourceUnitId, 'unchanged bytes can retain source identity across worlds');
   assert.throws(() => scoreEvidenceTask({ ...nextTask, submission: submission(task.task, [ref]) }), { code: 'ERR_EVIDENCE_TASK_SCOPE' });

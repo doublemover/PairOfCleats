@@ -57,11 +57,14 @@ export const captureDatasetInterventions = async cases => {
     if (entry.status !== 'snapshot') continue;
     const { caseIndex, data, expectedQueryDigest } = entry;
     try {
-      assertInterventionDataset(data);
+      // The authoritative owner captures plain, inert JSON containers before
+      // Ajv's unique-item equality checks. Its snapshot has identical content;
+      // null-prototype passive records must not invoke missing valueOf methods.
+      const admitted = assertInterventionDataset(data);
       if (data.queryDigest !== expectedQueryDigest || new Set(data.trials.map(trial => trial.id)).size !== data.trials.length
         || data.trials.some(trial => trial.profile === 'origin-observation-v1' && trial.input.trace.identity.queryDigest !== data.queryDigest)) throw fail('Offline trial query identity or local trial identities differ.');
       if (trialCount + data.trials.length > MAX_TRIALS) throw fail('Offline intervention dataset exceeds aggregate trial bounds.');
-      trialCount += data.trials.length; entries[index] = { caseIndex, status: 'captured', data };
+      trialCount += data.trials.length; entries[index] = { caseIndex, status: 'captured', data: admitted };
     } catch (error) {
       if (error?.code !== 'ERR_EVAL_INTERVENTION_INPUT') throw error;
       entries[index] = { caseIndex, status: 'refused-input', rawInputId: hash(data), code: error.code, reason: error.message };
