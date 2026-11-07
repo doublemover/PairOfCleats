@@ -219,3 +219,35 @@ locally unrun cases cover root intent and unknown measurements, actual overlappi
 fixture inventory without mutation, original held-reader diagnosis, cancellation
 and bounded review output. This projection does not invent category-qualified
 allocation or deletion authority; operator cleanup integration remains unfinished.
+
+## Reviewed repository cache subsets
+
+Lifecycle cleanup plan version 2 adds the existing canonical repository cleanup
+owner alongside command probes. Version 1 receipts require a fresh preview.
+The launch-selected state coordinator travels with the plan; a custom state root
+does not silently fall back to another home during repository exclusion.
+
+The application inventory remains the sole physical accounting observation.
+At most 128 canonical `cache/repos/<repoId>` candidates receive bounded category
+qualification. Their original cleanup owner checks complete generated-file
+producers, references, evidence namespaces, writer state and both lease scopes.
+Its complete file set and every identity must match the application inventory.
+Unknown, changed, mixed, pinned and actively used roots remain protected.
+Qualification reads are explicit cleanup work, not another inventory on hits.
+
+Repository scopes charge all canonically attributed files, including protected
+files. Unknown attribution stays unknown. The existing `repos` category remains
+the category identity. Reviewed subsets retain ownership markers, unselected
+files and directories; they never recursively remove a repository or home.
+Apply captures its selection before asynchronous work, reacquires the original
+exclusions, and revalidates the full original proof and each selected file.
+Policy, cancellation and the shared duration budget are checked before every
+unlink. Failed or interrupted cleanup retains its completed file list and stops
+new work while original exclusion/descriptor owners finish retirement.
+
+Fresh observation follows apply. No additional eviction runs automatically,
+and `actualReclaimedBytes` remains unknown. Six authored, locally unrun controls
+cover minimal subset pruning/no-op convergence, original readers, mixed evidence
+and pins, stale file sets, changed policy and cancellation between real unlinks.
+Full indexes, embedding/CAS reachability, model/tool eviction and generalized
+last-use integration still require their respective category owners.

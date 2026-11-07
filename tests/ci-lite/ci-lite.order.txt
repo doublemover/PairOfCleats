@@ -3084,3 +3084,9 @@ tooling/install/managed-recovery-receipt-observation/between-fields
 tooling/install/managed-recovery-receipt-observation/field-inspection
 tooling/install/managed-recovery-receipt-observation/shape-inspection
 tooling/install/managed-recovery-receipt-observation/closed-positive-and-invalid
+shared/storage/lifecycle-repository-cleanup/reviewed-subset-and-convergence
+shared/storage/lifecycle-repository-cleanup/active-original-reader
+shared/storage/lifecycle-repository-cleanup/mixed-evidence-and-pins
+shared/storage/lifecycle-repository-cleanup/changed-original-file-set
+shared/storage/lifecycle-repository-cleanup/policy-change-between-unlinks
+shared/storage/lifecycle-repository-cleanup/cancellation-between-unlinks

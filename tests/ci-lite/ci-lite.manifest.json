@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 2916,
+    "hero": 2922,
     "matrix": 110,
     "meta": 54,
     "soak": 1,
@@ -18501,6 +18501,42 @@
       "order": 3081,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "shared/storage/lifecycle-repository-cleanup/reviewed-subset-and-convergence",
+      "order": 3082,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/lifecycle-repository-cleanup/active-original-reader",
+      "order": 3083,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/lifecycle-repository-cleanup/mixed-evidence-and-pins",
+      "order": 3084,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/lifecycle-repository-cleanup/changed-original-file-set",
+      "order": 3085,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/lifecycle-repository-cleanup/policy-change-between-unlinks",
+      "order": 3086,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/lifecycle-repository-cleanup/cancellation-between-unlinks",
+      "order": 3087,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
     }
   ]
 }

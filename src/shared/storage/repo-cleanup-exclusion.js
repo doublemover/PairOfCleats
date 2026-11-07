@@ -12,12 +12,13 @@ import { retainPublishedFileLockPrerequisite } from '../locks/file-lock-producer
 /** Compose the two existing admission namespaces. A repository cleanup must
  * also pin its launch-selected categories against whole-category relocation.
  * The caller still owns classification, writer checks and deletion proof. */
-export const withRepoCleanupExclusion = async ({ repoCacheRoot, cacheRoot, action }) => {
+export const withRepoCleanupExclusion = async ({ repoCacheRoot, cacheRoot, action,
+  coordinationRoot = path.join(getApplicationHome(), 'state', 'storage-access') }) => {
   if (!path.isAbsolute(repoCacheRoot) || !path.isAbsolute(cacheRoot)
     || !sameIdentityPath(path.dirname(repoCacheRoot), path.join(cacheRoot, 'repos'))
     || typeof action !== 'function') throw new TypeError('Cleanup requires its exact canonical repository category.');
-  const home = getApplicationHome(), state = path.join(home, 'state');
-  const coordinationRoot = path.join(state, 'storage-access');
+  if (!path.isAbsolute(coordinationRoot) || path.basename(coordinationRoot) !== 'storage-access') throw new TypeError('Cleanup requires its selected storage coordination root.');
+  const state = path.dirname(coordinationRoot);
   const result = await runWithStorageSession({ roots: [cacheRoot, path.join(cacheRoot, 'repos')],
     authorizedRoots: [cacheRoot, path.join(cacheRoot, 'repos'), state], coordinationRoot,
     scope: 'repository-cleanup' }, async session => {

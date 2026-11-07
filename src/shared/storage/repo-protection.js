@@ -16,11 +16,14 @@ const normalize = target => process.platform === 'win32' ? path.resolve(target).
 const fingerprint = value => createHash('sha256').update(stableStringify(value)).digest('hex');
 const reason = (code, target, message = null) => ({ code, path: target, ...(message ? { message } : {}) });
 
-const qualifyGeneratedFile = async (root, file, { maxBytes = 8 * 1024 * 1024 } = {}) => {
+const qualifyGeneratedFile = async (root, file, { maxBytes = 8 * 1024 * 1024, signal = null, check = () => {} } = {}) => {
+  check();
   const target = path.join(root, file.relativePath);
   const verified = await readVerifiedContainedFile(root, target, { maxBytes,
-    expectedBytes: file.identity.size, expectedFileIdentity: { dev: file.identity.dev, ino: file.identity.ino } });
+    expectedBytes: file.identity.size, expectedFileIdentity: { dev: file.identity.dev, ino: file.identity.ino }, signal });
+  check();
   const identity = storageFileIdentity(await fs.lstat(target, { bigint: true }));
+  check();
   if (identity.nlink !== 1 || !sameStorageFileIdentity(identity, file.identity)) throw new Error('Generated-file identity changed or is shared.');
   const value = JSON.parse(verified.buffer.toString('utf8'));
   let artifact;
@@ -47,7 +50,8 @@ const qualifyGeneratedFile = async (root, file, { maxBytes = 8 * 1024 * 1024 } =
  * Names, age, no readers, --force and an app-container marker are insufficient.
  */
 export const inspectRepoStorageProtection = async ({ repoCacheRoot, cacheRoot, expected = null,
-  maxEntries = 10000, maxBytes = 64 * 1024 * 1024, maxDurationMs = 10000, signal = null } = {}) => {
+  maxEntries = 10000, maxBytes = 64 * 1024 * 1024, maxDurationMs = 10000, signal = null, check = () => {} } = {}) => {
+  check();
   const reasons = [];
   const started = Date.now();
   let root;
@@ -63,6 +67,7 @@ export const inspectRepoStorageProtection = async ({ repoCacheRoot, cacheRoot, e
       describeStorageFailure(error, { phase: 'repo-storage-authority' }).message)] }; }
   const inventory = await inspectStorageInventory({ roots: [{ id: 'repo-cleanup', path: root }],
     includeFiles: true, maxEntries, maxDurationMs, signal });
+  check();
   const item = inventory.items[0];
   if (!inventory.complete || item.status !== 'scanned' || !item.directories.length) {
     return { protected: true, complete: false, root, identity: item.identity,
@@ -74,21 +79,24 @@ export const inspectRepoStorageProtection = async ({ repoCacheRoot, cacheRoot, e
   const directories = item.directories;
   const files = [];
   for (const entry of [...directories, ...item.files]) {
+    check();
     if (entry.relativePath.split(/[\\/]/u).some(part => EVIDENCE.has(part.toLowerCase()))) {
       reasons.push(reason('saved-pinned-or-forensic-evidence-namespace', path.join(root, entry.relativePath)));
     }
   }
   if (!reasons.length) {
     for (const file of item.files) {
+      check();
       if (signal?.aborted || Date.now() - started >= maxDurationMs) {
         reasons.push(reason('repo-qualification-incomplete-or-cancelled', root));
         break;
       }
-      try { files.push(await qualifyGeneratedFile(root, file, { maxBytes: Math.min(maxBytes, 8 * 1024 * 1024) })); }
+      try { files.push(await qualifyGeneratedFile(root, file, { maxBytes: Math.min(maxBytes, 8 * 1024 * 1024), signal, check })); }
       catch (error) { reasons.push(reason('unknown-unreadable-or-retained-file', path.join(root, file.relativePath),
         describeStorageFailure(error, { phase: 'repo-storage-file-qualification' }).message)); }
     }
     for (const directory of directories) {
+      check();
       if (!directory.relativePath || directory.relativePath === 'locks') continue;
       const prefix = `${directory.relativePath}${path.sep}`;
       if (!files.some(file => file.relativePath.startsWith(prefix))) {
@@ -110,31 +118,49 @@ export const inspectRepoStorageProtection = async ({ repoCacheRoot, cacheRoot, e
  * through the existing file owner; rmdir only empty exact directories. A late
  * ordinary file makes rmdir fail and is never included in recursive removal.
  */
-export const removeDerivedRepoCache = async (expected, { cacheRoot, hooks = {} } = {}) => {
-  const current = await inspectRepoStorageProtection({ repoCacheRoot: expected.root, cacheRoot, expected });
+export const removeDerivedRepoCache = async (expected, { cacheRoot, hooks = {}, selectedFiles = null,
+  signal = null, check = () => {}, beforeMutation = () => {}, maxEntries = 10000, maxDurationMs = 10000 } = {}) => {
+  expected = { root: expected.root, proof: expected.proof, identity: { ...expected.identity } };
+  if (selectedFiles !== null && (!Array.isArray(selectedFiles) || selectedFiles.length > maxEntries
+    || selectedFiles.some(name => typeof name !== 'string' || name === CACHE_OWNER_FILE))) {
+    throw new TypeError('Repository cleanup requires a bounded reviewed generated-file subset.');
+  }
+  const selected = selectedFiles === null ? null : new Set(selectedFiles);
+  if (selected && selected.size !== selectedFiles.length) throw new TypeError('Repository cleanup cannot repeat a selected file.');
+  const current = await inspectRepoStorageProtection({ repoCacheRoot: expected.root, cacheRoot, expected, signal, check, maxEntries, maxDurationMs });
   if (current.protected || !current.complete) return { ok: false, attempts: 0, deletedLogicalBytes: 0,
     error: { code: 'ERR_REPO_STORAGE_PROTECTED', message: 'Repository evidence/ownership changed inside exclusion.' }, reasons: current.reasons };
   let deletedLogicalBytes = 0;
   const deletedFiles = [];
   try {
+    check();
+    const originalNames = new Set(current.files.map(file => file.relativePath));
+    if (selected && [...selected].some(name => !originalNames.has(name))) {
+      throw new TypeError('Repository cleanup requires an exact reviewed subset of original generated files.');
+    }
     await hooks.afterRevalidation?.(current);
     for (const file of current.files) {
+      if (selected && !selected.has(file.relativePath)) continue;
+      check();
       assertSafeCacheDeletion(path.join(current.root, file.relativePath), [cacheRoot]);
-      const qualified = await qualifyGeneratedFile(current.root, file);
+      const qualified = await qualifyGeneratedFile(current.root, file, { signal, check });
       if (qualified.sha256 !== file.sha256) throw new Error('Generated file content changed after revalidation.');
+      beforeMutation(); check();
       if (!removeToolingCacheEntry(path.join(current.root, file.relativePath), qualified.stat)) throw new Error('Generated-file removal owner rejected a changed identity.');
       deletedLogicalBytes += qualified.logicalBytes;
       deletedFiles.push(file.relativePath);
     }
-    for (const directory of [...current.directories].sort((a, b) => b.relativePath.length - a.relativePath.length)) {
+    for (const directory of selected ? [] : [...current.directories].sort((a, b) => b.relativePath.length - a.relativePath.length)) {
+      check();
       const target = path.join(current.root, directory.relativePath);
       assertSafeCacheDeletion(target, [cacheRoot]);
       assertNoSymlinkPath(current.root, target);
       const stat = await fs.lstat(target, { bigint: true });
+      check();
       if (!stat.isDirectory() || String(stat.dev) !== directory.identity.dev || String(stat.ino) !== directory.identity.ino) {
         throw new Error('Repository directory identity changed before empty-directory removal.');
       }
-      await fs.rmdir(target);
+      beforeMutation(); check(); await fs.rmdir(target); check();
     }
     return { ok: true, attempts: 1, deletedLogicalBytes, deletedFiles, actualReclaimedBytes: null };
   } catch (error) { return { ok: false, attempts: 1, deletedLogicalBytes, deletedFiles,

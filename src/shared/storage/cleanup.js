@@ -15,6 +15,7 @@ import { createStorageInspectionAdmission } from './inspection-admission.js';
 import { readStoragePolicy } from './probe-policy-read.js';
 import { inspectStorageFreeSpace } from './destination.js';
 import { isPathWithinRoot } from '../file-paths.js';
+import { observeLifecycleRepositories, applyLifecycleRepositories } from './lifecycle-repositories.js';
 
 const digest = value => createHash('sha256').update(JSON.stringify(value)).digest('hex');
 const errorRecord = error => describeStorageFailure(error, { phase: 'storage-cleanup-report',
@@ -181,7 +182,9 @@ const lifecycleScope = (layout, extraRoots = []) => {
   if (new Set(roots.map(root => root.id)).size !== roots.length) throw new TypeError('Lifecycle root identities must be unique.');
   const cacheRoot = roots.find(root => root.category === 'cache')?.path;
   if (!cacheRoot) throw new TypeError('Lifecycle cleanup requires the exact selected cache root.');
-  return { home: path.resolve(layout.home.path), cacheRoot, roots };
+  const stateRoot = roots.find(root => root.category === 'state')?.path;
+  if (!stateRoot) throw new TypeError('Lifecycle cleanup requires the selected state coordination root.');
+  return { home: path.resolve(layout.home.path), cacheRoot, coordinationRoot: path.join(stateRoot, 'storage-access'), roots };
 };
 const remainingDuration = (limits, control) => {
   control.check(); return Math.max(1, limits.maxDurationMs - (Date.now() - control.started));
@@ -215,6 +218,7 @@ const observeLifecycleQuota = async (scope, limits, control, signal) => {
   const probePlan = await planProbeCleanup({ cacheRoot: scope.cacheRoot, authorityRoots: [scope.cacheRoot], ...limits, signal }, probeInventory, control);
   control.check();
   const qualified = new Map(probePlan.operations.map(operation => [nativePath(path.join(probeRoot, operation.relativePath)), operation]));
+  const repositories = await observeLifecycleRepositories({ inventory, scope, limits, control, signal });
   const roots = scope.roots.toSorted((a, b) => b.path.length - a.path.length);
   const items = [];
   for (const file of inventory.physicalFiles) {
@@ -225,13 +229,16 @@ const observeLifecycleQuota = async (scope, limits, control, signal) => {
       const owner = roots.find(root => isPathWithinRoot(filename, root.path));
       const operation = qualified.get(key);
       const knownProbe = Boolean(operation && sameStorageFileIdentity(operation.identity, file.identity));
+      const repository = repositories.eligible.get(key);
+      const knownRepository = Boolean(repository && sameStorageFileIdentity(repository.file.identity, file.identity));
       items.push({ physicalIdentity: `${file.identity.dev}:${file.identity.ino}`, allocatedBytes: file.allocatedBytes,
         allocationScopeId: String(file.identity.dev), complete: inventory.complete,
-        category: owner?.category, repoId: owner?.category === 'repos' ? undefined : null,
-        retention: knownProbe ? 'derived' : owner?.retention || 'unknown',
-        external: owner?.external === true || !isPathWithinRoot(filename, scope.home), ownerQualified: knownProbe,
-        lease: knownProbe ? probePlan.lease : { complete: false, protected: true },
-        references: { complete: knownProbe, retained: !knownProbe }, allLinksAccounted: file.nlink === 1,
+        category: owner?.category,
+        repoId: repositories.repositoryIds.get(key) ?? (owner?.category === 'repos' ? undefined : null),
+        retention: knownProbe || knownRepository ? 'derived' : owner?.retention || 'unknown',
+        external: owner?.external === true || !isPathWithinRoot(filename, scope.home), ownerQualified: knownProbe || knownRepository,
+        lease: knownProbe ? probePlan.lease : knownRepository ? { complete: true, protected: false } : { complete: false, protected: true },
+        references: { complete: knownProbe || knownRepository, retained: !knownProbe && !knownRepository }, allLinksAccounted: file.nlink === 1,
         lastUse: { timestamp: null, provenance: 'unknown-no-original-use-observation' } });
     }
   }
@@ -254,8 +261,12 @@ const observeLifecycleQuota = async (scope, limits, control, signal) => {
   probeBody.logicalPlannedBytes = probeBody.operations.reduce((sum, operation) => sum + operation.logicalBytes, 0);
   probeBody.estimatedReclaimBytes = probeBody.operations.every(operation => operation.allocatedBytes !== null)
     ? probeBody.operations.reduce((sum, operation) => sum + operation.allocatedBytes, 0) : null;
+  const repositoryPlans = repositories.owners.map(owner => ({ ...owner,
+    selectedFiles: owner.proof.files.filter(file => file.artifact !== 'storage-owner-marker'
+      && selected.has(`${file.identity.dev}:${file.identity.ino}`)).map(file => file.relativePath) }))
+    .filter(owner => owner.selectedFiles.length > 0);
   return { policy, inventory: inventorySummary, quota, freeSpace,
-    probePlan: { ...probeBody, planId: digest(probeBody), dryRun: true }, blocked: [] };
+    probePlan: { ...probeBody, planId: digest(probeBody), dryRun: true }, repositoryPlans, blocked: repositories.blocked };
 };
 
 export const planLifecycleCleanup = async ({ layout, extraRoots = [], maxEntries = 100000, maxDurationMs = 10000, signal = null } = {}) => {
@@ -267,7 +278,7 @@ export const planLifecycleCleanup = async ({ layout, extraRoots = [], maxEntries
   const body = { schemaVersion: LIFECYCLE_CLEANUP_PLAN_VERSION, kind: 'pairofcleats-lifecycle-cleanup-plan', scope, limits,
     complete: control.reason === null && observation?.inventory?.complete === true,
     applyReady: control.reason === null && (observation?.quota?.admission === 'admit'
-      || observation?.quota?.quotaSatisfied === true && observation.probePlan?.applyReady === true),
+      || observation?.quota?.quotaSatisfied === true && (!observation.probePlan?.operations.length || observation.probePlan.applyReady === true)),
     mutationPerformed: false, stopReason: control.reason ?? observation?.inventory?.stopReason ?? null, observation,
     preserved: 'all unqualified categories, durable/referenced evidence, offline assets and original pending owners' };
   const bytes = JSON.stringify(body);
@@ -291,13 +302,14 @@ export const applyLifecycleCleanup = async (plan, { layout, extraRoots = [], app
   if (fresh.policy.sha256 !== original.policy.sha256 || fresh.policy.policyId !== original.policy.policyId
     || fresh.quota?.quotaSatisfied !== true
     || digest(fresh.quota.selected.toSorted()) !== digest(original.quota.selected.toSorted())
-    || digest(fresh.probePlan.operations) !== digest(original.probePlan.operations)) {
+    || digest(fresh.probePlan.operations) !== digest(original.probePlan.operations)
+    || digest(fresh.repositoryPlans) !== digest(original.repositoryPlans)) {
     throw new Error('Lifecycle policy, quota selection or original cleanup inputs changed; review a fresh plan.');
   }
   if (fresh.quota.admission === 'admit' && original.quota.selected.length === 0) return {
     schemaVersion: LIFECYCLE_CLEANUP_PLAN_VERSION, planId, complete: true, mutationPerformed: false,
     stopReason: null, cleanup: null, after: fresh, actualReclaimedBytes: null, nextAction: null };
-  if (fresh.probePlan?.applyReady !== true) throw new Error('Original probe cleanup owner is no longer ready; review a fresh plan.');
+  if (fresh.probePlan?.operations.length && fresh.probePlan.applyReady !== true) throw new Error('Original probe cleanup owner is no longer ready; review a fresh plan.');
   const recheckPolicy = () => {
     control.check();
     const current = readStoragePolicy(scope.home, { category: 'lifecycle', check: control.check });
@@ -306,13 +318,14 @@ export const applyLifecycleCleanup = async (plan, { layout, extraRoots = [], app
     }
     control.check();
   };
-  const applied = await applyProbeCleanup(original.probePlan, { authorityRoots: [scope.cacheRoot],
-    approvedPlanId: original.probePlan.planId, signal }, control, recheckPolicy);
+  const applied = original.probePlan.operations.length ? await applyProbeCleanup(original.probePlan, { authorityRoots: [scope.cacheRoot],
+    approvedPlanId: original.probePlan.planId, signal }, control, recheckPolicy) : { results: [], complete: true, mutationPerformed: false };
+  const repositoryCleanup = await applyLifecycleRepositories(original.repositoryPlans, { scope, limits, control, signal, beforeMutation: recheckPolicy });
   let after = null;
   try { after = await observeLifecycleQuota(scope, limits, control, signal); }
   catch (error) { if (!control.isStop(error)) throw error; }
-  const complete = applied.complete && after?.policy.sha256 === original.policy.sha256 && after?.quota?.admission === 'admit';
-  return { schemaVersion: LIFECYCLE_CLEANUP_PLAN_VERSION, planId, complete, mutationPerformed: applied.mutationPerformed,
-    stopReason: control.reason, cleanup: applied, after, actualReclaimedBytes: null,
+  const complete = applied.complete && repositoryCleanup.complete && after?.policy.sha256 === original.policy.sha256 && after?.quota?.admission === 'admit';
+  return { schemaVersion: LIFECYCLE_CLEANUP_PLAN_VERSION, planId, complete, mutationPerformed: applied.mutationPerformed || repositoryCleanup.mutationPerformed,
+    stopReason: control.reason, cleanup: applied, repositoryCleanup, after, actualReclaimedBytes: null,
     nextAction: complete ? null : 'Reinspect remaining pressure and protected owners; a new reviewed plan is required for additional cleanup.' };
 };
