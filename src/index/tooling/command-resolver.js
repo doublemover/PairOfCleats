@@ -14,7 +14,7 @@ import {
 import { pathToFileUri } from '../../integrations/tooling/lsp/client.js';
 import { createRetainedLspClient } from '../../integrations/tooling/lsp/managed-client.js';
 import { runWithManagedCommandInstallationSync } from './managed-command-lifetime.js';
-import { resolveDotnetRuntimeLaunch } from './dotnet-runtime.js';
+import { resolveToolingRuntimeLaunch } from './runtime-launch.js';
 import { createBinaryDiscovery, classifyBinaryDiscoverySelection } from './binary-utils.js';
 import {
   __getPersistentCommandProbeCacheRuntimeStatsForTests,
@@ -557,10 +557,12 @@ const resolveBaseCommand = ({ providerId, requestedCmd, repoRoot, toolingConfig,
 const probeBinary = ({ providerId, command, launchArgs = [], probeArgs, timeoutMs, toolingConfig, cwd = process.cwd() }) => {
   let probeCwd = path.resolve(cwd);
   try { probeCwd = fsSync.realpathSync(probeCwd); } catch {}
-  const launch = resolveDotnetRuntimeLaunch({ command, args: launchArgs, cwd: probeCwd, providerId, toolingRoot: toolingConfig?.dir || null,
+  const launch = resolveToolingRuntimeLaunch({ command, args: launchArgs, cwd: probeCwd, providerId, toolingRoot: toolingConfig?.dir || null,
     baseEnv: resolveNoProvisionToolingEnvironment(process.env, { cwd: probeCwd, command,
       providerId, toolingRoot: toolingConfig?.dir || null }) });
   command = launch.command;
+  launchArgs = launch.args;
+  const scriptPrefix = launch.command === process.execPath && launch.managedRuntimeCommands.some(selection => selection.toolId === 'pyright') ? launchArgs.slice(0, 1) : [];
   const probeEnv = launch.environment;
   const environmentIdentity = createCommandProbeEnvironmentIdentity(probeEnv);
   const cacheKey = `${normalizeProviderId(providerId) || ''}\u0000${String(command || '').trim()}\u0000${JSON.stringify(launchArgs || [])}\u0000${JSON.stringify(probeArgs || [])}\u0000${Math.max(100, Math.floor(Number(timeoutMs) || DEFAULT_PROBE_TIMEOUT_MS))}\u0000${normalizeComparablePath(probeCwd)}\u0000${environmentIdentity}`;
@@ -605,11 +607,12 @@ const probeBinary = ({ providerId, command, launchArgs = [], probeArgs, timeoutM
   }
   const attempted = [];
   for (const args of probeArgs) {
+    const actualArgs = [...scriptPrefix, ...args];
     try {
-      const result = runProbeCommand(command, args, { timeoutMs, cwd: probeCwd, providerId, toolingConfig, env: probeEnv,
+      const result = runProbeCommand(command, actualArgs, { timeoutMs, cwd: probeCwd, providerId, toolingConfig, env: probeEnv,
         managedRuntimeCommands: launch.managedRuntimeCommands });
       attempted.push({
-        args,
+        args: actualArgs,
         exitCode: result.exitCode ?? null,
         stderr: summarizeProbeText(result.stderr),
         stdout: summarizeProbeText(result.stdout)
@@ -655,7 +658,7 @@ const probeBinary = ({ providerId, command, launchArgs = [], probeArgs, timeoutM
     } catch (err) {
       const result = err?.result && typeof err.result === 'object' ? err.result : null;
       attempted.push({
-        args,
+        args: actualArgs,
         exitCode: null,
         stderr: summarizeProbeText(
           result?.stderr
@@ -800,6 +803,7 @@ const selectToolingCommand = (input) => {
     };
   }
   const discovery = createBinaryDiscovery({ cwd: repoRoot });
+  let resolvedArgs = requestedArgs;
   let resolvedCmd = resolveBaseCommand({
     providerId,
     requestedCmd,
@@ -811,11 +815,11 @@ const selectToolingCommand = (input) => {
     // Bind a bare dotnet selection to the canonical SDK host before any PATH
     // fallback can choose a different installation. Explicit external hosts
     // remain separately selected and carry no managed-runtime qualification.
-    const runtimeSelection = resolveDotnetRuntimeLaunch({ command: requestedCmd === 'dotnet' ? requestedCmd : resolvedCmd, args: requestedArgs, cwd: repoRoot,
+    const runtimeSelection = resolveToolingRuntimeLaunch({ command: requestedCmd === 'dotnet' ? requestedCmd : resolvedCmd, args: requestedArgs, cwd: repoRoot,
       providerId, toolingRoot: toolingConfig?.dir || null });
-    if (runtimeSelection.managedRuntimeCommands.length) resolvedCmd = runtimeSelection.command;
+    if (runtimeSelection.managedRuntimeCommands.length) { resolvedCmd = runtimeSelection.command; resolvedArgs = runtimeSelection.args; }
   } catch (error) {
-    if (error?.code !== 'ERR_TOOLING_DOTNET_RUNTIME_UNAVAILABLE') throw error;
+    if (!['ERR_TOOLING_DOTNET_RUNTIME_UNAVAILABLE', 'ERR_TOOLING_NODE_RUNTIME_UNAVAILABLE'].includes(error?.code)) throw error;
     return { providerId, requested: { cmd: requestedCmd, args: requestedArgs },
       resolved: { cmd: '', args: [], mode: 'blocked', reason: error.code },
       probe: { ok: false, resolvedPath: null, attempted: [], validationFailure: { reasonCode: error.code, message: error.message } } };
@@ -844,7 +848,7 @@ const selectToolingCommand = (input) => {
   }
   return {
     providerId, requested: { cmd: requestedCmd, args: requestedArgs },
-    resolved: { cmd: resolvedCmd || requestedCmd, args: requestedArgs, mode: 'direct', reason: 'default-direct-launch' },
+    resolved: { cmd: resolvedCmd || requestedCmd, args: resolvedArgs, mode: 'direct', reason: 'default-direct-launch' },
     probe: { ok: null, attempted: [], discovery: discoveryReceipt }
   };
 };
@@ -876,7 +880,7 @@ export const resolveToolingCommandProfile = input => {
   const probe = probeBinary({
     providerId,
     command: resolvedCmd || requestedCmd,
-    launchArgs: requestedArgs,
+    launchArgs: selected.resolved.args,
     probeArgs,
     timeoutMs: probeTimeoutMs,
     toolingConfig,
@@ -895,7 +899,7 @@ export const resolveToolingCommandProfile = input => {
 
   const resolved = {
     cmd: resolvedCmd || requestedCmd,
-    args: requestedArgs,
+    args: selected.resolved.args,
     mode: 'direct',
     reason: 'default-direct-launch'
   };
@@ -966,14 +970,14 @@ export const probeLspInitializeHandshake = async (input) => {
   const cwd = input?.cwd || process.cwd();
   let launch;
   try {
-    launch = resolveDotnetRuntimeLaunch({ command: requestedCmd === 'dotnet' ? requestedCmd : cmd,
+    launch = resolveToolingRuntimeLaunch({ command: requestedCmd === 'dotnet' ? requestedCmd : cmd,
       args: input?.args || [], cwd,
       providerId: input?.providerId, toolingRoot: input?.toolingConfig?.dir || null,
       baseEnv: resolveNoProvisionToolingEnvironment(process.env, { cwd, command: cmd,
         providerId: input?.providerId, toolingRoot: input?.toolingConfig?.dir || null }) });
     cmd = launch.command;
   } catch (error) {
-    if (error?.code !== 'ERR_TOOLING_DOTNET_RUNTIME_UNAVAILABLE') throw error;
+    if (!['ERR_TOOLING_DOTNET_RUNTIME_UNAVAILABLE', 'ERR_TOOLING_NODE_RUNTIME_UNAVAILABLE'].includes(error?.code)) throw error;
     return { ok: false, latencyMs: 0, errorCode: error.code, errorMessage: error.message };
   }
   if (!isResolvedCommandTrusted({ commandPath: cmd, repoRoot: input?.cwd || process.cwd(), toolRoot: resolveToolRoot() })) {
@@ -987,7 +991,7 @@ export const probeLspInitializeHandshake = async (input) => {
     return { ok: false, latencyMs: 0, errorCode: 'COMMAND_DISCOVERY_' + reason.replace('-', '_').toUpperCase(),
       errorMessage: 'No eligible command candidate was admitted.', discovery: receipt };
   }
-  const args = Array.isArray(input?.args) ? input.args.map((entry) => String(entry)) : [];
+  const args = launch.args;
   const timeoutMs = Number.isFinite(Number(input?.timeoutMs))
     ? Math.max(750, Math.floor(Number(input.timeoutMs)))
     : 4000;

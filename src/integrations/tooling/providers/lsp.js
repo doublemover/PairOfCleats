@@ -58,7 +58,7 @@ import { throwIfAborted } from '../../../shared/abort.js';
 import { coercePositiveInt } from '../../../shared/number-coerce.js';
 import { sleep } from '../../../shared/sleep.js';
 import { applyToolchainDaemonPolicyEnv } from '../../../shared/toolchain-env.js';
-import { resolveDotnetRuntimeLaunch } from '../../../index/tooling/dotnet-runtime.js';
+import { resolveToolingRuntimeLaunch } from '../../../index/tooling/runtime-launch.js';
 import { sha1 } from '../../../shared/hash.js';
 import { observeStorageResource } from '../../../shared/storage/failure-observation.js';
 import { createWorkspaceMethodHealth } from './lsp/workspace-method-health.js';
@@ -492,14 +492,14 @@ export async function collectLspTypes({
   });
   const onRequest = createLspConfigurationHandler(initializationOptions);
 
-  const launch = resolveDotnetRuntimeLaunch({ command: cmd, args, cwd: resolvedWorkspaceRootDir, providerId: resolvedProviderId, toolingRoot,
+  const launch = resolveToolingRuntimeLaunch({ command: cmd, args, cwd: resolvedWorkspaceRootDir, providerId: resolvedProviderId, toolingRoot,
     languages: docs.map(doc => doc.languageId),
     baseEnv: applyToolchainDaemonPolicyEnv(process.env, { toolingRoot, providerId: resolvedProviderId, command: cmd }) });
   runtime.command = String(launch.command || '');
   runtime.managedRuntimeInstallations = launch.managedRuntimeCommands.map(({ toolId, descriptorId, installId }) => ({ toolId, descriptorId, installId }));
   const workspaceHealth = workspaceHealthContext ? await createWorkspaceMethodHealth({ cacheRoot,
     repoRoot: resolvedRoot, workspaceRoot: resolvedWorkspaceRootDir, providerId: resolvedProviderId,
-    workspaceKey: resolvedWorkspaceKey || null, command: launch.command, args, environment: launch.environment,
+    workspaceKey: resolvedWorkspaceKey || null, command: launch.command, args: launch.args, environment: launch.environment,
     documents: docs, initializationOptions, providerVersion: workspaceHealthContext.providerVersion,
     configFileNames: workspaceHealthContext.configFileNames,
     policy: { context: workspaceHealthContext, timeoutMs, retries, breakerThreshold,
@@ -524,7 +524,7 @@ export async function collectLspTypes({
     providerId: resolvedProviderId,
     workspaceKey: resolvedWorkspaceKey || rootDir,
     cmd: launch.command,
-    args,
+    args: launch.args,
     toolingRoot,
     cwd: resolvedWorkspaceRootDir,
     env: launch.environment,

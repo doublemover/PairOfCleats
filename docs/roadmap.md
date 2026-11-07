@@ -3,6 +3,7 @@
 Status: all open issues in scope except Tantivy/editor work
 Last audited: 2026-11-06
 Last reconciled: 2026-11-06
+Last implementation update: 2026-11-07
 Canonical for: initiative status, execution order, and remaining work
 
 ## Current GitHub repair program
@@ -70,6 +71,8 @@ refresh the PR overview at least every 20 commits.
 
 The [native snapshot budget repair](archived/windows-native-snapshot-budget-2026-11-07.md)
 overlaps console setup while retaining native admission and full seed verification.
+[Windows Pyright](contracts/managed-node-package.md) uses a pinned prebuilt bundle,
+existing archive admission and original Node/package leases; runtime checks await.
 Earlier embedding/cache, retrieval, TUI/LSP and resource-owner repairs await
 current-source acceptance. The intake above owns remaining scope; current schemas
 and producer constants own format identities.

@@ -31,7 +31,7 @@ export const resolveManagedToolInstallation = (toolingRoot, toolId) => {
     const file = receipt.files.find(entry => entry.path === descriptor.command);
     if (!file || hashManagedToolFile(command, 128 * 1024 * 1024) !== file.sha256) return null;
     return { owner, root, command, args: descriptor.args || [], binDir: path.dirname(command),
-      descriptorId: selector.descriptorId, installId: selector.installId, version: descriptor.version, verification: 'selected-receipt-and-consumer-bytes' };
+      descriptorId: selector.descriptorId, installId: selector.installId, recipeId: descriptor.recipeId, version: descriptor.version, verification: 'selected-receipt-and-consumer-bytes' };
   } catch (error) {
     observeStorageResource(error, { phase: 'managed-installation-discovery' }).requireSettled();
     return null;

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-07T05:09:06.157Z",
+  "generatedAt": "2026-11-07T05:35:57.693Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
@@ -3821,6 +3821,7 @@
         "tests/tooling/install/managed-operational-probe-storage.test.js",
         "tests/tooling/install/managed-prerequisite-consumer-lifetime.test.js",
         "tests/tooling/install/managed-publication-frozen-recovery.test.js",
+        "tests/tooling/install/managed-pyright-package.test.js",
         "tests/tooling/install/managed-retain-partial-admission.test.js",
         "tests/tooling/install/managed-reuse-frozen-recovery.test.js",
         "tests/tooling/install/managed-selection-lifetime.test.js",
@@ -5001,6 +5002,7 @@
         "tests/tooling/install/checkout-stage-journal.test.js",
         "tests/tooling/install/clangd-owned-acquisition.test.js",
         "tests/tooling/install/estimate-destination-identity.test.js",
+        "tests/tooling/install/managed-pyright-package.test.js",
         "tests/tooling/install/managed-selection-lifetime.test.js",
         "tests/tooling/install/managed-tool-file-lifetime.test.js",
         "tests/tooling/install/native-diagnostic-ownership.test.js",
@@ -5543,6 +5545,7 @@
         "tests/tooling/install/install-dry-run-cli-no-probe.test.js",
         "tests/tooling/install/lifecycle-prerequisite-preflight.test.js",
         "tests/tooling/install/managed-prerequisite-consumer-lifetime.test.js",
+        "tests/tooling/install/managed-pyright-package.test.js",
         "tests/tooling/install/managed-selection-lifetime.test.js",
         "tests/tooling/install/no-fallback-scope-consumer.test.js",
         "tests/tooling/install/operational-dictionary-and-release-consumers.test.js",
@@ -5645,6 +5648,7 @@
         "tests/tooling/install/install-dry-run-cli-no-probe.test.js",
         "tests/tooling/install/lifecycle-prerequisite-preflight.test.js",
         "tests/tooling/install/managed-prerequisite-consumer-lifetime.test.js",
+        "tests/tooling/install/managed-pyright-package.test.js",
         "tests/tooling/install/no-fallback-scope-consumer.test.js",
         "tests/tooling/install/operational-execution-trust-and-lifetime.test.js",
         "tests/tooling/install/operational-installed-capability-reuse.test.js",

@@ -3001,3 +3001,9 @@ shared/storage/inspection-phase-admission/exact-stop-observation
 shared/storage/inspection-phase-admission/exact-root-deadline
 shared/storage/inspection-phase-admission/exact-directory-close
 shared/storage/inspection-phase-admission/exact-revalidation-deadline
+tooling/install/managed-pyright-package/canonical-windows-bundle-bound
+tooling/install/managed-pyright-package/managed-publication-and-reuse
+tooling/install/managed-pyright-package/runtime-selection-and-stale-entry
+tooling/install/managed-pyright-package/owned-probe-and-generation-lease
+tooling/install/managed-pyright-package/strict-digest-and-previous-generation
+tooling/install/managed-pyright-package/verification-observation-and-cancellation

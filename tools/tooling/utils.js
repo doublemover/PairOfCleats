@@ -33,6 +33,11 @@ import { resolveOperationalManagedRecipe } from './operational-recipes.js';
 import { identifyOperationalTool, OPERATIONAL_TOOL_IDS, verifyManagedOperationalTool } from './operational-probes.js';
 import { resolveManagedDotnetSdkRecipe, verifyManagedDotnetSdk } from './managed-dotnet-sdk.js';
 import { createGoplsCacheRecipe, GOPLS_PACKAGE } from './gopls-recipe.js';
+import { resolveManagedPyrightRecipe, verifyManagedPyright } from './managed-pyright.js';
+import { resolveManagedNodePackageLaunch } from '../../src/shared/managed-node-package.js';
+import { runWithManagedCommandInstallationSync } from '../../src/index/tooling/managed-command-lifetime.js';
+import { spawnResolvedSubprocessSync } from '../../src/shared/subprocess/command-invocation.js';
+import { observeStorageResource } from '../../src/shared/storage/failure-observation.js';
 
 const packageMetadata = JSON.parse(fs.readFileSync(new URL('../../package.json', import.meta.url), 'utf8'));
 
@@ -199,8 +204,21 @@ function probeWithArgCandidates(cmd, argCandidates, providerId, toolingRoot = nu
   const attempts = [];
   for (const args of argCandidates) {
     const cwd = resolveToolRoot();
-    const probe = probeCommand(cmd, args, { timeoutMs: 4000, cwd,
-      env: resolveNoProvisionToolingEnvironment(process.env, { command: cmd, providerId, toolingRoot, cwd }) });
+    const launch = resolveManagedNodePackageLaunch({ command: cmd, args, providerId, toolingRoot });
+    const options = { timeoutMs: 4000, cwd, env: resolveNoProvisionToolingEnvironment(process.env, { command: launch.command, providerId, toolingRoot, cwd }) };
+    let probe;
+    if (!launch.managedRuntimeCommands.length) probe = probeCommand(launch.command, launch.args, options);
+    else {
+      // Keep the original synchronous child result inside the lease owner.
+      // probeCommand's display DTO intentionally is not settlement evidence.
+      const result = runWithManagedCommandInstallationSync({ command: launch.command, toolingRoot,
+        managedRuntimeCommands: launch.managedRuntimeCommands }, () => spawnResolvedSubprocessSync(launch.command, launch.args,
+        { ...options, stdio: ['ignore', 'pipe', 'pipe'], outputEncoding: 'utf8', maxOutputBytes: 16384, rejectOnNonZeroExit: false }));
+      const observed = observeStorageResource(result, { phase: 'managed-node-sync-probe' });
+      const status = observed.read('exitCode'), signal = observed.read('signal'), stdout = observed.read('stdout'), stderr = observed.read('stderr');
+      probe = { ok: status === 0, status, signal, errorCode: null, stdout, stderr,
+        outcome: status === 0 ? 'ok' : signal ? 'terminated' : status === 127 ? 'missing' : 'nonzero' };
+    }
     attempts.push({
       args,
       outcome: probe.outcome,
@@ -375,6 +393,7 @@ export function getToolingRegistry(toolingRoot, repoRoot) {
   // Newer TypeScript distributions may omit the tsserver/JavaScript compiler
   // API used by our provider. Match the project's supported dependency range.
   const typescriptPackage = `typescript@${packageMetadata.dependencies.typescript}`;
+  const pyrightRecipe = resolveManagedPyrightRecipe();
   const absoluteToolingRoot = path.resolve(toolingRoot);
   const localBinDirs = resolveLocalToolingBinDirs(absoluteToolingRoot);
   const [binDir, nodeBin, dotnetDir, composerBin] = localBinDirs;
@@ -500,9 +519,11 @@ export function getToolingRegistry(toolingRoot, repoRoot) {
       languages: ['python'],
       detect: { cmd: 'pyright-langserver', args: ['--help'], binDirs: [...repoNodeBin, nodeBin] },
       install: {
-        cache: { cmd: 'npm', args: ['install', '--prefix', nodeDir, 'pyright'] },
+        cache: pyrightRecipe || { cmd: 'npm', args: ['install', '--prefix', nodeDir, 'pyright'] },
         user: { cmd: 'npm', args: ['install', '-g', 'pyright'] }
       },
+      prerequisites: [{ id: 'node', command: process.execPath, family: 'node', versionRange: '>=26.0.0 <27.0.0', kind: 'runtime', phase: 'launch', dependsOn: [] }],
+      ...(pyrightRecipe ? { version: pyrightRecipe.managedDescriptor.version, verifyManagedInstall: verifyManagedPyright } : {}),
       docs: TOOL_DOCS.pyright
     },
     {

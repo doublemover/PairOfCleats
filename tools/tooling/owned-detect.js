@@ -1,6 +1,7 @@
 // Source UNVALIDATED. Async actual report/install probes retain exact managed
 // physical bytes until shared child close or confirmed error reconciliation.
 import { retainManagedToolInstallation } from '../../src/shared/managed-installation.js';
+import { resolveManagedNodePackageLaunch } from '../../src/shared/managed-node-package.js';
 import { spawnResolvedSubprocess } from '../../src/shared/subprocess/command-invocation.js';
 import { redactDiagnosticText } from '../../src/shared/diagnostic-text.js';
 import { resolveNoProvisionToolingEnvironment, isNonZeroToolingProbeSuccess } from '../../src/index/tooling/command-resolver.js';
@@ -187,7 +188,8 @@ const detectToolOwnedSelected = async (tool, { signal = null, env = process.env 
       let closeObserved = false;
       closureConfirmed = () => closeObserved || !spawned;
       try {
-        const result = await (dependencies.spawn || spawnResolvedSubprocess)(command, [...prefix, ...args], { cwd, signal,
+        const launch = resolveManagedNodePackageLaunch({ command, args: [...prefix, ...args], providerId: tool.id, toolingRoot: tool.toolingRoot, baseEnv: env });
+        const result = await (dependencies.spawn || spawnResolvedSubprocess)(launch.command, launch.args, { cwd, signal,
           env: resolveNoProvisionToolingEnvironment(env, { command, providerId: tool.id, toolingRoot: tool.toolingRoot, cwd }),
           timeoutMs: 4000, outputEncoding: 'utf8', maxOutputBytes: 65536, rejectOnNonZeroExit: false,
           onSpawn: () => { spawned = true; } });
