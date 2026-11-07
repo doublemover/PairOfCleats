@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-11-07T01:32:36.099Z",
+  "generatedAt": "2026-11-07T01:35:42.194Z",
   "summary": {
     "lanes": 5,
-    "tests": 3221,
+    "tests": 3222,
     "exactDuplicates": 0,
     "hotspotKinds": 10,
     "families": 434,
@@ -11,7 +11,7 @@
     "timingCoverage": {
       "freshArtifactTests": 0,
       "historicalFallbackTests": 74,
-      "missingTests": 3147
+      "missingTests": 3148
     }
   },
   "lanes": [
@@ -35,7 +35,7 @@
       "targetMaxDurationSeconds": 15,
       "orderFile": "tests/ci-lite/ci-lite.order.txt",
       "timingArtifactPath": ".testLogs/ci-lite-testRunTimes.txt",
-      "totalTests": 2901,
+      "totalTests": 2902,
       "knownDurationTests": 49,
       "knownDurationMs": 27090,
       "p50DurationMs": 190,
@@ -43,7 +43,7 @@
       "resolvedTimingArtifactPaths": [],
       "timingSources": {
         "historical-test-times": 49,
-        "missing": 2852
+        "missing": 2853
       }
     },
     {
@@ -326,9 +326,9 @@
     },
     {
       "key": "tooling/eval",
-      "count": 76,
+      "count": 77,
       "knownDurationMs": 0,
-      "unknownDurationCount": 76
+      "unknownDurationCount": 77
     },
     {
       "key": "indexing/tree-sitter",

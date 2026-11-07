@@ -66,6 +66,7 @@ if (mode === 'actual-registered-operators') {
 } else {
   const scenario = generate('anti-join-support-threshold'), first = adapter.run(scenario), receipt = adapter.inspect(first);
   assert.throws(() => adapter.inspect({ ...first }), /Original/); assert.throws(() => receipt.checkpoints.push({}), TypeError);
+  assert.throws(() => adapter.minimize(first, { checkpointId: 'one-to-zero' }), /no matching independent failure/);
   assert.equal(adapter.dispose(first).retired, true); assert.throws(() => adapter.inspect(first), /Original/);
   const second = adapter.run(scenario); try { assert.equal(adapter.inspect(second).outcome, 'pass'); assert.notEqual(second.executionId, first.executionId); }
   finally { adapter.dispose(second); }

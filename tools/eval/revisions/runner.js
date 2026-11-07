@@ -5,6 +5,7 @@ import { bootstrapPositiveRuleView, applyPositiveRuleSupportDelta, describePosit
   positiveRuleSupportId, positiveRuleViewWork } from '../../../src/index/semantic/views/positive-rules.js';
 import { compileRevisionScenario, revisionStateId, revisionScenarioId, revisionKey, sealRevisionEdits } from './scenario.js';
 import { compareRevisionOutputs, normalizeRevisionOutput } from './reference.js';
+import { minimizeRevisionSequence } from './minimize.js';
 
 const owned = new WeakMap();
 const immutable = value => {
@@ -91,34 +92,11 @@ export const retireRevisionRun = handle => {
  * smaller witness only after the same named checkpoint/fact disagreement runs
  * again under the registered candidate and independent complete oracle. */
 export const minimizeRevisionFailure = (handle, { checkpointId, factId, maxAttempts = 32, maxMs = 1000, signal = null } = {}) => {
-  const original = get(handle), began = performance.now(); throwIfAborted(signal);
-  if (!Number.isSafeInteger(maxAttempts) || maxAttempts < 1 || maxAttempts > 64 || !Number.isSafeInteger(maxMs) || maxMs < 1 || maxMs > 1000) {
-    throw new RangeError('Invalid revision minimization allowance.');
-  }
+  const original = get(handle);
   const isFailure = receipt => receipt.checkpoints.some(row => row.checkpointId === checkpointId && row.claims?.some(claim =>
     claim.tier === 'independent-finite-reference' && claim.outcome === 'fail' && claim.differences.some(row => row.id === factId)));
-  if (!isFailure(original.receipt)) throw new TypeError('Original execution has no matching independent failure.');
-  let scenario = original.compiled.scenario; const attempts = [];
-  for (let index = scenario.revisions.length - 1; index >= 0 && attempts.length < maxAttempts; index--) {
-    throwIfAborted(signal);
-    const remainingMs = Math.floor(maxMs - (performance.now() - began)); if (remainingMs < 1) break;
-    if (scenario.revisions[index].id === checkpointId) continue;
-    const removedRevisionId = scenario.revisions[index].id;
-    let candidate;
-    try { candidate = sealRevisionEdits(scenario, scenario.revisions.filter((_, position) => position !== index)); }
-    catch (error) {
-      if (error?.code !== 'ERR_REVISION_ORACLE_SCENARIO') throw error;
-      attempts.push({ removedRevisionId, outcome: 'invalid-precondition', accepted: false }); continue;
-    }
-    const trial = runRevisionScenario(candidate, { maxMs: Math.min(remainingMs, 1000), signal });
-    try {
-      const receipt = readRevisionRun(trial), accepted = isFailure(receipt);
-      attempts.push({ removedRevisionId, executionId: receipt.executionId, scenarioId: receipt.scenarioId, outcome: receipt.outcome, accepted });
-      if (accepted) scenario = candidate;
-    } finally { retireRevisionRun(trial); }
-  }
-  return immutable({ schemaVersion: 1, kind: 'finite-positive-revision-minimization', originalExecutionId: original.receipt.executionId,
-    originalScenarioId: original.compiled.scenarioId, minimizedScenarioId: revisionScenarioId(scenario), checkpointId, factId, scenario,
-    attempts, changed: revisionScenarioId(scenario) !== original.compiled.scenarioId, predicate: 'same-checkpoint-and-fact-independent-disagreement-v1',
-    scope: 'revision-deletion-only; no-source-or-program-minimality', elapsedMs: performance.now() - began });
+  return minimizeRevisionSequence({ originalScenario: original.compiled.scenario, originalReceipt: original.receipt, matches: isFailure,
+    seal: sealRevisionEdits, invalidScenario: error => error?.code === 'ERR_REVISION_ORACLE_SCENARIO', run: runRevisionScenario,
+    read: readRevisionRun, dispose: retireRevisionRun, kind: 'finite-positive-revision-minimization', selection: { checkpointId, factId },
+    predicate: 'same-checkpoint-and-fact-independent-disagreement-v1' }, { checkpointId, maxAttempts, maxMs, signal });
 };

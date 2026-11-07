@@ -6,6 +6,7 @@ import { bootstrapAdjacencyView } from '../../../src/index/semantic/views/adjace
 import { bootstrapRelationalJoin, applyRelationalJoinDelta, describeRelationalJoin, relationalJoinWork } from '../../../src/index/semantic/views/relational-join.js';
 import { REVISION_RELATIONAL_SCHEMA, REVISION_RELATIONAL_RECEIPT_SCHEMA } from '../../../src/contracts/schemas/revision-relational.js';
 import { revisionKey, revisionScenarioId } from './scenario.js';
+import { minimizeRevisionSequence } from './minimize.js';
 
 const owned = new WeakMap(), ajv = createAjv({ strict: true, allErrors: true }), validate = compileSchema(ajv, REVISION_RELATIONAL_SCHEMA);
 const validateReceipt = compileSchema(ajv, REVISION_RELATIONAL_RECEIPT_SCHEMA);
@@ -181,3 +182,12 @@ export const runRelationalRevisionScenario = (input, { signal = null, maxMs = 10
 };
 export const readRelationalRevisionRun = handle => get(handle).receipt;
 export const retireRelationalRevisionRun = handle => { const state = get(handle); owned.delete(handle); return Object.freeze({ executionId: state.receipt.executionId, retired: true }); };
+export const minimizeRelationalRevisionFailure = (handle, { checkpointId, maxAttempts = 32, maxMs = 1000, signal = null } = {}) => {
+  const original = get(handle);
+  return minimizeRevisionSequence({ originalScenario: original.compiled.scenario, originalReceipt: original.receipt,
+    matches: receipt => receipt.checkpoints.some(row => row.checkpointId === checkpointId
+      && row.claims?.some(claim => claim.tier === 'independent-tiny-expanded-bag' && claim.outcome === 'fail')),
+    seal, invalidScenario: error => error?.code === 'ERR_REVISION_RELATIONAL_SCENARIO', run: runRelationalRevisionScenario,
+    read: readRelationalRevisionRun, dispose: retireRelationalRevisionRun, kind: 'finite-relational-revision-minimization', selection: { checkpointId },
+    predicate: 'same-checkpoint-independent-bag-disagreement-v1' }, { checkpointId, maxAttempts, maxMs, signal });
+};

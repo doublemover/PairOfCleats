@@ -3,9 +3,9 @@ const loaders = {
   'finite-relational-revisions-v1': async () => {
     const owner = await import('./revisions/relational.js');
     return Object.freeze({ id: 'finite-relational-revisions-v1', executionClass: 'tiny-supplied-relational-revisions-only',
-      capabilities: Object.freeze(['generate', 'run', 'inspect', 'compareDiagnostic', 'dispose']),
+      capabilities: Object.freeze(['generate', 'run', 'inspect', 'compareDiagnostic', 'minimize', 'dispose']),
       generate: owner.generateRelationalRevisionScenario, run: owner.runRelationalRevisionScenario, inspect: owner.readRelationalRevisionRun,
-      compareDiagnostic: owner.compareRelationalRevisionOutput, dispose: owner.retireRelationalRevisionRun });
+      compareDiagnostic: owner.compareRelationalRevisionOutput, minimize: owner.minimizeRelationalRevisionFailure, dispose: owner.retireRelationalRevisionRun });
   },
   'finite-positive-support-revisions-v1': async () => {
     const [scenario, runner, reference] = await Promise.all([import('./revisions/scenario.js'), import('./revisions/runner.js'), import('./revisions/reference.js')]);

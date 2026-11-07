@@ -2904,3 +2904,4 @@ tooling/eval/relational-revision-oracle/multiplicity-and-origin-defects
 tooling/eval/relational-revision-oracle/strict-revision-worlds
 tooling/eval/relational-revision-oracle/unknown-reference-budget
 tooling/eval/relational-revision-oracle/original-execution-retirement
+tooling/eval/revision-minimizer-predicate

@@ -73,5 +73,11 @@ failure outcomes for subsequent disagreements, under 256 KiB. Diagnostic data
 comparison does not create an original execution handle. Six additional authored,
 unrun cases cover actual registered operators, seeded cross-term/threshold and
 origin/multiplicity defects, stale worlds, unknown and handle retirement. This
-profile has no source materializer, durable publication or minimization adapter;
-the positive-rule profile retains its separate bounded revision minimizer.
+profile has no source materializer or durable publication. Both finite profiles
+share the bounded revision-deletion engine. Relational minimization requires the
+same named checkpoint's independent bag disagreement; positive-rule minimization
+additionally preserves the named fact. Every proposal runs its original registered
+candidate/reference and retires its temporary execution handle. Unknown, invalid,
+corrected or different failures cannot replace the witness. One additional authored,
+unrun finite boundary control exercises these decisions without forging a production
+execution or claiming either current candidate fails.

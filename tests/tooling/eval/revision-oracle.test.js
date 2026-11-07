@@ -7,6 +7,7 @@ import { getOfflineEvaluationAdapter } from '../../../tools/eval/adapters.js';
 import { compileRevisionScenario, sealRevisionEdits, revisionScenarioId } from '../../../tools/eval/revisions/scenario.js';
 import { evaluateRevisionReference } from '../../../tools/eval/revisions/reference.js';
 import { throwIfAborted } from '../../../src/shared/abort.js';
+import { minimizeRevisionSequence } from '../../../tools/eval/revisions/minimize.js';
 
 const mode = process.env.PAIROFCLEATS_TEST_ID?.split('tooling/eval/revision-oracle/')[1];
 assert.ok(['registered-revision-controls', 'independent-seeded-defects', 'provenance-multiplicity', 'scenario-preconditions',
@@ -101,7 +102,7 @@ if (mode === 'registered-revision-controls') {
     claims: [{ tier: 'independent-finite-reference', outcome: 'fail', differences: [{ id: 'P' }] }] }] };
   const original = { compiled: compileRevisionScenario(scenario), receipt: report }, trace = { runs: 0, retired: 0 };
   const minimize = vm.runInNewContext('(' + source.slice(node.start, node.end) + ')', {
-    performance, throwIfAborted, sealRevisionEdits, revisionScenarioId, immutable: value => value, get: () => original,
+    performance, throwIfAborted, sealRevisionEdits, revisionScenarioId, minimizeRevisionSequence, immutable: value => value, get: () => original,
     runRevisionScenario(candidate) { trace.runs++; return { candidate }; },
     readRevisionRun(trial) { return { ...report, executionId: 'trial-' + trace.runs, scenarioId: revisionScenarioId(trial.candidate), outcome: 'fail' }; },
     retireRevisionRun() { trace.retired++; }
