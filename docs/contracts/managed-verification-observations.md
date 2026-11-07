@@ -83,3 +83,18 @@ authored, locally unrun integration controls use the real transaction/storage
 owners with inert archives/probes: root/nested capability revocation, an original
 post-verification file open and function-valued failure retirement. The selected
 old SDK remains usable and recovery does not repeat either download.
+
+HTTP download classification now uses the canonical bounded storage ledger.
+Its sole local callback-aggregation loop is retired; body/iterator cancellation,
+original stream draining and branded download-session authority stay with the
+transport owner. Classification follows original body teardown, checks retained
+prerequisites around each field and stops after independent inspection work.
+Function-valued failures retain their identity without string coercion.
+The common error composer accepts an internal literal `ownerMessage` so an
+immutable pending failure can retain its descriptors/causes without evaluating
+its message getter. This changes no public command or response schema.
+Five authored, locally unrun controls cover early/function/inspection refusal,
+actual original recovery, bounded response success and an ordinary HTTP rejection.
+The callback control retains a second pending inspection after the first original
+changes from false to throwing to true; neither callback replacement nor later
+settlement drops that independent obligation.

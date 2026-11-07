@@ -40,7 +40,8 @@ export const readStorageFailureContext = error => {
  */
 export const addStorageFailureContext = (value, fields = {}, secondary,
   { nonEnumerable = [], secondaryPresent = secondary !== null && secondary !== undefined,
-    forceAggregate = false } = {}) => {
+    forceAggregate = false, ownerMessage = null } = {}) => {
+  if (ownerMessage !== null && typeof ownerMessage !== 'string') throw new TypeError('Storage owner diagnostics must be a string.');
   const primary = asError(value);
   const additional = secondaryPresent && secondary !== primary ? asError(secondary) : null;
   const inspections = [], inspectionObservations = [], observers = [], observed = new WeakSet();
@@ -123,9 +124,11 @@ export const addStorageFailureContext = (value, fields = {}, secondary,
       return retainContext(primary);
     } catch (inspectionError) { retainInspection(inspectionError); }
   }
-  let message = 'Storage operation or recovery context failed.';
-  try { const original = primary.message; if (typeof original === 'string') message = original; }
-  catch (inspectionError) { retainInspection(inspectionError); }
+  let message = ownerMessage ?? 'Storage operation or recovery context failed.';
+  if (ownerMessage === null) {
+    try { const original = primary.message; if (typeof original === 'string') message = original; }
+    catch (inspectionError) { retainInspection(inspectionError); }
+  }
   const aggregate = new AggregateError([primary, ...(additional ? [additional] : [])], message, { cause: primary });
   try {
     for (const key of Reflect.ownKeys(primary)) {

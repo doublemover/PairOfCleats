@@ -3102,3 +3102,8 @@ tooling/install/go-sdk-publication-observation/root-capability-revocation
 tooling/install/go-sdk-publication-observation/nested-capability-revocation
 tooling/install/go-sdk-publication-observation/post-verification-file-read
 tooling/install/go-sdk-publication-observation/function-failure-retirement
+tooling/install/download-original-classification/original-before-classification
+tooling/install/download-original-classification/function-before-classification
+tooling/install/download-original-classification/independent-inspection-stops-fields
+tooling/install/download-original-classification/closed-positive-and-negative
+tooling/install/download-original-classification/callback-inspection-remains-required

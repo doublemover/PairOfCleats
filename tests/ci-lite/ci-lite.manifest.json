@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 2933,
+    "hero": 2938,
     "matrix": 110,
     "meta": 55,
     "soak": 1,
@@ -18607,6 +18607,36 @@
     {
       "id": "tooling/install/go-sdk-publication-observation/function-failure-retirement",
       "order": 3099,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/download-original-classification/original-before-classification",
+      "order": 3100,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/download-original-classification/function-before-classification",
+      "order": 3101,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/download-original-classification/independent-inspection-stops-fields",
+      "order": 3102,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/download-original-classification/closed-positive-and-negative",
+      "order": 3103,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/download-original-classification/callback-inspection-remains-required",
+      "order": 3104,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     }

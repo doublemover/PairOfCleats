@@ -270,10 +270,10 @@ const installPinnedManagedToolOwned = async ({ toolingRoot, descriptor, approved
   const appendFailureContext = (field, failure) => {
     observeFailure(failure);
     const prior = primaryError;
-    // Aggregation may read the primary message. Pending originals stay on the
-    // exact cause while an inert owner message supplies the diagnostic context.
-    const base = resourcesSettled() ? prior : new Error('Original managed install failure remains retained.', { cause: prior });
-    primaryError = addStorageFailureContext(base, { [field]: failure }, failure);
+    // A literal owner message avoids evaluating pending diagnostics while the
+    // common composer preserves original descriptors and exact error edges.
+    primaryError = addStorageFailureContext(prior, { [field]: failure }, failure,
+      { ownerMessage: resourcesSettled() ? null : 'Original managed install failure remains retained.' });
     if (primaryError !== prior) resourceObservation.rememberComposition(primaryError); else resourceObservation.remember(primaryError);
   };
   const releaseSession = session => {

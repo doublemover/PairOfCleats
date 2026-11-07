@@ -83,11 +83,11 @@ export const probeInstalledSdk = async (command, { cwd, env, signal, resourceId 
     const closed = () => (completed || !spawned || (closeObserved || terminationClosed) && treeSettled
       || original?.required === true && original.observe() === true) && observation.isSettled();
     const settled = closed();
-    const base = settled ? error : new Error('Original Go SDK probe work remains retained.', { cause: error });
-    let failure = addStorageFailureContext(base, settled ? { settlement: { resourceId, settled: true, pending: false } }
-      : { cacheOwnershipPending: true, cacheOwnershipReleased: closed }, inspectionError);
+    const ownerMessage = settled ? null : 'Original Go SDK probe work remains retained.';
+    let failure = addStorageFailureContext(error, settled ? { settlement: { resourceId, settled: true, pending: false } }
+      : { cacheOwnershipPending: true, cacheOwnershipReleased: closed }, inspectionError, { ownerMessage });
     if (completed) failure = addStorageFailureContext(failure, { goSdkProbeResult: result }, result,
-      { secondaryPresent: true, nonEnumerable: ['goSdkProbeResult'] });
+      { secondaryPresent: true, nonEnumerable: ['goSdkProbeResult'], ownerMessage });
     throw failure;
   }
 };

@@ -2,10 +2,11 @@ import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { addStorageFailureContext } from '../../src/shared/storage/operation-error.js';
+import { createStorageObservationLedger } from '../../src/shared/storage/failure-observation.js';
 
 const downloadSessions = new WeakSet();
 export const isInstallDownloadSession = session => Boolean(session) && downloadSessions.has(session);
-const asDownloadError = value => value && typeof value === 'object' ? value : new Error(String(value), { cause: value });
+const asDownloadError = value => value !== null && ['object', 'function'].includes(typeof value) ? value : new Error(String(value), { cause: value });
 
 export const toInt = (value, fallback, min = 0) => {
   const parsed = Number(value);
@@ -67,14 +68,6 @@ const buildDownloadMessage = (createErrorMessage, reason, details) => {
     if (message) return String(message);
   }
   return defaultDownloadMessage(reason, details);
-};
-
-const captureDownloadClosure = error => {
-  try {
-    const observer = error.cacheOwnershipReleased;
-    return { required: error.cacheOwnershipPending === true || typeof observer === 'function',
-      observe: () => { try { return typeof observer === 'function' && observer.call(error) === true; } catch { return false; } } };
-  } catch { return { required: true, observe: () => false }; }
 };
 
 /** Actual transport reconciliation, used by the existing install resource
@@ -287,31 +280,36 @@ export const downloadToBuffer = async ({
     };
   } catch (error) {
     const primaryError = asDownloadError(signal?.aborted ? signal.reason : error);
-    const observations = [], observed = new WeakSet();
-    let overflow = false, closeFailure = null;
+    const ownFailures = new WeakSet();
+    const observations = createStorageObservationLedger({ isOwnFailure: value => ownFailures.has(value) });
+    let closeFailure = null;
     const remember = value => {
       const failure = asDownloadError(value);
-      if (observed.has(failure)) return failure;
-      observed.add(failure);
-      const closure = captureDownloadClosure(failure);
-      if (closure.required) { if (observations.length < 128) observations.push(closure.observe); else overflow = true; }
+      observations.remember(failure);
       return failure;
     };
     remember(primaryError);
     const classification = {}, inspectionFailures = [];
-    for (const field of ['reason', 'name', 'message']) {
-      try { classification[field] = primaryError[field]; }
-      catch (value) { inspectionFailures.push(remember(value)); }
-    }
     try {
       if (operationCloseFailed && error === operationCloseFailure) throw error;
       await observeClose();
     } catch (cleanupError) { closeFailure = remember(cleanupError); }
-    const allReleased = () => cleanupSettled && !overflow && observations.every(observe => observe());
+    const allReleased = () => cleanupSettled && observations.isSettled();
+    for (const field of ['reason', 'name', 'message']) {
+      if (!allReleased()) break;
+      try {
+        const value = primaryError[field];
+        if (value !== null && ['object', 'function'].includes(typeof value)) remember(value);
+        classification[field] = value;
+      } catch (value) { inspectionFailures.push(remember(value)); }
+      if (!allReleased()) break;
+    }
     if (closeFailure || !allReleased()) {
       const retainFailure = secondary => {
+        const retained = value => { ownFailures.add(value); observations.remember(value); return value; };
+        const inspected = [...new Set([...inspectionFailures, ...observations.snapshot().inspectionErrors])];
         const fields = { retryable: false, downloadSession: session,
-          ...(inspectionFailures.length ? { downloadInspectionErrors: inspectionFailures } : {}),
+          ...(inspected.length ? { downloadInspectionErrors: inspected } : {}),
           ...(secondary ? { downloadCleanupError: secondary } : {}) };
         try {
           if (Object.hasOwn(primaryError, 'downloadSession') && primaryError.downloadSession !== session) {
@@ -320,12 +318,13 @@ export const downloadToBuffer = async ({
           Object.defineProperties(primaryError, Object.fromEntries(Object.entries({ ...fields,
             cacheOwnershipPending: true, cacheOwnershipReleased: allReleased }).map(([key, value]) => [key,
             { value, configurable: true, writable: true, enumerable: !['downloadSession', 'downloadCleanupError'].includes(key) }])));
-          return primaryError;
+          return retained(primaryError);
         } catch { /* Preserve immutable or already nested context below. */ }
         const pending = Object.assign(new Error('Download response/resource settlement remains unconfirmed.', { cause: secondary || primaryError }), {
           cacheOwnershipPending: true, cacheOwnershipReleased: allReleased
         });
-        return addStorageFailureContext(primaryError, fields, pending, { nonEnumerable: ['downloadSession', 'downloadCleanupError'] });
+        return retained(addStorageFailureContext(primaryError, fields, pending, { nonEnumerable: ['downloadSession', 'downloadCleanupError'],
+          ownerMessage: 'Original download response or resource work remains retained.' }));
       };
       const session = Object.freeze({ resourceId, isSettled: allReleased, releaseAfterClosure: async () => {
         try {
