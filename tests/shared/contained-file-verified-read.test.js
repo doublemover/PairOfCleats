@@ -29,6 +29,92 @@ try {
   assert.equal(result.hash, hash);
   assert.equal(metrics.verificationBytes, bytes.length);
   assert.equal(JSON.parse(result.buffer).value, 1);
+  if (process.platform === 'win32') {
+    // These are actual files and reads, with only native admission held. Four
+    // independent existing readers must reach the same original probe before
+    // any is released; a synchronous ancestry walk cannot satisfy this.
+    const lstat = fs.promises.lstat, gate = Promise.withResolvers();
+    let holding = true, admitted = 0;
+    fs.promises.lstat = async (...args) => {
+      if (holding && args[0] === root) { admitted++; await gate.promise; }
+      return lstat.call(fs.promises, ...args);
+    };
+    const reads = Array.from({ length: 4 }, () => readVerifiedContainedFile(root, file, { expectedHash: hash }));
+    try {
+      await new Promise(resolve => setImmediate(resolve));
+      assert.equal(admitted, 4, 'Windows asynchronous ancestry admission must not serialize existing readers');
+    } finally {
+      holding = false; gate.resolve();
+      const results = await Promise.allSettled(reads);
+      fs.promises.lstat = lstat;
+      for (const result of results) {
+        assert.equal(result.status, 'fulfilled'); assert.deepEqual(result.value.buffer, bytes);
+      }
+    }
+    const nested = path.join(root, 'nested'), nestedFile = path.join(nested, 'data');
+    fs.mkdirSync(nested); fs.writeFileSync(nestedFile, bytes);
+    const realpath = fs.promises.realpath;
+    for (const scenario of ['root-link', 'ancestor-link', 'leaf-link', 'ancestor-escape', 'original-probe-error']) {
+      let opens = 0;
+      const probeError = Object.freeze(new Error('original asynchronous ancestry probe failed'));
+      fs.promises.lstat = async (...args) => {
+        const stat = await lstat.call(fs.promises, ...args);
+        const link = scenario === 'root-link' ? root : scenario === 'ancestor-link' ? nested
+          : scenario === 'leaf-link' ? nestedFile : null;
+        if (args[0] === link) stat.isSymbolicLink = () => true;
+        if (scenario === 'original-probe-error' && args[0] === nested) throw probeError;
+        return stat;
+      };
+      fs.promises.realpath = async (...args) => scenario === 'ancestor-escape' && args[0] === nested
+        ? path.join(path.dirname(root), 'outside-original-root') : realpath.call(fs.promises, ...args);
+      fs.promises.open = (...args) => { opens++; return open.call(fs.promises, ...args); };
+      try {
+        await assert.rejects(readVerifiedContainedFile(root, nestedFile), error => scenario === 'original-probe-error'
+          ? error === probeError : error.code === 'ERR_UNSAFE_FILE_PATH');
+        assert.equal(opens, 0, `${scenario} must reject before opening payload`);
+      } finally {
+        fs.promises.lstat = lstat; fs.promises.realpath = realpath; fs.promises.open = open;
+      }
+    }
+
+    // Hold the actual post-open probe, then fail it. The exact descriptor must
+    // remain open until that original observation settles, and close once
+    // without publishing bytes. No real link or privilege change is needed.
+    const entered = Promise.withResolvers(), release = Promise.withResolvers();
+    const probeError = Object.freeze(new Error('original post-open ancestry failure'));
+    const rejectedMetrics = {};
+    let admittedFd = null, closes = 0, watchdog;
+    fs.promises.open = async (...args) => {
+      const handle = await open.call(fs.promises, ...args), close = handle.close.bind(handle);
+      admittedFd = handle.fd;
+      handle.close = async () => { closes++; return close(); };
+      return handle;
+    };
+    fs.promises.lstat = async (...args) => {
+      if (admittedFd !== null && args[0] === root) {
+        entered.resolve(); await release.promise; throw probeError;
+      }
+      return lstat.call(fs.promises, ...args);
+    };
+    const pending = readVerifiedContainedFile(root, nestedFile, { metrics: rejectedMetrics });
+    const observed = pending.then(value => ({ value }), error => ({ error }));
+    try {
+      await Promise.race([entered.promise, new Promise((_, reject) => {
+        watchdog = setTimeout(() => reject(new Error('Original post-open probe was not observed')), 1000);
+      })]);
+      assert.equal(closes, 0);
+      assert.equal(fs.fstatSync(admittedFd).isFile(), true);
+      assert.equal(rejectedMetrics.verificationBytes, undefined);
+    } finally {
+      clearTimeout(watchdog); release.resolve();
+      const result = await observed;
+      fs.promises.lstat = lstat; fs.promises.open = open;
+      assert.equal(result.error, probeError);
+      assert.equal(closes, 1);
+      assert.throws(() => fs.fstatSync(admittedFd), { code: 'EBADF' });
+      assert.equal(rejectedMetrics.verificationBytes, undefined);
+    }
+  }
   let changedFd;
   try {
     fs.promises.open = async (...args) => {

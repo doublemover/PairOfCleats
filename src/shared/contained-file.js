@@ -36,9 +36,26 @@ export const assertNoSymlinkPath = (root, target, { allowMissing = false } = {})
   return lexicalTarget;
 };
 
-const verifyHandle = (fd, root, target, expectedFileIdentity = null,
+// Windows native metadata/canonicalization is I/O. Preserve the exact ordered
+// root and component observations while allowing independently admitted async
+// readers to progress together. This is never a cached ancestry assertion.
+const assertNoSymlinkPathAsync = async (root, target) => {
+  const lexicalRoot = path.resolve(root), lexicalTarget = path.resolve(target);
+  if (!isPathWithinRoot(lexicalTarget, lexicalRoot)) throw unsafePath();
+  const lstat = fsPromises.lstat, realpath = fsPromises.realpath;
+  if ((await lstat.call(fsPromises, lexicalRoot)).isSymbolicLink()) throw unsafePath();
+  const canonicalRoot = await realpath.call(fsPromises, lexicalRoot);
+  let current = lexicalRoot;
+  for (const part of path.relative(lexicalRoot, lexicalTarget).split(path.sep).filter(Boolean)) {
+    current = path.join(current, part);
+    if ((await lstat.call(fsPromises, current)).isSymbolicLink()) throw unsafePath();
+    if (!isPathWithinRoot(await realpath.call(fsPromises, current), canonicalRoot)) throw unsafePath();
+  }
+  return lexicalTarget;
+};
+
+const verifyHandleIdentity = (fd, root, target, expectedFileIdentity = null,
   methods = { fstat: fs.fstatSync, stat: fs.statSync }) => {
-  assertNoSymlinkPath(root, target);
   const opened = methods.fstat.call(fs, fd, { bigint: true });
   const current = methods.stat.call(fs, target, { bigint: true });
   if (opened.isDirectory()) {
@@ -54,6 +71,11 @@ const verifyHandle = (fd, root, target, expectedFileIdentity = null,
     if (!isPathWithinRoot(actual, fs.realpathSync(root))) throw unsafePath();
   }
   return opened;
+};
+
+const verifyHandle = (fd, root, target, expectedFileIdentity = null, methods) => {
+  assertNoSymlinkPath(root, target);
+  return verifyHandleIdentity(fd, root, target, expectedFileIdentity, methods);
 };
 
 /** Recheck a retained opened object before committing streamed verification. */
@@ -81,11 +103,16 @@ const acquireContainedFileSync = (root, target, { expectedFileIdentity = null } 
 const acquireContainedFile = async (root, target, { expectedFileIdentity = null } = {}) => {
   const identity = normalizeFileIdentity(expectedFileIdentity);
   const verification = { fstat: fs.fstatSync, stat: fs.statSync };
-  assertNoSymlinkPath(root, target);
+  if (process.platform === 'win32') await assertNoSymlinkPathAsync(root, target);
+  else assertNoSymlinkPath(root, target);
   const openMethod = fsPromises.open;
   const owner = await acquireContainedFileResource(() => openMethod.call(fsPromises, target, READ_FLAGS));
   try {
-    verifyHandle(owner.operations.fd, root, target, identity, verification);
+    // Keep the actual opened descriptor owned throughout the original probe.
+    // Its failure still retires through this same owner's confirmed close.
+    if (process.platform === 'win32') await assertNoSymlinkPathAsync(root, target);
+    else assertNoSymlinkPath(root, target);
+    verifyHandleIdentity(owner.operations.fd, root, target, identity, verification);
   } catch (error) { owner.remember(error); return owner.run(() => {}); }
   return { owner, verification, identity };
 };
