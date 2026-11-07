@@ -21,7 +21,7 @@ const mutationOwnerUrl = pathToFileURL(path.resolve('tools/setup/checkout-mutati
 const commandOwnerUrl = pathToFileURL(path.resolve('tools/setup/owned-command.js')).href;
 const fixtureCommand = path.join(workingRoot, 'native-fixture.cjs');
 const lockPath = path.join(workingRoot, '.tmp', 'checkout-bootstrap', 'mutation.lock');
-const run = (extraEnv = {}) => runNode(['--import', preload, scriptPath], 'postinstall rebuild native contract', workingRoot, {
+const run = (extraEnv = {}) => runNode(['--import', pathToFileURL(preload).href, scriptPath], 'postinstall rebuild native contract', workingRoot, {
   ...env, ...extraEnv
 }, { stdio: 'pipe', allowFailure: true, timeoutMs: 30000 });
 

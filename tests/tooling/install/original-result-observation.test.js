@@ -16,7 +16,11 @@ assert.ok(['returned-result-observation', 'error-before-diagnostics', 'field-int
 const scope = path.resolve('.tmp/tasks/install-observation'); await fs.mkdir(scope, { recursive: true });
 const root = await fs.mkdtemp(path.join(scope, 'case-')), marker = randomUUID();
 await fs.writeFile(path.join(root, '.owned-test-fixture'), marker);
-const layout = resolveStorageLayout({ home: path.join(root, 'home'), env: {} }), artifactRoot = layout.descriptors.tooling.path;
+const layout = resolveStorageLayout({ home: path.join(root, 'home'), env: {} });
+// Actual installer artifacts occupy their own destination, beside child assets.
+// Reserving the whole tooling category here also reserves those nested assets a
+// second time and correctly refuses this fixture's deliberately small budget.
+const artifactRoot = path.join(layout.descriptors.tooling.path, 'fixture-artifacts');
 const coordinationRoot = path.join(layout.descriptors.state.path, 'storage-access');
 let ready = mode === 'field-interval-observation', resultReads = 0, laterReads = 0, calls = 0;
 const pending = [];

@@ -160,7 +160,9 @@ try {
     assert.equal(errorGraphIncludes(failure, original), true); assert.equal(childClosed, false);
     assert.equal(fs.existsSync(path.join(root, CHECKOUT_MUTATION_LOCK)), true);
     assert.equal(failure.cacheOwnershipReleased(), false);
-    original.cacheOwnershipPending = false; original.cacheOwnershipReleased = () => true;
+    Reflect.set(original, 'cacheOwnershipPending', false);
+    Reflect.set(original, 'cacheOwnershipReleased', () => true);
+    assert.equal(failure.cacheOwnershipReleased(), false, 'public replacement attempts cannot replace the original live-child observation');
     await assert.rejects(retireCheckoutMutationSession(failure.checkoutMutationSession));
     assert.equal(childClosed, false); assert.equal(fs.existsSync(path.join(root, CHECKOUT_MUTATION_LOCK)), true);
     liveChild.stdin.end();

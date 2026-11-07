@@ -140,7 +140,8 @@ const inspectGeneration = async (owner, toolId, installId, { signal = null } = {
   }
   if (identity(files) !== receipt.filesIdentity) return { ok: false, state: 'repair-required', reason: 'managed-file-bytes-drift', receipt };
   return { ok: true, state: 'bytes-intact', owner, root, command: path.join(root, receipt.descriptor.command),
-    args: receipt.descriptor.args || [], receipt, protocol: 'not-reprobed' };
+    args: receipt.descriptor.args || [], installId: receipt.installId, descriptorId: receipt.descriptorId,
+    receipt, protocol: 'not-reprobed' };
 };
 
 const findRetainedGeneration = async (owner, toolId, descriptorId, { signal = null, excludeInstallId = null } = {}) => {

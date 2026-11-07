@@ -21,7 +21,8 @@ const hooks = registerHooks({
     if (originalSessionMode && context.parentURL?.split('?')[0] === owner && specifier === './checkout-stage-journal.js') return {
       url: 'native-original-session-fixture:journal', shortCircuit: true
     };
-    if (originalSessionMode && context.parentURL?.split('?')[0] === owner && specifier === './checkout-mutation.js') return {
+    if (originalSessionMode && [owner, new URL('../../../tools/setup/summary-output.js', import.meta.url).href].includes(context.parentURL?.split('?')[0])
+      && specifier === './checkout-mutation.js') return {
       url: 'native-original-session-fixture:owner', shortCircuit: true
     };
     if (context.parentURL?.split('?')[0] === owner && guarded.has(specifier)) return { url: 'native-inert:' + encodeURIComponent(specifier), shortCircuit: true };
