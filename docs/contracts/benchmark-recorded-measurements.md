@@ -53,6 +53,12 @@ build-state analysis as an immutable attempt snapshot.
 
 Live structural analysis keeps its recorded materialization provenance on later
 reads. Explicit refresh reconstructs before comparing all semantic fields.
+Reconstruction producer version 2 binds the corrected bounded kind counter;
+native analysis format remains version 1 under the shared contract constants.
+An older/missing derived producer identity requires regeneration. If its source
+is unavailable, the reader returns unavailable and explicit materialization
+fails without rewriting those stale stored bytes. Persisted derivation always
+keeps fallback provenance, even if section metadata is removed or says native.
 Only this analysis producer's invocation-dependent `generatedAt` is excluded
 from that comparison; equal content retains the original object and timestamp,
 including its key order. Changed content receives a new reconstruction time.

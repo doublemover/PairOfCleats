@@ -6,12 +6,13 @@ import {
   materializeBenchAnalysis, resolveBenchAnalysis
 } from '../../../tools/reports/show-throughput/analysis.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
+import { BENCH_ANALYSIS_RECONSTRUCTION_VERSION } from '../../../src/contracts/bench-analysis.js';
 
 // UNVALIDATED: real build-state reconstruction and actual materializer CLI.
 applyTestEnv();
 const selected = process.env.PAIROFCLEATS_TEST_ID?.split('/').at(-1);
 assert.ok(['same-analysis', 'key-order', 'changed-source', 'missing-source', 'malformed-source', 'read-provenance',
-  'native-provenance', 'cli-idempotence', 'cli-refresh-failure'].includes(selected));
+  'native-provenance', 'cli-idempotence', 'cli-refresh-failure', 'old-producer-reconstructs', 'old-producer-source-unavailable'].includes(selected));
 const parent = path.resolve('.tmp/tasks'); await fs.mkdir(parent, { recursive: true });
 const root = await fs.mkdtemp(path.join(parent, 'throughput-analysis-'));
 const buildRoot = path.join(root, 'build'); await fs.mkdir(buildRoot);
@@ -33,6 +34,7 @@ try {
   assert.equal(first.changed, true);
   assert.equal(first.analysis.totals.symbols, 5);
   assert.equal(first.provenance.category, 'fallback');
+  assert.equal(first.analysis.derivation.version, BENCH_ANALYSIS_RECONSTRUCTION_VERSION);
   payload.artifacts.analysis.generatedAt = sentinel;
   if (selected === 'key-order') payload.artifacts.analysis = Object.fromEntries(Object.entries(payload.artifacts.analysis).reverse());
   const before = JSON.stringify(payload);
@@ -58,7 +60,17 @@ try {
     assert.equal(result.provenance.source, 'fallback-build-state');
     assert.equal(JSON.stringify(payload), before, 'unavailable refresh preserves prior evidence');
   } else if (selected === 'read-provenance' || selected === 'native-provenance') {
-    if (selected === 'native-provenance') delete payload.artifacts.materialization;
+    if (selected === 'native-provenance') {
+      payload.artifacts.materialization.sections.analysis.category = 'native';
+      payload.artifacts.materialization.sections.analysis.source = 'native-analysis';
+      assert.equal(resolveBenchAnalysis({ payload }).provenance.category, 'fallback', 'section metadata cannot promote a persisted derivation');
+      delete payload.artifacts.materialization;
+      assert.equal(resolveBenchAnalysis({ payload }).provenance.category, 'fallback', 'persisted derivation cannot become native by removing section metadata');
+      // Explicit native-format fixture for consumer provenance, not native
+      // execution qualification or an alternate report producer.
+      const { derivation: _derived, ...nativeAnalysis } = payload.artifacts.analysis;
+      payload.artifacts.analysis = nativeAnalysis;
+    }
     const stored = JSON.stringify(payload);
     await writeState(99);
     const read = resolveBenchAnalysis({ payload });
@@ -67,6 +79,27 @@ try {
     assert.equal(read.analysis.totals.symbols, 5, 'default read retains stored evidence');
     assert.equal(read.analysis.generatedAt, sentinel);
     assert.equal(JSON.stringify(payload), stored);
+  } else if (selected === 'old-producer-reconstructs' || selected === 'old-producer-source-unavailable') {
+    payload.artifacts.analysis.derivation.version = BENCH_ANALYSIS_RECONSTRUCTION_VERSION - 1;
+    payload.artifacts.analysis.totals.symbols = 999;
+    payload.artifacts.materialization.sections.analysis.derivation = { ...payload.artifacts.analysis.derivation };
+    const oldBytes = JSON.stringify(payload);
+    if (selected === 'old-producer-reconstructs') {
+      await writeState(9);
+      const read = resolveBenchAnalysis({ payload });
+      assert.equal(read.analysis.totals.symbols, 9); assert.equal(read.analysis.derivation.version, BENCH_ANALYSIS_RECONSTRUCTION_VERSION);
+      assert.equal(JSON.stringify(payload), oldBytes, 'default reading still cannot mutate the saved report');
+      const refreshed = materializeBenchAnalysis({ payload }); assert.equal(refreshed.changed, true);
+      assert.equal(refreshed.analysis.totals.symbols, 9);
+      assert.equal(payload.artifacts.materialization.sections.analysis.derivation.version, BENCH_ANALYSIS_RECONSTRUCTION_VERSION);
+    } else {
+      await fs.unlink(statePath);
+      for (const read of [resolveBenchAnalysis({ payload }), materializeBenchAnalysis({ payload })]) {
+        assert.equal(read.analysis, null); assert.equal(read.refresh.state, 'source-unavailable');
+        assert.equal(read.refresh.reason, 'analysis-producer-regeneration-required');
+      }
+      assert.equal(JSON.stringify(payload), oldBytes, 'stale stored bytes are preserved, never admitted as current counts');
+    }
   } else {
     const results = path.join(root, 'results');
     const folder = path.join(results, 'javascript'); await fs.mkdir(folder, { recursive: true });

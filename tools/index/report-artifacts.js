@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
+import { BENCH_ANALYSIS_SCHEMA_VERSION } from '../../src/contracts/bench-analysis.js';
 import { readRuntimeReceipt, listRuntimeReceipts, formatRuntimeReceiptSummary } from '../../src/shared/runtime-envelope/read-receipt.js';
 import { resolveRepoCacheRootPath, getIndexDir } from '../../src/shared/repo-paths.js';
 import path from 'node:path';
@@ -90,7 +91,6 @@ const selectedBuildRoots = [...new Set(Object.values(status.repo?.indexDirs || {
 if (selectedBuildRoots.length !== 1 || typeof featureMetrics?.buildRoot !== 'string'
   || path.resolve(featureMetrics.buildRoot) !== path.resolve(selectedBuildRoots[0])) featureMetrics = null;
 
-const ANALYSIS_SCHEMA_VERSION = 1;
 const ANALYSIS_MODE_KEYS = ['code', 'prose', 'extracted-prose', 'records'];
 const KIND_CLASS_PATTERNS = [
   'classdeclaration',
@@ -216,7 +216,7 @@ const buildAnalysis = async ({ artifactReport, indexingSummary }) => {
   const hasValues = Object.values(totals).some((value) => Number.isFinite(Number(value)) && Number(value) > 0);
   if (!hasValues) return null;
   return {
-    schemaVersion: ANALYSIS_SCHEMA_VERSION,
+    schemaVersion: BENCH_ANALYSIS_SCHEMA_VERSION,
     generatedAt: new Date().toISOString(),
     buildRoot,
     modes,

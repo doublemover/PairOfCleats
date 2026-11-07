@@ -22,6 +22,8 @@ import {
 } from './load.js';
 import { createContainedFileResource } from '../../../src/shared/contained-file-resource.js';
 import { observeStorageResource } from '../../../src/shared/storage/failure-observation.js';
+import { BENCH_ANALYSIS_SCHEMA_VERSION, BENCH_ANALYSIS_RECONSTRUCTION_VERSION, BENCH_REPO_MAP_KIND_COUNTER_VERSION,
+  isCurrentBenchAnalysisReconstruction } from '../../../src/contracts/bench-analysis.js';
 import { resolveBuildRootFromArtifactReport } from './build-root.js';
 import {
   createAstGraphTotals,
@@ -35,7 +37,6 @@ export {
   mergeAstGraphTotals
 } from './ast-summary.js';
 
-const ANALYSIS_SCHEMA_VERSION = 1;
 const MATERIALIZATION_SCHEMA_VERSION = 1;
 const REPO_MAP_KIND_LIMITS = Object.freeze({ sourceBytes: 256 * 1024 * 1024, kinds: 4096, kindCodeUnits: 4096, workMs: 5000 });
 const ANALYSIS_MODE_KEYS = ['code', 'prose', 'extracted-prose', 'records'];
@@ -248,8 +249,10 @@ const computeBenchAnalysis = (
     mergeAstGraphTotals(totals, stats);
   }
   return {
-    schemaVersion: ANALYSIS_SCHEMA_VERSION,
+    schemaVersion: BENCH_ANALYSIS_SCHEMA_VERSION,
     generatedAt: new Date().toISOString(),
+    derivation: { producer: 'show-throughput-live-analysis', version: BENCH_ANALYSIS_RECONSTRUCTION_VERSION,
+      kindCounterVersion: BENCH_REPO_MAP_KIND_COUNTER_VERSION, temporalQualification: 'live-observation-not-historical-attempt' },
     buildRoot,
     modes,
     totals
@@ -368,13 +371,14 @@ export const resolveBenchAnalysis = ({
   const existing = payload?.artifacts?.analysis;
   const previous = payload?.artifacts?.materialization?.sections?.analysis;
   const existingProvenance = previous || existing?.derivation
-    ? { section: 'analysis', source: previous?.source || existing?.derivation?.source || 'fallback-build-state',
-      category: previous?.category || 'fallback',
-      ...(previous?.derivation || existing?.derivation ? { derivation: previous?.derivation || existing.derivation } : {}) }
+    ? { section: 'analysis', source: existing?.derivation ? 'fallback-build-state' : previous?.source || 'fallback-build-state',
+      category: existing?.derivation ? 'fallback' : previous?.category || 'fallback',
+      ...(existing?.derivation || previous?.derivation ? { derivation: existing?.derivation || previous.derivation } : {}) }
     : createProvenance('analysis', 'native-analysis', 'native');
+  const reusable = existingProvenance.category === 'native' || isCurrentBenchAnalysisReconstruction(existing);
   if (preferExisting && existing
     && typeof existing === 'object'
-    && existing.schemaVersion === ANALYSIS_SCHEMA_VERSION
+    && existing.schemaVersion === BENCH_ANALYSIS_SCHEMA_VERSION && reusable
     && hasAstGraphValues(existing.totals)
     && (!deepAnalysis || hasKindBreakdown(existing))) {
     return {
@@ -392,13 +396,13 @@ export const resolveBenchAnalysis = ({
     return {
       analysis: computed,
       changed: false,
-      provenance: createProvenance('analysis', 'fallback-build-state', 'fallback')
+      provenance: { ...createProvenance('analysis', 'fallback-build-state', 'fallback'), derivation: computed.derivation }
     };
   }
   if (!preferExisting
     && existing
     && typeof existing === 'object'
-    && existing.schemaVersion === ANALYSIS_SCHEMA_VERSION
+    && existing.schemaVersion === BENCH_ANALYSIS_SCHEMA_VERSION && reusable
     && hasAstGraphValues(existing.totals)
     && (!deepAnalysis || hasKindBreakdown(existing))) {
     return {
@@ -411,7 +415,8 @@ export const resolveBenchAnalysis = ({
   return {
     analysis: null,
     changed: false,
-    provenance: createProvenance('analysis', 'missing', 'missing')
+    provenance: createProvenance('analysis', 'missing', 'missing'),
+    ...(existing && !reusable ? { refresh: { state: 'source-unavailable', reason: 'analysis-producer-regeneration-required' } } : {})
   };
 };
 

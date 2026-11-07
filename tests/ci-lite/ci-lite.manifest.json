@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 2708,
+    "hero": 2710,
     "matrix": 110,
     "meta": 54,
     "soak": 1,
@@ -17251,6 +17251,18 @@
     {
       "id": "tooling/reports/throughput-kind-observation/original-descriptor-settlement",
       "order": 2873,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/reports/throughput-analysis-materialization/old-producer-reconstructs",
+      "order": 2874,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/reports/throughput-analysis-materialization/old-producer-source-unavailable",
+      "order": 2875,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }
