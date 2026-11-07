@@ -1,4 +1,37 @@
-# Finite revision oracle
+# Revision oracles
+
+The registered `tiny-javascript-source-revisions-v1` adapter now feeds exact
+generated source bytes through the real JavaScript AST and chunk owners. Its
+closed grammar admits up to eight files with eight distinct, constant-return
+function declarations each, sixteen edits and Babel/Acorn/Esprima selection.
+Mutation records contain data, never supplied source templates or commands.
+Edits bind exact before/after states; deleted paths retract, changed files reparse
+and unchanged files reuse immutable projections within the original invocation.
+Every checkpoint also runs an uncached parser/chunker build.
+
+An independent construction-grammar interpreter imports no parser, chunking,
+range, source-snapshot or cache helper. It derives exact function/export ranges,
+names, kinds, UTF-16 positions, line numbers, declaration text and UTF-8 hashes.
+Empty modules, BOM, CRLF and an astral comment containing a decoy declaration
+are explicit grammar productions. This is a source-extraction claim within that
+grammar; it establishes no function execution, full index, semantic closure or
+publication claim. A fresh candidate agreeing is a separate differential claim.
+
+Strict scenario/output/receipt schemas live in `revision-source.js`. Receipts
+retain actual source-unit/path/namespace identities, original byte/text hashes,
+line starts, observed parser family/version/options, declaration identities and
+current shared producer versions. No cross-repository identity is normalized.
+Private original execution handles own runs and retirement; diagnostic comparisons
+cannot adopt receipts. The common revision-deletion minimizer requires the same
+independently failing checkpoint, and reruns the registered producer/reference.
+
+Runs allow at most 1,000 ms, 64 KiB of source per state and 256 KiB of receipts.
+Reference-file bounds can be tightened to zero; exhaustion is unknown while
+fresh-build parity remains separately visible. Cancellation preserves its original
+reason and publishes no successful handle. All checkpoints remain represented
+after an admission stop. Eight fixture cases are authored and locally unrun;
+they include corrected controls and seeded stale/range/content/identity defects.
+Build-world, full-index, certificate-consumer and suggestion adapters remain open.
 
 The closed offline adapter `finite-positive-support-revisions-v1` supplies the
 first bounded cross-revision profile for #1528. It drives the existing positive-rule

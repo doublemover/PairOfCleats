@@ -1,5 +1,12 @@
 const loaded = new Map();
 const loaders = {
+  'tiny-javascript-source-revisions-v1': async () => {
+    const [scenario, runner, reference] = await Promise.all([import('./revisions/source-scenario.js'), import('./revisions/source-runner.js'), import('./revisions/source-reference.js')]);
+    return Object.freeze({ id: 'tiny-javascript-source-revisions-v1', executionClass: 'constructed-inert-javascript-source-only',
+      capabilities: Object.freeze(['generate', 'run', 'inspect', 'compareDiagnostic', 'minimize', 'dispose']),
+      generate: scenario.generateSourceRevisionScenario, run: runner.runSourceRevisionScenario, inspect: runner.readSourceRevisionRun,
+      compareDiagnostic: reference.compareSourceRevisionOutput, minimize: runner.minimizeSourceRevisionFailure, dispose: runner.retireSourceRevisionRun });
+  },
   'finite-selected-adjacency-v1': async () => {
     const owner = await import('../../src/index/semantic/views/selected-adjacency.js');
     return Object.freeze({ id: 'finite-selected-adjacency-v1', executionClass: 'supplied-original-adjacency-view-only',

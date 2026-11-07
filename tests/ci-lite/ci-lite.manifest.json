@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 2814,
+    "hero": 2822,
     "matrix": 110,
     "meta": 54,
     "soak": 1,
@@ -17887,6 +17887,54 @@
     {
       "id": "shared/storage/cleanup-admission-boundaries/current-format-and-positive-apply",
       "order": 2979,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/eval/source-revision-oracle/registered-source-producers",
+      "order": 2980,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/eval/source-revision-oracle/independent-range-and-content-defects",
+      "order": 2981,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/eval/source-revision-oracle/delete-and-rename-retractions",
+      "order": 2982,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/eval/source-revision-oracle/source-coordinate-and-namespace-identity",
+      "order": 2983,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/eval/source-revision-oracle/strict-source-preconditions",
+      "order": 2984,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/eval/source-revision-oracle/unknown-reference-bound",
+      "order": 2985,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/eval/source-revision-oracle/original-execution-retirement",
+      "order": 2986,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/eval/source-revision-oracle/cancellation-and-closed-contracts",
+      "order": 2987,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

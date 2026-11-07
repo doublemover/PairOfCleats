@@ -2982,3 +2982,11 @@ shared/storage/cleanup-admission-boundaries/deadline-before-probe-read
 shared/storage/cleanup-admission-boundaries/cancel-between-unlinks
 shared/storage/cleanup-admission-boundaries/cancelled-reader-still-closes
 shared/storage/cleanup-admission-boundaries/current-format-and-positive-apply
+tooling/eval/source-revision-oracle/registered-source-producers
+tooling/eval/source-revision-oracle/independent-range-and-content-defects
+tooling/eval/source-revision-oracle/delete-and-rename-retractions
+tooling/eval/source-revision-oracle/source-coordinate-and-namespace-identity
+tooling/eval/source-revision-oracle/strict-source-preconditions
+tooling/eval/source-revision-oracle/unknown-reference-bound
+tooling/eval/source-revision-oracle/original-execution-retirement
+tooling/eval/source-revision-oracle/cancellation-and-closed-contracts

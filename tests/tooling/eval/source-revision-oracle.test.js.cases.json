@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["registered-source-producers", "independent-range-and-content-defects", "delete-and-rename-retractions", "source-coordinate-and-namespace-identity", "strict-source-preconditions", "unknown-reference-bound", "original-execution-retirement", "cancellation-and-closed-contracts"]
+}

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-07T04:42:22.877Z",
+  "generatedAt": "2026-11-07T04:54:21.102Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
@@ -4977,6 +4977,7 @@
         "tests/tooling/eval/retrieval-training-cohort.test.js",
         "tests/tooling/eval/retrieval-training.test.js",
         "tests/tooling/eval/revision-oracle.test.js",
+        "tests/tooling/eval/source-revision-oracle.test.js",
         "tests/tooling/fixtures/fixture-eval.test.js",
         "tests/tooling/index-stats/additional-family-producers.test.js",
         "tests/tooling/index-stats/option-admission.test.js",
@@ -10676,6 +10677,7 @@
       "extensions/vscode/extension.js",
       "extensions/vscode/filter-pagination.js",
       "extensions/vscode/search-replay.js",
+      "src/contracts/schemas/revision-source.js",
       "src/index/build/args.js",
       "src/index/build/context-window.js",
       "src/index/build/file-processor/cpu.js",
