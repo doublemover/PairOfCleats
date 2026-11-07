@@ -9,6 +9,7 @@ import { inspectStorageAccess } from './access.js';
 import { verifyStorageFile } from './transfer.js';
 import { storagePlanDigest } from './migration-plan.js';
 import { toRealPathSync } from '../../workspace/identity.js';
+import { createStorageInspectionAdmission } from './inspection-admission.js';
 
 const safeName = name => /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,199}$/u.test(name) && name !== '..';
 const record = value => value && typeof value === 'object' && !Array.isArray(value);
@@ -44,28 +45,36 @@ const validateManifest = value => {
  * copied and retained. This is migration authority, never cleanup authority.
  */
 export const inspectDictionaryStorage = async ({ root, maxEntries = 10000, maxDurationMs = 10000, signal = null } = {}) => {
+  const control = createStorageInspectionAdmission(maxDurationMs, signal);
+  control.check();
   const inventory = await inspectStorageInventory({ roots: [{ id: 'dictionaries', category: 'dictionaries', path: root,
     retention: 'mixed-durable-and-downloadable' }], includeFiles: true, maxEntries, maxDurationMs, signal });
+  control.check();
   const item = inventory.items[0];
   if (!inventory.complete || item.status !== 'scanned') throw new Error('Dictionary category inventory is missing, unreadable or incomplete.');
   const manifestFile = item.files.find(file => file.relativePath === 'dictionaries.json');
   if (!manifestFile) throw new Error('Dictionary source manifest is missing; arbitrary text directories are not adopted.');
-  const manifestRead = await readVerifiedContainedFile(root, path.join(root, manifestFile.relativePath), { maxBytes: 1024 * 1024 });
+  control.check();
+  const manifestRead = await readVerifiedContainedFile(root, path.join(root, manifestFile.relativePath), { maxBytes: 1024 * 1024, signal });
+  control.check();
   const manifest = JSON.parse(manifestRead.buffer.toString('utf8'));
   validateManifest(manifest);
   const files = [];
   for (const file of item.files) {
+    control.check();
     const relativePath = file.relativePath.split(path.sep).join('/');
     let kind = textKind(relativePath);
     if (relativePath === 'dictionaries.json') kind = 'dictionary-source-manifest';
     if (relativePath === CACHE_OWNER_FILE) {
-      const marker = JSON.parse((await readVerifiedContainedFile(root, path.join(root, file.relativePath), { maxBytes: 64 * 1024 })).buffer.toString('utf8'));
+      const marker = JSON.parse((await readVerifiedContainedFile(root, path.join(root, file.relativePath), { maxBytes: 64 * 1024, signal })).buffer.toString('utf8'));
+      control.check();
       if (Object.keys(marker).sort().join(',') !== 'layoutVersion,owner' || marker.owner !== 'pairofcleats' || marker.layoutVersion !== 1) throw new Error('Unknown dictionary ownership marker is preserved.');
       kind = 'existing-category-marker';
     }
     if (!kind) throw new Error(`Unregistered dictionary bytes are preserved: ${relativePath}`);
     const verified = await verifyStorageFile({ root, file: path.join(root, file.relativePath), identity: file.identity,
       maxBytes: 256 * 1024 * 1024, signal });
+    control.check();
     files.push({ relativePath, kind, sha256: verified.sha256, logicalBytes: verified.bytes,
       retention: kind.startsWith('durable-') ? 'durable' : 'category-owner-retained', deletionAuthority: false });
   }
@@ -74,6 +83,7 @@ export const inspectDictionaryStorage = async ({ root, maxEntries = 10000, maxDu
   const available = new Set(files.map(file => file.relativePath));
   if (Object.values(manifest).some(entry => !available.has(entry.file))) throw new Error('Dictionary manifest references absent bytes.');
   const body = { schemaVersion: 1, manifestSha256: manifestRead.hash, files: files.sort((a, b) => a.relativePath.localeCompare(b.relativePath)), directories };
+  control.check();
   return { ...body, identity: storagePlanDigest(body), complete: true, deletionAuthority: false,
     downloadIntegrity: 'source-sidecar-preserved; migration-verifies-exact-local-consumer-bytes' };
 };

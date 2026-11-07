@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 2850,
+    "hero": 2854,
     "matrix": 110,
     "meta": 54,
     "soak": 1,
@@ -18103,6 +18103,30 @@
     {
       "id": "tooling/lsp/pull-diagnostics/framed-native-profile-and-owned-disposal",
       "order": 3015,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/inspection-phase-admission/category-policy-deadline",
+      "order": 3016,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/inspection-phase-admission/category-original-lease-deadline",
+      "order": 3017,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/inspection-phase-admission/managed-original-lease-deadline",
+      "order": 3018,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/inspection-phase-admission/dictionary-manifest-deadline",
+      "order": 3019,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

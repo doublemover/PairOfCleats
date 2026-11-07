@@ -1,4 +1,4 @@
 {
   "schemaVersion": 1,
-  "cases": ["pre-cancelled-diagnosis", "deadline-after-root-stat", "deadline-after-realpath", "deadline-before-volume-fallback", "deadline-between-policy-files", "deadline-in-original-lease-reader", "pending-original-close-over-stop", "exact-stop-observation", "exact-root-deadline", "exact-directory-close", "exact-revalidation-deadline"]
+  "cases": ["pre-cancelled-diagnosis", "deadline-after-root-stat", "deadline-after-realpath", "deadline-before-volume-fallback", "deadline-between-policy-files", "deadline-in-original-lease-reader", "pending-original-close-over-stop", "exact-stop-observation", "exact-root-deadline", "exact-directory-close", "exact-revalidation-deadline", "category-policy-deadline", "category-original-lease-deadline", "managed-original-lease-deadline", "dictionary-manifest-deadline"]
 }

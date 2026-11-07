@@ -13,6 +13,9 @@ import { planStorageProbePolicy, applyStorageProbePolicy } from '../../../src/sh
 import { CACHE_OWNER_FILE } from '../../../src/shared/cache-deletion.js';
 import { isPathWithinRoot } from '../../../src/shared/file-paths.js';
 import { assertNoSymlinkPath } from '../../../src/shared/contained-file.js';
+import { inspectStorageCategory } from '../../../tools/storage/category-inventory.js';
+import { inspectManagedStorageReceipts } from '../../../tools/storage/managed-receipt-inventory.js';
+import { inspectDictionaryStorage } from '../../../src/shared/storage/dictionary-adapter.js';
 
 const mode = process.env.PAIROFCLEATS_TEST_ID?.split('shared/storage/inspection-phase-admission/')[1];
 const scope = path.resolve('.tmp/tasks/storage-inspection-admission'); await fsp.mkdir(scope, { recursive: true });
@@ -58,7 +61,7 @@ try {
     assert.equal(result.stopReason, 'time-budget'); assert.equal(laterAdmissions, 0);
     assert.equal(result.items.at(-1).status, 'unscanned'); assert.equal(result.items.at(-1).logicalBytes, null);
     if (mode !== 'deadline-before-volume-fallback') assert.equal(markerReads, 0);
-  } else if (mode === 'deadline-between-policy-files') {
+  } else if (['deadline-between-policy-files', 'category-policy-deadline'].includes(mode)) {
     const plan = await planStorageProbePolicy({ home, patch: { entryLimit: 1 } });
     const selected = await applyStorageProbePolicy(plan, { approvedPlanId: plan.planId, home, category: 'command-probes' });
     assert.equal(selected.complete, true);
@@ -66,11 +69,18 @@ try {
     const policyFile = path.join(home, 'config', 'storage-policies.json');
     fs.openSync = (...args) => { if (clock >= 1000) laterReads++; const descriptor = original.openSync(...args);
       if (same(args[0], policyFile)) clock = 1000; return descriptor; };
-    const result = await diagnoseStorageLayout(layout, { maxDurationMs: 1000 });
-    assert.equal(result.leaseStopReason, 'time-budget'); assert.equal(result.commandProbePolicyInspected, false);
+    const result = mode === 'category-policy-deadline'
+      ? await inspectStorageCategory({ category: 'command-probes', root: cache, home, maxDurationMs: 1000 })
+      : await diagnoseStorageLayout(layout, { maxDurationMs: 1000 });
+    if (mode === 'category-policy-deadline') {
+      assert.equal(result.stopReason, 'time-budget'); assert.equal(result.policyInspected, false);
+      assert.equal(result.policy, null); assert.equal(result.lease, null);
+    } else {
+      assert.equal(result.leaseStopReason, 'time-budget'); assert.equal(result.commandProbePolicyInspected, false);
+      assert.equal(result.leaseInventory.length, 0);
+    }
     assert.equal(laterReads, 0, 'the immutable selection receipt is not admitted after the locator exhausts the budget');
-    assert.equal(result.leaseInventory.length, 0);
-  } else if (mode === 'deadline-in-original-lease-reader') {
+  } else if (['deadline-in-original-lease-reader', 'category-original-lease-deadline', 'managed-original-lease-deadline'].includes(mode)) {
     const coordinationRoot = path.join(home, 'state', 'storage-access');
     lease = acquireRepoCacheAccessLease(cache, { coordinationRoot });
     const paths = repoAccessPaths(cache, { coordinationRoot }); let clock = 0, actualCloses = 0, laterReads = 0; Date.now = () => clock;
@@ -84,10 +94,35 @@ try {
       }
       return directory;
     };
-    const result = await diagnoseStorageLayout(layout, { maxDurationMs: 1000 });
-    assert.equal(result.leaseStopReason, 'time-budget'); assert.equal(result.leaseInspectionComplete, false);
+    const result = mode === 'category-original-lease-deadline'
+      ? await inspectStorageCategory({ category: 'dictionaries', root: cache, home, maxDurationMs: 1000 })
+      : mode === 'managed-original-lease-deadline'
+        ? await inspectManagedStorageReceipts({ root: cache, home, maxDurationMs: 1000 })
+        : await diagnoseStorageLayout(layout, { maxDurationMs: 1000 });
+    if (mode === 'deadline-in-original-lease-reader') {
+      assert.equal(result.leaseStopReason, 'time-budget'); assert.equal(result.leaseInspectionComplete, false);
+      assert.ok(result.inventory.lifecycle.roots.every(item => !item.cleanupEligible));
+    } else {
+      assert.equal(result.stopReason, 'time-budget'); assert.equal(result.complete, false);
+      assert.equal(result.lease, null);
+    }
     assert.equal(actualCloses, 1, 'the original admitted directory closes despite the stopped enumeration'); assert.equal(laterReads, 0);
-    assert.ok(result.inventory.lifecycle.roots.every(item => !item.cleanupEligible));
+  } else if (mode === 'dictionary-manifest-deadline') {
+    const manifest = path.join(cache, 'dictionaries.json');
+    await fsp.writeFile(manifest, '{}'); await fsp.writeFile(path.join(cache, 'words.txt'), 'word\n');
+    let clock = 0, actualCloses = 0, laterOpens = 0, manifestOpens = 0; Date.now = () => clock;
+    fsp.open = async (...args) => {
+      if (clock >= 1000) laterOpens++;
+      const handle = await original.open(...args);
+      if (same(args[0], manifest)) {
+        manifestOpens++; clock = 1000;
+        const close = handle.close.bind(handle); handle.close = async () => { await close(); actualCloses++; };
+      }
+      return handle;
+    };
+    await assert.rejects(() => inspectDictionaryStorage({ root: cache, maxDurationMs: 1000 }), /Storage inspection admission stopped/);
+    assert.equal(manifestOpens, 1); assert.equal(actualCloses, 1, 'the admitted original manifest descriptor still closes');
+    assert.equal(laterOpens, 0, 'dictionary hashes/marker reads are not admitted after manifest exhaustion');
   } else if (['exact-root-deadline', 'exact-directory-close', 'exact-revalidation-deadline'].includes(mode)) {
     let clock = 0, rootStats = 0, laterAdmissions = 0, opens = 0, closes = 0;
     const late = () => { if (clock >= 1000) laterAdmissions++; };

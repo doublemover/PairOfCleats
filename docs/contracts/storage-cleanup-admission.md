@@ -62,7 +62,18 @@ timeout classification. A refused native close remains a retained failure;
 only actual settlement permits reporting the operation as stopped. No category
 deletion authority, forced lease release or resource-closure retry is introduced.
 
-Eleven additional cases are authored and locally unrun. They cover pre-cancelled
+Category inspection passes the same deadline/cancellation check into policy and
+original lease readers, including managed-install receipt inspection. A policy
+that was not fully admitted remains `policy: null` with `policyInspected: false`;
+an interrupted lease read cannot become a completed owner observation. Delegated
+category results are checked again before being reported. Dictionary inspection
+retains its original total clock through manifest/marker reads and every file
+verification; cancellation is forwarded to those original bounded readers.
+Already admitted descriptors still close before a stopped result or failure.
+
+Fifteen additional cases are authored and locally unrun. They cover pre-cancelled
 diagnosis, each root/policy/lease admission boundary, unknown volume absence,
 exact root/enumeration/revalidation, original directory close and explicit owner
-recovery after a refused native close.
+recovery after a refused native close. The four category cases retain actual
+policy selection and lease-directory readers plus dictionary manifest descriptor
+close, asserting that no successor file read is admitted after the cutoff.

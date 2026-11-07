@@ -3018,3 +3018,7 @@ tooling/lsp/pull-diagnostics/bounded-admission-and-unsupported-reports
 tooling/lsp/pull-diagnostics/replacement-and-original-pending-work
 tooling/lsp/pull-diagnostics/guard-narrows-retry-admission
 tooling/lsp/pull-diagnostics/framed-native-profile-and-owned-disposal
+shared/storage/inspection-phase-admission/category-policy-deadline
+shared/storage/inspection-phase-admission/category-original-lease-deadline
+shared/storage/inspection-phase-admission/managed-original-lease-deadline
+shared/storage/inspection-phase-admission/dictionary-manifest-deadline
