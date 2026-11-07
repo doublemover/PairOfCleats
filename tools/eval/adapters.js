@@ -1,5 +1,12 @@
 const loaded = new Map();
 const loaders = {
+  'finite-positive-support-revisions-v1': async () => {
+    const [scenario, runner, reference] = await Promise.all([import('./revisions/scenario.js'), import('./revisions/runner.js'), import('./revisions/reference.js')]);
+    return Object.freeze({ id: 'finite-positive-support-revisions-v1', executionClass: 'supplied-finite-model-revisions-only',
+      capabilities: Object.freeze(['generate', 'run', 'inspect', 'compareDiagnostic', 'minimize', 'dispose']),
+      generate: scenario.generateRevisionScenario, run: runner.runRevisionScenario, inspect: runner.readRevisionRun,
+      compareDiagnostic: reference.compareRevisionOutputs, minimize: runner.minimizeRevisionFailure, dispose: runner.retireRevisionRun });
+  },
   'finite-boolean-acyclic-v1': async () => {
     const owner = await import('../../src/semantic/finite-feasibility.js');
     return Object.freeze({ id: 'finite-boolean-acyclic-v1', executionClass: 'supplied-finite-boolean-model-only',

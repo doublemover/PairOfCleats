@@ -2884,3 +2884,10 @@ tooling/reports/throughput-root-inventory/real-selected-root-cohort
 tooling/reports/throughput-root-inventory/ignored-entries-and-folder-bounds
 tooling/reports/throughput-root-inventory/original-root-close-observation
 tooling/reports/throughput-root-inventory/root-link-refusal-model
+tooling/eval/revision-oracle/registered-revision-controls
+tooling/eval/revision-oracle/independent-seeded-defects
+tooling/eval/revision-oracle/provenance-multiplicity
+tooling/eval/revision-oracle/scenario-preconditions
+tooling/eval/revision-oracle/unknown-and-budget-outcomes
+tooling/eval/revision-oracle/original-execution-handles
+tooling/eval/revision-oracle/minimizer-predicate-model
