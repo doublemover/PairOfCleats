@@ -498,7 +498,7 @@ const buildDiagnosticsStreamSummary = async (context) => {
     countsByQualityImpact: sortMapObject(countsByQualityImpact),
     required,
     unknownTypeCount,
-    malformedLines, incomplete: inputIncomplete || malformedLines > 0 || unknownTypeCount > 0
+    malformedLines, incomplete: replaySummary.incomplete || inputIncomplete || malformedLines > 0 || unknownTypeCount > 0
   };
 };
 

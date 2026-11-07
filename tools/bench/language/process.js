@@ -462,6 +462,11 @@ const appendJsonLineQueued = (queueByPath, failureState, filePath, payload, { in
     .then(async () => {
       await fsPromises.mkdir(path.dirname(filePath), { recursive: true });
       await fsPromises.appendFile(filePath, initialize ? '' : `${JSON.stringify(payload)}\n`, 'utf8');
+      // Windows can accept an empty append against a directory. A successful
+      // zero-byte call alone does not establish an observed quiet file stream.
+      if (initialize && !(await fsPromises.lstat(filePath)).isFile()) {
+        throw Object.assign(new Error('Diagnostic stream destination is not a regular file.'), { code: 'ERR_BENCH_STREAM_NOT_FILE' });
+      }
     })
     .catch((error) => {
       recordTelemetryWriteFailure(failureState, filePath, error);

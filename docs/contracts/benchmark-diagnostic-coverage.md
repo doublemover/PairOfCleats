@@ -99,3 +99,8 @@ Two descriptor-owner cases additionally retain a pending read without native
 close and a late falsey diagnostic failure after physical close. Explicit original
 recovery waits for the captured prerequisite and never repeats a read or consumer.
 These are finite owner models, separate from actual native retirement acceptance.
+
+Report projection retains the original replay owner's incomplete state. Clean
+physical transport cannot clear invalid occurrence semantics, conflicts or replay
+bounds. Historical fingerprint presence can remain observable while its costs and
+the encompassing report remain incomplete.

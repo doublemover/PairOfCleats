@@ -76,16 +76,27 @@ if (mode === 'close-failure-is-not-coverage') {
   await assert.rejects(fixture.read(() => assert.fail('failed read cannot publish lines')), error => {
     assert.ok(contains(error, fixture.readError));
     if (mode === 'late-diagnostic-observation') assert.ok(contains(error, 0), 'falsey original inspection survives');
-    session = getContainedFileSession(error); assert.ok(session);
+    session = getContainedFileSession(error);
+    if (mode === 'pending-read-blocks-close') assert.ok(session);
+    else {
+      // The original read was settled when its descriptor closed. Only the
+      // later diagnostic getter revokes that observation; it must retain that
+      // original guard without inventing another native close obligation.
+      assert.equal(session, null);
+      session = observeStorageResource(error, { phase: 'fixture-late-diagnostic' });
+    }
     assert.equal(Object.getOwnPropertyDescriptor(error, 'reportStreamPath')?.value, 'explicit-model-root/log'); return true;
   });
   const expectedCloses = mode === 'pending-read-blocks-close' ? 0 : 1;
   assert.equal(fixture.trace.reads, 1); assert.equal(fixture.trace.closes, expectedCloses);
   assert.equal(fixture.trace.nameReads, mode === 'pending-read-blocks-close' ? 0 : 1); assert.equal(fixture.trace.codeReads, 0);
   assert.equal(session.isSettled(), false);
-  await assert.rejects(session.releaseAfterClose()); assert.equal(fixture.trace.closes, expectedCloses);
+  if (mode === 'pending-read-blocks-close') await assert.rejects(session.releaseAfterClose());
+  else assert.throws(() => session.requireSettled());
+  assert.equal(fixture.trace.closes, expectedCloses);
   fixture.trace.readReleased = true;
-  assert.equal((await session.releaseAfterClose()).settled, true);
+  if (mode === 'pending-read-blocks-close') assert.equal((await session.releaseAfterClose()).settled, true);
+  else { session.requireSettled(); assert.equal(session.isSettled(), true); }
   assert.equal(fixture.trace.closed, true); assert.equal(fixture.trace.closes, 1); assert.equal(fixture.trace.reads, 1);
 }
 console.log('Report streams retain original read/close owners and frozen/falsey failures through close-only recovery.');
