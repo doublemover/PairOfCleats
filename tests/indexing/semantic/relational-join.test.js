@@ -79,6 +79,8 @@ if (mode === 'simultaneous-join-and-provenance') {
   assert.throws(() => describeRelationalJoin({ ...next.view }), /Original/);
   let reads = 0;
   assert.throws(() => bootstrapRelationalJoin({ left: base.left, right: base.right, get definition() { reads++; return definition('inner-join'); } })); assert.equal(reads, 0);
+  const proxyDefinition = new Proxy(definition('inner-join'), { getPrototypeOf() { reads++; throw new Error('definition proxy trap must not run'); } });
+  assert.throws(() => bootstrapRelationalJoin({ left: base.left, right: base.right, definition: proxyDefinition })); assert.equal(reads, 0);
   const decorated = batch(next.view, 'hidden', 2); Object.defineProperty(decorated.left.edits, 'hidden', { value: 1 });
   assert.throws(() => applyRelationalJoinDelta(next.view, decorated), /decorations/);
   const mutable = batch(base.view, 'capture', 1, [row('captured-l')], [row('captured-r', 'k', 'b')]);

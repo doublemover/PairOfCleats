@@ -1,5 +1,3 @@
-import { types } from 'node:util';
-import { captureSemanticRequest } from '../../../semantic/request-snapshot.js';
 import { createAjv, compileSchema } from '../../../shared/validation/ajv-factory.js';
 import { throwIfAborted, isAbortError } from '../../../shared/abort.js';
 import { createOccurrenceRelation } from '../../../semantic/relations/factor.js';
@@ -7,6 +5,7 @@ import { canonicalSemanticJson, semanticHash } from '../identity.js';
 import { isSemanticJsonBudgetError } from '../canonical-json-bounds.js';
 import { readAdjacencyViewInput, applyAdjacencyDelta } from './adjacency-delta.js';
 import { RELATIONAL_JOIN_DEFINITION_SCHEMA, RELATIONAL_JOIN_LIMITS } from '../../../contracts/schemas/relational-join.js';
+import { finiteViewFields, captureFiniteViewJson, captureFiniteViewDefinition } from './finite-input.js';
 
 const owned = new WeakMap(), budgetErrors = new WeakSet(), ajv = createAjv({ strict: true, allErrors: true });
 const validate = compileSchema(ajv, RELATIONAL_JOIN_DEFINITION_SCHEMA);
@@ -21,17 +20,7 @@ const freeze = value => {
   if (value && typeof value === 'object') { for (const child of Object.values(value)) freeze(child); Object.freeze(value); } return value;
 };
 const get = handle => { const state = owned.get(handle); if (!state) throw fail('Original relational view required.'); return state; };
-const fields = (value, required, optional = []) => {
-  if (!value || typeof value !== 'object' || types.isProxy(value) || Object.getPrototypeOf(value) !== Object.prototype
-    || Object.getOwnPropertySymbols(value).length) throw fail('Passive own relational input fields required.');
-  const names = Object.getOwnPropertyNames(value);
-  if (required.some(name => !names.includes(name)) || names.some(name => ![...required, ...optional].includes(name))) throw fail('Unknown or missing relational input field.');
-  return Object.fromEntries(names.map(name => {
-    const descriptor = Object.getOwnPropertyDescriptor(value, name);
-    if (!descriptor.enumerable || !Object.hasOwn(descriptor, 'value')) throw fail('Relational input accessors/decorations are unavailable.');
-    return [name, descriptor.value];
-  }));
-};
+const fields = (value, required, optional = []) => finiteViewFields(value, required, optional, fail);
 const limitsFor = value => {
   if (value === undefined) return RELATIONAL_JOIN_LIMITS;
   const limits = { ...RELATIONAL_JOIN_LIMITS, ...fields(value, [], Object.keys(RELATIONAL_JOIN_LIMITS)) };
@@ -40,12 +29,7 @@ const limitsFor = value => {
 };
 const sourceKey = row => key([row.occurrenceId, row.supportId]);
 const compareRows = (a, b) => sourceKey(a) < sourceKey(b) ? -1 : sourceKey(a) > sourceKey(b) ? 1 : 0;
-const captureBatch = (value, maxBytes) => JSON.parse(canonicalSemanticJson(value, { maxBytes,
-  onObjectEncoded(original) {
-    if (Object.getOwnPropertyNames(original).length !== Object.keys(original).length + (Array.isArray(original) ? 1 : 0)) {
-      throw fail('Hidden relational batch decorations are unavailable.');
-    }
-  } }));
+const captureBatch = (value, maxBytes) => captureFiniteViewJson(value, maxBytes, fail);
 
 const build = ({ definition, left, right, limits, ledger }, signal) => {
   const l = readAdjacencyViewInput(left), r = readAdjacencyViewInput(right);
@@ -95,7 +79,7 @@ const build = ({ definition, left, right, limits, ledger }, signal) => {
  * in-memory finite operator, without source extraction or publication authority. */
 export const bootstrapRelationalJoin = (value, options = {}) => {
   const input = fields(value, ['definition', 'left', 'right'], ['limits']);
-  const definition = captureSemanticRequest(input.definition, RELATIONAL_JOIN_DEFINITION_SCHEMA);
+  const definition = captureFiniteViewDefinition(input.definition, RELATIONAL_JOIN_DEFINITION_SCHEMA, fail);
   if (!validate(definition)) throw fail('Invalid relational operator definition.');
   const limits = limitsFor(input.limits);
   // Resolve originals before consulting the caller's cancellation source.

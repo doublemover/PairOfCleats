@@ -1,5 +1,11 @@
 const loaded = new Map();
 const loaders = {
+  'finite-grouped-adjacency-v1': async () => {
+    const owner = await import('../../src/index/semantic/views/grouped-adjacency.js');
+    return Object.freeze({ id: 'finite-grouped-adjacency-v1', executionClass: 'supplied-original-adjacency-view-only',
+      capabilities: Object.freeze(['bootstrap', 'apply', 'inspect', 'work']), bootstrap: owner.bootstrapGroupedAdjacency,
+      apply: owner.applyGroupedAdjacencyDelta, inspect: owner.describeGroupedAdjacency, work: owner.groupedAdjacencyWork });
+  },
   'finite-relational-revisions-v1': async () => {
     const owner = await import('./revisions/relational.js');
     return Object.freeze({ id: 'finite-relational-revisions-v1', executionClass: 'tiny-supplied-relational-revisions-only',

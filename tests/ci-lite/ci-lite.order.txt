@@ -2932,3 +2932,9 @@ indexing/embeddings/prepared-row-reservation/pending-and-committed-accounting
 indexing/embeddings/prepared-row-reservation/retained-read-and-original-release
 indexing/embeddings/prepared-row-reservation/geometry-before-copy
 indexing/embeddings/prepared-row-reservation/expiry-and-failed-commit
+indexing/semantic/grouped-adjacency/weighted-counts-and-provenance
+indexing/semantic/grouped-adjacency/retract-extrema-and-last-support
+indexing/semantic/grouped-adjacency/partial-domain-observations
+indexing/semantic/grouped-adjacency/atomic-replay-and-original-handles
+indexing/semantic/grouped-adjacency/bounded-and-cancelled-transitions
+indexing/semantic/grouped-adjacency/independent-expanded-bag

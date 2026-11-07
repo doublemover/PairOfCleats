@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-07T02:32:05.809Z",
+  "generatedAt": "2026-11-07T02:41:50.771Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
@@ -4782,6 +4782,7 @@
         "tests/indexing/semantic/drain-falsey-failure-ownership.test.js",
         "tests/indexing/semantic/drain-ownership-cancellation-consumers.test.js",
         "tests/indexing/semantic/embedded-cache-prepared-handoff.test.js",
+        "tests/indexing/semantic/grouped-adjacency.test.js",
         "tests/indexing/semantic/positive-rule-view.test.js",
         "tests/indexing/semantic/prepared-embedded-parent.test.js",
         "tests/indexing/semantic/producer-entry-allocation.test.js",
