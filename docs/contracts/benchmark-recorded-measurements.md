@@ -42,8 +42,11 @@ No mutable mtime cache, public enrichment knob or alternate index format is adde
 
 The same source resolver serves the language aggregate, throughput renderer and
 explicit materializer. Their default read paths retain their no-write contract.
-Mutable feature-metrics inspection remains a separately named current-state
-utility with independent invalidation coverage; historical callers do not use it.
+The obsolete mutable feature-metrics inspection/cache layer is removed. Repository
+reference review found only three fixture callers after product aggregation and
+materialization moved to recorded sources. Those original fixture IDs now retain
+their A/B-root, changed-source and malformed-config controls through actual
+attempt/hash/extent-qualified reads. No live-metrics compatibility API remains.
 This contract qualifies recorded measurement reconstruction. It does not qualify
 real-model performance, historical environment equivalence or live structural
 build-state analysis as an immutable attempt snapshot.

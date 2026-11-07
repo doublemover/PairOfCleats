@@ -4,7 +4,7 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 
-import { loadCurrentFeatureMetricsForPayload } from '../../../tools/reports/show-throughput/load.js';
+import { loadFeatureMetricsForPayload } from '../../../tools/reports/show-throughput/load.js';
 
 const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-show-throughput-metrics-resilience-'));
 const repoRoot = path.join(tempRoot, 'repo');
@@ -16,7 +16,7 @@ try {
   let threw = false;
   let metrics = null;
   try {
-    metrics = loadCurrentFeatureMetricsForPayload({
+    metrics = loadFeatureMetricsForPayload({
       repo: { root: repoRoot },
       artifacts: { repo: { root: repoRoot } }
     });
@@ -25,7 +25,11 @@ try {
   }
 
   assert.equal(threw, false, 'expected malformed repo config to not crash feature-metrics loading');
-  assert.equal(metrics, null, 'expected malformed config path to fall back to null metrics');
+  assert.equal(metrics, null, 'current malformed configuration cannot supply missing historical metrics');
+  let currentLookups = 0;
+  const payload = { artifacts: {} };
+  Object.defineProperty(payload, 'repo', { get() { currentLookups++; throw new Error('current repository lookup is not historical evidence'); } });
+  assert.equal(loadFeatureMetricsForPayload(payload), null); assert.equal(currentLookups, 0);
 
   console.log('show-throughput load feature metrics resilience test passed');
 } finally {

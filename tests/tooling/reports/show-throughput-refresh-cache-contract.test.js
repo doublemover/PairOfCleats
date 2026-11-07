@@ -5,8 +5,8 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { getMetricsDir, loadUserConfig } from '../../../tools/shared/dict-utils.js';
-import { loadFeatureMetricsCached } from '../../../tools/reports/show-throughput/load.js';
+import { loadFeatureMetricsForPayload } from '../../../tools/reports/show-throughput/load.js';
+import { writeRecordedFeatureSnapshot } from '../../helpers/throughput-recorded-source.js';
 import {
   loadOrComputeBenchAnalysis,
   loadOrComputeIndexingSummary,
@@ -15,7 +15,6 @@ import {
   resolveRepoIdentity
 } from '../../../tools/reports/show-throughput/analysis.js';
 
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const toPosix = (value) => String(value || '').replace(/[\\/]+/g, '/');
 const normalizeComparablePath = (value) => (
   process.platform === 'win32' ? toPosix(value).toLowerCase() : toPosix(value)
@@ -33,40 +32,29 @@ try {
     JSON.stringify({ cache: { root: cacheRoot } }, null, 2)
   );
 
-  const userConfig = loadUserConfig(repoRoot);
-  const metricsDir = getMetricsDir(repoRoot, userConfig);
-  await fsPromises.mkdir(metricsDir, { recursive: true });
-  const metricsPath = path.join(metricsDir, 'feature-metrics-run.json');
-
-  await fsPromises.writeFile(
-    metricsPath,
-    JSON.stringify({
-      modes: {
-        code: {
-          totals: { count: 1, lines: 10, bytes: 100, durationMs: 1000 }
-        }
+  const firstReport = await writeRecordedFeatureSnapshot(cacheRoot, {
+    modes: {
+      code: {
+        totals: { count: 1, lines: 10, bytes: 100, durationMs: 1000 }
       }
-    }, null, 2)
-  );
-  const firstMetrics = loadFeatureMetricsCached(repoRoot);
+    }
+  });
+  const firstMetrics = loadFeatureMetricsForPayload(firstReport, { sourceRoot: cacheRoot });
   assert.equal(firstMetrics?.modes?.code?.totals?.lines, 10);
 
-  await sleep(25);
-  await fsPromises.writeFile(
-    metricsPath,
-    JSON.stringify({
-      modes: {
-        code: {
-          totals: { count: 1, lines: 25, bytes: 250, durationMs: 1000 }
-        }
+  const secondReport = await writeRecordedFeatureSnapshot(cacheRoot, {
+    modes: {
+      code: {
+        totals: { count: 1, lines: 25, bytes: 250, durationMs: 1000 }
       }
-    }, null, 2)
-  );
-  const secondMetrics = loadFeatureMetricsCached(repoRoot);
+    }
+  });
+  assert.equal(loadFeatureMetricsForPayload(firstReport, { sourceRoot: cacheRoot }), null, 'changed bytes invalidate the original receipt');
+  const secondMetrics = loadFeatureMetricsForPayload(secondReport, { sourceRoot: cacheRoot });
   assert.equal(
     secondMetrics?.modes?.code?.totals?.lines,
     25,
-    'expected metrics cache to refresh after source file changes'
+    'updated exact source receipt observes the changed measurements'
   );
 
   const repoMapPath = path.join(tempRoot, 'repo_map.json');
@@ -74,7 +62,6 @@ try {
   const firstCounts = readRepoMapKindCountsSync(repoMapPath);
   assert.equal(firstCounts?.functiondeclaration, 1);
 
-  await sleep(25);
   await fsPromises.writeFile(
     repoMapPath,
     '{"kind":"functiondeclaration"}\n{"kind":"functiondeclaration"}\n'
