@@ -723,8 +723,9 @@ const parseProgressConfidenceLine = (line) => {
   }
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null;
   const observationState = typeof parsed.observation?.state === 'string' ? parsed.observation.state : 'legacy';
-  let score = admitBenchProgressScore(parsed.score);
-  if (parsed.schemaVersion != null && ![1, BENCH_PROGRESS_CONFIDENCE_SCHEMA_VERSION].includes(parsed.schemaVersion)) score = null;
+  // Obsolete or unversioned observations remain historical diagnostics only.
+  // A score cannot become observed through a pre-observation schema fallback.
+  let score = parsed.schemaVersion === BENCH_PROGRESS_CONFIDENCE_SCHEMA_VERSION ? admitBenchProgressScore(parsed.score) : null;
   if (parsed.schemaVersion === BENCH_PROGRESS_CONFIDENCE_SCHEMA_VERSION) {
     const recomputed = computeBenchProgressConfidence({
       heartbeatRegularityScore: parsed.components?.heartbeatRegularity?.score, queueAgeScore: parsed.components?.queueAge?.score,

@@ -31,7 +31,8 @@ cleanup ownership retain their behavior.
 
 Replay uses the same primitive finite-or-unknown score admission. Current rows
 also need observed freshness and reproducible eligible component evidence.
-Historical rows remain readable as recorded heuristics. Unknown/stale rows stay
+Obsolete or missing schema identities remain readable as unqualified history;
+their claimed scores cannot supply numeric confidence. Unknown/stale rows stay
 in event and bucket coverage but not numeric average/min/max denominators or
 ranked measured details. `scoreCoverage` exposes observed and unknown counts.
 Actual numeric zero remains in the denominator. Execution identity participates
@@ -43,4 +44,3 @@ reversed clocks, insufficient samples and primitive admission. Real tiny process
 controls add silent, ordinary, null-field and start-only children, checking both
 returned summaries and persisted rows. JSONL controls verify null beside 0.8,
 real zero, typed invalid scores, stale/current evidence and exact mirrors.
-Functional execution is deferred with the current implementation wave.

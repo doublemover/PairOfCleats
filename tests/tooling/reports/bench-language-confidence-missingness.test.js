@@ -24,16 +24,20 @@ const mixed = await report('legacy', [unknown, known]);
 assert.equal(mixed.eventCount, 2);
 assert.equal(mixed.rawEventCount, 4);
 assert.equal(mixed.duplicateEventCount, 2);
-assert.equal(mixed.avgScore, 0.8); assert.equal(mixed.minScore, 0.8); assert.equal(mixed.maxScore, 0.8);
-assert.deepEqual(mixed.scoreCoverage, { observed: 1, unknown: 1 });
-assert.equal(mixed.countsByBucket.unknown, 1);
-assert.equal(mixed.lowConfidenceEvents.length, 1, 'unknown is not ranked as measured low confidence');
-const zero = await report('zero', [unknown, known, { ...unknown, ts: '2026-10-26T00:00:02Z', score: 0, bucket: 'low' }]);
-assert.equal(zero.avgScore, 0.4); assert.equal(zero.minScore, 0);
-assert.deepEqual(zero.scoreCoverage, { observed: 2, unknown: 1 });
-
+assert.equal(mixed.avgScore, null); assert.equal(mixed.minScore, null); assert.equal(mixed.maxScore, null);
+assert.deepEqual(mixed.scoreCoverage, { observed: 0, unknown: 2 });
+assert.equal(mixed.countsByBucket.unknown, 2);
+assert.equal(mixed.lowConfidenceEvents.length, 0, 'obsolete observations cannot supply measured confidence');
 const measured = computeBenchProgressConfidence({ heartbeatRegularityScore: 0.8, heartbeatSamples: 2 });
 const observed = qualifyBenchProgressObservation(measured, { nowMs: 1000, firstObservedAtMs: 0, lastObservedAtMs: 900 });
+const measuredZero = computeBenchProgressConfidence({ heartbeatRegularityScore: 0, heartbeatSamples: 2 });
+const observedZero = qualifyBenchProgressObservation(measuredZero, { nowMs: 1000, firstObservedAtMs: 0, lastObservedAtMs: 900 });
+const zero = await report('zero', [unknown,
+  { ...observed, label: 'repo-a', ts: known.ts },
+  { ...observedZero, label: 'repo-a', ts: '2026-10-26T00:00:02Z' }]);
+assert.ok(Math.abs(zero.avgScore - 0.4) < 1e-12); assert.equal(zero.minScore, 0);
+assert.deepEqual(zero.scoreCoverage, { observed: 2, unknown: 1 });
+
 const stale = qualifyBenchProgressObservation(measured, { nowMs: 31000, firstObservedAtMs: 0, lastObservedAtMs: 900 });
 const rows = [false, true, '', '0.8'].map((score, index) => ({ ...unknown, ts: `2026-10-26T00:00:0${index}Z`, score }));
 rows.push({ ...observed, label: 'repo-a', ts: '2026-10-26T00:00:05Z', executionId: 'fixture' },

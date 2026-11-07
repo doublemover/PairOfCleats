@@ -16,20 +16,72 @@
     "provenance",
     "ciSummary",
     "topRegressions",
+    "ledgerComparisons",
     "topVariability",
     "folders"
   ],
   "properties": {
-    "schemaVersion": { "type": "integer", "const": 2 },
+    "schemaVersion": { "type": "integer", "const": 3 },
     "inputAdmission": {
       "type": "object",
-      "required": ["version", "scope", "state", "complete", "cancelled", "inventoryComplete", "discovered", "selected", "admitted", "processed", "failures", "excluded", "budget", "folders"],
+      "required": ["version", "scope", "state", "complete", "cancelled", "inventoryComplete", "discovered", "selected", "admitted", "processed", "failures", "excluded", "budget", "folders", "rootInventory", "entriesVisited"],
       "properties": {
-        "version": { "const": 1 }, "scope": { "const": "selected-result-file-cohort" }, "state": { "enum": ["complete", "empty", "partial"] },
+        "version": { "const": 2 }, "scope": { "const": "selected-result-file-cohort" }, "state": { "enum": ["complete", "empty", "partial"] },
         "complete": { "type": "boolean" }, "cancelled": { "type": "boolean" }, "inventoryComplete": { "type": "boolean" },
         "discovered": { "type": "integer", "minimum": 0 }, "selected": { "type": "integer", "minimum": 0 },
         "admitted": { "type": "integer", "minimum": 0 }, "processed": { "type": "integer", "minimum": 0 },
         "failures": { "type": "integer", "minimum": 0 }, "excluded": { "type": "integer", "minimum": 0 },
+        "entriesVisited": { "type": "integer", "minimum": 0 },
+        "rootInventory": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "required": [
+            "path",
+            "complete",
+            "selected",
+            "inventoried",
+            "cause"
+          ],
+          "properties": {
+            "path": {
+              "type": "string",
+              "minLength": 1
+            },
+            "complete": {
+              "type": "boolean"
+            },
+            "selected": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "inventoried": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "cause": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "required": [
+                "code"
+              ],
+              "properties": {
+                "code": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "maxLength": 128
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
+        },
         "budget": { "type": "object" }, "folders": { "type": "array", "items": { "type": "object" } }
       }, "additionalProperties": false
     },
@@ -41,7 +93,7 @@
       "type": "object",
       "required": ["schemaVersion", "state", "reason", "mode", "currentRoot", "baselineRoot", "rows"],
       "properties": {
-        "schemaVersion": { "const": 2 },
+        "schemaVersion": { "const": 3 },
         "state": { "enum": ["comparable-inputs", "incomparable"] },
         "reason": { "type": ["string", "null"] },
         "mode": { "enum": ["code", "prose", "extracted-prose", "records"] },
@@ -144,6 +196,7 @@
       },
       "additionalProperties": false
     },
+    "ledgerComparisons": { "$ref": "#/$defs/ledgerComparisons" },
     "topRegressions": {
       "type": "array",
       "items": { "type": "object" }
@@ -172,6 +225,10 @@
           "coverageCandidates",
           "coverageScanned",
           "coverageSkipped",
+          "selectedMode",
+          "chunksMedian",
+          "metricScopes",
+          "ledgerComparisons",
           "provenance"
         ],
         "properties": {
@@ -183,6 +240,28 @@
           "codeChunksP95": { "type": ["number", "null"] },
           "codeFilesMedian": { "type": ["number", "null"] },
           "linesPerSec": { "type": ["number", "null"] },
+          "metricScopes": {
+            "type": "object",
+            "required": [
+              "linesPerSec",
+              "buildIndexMedian"
+            ],
+            "properties": {
+              "linesPerSec": {
+                "enum": [
+                  "code",
+                  "prose",
+                  "extracted-prose",
+                  "records"
+                ]
+              },
+              "buildIndexMedian": {
+                "const": "whole-build"
+              }
+            },
+            "additionalProperties": false
+          },
+          "ledgerComparisons": { "$ref": "#/$defs/ledgerComparisons" },
           "buildIndexMedian": { "type": ["number", "null"] },
           "queryMedian": { "type": ["number", "null"] },
           "searchMedian": { "type": ["number", "null"] },
@@ -219,6 +298,76 @@
   },
   "additionalProperties": false,
   "$defs": {
+    "ledgerComparisons": {
+      "type": "object",
+      "required": [
+        "metric",
+        "scope",
+        "states",
+        "comparedEntries",
+        "excludedEntries",
+        "zeroBaselineEntries"
+      ],
+      "properties": {
+        "metric": {
+          "const": "chunksPerSec"
+        },
+        "scope": {
+          "const": "numeric-observations"
+        },
+        "states": {
+          "type": "object",
+          "required": [
+            "compared",
+            "partial",
+            "unavailable",
+            "zero-baseline",
+            "no-baseline",
+            "no-ledger"
+          ],
+          "properties": {
+            "compared": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "partial": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "unavailable": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "zero-baseline": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "no-baseline": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "no-ledger": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          "additionalProperties": false
+        },
+        "comparedEntries": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "excludedEntries": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "zeroBaselineEntries": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false
+    },
     "comparisonRow": {
       "type": "object",
       "required": ["folder", "currentChunks", "baselineChunks", "deltaChunksPct", "currentBuild", "baselineBuild", "deltaBuildPct", "label", "regressionSeverity"],

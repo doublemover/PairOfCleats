@@ -74,6 +74,9 @@ invalid source authority and materialization round trips. No corpus indexing or
 model execution is required.
 
 Throughput input admission version 2 includes the original results-root inventory.
+The strict raw-report schema follows report/comparison version 3 and requires
+that inventory, per-folder metric scopes and numeric ledger comparison coverage.
+Obsolete versions and unknown scope/count fields are rejected.
 Both rendering and materialization await the same owned incremental directory
 reader. Across root and folder discovery, at most 65,536 entries are examined
 before filename filtering and at most 1,024 folders are admitted. Root/folder

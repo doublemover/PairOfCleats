@@ -28,6 +28,14 @@ try {
   const ajv = createAjv({ dialect: '2020', allErrors: true, strict: false, validateFormats: false });
   const validate = compileSchema(ajv, schema);
   assert.equal(validate(payload), true, JSON.stringify(validate.errors || [], null, 2));
+  for (const mutate of [value => { value.schemaVersion = 2; }, value => { value.inputAdmission.version = 1; },
+    value => { delete value.inputAdmission.rootInventory; }, value => { value.inputAdmission.entriesVisited = -1; },
+    value => { value.ledgerComparisons.states.invented = 1; }, value => { value.ledgerComparisons.comparedEntries = '1'; },
+    value => { value.folders[0].metricScopes.buildIndexMedian = 'code'; },
+    value => { value.folders[0].ledgerComparisons.extra = true; }]) {
+    const invalid = structuredClone(payload); mutate(invalid);
+    assert.equal(validate(invalid), false, 'the current report keeps strict version, inventory and metric scope contracts');
+  }
   assert.deepEqual(
     (payload.folders || []).map((entry) => entry.folder),
     ['alpha', 'zeta'],

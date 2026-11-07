@@ -9,7 +9,8 @@ import {
   THROUGHPUT_LEDGER_DIFF_SCHEMA_VERSION,
   THROUGHPUT_LEDGER_SCHEMA_VERSION
 } from '../../../tools/bench/language/metrics.js';
-import { BENCH_PROGRESS_CONFIDENCE_SCHEMA_VERSION } from '../../../tools/bench/language/logging.js';
+import { BENCH_PROGRESS_CONFIDENCE_SCHEMA_VERSION, computeBenchProgressConfidence,
+  qualifyBenchProgressObservation } from '../../../tools/bench/language/logging.js';
 
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 
@@ -26,32 +27,14 @@ const now = Date.now();
 const confidenceStream = path.join(logsRoot, 'run-ub098-all.progress-confidence.jsonl');
 await fsPromises.writeFile(
   confidenceStream,
-  [
-    JSON.stringify({
-      schemaVersion: BENCH_PROGRESS_CONFIDENCE_SCHEMA_VERSION,
-      ts: new Date(now).toISOString(),
-      label: 'bench javascript owner/repo',
-      score: 0.92,
-      bucket: 'high',
-      reason: 'task:progress'
-    }),
-    JSON.stringify({
-      schemaVersion: BENCH_PROGRESS_CONFIDENCE_SCHEMA_VERSION,
-      ts: new Date(now + 1000).toISOString(),
-      label: 'bench javascript owner/repo',
-      score: 0.63,
-      bucket: 'medium',
-      reason: 'task:progress'
-    }),
-    JSON.stringify({
-      schemaVersion: BENCH_PROGRESS_CONFIDENCE_SCHEMA_VERSION,
-      ts: new Date(now + 2000).toISOString(),
-      label: 'bench javascript owner/repo',
-      score: 0.24,
-      bucket: 'low',
-      reason: 'queue_delay_hotspot'
-    })
-  ].join('\n') + '\n',
+  [0.92, 0.63, 0.24].map((score, index) => {
+    const at = now + index * 1000;
+    const measured = computeBenchProgressConfidence({ heartbeatRegularityScore: score, queueAgeScore: score,
+      inFlightSpreadScore: score, stallEventsScore: score, heartbeatSamples: 2, queueSamples: 2, inFlightSamples: 2, stallSamples: 2 });
+    return JSON.stringify({ ...qualifyBenchProgressObservation(measured, { nowMs: at, firstObservedAtMs: now - 1,
+      lastObservedAtMs: at, phase: 'tokenize', taskId: 'code' }), ts: new Date(at).toISOString(),
+    label: 'bench javascript owner/repo', reason: index === 2 ? 'queue_delay_hotspot' : 'task:progress' });
+  }).join('\n') + '\n',
   'utf8'
 );
 
