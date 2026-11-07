@@ -2,13 +2,13 @@
 
 Status: all open issues in scope except Tantivy/editor work
 Last audited: 2026-11-06
-Last reconciled: 2026-11-06
+Last reconciled: 2026-11-07
 Last implementation update: 2026-11-07
 Canonical for: initiative status, execution order, and remaining work
 
 ## Current GitHub repair program
 
-Current reconciliation, 2026-11-06: the [complete intake](archived/open-issue-batches-2026-11-05.json) captures367 reports and14 verified closures. **353 remain open**. Thirteen editor/Tantivy-only reports are excluded; four mixed issues retain non-editor scope. The intake identifies every closure and coverage owner.
+Current reconciliation, 2026-11-07: the [complete intake](archived/open-issue-batches-2026-11-05.json) captures367 reports and14 verified closures. A fresh complete census confirms the same **353 open IDs**. Thirteen editor/Tantivy-only reports are excluded; four mixed issues retain non-editor scope. The intake identifies every closure and coverage owner.
 
 P2/P3: **337 qualified closures**, two editor remainders, one native deferral and six editor exclusions from346 reports. Work continues solo on Windows: implement related repairs, then verify affected controls.
 
@@ -24,7 +24,7 @@ and [qualification matrix](testing/qualification-matrix.md).
 and [focused repairs](archived/windows-comment-and-handoff-failure-repairs-2026-10-28.md)
 retain original failures and source identities. No new full-suite run is scheduled.
 
-[Recent qualifications](archived/repair-qualification-summary-2026-11-05.md) retain source-bound native, compiler and runtime receipts. Open blockers: [published search](archived/native-published-search-investigation-2026-11-05.json)'s full-seed budget; [managed allocation](archived/managed-install-destination-repairs-2026-11-05.md)'s package closures/build allowances (#1559); [capped reads](archived/capped-reader-lifecycle-repairs-2026-11-05.md) (#1330); CI2181's discard-frame race/settings timeout. [Semantic encoding](archived/semantic-encoding-closeout-2026-11-05.md) closes #1212 with68 cases/48 serial samples at5f0e2cca7.
+[Recent qualifications](archived/repair-qualification-summary-2026-11-05.md) retain prior receipts. [Native workflows](archived/windows-native-snapshot-budget-2026-11-07.md) now pass22/22 at41c487ba0, including published search within its full-seed budget. [Managed allocation](archived/managed-install-destination-repairs-2026-11-05.md) still needs package closures/build allowances (#1559); [capped-read](archived/capped-reader-lifecycle-repairs-2026-11-05.md) and later owner repairs await current-source checks (#1330). [Semantic encoding](archived/semantic-encoding-closeout-2026-11-05.md) closes #1212 with68 cases/48 serial samples at5f0e2cca7.
 
 Implemented, awaiting runtime checks: [lifetimes](contracts/semantic-scheduler-wait-ownership.md)/[observations](contracts/storage-resource-observations.md) (#1214/#1330/#1765); [catalogs](contracts/runtime-family-catalog.md), [consumer proof](contracts/consumer-proof-index.md), [embedded preparation](contracts/embedded-cache-preparation.md) (#1618/#1768/#1710); [questions](contracts/repository-questions.md) (#1534); [answers](contracts/answer-evidence.md)/[retention](contracts/answer-retention.md) (#1532); [host delivery](contracts/context-evidence-delivery.md) (#1533); [positive rules](contracts/finite-positive-rules.md)/[repair](contracts/finite-positive-repair.md) (#1516/#1524); [causal models](contracts/finite-causal-models.md)/[paired replay](contracts/paired-finite-interventions.md) (#1524/#1526); [private-oracle tasks](contracts/finite-evidence-tasks.md) (#1525); [finite feasibility](contracts/finite-feasibility.md) (#1527); [query adapters](contracts/retrieval-adaptation.md) (#1529); [policy receipts](contracts/finite-policy-qualification.md) (#1530, shadow only). [Checkout bootstrap](guides/bootstrap-prerequisites.md) binds original mutation/journal owners to readiness v3, targeted recovery, exact prior receipts, complete command logs, shared budgets, closed-file retention and awaited output (#1555/#1557). [Benchmark evidence](contracts/benchmark-diagnostic-coverage.md) (#683) requires observed parity v2. Runtime checks pending.
 

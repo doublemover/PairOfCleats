@@ -33,8 +33,14 @@ is implemented with original native admission and all deadlines unchanged.
 at `c5f4ac1e7896e7ac76140238261e5f79c8363044` passes all22 Windows native-index
 cases with zero failures, timeouts or skips; published search is22.3 seconds and
 the slowest case25.6 seconds under the original30-second limit. Gate, Windows
-authority, Rust TUI and all three native-inspection jobs also pass. Broad jobs
-remain in progress. These observations qualify that source, not later edits.
+authority, Rust TUI and all three native-inspection jobs also pass. The
+[completed broad-job receipt](../archived/ci2340-repair-checkpoint-2026-11-07.md)
+records its eight Windows failures and their repairs. CI2341 at
+`41c487ba00854967f155d27c02b3e3f82c974ee6` again passes all22 native-index cases,
+with published search20.7 seconds and slowest build-search21.3 seconds. Its gate,
+Windows authority, Rust and native-inspection jobs pass; its completed POSIX
+broad jobs expose one new assertion mismatch, while Windows remains running.
+These observations qualify their exact sources, not later edits.
 
 The current [checkout bootstrap](../guides/bootstrap-prerequisites.md) repairs are
 implemented and **locally unrun**. Readiness v3 binds the original journal and

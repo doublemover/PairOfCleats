@@ -91,4 +91,9 @@ records eight Windows failures, their source repairs and the remaining rechecks.
 This qualifies the original normal-settings cohort at that exact source. It
 does not establish a general latency improvement or qualify later edits. A
 subsequent change overlaps the index entry's16 and search wrapper's3 independent
-root imports after their original bootstrap gates; that change remains unrun.
+root imports after their original bootstrap gates. CI2341 at
+`41c487ba00854967f155d27c02b3e3f82c974ee6` includes that change and passes all22
+normal-settings native-index cases, zero failures/timeouts/skips. Published search
+takes20.7 seconds, and build-search is slowest at21.3 seconds. The
+[original job](https://github.com/doublemover/PairOfCleats/actions/runs/42359226633/job/128364328661)
+owns that checkpoint; later edits require their affected checks.

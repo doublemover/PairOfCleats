@@ -55,3 +55,28 @@ The repairs and later installer/TypeScript controls remain locally unrun.
 Formatting and static inventory generation are not runtime acceptance. The next
 verification must use prepared dependencies and the resulting source identity;
 earlier passing cases cannot be combined into a final-tree pass.
+
+## CI2341 source checkpoint
+
+[CI2341](https://github.com/doublemover/PairOfCleats/actions/runs/42359226633)
+runs `41c487ba00854967f155d27c02b3e3f82c974ee6`. Its gate, Rust TUI,
+Windows authority and all native-inspection jobs pass. The
+[serial Windows native-index job](https://github.com/doublemover/PairOfCleats/actions/runs/42359226633/job/128364328661)
+passes all 22 cases with zero failures, timeouts or skips. Published search takes
+20.7 seconds; build-search is slowest at 21.3 seconds. This includes the later
+index/search import overlap, with the original operations and deadlines intact.
+
+Ubuntu and macOS broad jobs each record 2,792 passed, one failed, zero timed out
+and two skipped. Both former shared failures pass. The new failure is
+`tooling/install/managed-install-phase-observation/download-recovery-after-journal-failure`:
+its teardown assertion searched generic `cause`/`errors` edges instead of the
+transport owner's exact `downloadCleanupError` field. The original transport
+sets that nonenumerable field to the actual cancellation failure; the new check
+requires exact identity there. It retains the journal error and original download
+in the error graph, actual session closure, protected leases/staging, failed
+early retirement, successful original recovery and the unchanged old selector.
+No failure retry or resource-settlement assertion is removed.
+
+Windows broad execution is still running at this observation. No local POSIX
+execution occurred. Later recovery, repository quota, runner-discovery and Go
+SDK changes remain outside this checkpoint's acceptance.
