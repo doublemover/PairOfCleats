@@ -1,0 +1,73 @@
+import assert from 'node:assert/strict';
+import { getOfflineEvaluationAdapter } from '../../../tools/eval/adapters.js';
+
+const mode = process.env.PAIROFCLEATS_TEST_ID?.split('tooling/eval/relational-revision-oracle/')[1];
+assert.ok(['actual-registered-operators', 'independent-cross-term-and-threshold-defects', 'multiplicity-and-origin-defects',
+  'strict-revision-worlds', 'unknown-reference-budget', 'original-execution-retirement'].includes(mode));
+const adapter = await getOfflineEvaluationAdapter('finite-relational-revisions-v1');
+const world = { generation: { baseBuildId: 'relational-revision-base', semanticRevision: 0 }, repositoryNamespace: 'fixture', contextKey: 'declared-inputs' };
+const generate = (family, seed = 0) => adapter.generate({ world, family, seed });
+const empty = { capturedDomainComplete: true, unresolvedLeftSupports: 0, rows: [] };
+const expected = (scenario, checkpoint) => adapter.compareDiagnostic({ scenario, checkpoint, actual: empty }).expected;
+if (mode === 'actual-registered-operators') {
+  for (const family of ['join-cross-term', 'anti-join-support-threshold', 'seeded-bags']) for (const seed of [0, 1, 17, 4294967295]) {
+    const scenario = generate(family, seed), run = adapter.run(scenario);
+    try {
+      const report = adapter.inspect(run); assert.equal(report.outcome, 'pass', family + ':' + seed);
+      assert.equal(report.checkpoints.length, 4); assert.equal(report.sourceAuthority, 'not-established'); assert.equal(report.semanticClosure, 'not-implied');
+      assert.ok(report.checkpoints.every(row => row.claims.length === 2 && row.claims.every(claim => claim.outcome === 'pass')));
+      assert.ok(report.checkpoints.every(row => row.candidateRelationRootId === row.rebuildRelationRootId));
+      assert.notEqual(report.checkpoints[1].candidateViewRootId, report.checkpoints[1].rebuildViewRootId,
+        'private transition ledgers differ; relation content is compared without pretending view roots match');
+      assert.deepEqual(scenario, generate(family, seed));
+      assert.ok(Buffer.byteLength(JSON.stringify(report)) <= report.limits.receiptBytes);
+    } finally { adapter.dispose(run); }
+  }
+} else if (mode === 'independent-cross-term-and-threshold-defects') {
+  const join = generate('join-cross-term');
+  assert.equal(adapter.compareDiagnostic({ scenario: join, checkpoint: 1, actual: empty }).outcome, 'fail', 'dropping delta-left × delta-right is detected');
+  assert.equal(adapter.compareDiagnostic({ scenario: join, checkpoint: 1, actual: expected(join, 1) }).outcome, 'pass');
+  const anti = generate('anti-join-support-threshold'), present = expected(anti, 2);
+  assert.ok(present.rows.length);
+  assert.equal(adapter.compareDiagnostic({ scenario: anti, checkpoint: 1, actual: present }).outcome, 'fail', '2→1 cannot expose a left key');
+  assert.equal(adapter.compareDiagnostic({ scenario: anti, checkpoint: 2, actual: empty }).outcome, 'fail', '1→0 must expose it');
+  assert.equal(adapter.compareDiagnostic({ scenario: anti, checkpoint: 3, actual: present }).outcome, 'fail', '0→1 must retract it');
+  for (const checkpoint of [0, 1, 2, 3]) assert.equal(adapter.compareDiagnostic({ scenario: anti, checkpoint, actual: expected(anti, checkpoint) }).outcome, 'pass');
+} else if (mode === 'multiplicity-and-origin-defects') {
+  const scenario = generate('seeded-bags', 17), output = expected(scenario, 1);
+  assert.equal(output.rows.length, 2);
+  for (const mutate of [value => { value.rows[0].multiplicity = '1'; }, value => { value.rows[0].parents.right.supportId = 'wrong-origin'; },
+    value => { value.rows.pop(); }, value => { value.capturedDomainComplete = false; }, value => { value.unresolvedLeftSupports = 1; }]) {
+    const wrong = structuredClone(output); mutate(wrong);
+    assert.equal(adapter.compareDiagnostic({ scenario, checkpoint: 1, actual: wrong }).outcome, 'fail');
+  }
+  assert.ok(output.rows.some(row => Number(row.multiplicity) > 1));
+} else if (mode === 'strict-revision-worlds') {
+  for (const mutate of [s => { s.revisions[0].beforeId = '0'.repeat(64); }, s => { s.revisions[0].afterId = '0'.repeat(64); },
+    s => { s.revisions[1].toWorld.contextKey = 'different'; }, s => { s.revisions[1].id = s.revisions[0].id; },
+    s => { s.revisions[0].left[0].multiplicity = '-8'; }, s => { s.command = 'node'; }, s => { s.profile = 'shell'; },
+    s => { s.initial.left = Array.from({ length: 9 }, (_, index) => ({ occurrenceId: String(index), supportId: String(index), from: 'a', to: 'b', multiplicity: '1', sourceRef: null })); }]) {
+    const scenario = structuredClone(generate('join-cross-term')); mutate(scenario); assert.throws(() => adapter.run(scenario));
+  }
+  let reads = 0; const scenario = generate('join-cross-term');
+  assert.throws(() => adapter.run({ ...scenario, get revisions() { reads++; return scenario.revisions; } })); assert.equal(reads, 0);
+  assert.throws(() => generate('unregistered'), /Unsupported/);
+  const controller = new AbortController(); controller.abort(null);
+  assert.throws(() => adapter.run(scenario, { signal: controller.signal }), error => error.name === 'AbortError' && error.cause === null);
+} else if (mode === 'unknown-reference-budget') {
+  const scenario = generate('join-cross-term'), run = adapter.run(scenario, { maxReferencePairs: 0 });
+  try {
+    const report = adapter.inspect(run); assert.equal(report.outcome, 'unknown'); assert.equal(report.checkpoints.length, 4);
+    assert.equal(report.checkpoints[0].outcome, 'pass'); assert.equal(report.checkpoints[1].outcome, 'unknown');
+    assert.equal(report.checkpoints[1].claims[0].reason, 'reference-pair-budget');
+    assert.equal(report.checkpoints[1].claims[1].outcome, 'pass', 'rebuild parity cannot substitute for the exhausted independent reference');
+  } finally { adapter.dispose(run); }
+  for (const options of [{ maxReferencePairs: -1 }, { maxReferencePairs: 4097 }, { maxMs: 1001 }]) assert.throws(() => adapter.run(scenario, options));
+} else {
+  const scenario = generate('anti-join-support-threshold'), first = adapter.run(scenario), receipt = adapter.inspect(first);
+  assert.throws(() => adapter.inspect({ ...first }), /Original/); assert.throws(() => receipt.checkpoints.push({}), TypeError);
+  assert.equal(adapter.dispose(first).retired, true); assert.throws(() => adapter.inspect(first), /Original/);
+  const second = adapter.run(scenario); try { assert.equal(adapter.inspect(second).outcome, 'pass'); assert.notEqual(second.executionId, first.executionId); }
+  finally { adapter.dispose(second); }
+}
+console.log('Registered relational revision runs separate independent tiny-bag truth from rebuild parity and source authority.');

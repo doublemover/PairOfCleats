@@ -55,3 +55,23 @@ preconditions, original handles, cancellation, explicit unknown outcomes and
 minimization. Seeded diagnostic defects must be detected while corrected outputs
 pass. The minimizer's injected finite boundary control tests its decision logic;
 it does not claim the real positive-rule owner currently fails.
+
+The `finite-relational-revisions-v1` adapter additionally drives the original
+[join/anti-join cohort](relational-join.md). It supports eight original supports
+per input, eight copies per support and sixteen exact-hash edits. Its reference
+recounts the complete contribution history, expands tiny occurrence bags and
+compares exact endpoint/parent multiplicities and captured-domain observations.
+It imports no candidate arrangement, coefficient or delta helper. Fresh relation
+content is compared separately; private transition ledgers legitimately give
+different view roots. It does not normalize the actual relation content away.
+
+Scenario/receipt contracts are in `revision-relational.js`. Reference pair work is
+bounded to 4,096 per checkpoint and cooperative execution to 1,000 ms. Exhaustion
+is unknown even when rebuild parity passes. Receipts retain all checkpoints and
+at most the first full independent counterexample, with exact output hashes and
+failure outcomes for subsequent disagreements, under 256 KiB. Diagnostic data
+comparison does not create an original execution handle. Six additional authored,
+unrun cases cover actual registered operators, seeded cross-term/threshold and
+origin/multiplicity defects, stale worlds, unknown and handle retirement. This
+profile has no source materializer, durable publication or minimization adapter;
+the positive-rule profile retains its separate bounded revision minimizer.

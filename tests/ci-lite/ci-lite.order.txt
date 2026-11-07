@@ -2898,3 +2898,9 @@ indexing/semantic/relational-join/partial-domain-observations
 indexing/semantic/relational-join/atomic-cohort-and-replay
 indexing/semantic/relational-join/bounded-and-cancelled-cohorts
 indexing/semantic/relational-join/independent-bag-oracle
+tooling/eval/relational-revision-oracle/actual-registered-operators
+tooling/eval/relational-revision-oracle/independent-cross-term-and-threshold-defects
+tooling/eval/relational-revision-oracle/multiplicity-and-origin-defects
+tooling/eval/relational-revision-oracle/strict-revision-worlds
+tooling/eval/relational-revision-oracle/unknown-reference-budget
+tooling/eval/relational-revision-oracle/original-execution-retirement
