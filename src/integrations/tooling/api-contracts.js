@@ -16,11 +16,11 @@ import {
   readCompatibilityKey,
   resolveManifestArtifactSources
 } from '../../shared/artifact-io/manifest.js';
-import { loadJsonArrayArtifactRows } from '../../shared/artifact-io/loaders.js';
+import { loadJsonArrayArtifactRows } from '../../shared/artifact-io/loaders/core.js';
 import { readJsonlRows } from '../../shared/merge.js';
 import { buildIndexSignature } from '../../retrieval/index-cache.js';
-import { hasIndexMeta } from '../../retrieval/cli/index-loader.js';
-import { resolveIndexDir } from '../../retrieval/cli-index.js';
+import { hasChunkMetaArtifactsSync as hasIndexMeta } from '../../shared/artifact-io/chunk-meta-presence.js';
+import { resolveIndexDir } from '../../retrieval/index-dir.js';
 import { renderApiContracts } from '../../retrieval/output/api-contracts.js';
 import { loadUserConfig } from '../../shared/dict-utils.js';
 import { getRepoRoot } from '../../shared/repo-paths.js';
