@@ -10,6 +10,8 @@ import { withTemporaryEnv } from '../../helpers/test-env.js';
 import { installPinnedManagedTool, inspectManagedInstallation, inspectManagedToolRemoval } from '../../../tools/tooling/managed-install.js';
 import { verifyManagedOperationalTool } from '../../../tools/tooling/operational-probes.js';
 import { inspectStorageAccess } from '../../../src/shared/storage/access.js';
+import { getManagedVerificationStorageRecovery } from '../../../tools/tooling/managed-verification.js';
+import { errorGraphIncludes } from '../../helpers/error-graph.js';
 
 const temporary = await makeTempDir('poc-managed-operational-probe-');
 try {
@@ -55,6 +57,10 @@ try {
       let failure;
       try { await installPinnedManagedTool({ toolingRoot, descriptor: descriptor(version), ...dependencies }); }
       catch (error) { failure = error; }
+      assert.equal(errorGraphIncludes(failure, pending), true, 'wrappers retain the exact original child failure');
+      assert.equal(getManagedVerificationStorageRecovery({ ...failure,
+        operationalStorageSession: failure.operationalStorageSession }), null,
+      'public error/owner fields cannot manufacture the private operational recovery association');
       assert.equal(failure.cacheOwnershipReleased(), false);
       assert.equal((await inspectStorageAccess(pendingScratch, { coordinationRoot })).protected, true);
       assert.equal((await inspectManagedInstallation({ toolingRoot, toolId: 'ripgrep' })).command, first.command);

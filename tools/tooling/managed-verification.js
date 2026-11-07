@@ -37,6 +37,10 @@ const withPendingContext = (primary, descriptors, secondary = null) => {
       Object.defineProperty(failure, key, existing[key]);
     }
     Object.defineProperties(failure, descriptors);
+    // Wrapping a real operational failure must retain its original scratch
+    // recovery owner. Public error fields cannot recreate this association.
+    const storageRecovery = storageVerificationFailures.get(primary);
+    if (storageRecovery) storageVerificationFailures.set(failure, storageRecovery);
     return failure;
   }
 };
