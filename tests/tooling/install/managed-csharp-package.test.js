@@ -19,6 +19,7 @@ import { writeRuntimeCommandFixture } from '../../helpers/runtime-command-fixtur
 import { ensureTestingEnv, withTemporaryEnv } from '../../helpers/test-env.js';
 import { assertNoSymlinkPath } from '../../../src/shared/contained-file.js';
 import { isPathWithinRoot } from '../../../src/shared/file-paths.js';
+import { normalizeEnvPathKeys, resolveEnvPath } from '../../../src/shared/env-path.js';
 
 const mode = process.env.PAIROFCLEATS_TEST_ID?.split('tooling/install/managed-csharp-package/')[1];
 const scope = path.resolve('.tmp/tasks/managed-csharp-fixture'); await fs.mkdir(scope, { recursive: true });
@@ -65,7 +66,10 @@ try {
         : `#!/bin/sh\nexec ${shellLiteral(process.execPath)} "$(dirname "$0")/host.mjs" "$@"\n`,
       additionalFiles: [{ path: 'host.mjs', content: hostScript }] });
     if (process.platform !== 'win32') await fs.chmod(sdk.command, 0o755);
-    const toolingRoot = sdk.toolingRoot, env = { ...process.env, PATH: sdk.root + path.delimiter + process.env.PATH };
+    const toolingRoot = sdk.toolingRoot, env = { ...process.env };
+    const selectedPath = normalizeEnvPathKeys(env);
+    env[selectedPath.key] = sdk.root + path.delimiter + selectedPath.value;
+    assert.equal(resolveEnvPath(env).split(path.delimiter)[0], sdk.root, 'the explicitly selected fixture host precedes ambient .NET hosts');
     const verificationRoot = path.join(temporary, 'verification');
     const input = { root: verificationRoot, command: path.join(verificationRoot, CSHARP_LS_PACKAGE_ENTRY), descriptor: canonical.managedDescriptor,
       toolingRoot, env, resourceId: 'csharp-verification-fixture' };

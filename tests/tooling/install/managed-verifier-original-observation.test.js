@@ -22,6 +22,10 @@ if (mode === 'closed-shape-and-control') {
     verifyOwnedResource(async () => { assert.fail('invalid identity cannot start verification'); }, {}, invalid), TypeError);
   const good = { ok: true, settlement: exact(), level: 'explicit-closed-model' };
   assert.equal(await verifyOwnedInstallation(async () => good, {}, resourceId), good);
+  const rejected = Object.freeze({ ok: false, settlement: exact(), level: 'explicit-negative-capability', diagnostic: 'original rejection details' });
+  const rejectedFailure = await caught(() => verifyOwnedInstallation(async () => rejected, {}, resourceId));
+  assert.equal(rejectedFailure.cause, rejected); assert.equal(rejectedFailure.verificationResult, rejected);
+  assert.equal(captureManagedVerificationFailure(rejectedFailure, resourceId).owned, false);
   const original = Object.assign(new Error('settled original failure'), { settlement: exact() });
   assert.equal(await caught(() => verifyOwnedResource(async () => { throw original; }, {}, resourceId)), original);
   for (const settlement of [null, { ...exact(), resourceId: 'other' }, { ...exact(), pending: true }, { ...exact(), future: true }]) {

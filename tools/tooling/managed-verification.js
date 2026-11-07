@@ -114,8 +114,8 @@ export const verifyOwnedInstallation = async (verify, input, resourceId) => {
     throw failure;
   }
   if (!ok) {
-    const failure = Object.assign(new Error('Pinned tool executable/runtime/capability verification failed.'), {
-      settlement: { resourceId, settled: true, pending: false }
+    const failure = Object.assign(new Error('Pinned tool executable/runtime/capability verification failed.', { cause: result }), {
+      verificationResult: result, settlement: { resourceId, settled: true, pending: false }
     });
     settledVerificationFailures.set(failure, resourceId);
     throw failure;
