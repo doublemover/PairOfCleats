@@ -43,7 +43,7 @@ export const normalizeRevisionOutput = value => {
   const output = captureRevisionOracle('output', value);
   if (new Set(output.facts.map(row => row.id)).size !== output.facts.length) throw new TypeError('Duplicate oracle output fact identity.');
   return { complete: output.complete, facts: output.facts.map(row => ({ ...row, producers: row.producers.map(producer => ({ ...producer, body: [...producer.body].sort() }))
-    .sort((a, b) => revisionKey(a).localeCompare(revisionKey(b))) })).sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0) };
+    .sort((a, b) => revisionKey(a) < revisionKey(b) ? -1 : revisionKey(a) > revisionKey(b) ? 1 : 0) })).sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0) };
 };
 
 /** Data-only comparison seam is also used by seeded defect controls. A copied

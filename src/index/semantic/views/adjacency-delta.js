@@ -153,3 +153,11 @@ export const lookupAdjacencyView = (view, from) => {
     dependency: { rootId: view.rootId, domainId: state.definition.domainId, key: from,
       capturedDomainComplete: state.complete }, semanticClosure: 'not-implied' });
 };
+
+/** Internal composition reads the original immutable support bag, never cursor
+ * expansion or caller-supplied copies of a relation handle. */
+export const readAdjacencyViewInput = view => {
+  const state = owned.get(view);
+  if (!state) fail('owned input view required');
+  return Object.freeze({ definition: state.definition, world: state.world, rows: state.rows, complete: state.complete });
+};

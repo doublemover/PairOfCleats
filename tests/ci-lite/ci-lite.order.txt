@@ -2892,3 +2892,9 @@ tooling/eval/revision-oracle/unknown-and-budget-outcomes
 tooling/eval/revision-oracle/original-execution-handles
 tooling/eval/revision-oracle/minimizer-predicate-model
 tui/protocol-fixture-dependencies
+indexing/semantic/relational-join/simultaneous-join-and-provenance
+indexing/semantic/relational-join/anti-join-zero-crossings
+indexing/semantic/relational-join/partial-domain-observations
+indexing/semantic/relational-join/atomic-cohort-and-replay
+indexing/semantic/relational-join/bounded-and-cancelled-cohorts
+indexing/semantic/relational-join/independent-bag-oracle

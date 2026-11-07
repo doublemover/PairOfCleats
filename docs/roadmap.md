@@ -66,7 +66,7 @@ authorized. Work continues solo. Frontload
 implementation; defer functional execution until remaining in-scope code is complete. Formatting and static checks continue. Commit and push completed batches;
 refresh the PR overview at least every 20 commits.
 
-[Revision-oracle implementation](contracts/revision-oracle.md) (#1528) adds exact support edits, independent closed-model checks, rebuild parity and bounded minimization. Runtime and broader adapters remain pending. CI2296 passes the front gate; platform failures exposed a stale operation-index reader version, shadowed cache-copy state, missing native answer disposition and eager transport imports. Source repairs await targeted checks.
+[Revision oracles](contracts/revision-oracle.md) (#1528) add exact support edits, independent checks, rebuild parity and bounded minimization. [Finite joins](contracts/relational-join.md) (#1516) add original parent multiplicities and qualified anti-join absence. Broader adapters/publication and runtime checks remain pending. CI2296 passes the front gate; source repairs address its stale reader version, shadowed cache-copy state, missing native disposition and eager transport imports.
 
 Earlier solo source batches repaired exact embedding/cache identities, sparse Boolean
 completion and execution-qualified result reuse, offsets/bitmap/signed ranking,

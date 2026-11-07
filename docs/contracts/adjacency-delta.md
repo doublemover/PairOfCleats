@@ -52,9 +52,10 @@ Authored, unexecuted fixtures compare repeated additions/removals with independe
 flat bag expansion and clean bootstrap. They cover one-of-many/last support
 deletion, support-only replacement, duplicate/conflicting replay, stale worlds,
 changed rules, unknown-to-present lookups, cancellation, work rejection and
-coefficients above the exact Number range. Joins/anti-joins, arrangements, shared
-publication, spill/checkpoint recovery, cost-based choice and qualified recursion
-remain open issue #1516 obligations. No runtime qualification has been performed.
+coefficients above the exact Number range. The [finite join cohort](relational-join.md)
+adds bounded inner/anti-join composition over these original inputs. General
+arrangements, shared publication, spill/checkpoint recovery, cost-based choice and
+qualified recursion remain open #1516 obligations. Runtime qualification is pending.
 
 Delta validation, digest, coalescing, destination world, completeness and replay
 ledger consume the same private capture. Option getters and the original

@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["simultaneous-join-and-provenance", "anti-join-zero-crossings", "partial-domain-observations", "atomic-cohort-and-replay", "bounded-and-cancelled-cohorts", "independent-bag-oracle"]
+}

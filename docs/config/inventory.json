@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-07T01:11:21.980Z",
+  "generatedAt": "2026-11-07T01:25:07.217Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
@@ -4779,6 +4779,7 @@
         "tests/indexing/semantic/positive-rule-view.test.js",
         "tests/indexing/semantic/prepared-embedded-parent.test.js",
         "tests/indexing/semantic/producer-entry-allocation.test.js",
+        "tests/indexing/semantic/relational-join.test.js",
         "tests/indexing/semantic/validated-family-frontier-order.test.js",
         "tests/indexing/semantic/validated-index-fusion.test.js",
         "tests/indexing/semantic/wasm-flow-policy-construction.test.js",
