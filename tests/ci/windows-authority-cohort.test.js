@@ -16,6 +16,9 @@ const manifest = JSON.parse(fs.readFileSync(path.join(root, 'tests/ci/windows-au
 const required = findWindowsLinkFixtures(root, tests);
 const available = tests.map(test => test.id);
 const ids = validateAuthorityManifest(manifest, available, required);
+const readinessCases = available.filter(id => id.startsWith('tooling/install/bootstrap-readiness/'));
+assert.equal(readinessCases.length, 11);
+assert.ok(readinessCases.every(id => !ids.includes(id)), 'POSIX-only readiness link controls remain portable, not Windows file-link qualification');
 assert.ok(available.includes('workspace/config-contract-matrix'), 'ordinary CI owns portable workspace identity and actual Windows case aliases');
 assert.equal(ids.includes('workspace/config-contract-matrix'), false,
   'workspace identity creates no links and must not require symlink privilege');

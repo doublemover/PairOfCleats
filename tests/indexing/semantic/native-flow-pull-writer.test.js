@@ -29,7 +29,8 @@ const hooks = registerHooks({
       export * from ${JSON.stringify(partitionUrl)};
       export const createSemanticPartitionSink=async options=>{
         const sink=await owner.createSemanticPartitionSink(options),probe=globalThis.nativeFlowSinkProbe;
-        return {...sink,appendBatch:async batch=>{probe.batches++;if(probe.batches===1&&probe.started){probe.started.resolve();await probe.release.promise;}
+        return {...sink,appendBatch:async batch=>{probe.batches++;if(probe.batches===1&&probe.started){
+          probe.pausedBatch={rows:batch.rows.length,encodedBytes:batch.byteCount};probe.started.resolve();await probe.release.promise;}
           if(probe.appendFailure)throw probe.appendFailure;return sink.appendBatch(batch);},
           finalizeSource:async()=>{if(probe.finalizeFailure)throw probe.finalizeFailure;return sink.finalizeSource();}};};` };
     return next(url, context);
@@ -46,6 +47,7 @@ const visit = (error, predicate) => {
   return false;
 };
 const fixture = await createRecoveryFixture('f(1);');
+let pausedSample;
 const originalRemove = fs.rm;
 try {
   const { collectNativeControlFlow } = await import(controlUrl + '?pull-test');
@@ -67,10 +69,35 @@ try {
   assert.equal(probe.construction.stats.constructedRows, constructedAtPause);
   assert.equal(probe.construction.stats.work, workAtPause, 'stalled actual append prevents all further construction');
   assert.equal(admission.used, 16384); assert.equal(probe.construction.stats.livePreparedRows, 1);
+  assert.equal(probe.pausedBatch.rows, 3);
+  assert.ok(Number.isSafeInteger(probe.pausedBatch.encodedBytes) && probe.pausedBatch.encodedBytes > 0
+    && probe.pausedBatch.encodedBytes <= policy.storage.batchBytes);
+  pausedSample = { construction: { ...probe.construction.stats }, constructionReservation: admission.used,
+    queuedWriterReservation: queued.used, pendingBatch: probe.pausedBatch, inputNodes: tree.nodes.length };
   probe.release.resolve(); const completed = await pending;
   assert.ok(completed.partition); assert.equal(completed.coverage.state, 'partial');
   assert.equal(completed.construction.liveLogicalBytes, 0); assert.equal(admission.used, 0); assert.equal(queued.used, 0);
   await validateSemanticPartitions({ store: fixture.store([syntax, completed.partition]), partitions: [syntax, completed.partition] });
+
+  const alternatePolicy = normalizeSemanticConfig({ enabled: true, enrichment: { localFlow: 'eager' },
+    storage: { batchRows: 7, batchBytes: 8192, maxQueuedBytes: 16384 } });
+  alternatePolicy.identity = semanticPolicyIdentities(alternatePolicy);
+  assert.equal(alternatePolicy.identity.analysis, options.policy.identity.analysis, 'row batching changes physical layout, not analysis meaning');
+  assert.notEqual(alternatePolicy.identity.layout, options.policy.identity.layout);
+  globalThis.nativeFlowSinkProbe = { batches: 0 };
+  const alternate = await collectNativeControlFlow({ ...options, policy: alternatePolicy });
+  assert.equal(alternate.partition.partitionId, completed.partition.partitionId);
+  assert.equal(alternate.partition.canonicalHash, completed.partition.canonicalHash);
+  assert.deepEqual(alternate.coverage, completed.coverage);
+  const memberRows = async (descriptor, member) => {
+    const result = [], store = fixture.store([syntax, descriptor]);
+    for await (const row of store.iterateRows(descriptor.partitionId, member)) result.push(row);
+    return result;
+  };
+  for (const member of Object.keys(completed.partition.members))
+    assert.deepEqual(await memberRows(alternate.partition, member), await memberRows(completed.partition, member),
+      'batch3/7 preserve every ordered row, ID, source and evidence reference: ' + member);
+  assert.equal(admission.used, 0); assert.equal(queued.used, 0);
 
   const beforePartialDisk = fixture.account.used, beforePartialDirs = await fixture.partDirectories();
   const heldConstruction = await admission.acquire(NATIVE_FLOW_SHARED_CONSTRUCTION_BYTES);
@@ -120,4 +147,6 @@ try {
   assert.equal(admission.used, 0);
   assert.ok(fixture.account.used >= initialDisk); assert.ok((await fixture.partDirectories()).length >= initialDirectories.length);
 } finally { fs.rm = originalRemove; delete globalThis.nativeFlowSinkProbe; hooks.deregister(); await fixture.cleanup(); }
+console.log(JSON.stringify({ nativeFlowPausedWriterSample: pausedSample,
+  units: 'logical construction reservation and encoded writer batch bytes; parser/tree/anchor storage is separate' }));
 console.log('Actual native flow writer backpressures construction and drains staging/leases on partial budget, cancellation and sink failures.');

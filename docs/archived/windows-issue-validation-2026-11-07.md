@@ -7,12 +7,14 @@ code blobs, original failures, per-case outcomes, report hashes and remaining
 scope. Earlier observations retain their source state; this is not a final-tree
 full-suite result.
 
-Through the storage, source-oracle and next tooling cohorts, the latest836
-observations are829 passes, six failed published-index cases and one Linux-only exclusion.
+Through the next indexing and tooling cohorts, the latest1380
+observations are1374 passes, five failed published-index cases and one Linux-only exclusion.
 No runner timeout or native crash is observed. The failed cases include actual
 25-second operation-deadline exhaustion; they are not accepted or omitted.
-The complete publication gate passes again on the recorded repaired code blobs,
-including44/44 cases. Its initial documentation failure was a missing explicit
+The publication commands pass. The gate initially passes43/44; its failed
+Windows authority inventory check requires the exact eleven portable replacement
+IDs after the readiness split. Its focused recheck qualifies that owner; the other
+43 cases retain their passing source observations. Its initial documentation failure was a missing explicit
 roadmap reconciliation label; the matching date label is restored and freshness
 passes without changing the drift assertion.
 
@@ -23,7 +25,7 @@ log contains zero warning/error lines. Runtime lifecycle and vendor qualificatio
 are separate checks.
 
 The initial refreshed census contains353 open issues. Changed fixtures and the existing
-checks named by those issues produce an explicit2,155-case candidate inventory.
+checks named by those issues produce an explicit2,165-case candidate inventory after the readiness partition.
 Test selection is not full issue acceptance: original requirements, performance
 evidence and external/editor remainders are reviewed individually.
 
@@ -88,8 +90,9 @@ Trace parity now requires the actual one-statement page and both current related
 endpoint indexes; complete artifact/SQLite, pagination, corruption and cancellation
 checks pass. Optional sqlite-vec is excluded from this acceptance target.
 
-**#1701/#1597:** full source/follow-up review and their focused matrices support
-closure after publication. Native manifest intake proves early logical-byte
+**#1701/#1597:** full source/follow-up review and their focused matrices qualify
+both issues. Source `5be405ff5ea0a383f50ab1db5ab6d0581c721cac` is pushed;
+GitHub readback confirms both closed as completed. Native manifest intake proves early logical-byte
 rejection, exact Unicode boundaries, independent canonical identities and retained
 world/runtime/artifact/layout negatives. Provider merge measures2/4/8 sources in
 one/two groups: preparations1/1/1/2, rows6/12/24/24 and decoded logical JSON
@@ -103,7 +106,8 @@ insufficient whole-run admission for multiple fresh processes. Profile v2 keeps
 the normal Tree-sitter publication route, canonical CLI and exact identities;
 direct AST export kinds remain unchanged. Structured progress retains info while
 refusing warning/error levels and failed statuses. Nine preflight/direct-source
-controls pass. The six real published-index cases remain unqualified; the original
+controls pass. The original-world recheck now passes after a circular disposal-guard repair;
+five real published-index cases remain unqualified; the original
 25/30-second bounds remain unchanged. A separate single-build CPU diagnostic
 exits0 in11.684 seconds and is not acceptance evidence. Useful bounded execution,
 current v2 comparisons and classification of tiny-index validation warnings remain.
@@ -125,9 +129,10 @@ Broader quota application (#1267), package/build closures (#1559), TS7.1 consume
 migration (#1155), live/spilled semantic maintenance (#1516), broader revision
 oracles (#1528), remaining candidate cohorts and issue-specific runtime/performance
 qualification are incomplete. Editor work and Tantivy native qualification retain
-their user exclusions. Six partial issues (#1187/#1267/#1559/#1155/#1516/#1528)
-have current implementation/evidence/gap summaries with verified GitHub readback.
-A fresh post-closure census confirms352 open IDs and excludes #131.
+their user exclusions. Nine partial issues (#1187/#1267/#1559/#1155/#1516/#1528/
+#1739/#1697/#1765) have current implementation/evidence/gap summaries with
+verified GitHub readback.
+A fresh post-closure census confirms350 open IDs and excludes #131/#1597/#1701.
 
 Raw `.tmp/tasks/validation-20261107/` logs are author-workspace receipts. Their
 hashes and results are preserved here; clean checkouts are not expected to contain
@@ -140,3 +145,55 @@ The official Windows embeddable archive was verified against Python.org's SHA256
 and expanded under this task's temporary root. Selecting it for the check repairs
 the environment without changing the machine's Python, PATH or security settings.
 Generated freshness, command surface and workflow contracts then pass unchanged.
+
+## Current follow-up repair batch
+
+The next three cohorts pass81/82,89/90 and87/90 before repairs. The readiness
+timeout is an oversized aggregate: eleven independent fresh-process cases retain
+all36 denial and36 prepared-entry assertions, information/library behavior, native
+activation and policy/patch/ABI negatives. Every replacement passes under30 seconds;
+ordered-lane and script-governance inventories remain complete. Original failures
+are retained, not converted to passes.
+
+Managed operational verification lost the private scratch-recovery association when
+wrapping a pending failure. The wrapper now retains the actual WeakMap capability;
+public lookalike fields grant no release authority. The original reuse/update fixture
+and36 surrounding original-observation controls pass.
+
+Confidence replay now admits numeric scores only from current, fresh component
+evidence. Obsolete observations remain unknown history; current measured zero,
+stale evidence and forged components stay discriminating controls. The strict
+throughput schema now matches existing report/comparison3 and input2, preserving
+unknown-field, version, scope and count rejection. Tooling then passes75/76 before
+the schema repair and its focused recheck passes.
+
+The next indexing cohort passes99/100. Its repaired native-config fixture explicitly
+selects YAML top-level mode, distinguishes document ownership from native sections,
+retains XML source gaps, and requires all four native grammar routes. Focused
+YAML/XML and metadata checks pass; unavailable routes cannot silently pass.
+
+A published-index disposal refusal was recorded as an external prerequisite for the
+very recheck it awaited. Only this owner's actual refusal is privately branded, so
+the recheck can finish while foreign reader observations stay binding. The real
+original-world regression passes in25.2 seconds. The pending-reader case still
+exceeds its25-second operation admission locally; no deadline/retry is relaxed.
+
+Native-flow qualification retains six1x/2x/4x flat/many-function samples. Logical
+construction high water stays33,368 bytes while produced rows grow; unavoidable
+parser/anchor state is separate. An actual paused three-row writer batch encodes748
+bytes and stops further construction. Batch sizes3/7 preserve every ordered row,
+ID, source/evidence reference, coverage and canonical hash. All four native-flow
+ownership/abort/partial/append/finalize cases pass; #1682 awaits publication.
+
+Hosted run42393104073 at5be405ff passes gate, Rust, Windows authority, all three
+native-inspection jobs, and Windows native indexing22/22 plus API7 vendor7/7.
+General jobs fail: Windows5 revision cases, macOS1 circular-guard case, Ubuntu
+that guard plus2 memory-encoded child failures. Both encoded cases pass locally;
+failure output now retains the child signal/error. Hosted qualification remains
+incomplete. No local Linux/WSL execution occurred.
+
+Four additional issues (#1214/#1272/#1139/#1148) have readback-verified current
+implementation/proof gaps. The ordinary bootstrap banner still loses typed recovery
+actions (#1272); compressed word handles remain unimplemented (#1139); JSONL
+reference-process lifecycle/type-consumer qualification remains (#1148). They stay
+open even where adjacent starting checks pass.

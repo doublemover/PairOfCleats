@@ -19,7 +19,9 @@
     1252,
     1242,
     1212,
-    131
+    131,
+    1597,
+    1701
   ],
   "scope": "All open issues except user-excluded editor work and native Tantivy; mixed issues retain their non-editor scope",
   "routing": "Initial grouping by issue scope and recorded source owners; source-review-pending is not an implementation or acceptance claim",
@@ -1202,8 +1204,8 @@
       "title": "Migrate structured TypeScript semantics to the TS7.1 API with snapshot and disposal safety",
       "batch": "language-and-semantic-consumers",
       "scope": "active",
-      "review": "source-review-pending",
-      "recordedDisposition": "Implementation or accepted completion remains to be established.",
+      "review": "implementation-partial",
+      "recordedDisposition": "All25 component/contract/actual Windows API7 cases pass with producer2. Existing compiler-consumer migration and stable promotion remain. Current GitHub status updated and readback verified at 5be405ff5ea0a383f50ab1db5ab6d0581c721cac.",
       "owners": [
         "src/lang/typescript/syntax-context.js",
         "src/index/tooling/typescript-provider.js",
@@ -4472,8 +4474,8 @@
       "title": "Add cross-revision mutation and independent semantic/index oracle qualification",
       "batch": "retrieval-performance-and-evaluation",
       "scope": "active",
-      "review": "source-review-pending",
-      "recordedDisposition": "Implementation or accepted completion remains to be established.",
+      "review": "implementation-partial",
+      "recordedDisposition": "Direct/suggestion/relational and async minimizer controls pass. Six real published-index cases remain unqualified within original25-second operations; v2 contract repairs recorded. Current GitHub status updated and readback verified at 5be405ff5ea0a383f50ab1db5ab6d0581c721cac.",
       "owners": [
         "tools/eval/risk-pack.js",
         "src/graph/suggest-tests.js",
@@ -4863,8 +4865,8 @@
       "title": "[Perf] Prepare semantic provider merge inventories once per immutable batch",
       "batch": "retrieval-performance-and-evaluation",
       "scope": "active",
-      "review": "source-review-pending",
-      "recordedDisposition": "Implementation recorded; qualification pending.",
+      "review": "qualified-and-closed",
+      "recordedDisposition": "Full original/follow-up acceptance, focused cases and complete publication gate qualified at 5be405ff5ea0a383f50ab1db5ab6d0581c721cac; GitHub CLOSED/COMPLETED and body readback verified.",
       "owners": [
         "src/index/semantic/merge-provider.js",
         "src/semantic/artifact-store.js",
@@ -5239,7 +5241,7 @@
       "batch": "retrieval-performance-and-evaluation",
       "scope": "active",
       "review": "implementation-partial",
-      "recordedDisposition": "Operation-owned prepared lexical models and exact UTF8 overlay preflight implemented; independent base/overlay identities and bounded work accounting retained. Static review and runtime qualification pending.",
+      "recordedDisposition": "Existing lexical binding/rename correctness passes; independent preparation/lookup/assembly scaling and preconstruction byte-bound matrix remain. Current GitHub status updated and readback verified at 5be405ff5ea0a383f50ab1db5ab6d0581c721cac.",
       "owners": [
         "src/semantic/retained-lexical-rename.js",
         "src/index/semantic/reference-repair/lexical-rename.js",
@@ -5268,8 +5270,8 @@
       "title": "[Perf] Enforce native bridge manifest byte admission before full canonical expansion",
       "batch": "retrieval-performance-and-evaluation",
       "scope": "active",
-      "review": "source-review-pending",
-      "recordedDisposition": "Implementation recorded; qualification pending.",
+      "review": "qualified-and-closed",
+      "recordedDisposition": "Full original/follow-up acceptance, focused cases and complete publication gate qualified at 5be405ff5ea0a383f50ab1db5ab6d0581c721cac; GitHub CLOSED/COMPLETED and body readback verified.",
       "owners": [
         "src/index/semantic/boundaries/native-manifest.js",
         "src/semantic/native-boundary.js",
@@ -5388,8 +5390,8 @@
       "title": "[Perf] Scan only new JSONL fragments instead of rescanning each growing long-row prefix",
       "batch": "retrieval-performance-and-evaluation",
       "scope": "active",
-      "review": "source-review-pending",
-      "recordedDisposition": "Implementation recorded; qualification pending.",
+      "review": "implementation-partial",
+      "recordedDisposition": "Framing correctness and exact linear delimiter/join work pass through16MiB rows. Plain/compressed equal-byte latency/CPU/peak-memory qualification remains. Current GitHub status updated and readback verified at 5be405ff5ea0a383f50ab1db5ab6d0581c721cac.",
       "owners": [
         "src/shared/artifact-io/json/line-scan.js",
         "src/shared/artifact-io/json/read-jsonl-stream.js",
@@ -5403,8 +5405,8 @@
       "title": "[Architecture] Share bounded original-settlement observation policy without merging resource authority",
       "batch": "operator-native-services-and-contracts",
       "scope": "active",
-      "review": "source-review-pending",
-      "recordedDisposition": "see-current-issue",
+      "review": "implementation-partial",
+      "recordedDisposition": "All eight ledger/real directory-transfer recovery cases and broader148 shared-storage controls pass. Healthy/capture/refresh cost qualification remains. Current GitHub status updated and readback verified at 5be405ff5ea0a383f50ab1db5ab6d0581c721cac.",
       "owners": [
         "src/shared/storage/directory.js",
         "src/shared/storage/transfer.js",
@@ -5444,8 +5446,8 @@
   ],
   "liveReconciliation": {
     "date": "2026-11-07",
-    "openCount": 352,
-    "closedAfterCapture": 15,
-    "method": "Fresh complete353-ID census, followed by source-qualified#131 closure and GitHub state/body readback; fresh complete352-ID post-closure census confirms its removal."
+    "openCount": 350,
+    "closedAfterCapture": 17,
+    "method": "Fresh complete350-ID census after source-qualified#131/#1597/#1701 closures; GitHub state and body readback verified."
   }
 }

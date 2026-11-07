@@ -8,7 +8,7 @@ Canonical for: initiative status, execution order, and remaining work
 
 ## Current GitHub repair program
 
-The [complete intake](archived/open-issue-batches-2026-11-05.json) captures367 reports. Fifteen closures are verified, including #131's hydrated-risk budget acceptance. Current reconciliation, 2026-11-07: **352 open issues**. Thirteen editor/Tantivy-only reports are excluded; four mixed issues retain non-editor scope.
+The [complete intake](archived/open-issue-batches-2026-11-05.json) captures367 reports. Seventeen closures are verified, including #131/#1597/#1701. Current reconciliation, 2026-11-07: **350 open issues**. Thirteen editor/Tantivy-only reports are excluded; four mixed issues retain non-editor scope.
 
 P2/P3: **337 qualified closures**, two editor remainders, one native deferral and six editor exclusions from346 reports. Work continues solo on Windows: implement related repairs, then verify affected controls.
 

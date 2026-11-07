@@ -28,7 +28,7 @@ assert.equal(tiny.coverage.completedCount, 4);
 assert.ok(tinyRows.filter(entry => entry.family === 'edge').every(entry => entry.row.certainty === 'modeled'));
 tiny.construction.dispose(); assert.equal(tiny.construction.stats.liveLogicalBytes, 0);
 
-const peaks = [];
+const peaks = [], workSamples = [];
 for (const statements of [16, 32, 64]) {
   const tree = createNativeFlowTree({ statements }), operation = create(tree);
   const first = operation.iterator.next(); assert.equal(first.value.row.kind, 'evidence');
@@ -42,6 +42,8 @@ for (const statements of [16, 32, 64]) {
   assert.equal(operation.construction.stats.peakPreparedRows, 1);
   assert.equal(operation.construction.stats.liveFrames, 0);
   peaks.push(operation.construction.stats.peakLogicalBytes);
+  workSamples.push({ shape: 'flat', statements, functions: 1, inputNodes: tree.nodes.length,
+    stats: { ...operation.construction.stats } });
   operation.construction.dispose(); assert.equal(operation.construction.stats.liveLogicalBytes, 0);
 }
 assert.equal(new Set(peaks).size, 1, 'flat width does not retain a file-wide derived row array');
@@ -71,10 +73,12 @@ while (pending.length) {
 assert.equal(reached.has(blockFor(dead)), false, 'return does not fall through to the already emitted dead block');
 structured.construction.dispose(); assert.equal(structured.construction.stats.liveLogicalBytes, 0);
 for (const functions of [1, 2, 4]) {
-  const operation = create(createNativeFlowTree({ statements: 8, functions }));
+  const tree = createNativeFlowTree({ statements: 8, functions }), operation = create(tree);
   const rows = [...operation.iterator];
   assert.equal(rows.filter(entry => entry.family === 'node' && entry.row.data.blockKind === 'entry').length, functions);
   assert.ok(operation.construction.stats.peakFrames <= 2); assert.equal(operation.construction.stats.peakPreparedRows, 1);
+  workSamples.push({ shape: 'many-functions', statements: 8, functions, inputNodes: tree.nodes.length,
+    stats: { ...operation.construction.stats } });
   operation.construction.dispose(); assert.equal(operation.construction.stats.liveLogicalBytes, 0);
 }
 for (const options of [{ maxBytes: 384 }, { maxWork: 4 }]) {
@@ -90,4 +94,6 @@ cancelled.construction.dispose(); assert.equal(cancelled.construction.stats.live
 const prepared = prepareSemanticBatchEntry({ family: 'coverage', row: { value: 'λ😀' } });
 assert.equal(prepareSemanticBatchEntry(prepared, { maxBytes: semanticBatchEntryBytes(prepared) }), prepared);
 assert.throws(() => prepareSemanticBatchEntry(prepared, { maxBytes: semanticBatchEntryBytes(prepared) - 1 }), { code: 'ERR_SEMANTIC_JSON_BUDGET' });
+console.log(JSON.stringify({ nativeFlowConstructionSamples: workSamples,
+  units: 'logical reserved construction bytes/frames/current prepared row; inputNodes identifies separate fixture tree/anchor growth; no heap/RSS claim' }));
 console.log('Native flow pull construction preserves tiny IDs/edges and constant live output width; low limits and abort release owned frames.');

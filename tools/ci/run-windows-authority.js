@@ -13,7 +13,19 @@ const { spawnSubprocess, spawnSubprocessSync } = await import('../../src/shared/
 const { isDirectExecution } = await import('../../src/shared/direct-execution.js');
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const portableLinkExclusions = new Set([
-  'tooling/install/bootstrap-readiness', // Its link branch is POSIX-only.
+  // The readiness source's only physical link branch is POSIX-only. Keep the
+  // partition inventory explicit so future link cases still require review.
+  'tooling/install/bootstrap-readiness/information-and-library-guard',
+  'tooling/install/bootstrap-readiness/entry-denial-core',
+  'tooling/install/bootstrap-readiness/entry-denial-index-first',
+  'tooling/install/bootstrap-readiness/entry-denial-index-second',
+  'tooling/install/bootstrap-readiness/entry-denial-sqlite',
+  'tooling/install/bootstrap-readiness/entry-admission-core',
+  'tooling/install/bootstrap-readiness/entry-admission-index-first',
+  'tooling/install/bootstrap-readiness/entry-admission-index-second',
+  'tooling/install/bootstrap-readiness/entry-admission-sqlite',
+  'tooling/install/bootstrap-readiness/native-activation-and-integrity',
+  'tooling/install/bootstrap-readiness/policy-patch-and-abi-drift',
   'tooling/ci/lsp-runtime-artifact-admission', // Stock PHPactor is POSIX-only; Windows asserts unsupported before opening bytes.
   'indexing/semantic/native-deferred-production', // Linux ELF qualification.
   'indexing/semantic/native-task-authority' // Linux ELF qualification.

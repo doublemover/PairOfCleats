@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "cases": [
+    "information-and-library-guard",
+    "entry-denial-core",
+    "entry-denial-index-first",
+    "entry-denial-index-second",
+    "entry-denial-sqlite",
+    "entry-admission-core",
+    "entry-admission-index-first",
+    "entry-admission-index-second",
+    "entry-admission-sqlite",
+    "native-activation-and-integrity",
+    "policy-patch-and-abi-drift"
+  ]
+}

@@ -2,6 +2,16 @@
   "schemaVersion": 1,
   "suites": [
     {
+      "id": "tooling/install/bootstrap-readiness",
+      "suiteCategory": "matrix",
+      "coverageOwner": "Dependency-free readiness information/library refusal, every guarded executable's denial/admission, native activation/integrity and policy/patch/ABI drift.",
+      "replacementIds": [],
+      "overlapPolicy": "partitioned-existing-assertions",
+      "matrixStrategy": "bounded-fresh-process-cohorts",
+      "processIsolationRequired": true,
+      "notes": "Replaces the timed-out aggregate execution with eleven bounded cases in the same physical fixture. Core/index-first/index-second/sqlite groups assert exhaustive entry inventory equality; both denial and admission retain every original executable. Native and policy mutations retain their own prepared fixture and original negatives. No deadline or entry guard is relaxed."
+    },
+    {
       "id": "lang/contracts/language-fixture-contracts",
       "suiteCategory": "matrix",
       "coverageOwner": "Shared language-fixture docmeta contract coverage for Go, JavaScript, Python, SQL, and TypeScript.",
