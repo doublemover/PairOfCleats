@@ -64,7 +64,9 @@ if (mode === 'constructor-presence') {
         }).then(() => assert.fail('Expected original cleanup failure'), error => error);
         assert.equal(closed, true); assert.equal(fixture.calls, 1); assert.equal(error.code, 'ABORT_ERR');
         assert.equal(error.result.termination.treeCleanupSettled, true); assert.equal(error.result.termination.treeCleanupFailed, true);
+        assert.ok(error instanceof SubprocessAbortError, 'tree failure preserves the original subprocess error contract');
         assert.equal(error.treeCleanupError, original); assert.equal(errorGraphIncludes(error, original), true);
+        assert.deepEqual(error.errors, [original]); assert.equal(Object.isFrozen(error.errors), true);
         assert.equal(errorGraphIncludes(error, 'original abort'), true, 'independent primary and cleanup causes both survive');
         assert.equal(error.cacheOwnershipPending, true); assert.equal(error.cacheOwnershipReleased(), false);
         error.result.termination.treeCleanupFailed = false;

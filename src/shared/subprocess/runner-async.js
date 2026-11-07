@@ -2,7 +2,6 @@ import { spawn } from 'node:child_process';
 import { StringDecoder } from 'node:string_decoder';
 import { killChildProcessTree } from '../kill-tree.js';
 import { createSignalAbortError, isAbortSignal } from '../abort.js';
-import { addStorageFailureContext } from '../storage/operation-error.js';
 import {
   DEFAULT_MAX_OUTPUT_BYTES,
   SHELL_MODE_DISABLED_ERROR,
@@ -107,9 +106,17 @@ const terminateAndRejectFactory = ({
     closeObserved, closeTimedOut: !closeObserved, waitMs: timeoutAbortReapWaitMs,
     treeCleanupSettled: true, treeCleanupFailed,
     treeCleanupForced: treeCleanupResult?.forced ?? null };
-  let error = createError(result);
-  if (treeCleanupFailed) error = addStorageFailureContext(error, { treeCleanupError }, treeCleanupError,
-    { secondaryPresent: true, nonEnumerable: ['treeCleanupError'] });
+  const error = createError(result);
+  if (treeCleanupFailed) {
+    // These are fresh subprocess errors owned here. Retain the original tree
+    // failure without importing storage-specific annotation into every launch
+    // or replacing the subprocess class, result or cancellation cause. The
+    // immutable pending observer below independently fences failed tree cleanup.
+    Object.defineProperties(error, {
+      treeCleanupError: { value: treeCleanupError },
+      errors: { value: Object.freeze([treeCleanupError]) }
+    });
+  }
   if (!closeObserved || treeCleanupFailed) {
     // This closure belongs to this exact spawned handle. A delayed actual close
     // may reconcile missing-close evidence; a rejected tree cleanup cannot.
