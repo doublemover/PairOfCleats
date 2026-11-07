@@ -2745,6 +2745,8 @@ tooling/install/bootstrap-verification-generation/journal-identity-and-completio
 tooling/install/bootstrap-verification-generation/journal-frame-integrity
 tooling/install/checkout-stage-journal/prior-readiness-preserved-before-mutation
 tooling/install/checkout-stage-journal/prior-readiness-byte-bound
+tooling/install/checkout-inspection-replacement/receipt
+tooling/install/checkout-inspection-replacement/journal
 tooling/install/checkout-recovery/intact-repeat-and-journal-recovery
 tooling/install/checkout-recovery/installed-unverified-targeted-repair
 tooling/install/checkout-recovery/source-versus-patch-drift

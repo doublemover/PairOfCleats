@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 3052,
+    "hero": 3054,
     "matrix": 110,
     "meta": 55,
     "soak": 1,
@@ -16469,2858 +16469,2870 @@
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/checkout-recovery/intact-repeat-and-journal-recovery",
+      "id": "tooling/install/checkout-inspection-replacement/receipt",
       "order": 2743,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/checkout-recovery/installed-unverified-targeted-repair",
+      "id": "tooling/install/checkout-inspection-replacement/journal",
       "order": 2744,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/checkout-recovery/source-versus-patch-drift",
+      "id": "tooling/install/checkout-recovery/intact-repeat-and-journal-recovery",
       "order": 2745,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/checkout-recovery/locked-version-and-missing-dependency",
+      "id": "tooling/install/checkout-recovery/installed-unverified-targeted-repair",
       "order": 2746,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/checkout-recovery/lock-declarations-and-bounds",
+      "id": "tooling/install/checkout-recovery/source-versus-patch-drift",
       "order": 2747,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/checkout-recovery/original-owner-and-runtime-blockers",
+      "id": "tooling/install/checkout-recovery/locked-version-and-missing-dependency",
       "order": 2748,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/checkout-recovery/native-artifact-drift-and-no-false-readiness",
+      "id": "tooling/install/checkout-recovery/lock-declarations-and-bounds",
       "order": 2749,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/native-rebuild-import/locked-dependency-admission",
+      "id": "tooling/install/checkout-recovery/original-owner-and-runtime-blockers",
       "order": 2750,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/native-realm-command/bounded-original-request",
+      "id": "tooling/install/checkout-recovery/native-artifact-drift-and-no-false-readiness",
       "order": 2751,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/native-realm-command/status-and-marker-contract",
+      "id": "tooling/install/native-rebuild-import/locked-dependency-admission",
       "order": 2752,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/native-realm-command/original-failures",
+      "id": "tooling/install/native-realm-command/bounded-original-request",
       "order": 2753,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/native-realm-command/shared-cancellation",
+      "id": "tooling/install/native-realm-command/status-and-marker-contract",
       "order": 2754,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/native-realm-command/hidden-owned-probes",
+      "id": "tooling/install/native-realm-command/original-failures",
       "order": 2755,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/native-realm-command/all-probe-original-admission",
+      "id": "tooling/install/native-realm-command/shared-cancellation",
       "order": 2756,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/sqlite-promotion-probe-owner/original-probe-rejection-and-rollback",
+      "id": "tooling/install/native-realm-command/hidden-owned-probes",
       "order": 2757,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/sqlite-promotion-probe-owner/pending-probe-defers-rollback",
+      "id": "tooling/install/native-realm-command/all-probe-original-admission",
       "order": 2758,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/checkout-evidence-files/original-closed-file",
+      "id": "tooling/install/sqlite-promotion-probe-owner/original-probe-rejection-and-rollback",
       "order": 2759,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/checkout-evidence-files/held-descriptor-retains-root",
+      "id": "tooling/install/sqlite-promotion-probe-owner/pending-probe-defers-rollback",
       "order": 2760,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/checkout-evidence-files/original-path-and-link-admission",
+      "id": "tooling/install/checkout-evidence-files/original-closed-file",
       "order": 2761,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/checkout-evidence-files/unknown-open-retains-root",
+      "id": "tooling/install/checkout-evidence-files/held-descriptor-retains-root",
       "order": 2762,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/checkout-evidence-files/changed-parent-closes-original-descriptor",
+      "id": "tooling/install/checkout-evidence-files/original-path-and-link-admission",
       "order": 2763,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/native-diagnostic-ownership/handled-live-child-retains-root",
+      "id": "tooling/install/checkout-evidence-files/unknown-open-retains-root",
       "order": 2764,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/checkout-stage-journal/durable-start-before-borrowed-work",
+      "id": "tooling/install/checkout-evidence-files/changed-parent-closes-original-descriptor",
       "order": 2765,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/checkout-stage-journal/whole-owner-publication-drain",
+      "id": "tooling/install/native-diagnostic-ownership/handled-live-child-retains-root",
       "order": 2766,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/checkout-stage-journal/closed-owner-rejects-borrowed-work",
+      "id": "tooling/install/checkout-stage-journal/durable-start-before-borrowed-work",
       "order": 2767,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/checkout-stage-journal/captured-plan-and-io-provider",
+      "id": "tooling/install/checkout-stage-journal/whole-owner-publication-drain",
       "order": 2768,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/native-diagnostic-ownership/original-io-provider-capture",
+      "id": "tooling/install/checkout-stage-journal/closed-owner-rejects-borrowed-work",
       "order": 2769,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/native-diagnostic-ownership/checkout-wide-storage-budget",
+      "id": "tooling/install/checkout-stage-journal/captured-plan-and-io-provider",
       "order": 2770,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/native-diagnostic-ownership/checkout-wide-attempt-budget",
+      "id": "tooling/install/native-diagnostic-ownership/original-io-provider-capture",
       "order": 2771,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/native-diagnostic-ownership/checkout-wide-short-write-accounting",
+      "id": "tooling/install/native-diagnostic-ownership/checkout-wide-storage-budget",
       "order": 2772,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/checkout-evidence-retention/original-closed-manifest",
+      "id": "tooling/install/native-diagnostic-ownership/checkout-wide-attempt-budget",
       "order": 2773,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/checkout-evidence-retention/recent-failed-and-readiness-retention",
+      "id": "tooling/install/native-diagnostic-ownership/checkout-wide-short-write-accounting",
       "order": 2774,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/checkout-evidence-retention/unregistered-membership-protected",
+      "id": "tooling/install/checkout-evidence-retention/original-closed-manifest",
       "order": 2775,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/checkout-evidence-retention/replaced-file-protected",
+      "id": "tooling/install/checkout-evidence-retention/recent-failed-and-readiness-retention",
       "order": 2776,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/checkout-evidence-retention/protected-quota-before-mutation",
+      "id": "tooling/install/checkout-evidence-retention/unregistered-membership-protected",
       "order": 2777,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/checkout-evidence-retention/producer-byte-proof-required",
+      "id": "tooling/install/checkout-evidence-retention/replaced-file-protected",
       "order": 2778,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/checkout-evidence-retention/single-journal-per-original-session",
+      "id": "tooling/install/checkout-evidence-retention/protected-quota-before-mutation",
       "order": 2779,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/native-diagnostic-ownership/whole-publication-scope-drain",
+      "id": "tooling/install/checkout-evidence-retention/producer-byte-proof-required",
       "order": 2780,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/checkout-evidence-retention/pending-diagnostic-blocks-completed-status",
+      "id": "tooling/install/checkout-evidence-retention/single-journal-per-original-session",
       "order": 2781,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/bootstrap-status-output/real-completion-and-provider-capture",
+      "id": "tooling/install/native-diagnostic-ownership/whole-publication-scope-drain",
       "order": 2782,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/bootstrap-status-output/real-broken-pipe-task-drain",
+      "id": "tooling/install/checkout-evidence-retention/pending-diagnostic-blocks-completed-status",
       "order": 2783,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/bootstrap-status-output/timeout-original-checkout-retirement",
+      "id": "tooling/install/bootstrap-status-output/real-completion-and-provider-capture",
       "order": 2784,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/bootstrap-status-output/bounded-shared-transport",
+      "id": "tooling/install/bootstrap-status-output/real-broken-pipe-task-drain",
       "order": 2785,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/checkout-bootstrap-entry/original-progress-before-mutation",
+      "id": "tooling/install/bootstrap-status-output/timeout-original-checkout-retirement",
       "order": 2786,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/bootstrap-status-output/checkout-observer-aggregation",
+      "id": "tooling/install/bootstrap-status-output/bounded-shared-transport",
       "order": 2787,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/bootstrap-summary-output/independent-domain-and-transport-failures",
+      "id": "tooling/install/checkout-bootstrap-entry/original-progress-before-mutation",
       "order": 2788,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/bootstrap-summary-output/failed-transport-stops-admission",
+      "id": "tooling/install/bootstrap-status-output/checkout-observer-aggregation",
       "order": 2789,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/bootstrap-summary-output/human-projection-and-raw-byte-parity",
+      "id": "tooling/install/bootstrap-summary-output/independent-domain-and-transport-failures",
       "order": 2790,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/bootstrap-summary-output/raw-buffer-captured-before-admission",
+      "id": "tooling/install/bootstrap-summary-output/failed-transport-stops-admission",
       "order": 2791,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/patch-summary-settlement/original-callback-after-publication",
+      "id": "tooling/install/bootstrap-summary-output/human-projection-and-raw-byte-parity",
       "order": 2792,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/patch-summary-settlement/independent-publication-and-logging-failures",
+      "id": "tooling/install/bootstrap-summary-output/raw-buffer-captured-before-admission",
       "order": 2793,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/checkout-command-evidence/real-command-bytes-and-terminal-status",
+      "id": "tooling/install/patch-summary-settlement/original-callback-after-publication",
       "order": 2794,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/checkout-command-evidence/late-cancellation-keeps-original-result",
+      "id": "tooling/install/patch-summary-settlement/independent-publication-and-logging-failures",
       "order": 2795,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/checkout-command-evidence/spawn-error-keeps-original-packet",
+      "id": "tooling/install/checkout-command-evidence/real-command-bytes-and-terminal-status",
       "order": 2796,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/checkout-command-evidence/canonical-command-stage-owned-evidence",
+      "id": "tooling/install/checkout-command-evidence/late-cancellation-keeps-original-result",
       "order": 2797,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/checkout-command-evidence/annotated-diagnostic-failure-stays-terminal",
+      "id": "tooling/install/checkout-command-evidence/spawn-error-keeps-original-packet",
       "order": 2798,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/checkout-response-output/large-json-and-help-byte-parity",
+      "id": "tooling/install/checkout-command-evidence/canonical-command-stage-owned-evidence",
       "order": 2799,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/checkout-response-output/original-full-text-scope-and-provider",
+      "id": "tooling/install/checkout-command-evidence/annotated-diagnostic-failure-stays-terminal",
       "order": 2800,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/checkout-response-output/closed-stdout-cli-failure",
+      "id": "tooling/install/checkout-response-output/large-json-and-help-byte-parity",
       "order": 2801,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/eval/directional-query-adapter/identity-and-byte-export",
+      "id": "tooling/install/checkout-response-output/original-full-text-scope-and-provider",
       "order": 2802,
       "suiteCategory": "hero",
-      "suiteCategoryReason": "default-standalone-behavior"
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/eval/directional-query-adapter/independent-dense-reference",
+      "id": "tooling/install/checkout-response-output/closed-stdout-cli-failure",
       "order": 2803,
       "suiteCategory": "hero",
-      "suiteCategoryReason": "default-standalone-behavior"
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/eval/directional-query-adapter/directional-contract-rejection",
+      "id": "tooling/eval/directional-query-adapter/identity-and-byte-export",
       "order": 2804,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/eval/directional-query-adapter/factor-integrity-and-numerical-failures",
+      "id": "tooling/eval/directional-query-adapter/independent-dense-reference",
       "order": 2805,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/eval/directional-query-adapter/private-ownership-and-retirement",
+      "id": "tooling/eval/directional-query-adapter/directional-contract-rejection",
       "order": 2806,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/eval/retrieval-training-cohort/stable-source-pinned-tuples",
+      "id": "tooling/eval/directional-query-adapter/factor-integrity-and-numerical-failures",
       "order": 2807,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/eval/retrieval-training-cohort/positive-alternatives-and-conflicts",
+      "id": "tooling/eval/directional-query-adapter/private-ownership-and-retirement",
       "order": 2808,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/eval/retrieval-training-cohort/held-out-and-stale-authority",
+      "id": "tooling/eval/retrieval-training-cohort/stable-source-pinned-tuples",
       "order": 2809,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/eval/retrieval-training-cohort/query-specific-queue-masks",
+      "id": "tooling/eval/retrieval-training-cohort/positive-alternatives-and-conflicts",
       "order": 2810,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/eval/retrieval-training-cohort/zero-weight-and-missing-negative",
+      "id": "tooling/eval/retrieval-training-cohort/held-out-and-stale-authority",
       "order": 2811,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/eval/retrieval-training-cohort/original-task-retirement",
+      "id": "tooling/eval/retrieval-training-cohort/query-specific-queue-masks",
       "order": 2812,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/eval/masked-contrastive-objective/named-objectives-and-independent-gradients",
+      "id": "tooling/eval/retrieval-training-cohort/zero-weight-and-missing-negative",
       "order": 2813,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/eval/masked-contrastive-objective/stable-temperature-and-masked-queues",
+      "id": "tooling/eval/retrieval-training-cohort/original-task-retirement",
       "order": 2814,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/eval/masked-contrastive-objective/missing-negative-skips-term",
+      "id": "tooling/eval/masked-contrastive-objective/named-objectives-and-independent-gradients",
       "order": 2815,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/eval/retrieval-training/frozen-vector-binding",
+      "id": "tooling/eval/masked-contrastive-objective/stable-temperature-and-masked-queues",
       "order": 2816,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/eval/retrieval-training/first-gradient-and-export-parity",
+      "id": "tooling/eval/masked-contrastive-objective/missing-negative-skips-term",
       "order": 2817,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/eval/retrieval-training/deterministic-resume",
+      "id": "tooling/eval/retrieval-training/frozen-vector-binding",
       "order": 2818,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/eval/retrieval-training/stale-and-corrupt-resume",
+      "id": "tooling/eval/retrieval-training/first-gradient-and-export-parity",
       "order": 2819,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/eval/retrieval-training/cancellation-and-overlap",
+      "id": "tooling/eval/retrieval-training/deterministic-resume",
       "order": 2820,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/eval/retrieval-training/missing-negative-skips-updates",
+      "id": "tooling/eval/retrieval-training/stale-and-corrupt-resume",
       "order": 2821,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/eval/retrieval-training/retracted-inputs-refuse-continuation",
+      "id": "tooling/eval/retrieval-training/cancellation-and-overlap",
       "order": 2822,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/eval/retrieval-training/overflow-keeps-complete-checkpoint",
+      "id": "tooling/eval/retrieval-training/missing-negative-skips-updates",
       "order": 2823,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/eval/finite-policy-qualification/original-outcomes-and-shadow-ceiling",
+      "id": "tooling/eval/retrieval-training/retracted-inputs-refuse-continuation",
       "order": 2824,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/eval/finite-policy-qualification/concentrated-subgroup-failure",
+      "id": "tooling/eval/retrieval-training/overflow-keeps-complete-checkpoint",
       "order": 2825,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/eval/finite-policy-qualification/all-abstain-risk-undefined",
+      "id": "tooling/eval/finite-policy-qualification/original-outcomes-and-shadow-ceiling",
       "order": 2826,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/eval/finite-policy-qualification/unknown-label-denominators",
+      "id": "tooling/eval/finite-policy-qualification/concentrated-subgroup-failure",
       "order": 2827,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/eval/finite-policy-qualification/repeated-family-support",
+      "id": "tooling/eval/finite-policy-qualification/all-abstain-risk-undefined",
       "order": 2828,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/eval/finite-policy-qualification/frozen-plan-and-source-identity",
+      "id": "tooling/eval/finite-policy-qualification/unknown-label-denominators",
       "order": 2829,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/eval/finite-policy-qualification/domain-expiry-and-invalidation",
+      "id": "tooling/eval/finite-policy-qualification/repeated-family-support",
       "order": 2830,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/eval/finite-policy-qualification/execution-failure-and-quarantine",
+      "id": "tooling/eval/finite-policy-qualification/frozen-plan-and-source-identity",
       "order": 2831,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/eval/finite-policy-qualification/cancellation-consumes-original-plan",
+      "id": "tooling/eval/finite-policy-qualification/domain-expiry-and-invalidation",
       "order": 2832,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "shared/storage/quota-decision-boundaries/invalid-clock-and-age",
+      "id": "tooling/eval/finite-policy-qualification/execution-failure-and-quarantine",
       "order": 2833,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "shared/storage/quota-decision-boundaries/epoch-and-stable-alias-order",
+      "id": "tooling/eval/finite-policy-qualification/cancellation-consumes-original-plan",
       "order": 2834,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "shared/storage/quota-decision-boundaries/explained-retention-and-link-blockers",
+      "id": "shared/storage/quota-decision-boundaries/invalid-clock-and-age",
       "order": 2835,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "shared/storage/quota-decision-boundaries/conflicting-and-unknown-allocation",
+      "id": "shared/storage/quota-decision-boundaries/epoch-and-stable-alias-order",
       "order": 2836,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "shared/storage/quota-decision-boundaries/volume-scoped-free-space-reserve",
+      "id": "shared/storage/quota-decision-boundaries/explained-retention-and-link-blockers",
       "order": 2837,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "shared/storage/lifecycle-operator-review/root-intent-and-unknown-accounting",
+      "id": "shared/storage/quota-decision-boundaries/conflicting-and-unknown-allocation",
       "order": 2838,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "shared/storage/lifecycle-operator-review/same-inventory-overlap-and-no-mutation",
+      "id": "shared/storage/quota-decision-boundaries/volume-scoped-free-space-reserve",
       "order": 2839,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "shared/storage/lifecycle-operator-review/original-owner-diagnosis-and-review-bound",
+      "id": "shared/storage/lifecycle-operator-review/root-intent-and-unknown-accounting",
       "order": 2840,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "shared/storage/probe-policy-semantic-equality/semantic-policy-equality",
+      "id": "shared/storage/lifecycle-operator-review/same-inventory-overlap-and-no-mutation",
       "order": 2841,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "shared/storage/probe-policy-semantic-equality/strict-fields-and-stale-plan",
+      "id": "shared/storage/lifecycle-operator-review/original-owner-diagnosis-and-review-bound",
       "order": 2842,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/reports/bench-parity-input-observation/missing-is-unobserved",
+      "id": "shared/storage/probe-policy-semantic-equality/semantic-policy-equality",
       "order": 2843,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/reports/bench-parity-input-observation/quiet-pair-is-observed",
+      "id": "shared/storage/probe-policy-semantic-equality/strict-fields-and-stale-plan",
       "order": 2844,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/reports/bench-parity-input-observation/malformed-and-invalid-utf8",
+      "id": "tooling/reports/bench-parity-input-observation/missing-is-unobserved",
       "order": 2845,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/reports/bench-parity-input-observation/declared-source-remains-unread",
+      "id": "tooling/reports/bench-parity-input-observation/quiet-pair-is-observed",
       "order": 2846,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/reports/bench-parity-input-observation/real-quiet-producer",
+      "id": "tooling/reports/bench-parity-input-observation/malformed-and-invalid-utf8",
       "order": 2847,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/reports/bench-parity-input-observation/real-producer-write-failure",
+      "id": "tooling/reports/bench-parity-input-observation/declared-source-remains-unread",
       "order": 2848,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/reports/bench-parity-input-observation/run-retains-earlier-write-failure",
+      "id": "tooling/reports/bench-parity-input-observation/real-quiet-producer",
       "order": 2849,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/reports/bench-parity-input-observation/footer-summary-is-not-event-source",
+      "id": "tooling/reports/bench-parity-input-observation/real-producer-write-failure",
       "order": 2850,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/reports/bench-stream-close-failure/close-failure-is-not-coverage",
+      "id": "tooling/reports/bench-parity-input-observation/run-retains-earlier-write-failure",
       "order": 2851,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/reports/bench-stream-close-failure/falsey-primary-and-original-close",
+      "id": "tooling/reports/bench-parity-input-observation/footer-summary-is-not-event-source",
       "order": 2852,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/reports/bench-stream-inventory-bounds/complete-quiet-inventory",
+      "id": "tooling/reports/bench-stream-close-failure/close-failure-is-not-coverage",
       "order": 2853,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/reports/bench-stream-inventory-bounds/entry-and-captured-byte-bounds",
+      "id": "tooling/reports/bench-stream-close-failure/falsey-primary-and-original-close",
       "order": 2854,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/reports/bench-stream-inventory-bounds/path-and-directory-bounds",
+      "id": "tooling/reports/bench-stream-inventory-bounds/complete-quiet-inventory",
       "order": 2855,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/reports/bench-stream-inventory-bounds/original-directory-close-failure",
+      "id": "tooling/reports/bench-stream-inventory-bounds/entry-and-captured-byte-bounds",
       "order": 2856,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "storage/semantic/finite-feasibility/checked-witness-and-source",
+      "id": "tooling/reports/bench-stream-inventory-bounds/path-and-directory-bounds",
       "order": 2857,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "storage/semantic/finite-feasibility/contradictory-shared-guards",
+      "id": "tooling/reports/bench-stream-inventory-bounds/original-directory-close-failure",
       "order": 2858,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "storage/semantic/finite-feasibility/phi-and-exception-oracle",
+      "id": "storage/semantic/finite-feasibility/checked-witness-and-source",
       "order": 2859,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "storage/semantic/finite-feasibility/unsupported-and-cyclic-frontiers",
+      "id": "storage/semantic/finite-feasibility/contradictory-shared-guards",
       "order": 2860,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "storage/semantic/finite-feasibility/resumption-cancellation-and-authority",
+      "id": "storage/semantic/finite-feasibility/phi-and-exception-oracle",
       "order": 2861,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "storage/semantic/finite-feasibility/stale-source-and-retirement",
+      "id": "storage/semantic/finite-feasibility/unsupported-and-cyclic-frontiers",
       "order": 2862,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "storage/semantic/finite-feasibility/independent-candidate-corruption",
+      "id": "storage/semantic/finite-feasibility/resumption-cancellation-and-authority",
       "order": 2863,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "storage/semantic/finite-feasibility/strict-ssa-and-source-admission",
+      "id": "storage/semantic/finite-feasibility/stale-source-and-retirement",
       "order": 2864,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "storage/semantic/finite-feasibility/boolean-operation-concrete-oracle",
+      "id": "storage/semantic/finite-feasibility/independent-candidate-corruption",
       "order": 2865,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/eval/finite-feasibility-claims/exact-scope-and-original-receipts",
+      "id": "storage/semantic/finite-feasibility/strict-ssa-and-source-admission",
       "order": 2866,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/eval/finite-feasibility-claims/offline-adapter-and-versioned-state",
+      "id": "storage/semantic/finite-feasibility/boolean-operation-concrete-oracle",
       "order": 2867,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/embeddings/cache-only-enumeration-bound/unselected-chunk-rows",
+      "id": "tooling/eval/finite-feasibility-claims/exact-scope-and-original-receipts",
       "order": 2868,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/embeddings/cache-only-enumeration-bound/duplicate-file-metadata-rows",
+      "id": "tooling/eval/finite-feasibility-claims/offline-adapter-and-versioned-state",
       "order": 2869,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/embeddings/cache-only-enumeration-bound/original-iterator-return-pending",
+      "id": "indexing/embeddings/cache-only-enumeration-bound/unselected-chunk-rows",
       "order": 2870,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/reports/bench-stream-close-failure/pending-read-blocks-close",
+      "id": "indexing/embeddings/cache-only-enumeration-bound/duplicate-file-metadata-rows",
       "order": 2871,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/reports/bench-stream-close-failure/late-diagnostic-observation",
+      "id": "indexing/embeddings/cache-only-enumeration-bound/original-iterator-return-pending",
       "order": 2872,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/reports/throughput-kind-observation/token-and-utf8-boundaries",
+      "id": "tooling/reports/bench-stream-close-failure/pending-read-blocks-close",
       "order": 2873,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/reports/throughput-kind-observation/same-stamp-and-owned-counts",
+      "id": "tooling/reports/bench-stream-close-failure/late-diagnostic-observation",
       "order": 2874,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/reports/throughput-kind-observation/original-descriptor-settlement",
+      "id": "tooling/reports/throughput-kind-observation/token-and-utf8-boundaries",
       "order": 2875,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/reports/throughput-analysis-materialization/old-producer-reconstructs",
+      "id": "tooling/reports/throughput-kind-observation/same-stamp-and-owned-counts",
       "order": 2876,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/reports/throughput-analysis-materialization/old-producer-source-unavailable",
+      "id": "tooling/reports/throughput-kind-observation/original-descriptor-settlement",
       "order": 2877,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "shared/storage/diagnostic-field-settlement/each-field-has-its-own-boundary",
+      "id": "tooling/reports/throughput-analysis-materialization/old-producer-reconstructs",
       "order": 2878,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "shared/storage/diagnostic-field-settlement/recorded-source-refusal-retains-work",
+      "id": "tooling/reports/throughput-analysis-materialization/old-producer-source-unavailable",
       "order": 2879,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/reports/throughput-root-inventory/real-selected-root-cohort",
+      "id": "shared/storage/diagnostic-field-settlement/each-field-has-its-own-boundary",
       "order": 2880,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/reports/throughput-root-inventory/ignored-entries-and-folder-bounds",
+      "id": "shared/storage/diagnostic-field-settlement/recorded-source-refusal-retains-work",
       "order": 2881,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/reports/throughput-root-inventory/original-root-close-observation",
+      "id": "tooling/reports/throughput-root-inventory/real-selected-root-cohort",
       "order": 2882,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/reports/throughput-root-inventory/root-link-refusal-model",
+      "id": "tooling/reports/throughput-root-inventory/ignored-entries-and-folder-bounds",
       "order": 2883,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/eval/revision-oracle/registered-revision-controls",
+      "id": "tooling/reports/throughput-root-inventory/original-root-close-observation",
       "order": 2884,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/eval/revision-oracle/independent-seeded-defects",
+      "id": "tooling/reports/throughput-root-inventory/root-link-refusal-model",
       "order": 2885,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/eval/revision-oracle/provenance-multiplicity",
+      "id": "tooling/eval/revision-oracle/registered-revision-controls",
       "order": 2886,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/eval/revision-oracle/scenario-preconditions",
+      "id": "tooling/eval/revision-oracle/independent-seeded-defects",
       "order": 2887,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/eval/revision-oracle/unknown-and-budget-outcomes",
+      "id": "tooling/eval/revision-oracle/provenance-multiplicity",
       "order": 2888,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/eval/revision-oracle/original-execution-handles",
+      "id": "tooling/eval/revision-oracle/scenario-preconditions",
       "order": 2889,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/eval/revision-oracle/minimizer-predicate-model",
+      "id": "tooling/eval/revision-oracle/unknown-and-budget-outcomes",
       "order": 2890,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tui/protocol-fixture-dependencies",
+      "id": "tooling/eval/revision-oracle/original-execution-handles",
       "order": 2891,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/semantic/relational-join/simultaneous-join-and-provenance",
+      "id": "tooling/eval/revision-oracle/minimizer-predicate-model",
       "order": 2892,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/semantic/relational-join/anti-join-zero-crossings",
+      "id": "tui/protocol-fixture-dependencies",
       "order": 2893,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/semantic/relational-join/partial-domain-observations",
+      "id": "indexing/semantic/relational-join/simultaneous-join-and-provenance",
       "order": 2894,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/semantic/relational-join/atomic-cohort-and-replay",
+      "id": "indexing/semantic/relational-join/anti-join-zero-crossings",
       "order": 2895,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/semantic/relational-join/bounded-and-cancelled-cohorts",
+      "id": "indexing/semantic/relational-join/partial-domain-observations",
       "order": 2896,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/semantic/relational-join/independent-bag-oracle",
+      "id": "indexing/semantic/relational-join/atomic-cohort-and-replay",
       "order": 2897,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/eval/relational-revision-oracle/actual-registered-operators",
+      "id": "indexing/semantic/relational-join/bounded-and-cancelled-cohorts",
       "order": 2898,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/eval/relational-revision-oracle/independent-cross-term-and-threshold-defects",
+      "id": "indexing/semantic/relational-join/independent-bag-oracle",
       "order": 2899,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/eval/relational-revision-oracle/multiplicity-and-origin-defects",
+      "id": "tooling/eval/relational-revision-oracle/actual-registered-operators",
       "order": 2900,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/eval/relational-revision-oracle/strict-revision-worlds",
+      "id": "tooling/eval/relational-revision-oracle/independent-cross-term-and-threshold-defects",
       "order": 2901,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/eval/relational-revision-oracle/unknown-reference-budget",
+      "id": "tooling/eval/relational-revision-oracle/multiplicity-and-origin-defects",
       "order": 2902,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/eval/relational-revision-oracle/original-execution-retirement",
+      "id": "tooling/eval/relational-revision-oracle/strict-revision-worlds",
       "order": 2903,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/eval/revision-minimizer-predicate",
+      "id": "tooling/eval/relational-revision-oracle/unknown-reference-budget",
       "order": 2904,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "embeddings/runner/token-estimator-original-observation/counts-and-original-release",
+      "id": "tooling/eval/relational-revision-oracle/original-execution-retirement",
       "order": 2905,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "embeddings/runner/token-estimator-original-observation/ordinary-fallback-and-terminal-errors",
+      "id": "tooling/eval/revision-minimizer-predicate",
       "order": 2906,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "embeddings/runner/token-estimator-original-observation/original-frozen-pending-error",
+      "id": "embeddings/runner/token-estimator-original-observation/counts-and-original-release",
       "order": 2907,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "embeddings/runner/token-estimator-original-observation/pending-result-and-each-field",
+      "id": "embeddings/runner/token-estimator-original-observation/ordinary-fallback-and-terminal-errors",
       "order": 2908,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "embeddings/runner/token-estimator-original-observation/inspection-failure-is-retained",
+      "id": "embeddings/runner/token-estimator-original-observation/original-frozen-pending-error",
       "order": 2909,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "embeddings/runner/metadata-probe-observation/path-presence",
+      "id": "embeddings/runner/token-estimator-original-observation/pending-result-and-each-field",
       "order": 2910,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "embeddings/runner/metadata-probe-observation/artifact-variants",
+      "id": "embeddings/runner/token-estimator-original-observation/inspection-failure-is-retained",
       "order": 2911,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "embeddings/runner/metadata-probe-observation/generation-inventory-and-stat",
+      "id": "embeddings/runner/metadata-probe-observation/path-presence",
       "order": 2912,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "embeddings/runner/metadata-probe-observation/maintenance-size",
+      "id": "embeddings/runner/metadata-probe-observation/artifact-variants",
       "order": 2913,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/embeddings/formatted-token-estimator-observation/formatted-counts-and-release",
+      "id": "embeddings/runner/metadata-probe-observation/generation-inventory-and-stat",
       "order": 2914,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/embeddings/formatted-token-estimator-observation/ordinary-fallback-and-cancellation",
+      "id": "embeddings/runner/metadata-probe-observation/maintenance-size",
       "order": 2915,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/embeddings/formatted-token-estimator-observation/original-native-and-nested-terminal",
+      "id": "indexing/embeddings/formatted-token-estimator-observation/formatted-counts-and-release",
       "order": 2916,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/embeddings/inline-token-preparation-settlement/awaited-release-and-late-join",
+      "id": "indexing/embeddings/formatted-token-estimator-observation/ordinary-fallback-and-cancellation",
       "order": 2917,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/embeddings/inline-token-preparation-settlement/provider-and-release-failures",
+      "id": "indexing/embeddings/formatted-token-estimator-observation/original-native-and-nested-terminal",
       "order": 2918,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/embeddings/inline-token-preparation-settlement/original-pending-preparation",
+      "id": "indexing/embeddings/inline-token-preparation-settlement/awaited-release-and-late-join",
       "order": 2919,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/embeddings/inline-token-preparation-settlement/guarded-single-release",
+      "id": "indexing/embeddings/inline-token-preparation-settlement/provider-and-release-failures",
       "order": 2920,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/embeddings/inline-token-preparation-settlement/strict-falsy-estimator-failures",
+      "id": "indexing/embeddings/inline-token-preparation-settlement/original-pending-preparation",
       "order": 2921,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/embeddings/inline-token-preparation-settlement/bounded-held-results-and-cancellation",
+      "id": "indexing/embeddings/inline-token-preparation-settlement/guarded-single-release",
       "order": 2922,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "embeddings/pipeline/preparation-window-admission/before-estimation-and-through-release",
+      "id": "indexing/embeddings/inline-token-preparation-settlement/strict-falsy-estimator-failures",
       "order": 2923,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "embeddings/pipeline/preparation-window-admission/ordered-windows-beyond-token-lru",
+      "id": "indexing/embeddings/inline-token-preparation-settlement/bounded-held-results-and-cancellation",
       "order": 2924,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "embeddings/pipeline/preparation-window-admission/oversized-text-before-provider-work",
+      "id": "embeddings/pipeline/preparation-window-admission/before-estimation-and-through-release",
       "order": 2925,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "embeddings/pipeline/preparation-window-admission/single-global-reservation",
+      "id": "embeddings/pipeline/preparation-window-admission/ordered-windows-beyond-token-lru",
       "order": 2926,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/embeddings/prepared-row-reservation/pre-tokenizer-capacity",
+      "id": "embeddings/pipeline/preparation-window-admission/oversized-text-before-provider-work",
       "order": 2927,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/embeddings/prepared-row-reservation/pending-and-committed-accounting",
+      "id": "embeddings/pipeline/preparation-window-admission/single-global-reservation",
       "order": 2928,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/embeddings/prepared-row-reservation/retained-read-and-original-release",
+      "id": "indexing/embeddings/prepared-row-reservation/pre-tokenizer-capacity",
       "order": 2929,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/embeddings/prepared-row-reservation/geometry-before-copy",
+      "id": "indexing/embeddings/prepared-row-reservation/pending-and-committed-accounting",
       "order": 2930,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/embeddings/prepared-row-reservation/expiry-and-failed-commit",
+      "id": "indexing/embeddings/prepared-row-reservation/retained-read-and-original-release",
       "order": 2931,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/semantic/grouped-adjacency/weighted-counts-and-provenance",
+      "id": "indexing/embeddings/prepared-row-reservation/geometry-before-copy",
       "order": 2932,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/semantic/grouped-adjacency/retract-extrema-and-last-support",
+      "id": "indexing/embeddings/prepared-row-reservation/expiry-and-failed-commit",
       "order": 2933,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/semantic/grouped-adjacency/partial-domain-observations",
+      "id": "indexing/semantic/grouped-adjacency/weighted-counts-and-provenance",
       "order": 2934,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/semantic/grouped-adjacency/atomic-replay-and-original-handles",
+      "id": "indexing/semantic/grouped-adjacency/retract-extrema-and-last-support",
       "order": 2935,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/semantic/grouped-adjacency/bounded-and-cancelled-transitions",
+      "id": "indexing/semantic/grouped-adjacency/partial-domain-observations",
       "order": 2936,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/semantic/grouped-adjacency/independent-expanded-bag",
+      "id": "indexing/semantic/grouped-adjacency/atomic-replay-and-original-handles",
       "order": 2937,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/semantic/selected-adjacency/projected-bags-and-parent-identity",
+      "id": "indexing/semantic/grouped-adjacency/bounded-and-cancelled-transitions",
       "order": 2938,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/semantic/selected-adjacency/exact-selection-and-swap",
+      "id": "indexing/semantic/grouped-adjacency/independent-expanded-bag",
       "order": 2939,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/semantic/selected-adjacency/partial-domain-and-world-transitions",
+      "id": "indexing/semantic/selected-adjacency/projected-bags-and-parent-identity",
       "order": 2940,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/semantic/selected-adjacency/atomic-replay-and-passive-input",
+      "id": "indexing/semantic/selected-adjacency/exact-selection-and-swap",
       "order": 2941,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/semantic/selected-adjacency/bounded-and-cancelled-transitions",
+      "id": "indexing/semantic/selected-adjacency/partial-domain-and-world-transitions",
       "order": 2942,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/semantic/selected-adjacency/independent-expanded-bag",
+      "id": "indexing/semantic/selected-adjacency/atomic-replay-and-passive-input",
       "order": 2943,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/semantic/adjacency-support-history/retracted-support-binding",
+      "id": "indexing/semantic/selected-adjacency/bounded-and-cancelled-transitions",
       "order": 2944,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/semantic/adjacency-support-history/net-zero-support-binding",
+      "id": "indexing/semantic/selected-adjacency/independent-expanded-bag",
       "order": 2945,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/semantic/adjacency-support-history/bounded-history-and-work",
+      "id": "indexing/semantic/adjacency-support-history/retracted-support-binding",
       "order": 2946,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/semantic/adjacency-support-history/derived-owner-binding",
+      "id": "indexing/semantic/adjacency-support-history/net-zero-support-binding",
       "order": 2947,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/eval/relational-revision-oracle/unary-retractions-and-incomplete-domains",
+      "id": "indexing/semantic/adjacency-support-history/bounded-history-and-work",
       "order": 2948,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/eval/relational-revision-oracle/unary-independent-mapping-defects",
+      "id": "indexing/semantic/adjacency-support-history/derived-owner-binding",
       "order": 2949,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/install/original-result-observation/returned-result-observation",
+      "id": "tooling/eval/relational-revision-oracle/unary-retractions-and-incomplete-domains",
       "order": 2950,
       "suiteCategory": "hero",
-      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+      "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/install/original-result-observation/error-before-diagnostics",
+      "id": "tooling/eval/relational-revision-oracle/unary-independent-mapping-defects",
       "order": 2951,
       "suiteCategory": "hero",
-      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+      "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/install/original-result-observation/field-interval-observation",
+      "id": "tooling/install/original-result-observation/returned-result-observation",
       "order": 2952,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/original-result-observation/ordinary-results-and-falsy-errors",
+      "id": "tooling/install/original-result-observation/error-before-diagnostics",
       "order": 2953,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "shared/storage/coordinated-quota-scopes/overlapping-global-category-repository",
+      "id": "tooling/install/original-result-observation/field-interval-observation",
       "order": 2954,
       "suiteCategory": "hero",
-      "suiteCategoryReason": "default-standalone-behavior"
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "shared/storage/coordinated-quota-scopes/independent-scopes-and-order",
+      "id": "tooling/install/original-result-observation/ordinary-results-and-falsy-errors",
       "order": 2955,
       "suiteCategory": "hero",
-      "suiteCategoryReason": "default-standalone-behavior"
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "shared/storage/coordinated-quota-scopes/scoped-retention-protects-all-aliases",
+      "id": "shared/storage/coordinated-quota-scopes/overlapping-global-category-repository",
       "order": 2956,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "shared/storage/coordinated-quota-scopes/unknown-attribution-and-invalid-policy",
+      "id": "shared/storage/coordinated-quota-scopes/independent-scopes-and-order",
       "order": 2957,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "shared/storage/coordinated-quota-scopes/unsatisfied-protected-and-volume-pressure",
+      "id": "shared/storage/coordinated-quota-scopes/scoped-retention-protects-all-aliases",
       "order": 2958,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "shared/storage/coordinated-quota-scopes/bounded-membership-accounting",
+      "id": "shared/storage/coordinated-quota-scopes/unknown-attribution-and-invalid-policy",
       "order": 2959,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "shared/storage/session-resource-observation/receipt-field-interval",
+      "id": "shared/storage/coordinated-quota-scopes/unsatisfied-protected-and-volume-pressure",
       "order": 2960,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "shared/storage/session-resource-observation/direct-field-interval",
+      "id": "shared/storage/coordinated-quota-scopes/bounded-membership-accounting",
       "order": 2961,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/semantic/selected-adjacency-maintenance/sparse-update-and-rebuild-oracle",
+      "id": "shared/storage/session-resource-observation/receipt-field-interval",
       "order": 2962,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/semantic/selected-adjacency-maintenance/dense-fallback-and-sparse-resume",
+      "id": "shared/storage/session-resource-observation/direct-field-interval",
       "order": 2963,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/semantic/selected-adjacency-maintenance/coverage-and-atomic-replacement",
+      "id": "indexing/semantic/selected-adjacency-maintenance/sparse-update-and-rebuild-oracle",
       "order": 2964,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/semantic/selected-adjacency-maintenance/bounded-cancelled-and-replayed",
+      "id": "indexing/semantic/selected-adjacency-maintenance/dense-fallback-and-sparse-resume",
       "order": 2965,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/semantic/grouped-adjacency-maintenance/affected-extrema-and-coefficients",
+      "id": "indexing/semantic/selected-adjacency-maintenance/coverage-and-atomic-replacement",
       "order": 2966,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/semantic/grouped-adjacency-maintenance/dense-fallback-and-sparse-resume",
+      "id": "indexing/semantic/selected-adjacency-maintenance/bounded-cancelled-and-replayed",
       "order": 2967,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/semantic/grouped-adjacency-maintenance/coverage-and-atomic-groups",
+      "id": "indexing/semantic/grouped-adjacency-maintenance/affected-extrema-and-coefficients",
       "order": 2968,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/semantic/grouped-adjacency-maintenance/bounded-cancelled-and-replayed",
+      "id": "indexing/semantic/grouped-adjacency-maintenance/dense-fallback-and-sparse-resume",
       "order": 2969,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/semantic/inner-join-maintenance/simultaneous-role-terms",
+      "id": "indexing/semantic/grouped-adjacency-maintenance/coverage-and-atomic-groups",
       "order": 2970,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/semantic/inner-join-maintenance/signed-products-and-atomic-coefficients",
+      "id": "indexing/semantic/grouped-adjacency-maintenance/bounded-cancelled-and-replayed",
       "order": 2971,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/semantic/inner-join-maintenance/dense-and-capacity-fallback",
+      "id": "indexing/semantic/inner-join-maintenance/simultaneous-role-terms",
       "order": 2972,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/semantic/inner-join-maintenance/partial-domain-and-replay",
+      "id": "indexing/semantic/inner-join-maintenance/signed-products-and-atomic-coefficients",
       "order": 2973,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/semantic/inner-join-maintenance/independent-revision-oracle",
+      "id": "indexing/semantic/inner-join-maintenance/dense-and-capacity-fallback",
       "order": 2974,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/eval/relational-revision-oracle/maintenance-work-contracts",
+      "id": "indexing/semantic/inner-join-maintenance/partial-domain-and-replay",
       "order": 2975,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "shared/storage/cleanup-admission-boundaries/pre-cancelled-plan-and-apply",
+      "id": "indexing/semantic/inner-join-maintenance/independent-revision-oracle",
       "order": 2976,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "shared/storage/cleanup-admission-boundaries/deadline-after-authority-stat",
+      "id": "tooling/eval/relational-revision-oracle/maintenance-work-contracts",
       "order": 2977,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "shared/storage/cleanup-admission-boundaries/deadline-before-probe-read",
+      "id": "shared/storage/cleanup-admission-boundaries/pre-cancelled-plan-and-apply",
       "order": 2978,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "shared/storage/cleanup-admission-boundaries/cancel-between-unlinks",
+      "id": "shared/storage/cleanup-admission-boundaries/deadline-after-authority-stat",
       "order": 2979,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "shared/storage/cleanup-admission-boundaries/cancelled-reader-still-closes",
+      "id": "shared/storage/cleanup-admission-boundaries/deadline-before-probe-read",
       "order": 2980,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "shared/storage/cleanup-admission-boundaries/current-format-and-positive-apply",
+      "id": "shared/storage/cleanup-admission-boundaries/cancel-between-unlinks",
       "order": 2981,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/eval/source-revision-oracle/registered-source-producers",
+      "id": "shared/storage/cleanup-admission-boundaries/cancelled-reader-still-closes",
       "order": 2982,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/eval/source-revision-oracle/independent-range-and-content-defects",
+      "id": "shared/storage/cleanup-admission-boundaries/current-format-and-positive-apply",
       "order": 2983,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/eval/source-revision-oracle/delete-and-rename-retractions",
+      "id": "tooling/eval/source-revision-oracle/registered-source-producers",
       "order": 2984,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/eval/source-revision-oracle/source-coordinate-and-namespace-identity",
+      "id": "tooling/eval/source-revision-oracle/independent-range-and-content-defects",
       "order": 2985,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/eval/source-revision-oracle/strict-source-preconditions",
+      "id": "tooling/eval/source-revision-oracle/delete-and-rename-retractions",
       "order": 2986,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/eval/source-revision-oracle/unknown-reference-bound",
+      "id": "tooling/eval/source-revision-oracle/source-coordinate-and-namespace-identity",
       "order": 2987,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/eval/source-revision-oracle/original-execution-retirement",
+      "id": "tooling/eval/source-revision-oracle/strict-source-preconditions",
       "order": 2988,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/eval/source-revision-oracle/cancellation-and-closed-contracts",
+      "id": "tooling/eval/source-revision-oracle/unknown-reference-bound",
       "order": 2989,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "shared/storage/inspection-phase-admission/pre-cancelled-diagnosis",
+      "id": "tooling/eval/source-revision-oracle/original-execution-retirement",
       "order": 2990,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "shared/storage/inspection-phase-admission/deadline-after-root-stat",
+      "id": "tooling/eval/source-revision-oracle/cancellation-and-closed-contracts",
       "order": 2991,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "shared/storage/inspection-phase-admission/deadline-after-realpath",
+      "id": "shared/storage/inspection-phase-admission/pre-cancelled-diagnosis",
       "order": 2992,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "shared/storage/inspection-phase-admission/deadline-before-volume-fallback",
+      "id": "shared/storage/inspection-phase-admission/deadline-after-root-stat",
       "order": 2993,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "shared/storage/inspection-phase-admission/deadline-between-policy-files",
+      "id": "shared/storage/inspection-phase-admission/deadline-after-realpath",
       "order": 2994,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "shared/storage/inspection-phase-admission/deadline-in-original-lease-reader",
+      "id": "shared/storage/inspection-phase-admission/deadline-before-volume-fallback",
       "order": 2995,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "shared/storage/inspection-phase-admission/pending-original-close-over-stop",
+      "id": "shared/storage/inspection-phase-admission/deadline-between-policy-files",
       "order": 2996,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "shared/storage/inspection-phase-admission/exact-stop-observation",
+      "id": "shared/storage/inspection-phase-admission/deadline-in-original-lease-reader",
       "order": 2997,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "shared/storage/inspection-phase-admission/exact-root-deadline",
+      "id": "shared/storage/inspection-phase-admission/pending-original-close-over-stop",
       "order": 2998,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "shared/storage/inspection-phase-admission/exact-directory-close",
+      "id": "shared/storage/inspection-phase-admission/exact-stop-observation",
       "order": 2999,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "shared/storage/inspection-phase-admission/exact-revalidation-deadline",
+      "id": "shared/storage/inspection-phase-admission/exact-root-deadline",
       "order": 3000,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/install/managed-pyright-package/canonical-windows-bundle-bound",
+      "id": "shared/storage/inspection-phase-admission/exact-directory-close",
       "order": 3001,
       "suiteCategory": "hero",
-      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+      "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/install/managed-pyright-package/managed-publication-and-reuse",
+      "id": "shared/storage/inspection-phase-admission/exact-revalidation-deadline",
       "order": 3002,
       "suiteCategory": "hero",
-      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+      "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/install/managed-pyright-package/runtime-selection-and-stale-entry",
+      "id": "tooling/install/managed-pyright-package/canonical-windows-bundle-bound",
       "order": 3003,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/managed-pyright-package/owned-probe-and-generation-lease",
+      "id": "tooling/install/managed-pyright-package/managed-publication-and-reuse",
       "order": 3004,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/managed-pyright-package/strict-digest-and-previous-generation",
+      "id": "tooling/install/managed-pyright-package/runtime-selection-and-stale-entry",
       "order": 3005,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/managed-pyright-package/verification-observation-and-cancellation",
+      "id": "tooling/install/managed-pyright-package/owned-probe-and-generation-lease",
       "order": 3006,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/managed-pyright-package/external-default-without-managed-selection",
+      "id": "tooling/install/managed-pyright-package/strict-digest-and-previous-generation",
       "order": 3007,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/managed-typescript-native/canonical-archive-bounds",
+      "id": "tooling/install/managed-pyright-package/verification-observation-and-cancellation",
       "order": 3008,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/managed-typescript-native/explicit-profile-and-source-authority",
+      "id": "tooling/install/managed-pyright-package/external-default-without-managed-selection",
       "order": 3009,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/managed-typescript-native/verification-and-original-settlement",
+      "id": "tooling/install/managed-typescript-native/canonical-archive-bounds",
       "order": 3010,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/managed-typescript-native/managed-publication-and-selection",
+      "id": "tooling/install/managed-typescript-native/explicit-profile-and-source-authority",
       "order": 3011,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/lsp/pull-diagnostics/full-original-document-report",
+      "id": "tooling/install/managed-typescript-native/verification-and-original-settlement",
       "order": 3012,
       "suiteCategory": "hero",
-      "suiteCategoryReason": "default-standalone-behavior"
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/lsp/pull-diagnostics/refresh-replaces-prior-reports",
+      "id": "tooling/install/managed-typescript-native/managed-publication-and-selection",
       "order": 3013,
       "suiteCategory": "hero",
-      "suiteCategoryReason": "default-standalone-behavior"
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/lsp/pull-diagnostics/bounded-admission-and-unsupported-reports",
+      "id": "tooling/lsp/pull-diagnostics/full-original-document-report",
       "order": 3014,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/lsp/pull-diagnostics/replacement-and-original-pending-work",
+      "id": "tooling/lsp/pull-diagnostics/refresh-replaces-prior-reports",
       "order": 3015,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/lsp/pull-diagnostics/guard-narrows-retry-admission",
+      "id": "tooling/lsp/pull-diagnostics/bounded-admission-and-unsupported-reports",
       "order": 3016,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/lsp/pull-diagnostics/framed-native-profile-and-owned-disposal",
+      "id": "tooling/lsp/pull-diagnostics/replacement-and-original-pending-work",
       "order": 3017,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "shared/storage/inspection-phase-admission/category-policy-deadline",
+      "id": "tooling/lsp/pull-diagnostics/guard-narrows-retry-admission",
       "order": 3018,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "shared/storage/inspection-phase-admission/category-original-lease-deadline",
+      "id": "tooling/lsp/pull-diagnostics/framed-native-profile-and-owned-disposal",
       "order": 3019,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "shared/storage/inspection-phase-admission/managed-original-lease-deadline",
+      "id": "shared/storage/inspection-phase-admission/category-policy-deadline",
       "order": 3020,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "shared/storage/inspection-phase-admission/dictionary-manifest-deadline",
+      "id": "shared/storage/inspection-phase-admission/category-original-lease-deadline",
       "order": 3021,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "shared/storage/kernel-allocation-accounting/exact-block-domain",
+      "id": "shared/storage/inspection-phase-admission/managed-original-lease-deadline",
       "order": 3022,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "shared/storage/kernel-allocation-accounting/unique-observed-allocation",
+      "id": "shared/storage/inspection-phase-admission/dictionary-manifest-deadline",
       "order": 3023,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "shared/storage/kernel-allocation-accounting/conflicting-alias-allocation",
+      "id": "shared/storage/kernel-allocation-accounting/exact-block-domain",
       "order": 3024,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "shared/storage/kernel-allocation-accounting/reviewed-probe-unlink-estimate",
+      "id": "shared/storage/kernel-allocation-accounting/unique-observed-allocation",
       "order": 3025,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "shared/storage/kernel-allocation-accounting/sparse-or-compressed-allocation",
+      "id": "shared/storage/kernel-allocation-accounting/conflicting-alias-allocation",
       "order": 3026,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "shared/storage/embedding-delta-reference-inventory",
+      "id": "shared/storage/kernel-allocation-accounting/reviewed-probe-unlink-estimate",
       "order": 3027,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "shared/storage/embedding-inventory-publication-race/reference-before-mode-baseline",
+      "id": "shared/storage/kernel-allocation-accounting/sparse-or-compressed-allocation",
       "order": 3028,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "shared/storage/embedding-inventory-publication-race/publication-during-physical-inventory",
+      "id": "shared/storage/embedding-delta-reference-inventory",
       "order": 3029,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/install/managed-csharp-package/canonical-prebuilt-closure",
+      "id": "shared/storage/embedding-inventory-publication-race/reference-before-mode-baseline",
       "order": 3030,
       "suiteCategory": "hero",
-      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+      "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/install/managed-csharp-package/original-verification-observation",
+      "id": "shared/storage/embedding-inventory-publication-race/publication-during-physical-inventory",
       "order": 3031,
       "suiteCategory": "hero",
-      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+      "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/install/managed-csharp-package/managed-publication-and-reuse",
+      "id": "tooling/install/managed-csharp-package/canonical-prebuilt-closure",
       "order": 3032,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/managed-csharp-package/runtime-host-and-assembly-identity",
+      "id": "tooling/install/managed-csharp-package/original-verification-observation",
       "order": 3033,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/managed-csharp-package/external-host-does-not-adopt-managed-sdk",
+      "id": "tooling/install/managed-csharp-package/managed-publication-and-reuse",
       "order": 3034,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/managed-csharp-package/sync-probe-and-workspace-trust",
+      "id": "tooling/install/managed-csharp-package/runtime-host-and-assembly-identity",
       "order": 3035,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/managed-csharp-package/external-host-requires-own-command-trust",
+      "id": "tooling/install/managed-csharp-package/external-host-does-not-adopt-managed-sdk",
       "order": 3036,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/managed-csharp-package/framed-initialize-and-original-generation-lease",
+      "id": "tooling/install/managed-csharp-package/sync-probe-and-workspace-trust",
       "order": 3037,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/lsp/managed-runtime-lease-deduplication/synchronous-original-owner",
+      "id": "tooling/install/managed-csharp-package/external-host-requires-own-command-trust",
       "order": 3038,
       "suiteCategory": "hero",
-      "suiteCategoryReason": "default-standalone-behavior"
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/lsp/managed-runtime-lease-deduplication/retained-client-original-owner",
+      "id": "tooling/install/managed-csharp-package/framed-initialize-and-original-generation-lease",
       "order": 3039,
       "suiteCategory": "hero",
-      "suiteCategoryReason": "default-standalone-behavior"
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/lsp/managed-runtime-lease-deduplication/changed-identity-and-lookalike-refusal",
+      "id": "tooling/lsp/managed-runtime-lease-deduplication/synchronous-original-owner",
       "order": 3040,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "shared/storage/lifecycle-policy-publication/strict-scopes-and-budgets",
+      "id": "tooling/lsp/managed-runtime-lease-deduplication/retained-client-original-owner",
       "order": 3041,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "shared/storage/lifecycle-policy-publication/reviewed-publication-and-restart",
+      "id": "tooling/lsp/managed-runtime-lease-deduplication/changed-identity-and-lookalike-refusal",
       "order": 3042,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "shared/storage/lifecycle-policy-publication/semantic-policy-equality",
+      "id": "shared/storage/lifecycle-policy-publication/strict-scopes-and-budgets",
       "order": 3043,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "shared/storage/lifecycle-policy-publication/stale-selection-preserves-current",
+      "id": "shared/storage/lifecycle-policy-publication/reviewed-publication-and-restart",
       "order": 3044,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "shared/storage/lifecycle-policy-publication/input-snapshot-before-publication",
+      "id": "shared/storage/lifecycle-policy-publication/semantic-policy-equality",
       "order": 3045,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "shared/storage/lifecycle-policy-publication/obsolete-format-refusal",
+      "id": "shared/storage/lifecycle-policy-publication/stale-selection-preserves-current",
       "order": 3046,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "shared/storage/lifecycle-policy-publication/cli-review-and-selector-refusal",
+      "id": "shared/storage/lifecycle-policy-publication/input-snapshot-before-publication",
       "order": 3047,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "shared/storage/lifecycle-quota-cleanup/physical-overlap-and-minimal-cleanup",
+      "id": "shared/storage/lifecycle-policy-publication/obsolete-format-refusal",
       "order": 3048,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "shared/storage/lifecycle-quota-cleanup/stable-noop-convergence",
+      "id": "shared/storage/lifecycle-policy-publication/cli-review-and-selector-refusal",
       "order": 3049,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "shared/storage/lifecycle-quota-cleanup/active-original-lease-refusal",
+      "id": "shared/storage/lifecycle-quota-cleanup/physical-overlap-and-minimal-cleanup",
       "order": 3050,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "shared/storage/lifecycle-quota-cleanup/policy-and-root-change-refusal",
+      "id": "shared/storage/lifecycle-quota-cleanup/stable-noop-convergence",
       "order": 3051,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "shared/storage/lifecycle-quota-cleanup/pins-and-saved-evidence",
+      "id": "shared/storage/lifecycle-quota-cleanup/active-original-lease-refusal",
       "order": 3052,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "shared/storage/lifecycle-quota-cleanup/unknown-and-bounded-inventory",
+      "id": "shared/storage/lifecycle-quota-cleanup/policy-and-root-change-refusal",
       "order": 3053,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "shared/storage/lifecycle-quota-cleanup/real-volume-reserve",
+      "id": "shared/storage/lifecycle-quota-cleanup/pins-and-saved-evidence",
       "order": 3054,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "shared/storage/lifecycle-quota-cleanup/cli-lifecycle-composition",
+      "id": "shared/storage/lifecycle-quota-cleanup/unknown-and-bounded-inventory",
       "order": 3055,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "shared/storage/lifecycle-quota-cleanup/policy-change-between-unlinks",
+      "id": "shared/storage/lifecycle-quota-cleanup/real-volume-reserve",
       "order": 3056,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/typescript-loader-original-failure/async-selected-failure",
+      "id": "shared/storage/lifecycle-quota-cleanup/cli-lifecycle-composition",
       "order": 3057,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/typescript-loader-original-failure/async-pending-original",
+      "id": "shared/storage/lifecycle-quota-cleanup/policy-change-between-unlinks",
       "order": 3058,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/typescript-loader-original-failure/sync-selected-failure",
+      "id": "tooling/typescript-loader-original-failure/async-selected-failure",
       "order": 3059,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/typescript-loader-original-failure/sync-pending-original",
+      "id": "tooling/typescript-loader-original-failure/async-pending-original",
       "order": 3060,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/typescript-loader-original-failure/installed-layout-is-not-absence",
+      "id": "tooling/typescript-loader-original-failure/sync-selected-failure",
       "order": 3061,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/typescript-loader-original-failure/original-falsy-failures",
+      "id": "tooling/typescript-loader-original-failure/sync-pending-original",
       "order": 3062,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/typescript-loader-original-failure/absence-trust-and-positive-control",
+      "id": "tooling/typescript-loader-original-failure/installed-layout-is-not-absence",
       "order": 3063,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/install/managed-verifier-original-observation/result-before-settlement",
+      "id": "tooling/typescript-loader-original-failure/original-falsy-failures",
       "order": 3064,
       "suiteCategory": "hero",
-      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+      "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/install/managed-verifier-original-observation/failure-before-settlement",
+      "id": "tooling/typescript-loader-original-failure/absence-trust-and-positive-control",
       "order": 3065,
       "suiteCategory": "hero",
-      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+      "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/install/managed-verifier-original-observation/nested-original-receipt",
+      "id": "tooling/install/managed-verifier-original-observation/result-before-settlement",
       "order": 3066,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/managed-verifier-original-observation/enclosing-between-fields",
+      "id": "tooling/install/managed-verifier-original-observation/failure-before-settlement",
       "order": 3067,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/managed-verifier-original-observation/ok-revokes-original",
+      "id": "tooling/install/managed-verifier-original-observation/nested-original-receipt",
       "order": 3068,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/managed-verifier-original-observation/inspection-retains-independent-work",
+      "id": "tooling/install/managed-verifier-original-observation/enclosing-between-fields",
       "order": 3069,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/managed-verifier-original-observation/function-failure-original",
+      "id": "tooling/install/managed-verifier-original-observation/ok-revokes-original",
       "order": 3070,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/managed-verifier-original-observation/closed-shape-and-control",
+      "id": "tooling/install/managed-verifier-original-observation/inspection-retains-independent-work",
       "order": 3071,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/managed-verifier-original-observation/callback-inspection-original",
+      "id": "tooling/install/managed-verifier-original-observation/function-failure-original",
       "order": 3072,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/managed-install-phase-observation/pending-diagnostics-remain-unread",
+      "id": "tooling/install/managed-verifier-original-observation/closed-shape-and-control",
       "order": 3073,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/managed-install-phase-observation/independent-diagnostic-retains-stage",
+      "id": "tooling/install/managed-verifier-original-observation/callback-inspection-original",
       "order": 3074,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/managed-install-phase-observation/pending-progress-is-not-reentered",
+      "id": "tooling/install/managed-install-phase-observation/pending-diagnostics-remain-unread",
       "order": 3075,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/managed-install-phase-observation/late-nested-verification-retains-stage",
+      "id": "tooling/install/managed-install-phase-observation/independent-diagnostic-retains-stage",
       "order": 3076,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/managed-install-phase-observation/function-original-observation",
+      "id": "tooling/install/managed-install-phase-observation/pending-progress-is-not-reentered",
       "order": 3077,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/managed-install-phase-observation/download-recovery-after-journal-failure",
+      "id": "tooling/install/managed-install-phase-observation/late-nested-verification-retains-stage",
       "order": 3078,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/managed-recovery-receipt-observation/original-before-fields",
+      "id": "tooling/install/managed-install-phase-observation/function-original-observation",
       "order": 3079,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/managed-recovery-receipt-observation/between-fields",
+      "id": "tooling/install/managed-install-phase-observation/download-recovery-after-journal-failure",
       "order": 3080,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/managed-recovery-receipt-observation/field-inspection",
+      "id": "tooling/install/managed-recovery-receipt-observation/original-before-fields",
       "order": 3081,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/managed-recovery-receipt-observation/shape-inspection",
+      "id": "tooling/install/managed-recovery-receipt-observation/between-fields",
       "order": 3082,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/managed-recovery-receipt-observation/closed-positive-and-invalid",
+      "id": "tooling/install/managed-recovery-receipt-observation/field-inspection",
       "order": 3083,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "shared/storage/lifecycle-repository-cleanup/reviewed-subset-and-convergence",
+      "id": "tooling/install/managed-recovery-receipt-observation/shape-inspection",
       "order": 3084,
       "suiteCategory": "hero",
-      "suiteCategoryReason": "default-standalone-behavior"
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "shared/storage/lifecycle-repository-cleanup/active-original-reader",
+      "id": "tooling/install/managed-recovery-receipt-observation/closed-positive-and-invalid",
       "order": 3085,
       "suiteCategory": "hero",
-      "suiteCategoryReason": "default-standalone-behavior"
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "shared/storage/lifecycle-repository-cleanup/mixed-evidence-and-pins",
+      "id": "shared/storage/lifecycle-repository-cleanup/reviewed-subset-and-convergence",
       "order": 3086,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "shared/storage/lifecycle-repository-cleanup/changed-original-file-set",
+      "id": "shared/storage/lifecycle-repository-cleanup/active-original-reader",
       "order": 3087,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "shared/storage/lifecycle-repository-cleanup/policy-change-between-unlinks",
+      "id": "shared/storage/lifecycle-repository-cleanup/mixed-evidence-and-pins",
       "order": 3088,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "shared/storage/lifecycle-repository-cleanup/cancellation-between-unlinks",
+      "id": "shared/storage/lifecycle-repository-cleanup/changed-original-file-set",
       "order": 3089,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "runner/list-runtime-import-boundary",
+      "id": "shared/storage/lifecycle-repository-cleanup/policy-change-between-unlinks",
       "order": 3090,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/lifecycle-repository-cleanup/cancellation-between-unlinks",
+      "order": 3091,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "runner/list-runtime-import-boundary",
+      "order": 3092,
       "suiteCategory": "meta",
       "suiteCategoryReason": "meta-cohort-prefix"
     },
     {
       "id": "tooling/install/go-sdk-probe-original-observation/result-before-status",
-      "order": 3091,
-      "suiteCategory": "hero",
-      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
-    },
-    {
-      "id": "tooling/install/go-sdk-probe-original-observation/nested-before-fields",
-      "order": 3092,
-      "suiteCategory": "hero",
-      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
-    },
-    {
-      "id": "tooling/install/go-sdk-probe-original-observation/enclosing-between-fields",
       "order": 3093,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/go-sdk-probe-original-observation/failure-before-result",
+      "id": "tooling/install/go-sdk-probe-original-observation/nested-before-fields",
       "order": 3094,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/go-sdk-probe-original-observation/inspection-retains-independent-work",
+      "id": "tooling/install/go-sdk-probe-original-observation/enclosing-between-fields",
       "order": 3095,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/go-sdk-probe-original-observation/function-original-failure",
+      "id": "tooling/install/go-sdk-probe-original-observation/failure-before-result",
       "order": 3096,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/go-sdk-probe-original-observation/closed-positive-and-late-observation",
+      "id": "tooling/install/go-sdk-probe-original-observation/inspection-retains-independent-work",
       "order": 3097,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/go-sdk-publication-observation/root-capability-revocation",
+      "id": "tooling/install/go-sdk-probe-original-observation/function-original-failure",
       "order": 3098,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/go-sdk-publication-observation/nested-capability-revocation",
+      "id": "tooling/install/go-sdk-probe-original-observation/closed-positive-and-late-observation",
       "order": 3099,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/go-sdk-publication-observation/post-verification-file-read",
+      "id": "tooling/install/go-sdk-publication-observation/root-capability-revocation",
       "order": 3100,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/go-sdk-publication-observation/function-failure-retirement",
+      "id": "tooling/install/go-sdk-publication-observation/nested-capability-revocation",
       "order": 3101,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/download-original-classification/original-before-classification",
+      "id": "tooling/install/go-sdk-publication-observation/post-verification-file-read",
       "order": 3102,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/download-original-classification/function-before-classification",
+      "id": "tooling/install/go-sdk-publication-observation/function-failure-retirement",
       "order": 3103,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/download-original-classification/independent-inspection-stops-fields",
+      "id": "tooling/install/download-original-classification/original-before-classification",
       "order": 3104,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/download-original-classification/closed-positive-and-negative",
+      "id": "tooling/install/download-original-classification/function-before-classification",
       "order": 3105,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/download-original-classification/callback-inspection-remains-required",
+      "id": "tooling/install/download-original-classification/independent-inspection-stops-fields",
       "order": 3106,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/managed-install-input-ownership/descriptor-during-download",
+      "id": "tooling/install/download-original-classification/closed-positive-and-negative",
       "order": 3107,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/managed-install-input-ownership/descriptor-during-selection",
+      "id": "tooling/install/download-original-classification/callback-inspection-remains-required",
       "order": 3108,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/managed-install-input-ownership/mutated-source-refusal",
+      "id": "tooling/install/managed-install-input-ownership/descriptor-during-download",
       "order": 3109,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/managed-install-input-ownership/borrowed-buffer-before-write",
+      "id": "tooling/install/managed-install-input-ownership/descriptor-during-selection",
       "order": 3110,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/managed-install-input-ownership/passive-contract",
+      "id": "tooling/install/managed-install-input-ownership/mutated-source-refusal",
       "order": 3111,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/managed-install-input-ownership/pending-acquisition-before-fields",
+      "id": "tooling/install/managed-install-input-ownership/borrowed-buffer-before-write",
       "order": 3112,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/managed-install-input-ownership/pending-progress-before-acquisition",
+      "id": "tooling/install/managed-install-input-ownership/passive-contract",
       "order": 3113,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/go-sdk-input-ownership/sealed-archive-before-write",
+      "id": "tooling/install/managed-install-input-ownership/pending-acquisition-before-fields",
       "order": 3114,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/go-sdk-input-ownership/sealed-index-before-parse",
+      "id": "tooling/install/managed-install-input-ownership/pending-progress-before-acquisition",
       "order": 3115,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/go-sdk-input-ownership/pending-index-before-fields",
+      "id": "tooling/install/go-sdk-input-ownership/sealed-archive-before-write",
       "order": 3116,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/go-sdk-input-ownership/pending-archive-before-fields",
+      "id": "tooling/install/go-sdk-input-ownership/sealed-index-before-parse",
       "order": 3117,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/go-sdk-input-ownership/revoked-index-source",
+      "id": "tooling/install/go-sdk-input-ownership/pending-index-before-fields",
       "order": 3118,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/go-sdk-input-ownership/invalid-index-bound",
+      "id": "tooling/install/go-sdk-input-ownership/pending-archive-before-fields",
       "order": 3119,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/go-sdk-input-ownership/intrinsic-buffer-view",
+      "id": "tooling/install/go-sdk-input-ownership/revoked-index-source",
       "order": 3120,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "shared/storage/write-reservation-receipt-observation/original-before-fields",
+      "id": "tooling/install/go-sdk-input-ownership/invalid-index-bound",
       "order": 3121,
       "suiteCategory": "hero",
-      "suiteCategoryReason": "default-standalone-behavior"
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "shared/storage/write-reservation-receipt-observation/revoked-resource-id",
+      "id": "tooling/install/go-sdk-input-ownership/intrinsic-buffer-view",
       "order": 3122,
       "suiteCategory": "hero",
-      "suiteCategoryReason": "default-standalone-behavior"
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "shared/storage/write-reservation-receipt-observation/pending-field-value",
+      "id": "shared/storage/write-reservation-receipt-observation/original-before-fields",
       "order": 3123,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "shared/storage/write-reservation-receipt-observation/independent-callback-inspection",
+      "id": "shared/storage/write-reservation-receipt-observation/revoked-resource-id",
       "order": 3124,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "shared/storage/write-reservation-receipt-observation/revoked-after-record-close",
+      "id": "shared/storage/write-reservation-receipt-observation/pending-field-value",
       "order": 3125,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "shared/storage/write-reservation-receipt-observation/guarded-positive-and-invalid",
+      "id": "shared/storage/write-reservation-receipt-observation/independent-callback-inspection",
       "order": 3126,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/install/install-action-original-observation/function-failure",
+      "id": "shared/storage/write-reservation-receipt-observation/revoked-after-record-close",
       "order": 3127,
       "suiteCategory": "hero",
-      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+      "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/install/install-action-original-observation/returned-pending-result",
+      "id": "shared/storage/write-reservation-receipt-observation/guarded-positive-and-invalid",
       "order": 3128,
       "suiteCategory": "hero",
-      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+      "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/install/install-action-original-observation/independent-inspection",
+      "id": "tooling/install/install-action-original-observation/function-failure",
       "order": 3129,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/install-action-original-observation/revoked-during-reservation-read",
+      "id": "tooling/install/install-action-original-observation/returned-pending-result",
       "order": 3130,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/eval/published-index-build-pair",
+      "id": "tooling/install/install-action-original-observation/independent-inspection",
       "order": 3131,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/install-action-original-observation/revoked-during-reservation-read",
+      "order": 3132,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/eval/published-index-build-pair",
+      "order": 3133,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/eval/published-index-revision-oracle/closed-preflight",
-      "order": 3132,
+      "order": 3134,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/install/managed-typescript-api7-components/exact-pins-and-targets",
-      "order": 3133,
-      "suiteCategory": "hero",
-      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
-    },
-    {
-      "id": "tooling/install/managed-typescript-api7-components/versioned-component-owners",
-      "order": 3134,
-      "suiteCategory": "hero",
-      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
-    },
-    {
-      "id": "tooling/install/managed-typescript-api7-components/closed-preparation",
       "order": 3135,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/managed-typescript-api7-components/sdk-real-fixture-exports",
+      "id": "tooling/install/managed-typescript-api7-components/versioned-component-owners",
       "order": 3136,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/managed-typescript-api7-components/sdk-invalid-fixture-exports",
+      "id": "tooling/install/managed-typescript-api7-components/closed-preparation",
       "order": 3137,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/managed-typescript-api7-components/original-before-fields",
+      "id": "tooling/install/managed-typescript-api7-components/sdk-real-fixture-exports",
       "order": 3138,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/managed-typescript-api7-components/guarded-activation-result",
+      "id": "tooling/install/managed-typescript-api7-components/sdk-invalid-fixture-exports",
       "order": 3139,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/typescript-api7-contract/closed-request",
+      "id": "tooling/install/managed-typescript-api7-components/original-before-fields",
       "order": 3140,
       "suiteCategory": "hero",
-      "suiteCategoryReason": "default-standalone-behavior"
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/typescript-api7-contract/passive-source-ownership",
+      "id": "tooling/install/managed-typescript-api7-components/guarded-activation-result",
       "order": 3141,
       "suiteCategory": "hero",
-      "suiteCategoryReason": "default-standalone-behavior"
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/typescript-api7-contract/path-and-project-authority",
+      "id": "tooling/typescript-api7-contract/closed-request",
       "order": 3142,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/typescript-api7-contract/query-authority",
+      "id": "tooling/typescript-api7-contract/passive-source-ownership",
       "order": 3143,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/typescript-api7-contract/finite-string-consumer",
+      "id": "tooling/typescript-api7-contract/path-and-project-authority",
       "order": 3144,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/typescript-api7-contract/aliases-overloads-and-docs",
+      "id": "tooling/typescript-api7-contract/query-authority",
       "order": 3145,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/typescript-api7-contract/unsupported-and-budget",
+      "id": "tooling/typescript-api7-contract/finite-string-consumer",
       "order": 3146,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/typescript-api7-contract/snapshot-and-source-identity",
+      "id": "tooling/typescript-api7-contract/aliases-overloads-and-docs",
       "order": 3147,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/typescript-api7-contract/configuration-closure",
+      "id": "tooling/typescript-api7-contract/unsupported-and-budget",
       "order": 3148,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/typescript-api7-contract/receipt-rejection",
+      "id": "tooling/typescript-api7-contract/snapshot-and-source-identity",
       "order": 3149,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/typescript-api7-contract/compiler-capability-inventory",
+      "id": "tooling/typescript-api7-contract/configuration-closure",
       "order": 3150,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "shared/storage/lifecycle-query-use/payload-bound-recency",
+      "id": "tooling/typescript-api7-contract/receipt-rejection",
       "order": 3151,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "shared/storage/lifecycle-query-use/passive-and-incomplete-inputs",
+      "id": "tooling/typescript-api7-contract/compiler-capability-inventory",
       "order": 3152,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "shared/storage/lifecycle-query-use/lower-bound-age-refusal",
+      "id": "shared/storage/lifecycle-query-use/payload-bound-recency",
       "order": 3153,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "shared/storage/lifecycle-query-use/coalesced-original-journal",
+      "id": "shared/storage/lifecycle-query-use/passive-and-incomplete-inputs",
       "order": 3154,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "shared/storage/lifecycle-query-use/read-only-original-inventory",
+      "id": "shared/storage/lifecycle-query-use/lower-bound-age-refusal",
       "order": 3155,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "shared/storage/lifecycle-query-use/changed-input-refusal",
+      "id": "shared/storage/lifecycle-query-use/coalesced-original-journal",
       "order": 3156,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "shared/storage/lifecycle-query-use/writer-refusal",
+      "id": "shared/storage/lifecycle-query-use/read-only-original-inventory",
       "order": 3157,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "shared/storage/lifecycle-query-use/lifecycle-preview-preserves-cache",
+      "id": "shared/storage/lifecycle-query-use/changed-input-refusal",
       "order": 3158,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "shared/storage/lifecycle-query-use/original-close-refusal",
+      "id": "shared/storage/lifecycle-query-use/writer-refusal",
       "order": 3159,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/semantic/view-composition/registered-closed-dag",
+      "id": "shared/storage/lifecycle-query-use/lifecycle-preview-preserves-cache",
       "order": 3160,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/semantic/view-composition/select-join-group-chain",
+      "id": "shared/storage/lifecycle-query-use/original-close-refusal",
       "order": 3161,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/semantic/view-composition/shared-source-self-join",
+      "id": "indexing/semantic/view-composition/registered-closed-dag",
       "order": 3162,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/semantic/view-composition/unchanged-role-followup",
+      "id": "indexing/semantic/view-composition/select-join-group-chain",
       "order": 3163,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/semantic/view-composition/replay-and-passive-capture",
+      "id": "indexing/semantic/view-composition/shared-source-self-join",
       "order": 3164,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/semantic/view-composition/atomic-downstream-refusal",
+      "id": "indexing/semantic/view-composition/unchanged-role-followup",
       "order": 3165,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/semantic/view-composition/incomplete-negative-domain",
+      "id": "indexing/semantic/view-composition/replay-and-passive-capture",
       "order": 3166,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/semantic/view-composition/independent-invalidation",
+      "id": "indexing/semantic/view-composition/atomic-downstream-refusal",
       "order": 3167,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/semantic/view-composition/prepared-receipt-authority",
+      "id": "indexing/semantic/view-composition/incomplete-negative-domain",
       "order": 3168,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/semantic/view-composition/independent-flat-oracle",
+      "id": "indexing/semantic/view-composition/independent-invalidation",
       "order": 3169,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/semantic/view-composition/coefficient-without-expansion",
+      "id": "indexing/semantic/view-composition/prepared-receipt-authority",
       "order": 3170,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/semantic/view-composition/checkpoint-rebuild-parity",
+      "id": "indexing/semantic/view-composition/independent-flat-oracle",
       "order": 3171,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/install/managed-verification-retention/helper-original-and-independent-observations",
+      "id": "indexing/semantic/view-composition/coefficient-without-expansion",
       "order": 3172,
       "suiteCategory": "hero",
-      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+      "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/install/managed-verification-retention/helper-field-failure-and-projection",
+      "id": "indexing/semantic/view-composition/checkpoint-rebuild-parity",
       "order": 3173,
       "suiteCategory": "hero",
-      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+      "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/install/managed-verification-retention/helper-pending-before-fields",
+      "id": "tooling/install/managed-verification-retention/helper-original-and-independent-observations",
       "order": 3174,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/managed-verification-retention/probe-positive-result",
+      "id": "tooling/install/managed-verification-retention/helper-field-failure-and-projection",
       "order": 3175,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/managed-verification-retention/probe-nonzero-result",
+      "id": "tooling/install/managed-verification-retention/helper-pending-before-fields",
       "order": 3176,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/managed-verification-retention/probe-nested-capture",
+      "id": "tooling/install/managed-verification-retention/probe-positive-result",
       "order": 3177,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/managed-verification-retention/probe-settled-error",
+      "id": "tooling/install/managed-verification-retention/probe-nonzero-result",
       "order": 3178,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/managed-verification-retention/probe-revocation-between-fields",
+      "id": "tooling/install/managed-verification-retention/probe-nested-capture",
       "order": 3179,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/managed-verification-retention/clangd-original-spawn-result",
+      "id": "tooling/install/managed-verification-retention/probe-settled-error",
       "order": 3180,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/managed-verification-retention/publication-after-original-revocation",
+      "id": "tooling/install/managed-verification-retention/probe-revocation-between-fields",
       "order": 3181,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/managed-verification-retention/pyright-positive",
+      "id": "tooling/install/managed-verification-retention/clangd-original-spawn-result",
       "order": 3182,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/managed-verification-retention/pyright-refusal",
+      "id": "tooling/install/managed-verification-retention/publication-after-original-revocation",
       "order": 3183,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/managed-verification-retention/native-typescript-positive",
+      "id": "tooling/install/managed-verification-retention/pyright-positive",
       "order": 3184,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/managed-verification-retention/native-typescript-refusal",
+      "id": "tooling/install/managed-verification-retention/pyright-refusal",
       "order": 3185,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/managed-verification-retention/csharp-positive",
+      "id": "tooling/install/managed-verification-retention/native-typescript-positive",
       "order": 3186,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/managed-verification-retention/csharp-refusal",
+      "id": "tooling/install/managed-verification-retention/native-typescript-refusal",
       "order": 3187,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/managed-verification-retention/dotnet-positive",
+      "id": "tooling/install/managed-verification-retention/csharp-positive",
       "order": 3188,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/managed-verification-retention/dotnet-refusal",
+      "id": "tooling/install/managed-verification-retention/csharp-refusal",
       "order": 3189,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/managed-verification-retention/dotnet-prior-probe-revocation",
+      "id": "tooling/install/managed-verification-retention/dotnet-positive",
       "order": 3190,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/managed-verification-retention/ast-grep-positive",
+      "id": "tooling/install/managed-verification-retention/dotnet-refusal",
       "order": 3191,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/managed-verification-retention/ast-grep-refusal",
+      "id": "tooling/install/managed-verification-retention/dotnet-prior-probe-revocation",
       "order": 3192,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/managed-verification-retention/ast-grep-prior-probe-revocation",
+      "id": "tooling/install/managed-verification-retention/ast-grep-positive",
       "order": 3193,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/managed-verification-retention/api7-sdk-positive",
+      "id": "tooling/install/managed-verification-retention/ast-grep-refusal",
       "order": 3194,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/managed-verification-retention/api7-sdk-refusal",
+      "id": "tooling/install/managed-verification-retention/ast-grep-prior-probe-revocation",
       "order": 3195,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/managed-verification-retention/api7-native-positive",
+      "id": "tooling/install/managed-verification-retention/api7-sdk-positive",
       "order": 3196,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/managed-verification-retention/api7-native-refusal",
+      "id": "tooling/install/managed-verification-retention/api7-sdk-refusal",
       "order": 3197,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/managed-verification-retention/probe-field-failure",
+      "id": "tooling/install/managed-verification-retention/api7-native-positive",
       "order": 3198,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/eval/suggestion-revision-oracle/duplicate-retraction",
+      "id": "tooling/install/managed-verification-retention/api7-native-refusal",
       "order": 3199,
       "suiteCategory": "hero",
-      "suiteCategoryReason": "default-standalone-behavior"
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/eval/suggestion-revision-oracle/negative-reactivation",
+      "id": "tooling/install/managed-verification-retention/probe-field-failure",
       "order": 3200,
       "suiteCategory": "hero",
-      "suiteCategoryReason": "default-standalone-behavior"
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/eval/suggestion-revision-oracle/cycle-shortcut",
+      "id": "tooling/eval/suggestion-revision-oracle/duplicate-retraction",
       "order": 3201,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/eval/suggestion-revision-oracle/node-and-test-replacement",
+      "id": "tooling/eval/suggestion-revision-oracle/negative-reactivation",
       "order": 3202,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/eval/suggestion-revision-oracle/seeded-imports",
+      "id": "tooling/eval/suggestion-revision-oracle/cycle-shortcut",
       "order": 3203,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/eval/suggestion-revision-oracle/independent-seeded-defects",
+      "id": "tooling/eval/suggestion-revision-oracle/node-and-test-replacement",
       "order": 3204,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/eval/suggestion-revision-oracle/stale-negative-and-retracted-witness",
+      "id": "tooling/eval/suggestion-revision-oracle/seeded-imports",
       "order": 3205,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/eval/suggestion-revision-oracle/closed-preconditions-and-original-supports",
+      "id": "tooling/eval/suggestion-revision-oracle/independent-seeded-defects",
       "order": 3206,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/eval/suggestion-revision-oracle/passive-and-bounded-inputs",
+      "id": "tooling/eval/suggestion-revision-oracle/stale-negative-and-retracted-witness",
       "order": 3207,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/eval/suggestion-revision-oracle/unknown-and-cancellation",
+      "id": "tooling/eval/suggestion-revision-oracle/closed-preconditions-and-original-supports",
       "order": 3208,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/eval/suggestion-revision-oracle/original-handles-and-independent-reference",
+      "id": "tooling/eval/suggestion-revision-oracle/passive-and-bounded-inputs",
       "order": 3209,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/eval/revision-minimizer-async/await-original-retirement",
+      "id": "tooling/eval/suggestion-revision-oracle/unknown-and-cancellation",
       "order": 3210,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/eval/revision-minimizer-async/predicate-and-witness-retention",
+      "id": "tooling/eval/suggestion-revision-oracle/original-handles-and-independent-reference",
       "order": 3211,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/eval/revision-minimizer-async/unknown-other-and-invalid",
+      "id": "tooling/eval/revision-minimizer-async/await-original-retirement",
       "order": 3212,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/eval/revision-minimizer-async/read-and-retirement-failures",
+      "id": "tooling/eval/revision-minimizer-async/predicate-and-witness-retention",
       "order": 3213,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/eval/revision-minimizer-async/falsey-read-and-release-only-failures",
+      "id": "tooling/eval/revision-minimizer-async/unknown-other-and-invalid",
       "order": 3214,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/eval/revision-minimizer-async/cancellation-after-retirement",
+      "id": "tooling/eval/revision-minimizer-async/read-and-retirement-failures",
       "order": 3215,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/eval/revision-minimizer-async/bounds-and-healthy-preflight",
+      "id": "tooling/eval/revision-minimizer-async/falsey-read-and-release-only-failures",
       "order": 3216,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/eval/revision-minimizer-async/shared-sync-owner-and-failure-graph",
+      "id": "tooling/eval/revision-minimizer-async/cancellation-after-retirement",
       "order": 3217,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "cli/general/lazy-runtime-admission",
+      "id": "tooling/eval/revision-minimizer-async/bounds-and-healthy-preflight",
       "order": 3218,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/eval/revision-minimizer-async/shared-sync-owner-and-failure-graph",
+      "order": 3219,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "cli/general/lazy-runtime-admission",
+      "order": 3220,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

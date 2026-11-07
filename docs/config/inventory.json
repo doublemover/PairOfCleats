@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-07T19:42:39.789Z",
+  "generatedAt": "2026-11-07T22:47:43.967Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
@@ -5030,6 +5030,7 @@
         "tests/tooling/install/checkout-command-evidence.test.js",
         "tests/tooling/install/checkout-evidence-files.test.js",
         "tests/tooling/install/checkout-evidence-retention.test.js",
+        "tests/tooling/install/checkout-inspection-replacement.test.js",
         "tests/tooling/install/checkout-mutation-owner.test.js",
         "tests/tooling/install/checkout-recovery.test.js",
         "tests/tooling/install/checkout-response-output.test.js",
