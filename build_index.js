@@ -3,26 +3,43 @@ import { guardBootstrapEntry } from './src/shared/bootstrap-readiness.js';
 await guardBootstrapEntry(import.meta.url);
 
 import path from 'node:path';
-const { parseBuildArgs } = await import('./src/index/build/args.js');
-const { buildIndex } = await import('./src/integrations/core/index.js');
-const { createBuildIndexOutcome, describeBuildIndexOutcome } = await import('./src/integrations/core/build-index/outcome.js');
-const { createDisplay } = await import('./src/shared/cli/display.js');
-const { createSafeWritableStream } = await import('./src/shared/cli/display/stream.js');
-const { setProgressHandlers } = await import('./src/shared/progress-runtime.js');
-const { buildAutoPolicy } = await import('./src/shared/auto-policy/build.js');
-const { parseObservabilityContextEnv } = await import('./src/shared/observability.js');
-const { createRuntimePreview } = await import('./src/shared/runtime-envelope/preview.js');
-const { resolveCurrentProcessRuntimeEnvelope } = await import('./src/shared/runtime-envelope/resolve-current-process-envelope.js');
-const { createAbortControllerWithHandlers, isAbortError } = await import('./src/shared/abort.js');
-const { isDirectExecution } = await import('./src/shared/direct-execution.js');
-const { setVerboseEnv } = await import('./src/shared/env.js');
-const { emitLegacyCliEntrypointWarning } = await import('./src/shared/cli/legacy-entrypoint.js');
-const { resolveConfirmedCrashEvidencePath } = await import('./src/index/build/crash-evidence.js');
-const {
-  getToolVersion,
-  loadUserConfig,
-  resolveRepoRoot
-} = await import('./tools/shared/dict-utils.js');
+// Start independent module reads together only after the original readiness
+// gate. ESM still owns dependency evaluation, and main awaits the entire set.
+const [
+  { parseBuildArgs },
+  { buildIndex },
+  { createBuildIndexOutcome, describeBuildIndexOutcome },
+  { createDisplay },
+  { createSafeWritableStream },
+  { setProgressHandlers },
+  { buildAutoPolicy },
+  { parseObservabilityContextEnv },
+  { createRuntimePreview },
+  { resolveCurrentProcessRuntimeEnvelope },
+  { createAbortControllerWithHandlers, isAbortError },
+  { isDirectExecution },
+  { setVerboseEnv },
+  { emitLegacyCliEntrypointWarning },
+  { resolveConfirmedCrashEvidencePath },
+  { getToolVersion, loadUserConfig, resolveRepoRoot }
+] = await Promise.all([
+  './src/index/build/args.js',
+  './src/integrations/core/index.js',
+  './src/integrations/core/build-index/outcome.js',
+  './src/shared/cli/display.js',
+  './src/shared/cli/display/stream.js',
+  './src/shared/progress-runtime.js',
+  './src/shared/auto-policy/build.js',
+  './src/shared/observability.js',
+  './src/shared/runtime-envelope/preview.js',
+  './src/shared/runtime-envelope/resolve-current-process-envelope.js',
+  './src/shared/abort.js',
+  './src/shared/direct-execution.js',
+  './src/shared/env.js',
+  './src/shared/cli/legacy-entrypoint.js',
+  './src/index/build/crash-evidence.js',
+  './tools/shared/dict-utils.js'
+].map(specifier => import(specifier)));
 
 export const main = async ({
   rawArgs = process.argv.slice(2),
