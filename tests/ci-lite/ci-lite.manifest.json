@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 2689,
+    "hero": 2698,
     "matrix": 110,
     "meta": 54,
     "soak": 1,
@@ -17137,6 +17137,60 @@
     {
       "id": "tooling/reports/bench-stream-inventory-bounds/original-directory-close-failure",
       "order": 2854,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/semantic/finite-feasibility/checked-witness-and-source",
+      "order": 2855,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/semantic/finite-feasibility/contradictory-shared-guards",
+      "order": 2856,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/semantic/finite-feasibility/phi-and-exception-oracle",
+      "order": 2857,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/semantic/finite-feasibility/unsupported-and-cyclic-frontiers",
+      "order": 2858,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/semantic/finite-feasibility/resumption-cancellation-and-authority",
+      "order": 2859,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/semantic/finite-feasibility/stale-source-and-retirement",
+      "order": 2860,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/semantic/finite-feasibility/independent-candidate-corruption",
+      "order": 2861,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/semantic/finite-feasibility/strict-ssa-and-source-admission",
+      "order": 2862,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/semantic/finite-feasibility/boolean-operation-concrete-oracle",
+      "order": 2863,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

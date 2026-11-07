@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-11-06T23:54:43.760Z",
+  "generatedAt": "2026-11-07T00:05:37.743Z",
   "summary": {
     "lanes": 5,
-    "tests": 3174,
+    "tests": 3183,
     "exactDuplicates": 0,
     "hotspotKinds": 10,
     "families": 433,
@@ -11,7 +11,7 @@
     "timingCoverage": {
       "freshArtifactTests": 0,
       "historicalFallbackTests": 74,
-      "missingTests": 3100
+      "missingTests": 3109
     }
   },
   "lanes": [
@@ -35,7 +35,7 @@
       "targetMaxDurationSeconds": 15,
       "orderFile": "tests/ci-lite/ci-lite.order.txt",
       "timingArtifactPath": ".testLogs/ci-lite-testRunTimes.txt",
-      "totalTests": 2854,
+      "totalTests": 2863,
       "knownDurationTests": 49,
       "knownDurationMs": 27090,
       "p50DurationMs": 190,
@@ -43,7 +43,7 @@
       "resolvedTimingArtifactPaths": [],
       "timingSources": {
         "historical-test-times": 49,
-        "missing": 2805
+        "missing": 2814
       }
     },
     {
@@ -296,9 +296,9 @@
     },
     {
       "key": "storage/semantic",
-      "count": 130,
+      "count": 139,
       "knownDurationMs": 0,
-      "unknownDurationCount": 130
+      "unknownDurationCount": 139
     },
     {
       "key": "tooling/lsp",

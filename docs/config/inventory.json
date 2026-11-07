@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-06T23:54:46.679Z",
+  "generatedAt": "2026-11-07T00:05:40.252Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
@@ -4901,6 +4901,7 @@
         "tests/storage/lmdb/ready-publication.test.js",
         "tests/storage/native-index-state-publication.test.js",
         "tests/storage/native-publication-cleanup.test.js",
+        "tests/storage/semantic/finite-feasibility.test.js",
         "tests/storage/semantic/manifest-serving-consumers.test.js",
         "tests/storage/semantic/part-original-lifetime.test.js",
         "tests/storage/semantic/prepared-sink-parity.test.js",

@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["checked-witness-and-source", "contradictory-shared-guards", "phi-and-exception-oracle", "unsupported-and-cyclic-frontiers", "resumption-cancellation-and-authority", "stale-source-and-retirement", "independent-candidate-corruption", "strict-ssa-and-source-admission", "boolean-operation-concrete-oracle"]
+}
