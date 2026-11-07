@@ -2,6 +2,16 @@
   "schemaVersion": 1,
   "suites": [
     {
+      "id": "indexing/embeddings/cache-identity",
+      "suiteCategory": "matrix",
+      "coverageOwner": "Stub embeddings never persist cache indexes/metadata; actual inline publication and standalone width8-to12 transition, with ONNX identity fields.",
+      "replacementIds": [],
+      "overlapPolicy": "partitioned-existing-assertions",
+      "matrixStrategy": "independent-cold-profile-cases",
+      "processIsolationRequired": true,
+      "notes": "The original aggregate takes23.4 seconds for full indexing plus two standalone child commands and exceeds30 seconds. The inline case retains its complete original build; the standalone case cold-builds the same12 source files through supported stage1 and retains the original8-to12 subprocess sequence. Stub cache admission is independent of semantic/provider enrichment; no native parser/worker backend is disabled. Both cases assert absence of all cache index/metadata artifacts and preserve ONNX model/tokenizer identity. Optional provider discovery is explicitly unselected rather than depending on the author's installed tools. No assertions, sources or width transitions are removed."
+    },
+    {
       "id": "tooling/install/bootstrap-readiness",
       "suiteCategory": "matrix",
       "coverageOwner": "Dependency-free readiness information/library refusal, every guarded executable's denial/admission, native activation/integrity and policy/patch/ABI drift.",

@@ -86,7 +86,8 @@ cli/search/determinism
 services/sqlite-build-snapshot
 smoke/api-core-health
 indexing/embeddings/determinism
-indexing/embeddings/cache-identity
+indexing/embeddings/cache-identity/inline-publication
+indexing/embeddings/cache-identity/standalone-dimension-transition
 storage/sqlite/bundle-missing
 storage/sqlite/incremental/bundle-partial-embeddings-fallback
 indexing/file-caps/contract-matrix

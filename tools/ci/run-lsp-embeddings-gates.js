@@ -22,14 +22,21 @@ const DEFAULT_TESTS = Object.freeze([
     timeoutMs: 240_000
   },
   {
-    label: 'embeddings-dims-mismatch',
-    file: path.join(root, 'tests', 'indexing', 'embeddings', 'dims-mismatch.test.js'),
-    timeoutMs: 180_000
+    label: 'embeddings-dims-validation',
+    file: path.join(root, 'tests', 'indexing', 'embeddings', 'dims-validation.test.js'),
+    timeoutMs: 30_000
   },
   {
-    label: 'embeddings-cache-identity',
+    label: 'embeddings-cache-identity-inline-publication',
     file: path.join(root, 'tests', 'indexing', 'embeddings', 'cache-identity.test.js'),
-    timeoutMs: 180_000
+    testId: 'indexing/embeddings/cache-identity/inline-publication',
+    timeoutMs: 30_000
+  },
+  {
+    label: 'embeddings-cache-identity-standalone-dimension-transition',
+    file: path.join(root, 'tests', 'indexing', 'embeddings', 'cache-identity.test.js'),
+    testId: 'indexing/embeddings/cache-identity/standalone-dimension-transition',
+    timeoutMs: 30_000
   }
 ]);
 
@@ -106,7 +113,7 @@ const runGateTest = (test, env) => {
       stdio: 'inherit',
       rejectOnNonZeroExit: false,
       cwd: repoRoot,
-      env,
+      env: test.testId ? { ...env, PAIROFCLEATS_TEST_ID: test.testId } : env,
       timeoutMs: test.timeoutMs
     });
     return {
