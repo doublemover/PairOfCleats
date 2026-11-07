@@ -13,10 +13,11 @@ import { createCompatibilityIndex } from '../helpers/index-compatibility-fixture
 
 assert.equal(process.platform, 'win32', 'This owner requires actual Windows ConPTY; POSIX needs its own PTY owner');
 const mode = process.env.PAIROFCLEATS_TEST_ID?.split('tui/native-search-conpty/')[1];
-assert.ok(['query-source', 'pagination', 'cancel', 'empty-error', 'replace', 'scope', 'navigation', 'truncated', 'modes', 'incompatible', 'narrow', 'interrupt', 'handshake', 'failed-first', 'failed-first-narrow'].includes(mode));
+const admissionFailure = ['missing-index', 'missing-capability', 'unsupported-format'].includes(mode);
+assert.ok(admissionFailure || ['query-source', 'pagination', 'cancel', 'empty-error', 'replace', 'scope', 'navigation', 'truncated', 'modes', 'incompatible', 'narrow', 'interrupt', 'handshake', 'failed-first', 'failed-first-narrow'].includes(mode));
 const firstFailure = ['failed-first', 'failed-first-narrow'].includes(mode);
-const columns = mode === 'failed-first-narrow' ? 32 : mode === 'failed-first' ? 80 : mode === 'narrow' ? 60 : 170;
-const terminalRows = firstFailure ? 24 : mode === 'narrow' ? 18 : 46;
+const columns = mode === 'failed-first-narrow' ? 32 : firstFailure || admissionFailure ? 80 : mode === 'narrow' ? 60 : 170;
+const terminalRows = firstFailure || admissionFailure ? 24 : mode === 'narrow' ? 18 : 46;
 const root = process.cwd(), { dir } = await prepareIsolatedTestCacheDir(`native-search-${mode}`);
 const repo = path.join(dir, 'selected repository');
 const alternate = path.join(dir, 'alternate repository');
@@ -81,7 +82,20 @@ const buildAt = async (target, name) => {
       error: failure ? { message: failure.message, code: failure.code } : null }, null, 2));
   }
 };
-if (['modes', 'incompatible'].includes(mode)) {
+if (admissionFailure) {
+  // Deliberately damaged/unqualified published inputs. These cases qualify the
+  // actual CLI admission and native recovery UI; production is covered by the
+  // independently bounded canonical build cases, not this artifact fixture.
+  const index = await createCompatibilityIndex(repo, { published: true,
+    userConfig: { cache: { root: path.join(dir, 'cache') } },
+    compatibilityKey: 'native-search-admission', profileId: 'default', fileName: 'src/answer.js' });
+  if (mode === 'missing-index') await fs.unlink(path.join(index, 'chunk_meta.json'));
+  if (mode === 'unsupported-format') {
+    const file = path.join(index, 'index_state.json');
+    const state = JSON.parse(await fs.readFile(file, 'utf8'));
+    await fs.writeFile(file, JSON.stringify({ ...state, artifactSurfaceVersion: 'obsolete-fixture-format' }));
+  }
+} else if (['modes', 'incompatible'].includes(mode)) {
   const inputs = [['code', 'src/answer.js', 'FunctionDeclaration'], ['prose', 'README.md', 'paragraph'],
     ['extracted-prose', 'src/answer.js', 'comment'], ['records', 'records.json', 'record']];
   await fs.writeFile(path.join(repo, 'README.md'), 'Native prose source\n');
@@ -195,6 +209,7 @@ try {
           .map(JSON.parse).some(row => row.runId === 'search-native' && row.renderMsEwma > 0);
       }, 'native input loop after its first frame');
     };
+    let recoveryFormClosed = false;
     try {
       await wait(async () => (await readEvents()).some(row => row.event === 'hello'), 'actual supervisor hello');
       if (mode === 'handshake') {
@@ -217,10 +232,46 @@ try {
       const requestedQuery = ['pagination', 'truncated', 'modes', 'incompatible'].includes(mode) ? '' : mode === 'empty-error' ? 'unfindableNativeTerm' : query;
       const filters = mode === 'pagination' ? { ann: false, lang: 'javascript' }
         : mode === 'truncated' ? { ann: false, type: 'FunctionDeclaration' }
-          : ['modes', 'incompatible'].includes(mode) ? { ann: false, file: ['src/answer.js', 'README.md', 'records.json'] } : { ann: false };
+          : ['modes', 'incompatible'].includes(mode) ? { ann: false, file: ['src/answer.js', 'README.md', 'records.json'] }
+            : mode === 'missing-capability' ? { ann: false, branch: 'unavailable' } : { ann: false };
       if (firstFailure) terminal.write(`\x1b[Z\x15${scopeInput(path.join(repo, 'src/answer.js'))}\t`);
       terminal.write(`${requestedQuery}\t\x15${['modes', 'incompatible'].includes(mode) ? 'all' : 'code'}\t\x15memory\t\x15${mode === 'pagination' ? 1 : mode === 'truncated' ? 100 : 5}\t\t\t\x15${JSON.stringify(filters)}\r`);
-      if (firstFailure) {
+      if (admissionFailure) {
+        let failed;
+        await wait(async () => {
+          failed = (await readEvents()).find(row => row.event === 'job:end' && row.jobId === 'native-search-2');
+          return failed;
+        }, 'actual requested admission failure');
+        assert.equal(failed.status, 'failed', JSON.stringify(failed));
+        assert.equal(failed.result, null);
+        assert.equal(failed.error.failure.reason, mode);
+        await rendered(`query-failed: ${mode}`);
+        assert.equal(screen().includes('contains no hits'), false);
+        if (mode === 'missing-capability') {
+          const after = await lastJob(); terminal.write('s');
+          const readiness = await settled('readiness', after);
+          assert.deepEqual(readiness, { prepared: true, qualification: 'activation-metadata-only', nativeProbesRun: false });
+          await rendered('Setup metadata inspected');
+          await rendered('missing-capability');
+        }
+        const before = await readEvents();
+        terminal.write(mode === 'missing-capability' ? 'p' : 'i');
+        const command = mode === 'missing-capability' ? 'tooling.doctor' : 'index.validate';
+        await rendered(`Typed form: ${command}`);
+        const events = await readEvents();
+        const selected = events.find(row => row.event === 'job:end' && row.result?.method === 'select'
+          && row.jobId?.startsWith('native-workflow-'));
+        assert.equal(selected.status, 'done');
+        assert.equal(selected.result.data.kind, 'repo');
+        assert.equal(selected.result.data.target, await fs.realpath(repo));
+        assert.equal(selected.result.data.configRoot, await fs.realpath(repo));
+        assert.equal(events.filter(row => row.event === 'job:spawn').length,
+          before.filter(row => row.event === 'job:spawn').length, 'opening recovery cannot execute a command');
+        assert.equal(events.some(row => row.event === 'job:start' && row.jobId?.startsWith('workflow-')), false);
+        terminal.write('\x1b');
+        await wait(() => !screen().includes('Typed form:'), 'recovery form returned to catalog');
+        terminal.write('\x1b'); await rendered('Tab pane'); recoveryFormClosed = true;
+      } else if (firstFailure) {
         let failed;
         await wait(async () => { failed = (await readEvents()).find(row => row.event === 'job:end' && row.jobId === 'native-search-2'); return failed; }, 'failed first query');
         assert.equal(failed.status, 'failed'); assert.equal(failed.result, null);
@@ -357,7 +408,7 @@ try {
         }
       }
       if (mode !== 'interrupt') {
-        if (mode !== 'cancel') terminal.write('\x1b');
+        if (mode !== 'cancel' && !recoveryFormClosed) terminal.write('\x1b');
         if (columns < 40) {
           await wait(() => !screen().includes('Repository search'), 'search overlay closed at narrow width');
           await fs.writeFile(path.join(dir, `screen-${screens++}.txt`), screen());
@@ -382,7 +433,7 @@ try {
   assert.equal(snapshotText.includes(query), false, 'query/source drafts stay out of layout persistence');
   assert.deepEqual(JSON.parse(snapshotText).final_job_statuses, {});
   console.log(JSON.stringify({ mode, binary, binarySha256, receipt, supervisorReaped: true,
-    queryChildren: spawns.map(row => row.pid), actualIndexBuild: !['truncated', 'modes', 'incompatible'].includes(mode), capture: capture.outputDir }));
+    queryChildren: spawns.map(row => row.pid), actualIndexBuild: !admissionFailure && !['truncated', 'modes', 'incompatible'].includes(mode), capture: capture.outputDir }));
 } finally {
   try {
     const meta = JSON.parse(await fs.readFile(path.join(dir, 'search-native.meta.json'), 'utf8'));
