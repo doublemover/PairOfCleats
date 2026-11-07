@@ -131,3 +131,61 @@ incremental work, and a copied metric from another operator is rejected. Bounded
 generators exercise each real sparse owner through the existing independent and
 clean-rebuild comparisons. Operator work stays separate from measured elapsed
 time and reference examinations; original bounds are unchanged.
+
+## Published code-index revision cohorts
+
+The explicit `published-javascript-chunk-index-revisions-v1` adapter materializes
+the same inert construction grammar in a fresh task-owned workspace. It invokes
+the real `build_index.js` stage2 code-publication owner in serial fresh children:
+one persistent incremental candidate and a new repository/cache for each clean
+rebuild. Each checkpoint starts from its exact declared source state. Selecting
+nonadjacent checkpoints models a batch edit; omitted checkpoints are enumerated,
+and `completeScenarioCoverage` stays false. No author cache or fixture-health
+stamp can substitute for a build.
+
+The fixed configuration selects Babel without Flow and disables embeddings,
+SQLite and semantic enrichment for this chunk-index profile. It keeps the
+production worker backend and uses one indexing thread. Generated files are
+data: no source template, command, project hook or caller executor is admitted.
+Only these constructed repositories receive explicit child-launch trust.
+Application roots/test hooks are isolated in the child environment; the parent
+environment is unchanged. Normal bootstrap readiness still gates the real build.
+
+The original strict artifact loader streams bounded rows from the selected
+published generation under actual storage reader leases. Source bytes are
+checked before/after, and the same bounded current-pointer hash must survive the
+read. The independent grammar compares names, kinds, UTF-16 intervals, lines and
+exact source text. Truly zero-byte files are absent from the indexing universe;
+that explicit eligibility rule is separate from source extraction's root module.
+Clean-rebuild parity also compares **exact chunk UIDs and published tokens**.
+`token-flow.js` selects the `repo` namespace, and `identity/chunk-uid.js` binds
+relative virtual paths and source/context bytes: independent repository/cache
+roots do not justify dropping these identities. No provenance is normalized.
+Missing token payloads remain explicit null, without a token-completeness claim.
+
+Strict `revision-index.js` receipts retain actual commands, configuration hashes,
+exit status, Node/ABI and producer versions, generation/pointer identities,
+per-stream log hashes/counts, checkpoint coverage, distinct oracle claims and
+counterexamples. Complete stdout/stderr is retained under the disposable marked
+workspace; truncated or lossy capture refuses qualification. Success does not
+establish semantic closure, SQLite/vector correctness, source execution, native
+backend activation or a general latency improvement.
+
+Private original handles own physical worlds and readers. Joined `recheck`
+callers receive the exact tracked promise, with a three-second operation cap and
+at most16 admitted rechecks. Rechecks require the original pointer and content;
+changed source or a changed locator cannot become an adopted replacement.
+Retirement refuses active reads and original pending FileHandles, retires its
+actual reader sessions, then verifies the exact root identity, physical parent
+and owner marker before recursive removal. A receipt-shaped object cannot grant
+retirement. Failure retains original resource capabilities and fixture evidence;
+the caller explicitly retires that original session after actual closure.
+
+Seven authored, locally unrun cases cover closed preflight/no mutation, real
+edit/delete/rename/re-add cohorts versus isolated rebuild, joined original-world rechecks and
+source/pointer/marker tampering, and refusal to remove a world while its actual
+source descriptor close is pending. Real builds have a25-second whole-run cap;
+the existing runner remains at30 seconds, zero retries and native redo disabled.
+The six build cases have one serial CI owner and no broad-lane overlap. Broader
+semantic/build-world, certificate/test-suggestion adapters and an asynchronous
+real-build minimizer remain required for #1528; this does not close that issue.

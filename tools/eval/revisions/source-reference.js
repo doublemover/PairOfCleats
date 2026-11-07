@@ -39,6 +39,17 @@ export const referenceSourceRevision = (files, { maxReferenceFiles = 8, signal =
   if (!check()) return { output: null, examined, reason: 'reference-work-budget' };
   return { output: captureSourceRevisionOutput(output), examined, reason: null };
 };
+/** Index eligibility and resolved fallback lines are distinct from the AST
+ * projection above. Derive them from the constructed text, never candidate
+ * discovery, line-index or publication helpers. */
+export const referencePublishedSourceRevision = (files, options = {}) => {
+  const reference = referenceSourceRevision(files, options);
+  if (reference.output === null) return reference;
+  const output = reference.output.filter(row => row.byteLength > 0).map(row => ({ ...row,
+    chunks: row.chunks.map(chunk => chunk.kind === 'Module' ? { ...chunk, startLine: 1,
+      endLine: chunk.text.slice(0, Math.max(0, chunk.text.length - 1)).split('\n').length } : chunk) }));
+  return { ...reference, output: captureSourceRevisionOutput(output) };
+};
 /** Diagnostic comparison cannot manufacture an original execution handle. */
 export const compareSourceRevisionOutput = ({ scenario, checkpoint, actual }) => {
   const compiled = compileSourceRevisionScenario(scenario);

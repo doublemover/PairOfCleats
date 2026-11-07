@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 212,
+    "hero": 218,
     "matrix": 27,
     "meta": 4,
     "soak": 0,
@@ -1473,6 +1473,42 @@
       "order": 243,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/eval/published-index-revision-oracle/edit-delete-rename",
+      "order": 244,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/eval/published-index-revision-oracle/original-world-rechecks",
+      "order": 245,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/eval/published-index-revision-oracle/pending-reader-retirement",
+      "order": 246,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/eval/published-index-revision-oracle/edit-only",
+      "order": 247,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/eval/published-index-revision-oracle/delete-file",
+      "order": 248,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/eval/published-index-revision-oracle/restore-file",
+      "order": 249,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
     }
   ]
 }

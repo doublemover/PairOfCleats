@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-11-07T11:10:28.903Z",
+  "generatedAt": "2026-11-07T11:47:39.706Z",
   "summary": {
     "lanes": 5,
-    "tests": 3449,
+    "tests": 3456,
     "exactDuplicates": 0,
     "hotspotKinds": 10,
     "families": 437,
@@ -11,7 +11,7 @@
     "timingCoverage": {
       "freshArtifactTests": 0,
       "historicalFallbackTests": 74,
-      "missingTests": 3375
+      "missingTests": 3382
     }
   },
   "lanes": [
@@ -35,7 +35,7 @@
       "targetMaxDurationSeconds": 15,
       "orderFile": "tests/ci-lite/ci-lite.order.txt",
       "timingArtifactPath": ".testLogs/ci-lite-testRunTimes.txt",
-      "totalTests": 3128,
+      "totalTests": 3129,
       "knownDurationTests": 49,
       "knownDurationMs": 27090,
       "p50DurationMs": 190,
@@ -43,7 +43,7 @@
       "resolvedTimingArtifactPaths": [],
       "timingSources": {
         "historical-test-times": 49,
-        "missing": 3079
+        "missing": 3080
       }
     },
     {
@@ -51,7 +51,7 @@
       "targetMaxDurationSeconds": 60,
       "orderFile": "tests/ci/ci.order.txt",
       "timingArtifactPath": ".testLogs/ci-testRunTimes.txt",
-      "totalTests": 243,
+      "totalTests": 249,
       "knownDurationTests": 22,
       "knownDurationMs": 101770,
       "p50DurationMs": 5020,
@@ -59,7 +59,7 @@
       "resolvedTimingArtifactPaths": [],
       "timingSources": {
         "historical-test-times": 22,
-        "missing": 221
+        "missing": 227
       }
     },
     {
@@ -319,13 +319,13 @@
       "unknownDurationCount": 119
     },
     {
-      "key": "cli/search",
-      "count": 88,
+      "key": "tooling/eval",
+      "count": 95,
       "knownDurationMs": 0,
-      "unknownDurationCount": 88
+      "unknownDurationCount": 95
     },
     {
-      "key": "tooling/eval",
+      "key": "cli/search",
       "count": 88,
       "knownDurationMs": 0,
       "unknownDurationCount": 88

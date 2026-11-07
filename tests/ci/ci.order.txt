@@ -242,3 +242,9 @@ services/api/runtime-evidence
 tooling/install/bootstrap-terminal-status/terminal-80x24-no-color
 tooling/install/bootstrap-terminal-status/terminal-120x30-no-color
 tooling/install/bootstrap-terminal-status/pipe-json-stdout
+tooling/eval/published-index-revision-oracle/edit-delete-rename
+tooling/eval/published-index-revision-oracle/original-world-rechecks
+tooling/eval/published-index-revision-oracle/pending-reader-retirement
+tooling/eval/published-index-revision-oracle/edit-only
+tooling/eval/published-index-revision-oracle/delete-file
+tooling/eval/published-index-revision-oracle/restore-file

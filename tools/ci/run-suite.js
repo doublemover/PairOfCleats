@@ -21,6 +21,8 @@ const DEFAULT_JUNIT = path.join(DEFAULT_LOG_DIR, 'junit.xml');
 const DEFAULT_CACHE_ROOT = resolveDevelopmentArtifactPath(ROOT, 'ci-cache', 'pairofcleats');
 const DEFAULT_HOME_ROOT = resolveDevelopmentArtifactPath(ROOT, 'ci-home', 'pairofcleats');
 const SERIAL_RUNTIME_BUDGET_IDS = ['tooling/reports/summary/report', 'perf/parsers/toml-cold-budget',
+  ...['edit-only', 'delete-file', 'edit-delete-rename', 'restore-file', 'original-world-rechecks', 'pending-reader-retirement']
+    .map(id => `tooling/eval/published-index-revision-oracle/${id}`),
   'perf/parsers/jinja-cold-budget', 'perf/parsers/xml-cold-budget', 'indexing/semantic/compiler-single-cpu-lifecycle',
   'map/member-join-work-consumer/measure', 'retrieval/backend/fts-cooperative-timing-consumer',
   ...['render', 'graph-skewed', 'graph-skewed-independent', 'map-large', 'memory-transient', 'vfs-ascii',

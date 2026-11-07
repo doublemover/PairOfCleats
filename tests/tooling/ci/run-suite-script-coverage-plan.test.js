@@ -66,6 +66,11 @@ for (const line of planLines.filter(line => line.startsWith('[dry-run] ') && lin
 }
 const retirement = JSON.parse(await fs.readFile(path.join(root,
   'docs/archived/script-coverage-retirement-2026-10-20.json'), 'utf8'));
+for (const mode of ['edit-only', 'delete-file', 'edit-delete-rename', 'restore-file', 'original-world-rechecks', 'pending-reader-retirement']) {
+  const id = `tooling/eval/published-index-revision-oracle/${mode}`;
+  assert.equal(plannedOwners.get(id), '[dry-run] Serial runtime budgets', 'real published-index cohorts require their unique serial owner');
+  assert.equal(mainIds.has(id), false);
+}
 const discoveredIds = listSelectors(['--lane', 'all']);
 for (const entry of retirement.delegations) {
   const replacements = discoveredIds.filter(id => id === entry.canonicalOwner || id.startsWith(entry.canonicalOwner + '/'));

@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 2962,
+    "hero": 2963,
     "matrix": 110,
     "meta": 55,
     "soak": 1,
@@ -18783,6 +18783,12 @@
       "order": 3128,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/eval/published-index-revision-oracle/closed-preflight",
+      "order": 3129,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
     }
   ]
 }
