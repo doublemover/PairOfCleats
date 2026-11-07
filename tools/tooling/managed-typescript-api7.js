@@ -4,7 +4,6 @@ import { installPinnedManagedTool, validatePinnedInstallDescriptor } from './man
 import { probeProvisioningCommand } from './provisioning-plan.js';
 import { resolveNoProvisionToolingEnvironment } from '../../src/shared/toolchain-env.js';
 import { createManagedVerificationObservation } from './managed-verification-observation.js';
-import { addStorageFailureContext } from '../../src/shared/storage/operation-error.js';
 import { finiteViewFields } from '../../src/index/semantic/views/finite-input.js';
 
 import { TYPESCRIPT_API7_VERSION, TYPESCRIPT_API7_PROFILE, resolveManagedTypeScriptApi7Recipes } from '../../src/shared/typescript-api7-pins.js';
@@ -45,14 +44,12 @@ const verifyComponent = async (role, { root, command, descriptor, toolingRoot, e
     const success = observation.read(result, 'ok'), stdout = observation.read(result, 'stdout');
     observation.check(); signal?.throwIfAborted();
     const ok = success === true && (role === 'sdk' ? sdkProbeIdentity(stdout) : typeof stdout === 'string' && stdout.trim() === 'Version ' + TYPESCRIPT_API7_VERSION);
-    return Object.defineProperties({ ok, level: ok ? `pinned-api7-${role}-activation` : `api7-${role}-activation-rejected`,
+    return observation.finish({ ok, level: ok ? `pinned-api7-${role}-activation` : `api7-${role}-activation-rejected`,
       identity: { family: TYPESCRIPT_API7_PROFILE, role, version: TYPESCRIPT_API7_VERSION, descriptorId: pinned.descriptorId },
-      runtimeQualified: false, settlement }, { cacheOwnershipPending: { value: true },
-      cacheOwnershipReleased: { value: observation.isSettled }, ...(!ok ? { cause: { value: result } } : {}) });
+      runtimeQualified: false, settlement });
   } catch (error) {
     observation.remember(error);
-    throw addStorageFailureContext(error, observation.isSettled() ? { settlement } : {}, result,
-      { secondaryPresent: result !== null, ownerMessage: 'Pinned TypeScript7.1 component activation failed; original observations are retained.' });
+    throw observation.failure(error, observation.isSettled() ? { settlement } : {});
   }
 };
 export const verifyManagedTypeScriptApi7Sdk = (input, dependencies) => verifyComponent('sdk', input, dependencies);

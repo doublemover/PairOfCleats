@@ -4,6 +4,8 @@ import { verifyInstallerRequirementProbe } from './install-requirements.js';
 import { runOperationalChildWithStorage } from './operational-storage.js';
 import { resolveNoProvisionToolingEnvironment } from '../../src/shared/toolchain-env.js';
 import { bindManagedDotnetEnvironment } from './dotnet-environment.js';
+import { createManagedVerificationObservation } from './managed-verification-observation.js';
+import { throwIfAborted } from '../../src/shared/abort.js';
 
 // Official release metadata + Azure Blob HEAD lengths observed 2026-10-29.
 // No archive was downloaded/executed for this source receipt.
@@ -44,26 +46,38 @@ export const verifyManagedDotnetSdk = async (input, { probe = probeProvisioningC
   const identity = identifyProvisioningExecutable(command, { signal });
   const env = resolveNoProvisionToolingEnvironment(bindManagedDotnetEnvironment(input.env || process.env, root, command, descriptor.arch),
     { command, providerId: 'dotnet-sdk', cwd: root, toolingRoot });
-  const run = args => runOperationalChildWithStorage({ id: 'dotnet-sdk', toolingRoot, repoRoot: toolingRoot, command, identity, env, cwd: root },
-    ({ env: routed }) => probe(command, args, { cwd: root, env: routed, signal, timeoutMs: 4000, maxOutputBytes: 65536 }));
   const settlement = { resourceId, settled: true, pending: false };
+  const observation = createManagedVerificationObservation();
+  const run = async args => {
+    observation.check(); throwIfAborted(signal);
+    const result = await runOperationalChildWithStorage({ id: 'dotnet-sdk', toolingRoot, repoRoot: toolingRoot, command, identity, env, cwd: root },
+      ({ env: routed }) => probe(command, args, { cwd: root, env: routed, signal, timeoutMs: 4000, maxOutputBytes: 65536 }));
+    observation.remember(result); observation.check(); throwIfAborted(signal);
+    return observation.project(result);
+  };
   const normalize = value => descriptor.platform === 'win32' ? path.resolve(value).toLowerCase() : path.resolve(value);
-  const sdks = verifyInstallerRequirementProbe('dotnet', await run(['--list-sdks']), { versionRange: DOTNET_SDK_VERSION });
-  if (!sdks.ok || !sdks.identity.sdks.some(sdk => sdk.version === DOTNET_SDK_VERSION && normalize(sdk.path) === normalize(path.join(root, 'sdk')))) {
-    return { ok: false, level: 'pinned-dotnet-sdk-pack-rejected', settlement };
+  try {
+    const sdks = verifyInstallerRequirementProbe('dotnet', await run(['--list-sdks']), { versionRange: DOTNET_SDK_VERSION });
+    if (!sdks.ok || !sdks.identity.sdks.some(sdk => sdk.version === DOTNET_SDK_VERSION && normalize(sdk.path) === normalize(path.join(root, 'sdk')))) {
+      return observation.finish({ ok: false, level: 'pinned-dotnet-sdk-pack-rejected', settlement });
+    }
+    const runtimes = verifyInstallerRequirementProbe('dotnet-runtime', await run(['--list-runtimes']), {
+      versionRange: DOTNET_RUNTIME_VERSION, requiredComponents: ['Microsoft.NETCore.App'] });
+    if (!runtimes.ok || !runtimes.identity.runtimes.some(runtime => runtime.component === 'Microsoft.NETCore.App'
+      && runtime.version === DOTNET_RUNTIME_VERSION && normalize(runtime.path) === normalize(path.join(root, 'shared', 'Microsoft.NETCore.App')))) {
+      return observation.finish({ ok: false, level: 'pinned-dotnet-runtime-pack-rejected', settlement });
+    }
+    const info = await run(['--info']);
+    const stdout = typeof info.stdout === 'string' ? info.stdout : '';
+    const architecture = /^\s*Architecture:\s*(x64|x86|arm64)\s*$/mu.exec(stdout)?.[1];
+    const rid = /^\s*RID:\s*(win-(?:x64|x86|arm64))\s*$/mu.exec(stdout)?.[1];
+    const expected = descriptor.arch === 'ia32' ? 'x86' : descriptor.arch;
+    const ok = info.ok === true && architecture === expected && rid === `win-${expected}`;
+    return observation.finish({ ok, level: ok ? 'pinned-dotnet-sdk-runtime-and-native-host' : 'dotnet-host-target-rejected',
+      identity: { family: 'dotnet-sdk', version: DOTNET_SDK_VERSION, runtimeVersion: DOTNET_RUNTIME_VERSION,
+        platform: descriptor.platform, arch: descriptor.arch }, consumerQualified: false, settlement });
+  } catch (error) {
+    observation.remember(error);
+    throw observation.failure(error, observation.isSettled() ? { settlement } : {});
   }
-  const runtimes = verifyInstallerRequirementProbe('dotnet-runtime', await run(['--list-runtimes']), {
-    versionRange: DOTNET_RUNTIME_VERSION, requiredComponents: ['Microsoft.NETCore.App'] });
-  if (!runtimes.ok || !runtimes.identity.runtimes.some(runtime => runtime.component === 'Microsoft.NETCore.App'
-    && runtime.version === DOTNET_RUNTIME_VERSION && normalize(runtime.path) === normalize(path.join(root, 'shared', 'Microsoft.NETCore.App')))) {
-    return { ok: false, level: 'pinned-dotnet-runtime-pack-rejected', settlement };
-  }
-  const info = await run(['--info']);
-  const architecture = /^\s*Architecture:\s*(x64|x86|arm64)\s*$/mu.exec(info.stdout || '')?.[1];
-  const rid = /^\s*RID:\s*(win-(?:x64|x86|arm64))\s*$/mu.exec(info.stdout || '')?.[1];
-  const expected = descriptor.arch === 'ia32' ? 'x86' : descriptor.arch;
-  const ok = info.ok && architecture === expected && rid === `win-${expected}`;
-  return { ok, level: ok ? 'pinned-dotnet-sdk-runtime-and-native-host' : 'dotnet-host-target-rejected',
-    identity: { family: 'dotnet-sdk', version: DOTNET_SDK_VERSION, runtimeVersion: DOTNET_RUNTIME_VERSION,
-      platform: descriptor.platform, arch: descriptor.arch }, consumerQualified: false, settlement };
 };

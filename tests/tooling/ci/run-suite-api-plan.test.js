@@ -113,6 +113,8 @@ for (const mode of ['ci', 'nightly']) {
               ...validationWorkIds,
               ...healthWorkIds,
               ...semanticEncodingWorkIds,
+              ...['edit-only', 'delete-file', 'edit-delete-rename', 'restore-file', 'original-world-rechecks', 'pending-reader-retirement']
+                .map(id => `tooling/eval/published-index-revision-oracle/${id}`),
               'indexing/embeddings/artifact-installed-closure', 'embeddings/onnx/installation-closure',
               'embeddings/onnx/downloader-installation-consumer',
               'indexing/artifacts/binary-frame-manifest-integrity', 'indexing/semantic/sealed-piece-manifest-work',

@@ -3,6 +3,8 @@ import { identifyProvisioningExecutable, probeProvisioningCommand } from './prov
 import { downloadOfficialGitHubRelease } from './official-release-download.js';
 import { runOperationalChildWithStorage } from './operational-storage.js';
 import { resolveNoProvisionToolingEnvironment } from '../../src/shared/toolchain-env.js';
+import { createManagedVerificationObservation } from './managed-verification-observation.js';
+import { throwIfAborted } from '../../src/shared/abort.js';
 
 // Official 0.51.0 release asset metadata, resolved on 2026-10-29:
 // https://api.github.com/repos/ast-grep/ast-grep/releases/tags/0.51.0
@@ -48,16 +50,30 @@ export const verifyManagedAstGrep = async ({ root, command, descriptor, toolingR
   const identity = identifyProvisioningExecutable(command, { signal });
   const env = resolveNoProvisionToolingEnvironment(baseEnv, { command, providerId: 'ast-grep', toolingRoot, cwd: root });
   const options = { cwd: root, signal, timeoutMs: 4000, maxOutputBytes: 65536, env };
-  const run = (args, extra = {}) => runOperationalChildWithStorage({ id: 'ast-grep', toolingRoot, repoRoot: toolingRoot,
-    command, identity, env, cwd: root }, ({ env: routed }) => probe(command, args, { ...options, ...extra, env: routed }));
-  const version = await run(['--version']);
-  const identified = version.ok && identifyAstGrepVersion(version.stdout) === descriptor.version;
-  if (!identified) return { ok: false, level: 'executable-version-rejected', settlement };
-  const input = 'console.log("pairofcleats-managed-probe")';
-  const matched = await run(['run', '--lang', 'javascript', '--pattern', input, '--json=compact', '--stdin'], { input });
-  let rows = null;
-  try { rows = JSON.parse(matched.stdout); } catch { /* Non-JSON output cannot prove the selected capability. */ }
-  const ok = matched.ok && Array.isArray(rows) && rows.length === 1 && rows[0]?.text === input;
-  return { ok, level: ok ? 'pinned-executable-and-local-structural-match' : 'local-structural-match-rejected',
-    identity: { family: 'ast-grep', version: descriptor.version }, localRulesOnly: true, settlement };
+  const observation = createManagedVerificationObservation();
+  const run = async (args, extra = {}) => {
+    observation.check(); throwIfAborted(signal);
+    const result = await runOperationalChildWithStorage({ id: 'ast-grep', toolingRoot, repoRoot: toolingRoot,
+      command, identity, env, cwd: root }, ({ env: routed }) => probe(command, args, { ...options, ...extra, env: routed }));
+    observation.remember(result); observation.check(); throwIfAborted(signal); return result;
+  };
+  try {
+    const version = await run(['--version']);
+    const success = observation.read(version, 'ok'), versionOutput = observation.read(version, 'stdout');
+    const identified = success === true && typeof versionOutput === 'string' && identifyAstGrepVersion(versionOutput) === descriptor.version;
+    if (!identified) return observation.finish({ ok: false, level: 'executable-version-rejected', settlement });
+    const input = 'console.log("pairofcleats-managed-probe")';
+    const matched = await run(['run', '--lang', 'javascript', '--pattern', input, '--json=compact', '--stdin'], { input });
+    const matchedOk = observation.read(matched, 'ok'), stdout = observation.read(matched, 'stdout');
+    let rows = null;
+    if (typeof stdout === 'string') {
+      try { rows = JSON.parse(stdout); } catch { /* Non-JSON output cannot prove the selected capability. */ }
+    }
+    const ok = matchedOk === true && Array.isArray(rows) && rows.length === 1 && rows[0]?.text === input;
+    return observation.finish({ ok, level: ok ? 'pinned-executable-and-local-structural-match' : 'local-structural-match-rejected',
+      identity: { family: 'ast-grep', version: descriptor.version }, localRulesOnly: true, settlement });
+  } catch (error) {
+    observation.remember(error);
+    throw observation.failure(error, observation.isSettled() ? { settlement } : {});
+  }
 };

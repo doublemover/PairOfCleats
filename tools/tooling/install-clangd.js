@@ -17,6 +17,7 @@ import { verifyOwnedResource } from './managed-verification.js';
 import { assertNoSymlinkPath } from '../../src/shared/contained-file.js';
 import { observeStorageResource } from '../../src/shared/storage/failure-observation.js';
 import { addStorageFailureContext } from '../../src/shared/storage/operation-error.js';
+import { createManagedVerificationObservation } from './managed-verification-observation.js';
 
 export { CLANGD_ARCHIVE_LIMITS };
 
@@ -46,15 +47,18 @@ const ensureChild = async (parent, name) => {
 };
 
 export const probeInstalledClangd = async (command, { cwd, env, signal, resourceId }, dependencies = {}) => {
+  const observation = createManagedVerificationObservation();
+  const settlement = { resourceId, settled: true, pending: false };
   try {
     const result = await probeProvisioningCommand(command, ['--version'], { cwd, env, signal,
       timeoutMs: 10_000, maxOutputBytes: 64 * 1024, stdio: 'pipe', ...dependencies });
-    return { ...result, settlement: { resourceId, settled: true, pending: false } };
+    observation.remember(result); observation.check();
+    return observation.finish({ ...observation.project(result), settlement });
   } catch (error) {
     // The shared probe owns child/tree settlement on both result and error.
     // Cancellation after a confirmed close must not invent a pending child.
-    observeStorageResource(error, { phase: 'clangd-version-probe' }).requireSettled();
-    throw addStorageFailureContext(error, { settlement: { resourceId, settled: true, pending: false } });
+    observation.remember(error);
+    throw observation.failure(error, observation.isSettled() ? { settlement } : {});
   }
 };
 

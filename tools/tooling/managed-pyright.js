@@ -2,8 +2,7 @@ import path from 'node:path';
 import { PYRIGHT_MANAGED_VERSION, PYRIGHT_MANAGED_RECIPE } from '../../src/shared/managed-node-package.js';
 import { probeProvisioningCommand } from './provisioning-plan.js';
 import { resolveNoProvisionToolingEnvironment } from '../../src/shared/toolchain-env.js';
-import { observeStorageResource } from '../../src/shared/storage/failure-observation.js';
-import { addStorageFailureContext } from '../../src/shared/storage/operation-error.js';
+import { createManagedVerificationObservation } from './managed-verification-observation.js';
 import { throwIfAborted } from '../../src/shared/abort.js';
 
 // Official registry and package manifest reviewed on 2026-11-07:
@@ -33,6 +32,7 @@ export const resolveManagedPyrightRecipe = ({ platform = process.platform, arch 
  * consumer facts remain separate acceptance, rather than a help-string claim. */
 export const verifyManagedPyright = async ({ root, command, descriptor, toolingRoot, env: baseEnv = process.env, resourceId, signal = null }, { probe = probeProvisioningCommand } = {}) => {
   const settlement = { resourceId, settled: true, pending: false };
+  const observation = createManagedVerificationObservation();
   if (!path.isAbsolute(root || '') || !path.isAbsolute(toolingRoot || '') || command !== path.join(root, 'langserver.index.js')
     || descriptor?.recipeId !== PYRIGHT_MANAGED_RECIPE || descriptor.version !== PYRIGHT_MANAGED_VERSION) throw Object.assign(new TypeError('Canonical pinned Pyright generation required.'), { settlement });
   try {
@@ -40,15 +40,14 @@ export const verifyManagedPyright = async ({ root, command, descriptor, toolingR
     const env = resolveNoProvisionToolingEnvironment(baseEnv, { command: process.execPath, providerId: 'pyright', toolingRoot, cwd: root });
     const result = await probe(process.execPath, [path.join(root, 'index.js'), '--version'], { cwd: root, env, signal,
       timeoutMs: 4000, maxOutputBytes: 65536, stdio: 'pipe' });
-    const observation = observeStorageResource(result, { phase: 'managed-pyright-verification' });
-    observation.requireSettled(); throwIfAborted(signal);
-    const success = observation.read('ok'), stdout = observation.read('stdout');
-    observation.requireSettled(); throwIfAborted(signal);
+    observation.remember(result); observation.check(); throwIfAborted(signal);
+    const success = observation.read(result, 'ok'), stdout = observation.read(result, 'stdout');
+    observation.check(); throwIfAborted(signal);
     const ok = success === true && typeof stdout === 'string' && stdout.trim() === 'pyright ' + PYRIGHT_MANAGED_VERSION;
-    return { ok, level: ok ? 'pinned-node-entry-and-cli-version' : 'node-entry-or-cli-version-rejected',
-      identity: { family: 'pyright', version: descriptor.version, node: process.version }, settlement };
+    return observation.finish({ ok, level: ok ? 'pinned-node-entry-and-cli-version' : 'node-entry-or-cli-version-rejected',
+      identity: { family: 'pyright', version: descriptor.version, node: process.version }, settlement });
   } catch (error) {
-    const observation = observeStorageResource(error, { phase: 'managed-pyright-verification' }); observation.requireSettled();
-    throw addStorageFailureContext(observation.primary, { settlement });
+    observation.remember(error);
+    throw observation.failure(error, observation.isSettled() ? { settlement } : {});
   }
 };

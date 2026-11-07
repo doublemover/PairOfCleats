@@ -52,6 +52,16 @@ DTO-field assertion in the linked receipt. Those repairs remain unrun. The
 nightly-plan fixture is within30 seconds at16.2/24.1 seconds on Windows/macOS.
 These observations qualify their exact sources, not later edits.
 
+[CI2347](https://github.com/doublemover/PairOfCleats/actions/runs/42379297036)
+at `3f30653ae992366ec4e74d66e2ab84291b9506ea` passes bootstrap/runtime
+contracts, lint, config budget, environment, generated surfaces and command
+surface checks. Gate records43 passes, one failure, zero timeouts/skips. Its
+independent suite-plan expectation omitted six published-index revision oracle
+cases already assigned to the serial runtime cohort. The expectation now lists
+those exact cases, retaining the full cohort equality and exactly-one-replacement
+assertions. Downstream jobs were skipped. This repair and the27 new managed
+probe/verifier retention cases are locally unrun; no current-head pass is claimed.
+
 The current [checkout bootstrap](../guides/bootstrap-prerequisites.md) repairs are
 implemented and **locally unrun**. Readiness v3 binds the original journal and
 probed generation. Prerequisite/install/native commands retain exact bounded

@@ -2,8 +2,7 @@ import path from 'node:path';
 import { TYPESCRIPT_NATIVE_VERSION, TYPESCRIPT_NATIVE_RECIPE } from '../../src/index/tooling/typescript-native-profile.js';
 import { probeProvisioningCommand } from './provisioning-plan.js';
 import { resolveNoProvisionToolingEnvironment } from '../../src/shared/toolchain-env.js';
-import { observeStorageResource } from '../../src/shared/storage/failure-observation.js';
-import { addStorageFailureContext } from '../../src/shared/storage/operation-error.js';
+import { createManagedVerificationObservation } from './managed-verification-observation.js';
 import { throwIfAborted } from '../../src/shared/abort.js';
 
 // Official immutable registry archives inspected, without executing them, on
@@ -34,6 +33,7 @@ export const resolveManagedTypeScriptNativeRecipe = ({ platform = process.platfo
 export const verifyManagedTypeScriptNative = async ({ root, command, descriptor, toolingRoot, env: baseEnv = process.env, resourceId, signal = null },
   { probe = probeProvisioningCommand } = {}) => {
   const settlement = { resourceId, settled: true, pending: false };
+  const observation = createManagedVerificationObservation();
   if (!path.isAbsolute(root || '') || !path.isAbsolute(toolingRoot || '') || command !== path.join(root, 'lib', 'tsc.exe')
     || descriptor?.toolId !== 'typescript-native' || descriptor.recipeId !== TYPESCRIPT_NATIVE_RECIPE
     || descriptor.version !== TYPESCRIPT_NATIVE_VERSION || !resolveManagedTypeScriptNativeRecipe(descriptor)) throw Object.assign(
@@ -42,15 +42,14 @@ export const verifyManagedTypeScriptNative = async ({ root, command, descriptor,
     throwIfAborted(signal);
     const env = resolveNoProvisionToolingEnvironment(baseEnv, { command, providerId: 'typescript-native', toolingRoot, cwd: root });
     const result = await probe(command, ['--version'], { cwd: root, env, signal, timeoutMs: 4000, maxOutputBytes: 65536 });
-    const observation = observeStorageResource(result, { phase: 'managed-typescript-native-verification' });
-    observation.requireSettled(); throwIfAborted(signal);
-    const success = observation.read('ok'), stdout = observation.read('stdout');
-    observation.requireSettled(); throwIfAborted(signal);
+    observation.remember(result); observation.check(); throwIfAborted(signal);
+    const success = observation.read(result, 'ok'), stdout = observation.read(result, 'stdout');
+    observation.check(); throwIfAborted(signal);
     const ok = success === true && typeof stdout === 'string' && stdout.trim() === 'Version ' + TYPESCRIPT_NATIVE_VERSION;
-    return { ok, level: ok ? 'pinned-native-typescript-cli-version' : 'native-typescript-cli-version-rejected',
-      identity: { family: 'typescript-native', version: descriptor.version }, settlement };
+    return observation.finish({ ok, level: ok ? 'pinned-native-typescript-cli-version' : 'native-typescript-cli-version-rejected',
+      identity: { family: 'typescript-native', version: descriptor.version }, settlement });
   } catch (error) {
-    const observation = observeStorageResource(error, { phase: 'managed-typescript-native-verification' }); observation.requireSettled();
-    throw addStorageFailureContext(observation.primary, { settlement });
+    observation.remember(error);
+    throw observation.failure(error, observation.isSettled() ? { settlement } : {});
   }
 };

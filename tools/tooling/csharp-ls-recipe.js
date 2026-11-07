@@ -4,8 +4,7 @@ import { probeProvisioningCommand, identifyProvisioningExecutable } from './prov
 import { findBinaryOnPath } from '../../src/index/tooling/binary-utils.js';
 import { resolveEnvPath } from '../../src/shared/env-path.js';
 import { resolveNoProvisionToolingEnvironment } from '../../src/shared/toolchain-env.js';
-import { observeStorageResource } from '../../src/shared/storage/failure-observation.js';
-import { addStorageFailureContext } from '../../src/shared/storage/operation-error.js';
+import { createManagedVerificationObservation } from './managed-verification-observation.js';
 import { throwIfAborted } from '../../src/shared/abort.js';
 export { CSHARP_LS_VERSION } from '../../src/index/tooling/csharp-ls-profile.js';
 
@@ -37,6 +36,7 @@ export const resolveManagedCsharpLsRecipe = ({ platform = process.platform, arch
 export const verifyManagedCsharpLs = async ({ root, command, descriptor, toolingRoot, env: baseEnv = process.env,
   resourceId, signal = null }, { probe = probeProvisioningCommand } = {}) => {
   const settlement = { resourceId, settled: true, pending: false };
+  const observation = createManagedVerificationObservation();
   try {
     throwIfAborted(signal);
     if (!path.isAbsolute(root || '') || !path.isAbsolute(toolingRoot || '') || command !== path.join(root, CSHARP_LS_PACKAGE_ENTRY)
@@ -48,20 +48,18 @@ export const verifyManagedCsharpLs = async ({ root, command, descriptor, tooling
     const identity = identifyProvisioningExecutable(host, { signal });
     const env = resolveNoProvisionToolingEnvironment(baseEnv, { command: host, providerId: 'csharp-ls', toolingRoot, cwd: root });
     const result = await probe(host, [command, '--version'], { cwd: root, env, signal, timeoutMs: 4000, maxOutputBytes: 65536, stdio: 'pipe' });
-    const observation = observeStorageResource(result, { phase: 'managed-csharp-package-verification' });
-    observation.requireSettled(); throwIfAborted(signal);
-    try {
-      const actual = identifyProvisioningExecutable(host, { signal });
-      if (actual.path !== identity.path || actual.sha256 !== identity.sha256 || actual.size !== identity.size) throw new Error('Selected .NET host changed during C# verification.');
-    } catch (inspection) { throw observation.retain(inspection, { inspectionPresent: true, inspectionPrimary: true }); }
-    const success = observation.read('ok'), stdout = observation.read('stdout'), stderr = observation.read('stderr');
-    observation.requireSettled(); throwIfAborted(signal);
+    observation.remember(result); observation.check(); throwIfAborted(signal);
+    const actual = identifyProvisioningExecutable(host, { signal });
+    observation.check();
+    if (actual.path !== identity.path || actual.sha256 !== identity.sha256 || actual.size !== identity.size) throw new Error('Selected .NET host changed during C# verification.');
+    const success = observation.read(result, 'ok'), stdout = observation.read(result, 'stdout'), stderr = observation.read(result, 'stderr');
+    observation.check(); throwIfAborted(signal);
     const ok = success === true && typeof stdout === 'string' && stdout.trim().startsWith(`csharp-ls, ${CSHARP_LS_VERSION} `)
       && typeof stderr === 'string' && !stderr.trim();
-    return { ok, level: ok ? 'pinned-dotnet-assembly-and-cli-version' : 'dotnet-assembly-or-cli-version-rejected',
-      identity: { family: 'csharp-ls', version: descriptor.version, host: identity }, consumerQualified: false, settlement };
+    return observation.finish({ ok, level: ok ? 'pinned-dotnet-assembly-and-cli-version' : 'dotnet-assembly-or-cli-version-rejected',
+      identity: { family: 'csharp-ls', version: descriptor.version, host: identity }, consumerQualified: false, settlement });
   } catch (error) {
-    const observation = observeStorageResource(error, { phase: 'managed-csharp-package-verification' }); observation.requireSettled();
-    throw addStorageFailureContext(observation.primary, { settlement });
+    observation.remember(error);
+    throw observation.failure(error, observation.isSettled() ? { settlement } : {});
   }
 };

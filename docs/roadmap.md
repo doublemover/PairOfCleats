@@ -74,12 +74,12 @@ overlaps read-only console/catalog setup while retaining full seed verification.
 [Windows Pyright](contracts/managed-node-package.md), [C#](contracts/managed-dotnet-package.md) and [native TypeScript](contracts/typescript-native-lsp.md)
 use pinned prebuilt packages and existing admission/leases. Native TypeScript adds
 an explicit source/profile route and bounded pull diagnostics; runtime checks await.
-Earlier embedding/cache, retrieval, TUI/LSP and resource-owner repairs await
-current-source acceptance. [Compiler selection](contracts/typescript-compiler-selection.md)
+[Compiler selection](contracts/typescript-compiler-selection.md)
 retains original failures instead of substituting ambient compilers (producer31).
 [TS7.1 API](contracts/typescript-api7-components.md) is implemented; qualification remains.
 [Installer inputs](contracts/managed-install-input-ownership.md) seal intent and
-archive/Go index bytes before I/O; runtime checks remain pending.
+archive/Go bytes; probe/verifier reports retain original observations through
+publication. Runtime checks remain pending.
 
 ### Execution order
 
@@ -87,7 +87,7 @@ archive/Go index bytes before I/O; runtime checks remain pending.
    failures. Batch shared owners. Qualified security/native publication repairs
    retain their receipts above. [Lifecycle/quota planning](contracts/storage-quota-planning.md)
    (#1267) coordinates physical proposals, aliases and retention; policy v2 and
-   reviewed probe/repository subset quota apply (cleanup plan2) are implemented, unrun.
+   reviewed probe/repository subset quota apply (cleanup plan3) are implemented, unrun.
    [Cleanup/diagnostic admission](contracts/storage-cleanup-admission.md) retains v2 bounds and original pending closes;
    Other category owners and Windows allocation/pressure qualification remain pending.
 2. Remaining P2/P3 issues, including prior partial owners, ordered by dependency:

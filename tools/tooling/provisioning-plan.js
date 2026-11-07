@@ -15,6 +15,7 @@ import { withManagedProvisioningRequirements } from './provisioning-lifetime.js'
 import { bindManagedDotnetEnvironment } from './dotnet-environment.js';
 import { runOperationalChildWithStorage } from './operational-storage.js';
 import { resolveDeclaredInstallAdmission } from './install-allocation-contract.js';
+import { createManagedVerificationObservation } from './managed-verification-observation.js';
 
 const digest = value => createHash('sha256').update(value).digest('hex');
 export const identifyProvisioningExecutable = (command, { signal = null } = {}) => {
@@ -229,28 +230,29 @@ export const bindProvisioningCommand = (action, plan, baseEnv = process.env) => 
  * flattened into a retryable missing-command report or installation consent.
  */
 export const probeProvisioningCommand = async (command, args, { spawn = spawnResolvedSubprocess, ...options } = {}) => {
+  const observation = createManagedVerificationObservation();
+  let spawned = false;
   try {
     const result = await spawn(command, args, { ...options, outputEncoding: 'utf8',
       timeoutMs: options.timeoutMs || 4000, maxOutputBytes: options.maxOutputBytes || 65536, rejectOnNonZeroExit: false });
-    const observation = observeProvisioningResource(result, { phase: 'prerequisite-probe-result' });
-    observation.requireSettled();
-    try { options.signal?.throwIfAborted(); }
-    catch (inspection) { throw observation.retain(inspection, { inspectionPresent: true, inspectionPrimary: true }); }
-    let report;
-    try {
-      const capture = result.outputCapture, stdoutCapture = capture?.stdout, stderrCapture = capture?.stderr;
-      const truncated = stdoutCapture?.truncated || stderrCapture?.truncated;
-      const status = result.exitCode, childSignal = result.signal, stdout = result.stdout, stderr = result.stderr;
-      report = { ok: status === 0 && !truncated, outcome: truncated ? 'output-limit' : status === 0 ? 'ok' : 'nonzero',
-        status, signal: childSignal || null, errorCode: null, stdout: stdout || '', stderr: stderr || '' };
-    } catch (inspection) { throw observation.retain(inspection, { inspectionPresent: true }); }
-    observation.requireSettled(); return report;
+    spawned = true; observation.remember(result); observation.check(); options.signal?.throwIfAborted();
+    const capture = observation.read(result, 'outputCapture'), stdoutCapture = observation.read(capture, 'stdout'), stderrCapture = observation.read(capture, 'stderr');
+    const truncated = observation.read(stdoutCapture, 'truncated') || observation.read(stderrCapture, 'truncated');
+    const status = observation.read(result, 'exitCode'), childSignal = observation.read(result, 'signal');
+    const stdout = observation.read(result, 'stdout'), stderr = observation.read(result, 'stderr');
+    return observation.finish({ ok: status === 0 && !truncated, outcome: truncated ? 'output-limit' : status === 0 ? 'ok' : 'nonzero',
+      status, signal: childSignal || null, errorCode: null, stdout: stdout || '', stderr: stderr || '' });
   } catch (error) {
-    if (isProvisioningObservationFailure(error)) throw error;
-    const diagnostic = describeProvisioningFailure(error, { signal: options.signal, includeResult: true });
-    return { ok: false, outcome: diagnostic.name === 'SubprocessTimeoutError' ? 'timeout' : diagnostic.code === 'ENOENT' ? 'missing' : 'spawn-error',
-      status: diagnostic.status, signal: diagnostic.signal, errorCode: diagnostic.code,
-      stdout: diagnostic.stdout, stderr: diagnostic.stderr };
+    observation.remember(error);
+    if (spawned || !observation.isSettled() || isProvisioningObservationFailure(error) || options.signal?.aborted) throw observation.failure(error);
+    try {
+      const diagnostic = describeProvisioningFailure(error, { signal: options.signal, includeResult: true });
+      return observation.finish({ ok: false, outcome: diagnostic.name === 'SubprocessTimeoutError' ? 'timeout' : diagnostic.code === 'ENOENT' ? 'missing' : 'spawn-error',
+        status: diagnostic.status, signal: diagnostic.signal, errorCode: diagnostic.code,
+        stdout: diagnostic.stdout, stderr: diagnostic.stderr });
+    } catch (inspection) {
+      observation.remember(inspection); throw observation.failure(inspection);
+    }
   }
 };
 

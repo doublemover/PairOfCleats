@@ -95,3 +95,31 @@ positive/invalid receipts, function failures, pending successful action results
 and original action revocation during reservation reads. No receipt-shaped
 caller input substitutes for original closure, and concurrent recovery shares
 the existing release flights.
+
+## Probe observations through publication
+
+The shared provisioning probe retains the original subprocess result, nested
+output-capture observations and thrown failures before projecting fields. Its
+positive, nonzero and ordinary refusal reports carry a non-enumerable observation
+and exact original cause graph. Field getters cannot erase a pending interval;
+replacement callbacks cannot replace the captured receiver or function.
+
+Pyright, native TypeScript, both API7 components, C#, ast-grep, .NET SDK and
+clangd propagate those observations into their verifier reports and failures.
+Multi-command verification keeps every prior probe binding before another
+command, around field projection and through final reporting. A later version,
+capability or architecture result cannot release an earlier resource. The
+existing installation owner captures the returned report and retains the actual
+generation lease/stage if an original observation is revoked during subsequent
+inventory or publication. Recovery requires the original observations to settle.
+
+Reports use the existing bounded observation ledger, not another lifetime owner.
+Their resource guard and witness are non-enumerable; persisted verification DTOs,
+exact settlement identities, probe commands, output limits and version/capability
+criteria remain unchanged. An activation result still does not qualify a runtime.
+
+Twenty-seven authored, locally unrun cases cover retained positive/refusal reports,
+exact callback receivers, replacement resistance, nested output captures, field
+failures, prior-probe revocation and actual installer publication/recovery with
+the previous selector preserved. Commands and archive bytes are explicit inert
+fixtures. Vendor execution and final-source runtime qualification remain pending.
