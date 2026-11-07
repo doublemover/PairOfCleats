@@ -35,6 +35,17 @@ adapter boundary: formatted counts and original release receiver, ordinary
 fallback versus cancellation, and original native failure through nested
 estimators after late settlement.
 
+Inline batching uses the same result guard while retaining its strict estimator
+error contract. It holds vector results within the existing queue byte budget
+and awaits original preparation release before resolving any successful request.
+Requests joining during cleanup receive the same retained vector. Cancellation
+can stop a waiter while teardown still awaits release. Provider and cleanup
+failures remain together, including falsy rejections; unresolved original work
+blocks subsequent admission and close until that original observation settles.
+Release captures its receiver, verifies original settlement before and after
+invocation, and runs once per returned capability without automatic retries.
+Six additional locally unrun cases cover these boundaries and byte accounting.
+
 Adjacent runner probes retain original failure observations before treating a
 path/artifact/generation as missing, omitting maintenance size, reporting a bundle
 refresh warning. Warnings use guarded diagnostic

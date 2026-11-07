@@ -2,6 +2,9 @@ import { createAbortError, throwIfAborted } from './abort.js';
 import { assertVectorArrays } from './embedding-batches.js';
 import { planEmbeddingBatches } from './embedding-batch-plan.js';
 import { awaitWithKeepalive } from './promise-keepalive.js';
+import { createEmbeddingTokenEstimator } from './embedding-token-estimation.js';
+import { observeStorageResource } from './storage/failure-observation.js';
+import { addStorageFailureContext } from './storage/operation-error.js';
 
 const batchers = new WeakMap();
 const closedError = () => Object.assign(new Error('Inline embedding batch owner is closed.'), { code: 'ERR_EMBEDDING_RUNTIME_CLOSED' });
@@ -10,7 +13,9 @@ const closedError = () => Object.assign(new Error('Inline embedding batch owner 
  * at a time respects every adapter's maxConcurrentInference capability. */
 export const createInlineEmbeddingBatcher = (embed, { maxQueuedItems = 4096, maxQueuedBytes = 16 * 1024 * 1024 } = {}) => {
   const entries = new Map(), requests = new Set();
-  let pendingItems = 0, pendingBytes = 0, scheduled = null, running = null, closed = false, observedDims = null;
+  const estimateTokens = createEmbeddingTokenEstimator({ estimate: embed.estimateTokensBatch, receiver: embed,
+    fallback: text => Math.max(1, Math.ceil(text.length / 4)), fallbackOnFailure: false });
+  let pendingItems = 0, pendingBytes = 0, scheduled = null, running = null, closed = false, observedDims = null, blockedAdmission = null;
   const finishRequest = request => {
     if (request.remaining) return;
     request.signal?.removeEventListener('abort', request.onAbort);
@@ -32,20 +37,23 @@ export const createInlineEmbeddingBatcher = (embed, { maxQueuedItems = 4096, max
     }
     finishRequest(request);
   };
-  const settleEntry = (entry, vector, error = null) => {
+  const storeEntryVector = (entry, vector) => {
+    for (const [request, slots] of entry.waiters) {
+      if (request.cancelled) continue;
+      const bytes = (vector.byteLength || vector.length * 8) * slots.length;
+      if (pendingBytes + bytes > maxQueuedBytes) cancelRequest(request, new RangeError('Inline embedding results exceed admitted byte budget.'));
+      else {
+        request.bytes += bytes; pendingBytes += bytes;
+        for (const slot of slots) request.outputs[slot] = vector;
+      }
+    }
+  };
+  const settleEntry = (entry, error, failed) => {
     if (entries.get(entry.text) === entry) entries.delete(entry.text);
     entry.batch = null;
     for (const [request, slots] of entry.waiters) {
       request.pending.delete(entry); request.remaining -= slots.length;
-      if (error) cancelRequest(request, error);
-      else if (!request.cancelled) {
-        const bytes = (vector.byteLength || vector.length * 8) * slots.length;
-        if (pendingBytes + bytes > maxQueuedBytes) cancelRequest(request, new RangeError('Inline embedding results exceed admitted byte budget.'));
-        else {
-          request.bytes += bytes; pendingBytes += bytes;
-          for (const slot of slots) request.outputs[slot] = vector;
-        }
-      }
+      if (failed) cancelRequest(request, error);
       if (requests.has(request)) finishRequest(request);
     }
     entry.waiters.clear();
@@ -56,10 +64,12 @@ export const createInlineEmbeddingBatcher = (embed, { maxQueuedItems = 4096, max
       while (entries.size && !closed) {
         const snapshot = [...entries.values()].filter(entry => !entry.batch && entry.waiters.size);
         if (!snapshot.length) break;
-        let tokenEstimates = null;
+        let tokenEstimates = null, failed = false, failure, bufferedBytes = 0;
+        const outcomes = new Map();
         try {
-          if (typeof embed.estimateTokensBatch === 'function') tokenEstimates = await embed.estimateTokensBatch(snapshot.map(entry => entry.text));
-          const estimates = snapshot.map((entry, index) => Math.max(1, Math.floor(Number(tokenEstimates?.[index]) || Math.ceil(entry.text.length / 4))));
+          blockedAdmission?.();
+          tokenEstimates = await estimateTokens?.(snapshot.map(entry => entry.text));
+          const estimates = tokenEstimates ?? snapshot.map(entry => Math.max(1, Math.ceil(entry.text.length / 4)));
           const owners = [...new Set(snapshot.flatMap(entry => [...entry.waiters.keys()]))].filter(request => !request.cancelled);
           if (!owners.length) continue;
           const maxItems = Math.min(1024, ...owners.map(request => request.batchSize));
@@ -67,6 +77,7 @@ export const createInlineEmbeddingBatcher = (embed, { maxQueuedItems = 4096, max
           const tokenBudget = positiveBudgets.length ? Math.min(...positiveBudgets) : 0;
           const plan = planEmbeddingBatches({ estimates, maxItems, tokenBudget });
           for (const indices of plan.batches) {
+            blockedAdmission?.();
             const live = indices.map(index => snapshot[index]).filter(entry => entries.get(entry.text) === entry && entry.waiters.size);
             if (!live.length) continue;
             const batch = { entries: live, controller: new AbortController(), started: false };
@@ -80,12 +91,40 @@ export const createInlineEmbeddingBatcher = (embed, { maxQueuedItems = 4096, max
               assertVectorArrays(vectors, live.length, 'inline shared batch');
               if (observedDims !== null && vectors[0].length !== observedDims) throw new Error('[embeddings] Inline shared embedding dimensions changed between batches.');
               observedDims = vectors[0].length;
-              live.forEach((entry, index) => settleEntry(entry, vectors[index]));
-            } catch (error) { for (const entry of live) settleEntry(entry, null, error); }
+              live.forEach((entry, index) => {
+                const vector = vectors[index], bytes = vector.byteLength || vector.length * 8;
+                if (pendingBytes + bytes > maxQueuedBytes) throw new RangeError('Inline embedding results exceed admitted byte budget.');
+                pendingBytes += bytes; bufferedBytes += bytes;
+                outcomes.set(entry, { failed: false, vector });
+              });
+            } catch (error) {
+              for (const entry of live) outcomes.set(entry, { failed: true, error });
+              observeStorageResource(error, { phase: 'inline-embedding-inference' }).requireSettled();
+            }
           }
         } catch (error) {
-          for (const entry of snapshot) if (entries.get(entry.text) === entry) settleEntry(entry, null, error);
-        } finally { tokenEstimates?.release?.(); }
+          failed = true; failure = error;
+        } finally {
+          try { await tokenEstimates?.release?.(); }
+          catch (cleanup) {
+            failure = failed ? addStorageFailureContext(failure, {}, cleanup, { secondaryPresent: true }) : cleanup;
+            failed = true;
+          }
+        }
+        pendingBytes -= bufferedBytes;
+        if (failed) {
+          const observation = observeStorageResource(failure, { phase: 'inline-embedding-settlement' });
+          try { observation.requireSettled(); }
+          catch (pending) { failure = pending; blockedAdmission = () => observation.requireSettled(); }
+        }
+        for (const entry of snapshot) {
+          if (entries.get(entry.text) !== entry) continue;
+          const outcome = outcomes.get(entry);
+          const error = failed && outcome?.failed ? addStorageFailureContext(outcome.error, {}, failure, { secondaryPresent: true })
+            : failed ? failure : outcome?.error;
+          if (!failed && !outcome?.failed && outcome) storeEntryVector(entry, outcome.vector);
+          settleEntry(entry, error, failed || outcome?.failed === true);
+        }
       }
     })()).finally(() => { running = null; if (entries.size && !closed) schedule(); });
     return running;
@@ -99,6 +138,7 @@ export const createInlineEmbeddingBatcher = (embed, { maxQueuedItems = 4096, max
   };
   const request = async (texts, { signal = null, batchSize = 32, tokenBudget = 8192, run = fn => fn() } = {}) => {
     if (closed) return Promise.reject(closedError());
+    blockedAdmission?.();
     throwIfAborted(signal);
     if (!Array.isArray(texts) || texts.some(text => typeof text !== 'string')) return Promise.reject(new TypeError('Inline embeddings require string payloads.'));
     if (!texts.length) return Promise.resolve([]);
@@ -129,6 +169,7 @@ export const createInlineEmbeddingBatcher = (embed, { maxQueuedItems = 4096, max
     if (scheduled) { clearImmediate(scheduled); scheduled = null; }
     for (const owner of [...requests]) cancelRequest(owner, closedError());
     if (running) await running;
+    blockedAdmission?.();
   };
   return { request, close, stats: () => ({ pendingItems, pendingBytes, requests: requests.size, uniqueTexts: entries.size, closed }) };
 };

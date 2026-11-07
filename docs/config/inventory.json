@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-07T02:16:43.148Z",
+  "generatedAt": "2026-11-07T02:21:39.596Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
@@ -4734,6 +4734,7 @@
         "tests/indexing/embeddings/build/chunk-channel-cache-routes.test.js",
         "tests/indexing/embeddings/cache-only-enumeration-bound.test.js",
         "tests/indexing/embeddings/formatted-token-estimator-observation.test.js",
+        "tests/indexing/embeddings/inline-token-preparation-settlement.test.js",
         "tests/indexing/embeddings/manifest-publication-ownership.test.js",
         "tests/indexing/embeddings/sqlite-dense-boundary-diagnostics.test.js",
         "tests/indexing/embeddings/sqlite-dense-schema-lifetime.test.js",

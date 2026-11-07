@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 2749,
+    "hero": 2755,
     "matrix": 110,
     "meta": 54,
     "soak": 1,
@@ -17497,6 +17497,42 @@
     {
       "id": "indexing/embeddings/formatted-token-estimator-observation/original-native-and-nested-terminal",
       "order": 2914,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/embeddings/inline-token-preparation-settlement/awaited-release-and-late-join",
+      "order": 2915,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/embeddings/inline-token-preparation-settlement/provider-and-release-failures",
+      "order": 2916,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/embeddings/inline-token-preparation-settlement/original-pending-preparation",
+      "order": 2917,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/embeddings/inline-token-preparation-settlement/guarded-single-release",
+      "order": 2918,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/embeddings/inline-token-preparation-settlement/strict-falsy-estimator-failures",
+      "order": 2919,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/embeddings/inline-token-preparation-settlement/bounded-held-results-and-cancellation",
+      "order": 2920,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

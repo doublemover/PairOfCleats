@@ -8,7 +8,7 @@ export const isTerminalEmbeddingTokenEstimateFailure = error => error !== null &
 /** Optional batch estimates may fall back after ordinary failures. Unknown
  * original work, cancellation, aggregate failure and inspection failures must
  * retain their owners rather than disappear as a missing heuristic estimate. */
-export const createEmbeddingTokenEstimator = ({ estimate, receiver = null, fallback }) => {
+export const createEmbeddingTokenEstimator = ({ estimate, receiver = null, fallback, fallbackOnFailure = true }) => {
   if (typeof estimate !== 'function') return null;
   if (typeof fallback !== 'function') throw new TypeError('Embedding token fallback required.');
   return async texts => {
@@ -48,16 +48,27 @@ export const createEmbeddingTokenEstimator = ({ estimate, receiver = null, fallb
         const numeric = ['number', 'string', 'bigint', 'boolean'].includes(typeof value) ? Math.floor(Number(value)) : NaN; requireOriginal();
         counts[index] = Number.isSafeInteger(numeric) && numeric > 0 ? numeric : fallback(texts[index]); requireOriginal();
       }
-      if (release) Object.defineProperty(counts, 'release', {
-        value: (...args) => Reflect.apply(originalRelease, estimated, args)
-      });
+      if (release) {
+        let completion;
+        Object.defineProperty(counts, 'release', { value: (...args) => {
+          if (!completion) completion = (async () => {
+            try {
+              requireOriginal();
+              const result = await Reflect.apply(originalRelease, estimated, args);
+              requireSettled(observeStorageResource(result, { phase: 'embedding-token-estimate-release' }));
+              requireOriginal(); return result;
+            } catch (error) { throw terminal(original.retain(error, { inspectionPresent: true })); }
+          })();
+          return completion;
+        } });
+      }
       release = null;
       return counts;
     } catch (error) {
       if (boundaryFailed || inspectionFailed || isTerminalEmbeddingTokenEstimateFailure(error)) throw error;
       requireOriginal();
       const observation = observeStorageResource(error, { phase: 'embedding-token-estimation' }); requireSettled(observation);
-      if (error instanceof AggregateError || read(error, 'name', observation) === 'AbortError' || read(error, 'code', observation) === 'ABORT_ERR') {
+      if (!fallbackOnFailure || error instanceof AggregateError || read(error, 'name', observation) === 'AbortError' || read(error, 'code', observation) === 'ABORT_ERR') {
         await releaseAfterFailure(error); throw error;
       }
       await releaseAfterFailure(error);

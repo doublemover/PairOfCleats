@@ -2917,3 +2917,9 @@ embeddings/runner/metadata-probe-observation/maintenance-size
 indexing/embeddings/formatted-token-estimator-observation/formatted-counts-and-release
 indexing/embeddings/formatted-token-estimator-observation/ordinary-fallback-and-cancellation
 indexing/embeddings/formatted-token-estimator-observation/original-native-and-nested-terminal
+indexing/embeddings/inline-token-preparation-settlement/awaited-release-and-late-join
+indexing/embeddings/inline-token-preparation-settlement/provider-and-release-failures
+indexing/embeddings/inline-token-preparation-settlement/original-pending-preparation
+indexing/embeddings/inline-token-preparation-settlement/guarded-single-release
+indexing/embeddings/inline-token-preparation-settlement/strict-falsy-estimator-failures
+indexing/embeddings/inline-token-preparation-settlement/bounded-held-results-and-cancellation
