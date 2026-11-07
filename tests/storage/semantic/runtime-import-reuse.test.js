@@ -33,6 +33,8 @@ try {
     finally { fs.rename = rename; }
     assert.ok(promoted); first = { pointer: { generationId: promoted } };
     await assert.rejects(fs.stat(path.join(destination, 'current.json')), { code: 'ENOENT' });
+    assert.equal(JSON.parse(await fs.readFile(path.join(destination, 'family-catalog.json'), 'utf8')).commit, null,
+      'interruption precedes registration of the promoted immutable family');
   } else {
     const cold = await observeRuntimePublicationWork(destination, () => importRuntimeEvidence({ ...options, publicationMetrics: coldMetrics }));
     first = cold.value;
@@ -168,8 +170,15 @@ try {
     const entry = pinned.db.prepare('SELECT * FROM evidence ORDER BY ordinal LIMIT 1').get();
     assert.ok(await pinned.hydrate(entry, 65536), 'pinned readers survive pointer-only recovery');
     assert.ok(await retainedRuntimeBytes(destination) <= admitted.limit);
-    const currentWrites = result.witness.writes.filter(row => /^\.current-/.test(row.path));
-    assert.equal(currentWrites.length, Number(pointerRepair), 'an unchanged convenience pointer is never rewritten');
+    const controls = result.witness.controlPublications.map(row => row.path).sort();
+    assert.deepEqual(controls, [...(pointerRepair ? ['current.json'] : []), ...(mode === 'interrupted' ? ['family-catalog.json'] : [])],
+      'only missing catalog membership and the selected convenience pointer may be published');
+    assert.equal(result.witness.writes.filter(row => /^\.current-/.test(row.path)).length, controls.length,
+      'every root control write has exactly one observed successful publication');
+    assert.equal(controls.filter(filename => filename === 'current.json').length, Number(pointerRepair),
+      'an unchanged convenience pointer is never rewritten');
+    assert.ok(JSON.parse(await fs.readFile(path.join(destination, 'family-catalog.json'), 'utf8')).commit,
+      'the retained family is registered before pointer recovery completes');
     console.log(JSON.stringify({ mode, familyBytes, admitted, coldMetrics, metrics, witness: result.witness }));
   }
 } finally { await pinned?.close(); await fixture.cleanup(); }

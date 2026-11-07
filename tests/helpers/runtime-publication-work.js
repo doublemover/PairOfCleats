@@ -30,8 +30,8 @@ export const runtimeFamilySnapshot = async directory => {
  * Native query-index completion necessarily opens its real image for fsync.
  * A repeated family must create no staging, row writes or SQLite finalization. */
 export const observeRuntimePublicationWork = async (destination, operation) => {
-  const open = fs.open, mkdtemp = fs.mkdtemp;
-  const witness = { staging: [], writes: [], sqliteFinalizations: 0, evidenceReadOpens: 0, evidenceReadBytes: 0 };
+  const open = fs.open, mkdtemp = fs.mkdtemp, rename = fs.rename;
+  const witness = { staging: [], writes: [], controlPublications: [], sqliteFinalizations: 0, evidenceReadOpens: 0, evidenceReadBytes: 0 };
   const owned = filename => {
     const relative = path.relative(destination, path.resolve(String(filename)));
     return relative && !relative.startsWith('..') && !path.isAbsolute(relative);
@@ -39,6 +39,16 @@ export const observeRuntimePublicationWork = async (destination, operation) => {
   fs.mkdtemp = async (...args) => {
     const result = await mkdtemp(...args);
     if (owned(result)) witness.staging.push(path.relative(destination, result).replaceAll('\\', '/'));
+    return result;
+  };
+  fs.rename = async (from, to) => {
+    const result = await rename(from, to);
+    // Control staging has one shared filename prefix. Its actual successful
+    // rename destination distinguishes recipe, catalog and current selectors.
+    if (owned(from) && owned(to) && path.basename(String(from)).startsWith('.current-')) {
+      witness.controlPublications.push({ temporary: path.relative(destination, String(from)).replaceAll('\\', '/'),
+        path: path.relative(destination, String(to)).replaceAll('\\', '/') });
+    }
     return result;
   };
   fs.open = async (...args) => {
@@ -61,7 +71,7 @@ export const observeRuntimePublicationWork = async (destination, operation) => {
     return handle;
   };
   try { return { value: await operation(), witness }; }
-  finally { fs.open = open; fs.mkdtemp = mkdtemp; }
+  finally { fs.open = open; fs.mkdtemp = mkdtemp; fs.rename = rename; }
 };
 
 export const assertNoRuntimeFamilyWrites = witness => {

@@ -106,6 +106,8 @@ try {
       assert.ok(metrics.peakAdditionalReservation <= admitted.headroom);
       assert.ok(metrics.verifiedBytes > familyBytes, 'current raw/support authority is verified as well as claim members');
       assert.equal(repeated.witness.writes.filter(row => /^claims\/\.current-/.test(row.path)).length, Number(pointerRepair));
+      assert.deepEqual(repeated.witness.controlPublications.map(row => row.path), pointerRepair ? ['claims/current.json'] : [],
+        'claim recovery publishes only its actual selected convenience pointer');
       assert.deepEqual(await runtimeFamilySnapshot(family), before);
       const hydrated = await queryRuntimeDerivedClaims({ destination, request: { schemaVersion: 1,
         repositoryNamespace: request.repositoryNamespace, generation: request.generation, claimGeneration: generation,

@@ -44,6 +44,12 @@ through the existing recipe. A later matching import re-verifies that family and
 registers it before repairing the current pointer. Registration of an already
 cataloged identity performs no append or selector write.
 
+The publication-work fixture records each successful control rename's actual
+destination. An interruption after family promotion requires one catalog selector
+and one current selector; an ordinary repeat requires neither. A common temporary
+filename prefix cannot identify which control was rewritten. Immutable-family,
+native-image, byte-headroom and pinned-reader assertions remain independent.
+
 The committed extent separates reachable nodes from an interrupted append tail.
 A retry trims only that unpublished suffix and returns its credits after
 confirmed truncation; committed snapshot bytes remain intact. Writable stores
