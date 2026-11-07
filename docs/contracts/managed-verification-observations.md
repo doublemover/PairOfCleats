@@ -57,3 +57,16 @@ Five authored, locally unrun finite controls exercise the actual retained
 verification owner, including early and mid-field pending observations, field
 and shape inspection work, invalid identities and the original closed positive.
 Install, descriptor-close reconciliation and removal reuse this receipt guard.
+
+The Go SDK version probe uses the same ledger before projecting status, signal,
+capture limits or output. Nested field results join the ledger before another
+read. Failure termination diagnostics are admitted only after retained original
+observations settle. The ledger exposes the first privately captured original
+observation without rereading a replaceable callback property; that observation
+grants no independent child-close or metadata-release authority.
+Actual close/tree requirements remain distinct from independent resource guards,
+and the projected report retains the original guards for its consumer. Seven
+authored, locally unrun finite controls cover early/nested/mid-field refusal,
+original failure/inspection/function values, the closed positive, truncation,
+nonzero status and late guard revocation. Existing real SDK/native qualification
+remains separate from these injected spawn results.

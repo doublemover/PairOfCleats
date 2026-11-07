@@ -3091,3 +3091,10 @@ shared/storage/lifecycle-repository-cleanup/changed-original-file-set
 shared/storage/lifecycle-repository-cleanup/policy-change-between-unlinks
 shared/storage/lifecycle-repository-cleanup/cancellation-between-unlinks
 runner/list-runtime-import-boundary
+tooling/install/go-sdk-probe-original-observation/result-before-status
+tooling/install/go-sdk-probe-original-observation/nested-before-fields
+tooling/install/go-sdk-probe-original-observation/enclosing-between-fields
+tooling/install/go-sdk-probe-original-observation/failure-before-result
+tooling/install/go-sdk-probe-original-observation/inspection-retains-independent-work
+tooling/install/go-sdk-probe-original-observation/function-original-failure
+tooling/install/go-sdk-probe-original-observation/closed-positive-and-late-observation

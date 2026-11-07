@@ -12,6 +12,7 @@ export const isStorageObservationFailure = value => value !== null && ['object',
 export const createStorageObservationLedger = ({ isOwnFailure = () => false } = {}) => {
   const observers = [], inspections = [], pending = [], contexts = new Set();
   const observed = new WeakSet(), queued = new WeakSet(), contextObservations = new WeakSet();
+  const originals = new WeakMap();
   let overflow = false, draining = false, checking = false, reentered = false;
   const rememberContext = error => {
     if (!readStorageFailureContext(error) || contexts.has(error)) return;
@@ -36,12 +37,19 @@ export const createStorageObservationLedger = ({ isOwnFailure = () => false } = 
   const capture = error => {
     let original, marker;
     try { original = error.cacheOwnershipReleased; marker = error.cacheOwnershipPending; }
-    catch (inspection) { addObserver(() => false); retainInspection(inspection); return; }
-    if (marker !== true && typeof original !== 'function') return;
-    addObserver(() => {
+    catch (inspection) {
+      const observe = () => false;
+      originals.set(error, Object.freeze({ required: true, observe }));
+      addObserver(observe); retainInspection(inspection); return;
+    }
+    if (marker !== true && typeof original !== 'function') {
+      originals.set(error, Object.freeze({ required: false, observe: () => true })); return;
+    }
+    const observe = () => {
       try { return typeof original === 'function' && original.call(error) === true; }
       catch (inspection) { retainInspection(inspection); return false; }
-    });
+    };
+    originals.set(error, Object.freeze({ required: true, observe })); addObserver(observe);
   };
   const drain = () => {
     if (draining) return;
@@ -103,6 +111,7 @@ export const createStorageObservationLedger = ({ isOwnFailure = () => false } = 
     }));
   };
   return Object.freeze({ remember, isSettled, requireSettled,
+    originalObservation: value => originals.get(value) ?? null,
     markIncomplete() { overflow = true; },
     snapshot: () => Object.freeze({ complete: !overflow, observerCount: observers.length,
       contextCount: contexts.size, inspectionErrors: Object.freeze([...inspections]) }) });

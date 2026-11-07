@@ -23,6 +23,7 @@ export const createManagedVerificationObservation = () => {
     let result;
     try { result = value?.[field]; }
     catch (error) { remember(error); throw error; }
+    if (result !== null && ['object', 'function'].includes(typeof result)) remember(result);
     check(); return result;
   };
   const exactReceipt = (receipt, resourceId) => {
@@ -38,6 +39,7 @@ export const createManagedVerificationObservation = () => {
   };
   const settlement = (value, resourceId) => exactReceipt(read(value, 'settlement'), resourceId);
   return Object.freeze({ remember, check, read, settlement, exactReceipt, isSettled: ledger.isSettled,
+    originalObservation: ledger.originalObservation,
     rememberComposition(value) { ownFailures.add(value); ledger.remember(value); return value; },
     hasObservedResources() { const snapshot = ledger.snapshot(); return snapshot.observerCount > 0 || snapshot.contextCount > 0 || !snapshot.complete; } });
 };

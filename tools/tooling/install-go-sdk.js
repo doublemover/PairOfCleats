@@ -14,9 +14,10 @@ import { runInstallWithStorageAdmission } from './install-storage.js';
 import { addStorageFailureContext } from '../../src/shared/storage/operation-error.js';
 import { assertNoSymlinkPath } from '../../src/shared/contained-file.js';
 import { verifyOwnedResource, captureManagedVerificationFailure, retainManagedResourceFailure } from './managed-verification.js';
+import { createManagedVerificationObservation } from './managed-verification-observation.js';
 
 export { GO_SDK_ARCHIVE_LIMITS };
-const asError = value => value && typeof value === 'object' ? value : new Error(String(value), { cause: value });
+const asError = value => value !== null && ['object', 'function'].includes(typeof value) ? value : new Error(String(value), { cause: value });
 
 export const selectOfficialGoSdkArchive = (releases, target, version = '') => {
   if (!target) throw createInstallError('go_sdk_unsupported_target', 'No portable Go SDK recipe for this platform/architecture.');
@@ -48,26 +49,45 @@ const ensureChildDirectory = async (parent, name) => {
 
 export const probeInstalledSdk = async (command, { cwd, env, signal, resourceId }, { spawn = spawnResolvedSubprocess } = {}) => {
   let spawned = false, closeObserved = false, completed = false;
+  let result;
+  const observation = createManagedVerificationObservation();
   try {
-    const result = await spawn(command, ['version'], { cwd, env, signal,
+    result = await spawn(command, ['version'], { cwd, env, signal,
       timeoutMs: 10000, outputEncoding: 'utf8', maxOutputBytes: 65536, rejectOnNonZeroExit: false,
       onSpawn: child => { spawned = true; child?.once?.('close', () => { closeObserved = true; }); } });
     completed = true;
+    observation.remember(result); observation.check();
     signal?.throwIfAborted();
-    return { ok: result.exitCode === 0 && !result.signal && !result.outputCapture?.stdout?.truncated,
-      status: result.exitCode, signal: result.signal || null, stdout: result.stdout || '',
-      settlement: { resourceId, settled: true, pending: false } };
+    const status = observation.read(result, 'exitCode'), childSignal = observation.read(result, 'signal');
+    const capture = observation.read(result, 'outputCapture'), stdoutCapture = observation.read(capture, 'stdout');
+    const truncated = observation.read(stdoutCapture, 'truncated'), stdout = observation.read(result, 'stdout');
+    if (stdout != null && typeof stdout !== 'string') throw new TypeError('Go SDK version output must be a string.', { cause: stdout });
+    observation.check(); signal?.throwIfAborted();
+    return Object.defineProperties({ ok: status === 0 && !childSignal && !truncated,
+      status, signal: childSignal || null, stdout: stdout || '', settlement: { resourceId, settled: true, pending: false } }, {
+      cacheOwnershipReleased: { value: observation.isSettled }
+    });
   } catch (value) {
     const error = asError(value);
-    let termination, inspectionError = null;
-    try { termination = error.result?.termination; } catch (failure) { inspectionError = asError(failure); }
-    const original = captureManagedVerificationFailure(error, resourceId).observe;
-    const treeSettled = termination?.treeCleanupSettled === true && termination.treeCleanupFailed === false;
-    const closed = () => (completed || !spawned || (closeObserved || termination?.closeObserved === true) && treeSettled
-      || original?.() === true) && (!original || original());
+    observation.remember(error);
+    const original = observation.originalObservation(error);
+    let terminationClosed = false, treeSettled = false, inspectionError = null;
+    if (observation.isSettled()) {
+      try {
+        const childResult = observation.read(error, 'result'), termination = observation.read(childResult, 'termination');
+        terminationClosed = observation.read(termination, 'closeObserved') === true;
+        treeSettled = observation.read(termination, 'treeCleanupSettled') === true && observation.read(termination, 'treeCleanupFailed') === false;
+      } catch (failure) { inspectionError = asError(failure); observation.remember(inspectionError); }
+    }
+    const closed = () => (completed || !spawned || (closeObserved || terminationClosed) && treeSettled
+      || original?.required === true && original.observe() === true) && observation.isSettled();
     const settled = closed();
-    throw addStorageFailureContext(error, settled ? { settlement: { resourceId, settled: true, pending: false } }
+    const base = settled ? error : new Error('Original Go SDK probe work remains retained.', { cause: error });
+    let failure = addStorageFailureContext(base, settled ? { settlement: { resourceId, settled: true, pending: false } }
       : { cacheOwnershipPending: true, cacheOwnershipReleased: closed }, inspectionError);
+    if (completed) failure = addStorageFailureContext(failure, { goSdkProbeResult: result }, result,
+      { secondaryPresent: true, nonEnumerable: ['goSdkProbeResult'] });
+    throw failure;
   }
 };
 
